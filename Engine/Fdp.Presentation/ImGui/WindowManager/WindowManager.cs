@@ -15,14 +15,16 @@ namespace Fdp.Presentation.WindowManager;
 /// </summary>
 public class WindowManager
 {
-    // â”€â”€ Fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Fields ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly IconAtlas _atlas;
+    private const int ActionAbout = -1;
+    private readonly List<string> _windowToggleMap = new();
     private bool _openAboutModal;
     private IFileDialogService? _fileDialogService;
 
-    // â”€â”€ Construction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Construction ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>Initialises a new <see cref="WindowManager"/>.</summary>
     /// <param name="atlas">Icon atlas used by managed windows for title-bar controls.</param>
@@ -34,7 +36,7 @@ public class WindowManager
     /// <summary>The icon atlas supplied at construction time.</summary>
     public IconAtlas Atlas => _atlas;
 
-    // â”€â”€ Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Registration ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Registers a window with this manager, keyed by <see cref="ManagedWindow.Id"/>.
@@ -54,7 +56,7 @@ public class WindowManager
     public bool TryGetWindow(string id, [MaybeNullWhen(false)] out ManagedWindow window)
         => _windows.TryGetValue(id, out window);
 
-    // â”€â”€ Programmatic API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Programmatic API ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Sets <see cref="ManagedWindow.IsOpen"/> to <c>true</c>.
@@ -112,7 +114,7 @@ public class WindowManager
         win.RequestFocus();
     }
 
-    // â”€â”€ Perspective â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Perspective ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>The currently active perspective name. Defaults to <c>"Default"</c>.</summary>
     public string CurrentPerspective { get; private set; } = "Default";
@@ -137,7 +139,7 @@ public class WindowManager
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
 
-    // â”€â”€ Message Log Registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Message Log Registry ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Optional shared <see cref="Fdp.Core.Logging.MessageLogRegistry"/> instance.
@@ -147,12 +149,12 @@ public class WindowManager
     /// </summary>
     public Fdp.Core.Logging.MessageLogRegistry? MessageLogRegistry { get; set; }
 
-    // â”€â”€ Menu Registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Menu Registry ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>The global application menu registry.</summary>
     public GlobalMenuRegistry GlobalMenu { get; } = new();
 
-    // â”€â”€ Status Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Status Bar ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     private readonly StatusBarManager _statusBar = new();
 
@@ -162,7 +164,7 @@ public class WindowManager
     /// </summary>
     public StatusBarManager StatusBar => _statusBar;
 
-    // â”€â”€ Settings Persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Settings Persistence ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
     //
     // NOTE(DEBT-003): ImGui.NET 1.91.x does not expose ImGuiSettingsHandler or
     // ImGui.AddSettingsHandler via its managed bindings.  A JSON-based fallback
@@ -201,13 +203,13 @@ public class WindowManager
             if (line.Length == 0) continue;
 
             int eq = line.IndexOf('=');
-            if (eq < 0) continue;          // malformed â€” no '='
+            if (eq < 0) continue;          // malformed — no '='
 
             var key   = line[..eq];
             var value = line[(eq + 1)..];
 
             var parts = value.Split(',');
-            if (parts.Length != 2) continue; // malformed â€” wrong value format
+            if (parts.Length != 2) continue; // malformed — wrong value format
 
             if (!bool.TryParse(parts[0].Trim(), out var isOpen))  continue;
             if (!bool.TryParse(parts[1].Trim(), out var isPinned)) continue;
@@ -217,7 +219,7 @@ public class WindowManager
                 win.IsOpen   = isOpen;
                 win.IsPinned = isPinned;
             }
-            // unknown id â†’ silently skip
+            // unknown id › silently skip
         }
     }
 
@@ -298,7 +300,7 @@ public class WindowManager
     private record WindowState(bool IsOpen, bool IsPinned);
     private record WindowManagerSettings(string ActivePerspective, Dictionary<string, WindowState> Windows);
 
-    // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Render ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Renders the global menu bar and all registered windows for the current frame.
@@ -319,11 +321,11 @@ public class WindowManager
         {
             RenderGlobalMenu(GlobalMenu.Root);
             RenderPerspectiveSwitcher();
-            RenderFixedWindowsMenu();
-            RenderFixedHelpMenu();
+            var hostMenus = BuildHostMenuDtos();
+            GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction);
 
             if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenuItems, onGizmoMenuAction);
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction);
 
             Gui.EndMainMenuBar();
         }
@@ -370,11 +372,11 @@ public class WindowManager
         _fileDialogService = service;
     }
 
-    // â”€â”€ Private render helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Private render helpers ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Recursively renders the trie rooted at <paramref name="node"/>.
-    /// The root itself is not rendered â€” only its children are iterated.
+    /// The root itself is not rendered — only its children are iterated.
     /// </summary>
     private void RenderGlobalMenu(MenuItemNode node)
     {
@@ -419,65 +421,91 @@ public class WindowManager
     }
 
     /// <summary>
-    /// Renders the fixed "Windows" menu with perspective sub-menus and a Global sub-menu.
+    /// Returns a stable negative action id for a window id.
     /// </summary>
-    private void RenderFixedWindowsMenu()
+    private int GetWindowActionId(string windowId)
     {
-        if (!Gui.BeginMenu("Windows")) return;
-
-        // â”€â”€ PerspectiveBound windows grouped by OwningPerspective (alphabetical sort) â”€â”€
+        int idx = _windowToggleMap.IndexOf(windowId);
+        if (idx < 0)
+        {
+            _windowToggleMap.Add(windowId);
+            idx = _windowToggleMap.Count - 1;
+        }
+        return -100 - idx;
+    }
+    private void HandleHostMenuAction(int actionId)
+    {
+        if (actionId == ActionAbout)
+        {
+            _openAboutModal = true;
+            return;
+        }
+        if (actionId <= -100)
+        {
+            int idx = -(actionId + 100);
+            if (idx >= 0 && idx < _windowToggleMap.Count)
+            {
+                if (_windows.TryGetValue(_windowToggleMap[idx], out var win))
+                    win.IsOpen = !win.IsOpen;
+            }
+        }
+    }
+    private IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> BuildHostMenuDtos()
+    {
+        var menus = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
+        var winChildren = new List<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>();
         var perspectiveGroups = _windows.Values
             .Where(w => w.Scope == WindowScope.PerspectiveBound && w.ShowInMenu)
             .GroupBy(w => w.OwningPerspective)
             .OrderBy(g => g.Key);
-
         foreach (var group in perspectiveGroups)
         {
-            if (!Gui.BeginMenu(group.Key))
+            winChildren.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
             {
-                // BeginMenu returned false â€” still must not call EndMenu.
-                continue;
-            }
-
-            foreach (var win in group)
-            {
-                if (win.ShowInMenu)
-                    RenderWindowToggleMenuItem(win);
-            }
-
-            Gui.EndMenu();
+                Label = group.Key,
+                Children = group.Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                {
+                    Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
+                }).ToArray()
+            });
         }
-
-        // â”€â”€ Global windows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var globalWindows = _windows.Values
-            .Where(w => w.Scope == WindowScope.Global && w.ShowInMenu)
-            .ToList();
-
-        if (globalWindows.Count > 0 && Gui.BeginMenu("Global"))
+        var globalWindows = _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu).ToList();
+        if (globalWindows.Count > 0)
         {
-            foreach (var win in globalWindows)
+            winChildren.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
             {
-                RenderWindowToggleMenuItem(win);
-            }
-
-            Gui.EndMenu();
+                Label = "Global",
+                Children = globalWindows.Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                {
+                    Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
+                }).ToArray()
+            });
         }
-
-        Gui.EndMenu();
-    }
-
-    /// <summary>
-    /// Renders a single checkable menu item that mirrors <see cref="ManagedWindow.IsOpen"/>.
-    /// Applies show/hide logic (including auto-pin) when the checked state changes.
-    /// </summary>
-    private void RenderWindowToggleMenuItem(ManagedWindow win)
-    {
-        bool isOpen = win.IsOpen;
-        if (Gui.MenuItem(win.Title, "", ref isOpen))
+        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
         {
-            if (isOpen) ShowWindow(win.Id);
-            else HideWindow(win.Id);
-        }
+            Label = "Windows",
+            Priority = 90,
+            Children = winChildren.ToArray()
+        });
+        menus.Add(new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+        {
+            Label = "Help",
+            Priority = 100,
+            Children = new[]
+            {
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                {
+                    Label = "Debug",
+                    Children = _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu)
+                        .Select(w => new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto
+                        {
+                            Id = GetWindowActionId(w.Id), Label = w.Title, IsChecked = w.IsOpen
+                        }).ToArray()
+                },
+                new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = ActionAbout, Label = "About" }
+            }
+        });
+        return menus;
     }
 
     /// <summary>
@@ -532,34 +560,6 @@ public class WindowManager
                 Gui.SameLine();
             }
         }
-    }
-
-    /// <summary>
-    /// Renders the fixed "Help" menu containing the "Debug" sub-menu (Global windows) and an "About" item.
-    /// </summary>
-    private void RenderFixedHelpMenu()
-    {
-        if (!Gui.BeginMenu("Help")) return;
-
-        if (Gui.BeginMenu("Debug"))
-        {
-            foreach (var win in _windows.Values.Where(w => w.Scope == WindowScope.Global && w.ShowInMenu))
-            {
-                bool isOpen = win.IsOpen;
-                if (Gui.MenuItem(win.Title, "", ref isOpen))
-                {
-                    if (isOpen) ShowWindow(win.Id);
-                    else HideWindow(win.Id);
-                }
-            }
-
-            Gui.EndMenu();
-        }
-
-        if (Gui.MenuItem("About"))
-            _openAboutModal = true;
-
-        Gui.EndMenu();
     }
 
     private void RenderAboutModalContent()
@@ -619,3 +619,4 @@ public class WindowManager
         Gui.EndPopup();
     }
 }
+

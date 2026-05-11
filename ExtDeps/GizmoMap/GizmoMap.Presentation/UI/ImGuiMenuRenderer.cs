@@ -8,31 +8,25 @@ namespace GizmoMap.Presentation
 {
     /// <summary>
     /// Stateless utility that projects an ordered sequence of <see cref="ContextMenuItemDto"/>
-    /// items to an ImGui main menu bar.
+    /// items to the current ImGui menu context.
     ///
     /// Usage (inside ImGui frame):
     /// <code>
     /// var items = layer.ConsumeMainMenu();
-    /// ImGuiMenuRenderer.DrawMenuBar(items, id => OnMenuAction(id));
+    /// ImGuiMenuRenderer.DrawMenus(items, id => OnMenuAction(id));
     /// </code>
     /// </summary>
     public static class ImGuiMenuRenderer
     {
         /// <summary>
-        /// Opens <c>ImGui.BeginMainMenuBar()</c> and renders all top-level menus.
-        /// Does nothing when <paramref name="items"/> is empty to avoid an empty bar.
+        /// Draws menu items into the current ImGui menu scope.
+        /// Caller owns <c>ImGui.BeginMainMenuBar()</c>/<c>ImGui.EndMainMenuBar()</c>.
         /// </summary>
-        public static void DrawMenuBar(IReadOnlyList<ContextMenuItemDto> items, Action<int>? onAction)
+        public static void DrawMenus(IEnumerable<ContextMenuItemDto> items, Action<int>? onAction)
         {
-            if (items == null || items.Count == 0) return;
-
-            if (ImGui.BeginMainMenuBar())
-            {
-                foreach (var item in items)
-                    DrawTopLevelMenu(item, onAction);
-
-                ImGui.EndMainMenuBar();
-            }
+            if (items == null) return;
+            foreach (var item in items)
+                DrawTopLevelMenu(item, onAction);
         }
 
         // Renders a single top-level <c>BeginMenu</c> entry and its children.

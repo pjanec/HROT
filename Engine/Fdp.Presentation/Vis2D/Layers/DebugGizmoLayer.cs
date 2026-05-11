@@ -40,15 +40,18 @@ namespace Fdp.Toolkit.Vis2D.Layers
             FdpEventBus eventBus,
             Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D? renderer = null,
             MapCamera? camera = null,
-            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null)
+            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
+            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
             _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary);
+            var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+            var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
-                new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
+                innerRenderer);
         }
 
         public DebugGizmoLayer(
@@ -57,15 +60,18 @@ namespace Fdp.Toolkit.Vis2D.Layers
             FdpEventBus eventBus,
             Fdp.ModuleHost.Abstractions.ISimulationView? view,
             MapCamera? camera = null,
-            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null)
+            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
+            GizmoMap.Presentation.GizmoSchemaRegistry? schemaRegistry = null)
         {
             LayerBitIndex = layerBitIndex;
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
             _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary);
+            var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+            var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
-                new GizmoMap.Presentation.DebugPrimitiveRenderer2D());
+                innerRenderer);
         }
 
         public void Update(float dt)
@@ -115,6 +121,18 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 {
                     AnchorId = token.AnchorId,
                     ActionId = actionId,
+                });
+            });
+        }
+
+        public void DrawStructInspector()
+        {
+            _innerTerminal.DrawStructInspector((networkId, json) =>
+            {
+                _eventBus?.PublishManaged(new GizmoStructUpdateEvent
+                {
+                    AnchorId = networkId,
+                    PayloadJson = json,
                 });
             });
         }

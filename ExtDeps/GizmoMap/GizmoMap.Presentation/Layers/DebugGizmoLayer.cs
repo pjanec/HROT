@@ -294,7 +294,7 @@ namespace GizmoMap.Presentation
         /// <summary>
         /// Returns the aggregated main-menu items collected from <see cref="DebugPrimitiveShape.MainMenuBinding"/>
         /// primitives during the most recent <see cref="HandleInput"/> call, then clears internal state.
-        /// Pass the returned list to <see cref="ImGuiMenuRenderer.DrawMenuBar"/> inside a
+        /// Pass the returned list to <see cref="ImGuiMenuRenderer.DrawMenus"/> inside a
         /// <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block to merge gizmo-provided menus
         /// with the host application menu bar.
         /// </summary>
@@ -311,7 +311,7 @@ namespace GizmoMap.Presentation
             var items = ConsumeMainMenu();
             if (items.Count == 0) return;
             if (!ImGuiNET.ImGui.BeginMainMenuBar()) return;
-            ImGuiMenuRenderer.DrawMenuBar(items, onAction);
+            ImGuiMenuRenderer.DrawMenus(items, onAction);
             ImGuiNET.ImGui.EndMainMenuBar();
         }
 
@@ -326,6 +326,11 @@ namespace GizmoMap.Presentation
         {
             _contextMenuAdapter.DrawScheduled((anchorId, actionId) =>
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
+        }
+
+        public void DrawStructInspector(Action<long, string>? onStructUpdate = null)
+        {
+            _renderer.DrawStructInspector(onStructUpdate);
         }
 
         private static DebugPrimitive? FindTopmostInteractivePrimitive(
@@ -372,4 +377,3 @@ namespace GizmoMap.Presentation
         }
     }
 }
-

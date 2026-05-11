@@ -176,6 +176,11 @@ namespace GizmoMap.Presentation
                 DispatchShape(in prim, camera, zoom);
         }
 
+        public void DrawStructInspector(Action<long, string>? onStructUpdate = null)
+        {
+            _imGuiAdapter.DrawScheduled(onStructUpdate);
+        }
+
         /// <summary>
         /// Issues the actual Raylib draw call(s) for one primitive.
         /// Override in test subclasses to capture dispatches without Raylib.
