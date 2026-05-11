@@ -1134,7 +1134,8 @@ public class IgApplication : IDisposable
         var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
         schemaRegistry.Register(
             Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-            Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument());
+            Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument(
+                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto)));
         var gizmoLayer = new DebugGizmoLayer(
             31,
             _gizmoBuffer!,

@@ -856,7 +856,8 @@ namespace Hrot.Editor
                 var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
                 schemaRegistry.Register(
                     Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-                    Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument());
+                    Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument(
+                        typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto)));
                 _gizmoLayer = new DebugGizmoLayer(
                     31,
                     _gizmoBuffer!,
