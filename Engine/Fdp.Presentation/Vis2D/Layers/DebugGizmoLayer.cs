@@ -90,6 +90,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         public void Draw(RenderContext ctx)
         {
             if (_buffer == null) return;
+            var primitives = _buffer.GetFrame();
 
             if (LayerBitIndex >= 0 && LayerBitIndex < 32)
             {
@@ -102,7 +103,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
             if (mapCamera != null)
                 _camera = mapCamera.InnerCamera;
 
-            _renderer.Render(_buffer.GetFrame(), ctx);
+            _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
+            _renderer.Render(primitives, ctx);
         }
 
         // FDP Inputs are muted. Raw input is polled by the inner terminal.
@@ -139,7 +141,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         /// <summary>
         /// Returns main-menu items contributed by gizmos via <see cref="DebugPrimitiveShape.MainMenuBinding"/>
-        /// primitives during the most recent <see cref="Update"/> call, then clears internal state.
+        /// primitives during the most recent <see cref="Draw"/> call, then clears internal state.
         /// </summary>
         public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto> ConsumeMainMenu()
             => _innerTerminal.ConsumeMainMenu();

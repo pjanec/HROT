@@ -26,21 +26,20 @@ namespace GizmoMap.Presentation
         {
             if (items == null) return;
             foreach (var item in items)
-                DrawTopLevelMenu(item, onAction);
-        }
-
-        // Renders a single top-level <c>BeginMenu</c> entry and its children.
-        private static void DrawTopLevelMenu(ContextMenuItemDto item, Action<int>? onAction)
-        {
-            bool enabled = item.Enabled != false;
-            if (ImGui.BeginMenu(item.Label ?? string.Empty, enabled))
             {
-                if (item.Children != null)
+                if (item.Children != null && item.Children.Length > 0)
                 {
-                    foreach (var child in item.Children)
-                        DrawItem(child, onAction);
+                    if (ImGui.BeginMenu(item.Label ?? string.Empty, item.Enabled ?? true))
+                    {
+                        DrawMenus(item.Children, onAction);
+                        ImGui.EndMenu();
+                    }
                 }
-                ImGui.EndMenu();
+                else
+                {
+                    // Actionable leaf nodes MUST be rendered with ImGui.MenuItem.
+                    DrawItem(item, onAction);
+                }
             }
         }
 

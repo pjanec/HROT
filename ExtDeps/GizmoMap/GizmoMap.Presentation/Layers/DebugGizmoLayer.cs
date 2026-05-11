@@ -46,6 +46,23 @@ namespace GizmoMap.Presentation
             _renderer.Render(primitives, camera, zoom);
         }
 
+        public void ExtractMetaPrimitives(ReadOnlySpan<DebugPrimitive> primitives, StringInternMap internMap)
+        {
+            foreach (ref readonly var prim in primitives)
+            {
+                if (prim.Shape == DebugPrimitiveShape.MainMenuBinding)
+                {
+                    string? json = internMap.TryResolve(prim.StringHash);
+                    if (json != null)
+                        _mainMenuAdapter.Schedule(json);
+                }
+                else if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
+                {
+                    // (Optional) Menu hashes can also be cached here if needed by the terminal
+                }
+            }
+        }
+
         /// <summary>
         /// Polls Raylib mouse/keyboard state and routes input to the active
         /// <see cref="GizmoInteractionProxyTool"/>, or starts a new one when the
@@ -112,18 +129,11 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Build menu bindings dictionary from ContextMenuBinding meta-primitives ---
-            // Also aggregate MainMenuBinding primitives for ConsumeMainMenu().
             var menuBindings = new Dictionary<long, uint>();
             foreach (ref readonly var prim in primitives)
             {
                 if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding)
                     menuBindings[prim.InspNetworkId] = prim.StringHash;
-                else if (prim.Shape == DebugPrimitiveShape.MainMenuBinding)
-                {
-                    string? json = internMap.TryResolve(prim.StringHash);
-                    if (json != null)
-                        _mainMenuAdapter.Schedule(json);
-                }
             }
 
             // ---- Try to start a new interaction on left press ----------------------------
@@ -293,7 +303,7 @@ namespace GizmoMap.Presentation
 
         /// <summary>
         /// Returns the aggregated main-menu items collected from <see cref="DebugPrimitiveShape.MainMenuBinding"/>
-        /// primitives during the most recent <see cref="HandleInput"/> call, then clears internal state.
+        /// primitives during the most recent <see cref="ExtractMetaPrimitives"/> call, then clears internal state.
         /// Pass the returned list to <see cref="ImGuiMenuRenderer.DrawMenus"/> inside a
         /// <c>rlImGui.Begin()</c>/<c>rlImGui.End()</c> block to merge gizmo-provided menus
         /// with the host application menu bar.

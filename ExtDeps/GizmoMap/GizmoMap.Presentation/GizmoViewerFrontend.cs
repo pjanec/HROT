@@ -57,6 +57,9 @@ namespace GizmoMap.Presentation
 
                 Raylib.EndMode2D();
 
+                // Evaluate meta-primitives before drawing menus
+                layer.ExtractMetaPrimitives(renderBuffer.GetFrame(), renderBuffer.InternMap);
+
                 rlImGui.Begin();
                 layer.DrawMainMenu(actionId =>
                     onMenuAction?.Invoke(new GizmoPickToken { AnchorId = 0 }, actionId));
