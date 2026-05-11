@@ -47,8 +47,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
-            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary);
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+            _renderer = renderer ?? new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(null, shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 innerRenderer);
@@ -67,8 +67,8 @@ namespace Fdp.Toolkit.Vis2D.Layers
             _buffer = buffer;
             _eventBus = eventBus;
             _mapCamera = camera;
-            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary);
             var imGuiAdapter = new GizmoMap.Presentation.ImGuiPropertyTreeAdapter(schemaRegistry);
+            _renderer = new Fdp.Toolkit.Vis2D.Gizmos.DebugPrimitiveRenderer2D(view, shapeLibrary, imGuiAdapter);
             var innerRenderer = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(null, imGuiAdapter);
             _innerTerminal = new GizmoMap.Presentation.DebugGizmoLayer(
                 innerRenderer);

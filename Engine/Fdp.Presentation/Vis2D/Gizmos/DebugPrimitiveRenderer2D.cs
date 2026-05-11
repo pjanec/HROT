@@ -12,10 +12,12 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
 
         public DebugPrimitiveRenderer2D(
             ISimulationView? view = null,
-            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null)
+            GizmoMap.Presentation.Shapes.IEntityShapeLibrary? shapeLibrary = null,
+            GizmoMap.Presentation.ImGuiPropertyTreeAdapter? imGuiAdapter = null)
         {
             _inner = new GizmoMap.Presentation.DebugPrimitiveRenderer2D(
-                shapeLibrary ?? new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
+                shapeLibrary ?? new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                imGuiAdapter);
         }
 
         public void SetLayerMask(ushort mask) { }
