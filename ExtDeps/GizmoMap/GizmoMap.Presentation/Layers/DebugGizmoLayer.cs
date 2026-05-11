@@ -98,18 +98,24 @@ namespace GizmoMap.Presentation
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
             var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
             var delta = Raylib.GetMouseDelta();
+            
+            // FIX: Respect ImGui hardware capture state
+            bool isMouseCaptured = ImGuiNET.ImGui.GetIO().WantCaptureMouse;
+            bool isKeyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard;
+
             long? exclusiveAnchorId = null;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
+            
             for (int i = 0; i < primitives.Length; i++)
             {
                 ref readonly var prim = ref primitives[i];
                 if (prim.Shape != DebugPrimitiveShape.InputCaptureBinding) continue;
-                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.InspNetworkId;
+                if ((prim.ConditionMask & 1u) != 0) exclusiveAnchorId = prim.StructNetworkId;
                 if ((prim.ConditionMask & 2u) != 0) routeRawInput = true;
                 captureToken = new GizmoPickToken
                 {
-                    AnchorId = prim.InspNetworkId,
+                    AnchorId = prim.StructNetworkId,
                     SubElementId = prim.SubElementId,
                     StreamId = prim.AnchorGeneration,
                 };
@@ -119,7 +125,8 @@ namespace GizmoMap.Presentation
             if (Raylib.IsMouseButtonPressed(MouseButton.Right))
             {
                 _rightPressScreenPos = screenPos;
-                _rightWasDragged = false;
+                // If ImGui captured the press, treat it as already dragged so it never triggers a canvas menu upon release
+                _rightWasDragged = isMouseCaptured;
             }
 
             if (Raylib.IsMouseButtonDown(MouseButton.Right) &&
@@ -137,18 +144,21 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Try to start a new interaction on left press ----------------------------
-            if (_activeTool == null && Raylib.IsMouseButtonPressed(MouseButton.Left))
+            // Gate activation: ignore if ImGui is capturing the mouse
+            if (_activeTool == null && !isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
             {
                 var best = FindTopmostInteractivePrimitive(primitives, worldPos, camera.Zoom, exclusiveAnchorId);
                 if (best.HasValue)
                 {
                     var hit = best.Value;
+                    
                     // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
                     // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
                     // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
                     // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
                     // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                     long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
+                    
                     var token = new GizmoPickToken
                     {
                         AnchorId = anchorId,
@@ -163,20 +173,21 @@ namespace GizmoMap.Presentation
                 {
                     // Canvas fallback to allow selection-rect interactions.
                     _activeTool = new GizmoInteractionProxyTool(
-                        default, worldPos, onInteraction, onExit: () => _activeTool = null);
+                        default, worldPos,
+                        onInteraction, onExit: () => _activeTool = null);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
             }
 
             // ---- Right-click: show context menu for the topmost hit primitive, or canvas ---
-            // Falls back to canvas anchor (-1L) when no entity is under the cursor so
-            // that empty-space right-clicks resolve through the same ContextMenuBinding pipeline.
             bool contextMenuOpened = false;
             if (_activeTool == null && Raylib.IsMouseButtonReleased(MouseButton.Right))
             {
                 bool suppressMenu = _rightWasDragged;
                 _rightWasDragged = false;
-                if (!suppressMenu)
+                
+                // Block context menu if ImGui currently captures the mouse
+                if (!suppressMenu && !isMouseCaptured)
                 {
                     long hitNetworkId = -1L; // canvas anchor fallback
 
@@ -185,16 +196,9 @@ namespace GizmoMap.Presentation
                     {
                         var hit = best.Value;
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
-
-
-                        // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
-                        // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the
-                        // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
-                        // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object.
-                        // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
-                        long anchorId = hit.AnchorGeneration  != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
-
-
+                        
+                        long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
+                        
                         var token = new GizmoPickToken
                         {
                             AnchorId = anchorId,
@@ -229,6 +233,8 @@ namespace GizmoMap.Presentation
             }
 
             // ---- Drive the active drag tool with subsequent mouse state ----------------
+            // If the tool is already active, it receives input updates (releases/drags) even
+            // if the mouse strays over ImGui, otherwise drags would get stuck.
             if (_activeTool != null)
             {
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
@@ -243,7 +249,7 @@ namespace GizmoMap.Presentation
                 if (Raylib.IsMouseButtonReleased(MouseButton.Right))
                     _activeTool.HandleClick(worldPos, MouseButton.Right);
 
-                if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+                if (!isKeyboardCaptured && Raylib.IsKeyPressed(KeyboardKey.Escape))
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
             }
 
@@ -262,14 +268,16 @@ namespace GizmoMap.Presentation
                 if (Raylib.IsKeyDown(KeyboardKey.LeftAlt) || Raylib.IsKeyDown(KeyboardKey.RightAlt))
                     modifiers |= (int)MapKeyboardKey.AltMask;
 
-                if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                // Only send raw PRESSED events if ImGui doesn't want the mouse...
+                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Left))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
                         worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
+                // ...but ALWAYS send released events to prevent stuck backend input queues.
                 else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
                         worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
 
-                if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                if (!isMouseCaptured && Raylib.IsMouseButtonPressed(MouseButton.Right))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
                         worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
                 else if (!contextMenuOpened && Raylib.IsMouseButtonReleased(MouseButton.Right))
@@ -278,38 +286,46 @@ namespace GizmoMap.Presentation
 
                 int key;
                 while ((key = Raylib.GetKeyPressed()) != 0)
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, key | modifiers, 0x01);
-
-                if (Raylib.IsKeyReleased(KeyboardKey.Escape))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Escape | modifiers, 0x00);
-                if (Raylib.IsKeyReleased(KeyboardKey.Enter))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Enter | modifiers, 0x00);
-                if (Raylib.IsKeyReleased(KeyboardKey.Delete))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Delete | modifiers, 0x00);
-                if (Raylib.IsKeyReleased(KeyboardKey.Tab))
-                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Tab | modifiers, 0x00);
-
-                void RouteMod(KeyboardKey rlKey, MapKeyboardKey mapKey)
                 {
-                    if (Raylib.IsKeyPressed(rlKey))
+                    if (!isKeyboardCaptured)
+                    {
                         onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                            worldPos3, (int)mapKey | modifiers, 0x01);
-                    if (Raylib.IsKeyReleased(rlKey))
-                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                            worldPos3, (int)mapKey | modifiers, 0x00);
+                            worldPos3, key | modifiers, 0x01);
+                    }
                 }
 
-                RouteMod(KeyboardKey.LeftShift, MapKeyboardKey.LeftShift);
-                RouteMod(KeyboardKey.RightShift, MapKeyboardKey.RightShift);
-                RouteMod(KeyboardKey.LeftControl, MapKeyboardKey.LeftControl);
-                RouteMod(KeyboardKey.RightControl, MapKeyboardKey.RightControl);
-                RouteMod(KeyboardKey.LeftAlt, MapKeyboardKey.LeftAlt);
-                RouteMod(KeyboardKey.RightAlt, MapKeyboardKey.RightAlt);
+                if (!isKeyboardCaptured)
+                {
+                    if (Raylib.IsKeyReleased(KeyboardKey.Escape))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapKeyboardKey.Escape | modifiers, 0x00);
+                    if (Raylib.IsKeyReleased(KeyboardKey.Enter))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapKeyboardKey.Enter | modifiers, 0x00);
+                    if (Raylib.IsKeyReleased(KeyboardKey.Delete))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapKeyboardKey.Delete | modifiers, 0x00);
+                    if (Raylib.IsKeyReleased(KeyboardKey.Tab))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)MapKeyboardKey.Tab | modifiers, 0x00);
+
+                    void RouteMod(KeyboardKey rlKey, MapKeyboardKey mapKey)
+                    {
+                        if (Raylib.IsKeyPressed(rlKey))
+                            onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                                worldPos3, (int)mapKey | modifiers, 0x01);
+                        if (Raylib.IsKeyReleased(rlKey))
+                            onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                                worldPos3, (int)mapKey | modifiers, 0x00);
+                    }
+
+                    RouteMod(KeyboardKey.LeftShift, MapKeyboardKey.LeftShift);
+                    RouteMod(KeyboardKey.RightShift, MapKeyboardKey.RightShift);
+                    RouteMod(KeyboardKey.LeftControl, MapKeyboardKey.LeftControl);
+                    RouteMod(KeyboardKey.RightControl, MapKeyboardKey.RightControl);
+                    RouteMod(KeyboardKey.LeftAlt, MapKeyboardKey.LeftAlt);
+                    RouteMod(KeyboardKey.RightAlt, MapKeyboardKey.RightAlt);
+                }
             }
         }
 
