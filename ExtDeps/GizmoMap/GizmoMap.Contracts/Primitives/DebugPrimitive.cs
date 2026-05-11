@@ -328,5 +328,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.StructIsReadOnly = (byte)(isReadOnly ? 1 : 0);
             return p;
         }
+
+        public static DebugPrimitive MakeLayerControlMask(
+            LayerMask256 activeLayers,
+            PipelineTarget target = PipelineTarget.All)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape = DebugPrimitiveShape.LayerControlMask;
+            p.TargetView = target;
+            p.ActiveLayers = activeLayers;
+            return p;
+        }
     }
 }
