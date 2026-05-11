@@ -234,6 +234,20 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
+        // ECS-anchored overload for interactive tools and pick-box primitives.
+        public static DebugPrimitive MakeBox2D(
+            Vector2 center, Vector2 extents, Rgba32 color,
+            int anchorIndex, ushort anchorGeneration, long networkId,
+            ushort subElementId = 0, float angleDeg = 0f, float thickness = 1f,
+            SizeMode sizeMode = SizeMode.ScreenPixels, PipelineTarget target = PipelineTarget.All,
+            byte layer = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid)
+        {
+            var p = MakeBox2D(center, extents, color, angleDeg, thickness, sizeMode, target, layer, fillColor, style, networkId, subElementId);
+            p.AnchorIndex = anchorIndex;
+            p.AnchorGeneration = anchorGeneration;
+            return p;
+        }
+
         public static DebugPrimitive MakeArrow(
             Vector3 from, Vector3 to, Rgba32 color,
             float headSize = 1f,
@@ -306,6 +320,26 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return p;
         }
 
+        public static DebugPrimitive MakeSemanticShape(
+            int anchorIndex, ushort anchorGeneration, long networkId, ulong profileId,
+            float length, float width, uint conditionMask,
+            PipelineTarget target = PipelineTarget.All, byte layer = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape = DebugPrimitiveShape.SemanticShape;
+            p.Space = CoordinateSpace.EntityLocal;
+            p.TargetView = target;
+            p.DebugLayer = layer;
+            p.AnchorIndex = anchorIndex;
+            p.AnchorGeneration = anchorGeneration;
+            p.BoxAnchorId = networkId;
+            p.ProfileId = profileId;
+            p.LengthMeters = length;
+            p.WidthMeters = width;
+            p.ConditionMask = conditionMask;
+            return p;
+        }
+
         public static DebugPrimitive MakeStructInspector(
             long networkId,
             uint schemaHash,
@@ -337,6 +371,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.Shape = DebugPrimitiveShape.LayerControlMask;
             p.TargetView = target;
             p.ActiveLayers = activeLayers;
+            return p;
+        }
+
+        public static DebugPrimitive MakeSpatialAnchor(
+            long networkId, float worldX, float worldY, float worldZ,
+            float headingDeg, float pitchDeg = 0f, float rollDeg = 0f,
+            PipelineTarget target = PipelineTarget.All, byte layer = 0)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape        = DebugPrimitiveShape.SpatialAnchor;
+            p.TargetView   = target;
+            p.DebugLayer   = layer;
+            p.NetworkId    = networkId;
+            p.AnchorWorldX = worldX;
+            p.AnchorWorldY = worldY;
+            p.AnchorWorldZ = worldZ;
+            p.Heading      = headingDeg;
+            p.Pitch        = pitchDeg;
+            p.Roll         = rollDeg;
             return p;
         }
     }
