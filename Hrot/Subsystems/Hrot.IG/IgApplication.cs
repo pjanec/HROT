@@ -1132,10 +1132,13 @@ public class IgApplication : IDisposable
         _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
         var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+        var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+        using var layerControlSchemaSession = layerControlEditService.Open(
+            new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { BaseLayer = true, UnitsLayer = true, SensorsLayer = true },
+            typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
         schemaRegistry.Register(
             Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-            Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument(
-                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto)));
+            layerControlSchemaSession.Document);
         var gizmoLayer = new DebugGizmoLayer(
             31,
             _gizmoBuffer!,

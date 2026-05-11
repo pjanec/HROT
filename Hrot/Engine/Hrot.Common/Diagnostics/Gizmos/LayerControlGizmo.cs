@@ -18,7 +18,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
-    public struct LayerControlDto
+    public class LayerControlDto
     {
         public bool BaseLayer { get; set; }
         public bool UnitsLayer { get; set; }
