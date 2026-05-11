@@ -305,5 +305,28 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.StringHash = menuJsonHash;
             return p;
         }
+
+        public static DebugPrimitive MakeStructInspector(
+            long networkId,
+            uint schemaHash,
+            ScreenAnchor anchor = ScreenAnchor.TopLeft,
+            float offsetX = 0f,
+            float offsetY = 0f,
+            SizeMode sizeMode = SizeMode.ScreenPixels,
+            bool isReadOnly = false,
+            PipelineTarget target = PipelineTarget.All)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape = DebugPrimitiveShape.StructInspector;
+            p.TargetView = target;
+            p.StructNetworkId = networkId;
+            p.StructSchemaHash = schemaHash;
+            p.StructAnchor = anchor;
+            p.StructOffsetX = offsetX;
+            p.StructOffsetY = offsetY;
+            p.SizeMode = sizeMode;
+            p.StructIsReadOnly = (byte)(isReadOnly ? 1 : 0);
+            return p;
+        }
     }
 }
