@@ -27,12 +27,13 @@ namespace Hrot.IG.Tests.Gizmos
 
         public void DrawLine(Vector3 start, Vector3 end, Rgba32 color,
             float thickness = 1f, SizeMode sizeMode = SizeMode.ScreenPixels,
-            PipelineTarget target = PipelineTarget.All, byte layer = 0)
+            PipelineTarget target = PipelineTarget.All, byte layer = 0, LineStyle style = LineStyle.Solid)
             => LineCalls.Add((start, end, color));
 
         public void DrawSphere(Vector3 center, float radius, Rgba32 color,
             float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
-            PipelineTarget target = PipelineTarget.All, byte layer = 0)
+            PipelineTarget target = PipelineTarget.All, byte layer = 0,
+            Rgba32 fillColor = default, LineStyle style = LineStyle.Solid)
             => SphereCalls.Add((center, radius, color));
 
         public void DrawEntityBadge(Entity entity, FixedString32 richText,
@@ -42,7 +43,7 @@ namespace Hrot.IG.Tests.Gizmos
         // Unused stubs.
         public void DrawLineGradient(Vector3 start, Vector3 end, Rgba32 startColor, Rgba32 endColor,
             float thickness = 1f, SizeMode sizeMode = SizeMode.ScreenPixels,
-            PipelineTarget target = PipelineTarget.All, byte layer = 0) { }
+            PipelineTarget target = PipelineTarget.All, byte layer = 0, LineStyle style = LineStyle.Solid) { }
 
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World, byte layer = 0) { }

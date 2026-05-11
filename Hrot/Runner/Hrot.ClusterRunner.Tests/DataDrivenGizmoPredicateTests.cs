@@ -73,12 +73,13 @@ namespace Hrot.ClusterRunner.Tests
     internal sealed class D003NoOpDrawBuilder : IDebugDrawBuilder
     {
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
-            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0) { }
+            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
-            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0) { }
+            SizeMode sm = SizeMode.ScreenPixels, PipelineTarget pt = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawSphere(Vector3 c, float r, Rgba32 col,
             float thickness = 0f, SizeMode sizeMode = SizeMode.WorldMeters,
-            PipelineTarget pt = PipelineTarget.All, byte l = 0) { }
+            PipelineTarget pt = PipelineTarget.All, byte l = 0,
+            Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 col, float headSize = 1f, byte l = 0) { }
         public void DrawText(float x, float y, FixedString32 text, Rgba32 col,
             CoordinateSpace space = CoordinateSpace.World, byte l = 0) { }

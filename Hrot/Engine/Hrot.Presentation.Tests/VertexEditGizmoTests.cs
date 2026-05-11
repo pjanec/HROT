@@ -22,13 +22,14 @@ public class VertexEditGizmoTests : IDisposable
     {
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
-            PipelineTarget tg = PipelineTarget.All, byte l = 0) { }
+            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
-            PipelineTarget tg = PipelineTarget.All, byte l = 0) { }
+            PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
         public void DrawSphere(Vector3 c, float r, Rgba32 col,
             float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters,
-            PipelineTarget tg = PipelineTarget.All, byte l = 0) { }
+            PipelineTarget tg = PipelineTarget.All, byte l = 0,
+            Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
         public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c,
             CoordinateSpace sp = CoordinateSpace.World, byte l = 0) { }
