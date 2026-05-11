@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using System.Collections.Generic;
 
@@ -210,22 +210,22 @@ public class IgApplication : IDisposable
 
 
 
-    // -- Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
+    // -- Network enabled flag � false when DDS libraries are unavailable (e.g. unit-test host)
 
     private bool _networkEnabled;
 
-    // -- ClusterSlave (CGF1-S0104 / CMC-S016) — wired in InitializeNetwork ------
+    // -- ClusterSlave (CGF1-S0104 / CMC-S016) � wired in InitializeNetwork ------
     private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
     // CMC-S016: orchestration bus + slave translator (Option C).
     private Fdp.Core.FdpEventBus?                             _igOrchestrationBus;
     private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
 
-    // ── HrotNodeBuilder infrastructure context (EAM-M002) ─────────────────────
+    // �� HrotNodeBuilder infrastructure context (EAM-M002) ���������������������
     private HrotNodeContext? _context;
 
 
 
-    // -- Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
+    // -- Headless flag � set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
 
     private bool _headless;
 
@@ -304,7 +304,7 @@ public class IgApplication : IDisposable
     private HrotEntityFilterFactory? _entityFilterFactory;
 #pragma warning restore CS0649
 
-    // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the DDS writer.
+    // _createEntityDdsWriter removed by D005 � SpawnEntityCommandEgressTranslator owns the DDS writer.
 
     /// <summary>
     /// Test-only callback: when non-null, receives every <see cref="SpawnEntityCommand"/>
@@ -357,7 +357,7 @@ public class IgApplication : IDisposable
     /// <summary>Throttle interval for continuous drag network updates (10 Hz).</summary>
     private const float ContinuousDragIntervalSec = 0.1f;
 
-    // -- Style and culling objects ÔÇö updated and injected into modules
+    // -- Style and culling objects ��� updated and injected into modules
 
     private MapUserConfig     _userConfig     = null!;
 
@@ -398,7 +398,7 @@ public class IgApplication : IDisposable
 
 
 
-    // ── FDP framework panels (Task 16) ────────────────────────────────────────────
+    // �� FDP framework panels (Task 16) ��������������������������������������������
 
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();
 
@@ -410,7 +410,7 @@ public class IgApplication : IDisposable
 
     private FdpInspectorState       _fdpInspectorState  = new();
 
-    // Task 46: track last known map selection so we only push map→inspector
+    // Task 46: track last known map selection so we only push map�inspector
     // when the selection actually changes, and never overwrite a user-chosen
     // inspector selection when the map has nothing selected.
     private Entity                  _fdpLastMapSelection = Entity.Null;
@@ -437,7 +437,7 @@ public class IgApplication : IDisposable
     /// </summary>
     public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
 
-    // ── Public panel accessors for window-manager registration ────────────────
+    // �� Public panel accessors for window-manager registration ����������������
     // Exposed so IgSubsystem can create ManagedWindow wrappers without needing
     // access to IgApplication's private fields.
 
@@ -617,7 +617,7 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
-    /// Initialises the ECS world and kernel (no DDS ÔÇö safe to call in tests).
+    /// Initialises the ECS world and kernel (no DDS ��� safe to call in tests).
 
     /// </summary>
 
@@ -625,7 +625,7 @@ public class IgApplication : IDisposable
 
     {
 
-        // ── Build core ECS infrastructure (EAM-M002) ─────────────────────────
+        // �� Build core ECS infrastructure (EAM-M002) �������������������������
         // Create participant in the Application Shell (Composition Root) before calling
         // HrotNodeBuilder. Rule: only the outermost executable may instantiate DdsParticipant.
         // HrotNodeBuilder no longer has a fallback.
@@ -719,7 +719,7 @@ public class IgApplication : IDisposable
         // Gizmo activation event for local editing gizmos.
         _world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 
-        // ── Route planning components (ROUTES1) ───────────────────────────────
+        // �� Route planning components (ROUTES1) �������������������������������
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
         _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
         _world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
@@ -727,7 +727,7 @@ public class IgApplication : IDisposable
         // Zone obstacle components required by StatelessGizmoSystem gizmos.
         _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
 
-        // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
+        // �� Ground clamping components (MOD1-P7T2) ����������������������������
         // Registered unconditionally so they are available even when
         // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
         _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
@@ -772,9 +772,9 @@ public class IgApplication : IDisposable
 
         _world.AddComponent(_mapContextEntity, new NetworkIdentity(0));
 
-        // ── ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances ──
+        // �� ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances ��
         // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
-        // in Hrot.SimHost so the JSON→Binary schema stays in sync on both ends of the wire.
+        // in Hrot.SimHost so the JSON�Binary schema stays in sync on both ends of the wire.
         _edgeCompiler = new JsonToRecordCompilerBuilder()
             .Register("Name",                  AttributeIds.Name,        AttributeValueKind.String)
             .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.String)
@@ -808,7 +808,7 @@ public class IgApplication : IDisposable
         var tkb = HrotEnvironment.CreateTkb();
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
-        // ── Register base infrastructure modules from builder context ─────────
+        // �� Register base infrastructure modules from builder context ���������
         // BaseModules = [EntityLifecycleModule, GeographicModule].
         // NedReplicationModule's GhostPromotionSystem uses the same elm instance.
         foreach (var baseModule in _context!.BaseModules)
@@ -825,7 +825,7 @@ public class IgApplication : IDisposable
 
         _networkEnabled = false;
 
-        // GeoTransform is pure math — create it unconditionally so that
+        // GeoTransform is pure math � create it unconditionally so that
         // SendGeoSpatialUpdate works even in tests that skip DDS initialisation.
         _geoTransform = HrotEnvironment.CreateGeoTransform();
         _miniIosState.SetGeoTransform(_geoTransform);
@@ -950,7 +950,7 @@ public class IgApplication : IDisposable
                     controller:       igRrController,
                     storageDirectory: @"C:\FDP_Temp"));
 
-                // CGF1-BATCH-23 A.2: dummy zone handler — IG acknowledges
+                // CGF1-BATCH-23 A.2: dummy zone handler � IG acknowledges
                 // PrepareZone / CommitZone without terrain DB load.
                 // Full terrain-DB preload from scenario entities is future work.
                 _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler(_effectiveInstanceId));
@@ -995,42 +995,42 @@ public class IgApplication : IDisposable
 
 
 
-        // B. Ghost destruction — replaces SpawningModule so IG does not duplicate entities.
+        // B. Ghost destruction � replaces SpawningModule so IG does not duplicate entities.
         // SpawnEntityCommand is forwarded to SimHost via SpawnEntityCommandEgressTranslator;
         // SimHost creates the authoritative ghost which DDS replicates back.
         // GhostDestructionSystem tears down those ghosts on EntityMaster DISPOSE.
         _kernel.RegisterGlobalSystem(new GhostDestructionSystem(_entityMap));
 
-        // UnitHierarchySystem — maintains ECS commander-subordinate hierarchy on the IG node (CS016).
+        // UnitHierarchySystem � maintains ECS commander-subordinate hierarchy on the IG node (CS016).
         _kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));
 
 
 
-        // E. StyleResolutionModule ÔÇö writes ResolvedStyle each Simulation tick
+        // E. StyleResolutionModule ��� writes ResolvedStyle each Simulation tick
 
         _kernel.RegisterModule(new StyleResolutionModule(_userConfig, _effectiveInstanceId));
 
 
 
-        // F. MapCullingModule ÔÇö writes CullingState each PostSimulation tick
+        // F. MapCullingModule ��� writes CullingState each PostSimulation tick
 
         _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
 
 
 
-        // G2. MapLayerModule — assigns MapDisplayComponent bitmask per entity (time-sliced)
+        // G2. MapLayerModule � assigns MapDisplayComponent bitmask per entity (time-sliced)
 
         _kernel.RegisterModule(new MapLayerModule());
 
 
 
-        // G. HistoryTrailModule ÔÇö records entity position trails (IG.4.1)
+        // G. HistoryTrailModule ��� records entity position trails (IG.4.1)
 
         _kernel.RegisterModule(new HistoryTrailModule());
 
 
 
-        // H. EventEffectModule ÔÇö spawns and cleans up visual effects (IG.4.2)
+        // H. EventEffectModule ��� spawns and cleans up visual effects (IG.4.2)
 
         if (!_headless)
 
@@ -1051,7 +1051,7 @@ public class IgApplication : IDisposable
 
 
 
-        // Gizmo subsystem (GZ020) — renders entity-bound diagnostic overlays.
+        // Gizmo subsystem (GZ020) � renders entity-bound diagnostic overlays.
         _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
         _gizmoRegistry         = new GizmoRegistry();
         _statelessGizmoRegistry = new StatelessGizmoRegistry();
@@ -1104,7 +1104,7 @@ public class IgApplication : IDisposable
 
         _kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
 
-        // E. SlaveSyncController — unified slave that handles Continuous/Stepping transitions.
+        // E. SlaveSyncController � unified slave that handles Continuous/Stepping transitions.
         // Must use _context!.EventBus (the same bus as the time translators above),
         // NOT _world.Bus which is swapped internally by the kernel and carries ECS events.
         var timeController = new SlaveSyncController(_context!.EventBus, _effectiveInstanceId);
@@ -1131,13 +1131,18 @@ public class IgApplication : IDisposable
         // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
         _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
         _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
+        var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+        schemaRegistry.Register(
+            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
+            Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument());
         var gizmoLayer = new DebugGizmoLayer(
             31,
             _gizmoBuffer!,
             _interactionBus,
             _world,
             _canvas.Camera,
-            new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
+            new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+            schemaRegistry);
         _gizmoLayer = gizmoLayer;
         _canvas.AddLayer(gizmoLayer);
         _canvas.DrawBuffer = _gizmoBuffer;
@@ -1254,7 +1259,7 @@ public class IgApplication : IDisposable
 
 
 
-        // Always tick ECS/network — even in headless mode DDS messages must be processed.
+        // Always tick ECS/network � even in headless mode DDS messages must be processed.
 
         // Clear the primitive buffer before backend ECS systems populate it.
         // Must be called after canvas input (which emits tool primitives) and before
@@ -1411,7 +1416,7 @@ public class IgApplication : IDisposable
 
             _inspectorState.Refresh(_world, GetSelectedEntity());
 
-            // Task 43/46: one-directional sync map → FDP inspector.
+            // Task 43/46: one-directional sync map � FDP inspector.
             // Only update when the map selection actually changes to a real entity.
             // When the map is cleared (Entity.Null) we intentionally do NOT clear
             // the FDP inspector so the user can keep a selection made via the list.
@@ -1484,7 +1489,7 @@ public class IgApplication : IDisposable
                 builder.AddItem("Center on entity", () => CenterCameraOn(entity));
                 builder.AddItem("Select entity",    () => SelectEntityOnMap(entity));
 
-                // "Edit Overlay" — only shown for area entities that carry an EditablePolyline.
+                // "Edit Overlay" � only shown for area entities that carry an EditablePolyline.
                 if (_world.HasManagedComponent<EditablePolyline>(entity)
                  && _entityMap.TryGetNetworkId(entity, out long editNetId))
                 {
@@ -1520,7 +1525,7 @@ public class IgApplication : IDisposable
         }
 
         // When panels are registered as ManagedWindows, the Window Manager renders
-        // them — only call Draw() here in standalone mode.
+        // them � only call Draw() here in standalone mode.
         if (!_panelsWindowManaged)
         {
             _debugPanel.Draw();
@@ -1536,6 +1541,7 @@ public class IgApplication : IDisposable
 
         DrawExConContextMenu();
         _gizmoLayer?.DrawContextMenu();
+        _gizmoLayer?.DrawStructInspector();
 
         // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
         var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
@@ -1543,7 +1549,7 @@ public class IgApplication : IDisposable
         {
             if (ImGui.BeginMainMenuBar())
             {
-                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenus, actionId =>
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
                 {
                     _interactionBus?.Publish(new GizmoMenuActionEvent
                     {
@@ -1688,7 +1694,7 @@ public class IgApplication : IDisposable
 
         // --- Keyboard zoom (+/=  and  -  keys) ---
 
-        // Simulate a single wheel tick so the same 1.2+Œ factor is applied.
+        // Simulate a single wheel tick so the same 1.2+O factor is applied.
 
         bool zoomIn  = Raylib.IsKeyPressed(KeyboardKey.Equal)
 
@@ -1782,10 +1788,10 @@ public class IgApplication : IDisposable
 
     /// <summary>
     /// Programmatically selects <paramref name="entity"/> on the map by updating ECS
-    /// <see cref="SelectionState"/> components directly — mirroring the path used by
+    /// <see cref="SelectionState"/> components directly � mirroring the path used by
     /// <see cref="StandardInteractionTool"/> when the user clicks on the canvas.
     /// Also updates the FDP inspector and last-known-selection tracker so that the
-    /// one-directional chain (map → inspector) does not immediately overwrite this choice.
+    /// one-directional chain (map � inspector) does not immediately overwrite this choice.
     /// </summary>
     private void SelectEntityOnMap(Entity entity)
     {
@@ -1910,7 +1916,7 @@ public class IgApplication : IDisposable
     /// </summary>
     internal Fdp.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
 
-    /// <summary>Current kernel sim time in seconds — available in both headless and normal mode.</summary>
+    /// <summary>Current kernel sim time in seconds � available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 
     /// <summary>
@@ -1955,7 +1961,7 @@ public class IgApplication : IDisposable
 
     /// <summary>
     /// Returns <c>true</c> when the <see cref="GlobalGizmoManager"/> has an active
-    /// placement gizmo registered — i.e. the operator is in placement mode (activated
+    /// placement gizmo registered � i.e. the operator is in placement mode (activated
     /// by an ExCon <c>MapInteractionConfig</c>).
     /// </summary>
     internal bool TestHook_IsCreationToolActive => _globalGizmoManager?.ActiveCount > 0;
@@ -2203,7 +2209,7 @@ public class IgApplication : IDisposable
     /// <summary>Test hook: the current camera keyboard-pan target (set by CenterCameraOn).</summary>
     internal Vector2 TestHook_KeyboardPanTarget => _keyboardPanTarget;
 
-    // ── Ground clamping (MOD1-P7T5) ───────────────────────────────────────────
+    // �� Ground clamping (MOD1-P7T5) �������������������������������������������
 
     private Fdp.Modules.Geographic.ITerrainProvider? _terrainProvider;
 
@@ -2266,7 +2272,7 @@ public class IgApplication : IDisposable
             entity = _ghostCreationSystem.CreateGhost(_world, entityId);
 
         var cmd = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
-        // Permanent identity component — drives GhostPromotionSystem.
+        // Permanent identity component � drives GhostPromotionSystem.
         cmd.AddComponent(entity, new TkbIdentity { TkbType = tkbType });
         _world.SetDisType(entity, new DISEntityType { Value = disTypeValue });
         cmd.Playback(_world);
@@ -2480,7 +2486,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     /// Internal test hook to simulate a drag-end for the entity with the given network ID.
 
-    /// Directly calls <see cref="OnEntityDragEnded"/> ÔÇö requires the entity to already
+    /// Directly calls <see cref="OnEntityDragEnded"/> ��� requires the entity to already
 
     /// exist in the ECS world with a <see cref="SimTransform"/> component set to the
 
@@ -2614,7 +2620,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-    // ── ExCon context-menu rendering (DDS/ContextActionsUpdate path) ──────────
+    // �� ExCon context-menu rendering (DDS/ContextActionsUpdate path) ����������
 
     /// <summary>
     /// Renders the context menu driven by the ExCon DDS path.
@@ -2751,7 +2757,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            case "100": // EditOverlay — activate area-editing tool on the selected entity
+            case "100": // EditOverlay � activate area-editing tool on the selected entity
 
             {
 
@@ -2771,7 +2777,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            case "101": // EditRoute — activate route editing for the selected route entity
+            case "101": // EditRoute � activate route editing for the selected route entity
 
             {
 
@@ -2791,7 +2797,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            case "102": // EditPersonalRoute — locate the vehicle's personal route and edit it
+            case "102": // EditPersonalRoute � locate the vehicle's personal route and edit it
 
             {
 
@@ -2817,7 +2823,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            case "200": // Measure — activate the measurement gizmo
+            case "200": // Measure � activate the measurement gizmo
 
                 if (_globalGizmoManager != null)
                 {
@@ -2978,7 +2984,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
     // -- Config JSON parsing ---------------------------------------------------
 
-    // ─── CMD_* command handlers ────────────────────────────────────────────────
+    // ��� CMD_* command handlers ������������������������������������������������
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_START_AUTHORING"/> command.
@@ -3070,7 +3076,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-    // ─── EditTool activation from CMD_START_EDITING ──────────────────────────
+    // ��� EditTool activation from CMD_START_EDITING ��������������������������
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_START_EDITING"/> command.
@@ -3105,12 +3111,12 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         }
     }
 
-    // ─── OC1-G001: CMD_SET_SELECTION ──────────────────────────────────────────
+    // ��� OC1-G001: CMD_SET_SELECTION ������������������������������������������
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_SET_SELECTION"/> command.
     /// Selects the entity identified by <c>entityId</c> in the ECS without publishing
-    /// a <see cref="SelectionChangedEvent"/> (to avoid ExCon→IG→ExCon echo loops).
+    /// a <see cref="SelectionChangedEvent"/> (to avoid ExCon�IG�ExCon echo loops).
     /// </summary>
     private void ParseCommandAndSetSelection(string argsJson)
     {
@@ -3141,7 +3147,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         }
     }
 
-    // ─── OC1-G002: CMD_SET_VIEW ───────────────────────────────────────────────
+    // ��� OC1-G002: CMD_SET_VIEW �����������������������������������������������
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_SET_VIEW"/> command (entity-centric path).
@@ -3177,7 +3183,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         }
     }
 
-    // ─── OC1-G003: CMD_DRAW_PERSONAL_ROUTE ───────────────────────────────────
+    // ��� OC1-G003: CMD_DRAW_PERSONAL_ROUTE �����������������������������������
 
     /// <summary>
     /// Handles an incoming CMD_DRAW_PERSONAL_ROUTE command.
@@ -3211,7 +3217,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                 {
                     if (points.Length < 2)
                     {
-                        // Too few points — cancel the command.
+                        // Too few points � cancel the command.
                         _networkAdapter?.WriteMapCommandAck(new Hrot.Core.Network.MapCommandAckDto
                         {
                             RequestId  = requestId,
@@ -3357,7 +3363,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ── Route entity path — inject RouteWaypointGizmo (toggle) ──
+        // �� Route entity path � inject RouteWaypointGizmo (toggle) ��
         if (World.HasManagedComponent<Hrot.Map.Common.Components.RoutePlan>(entity))
         {
             if (_igDataDrivenGizmoSystem!.HasInjectedGizmo(entity))
@@ -3384,7 +3390,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
             return;
         }
 
-        // ── Area overlay path — inject VertexEditGizmo (toggle) ──
+        // �� Area overlay path � inject VertexEditGizmo (toggle) ��
         if (!World.HasManagedComponent<EditablePolyline>(entity))
         {
             FdpLog<IgApplication>.Warn(
@@ -3437,7 +3443,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-            // view.layers.grid Ôæå toggle grid rendering
+            // view.layers.grid �aa toggle grid rendering
 
             if (root.TryGetProperty("view",   out var viewEl)
 
@@ -3451,7 +3457,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
             }
 
-            // view.layers.* → update MapCanvas.ActiveLayerMask
+            // view.layers.* � update MapCanvas.ActiveLayerMask
             // Missing keys leave their bits unchanged (forward-compatible with future ExCon versions).
             if (root.TryGetProperty("view", out var viewLayersEl)
              && viewLayersEl.TryGetProperty("layers", out var layerFlagsEl))
@@ -3474,7 +3480,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
 
 
 
-            // interaction.activeTool + toolConfig Ôæå activate canvas tool
+            // interaction.activeTool + toolConfig �aa activate canvas tool
 
             if (root.TryGetProperty("interaction", out var interactionEl)
 
@@ -3499,7 +3505,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
                     if (toolConfigEl.TryGetProperty("affiliation", out var affEl)
                      && affEl.ValueKind == JsonValueKind.String)
                     {
-                        // Affiliation is just another property — embed it into initialPropertiesJson
+                        // Affiliation is just another property � embed it into initialPropertiesJson
                         // so CreationTool can consume it as part of the initial property blob.
                         initialPropertiesJson = System.Text.Json.JsonSerializer.Serialize(
                             new { affiliation = affEl.GetString() });
@@ -3967,7 +3973,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         FdpLog<IgApplication>.Info("[Node-{0}] Location picker gizmo activated. ContextId={1}", _effectiveInstanceId, _activeContextId);
     }
 
-    // ─── EntityPickerTool activation from CMD_PICK_ENTITY ────────────────────
+    // ��� EntityPickerTool activation from CMD_PICK_ENTITY ��������������������
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PICK_ENTITY"/> command.
@@ -4078,7 +4084,7 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
         public void Write(T sample) => _inner.Write(sample);
     }
 
-    // ── Ghost entity cleanup ──────────────────────────────────────────────────────
+    // �� Ghost entity cleanup ������������������������������������������������������
 
     /// <summary>
     /// Handles <see cref="DestroyEntityCommand"/> events (published when SimHost sends

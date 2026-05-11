@@ -43,6 +43,8 @@
     <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
 
   </ItemGroup>
 

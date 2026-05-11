@@ -113,6 +113,7 @@ namespace Hrot.SimHost
         private DebugPrimitiveBuffer? _gizmoBuffer;
         private GizmoRegistry? _gizmoRegistry;
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
+        private GlobalGizmoManager? _globalGizmoManager;
         private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
         private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;        // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
@@ -537,6 +538,7 @@ namespace Hrot.SimHost
             // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
             _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             _interactionBus = new FdpEventBus();
+            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
             _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 _gizmoRegistry,
                 _gizmoBuffer,
@@ -546,6 +548,16 @@ namespace Hrot.SimHost
                 interactionBus: _interactionBus);
             // Register the global action registry and wire operator action handlers.
             var actionRegistry = new GlobalActionRegistry();
+            long layerControlId = GlobalGizmoManager.NewId();
+            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
+                layerControlId,
+                _interactionBus,
+                new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
+            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
+            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
+            {
+                _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+            });
             actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -588,6 +600,7 @@ namespace Hrot.SimHost
                 contextIngress: new ContextActionIngressSystem(_entityMap!, _interactionBus),
                 interactionSystems: new IEcsModuleSystem[]
                 {
+                    _globalGizmoManager,
                     new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
                     _dataDrivenGizmoSystem,
                     new StatelessGizmoSystem(

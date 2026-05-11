@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -93,34 +93,34 @@ namespace Hrot.Editor
     ///
     /// <para>Lifecycle:
     /// <list type="number">
-    ///   <item><see cref="Initialize"/> — builds the offline ECS composition root
+    ///   <item><see cref="Initialize"/> ? builds the offline ECS composition root
     ///   (entities, kernel, logic packs, adapters, UI panels) without DDS.</item>
-    ///   <item><see cref="Update"/> — steps the time controller and ticks the kernel.</item>
-    ///   <item><see cref="DrawWorld"/> — renders the 2-D map canvas (skipped in headless).</item>
-    ///   <item><see cref="DrawUI"/> — renders ImGui panels not registered as managed windows
+    ///   <item><see cref="Update"/> ? steps the time controller and ticks the kernel.</item>
+    ///   <item><see cref="DrawWorld"/> ? renders the 2-D map canvas (skipped in headless).</item>
+    ///   <item><see cref="DrawUI"/> ? renders ImGui panels not registered as managed windows
     ///   (skipped in headless).</item>
-    ///   <item><see cref="RegisterWindows"/> — registers editor panels with the Window Manager
+    ///   <item><see cref="RegisterWindows"/> ? registers editor panels with the Window Manager
     ///   so they participate in the shared docking layout.</item>
-    ///   <item><see cref="Shutdown"/> — disposes the kernel and ECS world.</item>
+    ///   <item><see cref="Shutdown"/> ? disposes the kernel and ECS world.</item>
     /// </list>
     /// </para>
     /// </summary>
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
     {
-        // ── Subsystem identity ────────────────────────────────────────────────
+        // ?? Subsystem identity ????????????????????????????????????????????????
 
         /// <inheritdoc/>
         public string Name => "Editor";
 
         /// <inheritdoc/>
-        /// <remarks>Slate blue — distinct from IG (green), SimHost (red) and ExCon (violet).</remarks>
+        /// <remarks>Slate blue ? distinct from IG (green), SimHost (red) and ExCon (violet).</remarks>
         public Vector4 TitleBarColor => new(0.15f, 0.22f, 0.48f, 1f);
 
-        // ── Network factory (no-op stubs for offline editor) ─────────────────
+        // ?? Network factory (no-op stubs for offline editor) ?????????????????
 
         private readonly INetworkFactory _networkFactory = new OfflineNetworkFactory();
 
-        // ── Core state ────────────────────────────────────────────────────────
+        // ?? Core state ????????????????????????????????????????????????????????
 
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
@@ -131,7 +131,7 @@ namespace Hrot.Editor
         private MapCamera?              _camera;
         private bool                    _headless;
 
-        // ── Adapters (canvas-dependent; null in headless) ─────────────────────
+        // ?? Adapters (canvas-dependent; null in headless) ?????????????????????
 
         private EditorSpawnAdapter?             _spawnAdapter;
         private EditorMissionService?           _missionService;
@@ -143,13 +143,13 @@ namespace Hrot.Editor
         private EditorPreviewController?        _previewController;
         private MapViewConfig?                  _mapViewConfig;
 
-        // ── UI panels (legacy, always created) ────────────────────────────────
+        // ?? UI panels (legacy, always created) ????????????????????????????????
 
         private ScenarioBrowserPanel? _browserPanel;
         private EditorToolbarPanel?   _toolbarPanel;
         private EditorOrbatPanel?     _orbatPanel;
 
-        // ── Shared UI panels (skipped in headless) ────────────────────────────
+        // ?? Shared UI panels (skipped in headless) ????????????????????????????
 
         private SpawnerPanel?    _spawnerPanel;
         private MissionPanel?    _missionPanel;
@@ -158,7 +158,7 @@ namespace Hrot.Editor
         private PreviewPanel?    _previewPanel;
         private ZoneEditorPanel? _zoneEditorPanel;
 
-        // ── FDP framework panels ──────────────────────────────────────────────
+        // ?? FDP framework panels ??????????????????????????????????????????????
 
         private FdpEntityInspectorPanel _fdpEntityInspector = new();
         private FdpEventBrowserPanel                 _fdpEventBrowser    = null!;
@@ -168,7 +168,7 @@ namespace Hrot.Editor
         private uint                    _fdpFrameCount;
         private Hrot.SimHost.Modules.CognitiveSpatialModule? _perceptionMod;
 
-        // ── Offline orchestrator (single-node scenario listing) ───────────────────
+        // ?? Offline orchestrator (single-node scenario listing) ???????????????????
 
         private FdpEventBus?           _orchestrationBus;
         private ClusterMaster?                _clusterMaster;
@@ -181,23 +181,23 @@ namespace Hrot.Editor
         private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
         private DiagnosticLogMergeWorker?      _logMergeWorker;
 
-        // ── Selection state ───────────────────────────────────────────────────────
+        // ?? Selection state ???????????????????????????????????????????????????????
 
         private DefaultSelectionState? _selectionState;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
-        // ── Behavior registry (promoted for tooltip rendering) ─────────────────
+        // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
 
-        // ── AI behavior hot-reload coordinator ─────────────────────────────────
+        // ?? AI behavior hot-reload coordinator ?????????????????????????????????
 
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
-        // ── Production visualizer dependencies ───────────────────────────────────
+        // ?? Production visualizer dependencies ???????????????????????????????????
 
         private readonly MapUserConfig     _userConfig     = new();
         private readonly MapCameraViewport _cameraViewport = new();
@@ -206,21 +206,21 @@ namespace Hrot.Editor
         private GlobalGizmoManager?  _globalGizmoManager;
         private FdpEventBus?         _interactionBus;
 
-        // ── Tool handling ─────────────────────────────────────────────────────────
+        // ?? Tool handling ?????????????????????????????????????????????????????????
 
         // (Phase 5: _interactionTool removed; entity interaction via ECS gizmos)
 
-        // ── Context menu (ImGui popup trigger) ────────────────────────────────────
+        // ?? Context menu (ImGui popup trigger) ????????????????????????????????????
 
         private DebugGizmoLayer? _gizmoLayer;
 
-        // ── Rename dialog state ───────────────────────────────────────────────────
+        // ?? Rename dialog state ???????????????????????????????????????????????????
 
         private long   _renameTargetNetworkId;
         private bool   _openRenameModalThisFrame;
         private string _renameBuffer = string.Empty;
 
-        // ── Private helpers ───────────────────────────────────────────────────
+        // ?? Private helpers ???????????????????????????????????????????????????
 
         /// <summary>
         /// Lightweight IPreviewController that wraps <see cref="PreviewClusterOpHandler"/>
@@ -256,7 +256,7 @@ namespace Hrot.Editor
             }
         }
 
-        // ── Nested helper: offline sequential ID allocator ────────────────────
+        // ?? Nested helper: offline sequential ID allocator ????????????????????
 
         private sealed class SequentialIdAllocator : INetworkIdAllocator
         {
@@ -266,7 +266,7 @@ namespace Hrot.Editor
             public void Dispose() { }
         }
 
-        // ── Internal test accessors ───────────────────────────────────────────
+        // ?? Internal test accessors ???????????????????????????????????????????
 
         /// <summary>Internal test hook: direct access to the ECS world.</summary>
         internal EntityRepository World =>
@@ -297,7 +297,7 @@ namespace Hrot.Editor
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
 
-        // ── ISubsystem lifecycle ──────────────────────────────────────────────
+        // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests
         public EditorSubsystem()
@@ -326,7 +326,7 @@ namespace Hrot.Editor
         {
             _headless = config.Headless;
 
-            // ── 1. ECS world ─────────────────────────────────────────────────
+            // ?? 1. ECS world ?????????????????????????????????????????????????
             _world = new EntityRepository();
             _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
             var accumulator = new EventAccumulator();
@@ -334,10 +334,10 @@ namespace Hrot.Editor
             _physicsModule = new PhysicsToolkitModule();
             _physicsModule.Initialize(_world);
 
-            // ── 1b. Register all components BEFORE building serializers ───────
+            // ?? 1b. Register all components BEFORE building serializers ???????
             // FdpAutoSerializer compiles property-extraction delegates at Build() time
             // against the current ComponentTypeRegistry, so all types must be registered
-            // first — otherwise the serializer schema is empty and Save/Load is a no-op.
+            // first ? otherwise the serializer schema is empty and Save/Load is a no-op.
             SimHostComponentRegistry.RegisterAll(_world);
             CgfComponentRegistry.RegisterAll(_world);
             _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
@@ -352,14 +352,14 @@ namespace Hrot.Editor
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
 
-            // ── 2. Time controller (MasterSyncController in Deterministic/frozen mode) ──
+            // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
             _timeController = (MasterSyncController)TimeControllerFactory.Create(_world.Bus, timeConfig);
             _kernel.SetTimeController(_timeController);
             // Start in Deterministic mode so authoring starts paused (dt == 0 every frame).
             _timeController.SwitchToDeterministic(new System.Collections.Generic.HashSet<int>());
 
-            // ── 3. Shared services ────────────────────────────────────────────
+            // ?? 3. Shared services ????????????????????????????????????????????
             var geoTransform     = HrotEnvironment.CreateGeoTransform();
             _geoTransform = geoTransform;
             var entityMap        = new NetworkEntityMap();
@@ -380,7 +380,7 @@ namespace Hrot.Editor
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
 
-            // ── Hot reload: watch the deployment directory for Hrot.AI.Behaviors.dll changes ──
+            // ?? Hot reload: watch the deployment directory for Hrot.AI.Behaviors.dll changes ??
             // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
             // detects the change, loads the new assembly into a fresh collectible ALC on a
             // background thread, and enqueues an interpreter swap for the main thread to apply.
@@ -398,7 +398,7 @@ namespace Hrot.Editor
             // Load the current DLL immediately so behaviors are ready before the first frame.
             _aiCoordinator.TriggerInitialLoad();
 
-            // ── Hot-reload message log source ─────────────────────────────────
+            // ?? Hot-reload message log source ?????????????????????????????????
             // Wire up after the coordinator is configured so that both the
             // behavior-swap callbacks and the log-source callbacks are registered.
             _hotReloadSource = new HotReloadMessageLogSource();
@@ -420,9 +420,9 @@ namespace Hrot.Editor
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
 
-            // ── 3b. TKB + ELM + offline spawning ─────────────────────────────
+            // ?? 3b. TKB + ELM + offline spawning ?????????????????????????????
             var tkbDb       = HrotEnvironment.CreateTkb();
-            // Register Urban Combat entity blueprints (TKB types 1001–2003) so the
+            // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
@@ -431,7 +431,7 @@ namespace Hrot.Editor
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
             var extractor          = new StagingEntityExtractor();
 
-            // ── 3c. Offline scenario load handler ─────────────────────────────
+            // ?? 3c. Offline scenario load handler ?????????????????????????????
             var storageProvider = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
@@ -452,7 +452,7 @@ namespace Hrot.Editor
                     LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 }));
 
-            // ── 4. Module registration (offline — no translator packs) ────────
+            // ?? 4. Module registration (offline ? no translator packs) ????????
             var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
             var perceptionMod    = new CognitiveSpatialModule(
                 _world,
@@ -480,7 +480,7 @@ namespace Hrot.Editor
             if (_orchestrationBus != null)
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _orchestrationBus));
 
-            // ── 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
+            // ?? 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ??
             // CGF Brain systems -- register directly (no toggling needed in the editor)
             foreach (var sys in cgfLogicPackInst.InputSystems)      _kernel.RegisterGlobalSystem(sys);
 
@@ -496,7 +496,7 @@ namespace Hrot.Editor
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule());
 
-            // ── 4c. ELM + offline spawning module + scenario genesis pipeline ──────────────────
+            // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
             // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
             // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
             // sets AuthorityMask = ComponentMask for locally owned entities.
@@ -512,23 +512,23 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(requestSystem);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
 
-            // ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ──
+            // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
 
-            // ── 4d. MapLayerAssignmentSystem — must be registered BEFORE Initialize() ──
+            // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
             // can cull entities whose layer is toggled off in the editor's config panel.
             _kernel.RegisterGlobalSystem(new MapLayerAssignmentSystem());
 
-            // ── 4e. IG presentation modules — compute CullingState and ResolvedStyle ──
+            // ?? 4e. IG presentation modules ? compute CullingState and ResolvedStyle ??
             // Must be registered BEFORE Initialize() so their component queries are built.
             _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
             _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: 0));
 
-            // ── 4f. Visual effects module — spawns and cleans up tracers / explosions ──
+            // ?? 4f. Visual effects module ? spawns and cleans up tracers / explosions ??
             _kernel.RegisterModule(new EventEffectModule());
 
-            // ── 4g. Gizmo subsystem — local stateless gizmo rendering ─────────────────
+            // ?? 4g. Gizmo subsystem ? local stateless gizmo rendering ?????????????????
             // The Editor has no DDS transport; primitives are produced locally and consumed
             // by a DebugGizmoLayer on the canvas.
             _gizmoBuffer = new DebugPrimitiveBuffer();
@@ -551,15 +551,15 @@ namespace Hrot.Editor
             // behavior gizmos
             Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
 
-            // MissionPresentationGizmo requires IGeographicTransform — register manually.
+            // MissionPresentationGizmo requires IGeographicTransform ? register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(geoTransform),
                 new[] { typeof(SimTransform), typeof(SelectionState) });
-            // EntityEditorLabelGizmo requires BehaviorRegistry — register manually.
+            // EntityEditorLabelGizmo requires BehaviorRegistry ? register manually.
             editorStatelessGizmoRegistry.Register(
                 new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(_behaviorRegistry!),
                 new[] { typeof(SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
-            // EntityDragGizmoDefinition has an optional callback constructor — register manually.
+            // EntityDragGizmoDefinition has an optional callback constructor ? register manually.
             editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             // Editor has no DDS transport so no network ingress/egress translators.
             var interactionBus = new FdpEventBus();
@@ -574,7 +574,7 @@ namespace Hrot.Editor
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus);
+            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
             _globalGizmoManager.Register(layerControlId, layerControlGizmo);
             actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
             {
@@ -704,17 +704,17 @@ namespace Hrot.Editor
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
             _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
-            // ── 5. Kernel initialization ──────────────────────────────────────
+            // ?? 5. Kernel initialization ??????????????????????????????????????
             _kernel.Initialize();
 
-            // ── 6. Editor application (IEditorLogic facade) ──────────────────
+            // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
                 fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath);
             _editorLogic = app;
 
-            // ── 6b. Offline orchestrator — scenario listing via ClusterMaster + UICache ──
+            // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
             _clusterMaster  = new ClusterMaster(_orchestrationBus, offlineConfig);
             _storageGateway = new StorageGatewayModule();
@@ -740,7 +740,7 @@ namespace Hrot.Editor
             _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus);
             app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
 
-            // ── 7. Map canvas + camera (skipped in headless) ──────────────────
+            // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
             if (!_headless)
             {
                 _camera = new MapCamera();
@@ -748,19 +748,19 @@ namespace Hrot.Editor
                 _canvas.Camera = _camera;
             }
 
-            // ── 8. Preview controller (works headless too — no canvas dep) ────
+            // ?? 8. Preview controller (works headless too ? no canvas dep) ????
             _previewController = new EditorPreviewController(_world, _timeController!);
 
-            // ── 9. Mission service (no canvas dependency) ─────────────────────
+            // ?? 9. Mission service (no canvas dependency) ?????????????????????
             _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
 
-            // ── 10. Canvas-dependent adapters, layers, and interaction tool ───
+            // ?? 10. Canvas-dependent adapters, layers, and interaction tool ???
             if (!_headless)
             {
                 _mapViewConfig    = new MapViewConfig();
                 _mapPickAdapter   = new EditorMapPickAdapter(_canvas!, geoTransform, _world, _globalGizmoManager!);
 
-                // Build the JSON→ECS attribute compiler with the geo-transform so that
+                // Build the JSON?ECS attribute compiler with the geo-transform so that
                 // geodetic spawn coordinates are projected correctly on entity placement.
                 var jsonCompiler  = Hrot.SimHost.AttributeCompilerFactory.Build(geoTransform);
                 _spawnAdapter     = new EditorSpawnAdapter(_world.Bus, jsonCompiler, tkbDb, scenarioLoadSource, _globalGizmoManager!);
@@ -845,32 +845,37 @@ namespace Hrot.Editor
                         });
                 }));
 
-                // Entity query — all networked simulation entities with a location.
+                // Entity query ? all networked simulation entities with a location.
                 var entityQuery = _world.Query()
                     .With<NetworkIdentity>()
                     .With<SimTransform>()
                     .WithLifecycle(EntityLifecycle.All)
                     .Build();
 
-                // Gizmo layer — renders entity presentation primitives produced locally by StatelessGizmoSystem.
+                // Gizmo layer ? renders entity presentation primitives produced locally by StatelessGizmoSystem.
+                var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+                schemaRegistry.Register(
+                    Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
+                    Fdp.Presentation.ImGui.Editing.LayerControlSchemaFactory.BuildLayerControlDocument());
                 _gizmoLayer = new DebugGizmoLayer(
                     31,
                     _gizmoBuffer!,
                     interactionBus,
                     _world,
                     _canvas.Camera,
-                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary());
+                    new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                    schemaRegistry);
                 _canvas!.AddLayer(_gizmoLayer);
                 if (_canvas != null) _canvas.DrawBuffer = _gizmoBuffer;
 
-                // Grid map layer — reads MapViewConfig.ShowGrid each frame.
+                // Grid map layer ? reads MapViewConfig.ShowGrid each frame.
                 var gridLayer = new GridMapLayer(() => _mapViewConfig!.ShowGrid);
                 _canvas!.AddLayer(gridLayer);
 
                 // (Phase 5: StandardInteractionTool removed; entity interaction via ECS gizmos)
             }
 
-            // ── 11. UI panels ─────────────────────────────────────────────────
+            // ?? 11. UI panels ?????????????????????????????????????????????????
             _browserPanel = new ScenarioBrowserPanel();
             _toolbarPanel = new EditorToolbarPanel();
             _orbatPanel   = new EditorOrbatPanel();
@@ -927,7 +932,7 @@ namespace Hrot.Editor
 
             // Clear the primitive buffer before backend ECS systems populate it.
             // This must happen before kernel.Update() and after canvas.Update() so that
-            // tool-emitted primitives (written during canvas.Update → ActiveTool.Draw) are
+            // tool-emitted primitives (written during canvas.Update ? ActiveTool.Draw) are
             // already in the buffer when StatelessGizmoSystem runs.
             _gizmoBuffer?.EndFrame(deltaTime);
 
@@ -951,7 +956,7 @@ namespace Hrot.Editor
             _editorLogic?.Update();
             _clusterPanel?.Update(deltaTime);
 
-            // Drain ActivateEditorToolEvent — published by toolbar / context menu.
+            // Drain ActivateEditorToolEvent ? published by toolbar / context menu.
             if (!_headless)
                 DrainToolActivationEvents();
 
@@ -1049,6 +1054,7 @@ namespace Hrot.Editor
 
             // Trigger ImGui popup when a right-click was recorded this frame.
             _gizmoLayer?.DrawContextMenu();
+            _gizmoLayer?.DrawStructInspector();
 
             // Render gizmo-contributed main menu items (e.g. "View > Tactical Map Layers...").
             var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
@@ -1056,7 +1062,7 @@ namespace Hrot.Editor
             {
                 if (ImGuiNET.ImGui.BeginMainMenuBar())
                 {
-                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenuBar(gizmoMenus, actionId =>
+                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
                     {
                         _interactionBus?.Publish(new GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
                     });
@@ -1121,7 +1127,7 @@ namespace Hrot.Editor
         {
             if (_editorLogic == null) return;
 
-            // ── Legacy editor-specific windows ────────────────────────────────
+            // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
             windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
             if (_clusterPanel != null && _uiCache != null)
@@ -1133,7 +1139,7 @@ namespace Hrot.Editor
 
             if (_headless) return;
 
-            // ── Shared UI panels ──────────────────────────────────────────────
+            // ?? Shared UI panels ??????????????????????????????????????????????
             if (_spawnerPanel     != null && _spawnAdapter     != null)
                 windowManager.RegisterWindow(new EditorSpawnerWindow(_spawnerPanel, _spawnAdapter));
 
@@ -1152,7 +1158,7 @@ namespace Hrot.Editor
             if (_zoneEditorPanel  != null && _zoneAdapter       != null)
                 windowManager.RegisterWindow(new EditorZoneEditorWindow(_zoneEditorPanel, _zoneAdapter));
 
-            // ── FDP framework panels (entity inspector + event browser) ───────
+            // ?? FDP framework panels (entity inspector + event browser) ???????
             windowManager.RegisterWindow(new FdpEntityInspectorWindow(
                 "editor_fdp_inspector", "Editor Entity Inspector", "Editor",
                 _fdpEntityInspector,
@@ -1203,7 +1209,7 @@ namespace Hrot.Editor
                 _fdpEventBrowser,
                 EditorWindowColor.TitleBar));
 
-            // ── Message Log: register hot-reload source ───────────────────────
+            // ?? Message Log: register hot-reload source ???????????????????????
             // The NLog source and the global window are created by Program.cs.
             // Here we attach the Editor-specific Hot Reload source so its messages
             // appear as a second tab in the shared Message Log window.
@@ -1221,7 +1227,7 @@ namespace Hrot.Editor
                     EditorWindowColor.TitleBar));
             }
 
-            // ── Time transport controls in status bar ─────────────────────────
+            // ?? Time transport controls in status bar ?????????????????????????
             if (_previewController != null && _timeController != null && _world != null)
             {
                 var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
@@ -1232,7 +1238,7 @@ namespace Hrot.Editor
                     perspective:    "Editor");
             }
 
-            // ── Message Log notification icon in status bar ───────────────────
+            // ?? Message Log notification icon in status bar ???????????????????
             // The MessageLogWindow is registered globally by Program.cs; we look it
             // up here so the Editor also shows the notification badge.
             if (windowManager.TryGetWindow("fdp_message_log", out var msgLogWin) &&
@@ -1292,7 +1298,7 @@ namespace Hrot.Editor
             _storageGateway = null;
         }
 
-        // ── Private helpers ───────────────────────────────────────────────────
+        // ?? Private helpers ???????????????????????????????????????????????????
 
         /// <summary>
         /// Drains <see cref="ActivateEditorToolEvent"/> from the bus and routes each
@@ -1400,7 +1406,7 @@ namespace Hrot.Editor
                 }
             }
 
-            // ── Drain camera-center requests ──────────────────────────────────
+            // ?? Drain camera-center requests ??????????????????????????????????
             foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.CenterOnEntityCommand>())
             {
                 if (_camera == null) continue;
@@ -1419,7 +1425,7 @@ namespace Hrot.Editor
                 }
             }
 
-            // ── Drain rename-dialog requests ──────────────────────────────────
+            // ?? Drain rename-dialog requests ??????????????????????????????????
             foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.OpenRenameDialogCommand>())
             {
                 _renameTargetNetworkId    = cmd.NetworkId;
@@ -1481,4 +1487,5 @@ namespace Hrot.Editor
         }
     }
 }
+
 
