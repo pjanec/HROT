@@ -98,7 +98,7 @@ namespace GizmoMap.Presentation
             var worldPos  = Raylib.GetScreenToWorld2D(screenPos, camera);
             var worldPos3 = new Vector3(worldPos.X, worldPos.Y, 0f);
             var delta = Raylib.GetMouseDelta();
-            long exclusiveAnchorId = 0;
+            long? exclusiveAnchorId = null;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
             for (int i = 0; i < primitives.Length; i++)
@@ -143,9 +143,7 @@ namespace GizmoMap.Presentation
                 if (best.HasValue)
                 {
                     var hit = best.Value;
-                    long anchorId = hit.AnchorIndex != 0
-                        ? hit.AnchorIndex
-                        : hit.BoxAnchorId;
+                    long anchorId = hit.AnchorGeneration != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
                     var token = new GizmoPickToken
                     {
                         AnchorId = anchorId,
@@ -156,7 +154,7 @@ namespace GizmoMap.Presentation
                         token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
-                else if (exclusiveAnchorId == 0)
+                else if (!exclusiveAnchorId.HasValue)
                 {
                     // Canvas fallback to allow selection-rect interactions.
                     _activeTool = new GizmoInteractionProxyTool(
@@ -182,7 +180,16 @@ namespace GizmoMap.Presentation
                     {
                         var hit = best.Value;
                         hitNetworkId = hit.BoxAnchorId != 0 ? hit.BoxAnchorId : -1L;
+
+
+                        // We multiplex two distinct addressing domains inside the fixed 64-byte payload.
+                        // If AnchorGeneration != 0, the primitive is bound to a live local ECS entity. We route the 
+                        // local AnchorIndex so the engine can reconstruct the exact ECS memory handle.
+                        // If AnchorGeneration == 0, the primitive is a stateless tool handle or remote network object. 
+                        // We fall back to the 64-bit BoxAnchorId to route the global network ID or tool ID.
                         long anchorId = hit.AnchorGeneration  != 0 ? hit.AnchorIndex : hit.BoxAnchorId;
+
+
                         var token = new GizmoPickToken
                         {
                             AnchorId = anchorId,
@@ -192,7 +199,7 @@ namespace GizmoMap.Presentation
                         onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
                     }
 
-                    if (exclusiveAnchorId != 0 && hitNetworkId != exclusiveAnchorId)
+                    if (exclusiveAnchorId.HasValue && hitNetworkId != exclusiveAnchorId.Value)
                         hitNetworkId = 0;
 
                     if (hitNetworkId != 0 && hitNetworkId != -1L && menuBindings.TryGetValue(hitNetworkId, out uint menuHash))
@@ -235,7 +242,7 @@ namespace GizmoMap.Presentation
                     _activeTool.HandleKeyPressed(KeyboardKey.Escape);
             }
 
-            if ((exclusiveAnchorId != 0 || routeRawInput) && (delta.X != 0f || delta.Y != 0f))
+            if ((exclusiveAnchorId.HasValue || routeRawInput) && (delta.X != 0f || delta.Y != 0f))
             {
                 onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.DragUpdate, worldPos3, 0, 0);
             }
@@ -347,7 +354,7 @@ namespace GizmoMap.Presentation
             ReadOnlySpan<DebugPrimitive> primitives,
             Vector2 testPos,
             float zoom,
-            long exclusiveAnchorId = 0)
+            long? exclusiveAnchorId = null)
         {
             DebugPrimitive? best = null;
             float effZoom = zoom > 0f ? zoom : 1f;
@@ -359,8 +366,8 @@ namespace GizmoMap.Presentation
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
 
-                long anchorId = prim.AnchorIndex != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
-                if (exclusiveAnchorId != 0 && anchorId != exclusiveAnchorId) continue;
+                long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
+                if (exclusiveAnchorId.HasValue && anchorId != exclusiveAnchorId.Value) continue;
 
                 float hitRadius = prim.SizeMode == SizeMode.ScreenPixels ? 5f / effZoom : 5f;
                 bool hit = false;
