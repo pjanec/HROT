@@ -1,13 +1,14 @@
 using System;
 using System.Numerics;
-using System.Text.Json;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using StructEdit.Core;
+using StructEdit.Json;
 
 namespace GizmoMap.Example
 {
     // DTO matching the StructEdit schema for the layer control inspector.
-    public struct LayerControlDto
+    public class LayerControlDto
     {
         public bool BaseLayer    { get; set; }
         public bool UnitsLayer   { get; set; }
@@ -41,6 +42,7 @@ namespace GizmoMap.Example
         private static readonly string MainMenuJson =
             "[{\"label\":\"View\",\"priority\":30,\"children\":[{\"id\":" + OpenActionId + ",\"label\":\"Tactical Map Layers...\"}]}]";
 
+        private readonly IComponentEditService _editService;
         private LayerControlDto _dto = new() { BaseLayer = true, UnitsLayer = true, SensorsLayer = true };
         private LayerMask256    _activeLayers;
         private bool            _isEditing;
@@ -49,8 +51,9 @@ namespace GizmoMap.Example
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public LayerControlGizmo()
+        public LayerControlGizmo(IComponentEditService editService)
         {
+            _editService = editService ?? throw new ArgumentNullException(nameof(editService));
             _activeLayers = _dto.ToMask();
         }
 
@@ -60,10 +63,7 @@ namespace GizmoMap.Example
         public void UpdateAndDraw(float dt, IGizmoDrawBuilder draw)
         {
             // Always emit the authoritative layer control mask.
-            var maskPrim = default(DebugPrimitive);
-            maskPrim.Shape = DebugPrimitiveShape.LayerControlMask;
-            maskPrim.ActiveLayers = _activeLayers;
-            draw.EmitRaw(in maskPrim);
+            draw.EmitRaw(DebugPrimitive.MakeLayerControlMask(_activeLayers));
 
             // Inject "View > Tactical Map Layers..." into the main menu bar.
             draw.DrawMainMenuBinding(MainMenuJson);
@@ -71,17 +71,12 @@ namespace GizmoMap.Example
             // Optionally show the StructInspector panel when the operator requested it.
             if (_isEditing)
             {
-                var inspPrim = default(DebugPrimitive);
-                inspPrim.Shape            = DebugPrimitiveShape.StructInspector;
-                inspPrim.TargetView       = PipelineTarget.All;
-                inspPrim.StructNetworkId  = AnchorId;
-                inspPrim.StructSchemaHash = SchemaHash;
-                inspPrim.StructAnchor     = ScreenAnchor.Center;
-                inspPrim.StructOffsetX    = 0f;
-                inspPrim.StructOffsetY    = 0f;
-                inspPrim.SizeMode         = SizeMode.ScreenPercent;
-                inspPrim.StructIsReadOnly = 0;
-                draw.EmitRaw(in inspPrim);
+                draw.EmitRaw(DebugPrimitive.MakeStructInspector(
+                    networkId: AnchorId,
+                    schemaHash: SchemaHash,
+                    anchor: ScreenAnchor.Center,
+                    sizeMode: SizeMode.ScreenPercent,
+                    isReadOnly: false));
             }
         }
 
@@ -91,14 +86,15 @@ namespace GizmoMap.Example
             if (string.IsNullOrEmpty(payloadJson)) return;
             try
             {
-                var dto = JsonSerializer.Deserialize<LayerControlDto>(payloadJson, _jsonOptions);
-                _dto          = dto;
-                _activeLayers = dto.ToMask();
+                using var session = _editService.Open(_dto, typeof(LayerControlDto));
+                session.LoadJson(payloadJson);
+                _dto = (LayerControlDto)session.Commit();
+                _activeLayers = _dto.ToMask();
                 _isEditing    = false;
             }
-            catch (JsonException)
+            catch (Exception ex)
             {
-                // Malformed payload from terminal: ignore.
+                Console.WriteLine($"Dropped invalid layer StructUpdate: {ex.Message}");
             }
         }
 
@@ -116,9 +112,5 @@ namespace GizmoMap.Example
         public void OnKeyEvent(MapKeyboardKey key, bool pressed) { }
         public void Dispose() { }
 
-        private static readonly JsonSerializerOptions _jsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-        };
     }
 }

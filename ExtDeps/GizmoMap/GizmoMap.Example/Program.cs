@@ -59,7 +59,10 @@ using (transport)
         // Wire the StructEdit side-channel so StructInspector shows a real property tree.
         var schemaRegistry = new GizmoSchemaRegistry();
         schemaRegistry.Register(0xDEADBEEF, DemoSceneGenerator.BuildMockDocument());
-        schemaRegistry.Register(LayerControlGizmo.SchemaHash, DemoSceneGenerator.BuildLayerControlDocument());
+        using var layerControlSchemaSession = gen.EditService.Open(
+            new LayerControlDto { BaseLayer = true, UnitsLayer = true, SensorsLayer = true },
+            typeof(LayerControlDto));
+        schemaRegistry.Register(LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
 
         GizmoViewerFrontend.Run(
             $"GizmoMap Example - {mode}",

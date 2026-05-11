@@ -10,6 +10,9 @@
     <ProjectReference Include="..\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
     <ProjectReference Include="..\GizmoMap.Network\GizmoMap.Network.csproj" />
     <ProjectReference Include="..\GizmoMap.Presentation\GizmoMap.Presentation.csproj" />
+    <ProjectReference Include="..\..\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
+    <ProjectReference Include="..\..\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
     <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
   </ItemGroup>

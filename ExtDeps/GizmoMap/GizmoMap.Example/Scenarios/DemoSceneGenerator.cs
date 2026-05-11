@@ -43,7 +43,8 @@ namespace GizmoMap.Example
         private const long RotatorAnchorId = 2001L;
 
         // Layer control gizmo: drives layer visibility mask from a StructInspector panel.
-        private readonly LayerControlGizmo _layerControlGizmo = new();
+        private readonly LayerControlGizmo _layerControlGizmo;
+        public IComponentEditService EditService { get; }
 
         // Mutable vertices for the two interactive polygons.
         // Positioned so both polygons are visible in the default 640x480 view (camera at origin).
@@ -155,6 +156,9 @@ namespace GizmoMap.Example
 
         public DemoSceneGenerator()
         {
+            EditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            _layerControlGizmo = new LayerControlGizmo(EditService);
+
             // Register the two polygon vertex editors at startup.
             _manager.AddTool(Polygon1AnchorId, new VertexEditGizmo(Polygon1AnchorId, _polygon1Vertices));
             _manager.AddTool(Polygon2AnchorId, new VertexEditGizmo(Polygon2AnchorId, _polygon2Vertices));
@@ -601,47 +605,5 @@ namespace GizmoMap.Example
             return new EditDocument(root, typeof(object), EditScope.WholeComponent);
         }
 
-        /// <summary>
-        /// Builds a synthetic <see cref="EditDocument"/> for <see cref="LayerControlGizmo.SchemaHash"/>.
-        /// Used by the schema registry so the StructInspector panel renders the three layer checkboxes.
-        /// </summary>
-        public static EditDocument BuildLayerControlDocument()
-        {
-            var baseNode = new EditNode(
-                new EditNodeId(1), "BaseLayer", "$.BaseLayer",
-                EditNodeKind.Boolean, typeof(bool),
-                isReadOnly: false,
-                binding: new SimpleBoolBinding(true));
-
-            var unitsNode = new EditNode(
-                new EditNodeId(2), "UnitsLayer", "$.UnitsLayer",
-                EditNodeKind.Boolean, typeof(bool),
-                isReadOnly: false,
-                binding: new SimpleBoolBinding(true));
-
-            var sensorsNode = new EditNode(
-                new EditNodeId(3), "SensorsLayer", "$.SensorsLayer",
-                EditNodeKind.Boolean, typeof(bool),
-                isReadOnly: false,
-                binding: new SimpleBoolBinding(true));
-
-            var root = new EditNode(
-                new EditNodeId(0), "LayerControl", "$",
-                EditNodeKind.Struct, typeof(LayerControlDto),
-                children: new[] { baseNode, unitsNode, sensorsNode });
-
-            return new EditDocument(root, typeof(LayerControlDto), EditScope.WholeComponent);
-        }
-
-        // Minimal mutable bool binding used by BuildLayerControlDocument.
-        private sealed class SimpleBoolBinding : IValueBinding
-        {
-            private bool _value;
-            public Type ValueType => typeof(bool);
-            public SimpleBoolBinding(bool initialValue) { _value = initialValue; }
-            public object? GetBoxed() => _value;
-            public void SetBoxed(object? value) { if (value is bool b) _value = b; }
-            public bool TryGetSpan(out Span<byte> bytes) { bytes = default; return false; }
-        }
     }
 }
