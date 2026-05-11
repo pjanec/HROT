@@ -91,9 +91,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 _isEditing = !_isEditing;
 
             // Emit authoritative layer control mask (consumed by DebugPrimitiveRenderer2D).
-            var maskPrim = default(DebugPrimitive);
-            maskPrim.Shape = DebugPrimitiveShape.LayerControlMask;
-            maskPrim.ActiveLayers = _activeLayers;
+            var maskPrim = DebugPrimitive.MakeLayerControlMask(_activeLayers);
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
