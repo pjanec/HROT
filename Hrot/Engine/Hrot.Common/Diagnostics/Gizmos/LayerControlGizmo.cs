@@ -102,16 +102,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
             {
-                var inspPrim = default(DebugPrimitive);
-                inspPrim.Shape = DebugPrimitiveShape.StructInspector;
-                inspPrim.TargetView = PipelineTarget.All;
-                inspPrim.StructNetworkId = _anchorId;
-                inspPrim.StructSchemaHash = SchemaHash;
-                inspPrim.StructAnchor = ScreenAnchor.Center;
-                inspPrim.StructOffsetX = 0f;
-                inspPrim.StructOffsetY = 0f;
-                inspPrim.SizeMode = SizeMode.ScreenPercent;
-                inspPrim.StructIsReadOnly = 0;
+                var inspPrim = DebugPrimitive.MakeStructInspector(
+                    networkId: _anchorId,
+                    schemaHash: SchemaHash,
+                    anchor: ScreenAnchor.Center,
+                    sizeMode: SizeMode.ScreenPercent,
+                    isReadOnly: false);
                 draw.EmitRaw(in inspPrim);
             }
         }
