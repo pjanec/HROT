@@ -104,6 +104,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 var inspPrim = default(DebugPrimitive);
                 inspPrim.Shape = DebugPrimitiveShape.StructInspector;
+                inspPrim.TargetView = PipelineTarget.All;
                 inspPrim.StructNetworkId = _anchorId;
                 inspPrim.StructSchemaHash = SchemaHash;
                 inspPrim.StructAnchor = ScreenAnchor.Center;
