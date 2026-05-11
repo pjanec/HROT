@@ -222,23 +222,62 @@ namespace GizmoMap.Presentation
 
             if (routeRawInput)
             {
+                int modifiers = 0;
+                if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift))
+                    modifiers |= (int)MapKeyboardKey.ShiftMask;
+                if (Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl))
+                    modifiers |= (int)MapKeyboardKey.CtrlMask;
+                if (Raylib.IsKeyDown(KeyboardKey.LeftAlt) || Raylib.IsKeyDown(KeyboardKey.RightAlt))
+                    modifiers |= (int)MapKeyboardKey.AltMask;
+
                 if (Raylib.IsMouseButtonPressed(MouseButton.Left))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left, 0x81);
+                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x81);
                 else if (Raylib.IsMouseButtonReleased(MouseButton.Left))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Left, 0x80);
+                        worldPos3, (int)MapMouseButton.Left | modifiers, 0x80);
 
                 if (Raylib.IsMouseButtonPressed(MouseButton.Right))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right, 0x81);
+                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x81);
                 else if (!contextMenuOpened && Raylib.IsMouseButtonReleased(MouseButton.Right))
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapMouseButton.Right, 0x80);
+                        worldPos3, (int)MapMouseButton.Right | modifiers, 0x80);
 
-                if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+                int key;
+                while ((key = Raylib.GetKeyPressed()) != 0)
                     onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
-                        worldPos3, (int)MapKeyboardKey.Escape, 0x01);
+                        worldPos3, key | modifiers, 0x01);
+
+                if (Raylib.IsKeyReleased(KeyboardKey.Escape))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Escape | modifiers, 0x00);
+                if (Raylib.IsKeyReleased(KeyboardKey.Enter))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Enter | modifiers, 0x00);
+                if (Raylib.IsKeyReleased(KeyboardKey.Delete))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Delete | modifiers, 0x00);
+                if (Raylib.IsKeyReleased(KeyboardKey.Tab))
+                    onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                        worldPos3, (int)MapKeyboardKey.Tab | modifiers, 0x00);
+
+                void RouteMod(KeyboardKey rlKey, MapKeyboardKey mapKey)
+                {
+                    if (Raylib.IsKeyPressed(rlKey))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)mapKey | modifiers, 0x01);
+                    if (Raylib.IsKeyReleased(rlKey))
+                        onInteraction?.Invoke(captureToken, GizmoInteractionEventKind.RawInput,
+                            worldPos3, (int)mapKey | modifiers, 0x00);
+                }
+
+                RouteMod(KeyboardKey.LeftShift, MapKeyboardKey.LeftShift);
+                RouteMod(KeyboardKey.RightShift, MapKeyboardKey.RightShift);
+                RouteMod(KeyboardKey.LeftControl, MapKeyboardKey.LeftControl);
+                RouteMod(KeyboardKey.RightControl, MapKeyboardKey.RightControl);
+                RouteMod(KeyboardKey.LeftAlt, MapKeyboardKey.LeftAlt);
+                RouteMod(KeyboardKey.RightAlt, MapKeyboardKey.RightAlt);
             }
         }
 

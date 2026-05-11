@@ -5,6 +5,7 @@ using System.Numerics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using GizmoMap.Network;
 using GizmoMap.Presentation;
+using GizmoMap.Presentation.Shapes;
 using Raylib_cs;
 using Xunit;
 
@@ -20,8 +21,8 @@ namespace GizmoMap.Presentation.Tests
     {
         public readonly List<DebugPrimitive> Dispatched = new();
 
-        public CapturingRenderer(ISemanticShapeProfileRegistry? registry = null)
-            : base(registry) { }
+        public CapturingRenderer(IEntityShapeLibrary? shapeLibrary = null)
+            : base(shapeLibrary) { }
 
         protected override void DispatchShape(in DebugPrimitive prim, Camera2D camera, float zoom)
         {
@@ -118,7 +119,7 @@ namespace GizmoMap.Presentation.Tests
             // The test uses a FallbackCapturingRenderer that records the dispatched shape
             // and separately indicates whether fallback color was used (by checking _semanticRegistry == null).
 
-            var renderer = new CapturingRenderer(registry: null); // null = fallback path
+            var renderer = new CapturingRenderer(shapeLibrary: null); // null = fallback path
             var camera   = new Camera2D { Zoom = 1f };
             renderer.Render(new[] { sem }, camera, 1f);
 
