@@ -368,6 +368,24 @@ namespace Hrot.SimHost
 
             // Render the context menu popup via the gizmo layer's ContextMenuAdapter.
             _gizmoLayer?.DrawContextMenu();
+            _gizmoLayer?.DrawStructInspector();
+
+            var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
+            if (gizmoMenus != null && gizmoMenus.Count > 0)
+            {
+                if (ImGuiNET.ImGui.BeginMainMenuBar())
+                {
+                    GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
+                    {
+                        _interactionBus?.Publish(new GizmoMenuActionEvent
+                        {
+                            AnchorId = 0,
+                            ActionId = actionId
+                        });
+                    });
+                    ImGuiNET.ImGui.EndMainMenuBar();
+                }
+            }
 
             // When panels are Window Manager managed, skip rendering them here.
             if (!_panelsWindowManaged && _ui != null)
