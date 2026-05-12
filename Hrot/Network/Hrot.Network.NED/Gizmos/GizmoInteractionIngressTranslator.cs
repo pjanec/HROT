@@ -59,6 +59,7 @@ namespace Hrot.Network.NED.Gizmos
             {
                 Target       = entity,
                 SubElementId = batch.PickSubElementId,
+                GizmoTypeId  = batch.PickGizmoTypeId,
             };
 
             bool alive = view.IsAlive(entity);
@@ -99,6 +100,14 @@ namespace Hrot.Network.NED.Gizmos
                         EntityNetworkId = (int)batch.PickAnchorId,
                         ActionName      = batch.ActionId.ToString(),
                     });
+                    // Also publish as a typed GizmoMenuActionEvent so DataDrivenGizmoSystem can
+                    // route it to the matching gizmo via the composite key.
+                    _interactionBus.PublishManaged(new GizmoMenuActionEvent
+                    {
+                        AnchorId    = batch.PickAnchorId,
+                        ActionId    = batch.ActionId,
+                        GizmoTypeId = batch.PickGizmoTypeId,
+                    });
                     break;
 
                 case GizmoInteractionEventKind.RawInput:
@@ -129,6 +138,7 @@ namespace Hrot.Network.NED.Gizmos
                     _interactionBus.PublishManaged(new GizmoStructUpdateEvent
                     {
                         AnchorId    = batch.PickAnchorId,
+                        GizmoTypeId = batch.PickGizmoTypeId,
                         PayloadJson = batch.PayloadJson ?? string.Empty,
                     });
                     break;

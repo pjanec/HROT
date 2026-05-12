@@ -934,16 +934,18 @@ and also populates `GizmoStructUpdateEvent.GizmoTypeId = batch.PickGizmoTypeId` 
 
 ### 11.7 ImGui Window Stable ID Fix and Root Node Elimination
 
-**Window stable ID fix.** `ImGuiPropertyTreeAdapter.DrawScheduled` appends `SchemaHash` to the
+**Window stable ID fix.** `ImGuiPropertyTreeAdapter.DrawScheduled` appends `GizmoTypeId` to the
 ImGui stable ID:
 
 ```
 Before: $"...###StructInsp_{item.NetworkId}"
-After:  $"...###StructInsp_{item.NetworkId}_{item.SchemaHash}"
+After:  $"...###StructInsp_{item.NetworkId}_{item.GizmoTypeId}"
 ```
 
-Two `StructInspector` panels on the same entity with different schema hashes now render as
-independent ImGui windows with fully isolated rendering contexts.
+Two `StructInspector` panels on the same entity now render as independent ImGui windows even if
+both gizmos project the exact same DTO schema type (identical `SchemaHash`). Using `GizmoTypeId`
+(hash of the gizmo class) rather than `SchemaHash` (hash of the DTO struct) as the
+discriminator ensures the stable ID is unique per gizmo instance, not per schema.
 
 **Root node elimination.** Instead of `DrawEditNode(doc!.Root, isReadOnly)`, the method iterates
 the root's children directly:
@@ -994,10 +996,13 @@ when a sample arrives.
 1. Look up `EditDocument` by `state.GizmoInstanceId` (= `StructSchemaHash`) in
    `GizmoSchemaRegistry`.
 2. Find all active `ScheduledItem`s whose `SchemaHash == state.GizmoInstanceId`.
-3. For each: if the corresponding `InspectorState` is `Viewing`, call
-   `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)` to inject the host's
-   live values into the local `IValueBinding` objects.
-4. If `Editing`: discard the sample; the operator's in-progress edits are preserved.
+3. If **any** of those items has `InspectorState == Editing`, discard the incoming sample
+   entirely and return. The `EditDocument` is a singleton per schema hash; all matching items
+   share the same `IValueBinding` memory. Deserializing while any one of them is in `Editing`
+   would overwrite the user's active edits.
+4. If **all** matching items are in `Viewing` (or absent from the state dict, which implies
+   `Viewing`), call `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)` once
+   to inject the host's live values into the shared `IValueBinding` objects.
 
 **Host-side publish discipline.** Backend gizmos publish `GizmoUiState` only when their internal
 configuration changes, not every frame. The `TransientLocal` / `KeepLast(1)` QoS guarantees that

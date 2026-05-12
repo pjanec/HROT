@@ -74,19 +74,27 @@ public class SelectionInteractionSystemTests
         Assert.True(state.IsPrimarySelection);
     }
 
-    // SIS-002: GizmoInteractionStartedEvent with null entity clears selection.
+    // SIS-002: After null-entity GizmoInteractionStartedEvent, selection is NOT cleared immediately.
+    // A tiny-drag commit (GizmoInteractionCommitEvent without intervening GizmoDragUpdateEvent) clears all.
     [Fact]
-    public void GizmoInteractionStartedEvent_WithNullEntity_ClearsSelection()
+    public void GizmoInteractionStartedEvent_WithNullEntity_StartsRubberBand_NotImmediateClear()
     {
         var entity = CreateSelectableEntity();
         _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
 
+        // Step 1: null entity click -> rubber-band starts, selection NOT yet cleared
         PublishStartedEvent(Entity.Null);
+        _system.Tick(0f);
+        // Still selected (rubber-band in progress, no commit yet)
+        Assert.True(_world.GetComponent<SelectionState>(entity).IsSelected);
+
+        // Step 2: commit without any drag event -> tiny drag path -> clears selection
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.SwapBuffers();
         _system.Tick(0f);
 
         var state = _world.GetComponent<SelectionState>(entity);
         Assert.False(state.IsSelected);
-        Assert.False(state.IsPrimarySelection);
     }
 
     // SIS-003: Second click clears previous selection (single-select).
@@ -172,14 +180,21 @@ public class SelectionInteractionSystemTests
         Assert.Equal(entity, callbackEntity);
     }
 
-    // SIS-008: OnSelectionChanged fires with Entity.Null on empty-space click.
+    // SIS-008: OnSelectionChanged fires with Entity.Null on tiny-drag commit (empty-space rubber-band commit).
     [Fact]
-    public void OnSelectionChanged_FiresWithNull_OnEmptySpaceClick()
+    public void OnSelectionChanged_FiresWithNull_AfterTinyDragCommit()
     {
-        Entity? callbackEntity = new Entity(99, 1); // non-null sentinel
+        Entity? callbackEntity = null;
         _system.OnSelectionChanged += (e, _) => callbackEntity = e;
 
+        // Start rubber-band on empty space (null entity)
         PublishStartedEvent(Entity.Null);
+        _system.Tick(0f);
+        Assert.Null(callbackEntity); // not yet fired
+
+        // Commit without drag = tiny drag = deselect all
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = new PickToken { Target = Entity.Null } });
+        _world.Bus.SwapBuffers();
         _system.Tick(0f);
 
         Assert.Equal(Entity.Null, callbackEntity);

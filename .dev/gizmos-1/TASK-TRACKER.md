@@ -67,10 +67,10 @@
 gizmos on the same entity can coexist without interaction routing collisions or StructInspector
 ImGui window merging.
 
-- [ ] **TASK-GZ064** Add GizmoTypeId to network contracts [details](./TASK-DETAIL.md#task-gz064--add-gizmotypeid-to-network-contracts)
-- [ ] **TASK-GZ065** GizmoTypeId injection into emitted primitives [details](./TASK-DETAIL.md#task-gz065--gizmotypeid-injection-into-emitted-primitives)
-- [ ] **TASK-GZ066** Fix DataDrivenGizmoSystem routing and wire egress/ingress translators [details](./TASK-DETAIL.md#task-gz066--fix-datadrivengizmosystem-routing-and-wire-egressingress-translators)
-- [ ] **TASK-GZ067** Populate GizmoTypeId in terminal pick-token [details](./TASK-DETAIL.md#task-gz067--populate-gizmotypeid-in-terminal-pick-token)
+- [x] **TASK-GZ064** Add GizmoTypeId to network contracts [details](./TASK-DETAIL.md#task-gz064--add-gizmotypeid-to-network-contracts)
+- [x] **TASK-GZ065** GizmoTypeId injection into emitted primitives [details](./TASK-DETAIL.md#task-gz065--gizmotypeid-injection-into-emitted-primitives)
+- [x] **TASK-GZ066** Fix DataDrivenGizmoSystem routing and wire egress/ingress translators [details](./TASK-DETAIL.md#task-gz066--fix-datadrivengizmosystem-routing-and-wire-egressingress-translators)
+- [x] **TASK-GZ067** Populate GizmoTypeId in terminal pick-token [details](./TASK-DETAIL.md#task-gz067--populate-gizmotypeid-in-terminal-pick-token)
 
 ---
 
@@ -80,6 +80,6 @@ ImGui window merging.
 add a per-inspector Viewing/Editing state machine, and wire the GizmoUiState DDS subscription
 so live host state reaches the terminal inspector panel.
 
-- [ ] **TASK-GZ068** Fix ImGui window stable ID and eliminate redundant root node [details](./TASK-DETAIL.md#task-gz068--fix-imgui-window-stable-id-and-eliminate-redundant-root-node)
-- [ ] **TASK-GZ069** Add per-inspector Viewing/Editing state machine [details](./TASK-DETAIL.md#task-gz069--add-per-inspector-viewingediting-state-machine)
-- [ ] **TASK-GZ070** Wire GizmoUiState subscription on terminal side [details](./TASK-DETAIL.md#task-gz070--wire-gizmouistate-subscription-on-terminal-side)
+- [x] **TASK-GZ068** Fix ImGui window stable ID and eliminate redundant root node [details](./TASK-DETAIL.md#task-gz068--fix-imgui-window-stable-id-and-eliminate-redundant-root-node)
+- [x] **TASK-GZ069** Add per-inspector Viewing/Editing state machine [details](./TASK-DETAIL.md#task-gz069--add-per-inspector-viewingediting-state-machine)
+- [x] **TASK-GZ070** Wire GizmoUiState subscription on terminal side [details](./TASK-DETAIL.md#task-gz070--wire-gizmouistate-subscription-on-terminal-side)

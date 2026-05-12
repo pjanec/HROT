@@ -170,6 +170,9 @@ public sealed class EntityDragGizmoDefinition : IGizmoDefinition
 
     public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
 
+    // FNV-1a hash of the fully-qualified type name — used as composite routing key.
+    public uint GizmoTypeId { get; } = Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry.ComputeHash(typeof(EntityDragGizmoDefinition).FullName!);
+
     public EntityDragGizmoDefinition(Action<Entity, Vector2>? onDragCommitted = null)
     {
         _onDragCommitted = onDragCommitted;

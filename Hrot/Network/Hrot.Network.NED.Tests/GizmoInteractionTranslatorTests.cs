@@ -230,5 +230,33 @@ namespace Hrot.DDS.DataModel.Tests
             var cmd = new EntityCommandBuffer();
             sys.PollIngress(cmd, repo); // must not throw
         }
+
+        // SC-GZ066-3: EgressTranslator.WriteRecord produces batch with PickGizmoTypeId
+        // equal to the source PickToken.GizmoTypeId.
+        [Fact]
+        public void SC_GZ066_3_EgressTranslator_WriteRecord_PreservesGizmoTypeId()
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            var entity = repo.CreateEntity();
+            var writer = new CapturingWriter();
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionStartedEvent>();
+            var sys = new GizmoInteractionEgressTranslator(nodeId: 1, writer: writer, interactionBus: interactionBus);
+
+            interactionBus.Publish(new GizmoInteractionStartedEvent
+            {
+                Token = new Fdp.Toolkit.Diagnostics.Gizmos.PickToken
+                {
+                    Target      = entity,
+                    GizmoTypeId = 0xAB01u,
+                },
+                WorldPos = System.Numerics.Vector3.Zero,
+            });
+            interactionBus.SwapBuffers();
+            sys.ScanAndPublish(repo);
+
+            Assert.Single(writer.Written);
+            Assert.Equal(0xAB01u, writer.Written[0].PickGizmoTypeId);
+        }
     }
 }

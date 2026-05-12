@@ -60,11 +60,11 @@ namespace Hrot.Network.NED.Gizmos
 
             // Forward context-menu action selections back to SimHost.
             foreach (ref readonly var evt in _interactionBus.Read<GizmoMenuActionEvent>())
-                WriteMenuAction(evt.AnchorId, evt.ActionId);
+                WriteMenuAction(evt.AnchorId, evt.ActionId, evt.GizmoTypeId);
 
             // Forward StructInspector Apply mutations back to SimHost.
             foreach (var evt in _interactionBus.ReadManaged<GizmoStructUpdateEvent>())
-                WriteStructUpdate(evt.AnchorId, evt.PayloadJson);
+                WriteStructUpdate(evt.AnchorId, evt.GizmoTypeId, evt.PayloadJson);
         }
 
         private void WriteRecord(
@@ -81,6 +81,7 @@ namespace Hrot.Network.NED.Gizmos
                 PickAnchorId         = token.Target.Index,
                 PickStreamId         = (uint)token.Target.Generation,
                 PickSubElementId     = token.SubElementId,
+                PickGizmoTypeId      = token.GizmoTypeId,
                 WorldX               = worldPos.X,
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
@@ -89,7 +90,7 @@ namespace Hrot.Network.NED.Gizmos
             SentSampleCount++;
         }
 
-        private void WriteMenuAction(long anchorId, int actionId)
+        private void WriteMenuAction(long anchorId, int actionId, uint gizmoTypeId)
         {
             _writer!.Write(new GizmoInteractionBatch
             {
@@ -98,11 +99,12 @@ namespace Hrot.Network.NED.Gizmos
                 Kind           = GizmoInteractionEventKind.MenuAction,
                 PickAnchorId   = anchorId,
                 ActionId       = actionId,
+                PickGizmoTypeId = gizmoTypeId,
             });
             SentSampleCount++;
         }
 
-        private void WriteStructUpdate(long anchorId, string payloadJson)
+        private void WriteStructUpdate(long anchorId, uint gizmoTypeId, string payloadJson)
         {
             _writer!.Write(new GizmoInteractionBatch
             {
@@ -110,6 +112,7 @@ namespace Hrot.Network.NED.Gizmos
                 SequenceNumber = _sequenceNumber++,
                 Kind           = GizmoInteractionEventKind.StructUpdate,
                 PickAnchorId   = anchorId,
+                PickGizmoTypeId = gizmoTypeId,
                 PayloadJson    = payloadJson,
             });
             SentSampleCount++;

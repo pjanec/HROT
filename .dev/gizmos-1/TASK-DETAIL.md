@@ -1830,7 +1830,7 @@ Two targeted changes to `ImGuiPropertyTreeAdapter.DrawScheduled` only. No state 
 
 | File | Change |
 |------|--------|
-| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | (1) Append `_{item.SchemaHash}` to both `windowTitle` string variants (after the `###StructInsp_{item.NetworkId}` stable-ID segment). (2) Replace `DrawEditNode(doc!.Root, item.IsReadOnly)` with a `foreach (var child in doc!.Root.Children) DrawEditNode(child, item.IsReadOnly)` loop. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | (1) Append `_{item.GizmoTypeId}` to both `windowTitle` string variants (after the `###StructInsp_{item.NetworkId}` stable-ID segment). (2) Replace `DrawEditNode(doc!.Root, item.IsReadOnly)` with a `foreach (var child in doc!.Root.Children) DrawEditNode(child, item.IsReadOnly)` loop. |
 
 **Constraints:**
 
@@ -1842,11 +1842,11 @@ Two targeted changes to `ImGuiPropertyTreeAdapter.DrawScheduled` only. No state 
 
 **Success Conditions:**
 
-* `SC-GZ068-1`: A test creates two `ScheduledItem`s with the same `NetworkId` but different
-  `SchemaHash` values, calls `DrawScheduled` (using a mock ImGui context if available, or by
-  inspecting the generated window title strings), and asserts that the two stable IDs differ.
-  If a live ImGui context is not available in tests, assert by inspecting the interpolated
-  `windowTitle` string directly.
+* `SC-GZ068-1`: A test creates two `ScheduledItem`s with the same `NetworkId` and the **same**
+  `SchemaHash` but different `GizmoTypeId` values (the worst-case collision scenario: two gizmos
+  on the same entity sharing the same DTO type), calls `DrawScheduled`, and asserts that the two
+  generated stable IDs differ. Assert by inspecting the interpolated `windowTitle` string directly
+  if a live ImGui context is not available in tests.
 * `SC-GZ068-2`: A test creates an `EditDocument` whose root has two leaf children. After
   `DrawScheduled` runs, the root node itself must NOT appear as an ImGui `TreeNode` call;
   only the two child nodes are passed to `DrawEditNode`. This can be verified by a spy/mock
@@ -1916,7 +1916,7 @@ in the terminal application's composition root so live host state reaches the in
 
 | File | Change |
 |------|--------|
-| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | Add `public void ReceiveUiState(GizmoUiState state)`. Implementation: look up the `EditDocument` by `state.GizmoInstanceId` in `_registry`. For each scheduled item whose `SchemaHash == state.GizmoInstanceId`: look up `_inspectorStates[(item.NetworkId, item.GizmoTypeId)]`; if the entry is `Viewing` (or absent, which implies Viewing), call `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)`. If the entry is `Editing`, discard silently. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | Add `public void ReceiveUiState(GizmoUiState state)`. Implementation: (1) look up the `EditDocument` by `state.GizmoInstanceId` in `_registry`; (2) collect all active `ScheduledItem`s whose `SchemaHash == state.GizmoInstanceId`; (3) if **any** of them has `_inspectorStates[(item.NetworkId, item.GizmoTypeId)] == Editing`, return immediately without calling `Deserialize` (the `EditDocument` is a singleton shared by all matching items; partial deserialization would clobber edits in another panel); (4) only when **all** matching items are `Viewing` (or absent from the dict, implying `Viewing`), call `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)` once. |
 | Terminal application composition root (e.g. `GizmoMap.Viewer/Program.cs` or the IG application wiring) | Instantiate a `DdsReader<GizmoUiState>` and call `adapter.ReceiveUiState(sample)` inside the per-frame update loop whenever a new sample is available. |
 
 **Constraints:**
@@ -1925,8 +1925,10 @@ in the terminal application's composition root so live host state reaches the in
   a registry — existing no-registry usage must remain safe).
 * `ReceiveUiState` must never throw if `state.GizmoInstanceId` is not found in the registry
   (schema not locally registered; silently skip).
-* `EditDocumentJsonSerializer.Deserialize` must not be called while `_inspectorStates` for the
-  corresponding key is `Editing` — the user's in-progress values must be preserved.
+* `EditDocumentJsonSerializer.Deserialize` must not be called if **any** of the scheduled items
+  matching `state.GizmoInstanceId` is in `Editing` state. The `EditDocument` is a singleton per
+  schema hash; all matching panels share the same `IValueBinding` references, so deserializing
+  while any one panel is `Editing` would silently destroy the user's active edits in that panel.
 * `GizmoMap.Presentation` already references `GizmoMap.Network`; no new project reference is
   needed for `GizmoUiState`.
 
@@ -1936,9 +1938,10 @@ in the terminal application's composition root so live host state reaches the in
   schema. Call `ReceiveUiState` with a `GizmoUiState` whose `GizmoInstanceId` matches that
   schema hash and `EditDocumentJson` contains a valid value override. Assert that the
   `EditDocument`'s binding reflects the new value.
-* `SC-GZ070-2`: Unit test: put the inspector into `Editing` state (simulate via
-  `_inspectorStates`). Call `ReceiveUiState` with a new value. Assert that the `EditDocument`
-  binding is NOT updated (value preserved).
+* `SC-GZ070-2`: Unit test: two `ScheduledItem`s share the same `SchemaHash`. Put the first
+  into `Editing` state (simulate via `_inspectorStates`) and leave the second in `Viewing`.
+  Call `ReceiveUiState` with a new value. Assert that the `EditDocument` binding is NOT updated
+  (the presence of one `Editing` item blocks the shared document from being overwritten).
 * `SC-GZ070-3`: `ReceiveUiState` called with an unrecognised `GizmoInstanceId` does not throw
   and returns without side effects.
 * `SC-GZ070-4`: `ReceiveUiState` called when the registry is `null` does not throw.

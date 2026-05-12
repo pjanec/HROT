@@ -30,7 +30,7 @@ public class EntityDragGizmoTests
         _repo.AddComponent(_entity, new NetworkIdentity { Value = 55L });
     }
 
-    // EDG-001: UpdateAndDraw emits a sphere primitive with valid entity pick token.
+    // EDG-001: UpdateAndDraw emits a Box2D primitive with valid entity pick token.
     [Fact]
     public void UpdateAndDraw_EmitsSphereWithValidPickToken()
     {
@@ -42,18 +42,18 @@ public class EntityDragGizmoTests
         var frame = buffer.GetFrame();
         Assert.True(frame.Length >= 1);
 
-        // Find the sphere primitive with entity anchor.
+        // Find the Box2D primitive with entity anchor (the pick hitbox).
         bool found = false;
         foreach (var prim in frame)
         {
-            if (prim.Shape != DebugPrimitiveShape.Sphere) continue;
+            if (prim.Shape != DebugPrimitiveShape.Box2D) continue;
             var token = prim.GetPickToken();
             if (!token.IsValid) continue;
             Assert.Equal(_entity, token.Target);
             found = true;
             break;
         }
-        Assert.True(found, "No sphere with valid entity pick token found.");
+        Assert.True(found, "No Box2D with valid entity pick token found.");
     }
 
     // EDG-002: OnDragUpdate writes to SimTransform.Position.
@@ -131,5 +131,15 @@ public class EntityDragGizmoTests
 
         var vs = _repo.GetComponent<VehicleState>(_entity);
         Assert.Equal(0f, vs.Speed);
+    }
+
+    // SC-GZ064-5: EntityDragGizmoDefinition.GizmoTypeId is non-zero and stable.
+    [Fact]
+    public void SC_GZ064_5_EntityDragGizmoDefinition_GizmoTypeId_NonZeroAndStable()
+    {
+        var def1 = new EntityDragGizmoDefinition();
+        var def2 = new EntityDragGizmoDefinition();
+        Assert.NotEqual(0u, def1.GizmoTypeId);
+        Assert.Equal(def1.GizmoTypeId, def2.GizmoTypeId);
     }
 }

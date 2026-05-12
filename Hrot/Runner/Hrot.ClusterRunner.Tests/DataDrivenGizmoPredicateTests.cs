@@ -62,6 +62,7 @@ namespace Hrot.ClusterRunner.Tests
 
         public Type[] RequiredComponents => new[] { typeof(D003FilterTestComp) };
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
+        public uint GizmoTypeId => 0xD003u;
 
         public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
         {
