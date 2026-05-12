@@ -3,7 +3,6 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
-using Fdp.Toolkit.Vis2D.Components;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 
@@ -32,12 +31,6 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
             if (polyline.Points == null || polyline.Points.Count < 2) return;
-            byte debugLayer = 0;
-            if (view.HasComponent<MapDisplayComponent>(entity))
-            {
-                uint mask = view.GetComponentRO<MapDisplayComponent>(entity).LayerMask;
-                if (mask != 0) debugLayer = (byte)BitOperations.TrailingZeroCount(mask);
-            }
 
             int n = polyline.Points.Count;
 
@@ -46,7 +39,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             {
                 var a = new Vector3(polyline.Points[i].X,           polyline.Points[i].Y,           0f);
                 var b = new Vector3(polyline.Points[(i + 1) % n].X, polyline.Points[(i + 1) % n].Y, 0f);
-                draw.DrawLine(a, b, AreaColor, 1.5f, SizeMode.ScreenPixels, layer: debugLayer);
+                draw.DrawLine(a, b, AreaColor, 1.5f, SizeMode.ScreenPixels);
             }
         }
     }

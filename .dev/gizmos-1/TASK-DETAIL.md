@@ -1618,3 +1618,329 @@ Since the IG frontend already forwards raw interactions (`MapClickEvent`, `DragE
 **Success Conditions:**
 * `SC-GZ063-1`: `EditTool.cs` and `RouteEditTool.cs` compile cleanly without Raylib.
 * `SC-GZ063-2`: The vertex handles render flawlessly on the dumb terminal and follow the mouse as `DragEvent`s arrive from the remote client.
+
+---
+
+## Phase 22: Composite Gizmo Identity
+
+**Design Reference:** [DESIGN.md §11](./DESIGN.md#11-composite-gizmo-identity-and-structinspector-live-state)
+
+**Goal:** Eliminate routing collisions when multiple independent gizmos coexist on the same ECS
+entity by introducing `GizmoTypeId` as the third component of the interaction routing key.
+
+---
+
+##### TASK-GZ064 — Add GizmoTypeId to Network Contracts
+
+**Design Reference:** DESIGN.md §11.2, §11.3
+
+**Scope:**
+
+Additions only to blittable contracts and interface definitions. No behaviour changes in this
+task; subsequent tasks wire the new fields into the runtime.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs` | Add `[FieldOffset(60)] public uint GizmoTypeId;` to the explicit-layout struct. Add a concise comment explaining that offset 60 is free for `Box2D`, `Arrow`, `StructInspector`, and `ContextMenuBinding` payload unions; that bytes [48-51] cannot be used because `BoxAngleDeg` occupies [40-43] and `BoxAnchorId` (long) occupies [44-51]; and that stamping is shape-gated (see TASK-GZ065). |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Sources/GizmoPickToken.cs` | Add `public uint GizmoTypeId;` field with a comment: routing discriminator set by the terminal from the picked primitive; 0 for legacy or entity-local primitives. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Network/Topics/GizmoInteractionBatch.cs` | Add `public uint PickGizmoTypeId;` DDS field after `PickStreamId`. |
+| `FDP/Diagnostics/Fdp.Diagnostics.Contracts/Primitives/PickToken.cs` | Add `public uint GizmoTypeId;` field. This carries the composite-key discriminator through the ECS event bus from the ingress translator to the routing system. |
+| `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/IGizmoDefinition.cs` | Add `uint GizmoTypeId { get; }` to the interface. Add an XML doc comment: this value is a stable FNV-1a hash of the implementing type's full name, used to route interaction events when multiple gizmos share the same entity. |
+
+**Constraints:**
+
+* `DebugPrimitive` MUST remain exactly 64 bytes after the change. Verify with a unit test
+  asserting `Marshal.SizeOf<DebugPrimitive>() == 64`.
+* `GizmoTypeId` at offset 60 MUST NOT alias `SemanticShape.ResolvedRollRad` (also at [60])
+  in a way that causes corruption; the comment in `DebugPrimitive.cs` must explicitly document
+  this overlap and explain that shape-gated stamping (TASK-GZ065) prevents corruption.
+* `GizmoMap.*` assemblies must NOT reference `IGizmoDefinition` or any `Fdp.Toolkits` type —
+  the `GizmoTypeId` field is a primitive `uint` and introduces no new assembly dependency.
+* Do not provide a default implementation of `IGizmoDefinition.GizmoTypeId`; all implementing
+  classes must provide it explicitly.
+
+**Success Conditions:**
+
+* `SC-GZ064-1`: `Marshal.SizeOf<DebugPrimitive>()` == 64 (verified by an existing or new test
+  in `GizmosPrimitiveTests.cs`).
+* `SC-GZ064-2`: `GizmoPickToken` has a `GizmoTypeId` field of type `uint`; reading it from a
+  default-initialised instance returns 0.
+* `SC-GZ064-3`: `GizmoInteractionBatch` has a `PickGizmoTypeId` field; a round-trip
+  serialise-deserialise test confirms the field survives DDS transport (or mock equivalent).
+* `SC-GZ064-4`: `PickToken` has a `GizmoTypeId` field of type `uint`.
+* `SC-GZ064-5`: All existing implementors of `IGizmoDefinition` (found by compilation) provide
+  a `GizmoTypeId` property; the solution compiles without errors.
+
+---
+
+##### TASK-GZ065 — GizmoTypeId Injection into Emitted Primitives
+
+**Design Reference:** DESIGN.md §11.4
+
+**Scope:**
+
+Add stamping infrastructure to `DebugPrimitiveBuffer` and wire it into both
+`DataDrivenGizmoSystem.Execute` and `GlobalGizmoManager.Execute`. Gizmo implementations
+(`IEntityStatefulGizmo`) are NOT modified.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/Diagnostics/Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs` | Add `public int Count => Math.Min(_count, _primitives.Length);` property. Add `public void StampGizmoTypeId(int fromIndex, uint gizmoTypeId)` that iterates `[fromIndex, Count)` and sets `primitive.GizmoTypeId = gizmoTypeId` for each primitive whose `Shape` is `DebugPrimitiveShape.Box2D`, `DebugPrimitiveShape.StructInspector`, or `DebugPrimitiveShape.ContextMenuBinding`. |
+| `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Systems/DataDrivenGizmoSystem.cs` | In the unlimited-budget loop and the time-sliced loop, record `int mark = _drawBuilder.Count;` before each `gi.Instance.UpdateAndDraw(...)` call. After the call, invoke `_drawBuilder.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId)`. Apply the same pattern for injected gizmos in the 4b loop. |
+| `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Systems/GlobalGizmoManager.cs` | In the step-1 loop, record a mark before each `kvp.Value.UpdateAndDraw(...)` call and invoke `_drawBuilder.StampGizmoTypeId(mark, ...)` after. For `GlobalGizmoManager`, derive `GizmoTypeId` from `kvp.Value.GetType().FullName` via `FnvHash.Of` (or store it alongside the registered gizmo). |
+
+**Constraints:**
+
+* `StampGizmoTypeId` must only write to `Box2D`, `StructInspector`, and `ContextMenuBinding`
+  shapes. It must NOT write to `SemanticShape`, `SpatialAnchor`, or any other shape.
+* `IDebugDrawBuilder` is an interface. `StampGizmoTypeId` is a method on the concrete
+  `DebugPrimitiveBuffer` class (not on the interface) since stamping is an orchestrator
+  responsibility, not a gizmo-API concern. The orchestrators downcast to `DebugPrimitiveBuffer`
+  (they own the concrete instance) to call it.
+* The persistent-primitive array (`_persistent`) is not stamped; persistent primitives were
+  emitted in a previous frame and already carry the correct `GizmoTypeId`.
+
+**Success Conditions:**
+
+* `SC-GZ065-1`: A test creates a `DebugPrimitiveBuffer`, calls `AppendRaw` with a `Box2D`
+  primitive (GizmoTypeId == 0), calls `StampGizmoTypeId(0, 42u)`, and asserts that the primitive
+  at index 0 now has `GizmoTypeId == 42`.
+* `SC-GZ065-2`: Same test verifies that a `SemanticShape` primitive appended after the `Box2D`
+  retains `GizmoTypeId == 0` after `StampGizmoTypeId` is called over the range that includes it.
+* `SC-GZ065-5`: A test creates a `ContextMenuBinding` primitive (via
+  `DebugPrimitive.MakeContextMenuBinding`), calls `StampGizmoTypeId(0, 99u)`, and asserts
+  `GizmoTypeId == 99` on that primitive.
+* `SC-GZ065-3`: An integration test (or manual trace) confirms that two gizmo definitions
+  registered on the same entity emit `Box2D` primitives with their respective `GizmoTypeId`
+  values and not each other's.
+* `SC-GZ065-4`: The solution compiles and all existing `DataDrivenGizmoSystem` and
+  `GlobalGizmoManager` tests continue to pass.
+
+---
+
+##### TASK-GZ066 — Fix DataDrivenGizmoSystem Routing and Wire Egress/Ingress Translators
+
+**Design Reference:** DESIGN.md §11.5, §11.6 (egress/ingress portions)
+
+**Scope:**
+
+Fix the "first-one-wins" routing bottleneck in `DataDrivenGizmoSystem`; add StructUpdate routing
+to `DataDrivenGizmoSystem`; update `GizmoStructUpdateEvent`; update the egress/ingress
+translators to carry `GizmoTypeId` through the network round-trip; update
+`DdsGizmoInteractionPublisher`; update the `onStructUpdate` callback signature.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Systems/DataDrivenGizmoSystem.cs` | Replace `FindGizmo(Entity entity)` with `FindGizmo(Entity entity, uint gizmoTypeId)`. Return `list.FirstOrDefault(gi => gi.Definition.GizmoTypeId == gizmoTypeId)?.Instance` (injected gizmos still take priority). Update all `RouteInteractionEvents` call sites to pass `evt.Token.GizmoTypeId`. Add a `StructUpdate` case in `RouteInteractionEvents` that calls `FindGizmo(entity, evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson)`. Add a `GizmoMenuActionEvent` routing case that resolves the target via `FindGizmo(entity, evt.GizmoTypeId)` before dispatching the menu action, preventing cross-gizmo menu leakage on the same entity. |
+| `FDP/Toolkits/Fdp.Toolkits/Diagnostics/Gizmos/Events/GizmoInteractionEvents.cs` | Add `uint GizmoTypeId;` field to `GizmoStructUpdateEvent`. Add `uint GizmoTypeId;` field to `GizmoMenuActionEvent`. |
+| `Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionIngressTranslator.cs` | In `Translate`, set `token.GizmoTypeId = batch.PickGizmoTypeId`. In the `StructUpdate` case, set `GizmoTypeId = batch.PickGizmoTypeId` on the published `GizmoStructUpdateEvent`. In the `Menu` case, set `GizmoTypeId = batch.PickGizmoTypeId` on the published `GizmoMenuActionEvent`. |
+| `Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionEgressTranslator.cs` | In `WriteRecord`, set `PickGizmoTypeId = token.Target.GizmoTypeId`. In `WriteStructUpdate`, add a `uint gizmoTypeId` parameter and set `PickGizmoTypeId = gizmoTypeId`. Update the `ScanAndPublish` call for `GizmoStructUpdateEvent` to pass `evt.GizmoTypeId`. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Network/Transport/DdsGizmoInteractionPublisher.cs` | In `Publish`, set `PickGizmoTypeId = token.GizmoTypeId`. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | Change `Action<long, string>? onStructUpdate` to `Action<long, uint, string>? onStructUpdate` throughout. Add `uint GizmoTypeId` to `ScheduledItem`; populate it from `primitive.GizmoTypeId` when scheduling a `StructInspector` item. Update all `onStructUpdate` invocations to pass `item.GizmoTypeId` as the middle argument — never `item.SchemaHash` (`SchemaHash` is the FNV-1a hash of the *DTO struct type*; `GizmoTypeId` is the FNV-1a hash of the *gizmo class type*; conflating the two causes `FindGizmo` on the host to drop every `StructUpdate` event). |
+
+**Constraints:**
+
+* `DataDrivenGizmoSystem.FindGizmo` with `gizmoTypeId == 0` should fall back gracefully: return
+  `list.FirstOrDefault()?.Instance` so legacy callers (before composite key is fully adopted)
+  are not silently broken.
+* The ingress translator must not throw if `PickGizmoTypeId` is 0 (forward-compatible with
+  older network peers).
+* `GizmoStructUpdateEvent.GizmoTypeId == 0` (legacy path) must still reach `GlobalGizmoManager`
+  via its AnchorId routing for backward compatibility.
+* All existing `GizmoInteractionTranslatorTests` in `Hrot.Network.NED.Tests` must still pass.
+
+**Success Conditions:**
+
+* `SC-GZ066-1`: A test configures two `MockGizmoDefinition` instances with different
+  `GizmoTypeId` values on the same entity. Two `GizmoInteractionStartedEvent`s arrive for that
+  entity, each with a different `Token.GizmoTypeId`. Assert that each reaches the correct gizmo's
+  `OnInteractionStarted` and the other gizmo receives nothing.
+* `SC-GZ066-2`: A test configures a `MockGizmoDefinition` with a StructInspector. A
+  `GizmoStructUpdateEvent` with matching `GizmoTypeId` arrives. Assert `OnStructUpdate` is called
+  on the correct gizmo instance (not on other gizmos on the same entity).
+* `SC-GZ066-3`: `GizmoInteractionEgressTranslator.WriteRecord` produces a `GizmoInteractionBatch`
+  with `PickGizmoTypeId` equal to the source `PickToken.GizmoTypeId`.
+* `SC-GZ066-4`: All existing `GizmoInteractionTranslatorTests` pass without modification.
+* `SC-GZ066-5`: A test configures two `MockGizmoDefinition` instances with different
+  `GizmoTypeId` values on the same entity. A `GizmoMenuActionEvent` arrives with `GizmoTypeId`
+  matching the second gizmo. Assert that only the second gizmo's `OnMenuAction` is called and
+  the first gizmo receives nothing.
+
+---
+
+##### TASK-GZ067 — Populate GizmoTypeId in Terminal Pick-Token
+
+**Design Reference:** DESIGN.md §11.6 (pick-token and transport portions)
+
+**Scope:**
+
+Update `DebugGizmoLayer.HandleInput` to read `GizmoTypeId` from the hit `DebugPrimitive` and
+populate it in the resulting `GizmoPickToken`. Update `GizmoMap.Viewer/Program.cs` call sites
+that construct `GizmoInteractionBatch` directly.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/Layers/DebugGizmoLayer.cs` | In both pick-token construction blocks inside `HandleInput` (left-click hit and right-click hit), add `GizmoTypeId = hit.GizmoTypeId` to the `GizmoPickToken` initialiser. |
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Viewer/Program.cs` | In the `onInteraction` lambda where `GizmoInteractionBatch` is built inline, add `PickGizmoTypeId = token.GizmoTypeId`. |
+
+**Constraints:**
+
+* For entity-local primitives (`AnchorGeneration != 0`), `GizmoTypeId` at offset 60 of the
+  `DebugPrimitive` holds the value stamped by the host (TASK-GZ065); read it unconditionally.
+* For `BoxAnchorId`-routed primitives (`AnchorGeneration == 0`), the same field applies.
+* `GizmoTypeId == 0` is a valid sentinel for legacy primitives; do not treat it as an error.
+
+**Success Conditions:**
+
+* `SC-GZ067-1`: A unit test (`DebugGizmoLayerGizmoTests`) creates a `Box2D` primitive with
+  `GizmoTypeId = 77u`, drives `HandleInput` to simulate a left-click on it, and asserts that the
+  `GizmoPickToken` forwarded to the `onInteraction` callback has `GizmoTypeId == 77`.
+* `SC-GZ067-2`: The `GizmoMap.Viewer` standalone app compiles and runs without errors after the
+  `PickGizmoTypeId` addition.
+
+---
+
+## Phase 23: StructInspector Refinements
+
+**Design Reference:** [DESIGN.md §11.7, §11.8](./DESIGN.md#117-structinspector-viewingediting-state-machine)
+
+**Goal:** Fix ImGui window collision for co-located StructInspectors, eliminate the redundant
+root tree node, add a per-inspector Viewing/Editing state machine, and wire the `GizmoUiState`
+DDS subscription on the terminal side.
+
+---
+
+##### TASK-GZ068 — Fix ImGui Window Stable ID and Eliminate Redundant Root Node
+
+**Design Reference:** DESIGN.md §11.7
+
+**Scope:**
+
+Two targeted changes to `ImGuiPropertyTreeAdapter.DrawScheduled` only. No state machine yet.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | (1) Append `_{item.SchemaHash}` to both `windowTitle` string variants (after the `###StructInsp_{item.NetworkId}` stable-ID segment). (2) Replace `DrawEditNode(doc!.Root, item.IsReadOnly)` with a `foreach (var child in doc!.Root.Children) DrawEditNode(child, item.IsReadOnly)` loop. |
+
+**Constraints:**
+
+* Only the stable-ID portion (after `###`) must change; the visible title (before `###`) must
+  remain as-is so the window label already shows the struct name.
+* The `foreach` loop must preserve the exact same `DrawEditNode` call per child node; no new
+  arguments or wrapping allowed.
+* `DrawEditNode` itself is NOT modified in this task.
+
+**Success Conditions:**
+
+* `SC-GZ068-1`: A test creates two `ScheduledItem`s with the same `NetworkId` but different
+  `SchemaHash` values, calls `DrawScheduled` (using a mock ImGui context if available, or by
+  inspecting the generated window title strings), and asserts that the two stable IDs differ.
+  If a live ImGui context is not available in tests, assert by inspecting the interpolated
+  `windowTitle` string directly.
+* `SC-GZ068-2`: A test creates an `EditDocument` whose root has two leaf children. After
+  `DrawScheduled` runs, the root node itself must NOT appear as an ImGui `TreeNode` call;
+  only the two child nodes are passed to `DrawEditNode`. This can be verified by a spy/mock
+  on `DrawEditNode` or by inspecting ImGui draw call lists.
+* `SC-GZ068-3`: Existing `GizmoPresentationTests` pass without modification.
+
+---
+
+##### TASK-GZ069 — Add Per-Inspector Viewing/Editing State Machine
+
+**Design Reference:** DESIGN.md §11.8
+
+**Scope:**
+
+Add an `InspectorState` enum and a `Dictionary<(long, uint), InspectorState> _inspectorStates`
+to `ImGuiPropertyTreeAdapter`. Wire focus detection and automatic commit-on-focus-loss into
+`DrawScheduled`. The state machine dict key is `(item.NetworkId, item.GizmoTypeId)`. The
+`onStructUpdate` callback signature change is handled in TASK-GZ066; this task adds the state
+machine wiring only.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | Add `private enum InspectorState { Viewing, Editing }`. Add `private readonly Dictionary<(long, uint), InspectorState> _inspectorStates = new();`, keyed by `(item.NetworkId, item.GizmoTypeId)`. In `DrawScheduled`, after `ImGui.Begin(windowTitle)`, check `ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)`. Implement state transitions: Viewing→Editing on focus gained; Editing→Viewing (with `onStructUpdate` invocation) on focus lost or Apply clicked. Invoke `onStructUpdate(item.NetworkId, item.GizmoTypeId, json)` on the Editing→Viewing transition. |
+
+**Constraints:**
+
+* The `_inspectorStates` dictionary must be cleaned up when an inspector goes out of scope
+  (i.e., when `DrawScheduled` is called without scheduling a particular `NetworkId`/`GizmoTypeId`
+  combination for several consecutive frames). A simple approach: at the start of `DrawScheduled`,
+  remove entries whose key is not in the current `_items` list.
+* The state machine must NOT set `IsReadOnly = true` while in `Viewing` state; the widgets must
+  remain interactive so the user can click a field (gaining focus and triggering Viewing→Editing).
+* On the Editing→Viewing transition triggered by focus loss or Apply, `onStructUpdate` is called
+  exactly once with `(item.NetworkId, item.GizmoTypeId, json)`. Do NOT call it twice if both
+  focus-loss and Apply fire in the same frame (e.g., Apply button click causes focus loss).
+* `ImGui.IsWindowFocused` must be called AFTER `ImGui.Begin` and only while `ImGui.Begin`
+  returned `true`.
+
+**Success Conditions:**
+
+* `SC-GZ069-1`: Integration test (or manual trace): schedule a `StructInspector`, draw two
+  frames with the window unfocused, then draw a frame with it focused. Assert that on the focus
+  frame the state transitions from `Viewing` to `Editing` and no `onStructUpdate` is invoked.
+* `SC-GZ069-2`: While in `Editing`, call `DrawScheduled` again with the window unfocused. Assert
+  that `onStructUpdate` is invoked exactly once with `(networkId, gizmoTypeId, json)`.
+* `SC-GZ069-3`: Assert that `onStructUpdate` is also invoked exactly once when the Apply button
+  is simulated while in `Editing` state.
+* `SC-GZ069-4`: Assert that `_inspectorStates` no longer contains an entry for a
+  `(NetworkId, GizmoTypeId)` pair that was not scheduled in the most recent `DrawScheduled` call.
+* `SC-GZ069-5`: The `GizmoPresentationTests` that call `DrawScheduled` with a null
+  `onStructUpdate` continue to compile and pass (null safety must be maintained).
+
+---
+
+##### TASK-GZ070 — Wire GizmoUiState Subscription on Terminal Side
+
+**Design Reference:** DESIGN.md §11.9
+
+**Scope:**
+
+Add `ReceiveUiState(GizmoUiState state)` to `ImGuiPropertyTreeAdapter`. Wire the DDS subscription
+in the terminal application's composition root so live host state reaches the inspector.
+
+**Files to change:**
+
+| File | Change |
+|------|--------|
+| `FDP/ExtDeps/GizmoMap/GizmoMap.Presentation/UI/ImGuiPropertyTreeAdapter.cs` | Add `public void ReceiveUiState(GizmoUiState state)`. Implementation: look up the `EditDocument` by `state.GizmoInstanceId` in `_registry`. For each scheduled item whose `SchemaHash == state.GizmoInstanceId`: look up `_inspectorStates[(item.NetworkId, item.GizmoTypeId)]`; if the entry is `Viewing` (or absent, which implies Viewing), call `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)`. If the entry is `Editing`, discard silently. |
+| Terminal application composition root (e.g. `GizmoMap.Viewer/Program.cs` or the IG application wiring) | Instantiate a `DdsReader<GizmoUiState>` and call `adapter.ReceiveUiState(sample)` inside the per-frame update loop whenever a new sample is available. |
+
+**Constraints:**
+
+* `ReceiveUiState` must never throw if `_registry` is `null` (the adapter was constructed without
+  a registry — existing no-registry usage must remain safe).
+* `ReceiveUiState` must never throw if `state.GizmoInstanceId` is not found in the registry
+  (schema not locally registered; silently skip).
+* `EditDocumentJsonSerializer.Deserialize` must not be called while `_inspectorStates` for the
+  corresponding key is `Editing` — the user's in-progress values must be preserved.
+* `GizmoMap.Presentation` already references `GizmoMap.Network`; no new project reference is
+  needed for `GizmoUiState`.
+
+**Success Conditions:**
+
+* `SC-GZ070-1`: Unit test: create an `ImGuiPropertyTreeAdapter` with a registry containing one
+  schema. Call `ReceiveUiState` with a `GizmoUiState` whose `GizmoInstanceId` matches that
+  schema hash and `EditDocumentJson` contains a valid value override. Assert that the
+  `EditDocument`'s binding reflects the new value.
+* `SC-GZ070-2`: Unit test: put the inspector into `Editing` state (simulate via
+  `_inspectorStates`). Call `ReceiveUiState` with a new value. Assert that the `EditDocument`
+  binding is NOT updated (value preserved).
+* `SC-GZ070-3`: `ReceiveUiState` called with an unrecognised `GizmoInstanceId` does not throw
+  and returns without side effects.
+* `SC-GZ070-4`: `ReceiveUiState` called when the registry is `null` does not throw.
+* `SC-GZ070-5`: The `GizmoMap.Viewer` example (or equivalent terminal app) subscribes to
+  `GizmoUiState` and calls `ReceiveUiState`; the composition root compiles without errors.

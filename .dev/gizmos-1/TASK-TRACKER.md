@@ -58,3 +58,28 @@
 * [x] **TASK-GZ061** Convert Measurement and Placement Tools to Gizmo Generators
 * [x] **TASK-GZ062** Convert EntityRotationTool to Gizmo Generator
 * [x] **TASK-GZ063** Convert Polyline & Route Edit Tools to Gizmo Generators
+
+---
+
+## Phase 22: Composite Gizmo Identity
+
+**Goal:** Introduce `GizmoTypeId` as the third routing-key component so that multiple independent
+gizmos on the same entity can coexist without interaction routing collisions or StructInspector
+ImGui window merging.
+
+- [ ] **TASK-GZ064** Add GizmoTypeId to network contracts [details](./TASK-DETAIL.md#task-gz064--add-gizmotypeid-to-network-contracts)
+- [ ] **TASK-GZ065** GizmoTypeId injection into emitted primitives [details](./TASK-DETAIL.md#task-gz065--gizmotypeid-injection-into-emitted-primitives)
+- [ ] **TASK-GZ066** Fix DataDrivenGizmoSystem routing and wire egress/ingress translators [details](./TASK-DETAIL.md#task-gz066--fix-datadrivengizmosystem-routing-and-wire-egressingress-translators)
+- [ ] **TASK-GZ067** Populate GizmoTypeId in terminal pick-token [details](./TASK-DETAIL.md#task-gz067--populate-gizmotypeid-in-terminal-pick-token)
+
+---
+
+## Phase 23: StructInspector Refinements
+
+**Goal:** Fix StructInspector ImGui window collision, eliminate the redundant root tree node,
+add a per-inspector Viewing/Editing state machine, and wire the GizmoUiState DDS subscription
+so live host state reaches the terminal inspector panel.
+
+- [ ] **TASK-GZ068** Fix ImGui window stable ID and eliminate redundant root node [details](./TASK-DETAIL.md#task-gz068--fix-imgui-window-stable-id-and-eliminate-redundant-root-node)
+- [ ] **TASK-GZ069** Add per-inspector Viewing/Editing state machine [details](./TASK-DETAIL.md#task-gz069--add-per-inspector-viewingediting-state-machine)
+- [ ] **TASK-GZ070** Wire GizmoUiState subscription on terminal side [details](./TASK-DETAIL.md#task-gz070--wire-gizmouistate-subscription-on-terminal-side)

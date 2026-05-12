@@ -799,3 +799,222 @@ popup and the component inspector overlay share the same ImGui frame.
 | Per-frame `menuBindings` dictionary is transient | Avoids stale entries when an entity loses its menu binding; cost is a single O(n) scan where n is the total primitive count |
 | Producer interns once, emits hash every frame | After the first delivery the `StringInternBatch` carries no new data for that menu; 64-byte binding primitive is the only per-frame overhead |
 | `GizmoMap.*` assemblies have no domain-logic dependency | `ContextMenuAdapter` only takes `string menuJson`; the JSON schema is defined by the producer, not by the presentation library |
+
+---
+
+## §11 Composite Gizmo Identity and StructInspector Live State
+
+### 11.1 Problem: Routing Collisions in the Flat ID Space
+
+The current routing key is `AnchorId + SubElementId`. Two independent failure modes exist when
+multiple gizmos coexist on the same ECS entity:
+
+**Interaction routing bottleneck.** `DataDrivenGizmoSystem.FindGizmo(Entity entity)` returns
+`list[0].Instance` — the first gizmo in registration order always captures all interaction events.
+Sub-element IDs are not globally unique across gizmos: Gizmo A and Gizmo B may both emit `Box2D`
+handles with `SubElementId = 1`. The terminal sends back identical pick tokens and the host
+routes all of them to Gizmo A, silently ignoring Gizmo B.
+
+**StructInspector ImGui window collision.** `ImGuiPropertyTreeAdapter.DrawScheduled` constructs
+window stable IDs as `###StructInsp_{NetworkId}`. Two `StructInspector` primitives for the same
+entity (different schema hashes) map to the same ImGui stable ID. ImGui merges them into a single
+window with undefined rendering behaviour.
+
+**Redundant root tree node.** `DrawScheduled` calls `DrawEditNode(doc!.Root, isReadOnly)`, which
+wraps the root struct in a collapsible `TreeNode`. The window title already shows the struct name,
+making the root node a redundant extra click before any fields become accessible.
+
+**No live-data path from host to terminal.** The `GizmoUiState` DDS topic exists and is
+published by host gizmos via `IGizmoUiStatePublisher`, but the terminal never subscribes to it.
+The `ImGuiPropertyTreeAdapter` shows only the initial schema-registered values; live host-side
+state changes are never reflected in the inspector panel.
+
+**No edit-isolation for the terminal inspector.** When a `GizmoUiState` subscription is wired,
+an incoming state update would clobber in-progress edits the operator has not yet committed.
+
+**Missing StructUpdate routing in `DataDrivenGizmoSystem`.** `DataDrivenGizmoSystem.RouteInteractionEvents`
+handles Started/Drag/Commit/Cancel/Menu/Key events but has no `StructUpdate` case. Entity-bound
+gizmos with StructInspector panels never receive `OnStructUpdate` calls over the DDS path; only
+standalone `GlobalGizmoManager` gizmos are reached.
+
+### 11.2 Solution: Composite Key `[AnchorId] + [GizmoTypeId] + [SubElementId]`
+
+Introduce `GizmoTypeId` (FNV-1a hash of the gizmo class full name — the same pattern as
+`StructSchemaHash` for schemas) as the third routing-key component. `GizmoTypeId` uniquely
+identifies the gizmo *definition* that produced a primitive; gizmo implementations need not be
+aware of each other.
+
+Key properties of the composite key:
+- `AnchorId` — identifies the entity (or standalone-tool slot).
+- `GizmoTypeId` — identifies the gizmo definition (class-level) within the entity's gizmo list.
+- `SubElementId` — identifies a handle within a single gizmo instance.
+
+`SubElementId` is now isolated per gizmo instance: Gizmo A and Gizmo B can both use
+`SubElementId = 1` without collision because the composite key differentiates them.
+
+### 11.3 Network Contract Changes
+
+| Location | Change |
+|----------|--------|
+| `DebugPrimitive` (`GizmoMap.Contracts`) | Add `[FieldOffset(60)] public uint GizmoTypeId;`. Bytes 60-63 are free in the `Box2D`, `Arrow`, `StructInspector`, and `ContextMenuBinding` payload unions. Offset 60 is chosen because it is the first offset that is simultaneously free in both `Box2D` (payload ends at `FillColor` [56-59]) and `StructInspector` (bytes [48-63] unused). Bytes [48-51] are **not** available for `Box2D`: `BoxAngleDeg` occupies [40-43] and `BoxAnchorId` (a `long`) follows at [44-51], so [48-51] fall inside that field. `SemanticShape` uses offset 60 for `ResolvedRollRad` but is visual-only — stamping is shape-gated so `SemanticShape` is never stamped. |
+| `GizmoPickToken` (`GizmoMap.Contracts`) | Add `uint GizmoTypeId;` |
+| `GizmoInteractionBatch` (`GizmoMap.Network`) | Add `uint PickGizmoTypeId;` |
+| `PickToken` (`Fdp.Diagnostics.Contracts`) | Add `uint GizmoTypeId;` to carry the field through the ECS event bus from ingress translator to routing system. |
+| `IGizmoDefinition` (`Fdp.Toolkits`) | Add `uint GizmoTypeId { get; }`. Implementations derive the value at class-definition time via `FnvHash.Of(typeof(TGizmo).FullName)`. |
+
+### 11.4 GizmoTypeId Injection into Emitted Primitives (Host Side)
+
+Gizmo implementations are not required to set `GizmoTypeId` on each emitted primitive. The
+orchestrating system stamps the field transparently after each `UpdateAndDraw` call:
+
+1. `DebugPrimitiveBuffer` exposes a new `int Count { get; }` property (current write cursor) and
+   a `void StampGizmoTypeId(int fromIndex, uint gizmoTypeId)` method that iterates
+   `[fromIndex, Count)` and sets `primitive.GizmoTypeId = gizmoTypeId` on each primitive whose
+   `Shape` is `Box2D`, `StructInspector`, or `ContextMenuBinding`. Other shapes are not stamped.
+2. `DataDrivenGizmoSystem.Execute` records a watermark (`int mark = _drawBuilder.Count`) before
+   each `gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder)`, then calls
+   `_drawBuilder.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId)` immediately after.
+3. `GlobalGizmoManager.Execute` applies the same watermark-stamp pattern for its standalone gizmos.
+
+**Shape-gating invariant:** stamping only touches `Box2D`, `StructInspector`, and
+`ContextMenuBinding` shapes. `SemanticShape` and other visual-only primitives are never stamped,
+ensuring `ResolvedRollRad` at offset 60 is never corrupted.
+
+### 11.5 Host-Side Router Fix (`DataDrivenGizmoSystem`)
+
+`FindGizmo(Entity entity)` is replaced by `FindGizmo(Entity entity, uint gizmoTypeId)`.
+Injected (on-demand) gizmos retain strict priority. For the base active-gizmo list:
+
+```csharp
+return list.FirstOrDefault(gi => gi.Definition.GizmoTypeId == gizmoTypeId)?.Instance;
+```
+
+All `RouteInteractionEvents` call sites pass `evt.Token.GizmoTypeId` into `FindGizmo`.
+
+`DataDrivenGizmoSystem.RouteInteractionEvents` gains a new `StructUpdate` routing case
+(previously absent). The target gizmo is resolved by `FindGizmo(entity, evt.GizmoTypeId)` and
+its `OnStructUpdate(payloadJson)` method is called. This requires:
+
+- `GizmoStructUpdateEvent` to carry a `uint GizmoTypeId` field (set from
+  `GizmoInteractionBatch.PickGizmoTypeId` by the ingress translator).
+- `onStructUpdate` callback in `ImGuiPropertyTreeAdapter` to change from
+  `Action<long, string>?` to `Action<long, uint, string>?` (networkId, gizmoTypeId, json).
+  `ScheduledItem` gains a `uint GizmoTypeId` field populated from `primitive.GizmoTypeId`
+  when a `StructInspector` primitive is scheduled. The callback passes `item.GizmoTypeId` —
+  never `item.SchemaHash` — so the egress translator correctly targets the gizmo class on the
+  host. (`SchemaHash` and `GizmoTypeId` are different hashes of different types and must not
+  be mixed.)
+
+**Context-menu routing.** `GizmoMenuActionEvent` gains a `uint GizmoTypeId` field populated
+from `PickGizmoTypeId` by the ingress translator. `DataDrivenGizmoSystem` routes
+`GizmoMenuActionEvent` through `FindGizmo(entity, evt.GizmoTypeId)`, just like all other
+interaction types. This prevents a menu action emitted by one gizmo from being delivered to a
+sibling gizmo on the same entity.
+
+### 11.6 Terminal-Side Pick Token and Transport Changes
+
+**`DebugGizmoLayer.HandleInput`** reads `hit.GizmoTypeId` from the hit `DebugPrimitive` and sets
+`token.GizmoTypeId = hit.GizmoTypeId` before forwarding the pick token to the interaction
+callback.
+
+**`DdsGizmoInteractionPublisher.Publish`** sets `batch.PickGizmoTypeId = token.GizmoTypeId`.
+
+**`GizmoInteractionEgressTranslator.WriteRecord`** sets `PickGizmoTypeId = token.Target.GizmoTypeId`
+(where `token.Target` is the `PickToken` containing the new field).
+
+**`GizmoInteractionEgressTranslator.WriteStructUpdate`** sets
+`PickGizmoTypeId = gizmoTypeId` (the second argument of the updated `onStructUpdate` callback
+from `ImGuiPropertyTreeAdapter`, originating from `ScheduledItem.GizmoTypeId`). This value is
+the FNV-1a hash of the *gizmo class* type name, not the schema hash; conflating the two would
+cause `FindGizmo` on the host to silently drop every `StructUpdate` event.
+
+**`GizmoInteractionIngressTranslator.Translate`** populates `token.GizmoTypeId = batch.PickGizmoTypeId`
+and also populates `GizmoStructUpdateEvent.GizmoTypeId = batch.PickGizmoTypeId` for the
+`StructUpdate` case.
+
+### 11.7 ImGui Window Stable ID Fix and Root Node Elimination
+
+**Window stable ID fix.** `ImGuiPropertyTreeAdapter.DrawScheduled` appends `SchemaHash` to the
+ImGui stable ID:
+
+```
+Before: $"...###StructInsp_{item.NetworkId}"
+After:  $"...###StructInsp_{item.NetworkId}_{item.SchemaHash}"
+```
+
+Two `StructInspector` panels on the same entity with different schema hashes now render as
+independent ImGui windows with fully isolated rendering contexts.
+
+**Root node elimination.** Instead of `DrawEditNode(doc!.Root, isReadOnly)`, the method iterates
+the root's children directly:
+
+```csharp
+foreach (var child in doc!.Root.Children)
+    DrawEditNode(child, item.IsReadOnly);
+```
+
+Fields at the top level of the struct appear directly inside the panel without the extra
+collapsible wrapper. Nested structs within those fields still render their own `TreeNode`
+hierarchy.
+
+### 11.8 StructInspector Viewing/Editing State Machine
+
+`ImGuiPropertyTreeAdapter` maintains a
+`Dictionary<(long NetworkId, uint GizmoTypeId), InspectorState> _inspectorStates` to track
+focus per inspector window. `GizmoTypeId` is read from `ScheduledItem.GizmoTypeId` (which was
+populated from the stamped `StructInspector` primitive). Using `GizmoTypeId` instead of
+`SchemaHash` as the key ensures state isolation even if two gizmos on the same entity happen to
+publish the same generic schema type. The state machine has two states:
+
+| State | Description |
+|-------|-------------|
+| `Viewing` | Incoming `GizmoUiState` updates are applied immediately. The Apply button is still shown; the operator can interact with any field. |
+| `Editing` | The operator has focused the window. Incoming `GizmoUiState` updates are discarded. |
+
+State transitions:
+
+| Trigger | Transition | Action |
+|---------|-----------|--------|
+| `ImGui.IsWindowFocused(RootAndChildWindows)` returns `true` while in `Viewing` | Viewing → Editing | None (begin blocking updates) |
+| Window loses focus (`!isFocused`) while in `Editing` | Editing → Viewing | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` to commit changes |
+| Operator clicks "Apply" while in `Editing` | Editing → Viewing | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` to commit changes |
+
+Note: the key is `(NetworkId, GizmoTypeId)` rather than `NetworkId` alone so that two gizmo
+inspectors on the same entity track focus independently, even if they happen to share the same
+schema type.
+
+### 11.9 GizmoUiState Subscription (Terminal Side)
+
+The terminal application subscribes to the `GizmoUiState` DDS topic
+(`TransientLocal`, `KeepLast(1)`) and calls `ImGuiPropertyTreeAdapter.ReceiveUiState(GizmoUiState state)`
+when a sample arrives.
+
+`ReceiveUiState` implementation:
+
+1. Look up `EditDocument` by `state.GizmoInstanceId` (= `StructSchemaHash`) in
+   `GizmoSchemaRegistry`.
+2. Find all active `ScheduledItem`s whose `SchemaHash == state.GizmoInstanceId`.
+3. For each: if the corresponding `InspectorState` is `Viewing`, call
+   `EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc)` to inject the host's
+   live values into the local `IValueBinding` objects.
+4. If `Editing`: discard the sample; the operator's in-progress edits are preserved.
+
+**Host-side publish discipline.** Backend gizmos publish `GizmoUiState` only when their internal
+configuration changes, not every frame. The `TransientLocal` / `KeepLast(1)` QoS guarantees that
+late-joining terminals receive the current state without repeated broadcasts.
+
+`GizmoInstanceId` (uint) is set to `StructSchemaHash` by convention. If two entity types share a
+schema, they share the same `GizmoUiState` sample (last-write-wins), which is acceptable for
+schema-level initial values.
+
+### 11.10 Architectural Invariants
+
+| Invariant | Rationale |
+|-----------|-----------|
+| `GizmoTypeId` stamping is shape-gated to `Box2D`, `StructInspector`, and `ContextMenuBinding` | Prevents corrupting `SemanticShape.ResolvedRollRad` which occupies the same offset 60; other visual-only shapes are never stamped |
+| `GizmoTypeId` is derived from class name, not assigned manually | Guarantees uniqueness within a project without developer coordination |
+| `IGizmoDefinition.GizmoTypeId` is a property, not a field | Allows derivation at type-registration time; value is stable for the process lifetime |
+| `SubElementId` is unique only within a gizmo instance, not globally | Composite key semantics; the fix is at the routing layer, not in gizmo code |
+| State machine key is `(NetworkId, GizmoTypeId)` | Guarantees isolation per gizmo instance; two inspectors on the same entity track focus independently even if they share the same schema type |
+| `GizmoUiState.GizmoInstanceId` == `StructSchemaHash` | Reuses existing hash convention; avoids a new ID allocation scheme |
+| `DataDrivenGizmoSystem.RouteInteractionEvents` gains `StructUpdate` case | Entity-bound gizmos can now receive inspector mutations over DDS; previously only `GlobalGizmoManager` gizmos received `OnStructUpdate` calls |

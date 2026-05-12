@@ -31,7 +31,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Vector3.DistanceSquared(start, end) < 0.01f)
                 return;
 
-            draw.DrawArrow(start, end, TargetColor, headSize: 3f);
+            draw.DrawArrow(start, end, TargetColor, headSize: 3f, layer: 2);
         }
     }
 }

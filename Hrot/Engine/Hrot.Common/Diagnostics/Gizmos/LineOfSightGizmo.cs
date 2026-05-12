@@ -38,7 +38,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     thickness: 1.5f,
                     sizeMode: SizeMode.ScreenPixels,
                     target: PipelineTarget.Map2D,
-                    layer: 2,
+                    layer: 1,
                     style: LineStyle.Dashed);
             }
         }

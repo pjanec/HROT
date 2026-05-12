@@ -44,8 +44,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
                                         pos.Y + MathF.Sin(rightAngle) * range,
                                         pos.Z);
 
-            draw.DrawLine(pos, leftEdge,  color);
-            draw.DrawLine(pos, rightEdge, color);
+            draw.DrawLine(pos, leftEdge,  color, layer: 1);
+            draw.DrawLine(pos, rightEdge, color, layer: 1);
 
             // Arc as ArcSegments line segments connecting the edge endpoints.
             float step = 2f * halfAngle / ArcSegments;
@@ -59,7 +59,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 var p1 = new Vector3(pos.X + MathF.Cos(a1) * range,
                                      pos.Y + MathF.Sin(a1) * range,
                                      pos.Z);
-                draw.DrawLine(p0, p1, color);
+                draw.DrawLine(p0, p1, color, layer: 1);
             }
         }
     }

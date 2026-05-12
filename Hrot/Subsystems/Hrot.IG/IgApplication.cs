@@ -1136,11 +1136,9 @@ public class IgApplication : IDisposable
         using var layerControlSchemaSession = layerControlEditService.Open(
             new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
             {
-                GroundUnits = true,
-                AirUnits = true,
-                Vehicles = true,
-                TacticalGraphics = true,
-                RoadGraphs = true
+                Entities = true,
+                Perception = true,
+                AiHelpers = true
             },
             typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
         schemaRegistry.Register(
