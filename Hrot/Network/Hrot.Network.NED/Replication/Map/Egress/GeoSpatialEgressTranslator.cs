@@ -186,7 +186,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 if (_tracedNetIds.Add(netId.Value))
                 {
-                    FdpLog<GeoSpatialEgressTranslator>.Debug(
+                    FdpLog<GeoSpatialEgressTranslator>.Trace(
                         "[Node-{0}] Egress: Writing WorldPos for NetID={1} pos=({2},{3})", _localNodeId, netId.Value, lat, lon);
                 }
             }

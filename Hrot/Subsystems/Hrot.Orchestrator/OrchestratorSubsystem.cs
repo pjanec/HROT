@@ -111,8 +111,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _clusterMaster = new ClusterMaster(_bus, _config);
         int orchestratorNodeId = config.NodeId != 0 ? config.NodeId : 300;
         _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus);
-        string isolatedTempRoot = System.IO.Path.Combine(
-            OrchestrationConstants.DefaultStagingDirectory, "nodes", $"node-{orchestratorNodeId}");
+        string isolatedTempRoot = OrchestrationConstants.GetNodeStagingRoot(orchestratorNodeId);
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
         var orchestratorLogService = new LogArchiveExtractionService(
             resolvedLogDir,
@@ -180,6 +179,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         if (participant != null)
         {
             contextHandler = new GlobalContextClusterOpHandler(participant, string.Empty);
+            contextHandler.LocalTempRoot = isolatedTempRoot;
             contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
             {
                 if (_masterSync != null)
@@ -210,7 +210,9 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _assetInventoryProcessManager = new AssetInventoryProcessManager(
             _bus!,
             storageGateway,
-            _config.NasBasePath);
+            _config.NasBasePath,
+            OrchestrationConstants.DefaultStagingDirectory,
+            orchestratorNodeId);
 
         // TASK-S003: Wire the episode process manager.
         _episodeProcessManager = new EpisodeProcessManager(_bus);

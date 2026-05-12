@@ -146,7 +146,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 // Record the published IntentId so the same command is not resent next frame.
                 _lastPublishedIntentId[entity] = intent.IntentId;
 
-                FdpLog<NavigationIntentEgressTranslator>.Debug(
+                FdpLog<NavigationIntentEgressTranslator>.Trace(
                     "[Node-{0}] NavigationIntent egress: EntityId={1} IntentId={2} Mode={3}",
                     _localNodeId, netId.Value, intent.IntentId, intent.Mode);
             }

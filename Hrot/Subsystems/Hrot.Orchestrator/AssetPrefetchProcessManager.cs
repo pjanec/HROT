@@ -19,10 +19,22 @@ namespace Hrot.Orchestrator;
 /// </summary>
 public sealed class AssetPrefetchProcessManager
 {
+    private sealed class PrefetchAckTracker
+    {
+        public HashSet<int> PendingNodeIds { get; }
+        public bool HasFailure { get; set; }
+
+        public PrefetchAckTracker(IEnumerable<int> nodeIds)
+        {
+            PendingNodeIds = new HashSet<int>(nodeIds);
+        }
+    }
+
     private readonly FdpEventBus _bus;
     private readonly StorageGatewayModule _gateway;
     private readonly string _nasBasePath;
     private readonly string _localStagingRoot;
+    private readonly Dictionary<Guid, PrefetchAckTracker> _pendingPrefetchAcks = new();
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for prefetch operations.</param>
@@ -122,6 +134,7 @@ public sealed class AssetPrefetchProcessManager
                 "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' succeeded — fanning out PrefetchFiles to {1} node(s).",
                 ev.ScenarioId, ev.ActiveNodeIds.Count);
             var txId = Guid.NewGuid();
+            _pendingPrefetchAcks[txId] = new PrefetchAckTracker(ev.ActiveNodeIds);
             foreach (var nodeId in ev.ActiveNodeIds)
             {
                 _bus.PublishManaged(new ExecuteNodeOpIntent
@@ -130,6 +143,40 @@ public sealed class AssetPrefetchProcessManager
                     TargetNodeId  = nodeId,
                     Operation     = Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles,
                     DomainPayload = new PrefetchHandlerPayload(ev.ScenarioId),
+                });
+            }
+            if (ev.ActiveNodeIds.Count == 0)
+            {
+                _pendingPrefetchAcks.Remove(txId);
+                _bus.PublishManaged(new ClusterOpCompletedEvent
+                {
+                    RequestId  = txId,
+                    StatusCode = OrchestrationStatusCode.Success,
+                });
+            }
+        }
+
+        foreach (var ack in _bus.ReadManaged<NodeOpCompletedEvent>())
+        {
+            if (ack.Operation != Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles)
+                continue;
+
+            if (!_pendingPrefetchAcks.TryGetValue(ack.TransactionId, out var tracker))
+                continue;
+
+            tracker.PendingNodeIds.Remove(ack.NodeId);
+            if (ack.StatusCode != OrchestrationStatusCode.Success)
+                tracker.HasFailure = true;
+
+            if (tracker.PendingNodeIds.Count == 0)
+            {
+                _pendingPrefetchAcks.Remove(ack.TransactionId);
+                _bus.PublishManaged(new ClusterOpCompletedEvent
+                {
+                    RequestId  = ack.TransactionId,
+                    StatusCode = tracker.HasFailure
+                        ? OrchestrationStatusCode.Failure
+                        : OrchestrationStatusCode.Success,
                 });
             }
         }
@@ -143,7 +190,10 @@ public sealed class AssetPrefetchProcessManager
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = nodeId,
-                DestinationPath = Path.Combine(_localStagingRoot, scenarioId),
+                DestinationPath = Path.Combine(
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(_localStagingRoot, nodeId),
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
+                    scenarioId),
             });
         }
         return targets;

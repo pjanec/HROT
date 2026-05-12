@@ -61,7 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 if (!_entityMap.TryGetEntity(msg.EntityId, out var entity))
                 {
-                    FdpLog<NavigationStatusIngressTranslator>.Debug(
+                    FdpLog<NavigationStatusIngressTranslator>.Trace(
                         "[Node-{0}] NavigationStatus ingress: unknown EntityId={1} — skipped", _localNodeId, msg.EntityId);
                     continue;
                 }
@@ -73,7 +73,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                     ProgressS = msg.ProgressS,
                 });
 
-                FdpLog<NavigationStatusIngressTranslator>.Debug(
+                FdpLog<NavigationStatusIngressTranslator>.Trace(
                     "[Node-{0}] NavigationStatus ingress: EntityId={1} IntentId={2} Result={3}",
                     _localNodeId, msg.EntityId, msg.IntentId, msg.Result);
             }

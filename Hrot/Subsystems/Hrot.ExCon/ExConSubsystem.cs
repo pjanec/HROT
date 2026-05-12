@@ -223,6 +223,13 @@ namespace Hrot.ExCon
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
+            // Wire ReferencePrefetchHandler / ReferenceArchiveHandler so ExCon ACKs
+            // background file fan-outs (PrefetchFiles / SerializeLocal) and cannot stall 2PC UI tracking.
+            var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+            _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(exConStorageProvider));
+            _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(
+                OrchestrationConstants.DefaultStagingDirectory, iosNodeId));
+
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);
             var exConEntityService = new NullEntityStateExtractionService();

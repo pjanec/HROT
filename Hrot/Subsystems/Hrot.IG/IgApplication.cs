@@ -972,10 +972,7 @@ public class IgApplication : IDisposable
                     igResolvedLogDir,
                     "IG",
                     igNodeId);
-                string igIsolatedTempRoot = System.IO.Path.Combine(
-                    Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory,
-                    "nodes",
-                    $"node-{igNodeId}");
+                string igIsolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(igNodeId);
                 _clusterSlave.RegisterHandler(new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
                     _fdpEventHistory,
                     igArchService,

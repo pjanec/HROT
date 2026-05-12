@@ -205,17 +205,17 @@ public sealed class StorageGatewayModule
 
     /// <summary>
     /// Copies all scenario files for <paramref name="scenarioId"/> from the NAS
-    /// (<c>&lt;nasBasePath&gt;\&lt;scenarioId&gt;\</c>) to each target node's
+    /// (<c>&lt;nasBasePath&gt;\scenarios\&lt;scenarioId&gt;\</c>) to each target node's
     /// local staging directory (<c>C:\FDP_Temp\&lt;scenarioId&gt;\</c>) by pushing
     /// every file in the source directory to every <see cref="NodeDistributionTarget"/>.
     ///
     /// <para>Any files that do not exist locally are silently skipped.  Per-file errors are
     /// counted but do not abort the operation.</para>
     /// </summary>
-    /// <param name="scenarioId">Logical scenario identifier (directory name under the NAS base).</param>
+    /// <param name="scenarioId">Logical scenario identifier (directory name under the NAS scenarios folder).</param>
     /// <param name="targets">Target nodes; each entry's <see cref="NodeDistributionTarget.DestinationPath"/>
     /// should be the fully-qualified destination <em>directory</em> on the target node.</param>
-    /// <param name="nasBasePath">NAS root under which <paramref name="scenarioId"/> is a sub-directory.</param>
+    /// <param name="nasBasePath">NAS root under which <c>scenarios\&lt;scenarioId&gt;</c> is resolved.</param>
     public async Task<GatewayResult> PrefetchScenarioAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
@@ -225,7 +225,7 @@ public sealed class StorageGatewayModule
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
-        var sourceDir = Path.Combine(nasBasePath, scenarioId);
+        var sourceDir = Path.Combine(nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
         if (!Directory.Exists(sourceDir))
             throw new DirectoryNotFoundException(
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' does not exist. " +
@@ -303,6 +303,12 @@ public sealed class StorageGatewayModule
         if (targets == null)                         throw new ArgumentNullException(nameof(targets));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
 
+        var sourceDir = Path.Combine(nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId);
+        if (!Directory.Exists(sourceDir))
+            throw new DirectoryNotFoundException(
+                $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
+                $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
+
         int successCount = 0;
         int failureCount = 0;
 
@@ -318,7 +324,7 @@ public sealed class StorageGatewayModule
                     try
                     {
                         var fileName = OrchestrationConstants.GetNodeRecordingFileName(target.NodeId);
-                        var srcPath = Path.Combine(nasBasePath, exerciseId, fileName);
+                        var srcPath = Path.Combine(sourceDir, fileName);
                         var destDir = Path.GetDirectoryName(target.DestinationPath);
                         if (!string.IsNullOrEmpty(destDir))
                             Directory.CreateDirectory(destDir);

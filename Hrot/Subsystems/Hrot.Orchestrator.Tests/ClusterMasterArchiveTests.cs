@@ -182,7 +182,12 @@ public sealed class ClusterMasterArchiveTests
         var bus = new FdpEventBus();
 
         var gateway = new StorageGatewayModule();
-        var manager = new AssetInventoryProcessManager(bus, gateway, @"C:\DoesNotExist_Test_" + Guid.NewGuid());
+        var manager = new AssetInventoryProcessManager(
+            bus,
+            gateway,
+            @"C:\DoesNotExist_Test_" + Guid.NewGuid(),
+            @"C:\DoesNotExist_Test_" + Guid.NewGuid(),
+            300);
 
         // First Tick always triggers the scan (_lastInventoryScan = DateTime.MinValue).
         bus.SwapBuffers();

@@ -9,5 +9,8 @@ start DdsMonitor ^
   --AppSettings:ExcludeTopics:0="Fdp.Toolkit.Time.Messages.TimeSyncRequest" ^
   --AppSettings:ExcludeTopics:1="Fdp.Toolkit.Time.Messages.TimeSyncResponse" ^
   --AppSettings:ExcludeTopics:2="Hrot.NED.Descriptors.Orchestration.AssetInventoryTopic" ^
-  --AppSettings:ExcludeTopics:3="Hrot.NED.Descriptors.Orchestration.NodeHeartbeat"
+  --AppSettings:ExcludeTopics:3="Hrot.NED.Descriptors.Orchestration.NodeHeartbeat" ^
+  --AppSettings:ExcludeTopics:4="GizmoMap.Network.DebugPrimitivesBatch"
+
+  
 

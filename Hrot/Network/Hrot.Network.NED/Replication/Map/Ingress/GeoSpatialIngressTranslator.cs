@@ -62,7 +62,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
             var latitude  = data.Pos.Latitude;
             var longitude = data.Pos.Longitude;
-            FdpLog<GeoSpatialIngressTranslator>.Debug(
+            FdpLog<GeoSpatialIngressTranslator>.Trace(
                 "[Node-{0}] Ingress: GeoSpatial Entity={1} Lat={2} Lon={3}", _localNodeId, entity.Index, latitude, longitude);
 
             // 1. Position & rotation

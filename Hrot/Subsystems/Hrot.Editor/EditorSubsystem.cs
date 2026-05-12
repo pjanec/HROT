@@ -77,6 +77,7 @@ using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Core.Diagnostics;
 using Fdp.ModuleHost.Diagnostics;
+using Fdp.ModuleHost.Scheduling;
 // Disambiguate IMapCameraProvider: Hrot.SimHost.Modules also defines this interface.
 using IMapCameraProvider = Fdp.Toolkit.Runner.IMapCameraProvider;
 using FdpEntityInspectorPanel = Fdp.Presentation.Panels.EntityInspectorPanel;
@@ -107,6 +108,8 @@ namespace Hrot.Editor
     /// </summary>
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
     {
+        private const int EditorNodeId = 0;
+
         // ?? Subsystem identity ????????????????????????????????????????????????
 
         /// <inheritdoc/>
@@ -173,6 +176,7 @@ namespace Hrot.Editor
         private FdpEventBus?           _orchestrationBus;
         private ClusterMaster?                _clusterMaster;
         private AssetInventoryProcessManager?  _assetInventoryProcessManager;
+        private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
         private StorageGatewayModule?          _storageGateway;
         private ClusterUiCache?                _uiCache;
         private ClusterScenarioPanel?          _clusterPanel;
@@ -405,7 +409,7 @@ namespace Hrot.Editor
             _aiCoordinator.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
-            var clusterSlave     = new ClusterSlave(0, "Editor", _orchestrationBus);
+            var clusterSlave     = new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus);
             var zoneService      = new ZoneManagerService();
 
             // Build the serializer with custom translators AFTER component registration
@@ -427,15 +431,22 @@ namespace Hrot.Editor
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
             var idAllocator       = new SequentialIdAllocator();
-            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: 0);
+            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId);
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
             var extractor          = new StagingEntityExtractor();
+            string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
 
             // ?? 3c. Offline scenario load handler ?????????????????????????????
-            var storageProvider = new LocalDiskStorageProvider(EditorBootstrap.ScenariosRoot);
+            var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+            var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
+                _kernel, EditorNodeId, _world!);
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
+            clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
+                scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world,
+                controller: rrController,
+                storageDirectory: isolatedTempRoot));
             clusterSlave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
                 _fdpEventHistory,
                 new ArchitectureDiagnosticsService(() => _kernel),
@@ -446,9 +457,9 @@ namespace Hrot.Editor
                     0),
                 new Hrot.Common.Infrastructure.HrotNodeConfig
                 {
-                    NodeId = 0,
+                    NodeId = EditorNodeId,
                     SubsystemName = "Editor",
-                    LocalTempRoot = EditorBootstrap.ScenariosRoot,
+                    LocalTempRoot = isolatedTempRoot,
                     LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 }));
 
@@ -464,8 +475,17 @@ namespace Hrot.Editor
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
-                new ScenarioEntityCreationRequestSource(),
+                scenarioLoadSource,
                 mapperRegistry);
+            var toggleInput = new TogglableInputGroup(
+                "EditorInput",
+                simHostCorePack.InputSystems.Concat(cgfLogicPackInst.InputSystems).ToArray());
+            var toggleSim = new TogglableSimulationGroup(
+                "EditorSim",
+                simHostCorePack.SimulationSystems.Concat(cgfLogicPackInst.SimulationSystems).ToArray());
+            var togglePostSim = new TogglablePostSimulationGroup(
+                "EditorPostSim",
+                simHostCorePack.PostSimulationSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
@@ -481,17 +501,27 @@ namespace Hrot.Editor
                 _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _orchestrationBus));
 
             // ?? 4a. Multi-phase system registration for SimHostCorePack and CgfLogicPack ??
-            // CGF Brain systems -- register directly (no toggling needed in the editor)
-            foreach (var sys in cgfLogicPackInst.InputSystems)      _kernel.RegisterGlobalSystem(sys);
+            _kernel.RegisterGlobalSystem(toggleInput);
+            _kernel.RegisterGlobalSystem(togglePostSim);
+            // Simulation-phase systems must go through a module (kernel forbids global registration).
+            _kernel.RegisterModule(new EditorSimulationModule(toggleSim));
 
-            // Muscle systems -- register directly
-            foreach (var sys in simHostCorePack.InputSystems)          _kernel.RegisterGlobalSystem(sys);
-            foreach (var sys in simHostCorePack.PostSimulationSystems) _kernel.RegisterGlobalSystem(sys);
-
-            // Simulation-phase systems must go through a module (kernel forbids global registration)
-            _kernel.RegisterModule(new EditorSimulationModule(
-                cgfLogicPackInst.SimulationSystems,
-                simHostCorePack.SimulationSystems));
+            // Register replay handler before live handler so the replay branch can claim
+            // PrepareLive while replay is active.
+            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+                rrController,
+                inputGroup:            toggleInput,
+                simGroup:              toggleSim,
+                postSimGroup:          togglePostSim,
+                lifecycleGroup:        null,
+                bypassLifecycleToggle: null,
+                storageDirectory:      isolatedTempRoot,
+                suspendGlobalTimePush: _kernel.SuspendGlobalTimePush,
+                resumeGlobalTimePush:  _kernel.ResumeGlobalTimePush));
+            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
+                checkpointWorker: null,
+                controller: rrController,
+                storageDirectory: isolatedTempRoot));
 
             // NOTE: SimHostComponentRegistry.RegisterAll was moved to step 1b above.
             _kernel.RegisterModule(new EditorSystemsModule());
@@ -505,7 +535,7 @@ namespace Hrot.Editor
                 ackSink:            new NullEntityAckSink(),
                 tkbDb:              tkbDb,
                 idAllocator:        idAllocator,
-                localNodeId:        0,
+                localNodeId:        EditorNodeId,
                 isDefaultProcessor: true);
             _kernel.RegisterModule(elm);
             _kernel.RegisterModule(new SimHostModule(spawnSys));
@@ -523,7 +553,7 @@ namespace Hrot.Editor
             // ?? 4e. IG presentation modules ? compute CullingState and ResolvedStyle ??
             // Must be registered BEFORE Initialize() so their component queries are built.
             _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
-            _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: 0));
+            _kernel.RegisterModule(new StyleResolutionModule(_userConfig, localNodeId: EditorNodeId));
 
             // ?? 4f. Visual effects module ? spawns and cleans up tracers / explosions ??
             _kernel.RegisterModule(new EventEffectModule());
@@ -721,7 +751,14 @@ namespace Hrot.Editor
             _assetInventoryProcessManager = new AssetInventoryProcessManager(
                 _orchestrationBus,
                 _storageGateway,
-                EditorBootstrap.ScenariosRoot);
+                ClusterConfiguration.Default.NasBasePath,
+                OrchestrationConstants.DefaultStagingDirectory,
+                EditorNodeId);
+            _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
+                _orchestrationBus,
+                _storageGateway,
+                ClusterConfiguration.Default.NasBasePath,
+                OrchestrationConstants.DefaultStagingDirectory);
             _uiCache = new ClusterUiCache(_orchestrationBus);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus, _uiCache);
             _fileDialogService = new ImGuiFileDialogService();
@@ -959,6 +996,7 @@ namespace Hrot.Editor
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
             _assetInventoryProcessManager?.Tick();
+            _assetPrefetchProcessManager?.Tick();
             _diagnosticsDumpProcessManager?.Tick();
             _logMergeWorker?.Tick();
             _uiCache?.Update();
@@ -1296,6 +1334,7 @@ namespace Hrot.Editor
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
             _assetInventoryProcessManager = null;
+            _assetPrefetchProcessManager = null;
             _diagnosticsDumpProcessManager = null;
             _logMergeWorker?.Dispose();
             _logMergeWorker = null;
@@ -1462,35 +1501,16 @@ namespace Hrot.Editor
         // they must be routed through a module.
         private sealed class EditorSimulationModule : IEcsModule
         {
-            private readonly IEnumerable<IEcsModuleSystem> _cgfSimSystems;
-            private readonly IEnumerable<IEcsModuleSystem> _muscleSimSystems;
+            private readonly TogglableSimulationGroup _simulationGroup;
 
             public string Name => "EditorSimulation";
             public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
-            public EditorSimulationModule(
-                IEnumerable<IEcsModuleSystem> cgfSimSystems,
-                IEnumerable<IEcsModuleSystem> muscleSimSystems)
-            {
-                _cgfSimSystems    = cgfSimSystems;
-                _muscleSimSystems = muscleSimSystems;
-            }
+            public EditorSimulationModule(TogglableSimulationGroup simulationGroup)
+                => _simulationGroup = simulationGroup;
 
             public void RegisterSystems(ISystemRegistry registry)
-            {
-                var registeredTypes = new System.Collections.Generic.HashSet<System.Type>();
-
-                foreach (var sys in _cgfSimSystems)
-                {
-                    if (registeredTypes.Add(sys.GetType()))
-                        registry.RegisterSystem(sys);
-                }
-                foreach (var sys in _muscleSimSystems)
-                {
-                    if (registeredTypes.Add(sys.GetType()))
-                        registry.RegisterSystem(sys);
-                }
-            }
+                => registry.RegisterSystem(_simulationGroup);
 
             public void Tick(ISimulationView view, float deltaTime) { }
         }

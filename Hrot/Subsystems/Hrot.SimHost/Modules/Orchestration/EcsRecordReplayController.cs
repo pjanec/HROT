@@ -204,10 +204,15 @@ namespace Hrot.SimHost.Modules.Orchestration
         // ── Helpers ───────────────────────────────────────────────────────────────
 
         private string GetRecordingFilePath(Guid exerciseId, string storageDirectory) =>
-            Path.Combine(storageDirectory, exerciseId.ToString(), Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeRecordingFileName(_nodeId));
+            Path.Combine(
+                storageDirectory,
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
+                exerciseId.ToString(),
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeRecordingFileName(_nodeId));
 
         private string GetEpisodeRecordingFilePath(Guid episodeId, string storageDirectory) =>
-            Path.Combine(storageDirectory, "episodes", $"{episodeId}_node{_nodeId}.fdp");
+            Fdp.Toolkit.Orchestration.OrchestrationConstants.GetEpisodeRecordingFilePath(
+                storageDirectory, episodeId, _nodeId);
 
         /// <summary>
         /// Builds an entity filter predicate that accepts only entities whose

@@ -18,7 +18,7 @@ public static class EditorBootstrap
     /// Root directory used for scenario files.
     /// Scenarios are stored as <c>{ScenariosRoot}\{scenarioName}\scenario.json</c>.
     /// </summary>
-    public static string ScenariosRoot => Path.Combine(ClusterConfiguration.Default.NasBasePath, "scenarios");
+    public static string ScenariosRoot => Path.Combine(ClusterConfiguration.Default.NasBasePath, OrchestrationConstants.ScenariosDirectoryName);
 
     /// <summary>
     /// Builds a <see cref="ScenarioFileService"/> with an auto-serializer

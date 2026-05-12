@@ -131,7 +131,10 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
         {
             // Determine the exercise ID from the payload (if provided) or generate one.
             var exerciseId = ParseExerciseId(cmd.PayloadJson);
-            var dir     = Path.Combine(LocalTempRoot, exerciseId.ToString("N"));
+            var dir     = Path.Combine(
+                LocalTempRoot,
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
+                exerciseId.ToString("N"));
             _pendingFilePath                  = Path.Combine(dir, "Orchestrator.json");
             _pendingSaveWallTicks             = DateTimeOffset.UtcNow.Ticks;   // wall-clock snapshot at prepare time
             _pendingSaveSceneId               = _scenarioId;
@@ -204,11 +207,15 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
             var json = JsonSerializer.Serialize(dto,
                 new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_pendingFilePath, json);
+            var exerciseIdText = new DirectoryInfo(Path.GetDirectoryName(_pendingFilePath)!).Name;
 
             CommitManifestEntry = new FileManifestEntry
             {
                 SourceUnc    = _pendingFilePath,
-                RelativeDest = Path.GetFileName(_pendingFilePath),
+                RelativeDest = Path.Combine(
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
+                    exerciseIdText,
+                    Path.GetFileName(_pendingFilePath)),
             };
 
             FdpLog<GlobalContextClusterOpHandler>.Info(
@@ -240,7 +247,11 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
             return;
         }
 
-        var filePath = Path.Combine(LocalTempRoot, scenarioId, "Orchestrator.json");
+        var filePath = Path.Combine(
+            LocalTempRoot,
+            Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName,
+            scenarioId,
+            "Orchestrator.json");
         if (!File.Exists(filePath))
         {
             // graceful fallback for Editor scenarios

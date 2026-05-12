@@ -112,7 +112,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 SentSampleCount++;
                 _lastPublished[entity] = (status.IntentId, status.Result);
 
-                FdpLog<NavigationStatusEgressTranslator>.Debug(
+                FdpLog<NavigationStatusEgressTranslator>.Trace(
                     "[Node-{0}] NavigationStatus egress: EntityId={1} IntentId={2} Result={3}",
                     _localNodeId, netId.Value, status.IntentId, status.Result);
             }

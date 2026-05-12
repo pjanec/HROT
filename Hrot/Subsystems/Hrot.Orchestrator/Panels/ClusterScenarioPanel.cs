@@ -384,8 +384,9 @@ public sealed class ClusterScenarioPanel
                 foreach (var kv in _uiCache.ActiveNodes)
                 {
                     var hb    = kv.Value;
-                    var msAgo = hb.WallTicksUtc > 0
-                        ? (int)((nowSec - hb.WallTicksUtc / 10_000_000.0) * 1000.0)
+                    long lastSeenMs = _uiCache.GetNodeLastSeenMs(hb.NodeId);
+                    var msAgo = lastSeenMs > 0
+                        ? (int)((nowSec * 1000.0) - lastSeenMs)
                         : -1;
                     var ramMb = hb.RamUsedBytes / (1024.0 * 1024.0);
                     ImGui.TableNextRow();

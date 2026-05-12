@@ -209,6 +209,8 @@ namespace Hrot.CGF
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
+            // Wire ReferenceArchiveHandler so this node can report .fdp archives and ACK.
+            _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, _nodeId));
 
             // CGF1-S0309: wire dry-run handler (no ECS state on CGF skeleton).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
