@@ -400,7 +400,7 @@ namespace Fdp.Presentation.Panels
 
             Gui.TextDisabled("Filter by logger name:");
             Gui.Separator();
-            Gui.SetNextItemWidth(220f);
+            Gui.SetNextItemWidth(720f);
             Gui.InputTextWithHint("##LoggerSearch_" + sourceId, "Search loggers...", ref state.LoggerSearchText, 128);
             Gui.Separator();
 
@@ -437,7 +437,8 @@ namespace Fdp.Presentation.Panels
                 Gui.Separator();
 
                 // Scrollable area for large logger lists
-                Gui.BeginChild("##loggers_scroll_" + sourceId, new Vector2(250, 300), ImGuiChildFlags.None);
+                // Use 0 for the X dimension to dynamically inherit the popup's full width
+                Gui.BeginChild("##loggers_scroll_" + sourceId, new Vector2(0, 300), ImGuiChildFlags.None);
                 foreach (string logger in state.KnownLoggers.OrderBy(n => n))
                 {
                     if (hasSearch && !logger.Contains(state.LoggerSearchText, StringComparison.OrdinalIgnoreCase))

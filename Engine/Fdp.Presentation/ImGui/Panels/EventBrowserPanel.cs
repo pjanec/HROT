@@ -89,21 +89,6 @@ public class EventBrowserPanel
     {
         ImGuiApi.Checkbox("Pause", ref _paused);
 
-        // ── Event-type filter ─────────────────────────────────────────────
-        ImGuiApi.SameLine();
-        int hiddenCount = _disabledTypes.Count;
-        string filterLabel = hiddenCount > 0
-            ? $"Filter [{hiddenCount} hidden]###FilterBtn"
-            : "Filter###FilterBtn";
-        if (hiddenCount > 0)
-            ImGuiApi.PushStyleColor(ImGuiCol.Button, new Vector4(0.6f, 0.3f, 0.1f, 1f));
-        if (ImGuiApi.Button(filterLabel))
-            ImGuiApi.OpenPopup("##EventTypeFilter");
-        if (hiddenCount > 0)
-            ImGuiApi.PopStyleColor();
-
-        DrawFilterPopup();
-
         ImGuiApi.SameLine();
         ImGuiApi.SetNextItemWidth(150f);
         if (ImGuiApi.BeginCombo("##Provider", _selectedProvider))
@@ -125,6 +110,22 @@ public class EventBrowserPanel
             ImGuiApi.EndCombo();
         }
 
+        // ── Event-type filter ─────────────────────────────────────────────
+        ImGuiApi.SameLine();
+        int hiddenCount = _disabledTypes.Count;
+        string filterLabel = hiddenCount > 0
+            ? $"Filter [{hiddenCount} hidden]###FilterBtn"
+            : "Filter###FilterBtn";
+        if (hiddenCount > 0)
+            ImGuiApi.PushStyleColor(ImGuiCol.Button, new Vector4(0.6f, 0.3f, 0.1f, 1f));
+        if (ImGuiApi.Button(filterLabel))
+            ImGuiApi.OpenPopup("##EventTypeFilter");
+        if (hiddenCount > 0)
+            ImGuiApi.PopStyleColor();
+
+        DrawFilterPopup();
+
+
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Clear"))
         {
@@ -133,7 +134,6 @@ public class EventBrowserPanel
             _lastClickedIndex = -1;
             _knownTypes.Clear();
             _knownProviders.Clear();
-            _selectedProvider = "World";
             _cachedSnapshot = Array.Empty<CapturedEventDto>();
         }
 

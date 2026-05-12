@@ -32,14 +32,14 @@ namespace Fdp.Toolkit.Orchestration
         /// <inheritdoc />
         public Stream? OpenScenarioFile(string scenarioId, string fileName)
         {
-            var path = Path.Combine(_localTempRoot, scenarioId, fileName);
+            var path = Path.Combine(_localTempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId, fileName);
             return File.Exists(path) ? File.OpenRead(path) : null;
         }
 
         /// <inheritdoc />
         public string EnsureStagingDirectory(string scenarioId)
         {
-            var dir = Path.Combine(_localTempRoot, scenarioId);
+            var dir = Path.Combine(_localTempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
             Directory.CreateDirectory(dir);
             return dir;
         }
@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Orchestration
         /// <inheritdoc />
         public IEnumerable<string> EnumerateScenarioFiles(string scenarioId)
         {
-            var dir = Path.Combine(_localTempRoot, scenarioId);
+            var dir = Path.Combine(_localTempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
             return Directory.Exists(dir)
                 ? Directory.GetFiles(dir, "*.json")
                 : Enumerable.Empty<string>();

@@ -134,7 +134,36 @@ namespace Fdp.Toolkit.Orchestration
                     tickable.DrainDeferredAcks();
             }
 
-            // Drain pending async prepare before accepting new commands.
+            // Read new intents from bus FIRST.  When async prepare is running, unseen intents
+            // are queued internally so they survive the next SwapBuffers().
+            if (_eventBus != null)
+            {
+                foreach (var intent in _eventBus.ReadManaged<ExecuteNodeOpIntent>())
+                {
+                    // Drop intents targeted at other nodes (0 = broadcast).
+                    if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
+                        continue;
+
+                    if (_pendingPrepare.HasValue)
+                    {
+                        // Async prepare in progress — buffer unseen intents for next tick.
+                        ClusterState sd = intent.DomainPayload switch
+                        {
+                            CommitStatePayload      csp2 => csp2.TargetState,
+                            EditLoadHandlerPayload  elp  => elp.TargetState,
+                            _                            => (ClusterState)(-1),
+                        };
+                        if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
+                            _pendingIntents.Enqueue(intent);
+                    }
+                    else
+                    {
+                        DispatchIntent(intent);
+                    }
+                }
+            }
+
+            // Drain pending async prepare.
             if (_pendingPrepare.HasValue)
             {
                 var pending = _pendingPrepare.Value;
@@ -176,39 +205,12 @@ namespace Fdp.Toolkit.Orchestration
                 });
             }
 
-            // Drain deferred intents queued in a previous tick (when async prepare was active).
-            while (_pendingIntents.Count > 0 && !_pendingPrepare.HasValue)
+            // Drain deferred intents queued while async prepare was active.
+            while (_pendingIntents.Count > 0)
             {
                 DispatchIntent(_pendingIntents.Dequeue());
-            }
-
-            // Read new intents from bus.  When async prepare is running, unseen intents
-            // are queued internally so they survive the next SwapBuffers().
-            if (_eventBus != null)
-            {
-                foreach (var intent in _eventBus.ReadManaged<ExecuteNodeOpIntent>())
-                {
-                    // Drop intents targeted at other nodes (0 = broadcast).
-                    if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
-                        continue;
-
-                    if (_pendingPrepare.HasValue)
-                    {
-                        // Async prepare in progress — buffer unseen intents for next tick.
-                        ClusterState sd = intent.DomainPayload switch
-                        {
-                            CommitStatePayload      csp2 => csp2.TargetState,
-                            EditLoadHandlerPayload  elp  => elp.TargetState,
-                            _                            => (ClusterState)(-1),
-                        };
-                        if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
-                            _pendingIntents.Enqueue(intent);
-                    }
-                    else
-                    {
-                        DispatchIntent(intent);
-                    }
-                }
+                if (_pendingPrepare.HasValue)
+                    break;
             }
         }
 
@@ -314,6 +316,15 @@ namespace Fdp.Toolkit.Orchestration
 
             FdpLog<ClusterSlave>.Debug(
                 "[ClusterSlave] No handler for operation {0}.", intent.Operation);
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Success,
+                IsParticipating = false,
+                ResultPayload   = null,
+            });
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────
