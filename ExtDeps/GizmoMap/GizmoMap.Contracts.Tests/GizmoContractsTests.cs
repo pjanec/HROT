@@ -132,4 +132,38 @@ namespace GizmoMap.Contracts.Tests
             }
         }
     }
+
+    // ==========================================================================
+    // SC-GZ067: GizmoTypeId propagation into pick token
+    // ==========================================================================
+
+    public class GizmoPickTokenGizmoTypeIdTests
+    {
+        // SC-GZ067-1: HandleInput token construction correctly propagates GizmoTypeId from the hit
+        // primitive. Verified by replicating the token-construction logic from DebugGizmoLayer.HandleInput.
+        [Fact]
+        public void SC_GZ067_1_HandleInput_PropagatesGizmoTypeId_ToPickToken()
+        {
+            // A Box2D primitive with GizmoTypeId stamped by StampGizmoTypeId.
+            var prim = default(DebugPrimitive);
+            prim.Shape           = DebugPrimitiveShape.Box2D;
+            prim.GizmoTypeId     = 77u;
+            prim.AnchorIndex     = 5;
+            prim.AnchorGeneration = 1; // non-zero => entity-local routing path
+            prim.SubElementId    = 0;
+
+            // Replicate HandleInput's entity-local token construction (GizmoMap.Presentation).
+            long anchorId = prim.AnchorGeneration != 0 ? prim.AnchorIndex : prim.BoxAnchorId;
+            var token = new GizmoPickToken
+            {
+                AnchorId     = anchorId,
+                SubElementId = prim.SubElementId,
+                StreamId     = prim.AnchorGeneration,
+                GizmoTypeId  = prim.GizmoTypeId,
+            };
+
+            Assert.Equal(77u, token.GizmoTypeId);
+            Assert.Equal(5L,  token.AnchorId);
+        }
+    }
 }

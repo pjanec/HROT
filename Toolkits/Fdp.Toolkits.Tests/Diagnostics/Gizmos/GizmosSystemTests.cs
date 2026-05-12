@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -78,14 +79,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         private readonly Type[] _requiredComponents;
         private readonly List<MockGizmo> _createdInstances = new List<MockGizmo>();
 
-        public MockGizmoDefinition(Type[] requiredComponents, IGizmoVisibilityPolicy? policy = null)
+        public MockGizmoDefinition(Type[] requiredComponents, IGizmoVisibilityPolicy? policy = null, uint gizmoTypeId = 0)
         {
             _requiredComponents = requiredComponents;
             VisibilityPolicy = policy ?? AlwaysVisiblePolicy.Instance;
+            GizmoTypeId = gizmoTypeId;
         }
 
         public Type[] RequiredComponents => _requiredComponents;
         public IGizmoVisibilityPolicy VisibilityPolicy { get; }
+        public uint GizmoTypeId { get; }
         public IReadOnlyList<MockGizmo> CreatedInstances => _createdInstances;
 
         public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
@@ -816,6 +819,158 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             int totalDraws = SumDrawCounts(def.CreatedInstances);
             Assert.True(totalDraws > 0, "Expected at least some gizmo draws across 3 frames");
+        }
+    }
+
+    // ==========================================================================
+    // SC-GZ066: DataDrivenGizmoSystem composite-key routing
+    // ==========================================================================
+
+    // Gizmo mock that tracks interaction calls for routing tests.
+    internal sealed class TrackingGizmo : IEntityStatefulGizmo
+    {
+        public int InteractionStartedCount;
+        public int MenuActionCount;
+        public int StructUpdateCount;
+        public int LastMenuActionId;
+        public string? LastStructUpdateJson;
+
+        public bool RequiresExclusiveFocus => false;
+        public bool IsFocused { get; private set; }
+        public void SetFocus(bool v) => IsFocused = v;
+
+        public void UpdateAndDraw(float dt, IDebugDrawBuilder db) { }
+        public void Dispose() { }
+
+        public void OnInteractionStarted(GizmoPickToken token, System.Numerics.Vector3 worldPos)
+            => InteractionStartedCount++;
+        public void OnDragUpdate(System.Numerics.Vector3 worldPos) { }
+        public void OnCommit(System.Numerics.Vector3 worldPos) { }
+        public void OnCancel() { }
+        public void OnMenuAction(int actionId) { MenuActionCount++; LastMenuActionId = actionId; }
+        public void OnMouseEvent(MapMouseButton button, bool isPressed, System.Numerics.Vector3 worldPos) { }
+        public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
+        public void OnStructUpdate(string payloadJson) { StructUpdateCount++; LastStructUpdateJson = payloadJson; }
+    }
+
+    // IGizmoDefinition that produces TrackingGizmo instances.
+    internal sealed class TrackingGizmoDefinition : IGizmoDefinition
+    {
+        private readonly List<TrackingGizmo> _instances = new();
+
+        public TrackingGizmoDefinition(Type[] requiredComponents, uint gizmoTypeId)
+        {
+            RequiredComponents = requiredComponents;
+            GizmoTypeId = gizmoTypeId;
+        }
+
+        public Type[] RequiredComponents { get; }
+        public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
+        public uint GizmoTypeId { get; }
+        public IReadOnlyList<TrackingGizmo> Instances => _instances;
+
+        public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
+        {
+            var g = new TrackingGizmo();
+            _instances.Add(g);
+            return g;
+        }
+    }
+
+    public class DataDrivenGizmoSystemRoutingTests
+    {
+        private static (EntityRepository repo, DataDrivenGizmoSystem sys, TrackingGizmoDefinition def1, TrackingGizmoDefinition def2, Entity entity, FdpEventBus interactionBus)
+            CreateRoutingFixture()
+        {
+            var repo = GizmoTestRepo.Create();
+
+            // Register interaction events on a dedicated bus (same as production wiring).
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionStartedEvent>();
+            interactionBus.Register<GizmoDragUpdateEvent>();
+            interactionBus.Register<GizmoInteractionCommitEvent>();
+            interactionBus.Register<GizmoInteractionCancelEvent>();
+            interactionBus.Register<GizmoMenuActionEvent>();
+            interactionBus.Register<GizmoMouseEvent>();
+            interactionBus.Register<GizmoKeyEvent>();
+
+            var registry = new GizmoRegistry();
+            var def1 = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA01u);
+            var def2 = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA02u);
+            registry.Register(def1);
+            registry.Register(def2);
+
+            var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            var sys = new DataDrivenGizmoSystem(registry, buffer, interactionBus: interactionBus);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new GizmoTestCompA { Value = 1 });
+
+            // Init both gizmos.
+            repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = entity });
+            repo.Bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            return (repo, sys, def1, def2, entity, interactionBus);
+        }
+
+        // SC-GZ066-1: Two gizmos on same entity; GizmoInteractionStartedEvent with def1's
+        // GizmoTypeId reaches def1's gizmo only; def2 receives nothing.
+        [Fact]
+        public void SC_GZ066_1_InteractionStarted_RoutesTo_MatchingGizmo_Only()
+        {
+            var (repo, sys, def1, def2, entity, bus) = CreateRoutingFixture();
+
+            bus.Publish(new GizmoInteractionStartedEvent
+            {
+                Token = new PickToken { Target = entity, GizmoTypeId = 0xAA01u },
+            });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(1, def1.Instances[0].InteractionStartedCount);
+            Assert.Equal(0, def2.Instances[0].InteractionStartedCount);
+        }
+
+        // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
+        [Fact]
+        public void SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo()
+        {
+            var (repo, sys, def1, def2, entity, bus) = CreateRoutingFixture();
+
+            bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent
+            {
+                AnchorId    = entity.Index,
+                GizmoTypeId = 0xAA02u,
+                PayloadJson = "{\"x\":1}",
+            });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(0, def1.Instances[0].StructUpdateCount);
+            Assert.Equal(1, def2.Instances[0].StructUpdateCount);
+            Assert.Equal("{\"x\":1}", def2.Instances[0].LastStructUpdateJson);
+        }
+
+        // SC-GZ066-5: GizmoMenuActionEvent with def2's GizmoTypeId — only def2 receives it.
+        [Fact]
+        public void SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only()
+        {
+            var (repo, sys, def1, def2, entity, bus) = CreateRoutingFixture();
+
+            bus.Publish(new GizmoMenuActionEvent
+            {
+                AnchorId    = (uint)entity.Index,
+                ActionId    = 7,
+                GizmoTypeId = 0xAA02u,
+            });
+            bus.SwapBuffers();
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(0, def1.Instances[0].MenuActionCount);
+            Assert.Equal(1, def2.Instances[0].MenuActionCount);
+            Assert.Equal(7, def2.Instances[0].LastMenuActionId);
         }
     }
 }

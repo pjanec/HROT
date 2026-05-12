@@ -129,11 +129,12 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         public void DrawStructInspector()
         {
-            _innerTerminal.DrawStructInspector((networkId, json) =>
+            _innerTerminal.DrawStructInspector((networkId, gizmoTypeId, json) =>
             {
                 _eventBus?.PublishManaged(new GizmoStructUpdateEvent
                 {
                     AnchorId = networkId,
+                    GizmoTypeId = gizmoTypeId,
                     PayloadJson = json,
                 });
             });
@@ -234,6 +235,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             {
                 Target = new Entity((int)token.AnchorId, (ushort)token.StreamId),
                 SubElementId = token.SubElementId,
+                GizmoTypeId  = token.GizmoTypeId,
             };
         }
 

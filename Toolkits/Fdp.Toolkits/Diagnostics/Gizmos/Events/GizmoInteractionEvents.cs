@@ -51,6 +51,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
 
         /// <summary>Integer ID of the menu item that was clicked.</summary>
         public int ActionId;
+
+        /// <summary>Composite routing key; 0 for legacy events.</summary>
+        public uint GizmoTypeId;
     }
 
     /// <summary>
@@ -104,6 +107,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Events
     {
         /// <summary>Stable gizmo anchor id; matches the key in <c>GlobalGizmoManager</c>.</summary>
         public long AnchorId;
+        /// <summary>Composite routing key; 0 for legacy / GlobalGizmoManager-routed events.</summary>
+        public uint GizmoTypeId;
         /// <summary>JSON string produced by the StructEdit Apply action on the terminal.</summary>
         public string PayloadJson = string.Empty;
     }

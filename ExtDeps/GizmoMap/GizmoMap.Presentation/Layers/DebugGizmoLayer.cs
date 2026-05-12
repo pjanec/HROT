@@ -164,6 +164,7 @@ namespace GizmoMap.Presentation
                         AnchorId = anchorId,
                         SubElementId = hit.SubElementId,
                         StreamId = hit.AnchorGeneration,
+                        GizmoTypeId = hit.GizmoTypeId,
                     };
                     _activeTool = new GizmoInteractionProxyTool(
                         token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space);
@@ -204,6 +205,7 @@ namespace GizmoMap.Presentation
                             AnchorId = anchorId,
                             SubElementId = hit.SubElementId,
                             StreamId = hit.AnchorGeneration,
+                            GizmoTypeId = hit.GizmoTypeId,
                         };
                         onInteraction?.Invoke(token, GizmoInteractionEventKind.Started, worldPos3, 0, 0);
                     }
@@ -385,7 +387,7 @@ namespace GizmoMap.Presentation
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
         }
 
-        public void DrawStructInspector(Action<long, string>? onStructUpdate = null)
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
         {
             _renderer.DrawStructInspector(onStructUpdate);
         }

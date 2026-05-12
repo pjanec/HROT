@@ -289,6 +289,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             if (budget <= 0f || _entityList.Count == 0)
             {
                 // Unlimited path: iterate all active gizmos normally.
+                var buf = (DebugPrimitiveBuffer)_drawBuilder;
                 foreach (var kvp in _activeGizmos)
                 {
                     Entity entity = kvp.Key;
@@ -301,7 +302,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
+                        int mark = buf.Count;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        buf.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (gi.Instance == _focusedGizmo &&
                             (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
@@ -342,7 +345,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         var gi = instances[i];
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
+                        int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
                         gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (gi.Instance == _focusedGizmo &&
                             (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
@@ -371,7 +376,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 if (view.IsAlive(kvp.Key))
                 {
+                    uint injTypeId = Fnv1a32(kvp.Value.GetType().FullName ?? string.Empty);
+                    int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
                     kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                    ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, injTypeId);
                     // Emit InputCaptureBinding for the exclusive-focus holder.
                     if (kvp.Value == _focusedGizmo &&
                         (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
@@ -417,7 +425,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var started = bus.Read<GizmoInteractionStartedEvent>();
             foreach (ref readonly var evt in started)
             {
-                var gizmo = FindGizmo(evt.Token.Target);
+                var gizmo = FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 if (gizmo == null) continue;
                 if ((gizmo.RequiresExclusiveFocus || gizmo.WantsRawInput) && _focusedGizmo != gizmo)
                 {
@@ -432,7 +440,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var drags = bus.Read<GizmoDragUpdateEvent>();
             foreach (ref readonly var evt in drags)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 gizmo?.OnDragUpdate(evt.WorldPos);
             }
 
@@ -440,7 +448,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var commits = bus.Read<GizmoInteractionCommitEvent>();
             foreach (ref readonly var evt in commits)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 gizmo?.OnCommit(evt.WorldPos);
             }
 
@@ -448,33 +456,35 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var cancels = bus.Read<GizmoInteractionCancelEvent>();
             foreach (ref readonly var evt in cancels)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 gizmo?.OnCancel();
             }
 
-            // MenuAction: route to the entity's gizmo (no focus change).
+            // MenuAction: route only to the matching gizmo via composite key.
             var menus = bus.Read<GizmoMenuActionEvent>();
             foreach (ref readonly var evt in menus)
             {
-                // GizmoMenuActionEvent carries AnchorId (network entity id), not a PickToken.
-                // Iterate all active gizmos to find the one whose entity network id matches.
-                foreach (var kvp in _activeGizmos)
-                {
-                    var gizmoList = kvp.Value;
-                    for (int i = 0; i < gizmoList.Count; i++)
-                        gizmoList[i].Instance.OnMenuAction(evt.ActionId);
-                }
+                var entity = new Entity((int)evt.AnchorId, 0);
+                FindGizmo(entity, evt.GizmoTypeId)?.OnMenuAction(evt.ActionId);
 
                 // Route to injected tools (VertexEditGizmo, RouteWaypointGizmo, ...).
                 foreach (var kvp in _injectedGizmos)
                     kvp.Value.OnMenuAction(evt.ActionId);
             }
 
+            // StructUpdate: route to the matching gizmo on the target entity.
+            var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
+            foreach (var evt in structUpdates)
+            {
+                var entity = new Entity((int)evt.AnchorId, 0);
+                FindGizmo(entity, evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
+            }
+
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
             var mouseEvents = bus.Read<GizmoMouseEvent>();
             foreach (ref readonly var evt in mouseEvents)
             {
-                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target);
+                var gizmo = _focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId);
                 gizmo?.OnMouseEvent(evt.Button, evt.IsPressed, evt.WorldPos);
             }
 
@@ -482,7 +492,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var keyEvents = bus.Read<GizmoKeyEvent>();
             foreach (ref readonly var evt in keyEvents)
             {
-                (_focusedGizmo ?? FindGizmo(evt.Token.Target))?.OnKeyEvent(evt.Key, evt.IsPressed);
+                (_focusedGizmo ?? FindGizmo(evt.Token.Target, evt.Token.GizmoTypeId))?.OnKeyEvent(evt.Key, evt.IsPressed);
             }
         }
 
@@ -493,19 +503,68 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             AnchorId     = (long)token.Target.Index,
             SubElementId = token.SubElementId,
             StreamId     = (uint)token.Target.Generation,
+            GizmoTypeId  = token.GizmoTypeId,
         };
 
-        /// <summary>Returns the first gizmo instance active on <paramref name="entity"/>,
-        /// or <c>null</c> if none is registered.</summary>
-        private IEntityStatefulGizmo? FindGizmo(Entity entity)
+        /// <summary>
+        /// Returns the gizmo instance active on <paramref name="entity"/> that matches the
+        /// given <paramref name="gizmoTypeId"/> composite key, or <c>null</c> if none is found.
+        /// When <paramref name="gizmoTypeId"/> is 0 (legacy / pre-GZ064 peers), returns the first
+        /// registered gizmo as a fallback so existing behaviour is not silently broken.
+        /// Injected on-demand gizmos always take priority.
+        /// </summary>
+        private IEntityStatefulGizmo? FindGizmo(Entity entity, uint gizmoTypeId)
         {
             // Injected (on-demand) gizmos have strict priority over base rules.
             if (_injectedGizmos.TryGetValue(entity, out var injected))
                 return injected;
 
-            if (!_activeGizmos.TryGetValue(entity, out var list) || list.Count == 0)
-                return null;
-            return list[0].Instance;
+            // Events that carry only an entity index (generation == 0, e.g. StructUpdate,
+            // MenuAction) need an index-only lookup because the live entry has a non-zero
+            // generation that would fail an exact Entity equality check.
+            List<CompiledGizmoInstance>? list;
+            if (entity.Generation == 0)
+            {
+                list = null;
+                foreach (var kvp in _activeGizmos)
+                {
+                    if (kvp.Key.Index == entity.Index)
+                    {
+                        list = kvp.Value;
+                        break;
+                    }
+                }
+                if (list == null || list.Count == 0)
+                    return null;
+            }
+            else
+            {
+                if (!_activeGizmos.TryGetValue(entity, out list) || list.Count == 0)
+                    return null;
+            }
+
+            if (gizmoTypeId == 0)
+                return list[0].Instance;
+
+            foreach (var gi in list)
+            {
+                if (gi.Definition.GizmoTypeId == gizmoTypeId)
+                    return gi.Instance;
+            }
+            return null;
+        }
+
+        // FNV-1a 32-bit hash of a string -- used to derive GizmoTypeId for injected gizmos
+        // that have no IGizmoDefinition. Mirrors GizmoSettingsRegistry.ComputeHash.
+        private static uint Fnv1a32(string name)
+        {
+            uint h = 2166136261u;
+            foreach (char c in name)
+            {
+                h ^= c;
+                h *= 16777619u;
+            }
+            return h;
         }
 
         // ---- Helpers ---------------------------------------------------------------

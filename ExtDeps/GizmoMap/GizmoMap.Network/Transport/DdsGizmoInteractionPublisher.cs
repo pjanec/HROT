@@ -31,6 +31,7 @@ namespace GizmoMap.Network
                 PickAnchorId    = token.AnchorId,
                 PickSubElementId = token.SubElementId,
                 PickStreamId    = token.StreamId,
+                PickGizmoTypeId = token.GizmoTypeId,
                 WorldX          = worldPos.X,
                 WorldY          = worldPos.Y,
                 WorldZ          = worldPos.Z,

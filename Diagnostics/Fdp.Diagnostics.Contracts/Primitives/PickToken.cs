@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     {
         public Entity Target;
         public uint SubElementId;
+        public uint GizmoTypeId;  // composite routing key carried through the ECS event bus
 
         // A zero-value PickToken (Entity.Null) is non-interactive.
         public bool IsValid => !Target.IsNull;

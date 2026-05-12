@@ -176,7 +176,7 @@ namespace GizmoMap.Presentation
                 DispatchShape(in prim, camera, zoom);
         }
 
-        public void DrawStructInspector(Action<long, string>? onStructUpdate = null)
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
         {
             _imGuiAdapter.DrawScheduled(onStructUpdate);
         }
@@ -387,6 +387,7 @@ namespace GizmoMap.Presentation
                     _imGuiAdapter.Schedule(
                         prim.StructNetworkId,
                         prim.StructSchemaHash,
+                        prim.GizmoTypeId,
                         prim.StructAnchor,
                         prim.StructOffsetX,
                         prim.StructOffsetY,

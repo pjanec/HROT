@@ -22,6 +22,7 @@ namespace GizmoMap.Network
         public long   PickAnchorId;
         public uint   PickSubElementId;
         public uint   PickStreamId;
+        public uint   PickGizmoTypeId;  // composite routing key: FNV-1a hash of gizmo class; 0 = legacy
 
         // WorldPos (present for Started/DragUpdate/Commit; zero for Cancel)
         public float WorldX;

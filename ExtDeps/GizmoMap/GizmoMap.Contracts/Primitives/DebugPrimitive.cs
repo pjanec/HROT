@@ -137,6 +137,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(56)] public float ResolvedPitchRad;
         [FieldOffset(60)] public float ResolvedRollRad;
 
+        // GizmoTypeId: FNV-1a hash of the IGizmoDefinition implementing type's full name.
+        // Used as a composite routing key (entity + GizmoTypeId) so multiple gizmos on the
+        // same entity can be disambiguated.
+        //
+        // Offset 60 is free for Box2D (BoxAnchorId long ends at offset 52), Arrow (ArrowHeadSize
+        // at 48-51, SubElementId at 52-53, LineStyle at 54-55, FillColor at 56-59), StructInspector
+        // (StructOffsetY at 44-47, bytes 48-63 unused), and ContextMenuBinding (sparse payload).
+        //
+        // NOTE: SemanticShape.ResolvedRollRad also occupies offset 60. Corruption is prevented by
+        // shape-gated stamping (TASK-GZ065): StampGizmoTypeId only writes to Box2D, StructInspector,
+        // and ContextMenuBinding -- never to SemanticShape or SpatialAnchor.
+        [FieldOffset(60)] public uint GizmoTypeId;
+
         // MilStd2525 payload: NATO symbol at a world position.
         // SidcCode aliases TextContent at offset 32 (same physical storage).
         [FieldOffset(24)] public float MilWorldPosX;

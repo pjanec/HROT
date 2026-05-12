@@ -290,5 +290,30 @@ namespace Fdp.Diagnostics.Contracts.Tests
             }
             return h;
         }
+
+        // ---- GZ064 tests -------------------------------------------------------
+
+        // SC-GZ064-1: DebugPrimitive remains exactly 64 bytes after adding GizmoTypeId.
+        [Fact]
+        public void SC_GZ064_1_DebugPrimitive_SizeIs64()
+        {
+            Assert.Equal(64, Marshal.SizeOf<DebugPrimitive>());
+        }
+
+        // SC-GZ064-2: GizmoPickToken has GizmoTypeId field; default is 0.
+        [Fact]
+        public void SC_GZ064_2_GizmoPickToken_HasGizmoTypeIdField_DefaultIsZero()
+        {
+            var token = default(GizmoPickToken);
+            Assert.Equal(0u, token.GizmoTypeId);
+        }
+
+        // SC-GZ064-4: PickToken has GizmoTypeId field of uint.
+        [Fact]
+        public void SC_GZ064_4_PickToken_HasGizmoTypeIdField()
+        {
+            var token = new PickToken { GizmoTypeId = 42u };
+            Assert.Equal(42u, token.GizmoTypeId);
+        }
     }
 }

@@ -89,9 +89,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             // Step 1: UpdateAndDraw each gizmo; emit InputCaptureBinding for focus holder.
+            var buf = (DebugPrimitiveBuffer)_drawBuilder;
             foreach (var kvp in _activeGizmos)
             {
+                uint typeId = Fnv1a32(kvp.Value.GetType().FullName ?? string.Empty);
+                int mark = buf.Count;
                 kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                buf.StampGizmoTypeId(mark, typeId);
 
                 if (kvp.Value == _focusedGizmo &&
                     (_focusedGizmo.RequiresExclusiveFocus || _focusedGizmo.WantsRawInput))
@@ -133,6 +137,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (_activeGizmos.TryGetValue(evt.AnchorId, out var target))
                     target.OnStructUpdate(evt.PayloadJson);
             }
+        }
+
+        // FNV-1a 32-bit hash used to derive GizmoTypeId for stamping purposes.
+        // Mirrors GizmoSettingsRegistry.ComputeHash.
+        private static uint Fnv1a32(string name)
+        {
+            uint h = 2166136261u;
+            foreach (char c in name)
+            {
+                h ^= c;
+                h *= 16777619u;
+            }
+            return h;
         }
     }
 }

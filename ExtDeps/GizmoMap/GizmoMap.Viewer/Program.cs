@@ -44,9 +44,11 @@ namespace GizmoMap.Viewer
             using var primitivesReader = new DdsReader<DebugPrimitivesBatch>(participant);
             using var stringsReader = new DdsReader<StringInternEntry>(participant);
             using var interactionWriter = new DdsWriter<GizmoInteractionBatch>(participant);
+            using var uiStateReader = new DdsReader<GizmoUiState>(participant);
 
             var renderBuffer = new GizmoPrimitiveBuffer();
             var schemaRegistry = new GizmoSchemaRegistry();
+            var adapter = new ImGuiPropertyTreeAdapter(schemaRegistry);
             uint sequenceNumber = 0;
 
             GizmoViewerFrontend.Run(
@@ -72,6 +74,13 @@ namespace GizmoMap.Viewer
                             latestBatch = sample.Data;
                     }
 
+                    using var uiStateLoan = uiStateReader.Take();
+                    foreach (var sample in uiStateLoan)
+                    {
+                        if (sample.IsValid)
+                            adapter.ReceiveUiState(sample.Data);
+                    }
+
                     if (!latestBatch.HasValue || latestBatch.Value.PrimitivesData == null)
                         return;
 
@@ -89,6 +98,7 @@ namespace GizmoMap.Viewer
                         PickAnchorId = token.AnchorId,
                         PickSubElementId = token.SubElementId,
                         PickStreamId = token.StreamId,
+                        PickGizmoTypeId = token.GizmoTypeId,
                         WorldX = pos.X,
                         WorldY = pos.Y,
                         WorldZ = pos.Z,
@@ -107,13 +117,15 @@ namespace GizmoMap.Viewer
                         PickAnchorId = token.AnchorId,
                         PickSubElementId = token.SubElementId,
                         PickStreamId = token.StreamId,
+                        PickGizmoTypeId = token.GizmoTypeId,
                         WorldX = 0f,
                         WorldY = 0f,
                         WorldZ = 0f,
                         Space = 0,
                         ActionId = actionId,
                     });
-                });
+                },
+                externalAdapter: adapter);
 
             return 0;
         }

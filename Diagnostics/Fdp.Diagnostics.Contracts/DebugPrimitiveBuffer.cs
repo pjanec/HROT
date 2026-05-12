@@ -29,6 +29,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // Number of primitives dropped due to capacity overflow.
         public int DroppedCount => _droppedCount;
 
+        // Snapshot of the current transient write cursor (clamped to capacity).
+        // Safe to call from the same thread that calls UpdateAndDraw. Used as a
+        // mark before a gizmo draws so that StampGizmoTypeId can identify which
+        // primitives the gizmo emitted.
+        public int Count => Math.Min(_count, _primitives.Length);
+
         // The intern map used by DrawTextLong. Exposed for consumers that resolve long-text hashes.
         public StringInternMap InternMap => _internMap;
 
@@ -72,6 +78,31 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         // IDebugDrawBuilder.EmitRaw -- forwards to AppendRaw so the interaction manager
         // can inject InputCaptureBinding meta-primitives via the draw builder interface.
         public void EmitRaw(in DebugPrimitive prim) => AppendRaw(in prim);
+
+        /// <summary>
+        /// Stamps <paramref name="gizmoTypeId"/> into the <see cref="DebugPrimitive.GizmoTypeId"/>
+        /// field of every transient primitive in the half-open range [<paramref name="fromIndex"/>,
+        /// <see cref="Count"/>). Only shapes for which offset 60 is free are written:
+        /// <see cref="DebugPrimitiveShape.Box2D"/>, <see cref="DebugPrimitiveShape.StructInspector"/>,
+        /// and <see cref="DebugPrimitiveShape.ContextMenuBinding"/>.
+        /// SemanticShape, SpatialAnchor, and all other shapes are skipped to avoid corrupting their
+        /// payload (SemanticShape.ResolvedRollRad shares offset 60).
+        /// Persistent primitives (<c>_persistent</c>) are NOT stamped.
+        /// </summary>
+        public void StampGizmoTypeId(int fromIndex, uint gizmoTypeId)
+        {
+            int to = Count;
+            for (int i = fromIndex; i < to; i++)
+            {
+                ref var p = ref _primitives[i];
+                if (p.Shape == DebugPrimitiveShape.Box2D ||
+                    p.Shape == DebugPrimitiveShape.StructInspector ||
+                    p.Shape == DebugPrimitiveShape.ContextMenuBinding)
+                {
+                    p.GizmoTypeId = gizmoTypeId;
+                }
+            }
+        }
 
         /// <summary>
         /// Advances the persistence clock, evicts expired entries, clears the transient buffer,

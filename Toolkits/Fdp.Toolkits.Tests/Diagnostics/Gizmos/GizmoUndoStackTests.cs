@@ -65,6 +65,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
         public System.Type[] RequiredComponents => new[] { typeof(GizmoTestCompA) };
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
+        public uint GizmoTypeId => 1u;
 
         public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity) => new MockUndoGizmo(_record);
     }

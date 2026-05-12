@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using GizmoMap.Network;
 using ImGuiNET;
 using StructEdit.Core;
 using StructEdit.Json;
+
+[assembly: InternalsVisibleTo("GizmoMap.Presentation.Tests")]
 
 namespace GizmoMap.Presentation
 {
@@ -20,20 +25,25 @@ namespace GizmoMap.Presentation
         private readonly List<ScheduledItem> _items = new();
         private readonly GizmoSchemaRegistry? _registry;
 
+        internal enum InspectorState { Viewing, Editing }
+        internal readonly Dictionary<(long, uint), InspectorState> _inspectorStates = new();
+
         private readonly struct ScheduledItem
         {
             public readonly long         NetworkId;
             public readonly uint         SchemaHash;
+            public readonly uint         GizmoTypeId;
             public readonly ScreenAnchor Anchor;
             public readonly float        OffsetX;
             public readonly float        OffsetY;
             public readonly SizeMode     SizeMode;
             public readonly bool         IsReadOnly;
 
-            public ScheduledItem(long networkId, uint schemaHash, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
+            public ScheduledItem(long networkId, uint schemaHash, uint gizmoTypeId, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
             {
                 NetworkId  = networkId;
                 SchemaHash = schemaHash;
+                GizmoTypeId = gizmoTypeId;
                 Anchor     = anchor;
                 OffsetX    = offsetX;
                 OffsetY    = offsetY;
@@ -47,19 +57,33 @@ namespace GizmoMap.Presentation
             _registry = registry;
         }
 
-        public void Schedule(long networkId, uint schemaHash, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
+        public void Schedule(long networkId, uint schemaHash, uint gizmoTypeId, ScreenAnchor anchor, float offsetX, float offsetY, SizeMode sizeMode, bool isReadOnly)
         {
-            _items.Add(new ScheduledItem(networkId, schemaHash, anchor, offsetX, offsetY, sizeMode, isReadOnly));
+            _items.Add(new ScheduledItem(networkId, schemaHash, gizmoTypeId, anchor, offsetX, offsetY, sizeMode, isReadOnly));
         }
 
         // Legacy overload without anchor positioning (defaults to TopLeft, ScreenPixels).
-        public void Schedule(long networkId, uint schemaHash, float screenX, float screenY, bool isReadOnly)
+        public void Schedule(long networkId, uint schemaHash, uint gizmoTypeId, float screenX, float screenY, bool isReadOnly)
         {
-            _items.Add(new ScheduledItem(networkId, schemaHash, ScreenAnchor.TopLeft, screenX, screenY, SizeMode.ScreenPixels, isReadOnly));
+            _items.Add(new ScheduledItem(networkId, schemaHash, gizmoTypeId, ScreenAnchor.TopLeft, screenX, screenY, SizeMode.ScreenPixels, isReadOnly));
         }
 
-        public void DrawScheduled(Action<long, string>? onStructUpdate = null)
+        // Formats the ImGui window title for the given item parameters.
+        // Uses ImGui ### syntax to decouple the visible title from the stable window ID.
+        internal static string MakeWindowTitle(string? rootName, long networkId, uint schemaHash, uint gizmoTypeId, bool hasSchema)
         {
+            return hasSchema
+                ? $"{rootName} ({networkId})###StructInsp_{networkId}_{gizmoTypeId}"
+                : $"Inspector {networkId} (0x{schemaHash:X})###StructInsp_{networkId}_{gizmoTypeId}";
+        }
+
+        public void DrawScheduled(Action<long, uint, string>? onStructUpdate = null)
+        {
+            // Remove stale entries whose (NetworkId, GizmoTypeId) is not in the current frame.
+            var keys = new HashSet<(long, uint)>(_items.Select(it => (it.NetworkId, it.GizmoTypeId)));
+            foreach (var k in _inspectorStates.Keys.Except(keys).ToList())
+                _inspectorStates.Remove(k);
+
             var viewport = ImGui.GetMainViewport();
 
             foreach (var item in _items)
@@ -112,24 +136,48 @@ namespace GizmoMap.Presentation
                 bool hasSchema = _registry != null && _registry.TryGet(item.SchemaHash, out doc) && doc != null;
 
                 // Use ImGui ### syntax to decouple the visible title from the stable window ID.
-                string windowTitle = hasSchema
-                    ? $"{doc!.Root.Name} ({item.NetworkId})###StructInsp_{item.NetworkId}"
-                    : $"Inspector {item.NetworkId} (0x{item.SchemaHash:X})###StructInsp_{item.NetworkId}";
+                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema);
 
                 if (ImGui.Begin(windowTitle))
                 {
                     if (hasSchema)
                     {
-                        DrawEditNode(doc!.Root, item.IsReadOnly);
+                        foreach (var child in doc!.Root.Children)
+                            DrawEditNode(child, item.IsReadOnly);
+
+                        var stateKey = (item.NetworkId, item.GizmoTypeId);
+                        bool isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
+
+                        if (!_inspectorStates.TryGetValue(stateKey, out var state))
+                            state = InspectorState.Viewing;
+
+                        if (state == InspectorState.Viewing && isFocused)
+                        {
+                            _inspectorStates[stateKey] = InspectorState.Editing;
+                        }
+                        else if (state == InspectorState.Editing && !isFocused)
+                        {
+                            _inspectorStates[stateKey] = InspectorState.Viewing;
+                            if (!item.IsReadOnly && onStructUpdate != null)
+                            {
+                                // Enforce the canonical StructEdit JSON schema across the network boundary.
+                                string json = EditDocumentJsonSerializer.Serialize(doc!);
+                                onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
+                            }
+                        }
 
                         if (!item.IsReadOnly && onStructUpdate != null)
                         {
                             ImGui.Separator();
                             if (ImGui.Button("Apply"))
                             {
-                                // Enforce the canonical StructEdit JSON schema across the network boundary.
-                                string json = EditDocumentJsonSerializer.Serialize(doc!);
-                                onStructUpdate.Invoke(item.NetworkId, json);
+                                if (!_inspectorStates.TryGetValue(stateKey, out var applyState) ||
+                                    applyState == InspectorState.Editing)
+                                {
+                                    _inspectorStates[stateKey] = InspectorState.Viewing;
+                                    string json = EditDocumentJsonSerializer.Serialize(doc!);
+                                    onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
+                                }
                             }
                         }
                     }
@@ -143,6 +191,64 @@ namespace GizmoMap.Presentation
                 ImGui.End();
             }
             _items.Clear();
+        }
+
+        // Test-only overload: runs state cleanup and state-machine transitions without any ImGui calls.
+        // isFocusedOverride is invoked with the window title to determine focus per item.
+        internal void DrawScheduled(
+            Action<long, uint, string>? onStructUpdate,
+            Func<string, bool>? isFocusedOverride)
+        {
+            // Remove stale entries whose (NetworkId, GizmoTypeId) is not in the current frame.
+            var keys = new HashSet<(long, uint)>(_items.Select(it => (it.NetworkId, it.GizmoTypeId)));
+            foreach (var k in _inspectorStates.Keys.Except(keys).ToList())
+                _inspectorStates.Remove(k);
+
+            foreach (var item in _items)
+            {
+                EditDocument? doc = null;
+                bool hasSchema = _registry != null && _registry.TryGet(item.SchemaHash, out doc) && doc != null;
+
+                string windowTitle = MakeWindowTitle(hasSchema ? doc!.Root.Name : null, item.NetworkId, item.SchemaHash, item.GizmoTypeId, hasSchema);
+
+                bool isFocused = isFocusedOverride != null && isFocusedOverride(windowTitle);
+
+                var stateKey = (item.NetworkId, item.GizmoTypeId);
+                if (!_inspectorStates.TryGetValue(stateKey, out var state))
+                    state = InspectorState.Viewing;
+
+                if (state == InspectorState.Viewing && isFocused)
+                {
+                    _inspectorStates[stateKey] = InspectorState.Editing;
+                }
+                else if (state == InspectorState.Editing && !isFocused)
+                {
+                    _inspectorStates[stateKey] = InspectorState.Viewing;
+                    if (hasSchema && !item.IsReadOnly && onStructUpdate != null)
+                    {
+                        string json = EditDocumentJsonSerializer.Serialize(doc!);
+                        onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
+                    }
+                }
+            }
+            _items.Clear();
+        }
+
+        public void ReceiveUiState(GizmoUiState state)
+        {
+            if (_registry == null) return;
+            if (!_registry.TryGet(state.GizmoInstanceId, out var doc) || doc == null) return;
+
+            // Block update if ANY inspector window is currently being edited.
+            // _items may be empty when this is called after DrawScheduled; checking
+            // _inspectorStates directly is correct regardless of call timing.
+            foreach (var kv in _inspectorStates)
+            {
+                if (kv.Value == InspectorState.Editing)
+                    return;
+            }
+
+            EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc);
         }
 
         // Recursively renders an EditNode and its children as an ImGui tree.

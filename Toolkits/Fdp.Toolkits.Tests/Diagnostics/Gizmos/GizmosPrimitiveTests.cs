@@ -551,4 +551,92 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Equal(1, buf.InternMap.Entries.Count);
         }
     }
+
+    // ==========================================================================
+    // SC-GZ065: StampGizmoTypeId
+    // ==========================================================================
+
+    public class StampGizmoTypeIdTests
+    {
+        private static DebugPrimitive MakeBox2D()
+        {
+            var p = default(DebugPrimitive);
+            p.Shape      = DebugPrimitiveShape.Box2D;
+            p.TargetView = PipelineTarget.Map2D;
+            return p;
+        }
+
+        private static DebugPrimitive MakeShape(DebugPrimitiveShape shape)
+        {
+            var p = default(DebugPrimitive);
+            p.Shape      = shape;
+            p.TargetView = PipelineTarget.Map2D;
+            return p;
+        }
+
+        // SC-GZ065-1: Box2D primitive stamped with the specified GizmoTypeId.
+        [Fact]
+        public void SC_GZ065_1_Box2D_Stamped_WithGizmoTypeId()
+        {
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.Append(MakeBox2D());
+
+            buf.StampGizmoTypeId(0, 42u);
+
+            Assert.Equal(42u, buf.GetFrame()[0].GizmoTypeId);
+        }
+
+        // SC-GZ065-2: SemanticShape primitive in the same batch is NOT stamped.
+        [Fact]
+        public void SC_GZ065_2_SemanticShape_NotStamped()
+        {
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.Append(MakeBox2D());                          // index 0 — stamped
+            buf.Append(MakeShape(DebugPrimitiveShape.SemanticShape)); // index 1 — skipped
+
+            buf.StampGizmoTypeId(0, 42u);
+
+            Assert.Equal(42u, buf.GetFrame()[0].GizmoTypeId);
+            Assert.Equal(0u,  buf.GetFrame()[1].GizmoTypeId);
+        }
+
+        // SC-GZ065-3: StampGizmoTypeId with 0u writes 0 (valid sentinel value).
+        [Fact]
+        public void SC_GZ065_3_StampWithZero_WritesZero()
+        {
+            var buf = new DebugPrimitiveBuffer(16);
+            var prim = MakeBox2D();
+            prim.GizmoTypeId = 99u; // pre-set to non-zero
+            buf.Append(prim);
+
+            buf.StampGizmoTypeId(0, 0u);
+
+            Assert.Equal(0u, buf.GetFrame()[0].GizmoTypeId);
+        }
+
+        // SC-GZ065-4: StampGizmoTypeId with fromIndex >= Count is a no-op.
+        [Fact]
+        public void SC_GZ065_4_FromIndexBeyondCount_IsNoOp()
+        {
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.Append(MakeBox2D());
+
+            // fromIndex == 1 is beyond the single element at index 0 — no exception, no change.
+            var ex = Record.Exception(() => buf.StampGizmoTypeId(1, 77u));
+            Assert.Null(ex);
+            Assert.Equal(0u, buf.GetFrame()[0].GizmoTypeId);
+        }
+
+        // SC-GZ065-5: ContextMenuBinding primitive is stamped (offset-60 free for that shape).
+        [Fact]
+        public void SC_GZ065_5_ContextMenuBinding_Stamped()
+        {
+            var buf = new DebugPrimitiveBuffer(16);
+            buf.Append(MakeShape(DebugPrimitiveShape.ContextMenuBinding));
+
+            buf.StampGizmoTypeId(0, 99u);
+
+            Assert.Equal(99u, buf.GetFrame()[0].GizmoTypeId);
+        }
+    }
 }

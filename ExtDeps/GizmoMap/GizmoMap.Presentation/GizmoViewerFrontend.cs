@@ -17,7 +17,8 @@ namespace GizmoMap.Presentation
             Action<float> onUpdateTick,
             Action<GizmoPickToken, GizmoInteractionEventKind, Vector3, int, byte, string?> onInteraction,
             Action<GizmoPickToken, int> onMenuAction,
-            Action? onCustomInput = null)
+            Action? onCustomInput = null,
+            ImGuiPropertyTreeAdapter? externalAdapter = null)
         {
             Raylib.InitWindow(640, 480, windowTitle);
             Raylib.SetTargetFPS(30);
@@ -30,7 +31,7 @@ namespace GizmoMap.Presentation
                 Zoom = 1f,
             };
 
-            var propertyAdapter = new ImGuiPropertyTreeAdapter(schemaRegistry);
+            var propertyAdapter = externalAdapter ?? new ImGuiPropertyTreeAdapter(schemaRegistry);
             var renderer = new DebugPrimitiveRenderer2D(imGuiAdapter: propertyAdapter);
             var layer = new DebugGizmoLayer(renderer); // buffer data passed per-call
 
@@ -64,8 +65,8 @@ namespace GizmoMap.Presentation
                 layer.DrawMainMenu(actionId =>
                     onMenuAction?.Invoke(new GizmoPickToken { AnchorId = 0 }, actionId));
                 layer.DrawContextMenu(onMenuAction);
-                propertyAdapter.DrawScheduled((networkId, json) =>
-                    onInteraction(new GizmoPickToken { AnchorId = networkId },
+                propertyAdapter.DrawScheduled((networkId, gizmoTypeId, json) =>
+                    onInteraction(new GizmoPickToken { AnchorId = networkId, GizmoTypeId = gizmoTypeId },
                         GizmoInteractionEventKind.StructUpdate, Vector3.Zero, 0, 0, json));
                 rlImGui.End();
 

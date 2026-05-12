@@ -141,4 +141,16 @@ namespace GizmoMap.Network.Tests
             }
         }
     }
+
+    public class GZ064NetworkTests
+    {
+        // SC-GZ064-3: GizmoInteractionBatch.PickGizmoTypeId round-trips through struct copy.
+        [Fact]
+        public void SC_GZ064_3_GizmoInteractionBatch_PickGizmoTypeId_RoundTrips()
+        {
+            var batch = new GizmoInteractionBatch { PickGizmoTypeId = 0xDEADBEEFu };
+            var copy = batch;
+            Assert.Equal(0xDEADBEEFu, copy.PickGizmoTypeId);
+        }
+    }
 }
