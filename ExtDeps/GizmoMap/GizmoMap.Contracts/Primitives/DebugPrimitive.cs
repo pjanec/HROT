@@ -112,6 +112,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         [FieldOffset(32)] public float LengthMeters;    // overall platform length (0 = use profile default)
         [FieldOffset(36)] public float WidthMeters;     // overall platform width (0 = use profile default)
         [FieldOffset(40)] public uint  ConditionMask;   // EntityShapeCondition bitfield (e.g. Damaged, Firing)
+
+
+        /// <summary>
+        /// Absolute world coordinates calculated locally by the client's two-pass renderer.
+        /// OVER THE NETWORK: These fields act as unused padding and transmit as zeros.
+        /// </summary>
+        /// <remarks>
+        /// The DebugPrimitive has an inviolable 64-byte limit to fit exactly in one CPU cache line. 
+        /// A full 3D transformplus SemanticShape data overflows the 40-byte payload union budget.
+        /// 
+        /// To solve this, the host transmits a SpatialAnchor primitive and a SemanticShape primitive 
+        /// separately over the network. When the dumb terminal receives them, it uses a two-pass renderer:
+        /// 1. Pass 1 (Cache): Finds and caches all SpatialAnchors by their NetworkId.
+        /// 2. Pass 2 (Resolve): Finds SemanticShapes, looks up their anchor, calculates the absolute 
+        ///    world coordinates, and mutates this primitive in-place by overwriting its unused 
+        ///    memory padding with these Resolved fields.
+        /// 
+        /// This allows the final rendering pass to draw the shape with zero additional dictionary lookups.
+        /// </remarks>
         [FieldOffset(44)] public float ResolvedWorldX;
         [FieldOffset(48)] public float ResolvedWorldY;
         [FieldOffset(52)] public float ResolvedYawRad;
