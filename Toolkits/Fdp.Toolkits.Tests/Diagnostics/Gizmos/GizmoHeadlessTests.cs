@@ -3,13 +3,16 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
+using CycloneDDS.Runtime;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Hub;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Diagnostics.Gizmos.Modules;
 using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UI;
 using GizmoMap.Network;
@@ -120,6 +123,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             bus.SwapBuffers();
 
             var events = bus.ReadManaged<TerminalConnectedEvent>();
+            Assert.NotNull(events);
+            Assert.Single(events);
+            Assert.Equal(expectedId, events[0].TerminalId);
+        }
+
+        // GZH001_2: TerminalDisconnectedEvent round-trips through FdpEventBus.
+        [Fact]
+        public void GZH001_2_EventBus_TerminalDisconnected_RoundTrips()
+        {
+            var bus = new FdpEventBus();
+            const long expectedId = 77L;
+
+            bus.PublishManaged(new TerminalDisconnectedEvent { TerminalId = expectedId });
+            bus.SwapBuffers();
+
+            var events = bus.ReadManaged<TerminalDisconnectedEvent>();
             Assert.NotNull(events);
             Assert.Single(events);
             Assert.Equal(expectedId, events[0].TerminalId);
@@ -518,6 +537,219 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
             Assert.Single(firstPoll);
             Assert.Empty(secondPoll);
+        }
+    }
+
+    // ==========================================================================
+    // Helpers shared by GZH-009 / GZH-010 / GZH-015 tests
+    // ==========================================================================
+
+    // Stub IGizmoNetworkFactory with no live DDS participant.
+    // All factory methods return null / empty so the module can be constructed in unit tests.
+    internal sealed class StubNetworkFactory : IGizmoNetworkFactory
+    {
+        public DdsParticipant? Participant => null;
+        public IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId) => null;
+        public IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless)
+            => Array.Empty<INetworkTranslator>();
+    }
+
+    // Factory method shared by GZH-009 / GZH-010 / GZH-015 to build a controller and hub.
+    internal static class GizmoTestHelpers
+    {
+        public static (GizmoExecutionController ctrl, GizmoUiStateHub hub) MakeControllerAndHub()
+        {
+            var buf       = new DebugPrimitiveBuffer();
+            var globalMgr = new GlobalGizmoManager(buf);
+            var registry  = new GizmoRegistry();
+            var ddSys     = new DataDrivenGizmoSystem(registry, buf);
+            var group     = new TogglablePostSimulationGroup("GizmoExecution");
+            group.Enabled = false;
+            var ctrl      = new GizmoExecutionController(group, globalMgr, ddSys);
+            var hub       = new GizmoUiStateHub();
+            return (ctrl, hub);
+        }
+    }
+
+    // ==========================================================================
+    // GZH-009: LocalTerminalModule
+    // ==========================================================================
+
+    public class GZH009_Tests
+    {
+        // GZH009_1: Constructing LocalTerminalModule increments ListenerCount;
+        //           Dispose decrements it back to zero.
+        [Fact]
+        public void GZH009_1_Constructor_IncrementsListenerCount_Dispose_Decrements()
+        {
+            var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
+
+            Assert.Equal(0, ctrl.ListenerCount);
+
+            using var module = new LocalTerminalModule(ctrl, hub);
+
+            Assert.Equal(1, ctrl.ListenerCount);
+
+            module.Dispose();
+
+            Assert.Equal(0, ctrl.ListenerCount);
+        }
+
+        // GZH009_2: After construction, publishing to the hub reaches LocalUiTransport;
+        //           after Dispose, subsequent publishes are NOT received.
+        [Fact]
+        public void GZH009_2_HubPublish_ReachesTransport_StopsAfterDispose()
+        {
+            var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
+            var module = new LocalTerminalModule(ctrl, hub);
+
+            var state = new GizmoUiState { GizmoInstanceId = 7u, EditDocumentJson = "{}" };
+            hub.Publish(state);
+
+            var received = new List<GizmoUiState>();
+            module.LocalUiTransport.PollAndApply(s => received.Add(s));
+            Assert.Single(received);
+
+            // After Dispose, the transport endpoint is removed.
+            module.Dispose();
+
+            hub.Publish(state);
+            var afterDispose = new List<GizmoUiState>();
+            module.LocalUiTransport.PollAndApply(s => afterDispose.Add(s));
+            Assert.Empty(afterDispose);
+        }
+    }
+
+    // ==========================================================================
+    // GZH-010: GizmoNetworkTransportModule (stub factory, no DDS)
+    // ==========================================================================
+
+    public class GZH010_Tests
+    {
+        // GZH010_1: Constructing GizmoNetworkTransportModule with a null-participant factory
+        //           leaves ListenerCount at zero (tracker does NOT call AddListener on construction).
+        //           Dispose leaves ListenerCount at zero.
+        [Fact]
+        public void GZH010_1_Constructor_DoesNotIncrementListenerCount()
+        {
+            var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
+            var factory     = new StubNetworkFactory();
+            var buffer      = new DebugPrimitiveBuffer();
+            var bus         = new FdpEventBus();
+
+            Assert.Equal(0, ctrl.ListenerCount);
+
+            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1L, bus);
+
+            Assert.Equal(0, ctrl.ListenerCount);
+
+            module.Dispose();
+
+            Assert.Equal(0, ctrl.ListenerCount);
+        }
+
+        // GZH010_2: Tracker.OnSample drives ListenerCount correctly across connects/disconnects.
+        [Fact]
+        public void GZH010_2_TrackerOnSample_DrivesListenerCount()
+        {
+            var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
+            var factory     = new StubNetworkFactory();
+            var buffer      = new DebugPrimitiveBuffer();
+            var bus         = new FdpEventBus();
+
+            using var module = new GizmoNetworkTransportModule(ctrl, hub, factory, buffer, 1L, bus);
+
+            module.Tracker.OnSample(1L, isAlive: true);
+            Assert.Equal(1, ctrl.ListenerCount);
+
+            module.Tracker.OnSample(2L, isAlive: true);
+            Assert.Equal(2, ctrl.ListenerCount);
+
+            module.Tracker.OnSample(1L, isAlive: false);
+            Assert.Equal(1, ctrl.ListenerCount);
+        }
+    }
+
+    // ==========================================================================
+    // GZH-015: GizmoCapabilitiesTracker via Tracker field
+    // ==========================================================================
+
+    public class GZH015_Tests
+    {
+        private static (GizmoNetworkTransportModule module, GizmoExecutionController ctrl, FdpEventBus bus) MakeModule()
+        {
+            var (ctrl, hub) = GizmoTestHelpers.MakeControllerAndHub();
+            var bus         = new FdpEventBus();
+            var module      = new GizmoNetworkTransportModule(ctrl, hub, new StubNetworkFactory(), new DebugPrimitiveBuffer(), 99L, bus);
+            return (module, ctrl, bus);
+        }
+
+        // GZH015_1: OnSample(id, true) for a new node publishes TerminalConnectedEvent and increments count.
+        [Fact]
+        public void GZH015_1_OnSample_NewAliveNode_PublishesConnectedEvent_IncrementsCount()
+        {
+            var (module, ctrl, bus) = MakeModule();
+            using (module)
+            {
+                module.Tracker.OnSample(42L, isAlive: true);
+                bus.SwapBuffers();
+
+                var events = bus.ReadManaged<TerminalConnectedEvent>();
+                Assert.Single(events);
+                Assert.Equal(42L, events[0].TerminalId);
+                Assert.Equal(1, ctrl.ListenerCount);
+            }
+        }
+
+        // GZH015_2: OnSample(id, false) for a known node publishes TerminalDisconnectedEvent and decrements count.
+        [Fact]
+        public void GZH015_2_OnSample_KnownNodeDisconnects_PublishesDisconnectedEvent_DeprecatesCount()
+        {
+            var (module, ctrl, bus) = MakeModule();
+            using (module)
+            {
+                module.Tracker.OnSample(42L, isAlive: true);
+                bus.SwapBuffers();
+                bus.ReadManaged<TerminalConnectedEvent>(); // drain
+
+                module.Tracker.OnSample(42L, isAlive: false);
+                bus.SwapBuffers();
+
+                var events = bus.ReadManaged<TerminalDisconnectedEvent>();
+                Assert.Single(events);
+                Assert.Equal(42L, events[0].TerminalId);
+                Assert.Equal(0, ctrl.ListenerCount);
+            }
+        }
+
+        // GZH015_3: OnSample(id, false) for an unknown node does NOT publish TerminalDisconnectedEvent.
+        [Fact]
+        public void GZH015_3_OnSample_UnknownNodeDisconnects_NoEvent()
+        {
+            var (module, ctrl, bus) = MakeModule();
+            using (module)
+            {
+                module.Tracker.OnSample(999L, isAlive: false);
+                bus.SwapBuffers();
+
+                var events = bus.ReadManaged<TerminalDisconnectedEvent>();
+                Assert.Empty(events);
+                Assert.Equal(0, ctrl.ListenerCount);
+            }
+        }
+
+        // GZH015_4: OnSample(id, true) called twice for the same node is idempotent (count stays 1).
+        [Fact]
+        public void GZH015_4_OnSample_SameNodeAlive_Idempotent()
+        {
+            var (module, ctrl, bus) = MakeModule();
+            using (module)
+            {
+                module.Tracker.OnSample(99L, isAlive: true);
+                module.Tracker.OnSample(99L, isAlive: true);
+
+                Assert.Equal(1, ctrl.ListenerCount);
+            }
         }
     }
 }
