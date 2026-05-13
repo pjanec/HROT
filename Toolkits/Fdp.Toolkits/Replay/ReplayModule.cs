@@ -99,7 +99,7 @@ namespace Fdp.Toolkit.Replay
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToFrameAsync.");
 
-            // FIX: Execute strictly on the calling (main) thread to prevent ECS memory corruption.
+            // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
             _playback.SeekToFrame(_repo, targetFrameIndex);
@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Replay
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
 
-            // FIX: Execute strictly on the calling (main) thread to prevent ECS memory corruption.
+            // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
             _playback.SeekToWallClockTicks(_repo, targetWallTicks);

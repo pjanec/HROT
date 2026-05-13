@@ -140,7 +140,7 @@ namespace Fdp.Core.FlightRecorder
             var entityIndex = repo.GetEntityIndex();
             int maxIndex = entityIndex.MaxIssuedIndex;
 
-            // FIX: Strictly guard against empty worlds. Do not clamp maxIndex to 0.
+            // Strictly guard against empty worlds. Do not clamp maxIndex to 0.
             if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
 
             foreach (var kvp in componentTables)
