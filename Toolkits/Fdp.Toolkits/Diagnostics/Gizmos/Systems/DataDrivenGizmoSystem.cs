@@ -532,6 +532,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private IEntityStatefulGizmo? FindGizmo(Entity entity, uint gizmoTypeId)
         {
+            // STRICT ARCHITECTURAL BOUNDARY:
+            // Prevent empty-canvas events (Entity.Null, Index=0/Gen=0) from hijacking Entity 0's gizmos.
+            if (entity.IsNull)
+                return null;
+
             // Injected (on-demand) gizmos have strict priority over base rules.
             if (_injectedGizmos.TryGetValue(entity, out var injected))
                 return injected;
