@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -83,6 +84,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             }
 
             gizmo.Dispose();
+        }
+
+        // Synchronously disposes all on-demand gizmos and releases the focused gizmo.
+        // Called by GizmoExecutionController when the last terminal disconnects.
+        // Permanent gizmos (RequiresExclusiveFocus == false AND WantsRawInput == false)
+        // such as LayerControlGizmo are left intact.
+        public void CancelInteractiveTools()
+        {
+            if (_focusedGizmo != null)
+            {
+                _focusedGizmo.OnCancel();
+                _focusedGizmo.SetFocus(false);
+                // Remove from _activeGizmos before Dispose so the second sweep below skips it.
+                var focusedKey = _activeGizmos
+                    .Where(kvp => kvp.Value == _focusedGizmo)
+                    .Select(k => (long?)k.Key)
+                    .FirstOrDefault();
+                if (focusedKey.HasValue)
+                    _activeGizmos.Remove(focusedKey.Value);
+                _focusedGizmo.Dispose();
+                _focusedGizmo = null;
+            }
+            var onDemandKeys = _activeGizmos
+                .Where(kvp => kvp.Value.RequiresExclusiveFocus || kvp.Value.WantsRawInput)
+                .Select(k => k.Key).ToList();
+            foreach (var key in onDemandKeys)
+            {
+                _activeGizmos[key].Dispose();
+                _activeGizmos.Remove(key);
+            }
         }
 
         /// <inheritdoc/>

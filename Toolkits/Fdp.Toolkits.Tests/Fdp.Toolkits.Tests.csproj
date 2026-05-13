@@ -16,6 +16,9 @@
     <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
     <!-- Non-analyzer reference: exposes GizmoRegistrarGenerator class for unit testing. -->
     <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
+    <!-- GZH-006: StructInspectorProjector tests need real IComponentEditService impl. -->
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
   </ItemGroup>
 
   <!-- Test framework packages (union of all absorbed test projects) -->

@@ -118,6 +118,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         public bool HasInjectedGizmo(Entity entity) => _injectedGizmos.ContainsKey(entity);
 
+        // Synchronously cancels and disposes all injected (on-demand) gizmos.
+        // Called by GizmoExecutionController when the last terminal disconnects.
+        public void CancelInteractiveTools()
+        {
+            foreach (var kvp in _injectedGizmos)
+            {
+                if (kvp.Value == _focusedGizmo)
+                {
+                    _focusedGizmo.SetFocus(false);
+                    _focusedGizmo = null;
+                }
+                kvp.Value.OnCancel();
+                kvp.Value.Dispose();
+            }
+            _injectedGizmos.Clear();
+        }
+
         // ---- Private per-instance gizmo record ------------------------------------
 
         private struct CompiledGizmoInstance
