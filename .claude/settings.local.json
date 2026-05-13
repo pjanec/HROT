@@ -1,8 +1,9 @@
 {
-  "defaultMode": "allow",
   "permissions": {
     "allow": [
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "mcp__codebase-memory-mcp__search_graph"
     ]
-  }
+  },
+  "defaultMode": "allow"
 }

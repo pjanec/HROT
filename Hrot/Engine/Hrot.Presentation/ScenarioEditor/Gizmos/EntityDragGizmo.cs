@@ -42,6 +42,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     private bool    _isDragging;
     private Vector3 _originalPos;
     private Vector3 _currentDragPos;
+    private Vector3 _dragOffset;
 
     /// <summary>
     /// Optional callback fired after a successful drag commit.
@@ -107,6 +108,7 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
         if (!_view.IsAlive(_entity) || !_view.HasComponent<SimTransform>(_entity)) return;
         ref readonly var tf = ref _view.GetComponentRO<SimTransform>(_entity);
         _originalPos    = new Vector3(tf.Position.X, tf.Position.Y, 0f);
+        _dragOffset     = _originalPos - worldPos;
         _currentDragPos = _originalPos;
         _isDragging     = false;   // drag starts only when OnDragUpdate fires
     }
@@ -115,16 +117,21 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
     {
         if (!_view.IsAlive(_entity)) return;
         _isDragging     = true;
-        _currentDragPos = worldPos;
-        ApplyPosition(worldPos);
+        _currentDragPos = worldPos + _dragOffset;
+        ApplyPosition(_currentDragPos);
     }
 
     public void OnCommit(Vector3 worldPos)
     {
         if (!_view.IsAlive(_entity)) return;
+
+        if (_isDragging)
+        {
+            ApplyPosition(_currentDragPos);
+            OnDragCommitted?.Invoke(_entity, new Vector2(_currentDragPos.X, _currentDragPos.Y));
+        }
+
         _isDragging = false;
-        ApplyPosition(worldPos);
-        OnDragCommitted?.Invoke(_entity, new Vector2(worldPos.X, worldPos.Y));
     }
 
     public void OnCancel()
