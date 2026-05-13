@@ -1,5 +1,7 @@
 # Gizmos-2 Headless — Task Tracker
 
+**Status: SPRINT COMPLETE** — All 16 tasks done across 4 batches. Open debt: DEBT-003 (P2, deferred).
+
 **Reference:** See [TASK-DETAILS.md](./TASK-DETAILS.md) for detailed task descriptions.
 
 ---
@@ -52,8 +54,8 @@ schema hash, live DTO sync via `StructInspectorProjector<T>`, and injection of t
 **Goal:** Make the ClusterRunner's Raylib window optionally openable and closable at runtime
 via console commands. Add per-perspective gizmo CPU control.
 
-- [ ] **GZH-012** `OpenLocalWindow()` / `CloseLocalWindow()` [details](./TASK-DETAILS.md#gzh-012--openlocalwindow-and-closelocalwindow)
-- [ ] **GZH-013** `ConsoleCommandService` [details](./TASK-DETAILS.md#gzh-013--consolecommandservice)
+- [x] **GZH-012** `OpenLocalWindow()` / `CloseLocalWindow()` [details](./TASK-DETAILS.md#gzh-012--openlocalwindow-and-closelocalwindow)
+- [x] **GZH-013** `ConsoleCommandService` [details](./TASK-DETAILS.md#gzh-013--consolecommandservice)
 - [x] **GZH-014** Perspective-aware `GizmoExecutionController` switching [details](./TASK-DETAILS.md#gzh-014--perspective-aware-gizmoexecutioncontroller-switching)
 
 ---
