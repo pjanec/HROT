@@ -1,13 +1,13 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Core.Logging;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using Fdp.Toolkit.Diagnostics.Gizmos.UI;
 using Hrot.Common.Constants;
 using StructEdit.Core;
-using StructEdit.Json;
 
 namespace Hrot.Common.Diagnostics.Gizmos
 {
@@ -53,9 +53,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
     //   _dto updated, _activeLayers recomputed.
     public sealed class LayerControlGizmo : IEntityStatefulGizmo
     {
-        // Schema hash must match the StructEdit schema registered for LayerControlDto.
-        // Value is shared with GizmoMap.Example.LayerControlGizmo for cross-app consistency.
-        public const uint SchemaHash = 0x8899AABB;
+        // Schema hash computed from the DTO's full type name — matches what the terminal
+        // derives via reflection, with no magic numbers.
+        public static readonly uint SchemaHash =
+            GizmoSettingsRegistry.ComputeHash(typeof(LayerControlDto).FullName!);
 
         // JSON for the "View" top-level main menu entry (priority=30 places it after standard menus).
         private static readonly string MainMenuJson =
@@ -65,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         private readonly long _anchorId;
         private readonly FdpEventBus _interactionBus;
-        private readonly IComponentEditService _editService;
+        private readonly StructInspectorProjector<LayerControlDto> _projector;
 
         private LayerControlDto _dto = new();
         private LayerMask256 _activeLayers;
@@ -76,11 +77,17 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public LayerControlGizmo(long anchorId, FdpEventBus interactionBus, IComponentEditService editService)
+        public LayerControlGizmo(
+            long anchorId,
+            FdpEventBus interactionBus,
+            IComponentEditService editService,
+            IGizmoUiStatePublisher? uiPublisher = null)
         {
             _anchorId = anchorId;
             _interactionBus = interactionBus ?? throw new ArgumentNullException(nameof(interactionBus));
-            _editService = editService ?? throw new ArgumentNullException(nameof(editService));
+            _projector = new StructInspectorProjector<LayerControlDto>(
+                editService ?? throw new ArgumentNullException(nameof(editService)),
+                uiPublisher);
             _activeLayers = _dto.ToMask();
         }
 
@@ -100,33 +107,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
-            {
-                var inspPrim = DebugPrimitive.MakeStructInspector(
-                    networkId: _anchorId,
-                    schemaHash: SchemaHash,
-                    anchor: ScreenAnchor.Center,
-                    sizeMode: SizeMode.ScreenPercent,
-                    isReadOnly: false);
-                draw.EmitRaw(in inspPrim);
-            }
+                _projector.EmitAndSync(draw, _anchorId, SchemaHash, _dto, ScreenAnchor.Center, SizeMode.ScreenPercent);
         }
 
         // Called by GlobalGizmoManager when a GizmoStructUpdateEvent arrives for _anchorId.
         public void OnStructUpdate(string payloadJson)
         {
             if (string.IsNullOrWhiteSpace(payloadJson)) return;
-            try
-            {
-                using IEditSession session = _editService.Open(_dto, typeof(LayerControlDto));
-                session.LoadJson(payloadJson);
-                _dto = (LayerControlDto)session.Commit();
-                _activeLayers = _dto.ToMask();
-                _isEditing = false;
-            }
-            catch (Exception ex)
-            {
-                FdpLog<LayerControlGizmo>.Warn("Dropped invalid layer StructUpdate: {0}", ex.Message);
-            }
+            _projector.ApplyUpdate(payloadJson, ref _dto);
+            _activeLayers = _dto.ToMask();
+            _isEditing = false;
         }
 
         // No-op stubs for IGizmoInteractionHandler methods not used by this gizmo.

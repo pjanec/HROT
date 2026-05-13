@@ -33,8 +33,8 @@ using a dual-channel architecture that separates high-frequency primitives from 
 **Goal:** Enable hot-plug installation and removal of local (Raylib) and remote (DDS) terminal
 modules at runtime without restarting the simulation.
 
-- [ ] **GZH-009** `LocalTerminalModule` [details](./TASK-DETAILS.md#gzh-009--localterminalmodule)
-- [ ] **GZH-010** `GizmoNetworkTransportModule` [details](./TASK-DETAILS.md#gzh-010--gizmonetworktransportmodule)
+- [x] **GZH-009** `LocalTerminalModule` [details](./TASK-DETAILS.md#gzh-009--localterminalmodule)
+- [x] **GZH-010** `GizmoNetworkTransportModule` [details](./TASK-DETAILS.md#gzh-010--gizmonetworktransportmodule)
 
 ---
 
@@ -43,7 +43,7 @@ modules at runtime without restarting the simulation.
 **Goal:** Upgrade the existing `LayerControlGizmo` to follow the clean architecture: dynamic
 schema hash, live DTO sync via `StructInspectorProjector<T>`, and injection of the hub.
 
-- [ ] **GZH-011** Refactor `LayerControlGizmo` [details](./TASK-DETAILS.md#gzh-011--refactor-layercontrolgizmo)
+- [x] **GZH-011** Refactor `LayerControlGizmo` [details](./TASK-DETAILS.md#gzh-011--refactor-layercontrolgizmo)
 
 ---
 
@@ -63,7 +63,7 @@ via console commands. Add per-perspective gizmo CPU control.
 **Goal:** Detect remote terminal crashes and network partitions automatically via DDS lifecycle
 events, preventing zombie listener leaks.
 
-- [ ] **GZH-015** DDS lifecycle disconnect detection [details](./TASK-DETAILS.md#gzh-015--dds-lifecycle-disconnect-detection)
+- [x] **GZH-015** DDS lifecycle disconnect detection [details](./TASK-DETAILS.md#gzh-015--dds-lifecycle-disconnect-detection)
 
 ---
 

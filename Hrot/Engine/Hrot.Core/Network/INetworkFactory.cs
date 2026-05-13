@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Modules;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.NetworkSpawning;
 using Hrot.Common;
@@ -20,7 +21,7 @@ namespace Hrot.Core.Network;
 /// Factory that creates all protocol-specific network infrastructure for a simulation node.
 /// Implemented by Hrot.Network.NED (NedNetworkFactory) and Hrot.Network.BDC (BdcNetworkFactory).
 /// </summary>
-public interface INetworkFactory
+public interface INetworkFactory : IGizmoNetworkFactory
 {
     /// <summary>Creates the replication module that synchronises entity state over the network.</summary>
     IReplicationModule CreateReplicationModule();
@@ -120,7 +121,7 @@ public interface INetworkFactory
     /// Subsystems that need a participant should prefer this over calling
     /// HrotEnvironment.CreateParticipant directly.
     /// </summary>
-    DdsParticipant? Participant { get; }
+    new DdsParticipant? Participant { get; }
 
     /// <summary>
     /// Protocol-specific ordinal for the "WorldPos" (geo-spatial position) descriptor,
@@ -197,10 +198,10 @@ public interface INetworkFactory
     /// When <c>true</c>, creates an ingress translator (node receives UI events from a remote viewer).
     /// When <c>false</c>, creates an egress translator (node forwards locally-generated UI events).
     /// </param>
-    IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
+    new IReadOnlyList<INetworkTranslator> CreateGizmoTranslators(FdpEventBus interactionBus, long localNodeId, bool headless);
 
     /// <summary>
     /// Creates the ECS system that publishes the gizmo primitive buffer to the network each frame.
     /// Returns <c>null</c> when the protocol does not support gizmo streaming.
     /// </summary>
-    IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);}
+    new IEcsModuleSystem? CreateGizmoPublisherSystem(DebugPrimitiveBuffer buffer, long localNodeId);}

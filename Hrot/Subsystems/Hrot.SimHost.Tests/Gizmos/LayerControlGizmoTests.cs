@@ -1,0 +1,62 @@
+using System.Collections.Generic;
+using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
+using GizmoMap.Network;
+using Hrot.Common.Diagnostics.Gizmos;
+using StructEdit.Core;
+using StructEdit.Reflection;
+using Xunit;
+
+namespace Hrot.SimHost.Tests.Gizmos
+{
+    // GZH-011 unit tests for LayerControlGizmo and related schema hash logic.
+
+    // IGizmoUiStatePublisher stub that records all Publish calls.
+    internal sealed class LayerControlPublisherStub : IGizmoUiStatePublisher
+    {
+        public List<GizmoUiState> Published { get; } = new();
+        public void Publish(GizmoUiState state) { Published.Add(state); }
+    }
+
+    public class GZH011_Tests
+    {
+        private static IComponentEditService MakeEditService()
+            => new ComponentEditServiceBuilder().Build();
+
+        // GZH011_1: LayerControlGizmo.SchemaHash equals the FNV-1a hash of the DTO's full type name.
+        [Fact]
+        public void GZH011_1_SchemaHash_MatchesComputedHash()
+        {
+            uint expected = GizmoSettingsRegistry.ComputeHash("Hrot.Common.Diagnostics.Gizmos.LayerControlDto");
+            Assert.Equal(expected, LayerControlGizmo.SchemaHash);
+        }
+
+        // GZH011_2: When _isEditing is toggled by an OpenLayerEditorEvent, UpdateAndDraw calls
+        //           the publisher exactly once. A second UpdateAndDraw with the same DTO state
+        //           does NOT echo the state (StructInspectorProjector suppresses duplicates).
+        [Fact]
+        public void GZH011_2_UpdateAndDraw_WithEditing_PublishesOnce_NoDuplicateEcho()
+        {
+            var bus       = new FdpEventBus();
+            var editSvc   = MakeEditService();
+            var publisher = new LayerControlPublisherStub();
+            var gizmo     = new LayerControlGizmo(anchorId: 1L, bus, editSvc, publisher);
+
+            // Trigger _isEditing by publishing the toggle event, then swap buffers so gizmo can read it.
+            bus.PublishManaged(new OpenLayerEditorEvent());
+            bus.SwapBuffers();
+
+            // First UpdateAndDraw: editing is active, expect one Publish call.
+            var draw1 = new DebugPrimitiveBuffer();
+            gizmo.UpdateAndDraw(0f, draw1);
+            Assert.Equal(1, publisher.Published.Count);
+
+            // Second UpdateAndDraw: same DTO state, no event — StructInspectorProjector suppresses echo.
+            bus.SwapBuffers(); // drain (no new events)
+            var draw2 = new DebugPrimitiveBuffer();
+            gizmo.UpdateAndDraw(0f, draw2);
+            Assert.Equal(1, publisher.Published.Count);
+        }
+    }
+}
