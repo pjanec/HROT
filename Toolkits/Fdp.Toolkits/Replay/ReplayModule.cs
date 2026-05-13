@@ -86,9 +86,10 @@ namespace Fdp.Toolkit.Replay
 
 
         /// <summary>
-        /// Off-main-thread heavy seek.  Delegates to
-        /// <see cref="PlaybackController.SeekToFrame"/> inside a background
-        /// <see cref="Task"/> so the caller can fan-out via <c>Task.WhenAll</c>.
+        /// Main-thread synchronous seek.  Delegates to
+        /// <see cref="PlaybackController.SeekToFrame"/> synchronously to guarantee ECS
+        /// memory safety. The async interface contract is satisfied by returning
+        /// a completed task.
         /// Must not be called before <see cref="RegisterSystems"/>.
         /// </summary>
         /// <param name="targetFrameIndex">Zero-based frame index within the recording.</param>
@@ -97,20 +98,22 @@ namespace Fdp.Toolkit.Replay
             if (_playback == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToFrameAsync.");
-            return Task.Run(() =>
-            {
-                _playback.SeekToFrame(_repo, targetFrameIndex);
 
-                // FIX: Ensure egress caches are invalidated and the map is rebuilt
-                Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-                _afterSeek?.Invoke();
-            });
+            // FIX: Execute strictly on the calling (main) thread to prevent ECS memory corruption.
+            // The ECS repository is single-threaded for structural changes; seeking must not
+            // race with UI rendering or other main-thread operations.
+            _playback.SeekToFrame(_repo, targetFrameIndex);
+            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
+            _afterSeek?.Invoke();
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
-        /// Off-main-thread wall-clock seek.  Delegates to
-        /// <see cref="PlaybackController.SeekToWallClockTicks"/> so the caller can
-        /// await completion before branching to live (CGF1-S0305).
+        /// Main-thread synchronous wall-clock seek.  Delegates to
+        /// <see cref="PlaybackController.SeekToWallClockTicks"/> synchronously to guarantee
+        /// ECS memory safety. The async interface contract is satisfied by returning
+        /// a completed task.
         /// Must not be called before <see cref="RegisterSystems"/>.
         /// </summary>
         /// <param name="targetWallTicks">
@@ -122,14 +125,15 @@ namespace Fdp.Toolkit.Replay
             if (_playback == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
-            return Task.Run(() =>
-            {
-                _playback.SeekToWallClockTicks(_repo, targetWallTicks);
 
-                // FIX: Ensure egress caches are invalidated and the map is rebuilt
-                Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-                _afterSeek?.Invoke();
-            });
+            // FIX: Execute strictly on the calling (main) thread to prevent ECS memory corruption.
+            // The ECS repository is single-threaded for structural changes; seeking must not
+            // race with UI rendering or other main-thread operations.
+            _playback.SeekToWallClockTicks(_repo, targetWallTicks);
+            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
+            _afterSeek?.Invoke();
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
