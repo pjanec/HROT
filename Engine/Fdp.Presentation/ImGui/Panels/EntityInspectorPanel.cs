@@ -23,6 +23,7 @@ namespace Fdp.Presentation.Panels;
 public class EntityInspectorPanel
 {
     private string _searchFilter = "";
+    private string _componentSearchFilter = "";
     private readonly ComponentReflector _reflector = new();
     private static readonly Vector4 ExConViolet = new Vector4(0.7f, 0.45f, 0.8f, 1f);
 
@@ -168,9 +169,7 @@ public class EntityInspectorPanel
     {
         // 1. Top Bar: Statistics & Filter
         ImGuiApi.TextDisabled($"Total Entities: {session.EntityCount}");
-        ImGuiApi.SameLine();
-        ImGuiApi.InputTextWithHint("##search", "Search...", ref _searchFilter, 40);
-        
+
         // Select All button — populates selection with all currently visible entities.
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Select All"))
@@ -276,6 +275,10 @@ public class EntityInspectorPanel
 
     private void DrawEntityList(IInspectableSession session, IInspectorContext context)
     {
+        // Render full-width search bar above the scrolling list
+        ImGuiApi.SetNextItemWidth(-float.Epsilon);
+        ImGuiApi.InputTextWithHint("##search", "Search...", ref _searchFilter, 40);
+
         ImGuiApi.BeginChild("EntityList_Scroll");
 
         var entities = GetFilteredEntities(session, _searchFilter);
@@ -545,12 +548,12 @@ public class EntityInspectorPanel
                 }
             }
 
-            ImGuiApi.SameLine();
-            if (ImGuiApi.SmallButton("Copy JSON"))
-            {
-                var json = BuildSingleEntityJson(session, e);
-                ImGuiApi.SetClipboardText(json);
-            }
+            //ImGuiApi.SameLine();
+            //if (ImGuiApi.SmallButton("Copy JSON"))
+            //{
+            //    var json = BuildSingleEntityJson(session, e);
+            //    ImGuiApi.SetClipboardText(json);
+            //}
 
             // ── Chain-to-map toggle (Task 46) ──────────────────────────────
             bool chain = ChainToMap;
@@ -575,6 +578,12 @@ public class EntityInspectorPanel
 
             ImGuiApi.Separator();
 
+            // Render full-width component search filter
+            ImGuiApi.SetNextItemWidth(-float.Epsilon);
+            ImGuiApi.InputTextWithHint("##comp_search", "Search...", ref _componentSearchFilter, 40);
+            ImGuiApi.Spacing();
+
+            _reflector.ComponentFilter = _componentSearchFilter;
             _reflector.DrawComponents(session, e);
         }
         ImGuiApi.EndChild();

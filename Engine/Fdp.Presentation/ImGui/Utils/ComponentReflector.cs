@@ -42,6 +42,9 @@ public class ComponentReflector
     /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
     public bool ForceCollapseAll { get; set; }
 
+    /// <summary>Filter string for component names (substring match, case-insensitive).</summary>
+    public string ComponentFilter { get; set; } = string.Empty;
+
     // ── Edit-window injection properties (CE09) ───────────────────────────────
 
     /// <summary>Window manager used to register or focus the component editor window.</summary>
@@ -151,9 +154,18 @@ public class ComponentReflector
         var allTypes = session.GetAllComponentTypes().OrderBy(t => t.Name).ToList();
 
         int componentIndex = 0;
+        int visibleComponents = 0;
+        bool hasFilter = !string.IsNullOrWhiteSpace(ComponentFilter);
+
         foreach (var type in allTypes)
         {
             if (!session.HasComponent(e, type)) continue;
+
+            // Apply component substring filter
+            if (hasFilter && type.Name.IndexOf(ComponentFilter, System.StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            visibleComponents++;
 
             object? data = session.GetComponent(e, type);
 
@@ -300,6 +312,11 @@ public class ComponentReflector
             // Double-click triggers in-place edit; new-window is via context menu only.
             if (!session.IsReadOnly && data != null && (headerDoubleClicked || doubleClickedPath != null))
                 StartInPlaceEdit(session, e, type, data, doubleClickedPath);
+        }
+
+        if (visibleComponents == 0 && hasFilter)
+        {
+            ImGuiApi.TextDisabled("No components matched.");
         }
 
         ForceExpandAll   = false;
