@@ -178,6 +178,7 @@ namespace Hrot.Editor
         private FdpEventBus?           _orchestrationBus;
         private ClusterMaster?                _clusterMaster;
         private ReplaySeekProcessManager?     _seekProcessManager;
+        private ReplayProcessManager?         _replayProcessManager;
         private AssetInventoryProcessManager?  _assetInventoryProcessManager;
         private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
         private StorageGatewayModule?          _storageGateway;
@@ -773,6 +774,10 @@ namespace Hrot.Editor
             _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus, _timeController);
             _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
 
+            // Register replay manager and aggregator so duration payload flows through 2PC
+            _replayProcessManager = new ReplayProcessManager(_orchestrationBus, _timeController);
+            _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
+
             _storageGateway = new StorageGatewayModule();
             _assetInventoryProcessManager = new AssetInventoryProcessManager(
                 _orchestrationBus,
@@ -1022,6 +1027,7 @@ namespace Hrot.Editor
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
             _seekProcessManager?.Tick(); // Pump the seek Saga
+            _replayProcessManager?.Tick(); // Pump the replay manager for duration extraction
             _assetInventoryProcessManager?.Tick();
             _assetPrefetchProcessManager?.Tick();
             _diagnosticsDumpProcessManager?.Tick();

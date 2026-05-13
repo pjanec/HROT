@@ -91,7 +91,7 @@ namespace Hrot.SimHost.Modules.Orchestration
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
             _nodeId    = nodeId;
 
-            // FIX: Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
+            // Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
             // Wrap the downstream afterSeek callback with NetworkEntityMap rebuild logic.
             _afterSeek = () =>
             {
