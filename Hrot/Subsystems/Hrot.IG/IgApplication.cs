@@ -244,6 +244,10 @@ public class IgApplication : IDisposable
     private GizmoExecutionController?    _gizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
     internal GizmoExecutionController GizmoController => _gizmoController!;
+    // GZH-016: gate — false when another subsystem owns the map view.
+    private Func<bool> _isActiveMapOwner = () => true;
+    /// <summary>Set by <see cref="IgSubsystem.Initialize"/> from <c>SubsystemConfig.IsActiveMapOwner</c>.</summary>
+    internal Func<bool> IsActiveMapOwner { set => _isActiveMapOwner = value; }
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
     private long?                        _activeLocationPickerId;
@@ -1239,7 +1243,7 @@ public class IgApplication : IDisposable
 
             // Gate map input when ImGui is consuming the mouse (TASK-IF008).
 
-            if (!ImGui.GetIO().WantCaptureMouse)
+            if (_isActiveMapOwner() && !ImGui.GetIO().WantCaptureMouse)
 
             {
 

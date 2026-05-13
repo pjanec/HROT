@@ -54,7 +54,7 @@ via console commands. Add per-perspective gizmo CPU control.
 
 - [ ] **GZH-012** `OpenLocalWindow()` / `CloseLocalWindow()` [details](./TASK-DETAILS.md#gzh-012--openlocalwindow-and-closelocalwindow)
 - [ ] **GZH-013** `ConsoleCommandService` [details](./TASK-DETAILS.md#gzh-013--consolecommandservice)
-- [ ] **GZH-014** Perspective-aware `GizmoExecutionController` switching [details](./TASK-DETAILS.md#gzh-014--perspective-aware-gizmoexecutioncontroller-switching)
+- [x] **GZH-014** Perspective-aware `GizmoExecutionController` switching [details](./TASK-DETAILS.md#gzh-014--perspective-aware-gizmoexecutioncontroller-switching)
 
 ---
 
@@ -72,4 +72,4 @@ events, preventing zombie listener leaks.
 **Goal:** Prevent background subsystems from stealing input intended for the active perspective,
 and prevent map clicks from interfering with ImGui panels.
 
-- [ ] **GZH-016** Subsystem input collision fix [details](./TASK-DETAILS.md#gzh-016--subsystem-input-collision-fix)
+- [x] **GZH-016** Subsystem input collision fix [details](./TASK-DETAILS.md#gzh-016--subsystem-input-collision-fix)

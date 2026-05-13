@@ -4,6 +4,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using GizmoMap.Network;
 using Hrot.Common.Diagnostics.Gizmos;
+using Hrot.SimHost;
 using StructEdit.Core;
 using StructEdit.Reflection;
 using Xunit;
@@ -57,6 +58,23 @@ namespace Hrot.SimHost.Tests.Gizmos
             var draw2 = new DebugPrimitiveBuffer();
             gizmo.UpdateAndDraw(0f, draw2);
             Assert.Equal(1, publisher.Published.Count);
+        }
+    }
+
+    // ==========================================================================
+    // DEBT-002: GizmoUiStateHub wired in composition roots
+    // ==========================================================================
+
+    public class DEBT002_Tests
+    {
+        // DEBT002_SimHost: SimHostApp.GizmoUiHub is non-null after construction.
+        // The field is initialised in the field declaration, so it does not require
+        // InitializeEmbedded() to be called.
+        [Fact]
+        public void DEBT002_SimHost_GizmoUiHub_IsNonNull_AfterConstruction()
+        {
+            var app = new SimHostApp();
+            Assert.NotNull(app.GizmoUiHub);
         }
     }
 }

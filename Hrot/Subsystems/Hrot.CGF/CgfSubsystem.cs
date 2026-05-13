@@ -64,7 +64,7 @@ namespace Hrot.CGF;
 /// Hosts the CGF (Computer Generated Forces) subsystem under the Runner process.
 /// Migrated in EAM-M003 to use <see cref="HrotNodeBuilder"/> instead of <see cref="CgfApplication"/>.
 /// </summary>
-public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar
+public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
 {
     private HrotNodeContext?  _context;
     private NetworkEntityMap? _entityMap;
@@ -98,6 +98,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? _cgfGizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
     internal Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController CgfGizmoController => _cgfGizmoController!;
+    // GZH-014: explicit interface implementation — avoids renaming the existing property.
+    Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? Hrot.Common.Diagnostics.Gizmos.IGizmoControllable.GizmoController
+        => _cgfGizmoController;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();

@@ -117,8 +117,12 @@ namespace Hrot.SimHost
         private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
         private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;
         private GizmoExecutionController? _gizmoController;
+        // DEBT-002: hub broadcasts DTO state to all connected terminals.
+        private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub();
         // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
-        internal GizmoExecutionController GizmoController => _gizmoController!;        // ── Schema publisher (GZ052) ────────────────────────────────────
+        internal GizmoExecutionController GizmoController => _gizmoController!;
+        // DEBT-002: exposed for future module installation (BATCH-04).
+        internal Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub GizmoUiHub => _gizmoUiHub;        // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
@@ -555,7 +559,8 @@ namespace Hrot.SimHost
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
                 layerControlId,
                 _interactionBus,
-                new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
+                new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
+                _gizmoUiHub);
             _globalGizmoManager.Register(layerControlId, layerControlGizmo);
             actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
             {

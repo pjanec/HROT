@@ -1,7 +1,12 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Core;
+using Fdp.ModuleHost.Scheduling;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
+using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.ClusterRunner.Systems;
 using Hrot.ClusterRunner.Tests.Mocks;
 using Xunit;
@@ -173,5 +178,111 @@ public class PerspectiveCoordinatorSystemTests
         // SwitchMapOwner snaps SimHost camera to IG camera state.
         Assert.Equal(igCam.Zoom,   shCam.Zoom,   precision: 4);
         Assert.Equal(igCam.Target, shCam.Target);
+    }
+}
+
+// ==========================================================================
+// GZH-014: Perspective-aware GizmoExecutionController listener transfer
+// ==========================================================================
+
+/// <summary>
+/// Stub <see cref="IGizmoControllable"/> backed by a real
+/// <see cref="GizmoExecutionController"/> so tests can assert
+/// <see cref="GizmoExecutionController.ListenerCount"/> changes.
+/// </summary>
+internal sealed class StubGizmoControllable : IGizmoControllable
+{
+    public GizmoExecutionController? GizmoController { get; }
+
+    public StubGizmoControllable(GizmoExecutionController ctrl)
+    {
+        GizmoController = ctrl;
+    }
+}
+
+public class GZH014_Tests
+{
+    // ── Helper: build a minimal GizmoExecutionController without a live ECS loop. ──
+
+    private static GizmoExecutionController MakeController()
+    {
+        var buf       = new DebugPrimitiveBuffer();
+        var globalMgr = new GlobalGizmoManager(buf);
+        var registry  = new GizmoRegistry();
+        var ddSys     = new DataDrivenGizmoSystem(registry, buf);
+        var group     = new TogglablePostSimulationGroup("GizmoExecution");
+        group.Enabled = false;
+        return new GizmoExecutionController(group, globalMgr, ddSys);
+    }
+
+    private static SubsystemOrchestrator CreateHeadlessOrchestrator(params ISubsystem[] subsystems)
+        => new SubsystemOrchestrator(subsystems, new RunnerOptions { Headless = true });
+
+    // GZH014_1: Perspective switch transfers listener count between subsystems.
+    [Fact]
+    public void GZH014_1_PerspectiveSwitch_TransfersGizmoListenerCount()
+    {
+        var ctrlA = MakeController();
+        var ctrlB = MakeController();
+
+        var subA = new MockSubsystem("SubA");
+        var subB = new MockSubsystem("SubB");
+
+        var orch = CreateHeadlessOrchestrator(subA, subB);
+        orch.Initialize();
+
+        var controllables = new Dictionary<string, IGizmoControllable>
+        {
+            ["SubA"] = new StubGizmoControllable(ctrlA),
+            ["SubB"] = new StubGizmoControllable(ctrlB),
+        };
+
+        var coordinator = new PerspectiveCoordinatorSystem(
+            orch,
+            new Dictionary<string, string> { ["SubA"] = "SubA", ["SubB"] = "SubB" },
+            controllables);
+
+        // Simulate opening the local window on SubA (no outgoing perspective yet).
+        coordinator.Enqueue(new TogglePerspectiveEvent("", "SubA"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(1, ctrlA.ListenerCount);
+        Assert.Equal(0, ctrlB.ListenerCount);
+
+        // Switch to SubB: SubA loses its listener, SubB gains one.
+        coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "SubB"));
+        coordinator.ProcessPendingEvents();
+        Assert.Equal(0, ctrlA.ListenerCount);
+        Assert.Equal(1, ctrlB.ListenerCount);
+    }
+
+    // GZH014_2: Unknown perspective in gizmoControllables is silently ignored.
+    [Fact]
+    public void GZH014_2_UnknownNewPerspective_IsIgnored_NoException()
+    {
+        var ctrlA = MakeController();
+        var subA  = new MockSubsystem("SubA");
+
+        var orch = CreateHeadlessOrchestrator(subA);
+        orch.Initialize();
+
+        var controllables = new Dictionary<string, IGizmoControllable>
+        {
+            ["SubA"] = new StubGizmoControllable(ctrlA),
+        };
+
+        var coordinator = new PerspectiveCoordinatorSystem(
+            orch,
+            new Dictionary<string, string> { ["SubA"] = "SubA" },
+            controllables);
+
+        // SubA is the current perspective; switch to an unknown name.
+        coordinator.Enqueue(new TogglePerspectiveEvent("SubA", "UnknownPersp"));
+
+        // Must not throw even though "UnknownPersp" is not in the perspective map.
+        // The entire listener-transfer block is skipped (new perspective unknown),
+        // so neither RemoveListener nor AddListener fires.
+        var ex = Record.Exception(() => coordinator.ProcessPendingEvents());
+        Assert.Null(ex);
+        Assert.Equal(0, ctrlA.ListenerCount);
     }
 }

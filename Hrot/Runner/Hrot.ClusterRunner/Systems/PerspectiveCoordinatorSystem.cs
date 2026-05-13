@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Fdp.Toolkit.Runner;
 using Hrot.Common;
+using Hrot.Common.Diagnostics.Gizmos;
 
 namespace Hrot.ClusterRunner.Systems;
 
@@ -19,6 +21,8 @@ public sealed class PerspectiveCoordinatorSystem
     private readonly IReadOnlyDictionary<string, string> _perspectiveToSubsystemName;
     private readonly ConcurrentQueue<TogglePerspectiveEvent> _queue = new();
     private string _currentPerspective = string.Empty;
+    // GZH-014: map from perspective name to IGizmoControllable subsystem.
+    private readonly IReadOnlyDictionary<string, IGizmoControllable> _gizmoControllables;
 
     /// <summary>
     /// Initialises the coordinator.
@@ -32,12 +36,20 @@ public sealed class PerspectiveCoordinatorSystem
     /// <see cref="SubsystemOrchestrator.SwitchMapOwner"/>.
     /// Unknown perspective names are silently ignored by the orchestrator.
     /// </param>
+    /// <param name="gizmoControllables">
+    /// Optional map from perspective name to <see cref="IGizmoControllable"/> subsystem.
+    /// Used to transfer the gizmo listener count when the active perspective changes.
+    /// Defaults to an empty dictionary so existing callers compile without changes.
+    /// </param>
     public PerspectiveCoordinatorSystem(
         SubsystemOrchestrator orchestrator,
-        IReadOnlyDictionary<string, string> perspectiveToSubsystemName)
+        IReadOnlyDictionary<string, string> perspectiveToSubsystemName,
+        IReadOnlyDictionary<string, IGizmoControllable>? gizmoControllables = null)
     {
-        _orchestrator              = orchestrator;
+        _orchestrator               = orchestrator;
         _perspectiveToSubsystemName = perspectiveToSubsystemName;
+        _gizmoControllables = gizmoControllables
+            ?? new Dictionary<string, IGizmoControllable>();
     }
 
     /// <summary>The last perspective that was successfully processed, or empty string before the first event.</summary>
@@ -58,9 +70,18 @@ public sealed class PerspectiveCoordinatorSystem
         while (_queue.TryDequeue(out var evt))
         {
             if (_perspectiveToSubsystemName.TryGetValue(evt.NewPerspective, out var subsystemName))
+            {
+                // GZH-014: transfer gizmo listener — outgoing loses one, incoming gains one.
+                if (_gizmoControllables.TryGetValue(evt.OldPerspective, out var outgoing))
+                    outgoing.GizmoController?.RemoveListener();
+                if (_gizmoControllables.TryGetValue(evt.NewPerspective, out var incoming))
+                    incoming.GizmoController?.AddListener();
+
                 _orchestrator.SwitchMapOwner(subsystemName);
+            }
 
             _currentPerspective = evt.NewPerspective;
         }
     }
 }
+

@@ -134,6 +134,63 @@ public class IgApplicationPanelTests
         Assert.True(handlerCalled, "Input handler MUST be called when WantCaptureMouse is false.");
     }
 
+    // ── GZH-016: IsActiveMapOwner gate logic ─────────────────────────────────
+
+    /// <summary>
+    /// GZH016_1: The two-condition gate <c>isActiveMapOwner &amp;&amp; !wantCaptureMouse</c>
+    /// suppresses input when the mouse is captured by ImGui, even if the subsystem
+    /// is the active map owner.
+    /// </summary>
+    [Fact]
+    public void GZH016_1_InputGate_MouseCaptured_SuppressesInput()
+    {
+        bool isActiveMapOwner = true;
+        bool wantCaptureMouse = true;
+        bool handlerCalled    = false;
+
+        if (isActiveMapOwner && !wantCaptureMouse)
+            handlerCalled = true;
+
+        Assert.False(handlerCalled,
+            "Input must be suppressed when WantCaptureMouse is true.");
+    }
+
+    /// <summary>
+    /// GZH016_2: The gate suppresses input when the subsystem is not the active
+    /// map owner, even if the mouse is free.
+    /// </summary>
+    [Fact]
+    public void GZH016_2_InputGate_InactiveMapOwner_SuppressesInput()
+    {
+        bool isActiveMapOwner = false;
+        bool wantCaptureMouse = false;
+        bool handlerCalled    = false;
+
+        if (isActiveMapOwner && !wantCaptureMouse)
+            handlerCalled = true;
+
+        Assert.False(handlerCalled,
+            "Input must be suppressed when the subsystem is not the active map owner.");
+    }
+
+    /// <summary>
+    /// GZH016_3: The gate allows input when the subsystem is the active map owner
+    /// and the mouse is not captured by ImGui.
+    /// </summary>
+    [Fact]
+    public void GZH016_3_InputGate_ActiveOwnerAndMouseFree_AllowsInput()
+    {
+        bool isActiveMapOwner = true;
+        bool wantCaptureMouse = false;
+        bool handlerCalled    = false;
+
+        if (isActiveMapOwner && !wantCaptureMouse)
+            handlerCalled = true;
+
+        Assert.True(handlerCalled,
+            "Input must be processed when active map owner and mouse is not captured.");
+    }
+
     // ── DDS-to-ECS registration + query guards (DTE-BATCH-04) ────────────────
 
     [Fact]

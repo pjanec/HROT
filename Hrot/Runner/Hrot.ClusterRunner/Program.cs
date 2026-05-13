@@ -240,7 +240,15 @@ class Program
                 ["ExCon"]   = "ExCon",
                 ["CGF"]     = "CGF",
             };
-            var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
+            // GZH-014: build gizmo-controllable map keyed by perspective name.
+            var gizmoControllables = subsystems
+                .OfType<Hrot.Common.Diagnostics.Gizmos.IGizmoControllable>()
+                .Where(s => (ISubsystem)s != perspSubsystem)
+                .ToDictionary(
+                    s => ((ISubsystem)s).Name,
+                    s => s,
+                    StringComparer.OrdinalIgnoreCase);
+            var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap, gizmoControllables);
             perspSubsystem.Coordinator = coordinator;
 
 

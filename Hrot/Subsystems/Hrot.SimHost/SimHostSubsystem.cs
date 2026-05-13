@@ -35,7 +35,7 @@ namespace Hrot.SimHost
     /// <para>This follows the same "thin adapter" pattern as <see cref="IgSubsystem"/>:
     /// the core application class is the single source of truth for its own wiring.</para>
     /// </summary>
-    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
+    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -104,6 +104,9 @@ namespace Hrot.SimHost
 
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _app?.GetMapCamera();
+
+        // GZH-014: expose the gizmo controller for perspective-aware listener switching.
+        public Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? GizmoController => _app?.GizmoController;
 
         // ── TestHook delegates ────────────────────────────────────────────────
 

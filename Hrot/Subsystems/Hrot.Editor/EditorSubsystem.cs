@@ -106,7 +106,7 @@ namespace Hrot.Editor
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
+    public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
     {
         private const int EditorNodeId = 0;
 
@@ -133,6 +133,8 @@ namespace Hrot.Editor
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
         private bool                    _headless;
+        // GZH-016: gate — false when another subsystem owns the map view.
+        private Func<bool>              _isActiveMapOwner = () => true;
 
         // ?? Adapters (canvas-dependent; null in headless) ?????????????????????
 
@@ -210,8 +212,13 @@ namespace Hrot.Editor
         private GlobalGizmoManager?  _globalGizmoManager;
         private FdpEventBus?         _interactionBus;
         private GizmoExecutionController? _gizmoController;
+        // DEBT-002: hub broadcasts DTO state to all connected terminals.
+        private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub();
         // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
-        internal GizmoExecutionController GizmoController => _gizmoController!;
+        // GZH-014: public to satisfy IGizmoControllable.
+        public GizmoExecutionController GizmoController => _gizmoController!;
+        // DEBT-002: exposed for future module installation (BATCH-04).
+        internal Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub GizmoUiHub => _gizmoUiHub;
 
         // ?? Tool handling ?????????????????????????????????????????????????????????
 
@@ -332,6 +339,8 @@ namespace Hrot.Editor
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+            // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
+            _isActiveMapOwner = config.IsActiveMapOwner;
 
             // ?? 1. ECS world ?????????????????????????????????????????????????
             _world = new EntityRepository();
@@ -607,7 +616,7 @@ namespace Hrot.Editor
             _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
+            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
             _globalGizmoManager.Register(layerControlId, layerControlGizmo);
             actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
             {
@@ -1065,7 +1074,7 @@ namespace Hrot.Editor
             if (_headless) return;
 
             // Render hover tooltip with entity info (label, health, cognitive state).
-            if (!ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
+            if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
             {
                 var mouseWorld = _canvas.Camera.ScreenToWorld(Raylib_cs.Raylib.GetMousePosition());
                 var hovered = _canvas.PickTopmostEntity(mouseWorld);

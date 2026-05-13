@@ -27,7 +27,7 @@ namespace Hrot.IG
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
+    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -64,6 +64,9 @@ namespace Hrot.IG
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _app?.GetMapCamera();
 
+        // GZH-014: expose the gizmo controller for perspective-aware listener switching.
+        public Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? GizmoController => _app?.GizmoController;
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
@@ -76,6 +79,8 @@ namespace Hrot.IG
                 domainIdOverride: domainOverride,
                 nodeIdOverride: config.NodeId,
                 networkFactory: _networkFactory);
+            // GZH-016: store active-map-owner predicate injected by SubsystemOrchestrator.
+            _app.IsActiveMapOwner = config.IsActiveMapOwner;
         }
 
         /// <inheritdoc/>
