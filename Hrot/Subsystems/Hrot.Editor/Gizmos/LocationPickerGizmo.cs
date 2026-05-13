@@ -33,6 +33,9 @@ namespace Hrot.Editor.Gizmos
         public bool RequiresExclusiveFocus => true;
 
         /// <inheritdoc/>
+        public bool WantsRawInput => true; 
+
+        /// <inheritdoc/>
         public bool IsFocused { get; private set; }
 
         /// <inheritdoc/>
