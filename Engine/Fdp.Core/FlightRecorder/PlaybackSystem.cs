@@ -139,28 +139,34 @@ namespace Fdp.Core.FlightRecorder
             var componentTables = repo.GetRegisteredComponentTypes();
             var entityIndex = repo.GetEntityIndex();
             int maxIndex = entityIndex.MaxIssuedIndex;
-            
-            if (maxIndex < 0) return;
-            
+
+            // FIX: Strictly guard against empty worlds. Do not clamp maxIndex to 0.
+            if (maxIndex < 0 || entityIndex.ActiveCount == 0) return;
+
             foreach (var kvp in componentTables)
             {
                 var table = kvp.Value;
-                
+
                 // Only process managed component tables
                 if (!table.GetType().IsGenericType ||
                     table.GetType().GetGenericTypeDefinition() != typeof(ManagedComponentTable<>))
                     continue;
-                
+
                 int typeId = table.ComponentTypeId;
-                
+
                 for (int i = 0; i <= maxIndex; i++)
                 {
-                    ref var header = ref entityIndex.GetHeader(i);
+                    // Double-check bounds to prevent state-drift crashes
+                    if (i > entityIndex.MaxIssuedIndex) break;
+
+                    // Safe to bypass standard bounds check since we manually validated
+                    ref var header = ref entityIndex.GetHeaderUnsafe(i);
+
                     if (!header.IsActive) continue;
-                    
+
                     // Check if the managed table has non-null data for this entity
                     object rawObj = table.GetRawObject(i);
-                    
+
                     if (rawObj != null)
                     {
                         // Data exists → ensure mask bit is set

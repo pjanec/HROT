@@ -97,7 +97,14 @@ namespace Fdp.Toolkit.Replay
             if (_playback == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToFrameAsync.");
-            return Task.Run(() => _playback.SeekToFrame(_repo, targetFrameIndex));
+            return Task.Run(() =>
+            {
+                _playback.SeekToFrame(_repo, targetFrameIndex);
+
+                // FIX: Ensure egress caches are invalidated and the map is rebuilt
+                Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
+                _afterSeek?.Invoke();
+            });
         }
 
         /// <summary>
@@ -115,7 +122,14 @@ namespace Fdp.Toolkit.Replay
             if (_playback == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
-            return Task.Run(() => _playback.SeekToWallClockTicks(_repo, targetWallTicks));
+            return Task.Run(() =>
+            {
+                _playback.SeekToWallClockTicks(_repo, targetWallTicks);
+
+                // FIX: Ensure egress caches are invalidated and the map is rebuilt
+                Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
+                _afterSeek?.Invoke();
+            });
         }
 
         /// <summary>
