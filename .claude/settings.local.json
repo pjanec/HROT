@@ -1,3 +1,8 @@
 {
-    "defaultMode": "allow"
+  "defaultMode": "allow",
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build *)"
+    ]
+  }
 }

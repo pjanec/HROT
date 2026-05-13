@@ -177,6 +177,7 @@ namespace Hrot.Editor
 
         private FdpEventBus?           _orchestrationBus;
         private ClusterMaster?                _clusterMaster;
+        private ReplaySeekProcessManager?     _seekProcessManager;
         private AssetInventoryProcessManager?  _assetInventoryProcessManager;
         private AssetPrefetchProcessManager?   _assetPrefetchProcessManager;
         private StorageGatewayModule?          _storageGateway;
@@ -451,8 +452,29 @@ namespace Hrot.Editor
             // ?? 3c. Offline scenario load handler ?????????????????????????????
             var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+
+            // Provide an after-seek callback to rebuild the NetworkEntityMap
+            Action afterSeek = () =>
+            {
+                // 1. Prune dead entities (wipes out entities from the future that no longer exist)
+                _entityMap.PruneDeadEntities(_world!);
+
+                // 2. Repopulate with the historical entities present at this specific frame
+                var q = _world!.Query()
+                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                    .WithLifecycle(EntityLifecycle.All)
+                    .Build();
+
+                foreach (var e in q)
+                {
+                    long netId = _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value;
+                    if (!_entityMap.TryGetEntity(netId, out _))
+                        _entityMap.Register(netId, e);
+                }
+            };
+
             var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-                _kernel, EditorNodeId, _world!);
+                _kernel, EditorNodeId, _world!, afterSeek: afterSeek);
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
             clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
@@ -764,6 +786,11 @@ namespace Hrot.Editor
             // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
             _clusterMaster  = new ClusterMaster(_orchestrationBus, offlineConfig);
+
+            // Register the seek aggregator and process manager so the clock snaps on seek
+            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus, _timeController);
+            _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
+
             _storageGateway = new StorageGatewayModule();
             _assetInventoryProcessManager = new AssetInventoryProcessManager(
                 _orchestrationBus,
@@ -776,7 +803,7 @@ namespace Hrot.Editor
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
                 OrchestrationConstants.DefaultStagingDirectory);
-            _uiCache = new ClusterUiCache(_orchestrationBus);
+            _uiCache = new ClusterUiCache(_orchestrationBus, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus, _uiCache);
             _fileDialogService = new ImGuiFileDialogService();
             _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
@@ -1012,6 +1039,7 @@ namespace Hrot.Editor
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
             _clusterMaster?.Tick();
+            _seekProcessManager?.Tick(); // Pump the seek Saga
             _assetInventoryProcessManager?.Tick();
             _assetPrefetchProcessManager?.Tick();
             _diagnosticsDumpProcessManager?.Tick();
