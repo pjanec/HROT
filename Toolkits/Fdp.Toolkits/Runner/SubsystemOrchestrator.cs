@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.Runner
         private readonly Func<string, int, int>? _nodeIdResolver;
         private volatile bool _running = true;
         private Stopwatch? _frameTimer;
+        private readonly System.Collections.Concurrent.ConcurrentQueue<Action<SubsystemOrchestrator>>
+            _pendingConsoleActions = new();
 
         /// <summary>
         /// The subsystem that currently "owns" the map view (DrawWorld is called on it).
@@ -102,6 +104,7 @@ namespace Fdp.Toolkit.Runner
             _frameTimer = Stopwatch.StartNew();
             while (_running)
             {
+                DrainConsoleActions();
                 float dt = GetDeltaTime();
                 Update(dt);
 
@@ -115,6 +118,23 @@ namespace Fdp.Toolkit.Runner
 
         /// <summary>Signals the frame loop to exit gracefully.</summary>
         public void Stop() => _running = false;
+
+        /// <summary>
+        /// Thread-safe enqueue for console-dispatched actions. Called by
+        /// <see cref="ConsoleCommandService"/> from the background stdin thread.
+        /// The main loop drains this queue by calling <see cref="DrainConsoleActions"/> each tick.
+        /// </summary>
+        public void EnqueueConsoleAction(Action<SubsystemOrchestrator> action)
+            => _pendingConsoleActions.Enqueue(action);
+
+        /// <summary>
+        /// Drains all pending console actions on the calling thread (must be the main thread).
+        /// </summary>
+        public void DrainConsoleActions()
+        {
+            while (_pendingConsoleActions.TryDequeue(out var action))
+                action(this);
+        }
 
         /// <summary>
         /// Runs exactly <paramref name="frames"/> update iterations without rendering.
