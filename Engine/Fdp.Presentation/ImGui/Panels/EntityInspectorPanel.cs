@@ -71,6 +71,35 @@ public class EntityInspectorPanel
         return null;
     }
 
+    private static string? GetEntityName(IInspectableSession session, Entity entity)
+    {
+        var infoType = typeof(Fdp.Core.EntityInfo);
+        if (session.HasComponent(entity, infoType))
+        {
+            var comp = session.GetComponent(entity, infoType);
+            if (comp is Fdp.Core.EntityInfo info && !info.Name.IsEmpty)
+                return info.Name.ToString();
+        }
+        return null;
+    }
+
+    private static string GetEntityDisplayString(IInspectableSession session, Entity entity, out long? netId, out string? name)
+    {
+        netId = null;
+        name = null;
+        if (entity == RepositoryAdapter.SingletonEntity)
+            return "[Singletons]";
+
+        netId = GetNetworkId(session, entity);
+        name = GetEntityName(session, entity);
+
+        string label = $"[{entity.Index}, v{entity.Generation}]";
+        if (netId.HasValue) label += $" ({netId.Value})";
+        if (!string.IsNullOrEmpty(name)) label += $" {name}";
+
+        return label;
+    }
+
     // ── Chain-to-map toggle (Task 46) ─────────────────────────────────────────
 
     /// <summary>
@@ -140,7 +169,7 @@ public class EntityInspectorPanel
         // 1. Top Bar: Statistics & Filter
         ImGuiApi.TextDisabled($"Total Entities: {session.EntityCount}");
         ImGuiApi.SameLine();
-        ImGuiApi.InputTextWithHint("##search", "Search ID...", ref _searchFilter, 20);
+        ImGuiApi.InputTextWithHint("##search", "Search...", ref _searchFilter, 40);
         
         // Select All button — populates selection with all currently visible entities.
         ImGuiApi.SameLine();
@@ -217,25 +246,20 @@ public class EntityInspectorPanel
         var results = new List<Entity>(System.Math.Min(limit, 1000));
         var entities = session.GetEntities();
         int count = 0;
-        
+
         bool hasFilter = !string.IsNullOrWhiteSpace(searchFilter);
-        int filterId = -1;
-        
-        if (hasFilter && int.TryParse(searchFilter, out int parsedId))
-        {
-            filterId = parsedId;
-        }
 
         foreach (var entity in entities)
         {
-            // The singleton pseudo-entity is always included, regardless of filter or limit.
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
 
             if (!isSingleton)
             {
                 if (hasFilter)
                 {
-                    if (filterId != -1 && entity.Index != filterId) continue;
+                    string displayStr = GetEntityDisplayString(session, entity, out _, out _);
+                    if (displayStr.IndexOf(searchFilter, System.StringComparison.OrdinalIgnoreCase) < 0)
+                        continue;
                 }
                 else
                 {
@@ -246,7 +270,7 @@ public class EntityInspectorPanel
 
             results.Add(entity);
         }
-        
+
         return results;
     }
 
@@ -265,7 +289,7 @@ public class EntityInspectorPanel
             var entity = entities[vi];
             count++;
             bool isSingleton = entity == RepositoryAdapter.SingletonEntity;
-            long? netId = isSingleton ? null : GetNetworkId(session, entity);
+            GetEntityDisplayString(session, entity, out long? netId, out string? name);
             string baseLabel = isSingleton ? "[Singletons]" : $"[{entity.Index}, v{entity.Generation}]";
 
             // Single-select backward compat: also highlight from IInspectorContext.
@@ -306,11 +330,18 @@ public class EntityInspectorPanel
 
             drawList.AddText(textPos, ImGuiApi.GetColorU32(ImGuiCol.Text), baseLabel);
 
+            float currentX = textPos.X + ImGuiApi.CalcTextSize(baseLabel).X + style.ItemSpacing.X;
+
             if (netId.HasValue)
             {
-                float labelWidth = ImGuiApi.CalcTextSize(baseLabel).X;
-                Vector2 netIdPos = new Vector2(textPos.X + labelWidth + style.ItemSpacing.X, textPos.Y);
-                drawList.AddText(netIdPos, ImGuiApi.ColorConvertFloat4ToU32(ExConViolet), $"({netId.Value})");
+                string netIdText = $"({netId.Value})";
+                drawList.AddText(new Vector2(currentX, textPos.Y), ImGuiApi.ColorConvertFloat4ToU32(ExConViolet), netIdText);
+                currentX += ImGuiApi.CalcTextSize(netIdText).X + style.ItemSpacing.X;
+            }
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                drawList.AddText(new Vector2(currentX, textPos.Y), ImGuiApi.ColorConvertFloat4ToU32(new Vector4(0.6f, 0.8f, 0.9f, 1f)), name);
             }
         }
 
@@ -494,11 +525,33 @@ public class EntityInspectorPanel
             Entity e = selCount == 1 ? _selectedEntities.First() : context.SelectedEntity!.Value;
             bool isSingleton = e == RepositoryAdapter.SingletonEntity;
 
-            EntityHeaderDrawer.DrawEntityHeader(session, e, () =>
+            if (isSingleton)
+            {
+                ImGuiApi.TextUnformatted("[Singletons]");
+            }
+            else
+            {
+                GetEntityDisplayString(session, e, out long? netId, out string? name);
+                ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
+                if (netId.HasValue)
+                {
+                    ImGuiApi.SameLine();
+                    ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
+                }
+                if (!string.IsNullOrEmpty(name))
+                {
+                    ImGuiApi.SameLine();
+                    ImGuiApi.TextColored(new Vector4(0.6f, 0.8f, 0.9f, 1f), name);
+                }
+            }
+
+            ImGuiApi.SameLine();
+            if (ImGuiApi.SmallButton("Copy JSON"))
             {
                 var json = BuildSingleEntityJson(session, e);
                 ImGuiApi.SetClipboardText(json);
-            });
+            }
+
             // ── Chain-to-map toggle (Task 46) ──────────────────────────────
             bool chain = ChainToMap;
             if (chain)
