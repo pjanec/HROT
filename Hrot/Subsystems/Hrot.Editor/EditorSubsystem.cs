@@ -453,28 +453,10 @@ namespace Hrot.Editor
             var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
 
-            // Provide an after-seek callback to rebuild the NetworkEntityMap
-            Action afterSeek = () =>
-            {
-                // 1. Prune dead entities (wipes out entities from the future that no longer exist)
-                _entityMap.PruneDeadEntities(_world!);
-
-                // 2. Repopulate with the historical entities present at this specific frame
-                var q = _world!.Query()
-                    .With<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                    .WithLifecycle(EntityLifecycle.All)
-                    .Build();
-
-                foreach (var e in q)
-                {
-                    long netId = _world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value;
-                    if (!_entityMap.TryGetEntity(netId, out _))
-                        _entityMap.Register(netId, e);
-                }
-            };
-
+            // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
+            // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
             var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-                _kernel, EditorNodeId, _world!, afterSeek: afterSeek);
+                _kernel, EditorNodeId, _world!);
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
             clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(

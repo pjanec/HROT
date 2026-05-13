@@ -10,6 +10,8 @@ using Fdp.Core;
 using Fdp.Core.Orchestration;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Replay;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.ModuleHost;
 
 namespace Hrot.SimHost.Modules.Orchestration
@@ -88,7 +90,36 @@ namespace Hrot.SimHost.Modules.Orchestration
             _kernel    = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _repo      = repo   ?? throw new ArgumentNullException(nameof(repo));
             _nodeId    = nodeId;
-            _afterSeek = afterSeek;
+
+            // FIX: Unify NetworkEntityMap resync for all subsystems (Editor, SimHost, CGF, etc.)
+            // Wrap the downstream afterSeek callback with NetworkEntityMap rebuild logic.
+            _afterSeek = () =>
+            {
+                // 1. Rebuild NetworkEntityMap from the current ECS state
+                if (_repo.HasSingletonManaged<NetworkEntityMap>())
+                {
+                    var map = _repo.GetSingletonManaged<NetworkEntityMap>();
+
+                    // Prune dead entities from the future
+                    map.PruneDeadEntities(_repo);
+
+                    // Repopulate with historical entities present at this frame
+                    var q = _repo.Query()
+                        .With<NetworkIdentity>()
+                        .WithLifecycle(EntityLifecycle.All)
+                        .Build();
+
+                    foreach (var e in q)
+                    {
+                        long netId = _repo.GetComponentRO<NetworkIdentity>(e).Value;
+                        if (!map.TryGetEntity(netId, out _))
+                            map.Register(netId, e);
+                    }
+                }
+
+                // 2. Chain downstream transport-layer cleanup (e.g., NED replication invalidation)
+                afterSeek?.Invoke();
+            };
         }
 
         // ── Global recording ─────────────────────────────────────────────────────
