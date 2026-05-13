@@ -209,6 +209,9 @@ namespace Hrot.Editor
         private DataDrivenGizmoSystem? _editorDataDrivenGizmoSystem;
         private GlobalGizmoManager?  _globalGizmoManager;
         private FdpEventBus?         _interactionBus;
+        private GizmoExecutionController? _gizmoController;
+        // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
+        internal GizmoExecutionController GizmoController => _gizmoController!;
 
         // ?? Tool handling ?????????????????????????????????????????????????????????
 
@@ -718,15 +721,20 @@ namespace Hrot.Editor
                     _fdpInspectorState.SelectedEntity = entity;
                 }
             };
+            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+                _editorDataDrivenGizmoSystem,
+                _globalGizmoManager,
+                new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer));
+            // GZH-003: Editor is interactive, always has a window at startup.
+            gizmoGroup.Enabled = true;
+            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _editorDataDrivenGizmoSystem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
                 contextIngress: contextIngress,
                 interactionSystems: new IEcsModuleSystem[]
                 {
                     new GlobalActionDispatchSystem(actionRegistry, interactionBus),
-                    _editorDataDrivenGizmoSystem,
-                    _globalGizmoManager,
-                    new StatelessGizmoSystem(editorStatelessGizmoRegistry, _gizmoBuffer),
+                    gizmoGroup,
                 },
                 gizmoIngress: null,
                 gizmoEgress:  null));

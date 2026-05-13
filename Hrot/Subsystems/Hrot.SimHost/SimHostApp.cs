@@ -115,7 +115,10 @@ namespace Hrot.SimHost
         private StatelessGizmoRegistry? _statelessGizmoRegistry;
         private GlobalGizmoManager? _globalGizmoManager;
         private DataDrivenGizmoSystem? _dataDrivenGizmoSystem;        private FdpEventBus? _interactionBus;
-        private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;        // ── Schema publisher (GZ052) ────────────────────────────────────
+        private Fdp.Interfaces.INetworkTranslator? _gizmoIngressTranslator;
+        private GizmoExecutionController? _gizmoController;
+        // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
+        internal GizmoExecutionController GizmoController => _gizmoController!;        // ── Schema publisher (GZ052) ────────────────────────────────────
         private Fdp.Toolkit.Replication.Patching.JsonAttributeCompiler? _jsonAttributeCompiler;
         /// <summary>
         /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
@@ -595,20 +598,25 @@ namespace Hrot.SimHost
                 if (publisherSystem != null)
                     _kernel.RegisterGlobalSystem(publisherSystem);
             }
+            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+                _globalGizmoManager,
+                _dataDrivenGizmoSystem,
+                new StatelessGizmoSystem(
+                    _statelessGizmoRegistry,
+                    _gizmoBuffer,
+                    isSelectedPredicate: static (view, entity) =>
+                        view.HasComponent<SelectionState>(entity) &&
+                        view.GetComponentRO<SelectionState>(entity).IsSelected));
+            // GZH-003: headless-first; enable only when a terminal connects.
+            gizmoGroup.Enabled = false;
+            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 _interactionBus,
                 contextIngress: new ContextActionIngressSystem(_entityMap!, _interactionBus),
                 interactionSystems: new IEcsModuleSystem[]
                 {
-                    _globalGizmoManager,
                     new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
-                    _dataDrivenGizmoSystem,
-                    new StatelessGizmoSystem(
-                        _statelessGizmoRegistry,
-                        _gizmoBuffer,
-                        isSelectedPredicate: static (view, entity) =>
-                            view.HasComponent<SelectionState>(entity) &&
-                            view.GetComponentRO<SelectionState>(entity).IsSelected),
+                    gizmoGroup,
                 },
                 gizmoIngress: gizmoIngress,
                 gizmoEgress:  gizmoEgress));

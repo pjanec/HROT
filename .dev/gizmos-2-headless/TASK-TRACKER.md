@@ -9,11 +9,11 @@
 **Goal:** Allow gizmo systems to run at zero CPU cost when no terminal is connected. Ensure safe
 cleanup of interactive gizmos when the last terminal disconnects.
 
-- [ ] **GZH-001** Terminal lifecycle events [details](./TASK-DETAILS.md#gzh-001--terminalconnectedevent--terminaldisconnectedevent)
-- [ ] **GZH-002** `GizmoExecutionController` [details](./TASK-DETAILS.md#gzh-002--gizmoexecutioncontroller)
-- [ ] **GZH-003** Wire gizmo systems into `TogglablePostSimulationGroup` in all composition roots [details](./TASK-DETAILS.md#gzh-003--wire-gizmo-systems-into-togglablepostsimulationgroup)
-- [ ] **GZH-004** `GlobalGizmoManager` — handle `TerminalDisconnectedEvent` [details](./TASK-DETAILS.md#gzh-004--globalgizmomanager--handle-terminaldisconnectedevent)
-- [ ] **GZH-005** `DataDrivenGizmoSystem` — handle `TerminalDisconnectedEvent` [details](./TASK-DETAILS.md#gzh-005--datadrivengizmosystem--handle-terminaldisconnectedevent)
+- [x] **GZH-001** Terminal lifecycle events [details](./TASK-DETAILS.md#gzh-001--terminalconnectedevent--terminaldisconnectedevent)
+- [x] **GZH-002** `GizmoExecutionController` [details](./TASK-DETAILS.md#gzh-002--gizmoexecutioncontroller)
+- [x] **GZH-003** Wire gizmo systems into `TogglablePostSimulationGroup` in all composition roots [details](./TASK-DETAILS.md#gzh-003--wire-gizmo-systems-into-togglablepostsimulationgroup)
+- [x] **GZH-004** `GlobalGizmoManager` — handle `TerminalDisconnectedEvent` [details](./TASK-DETAILS.md#gzh-004--globalgizmomanager--handle-terminaldisconnectedevent)
+- [x] **GZH-005** `DataDrivenGizmoSystem` — handle `TerminalDisconnectedEvent` [details](./TASK-DETAILS.md#gzh-005--datadrivengizmosystem--handle-terminaldisconnectedevent)
 
 ---
 
@@ -22,9 +22,9 @@ cleanup of interactive gizmos when the last terminal disconnects.
 **Goal:** Enable backend gizmos to push live DTO state to any connected terminal transparently,
 using a dual-channel architecture that separates high-frequency primitives from low-frequency JSON.
 
-- [ ] **GZH-006** `StructInspectorProjector<T>` [details](./TASK-DETAILS.md#gzh-006--structinspectorprojectort)
-- [ ] **GZH-007** `GizmoUiStateHub` (multiplexer) [details](./TASK-DETAILS.md#gzh-007--gizmouistatehub)
-- [ ] **GZH-008** `LocalGizmoUiStateTransport` [details](./TASK-DETAILS.md#gzh-008--localgizmouistatetransport)
+- [x] **GZH-006** `StructInspectorProjector<T>` [details](./TASK-DETAILS.md#gzh-006--structinspectorprojectort)
+- [x] **GZH-007** `GizmoUiStateHub` (multiplexer) [details](./TASK-DETAILS.md#gzh-007--gizmouistatehub)
+- [x] **GZH-008** `LocalGizmoUiStateTransport` [details](./TASK-DETAILS.md#gzh-008--localgizmouistatetransport)
 
 ---
 

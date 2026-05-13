@@ -113,6 +113,8 @@ using Fdp.ModuleHost;
 
 using Fdp.ModuleHost.Abstractions;
 
+using Fdp.ModuleHost.Scheduling;
+
 using Fdp.Core.Diagnostics;
 
 using Fdp.ModuleHost.Diagnostics;
@@ -239,6 +241,9 @@ public class IgApplication : IDisposable
     private GlobalGizmoManager?         _globalGizmoManager;
     private DataDrivenGizmoSystem?       _igDataDrivenGizmoSystem;
     private FdpEventBus?                 _interactionBus;
+    private GizmoExecutionController?    _gizmoController;
+    // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
+    internal GizmoExecutionController GizmoController => _gizmoController!;
     private long?                        _activeSequenceId;
     private PointSequenceGizmo?          _activeSequenceGizmo;
     private long?                        _activeLocationPickerId;
@@ -1174,14 +1179,19 @@ public class IgApplication : IDisposable
             if (publisherSystem != null)
                 _kernel.RegisterGlobalSystem(publisherSystem);
         }
+        var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+            _globalGizmoManager,
+            _igDataDrivenGizmoSystem,
+            new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
+        // GZH-003: IG is interactive, always has a window at startup.
+        gizmoGroup.Enabled = true;
+        _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _igDataDrivenGizmoSystem);
         _kernel.RegisterModule(new GizmoInteractionModule(
             _interactionBus!,
             contextIngress: null,
             interactionSystems: new IEcsModuleSystem[]
             {
-                _globalGizmoManager,
-                _igDataDrivenGizmoSystem,
-                new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!),
+                gizmoGroup,
             },
             gizmoIngress: gizmoIngress,
             gizmoEgress:  gizmoEgress));

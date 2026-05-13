@@ -95,6 +95,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _cgfGizmoManager;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _cgfDataDrivenGizmoSystem;
     private Fdp.Core.FdpEventBus? _cgfInteractionBus;
+    private Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController? _cgfGizmoController;
+    // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
+    internal Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController CgfGizmoController => _cgfGizmoController!;
 
     // ── FDP panels ────────────────────────────────────────────────────────────
     private FdpEntityInspectorPanel              _fdpEntityInspector = new();
@@ -464,13 +467,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             if (publisherSystem != null)
                 _context.Kernel.RegisterGlobalSystem(publisherSystem);
         }
+        var cgfGizmoGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup("GizmoExecution",
+            _cgfGizmoManager,
+            _cgfDataDrivenGizmoSystem,
+            new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer));
+        // GZH-003: CGF is headless-first; enable only when a terminal connects.
+        cgfGizmoGroup.Enabled = false;
+        _cgfGizmoController = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoExecutionController(
+            cgfGizmoGroup, _cgfGizmoManager, _cgfDataDrivenGizmoSystem);
         _context.Kernel.RegisterModule(new GizmoInteractionModule(
             _cgfInteractionBus,
             contextIngress: null,
             interactionSystems: new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[]
             {
-                new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(cgfStatelessRegistry, _cgfGizmoBuffer),
-                _cgfDataDrivenGizmoSystem,
+                cgfGizmoGroup,
             },
             gizmoIngress: cgfGizmoIngress,
             gizmoEgress:  cgfGizmoEgress));
