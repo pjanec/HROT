@@ -213,20 +213,9 @@ class Program
             NodeIdResolver = ResolveAppNodeId,
         };
 
-        if (!config.Headless)
-        {
-            Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.Msaa4xHint);
-            Raylib_cs.Raylib.InitWindow(options.WindowWidth, options.WindowHeight, "HROT Cluster Runner");
-            Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
-            Raylib_cs.Raylib.SetTargetFPS(options.TargetFps);
-            rlImGui_cs.rlImGui.Setup(true); 
-            ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
-        }
-        
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
-        Raylib_cs.Texture2D atlasTexture = default;
-        Fdp.Presentation.WindowManager.WindowManager windowManager = null;
+        Hrot.ClusterRunner.Presentation.LocalWindowController? windowCtrl = null;
         try
         {
             orchestrator.Initialize();
@@ -251,71 +240,27 @@ class Program
             var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap, gizmoControllables);
             perspSubsystem.Coordinator = coordinator;
 
+            var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
+            windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
+                shell, subsystems, options, coordinator);
 
             if (!config.Headless)
+                windowCtrl.OpenLocalWindow();
+
+            using var consoleSvc = new ConsoleCommandService();
+            consoleSvc.RegisterCommand("open",  "Open the local Raylib window",
+                _ => windowCtrl.OpenLocalWindow());
+            consoleSvc.RegisterCommand("close", "Close the local Raylib window",
+                _ => windowCtrl.CloseLocalWindow());
+            consoleSvc.OnCommandDispatched += orchestrator.EnqueueConsoleAction;
+            consoleSvc.Start();
+
+            if (windowCtrl.IsLocalWindowOpen)
             {
-                // 1. Load the embedded UI icon atlas to the GPU
-                byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
-                var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
-                atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
-                Raylib_cs.Raylib.UnloadImage(img); // Clean up CPU-side image buffer
-
-                // 2. Inject the atlas into the Window Manager
-                var atlas = new Fdp.Presentation.Icons.IconAtlas((nint)atlasTexture.Id, atlasTexture.Width, atlasTexture.Height, 16f);
-                windowManager = new Fdp.Presentation.WindowManager.WindowManager(atlas);
-
-                // 2a. Create the global Message Log window and make the registry
-                //     available so subsystems can register additional sources in
-                //     their RegisterWindows() call below.
-                var messageLogRegistry = new MessageLogRegistry();
-                messageLogRegistry.RegisterSource(NLogMessageLogTarget.SharedInstance);
-                var msgLogWindow = new MessageLogWindow(messageLogRegistry);
-                windowManager.RegisterWindow(msgLogWindow);
-                windowManager.MessageLogRegistry = messageLogRegistry;
-
-                // 3. Register all GUI panels to the Window Manager
-                foreach (var sub in subsystems)
-                {
-                    if (sub is IWindowRegistrar registrar)
-                        registrar.RegisterWindows(windowManager);
-                }
-
-                windowManager.OnPerspectiveChanged += (oldPersp, newPersp) =>
-                {
-                    coordinator.Enqueue(new TogglePerspectiveEvent(oldPersp, newPersp));
-                    Console.WriteLine($"[Runner] Perspective changed: {oldPersp} → {newPersp}");
-                };
-
-                // WM-S603: Reference status bar section — shows system state to operators.
-                windowManager.StatusBar.RegisterSection("system_health", sortOrder: 0, () =>
-                {
-                    ImGuiNET.ImGui.Text("System OK");
-                });
-
-                // Message Log notification icon: glows red when unseen messages arrive.
-                var msgLogSection = new Fdp.Presentation.WindowManager.MessageLogStatusBarSection(
-                    msgLogWindow, windowManager);
-                windowManager.StatusBar.RegisterSection("msg_log_notify", sortOrder: 90, msgLogSection.Render);
-
-                // Load persisted settings and get the last active perspective.
-                string? persistedPerspective = windowManager.LoadSettings();
-
-                // Identify the first user-facing subsystem (skip PerspectiveUpdateSubsystem).
-                var firstUserSubsystem = subsystems
-                    .Skip(1)  // skip PerspectiveUpdateSubsystem which is always index 0
-                    .FirstOrDefault();
-                string defaultPerspective = firstUserSubsystem?.Name ?? "Default";
-
-                // Apply the valid persisted perspective or fall back to the first available one.
-                bool isValidPersisted = !string.IsNullOrEmpty(persistedPerspective)
-                    && subsystems.Any(s => s.Name == persistedPerspective);
-
-                windowManager.SwitchPerspective(isValidPersisted ? persistedPerspective! : defaultPerspective);
-
-
                 // 4. The proper non-headless Render Loop
                 while (!Raylib_cs.Raylib.WindowShouldClose())
                 {
+                    orchestrator.DrainConsoleActions();
                     float dt = Raylib_cs.Raylib.GetFrameTime();
 
                     orchestrator.Update(dt);
@@ -348,7 +293,7 @@ class Program
                     ImGuiNET.ImGui.PopStyleVar(2);
 
                     // Reduce dockspace height to leave room for the status bar
-                    float statusBarHeight = windowManager?.StatusBar.Height ?? 0f;
+                    float statusBarHeight = windowCtrl.WindowManager?.StatusBar.Height ?? 0f;
                     var dockspaceSize = statusBarHeight > 0f
                         ? new System.Numerics.Vector2(viewport.WorkSize.X, viewport.WorkSize.Y - statusBarHeight)
                         : System.Numerics.Vector2.Zero;
@@ -357,7 +302,7 @@ class Program
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 
-                    windowManager.Render();
+                    windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
                     rlImGui_cs.rlImGui.End();
 
@@ -374,22 +319,8 @@ class Program
         finally
         {
             orchestrator.Shutdown();
-
-            if (!config.Headless)
-            {
-                // ADD THIS: Persist window layouts and the active perspective before tearing down ImGui
-                windowManager?.SaveSettings();
-
-                rlImGui_cs.rlImGui.Shutdown();
-                
-                // Clean up the GPU texture we allocated for the IconAtlas
-                if (atlasTexture.Id != 0)
-                {
-                    Raylib_cs.Raylib.UnloadTexture(atlasTexture);
-                }
-
-                Raylib_cs.Raylib.CloseWindow();
-            }
+            if (windowCtrl?.IsLocalWindowOpen == true)
+                windowCtrl.CloseLocalWindow();
         }
 
         Console.WriteLine("[Runner] Shutdown complete.");
