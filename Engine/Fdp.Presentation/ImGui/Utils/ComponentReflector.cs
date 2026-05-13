@@ -4,10 +4,13 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Linq;
+using System.Text.Json;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.Renderers;
+using Fdp.Toolkit.Serialization;
 using ImGuiNET;
 using StructEdit.Core;
 using StructEdit.Core.UnionSupport;
@@ -64,6 +67,14 @@ public class ComponentReflector
     /// Return <c>null</c> to use an empty context.
     /// </summary>
     public Func<IInspectableSession, Entity, Type, EditContext?>? EditContextFactory { get; set; }
+
+    /// <summary>
+    /// Optional delegate invoked when the user copies a single component via the context menu.
+    /// Allows host panels to inject context-aware serialization (e.g., via ScenarioSerializer)
+    /// that applies custom IEntityScenarioTranslator logic.
+    /// When <c>null</c>, falls back to generic JsonSerializer on raw struct memory.
+    /// </summary>
+    public Func<IInspectableSession, Entity, Type, object?, string>? CopyComponentJsonFunc { get; set; }
 
     /// <summary>Default constructor — builds a default edit service.</summary>
     public ComponentReflector()
@@ -239,6 +250,17 @@ public class ComponentReflector
             {
                 if (ImGuiApi.MenuItem("Edit in new window"))
                     TryOpenEditWindow(session, e, type, data, headerDoubleClicked: true, doubleClickedPath: null);
+
+                // Copy JSON for a single component
+                if (ImGuiApi.MenuItem("Copy"))
+                {
+                    string formattedJson = CopyComponentJsonFunc != null
+                        ? CopyComponentJsonFunc(session, e, type, data)
+                        : JsonAestheticFormatter.FlattenNumericArrays(JsonSerializer.Serialize(data, type, FdpJsonOptionsRegistry.Indented));
+
+                    ImGuiApi.SetClipboardText(formattedJson);
+                }
+
                 ImGuiApi.EndPopup();
             }
 

@@ -222,6 +222,13 @@ namespace Fdp.Toolkit.Scenario
             {
                 if (!translator.CanTranslate(repo, entity)) continue;
 
+                // STRICT ARCHITECTURE BOUNDARY: Enforce the requested component mask.
+                // If this translator consumes none of the requested components, skip it.
+                var consumed = translator.GetConsumedComponentsMask();
+                var intersection = consumed;
+                intersection.BitwiseAnd(componentMask);
+                if (intersection.IsEmpty()) continue;
+
                 var entries = translator.Extract(repo, entity, resolver);
                 foreach (var kv in entries)
                 {

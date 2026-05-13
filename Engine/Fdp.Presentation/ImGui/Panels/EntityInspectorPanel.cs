@@ -50,6 +50,7 @@ public class EntityInspectorPanel
     public EntityInspectorPanel(IEntityStateExtractionService? extractionService = null)
     {
         ExtractionService = extractionService;
+        _reflector.CopyComponentJsonFunc = (s, e, t, d) => InspectorJsonUtils.BuildComponentJson(s, e, t, d, Serializer);
     }
 
     /// <summary>
@@ -493,23 +494,11 @@ public class EntityInspectorPanel
             Entity e = selCount == 1 ? _selectedEntities.First() : context.SelectedEntity!.Value;
             bool isSingleton = e == RepositoryAdapter.SingletonEntity;
 
-            if (isSingleton)
+            EntityHeaderDrawer.DrawEntityHeader(session, e, () =>
             {
-                ImGuiApi.TextUnformatted("[Singletons]");
-            }
-            else
-            {
-                long? netId = GetNetworkId(session, e);
-                ImGuiApi.TextUnformatted($"[{e.Index}, v{e.Generation}]");
-                if (netId.HasValue)
-                {
-                    ImGuiApi.SameLine();
-                    ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
-                }
-            }
-
-            if (session.IsReadOnly)
-                ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), "[READ-ONLY]");
+                var json = BuildSingleEntityJson(session, e);
+                ImGuiApi.SetClipboardText(json);
+            });
             // ── Chain-to-map toggle (Task 46) ──────────────────────────────
             bool chain = ChainToMap;
             if (chain)

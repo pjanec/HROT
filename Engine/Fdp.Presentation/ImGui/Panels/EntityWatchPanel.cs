@@ -1,8 +1,7 @@
-using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
-using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Utils;
+using Fdp.Toolkit.Scenario;
 using ImGuiNET;
 
 using ImGuiApi = ImGuiNET.ImGui;
@@ -19,7 +18,6 @@ public class EntityWatchPanel
 {
     private readonly Entity _targetEntity;
     private readonly ComponentReflector _reflector = new();
-    private static readonly Vector4 ExConViolet = new Vector4(0.32f, 0.08f, 0.48f, 1f);
 
     /// <summary>
     /// The <see cref="ComponentReflector"/> used to draw component details.
@@ -28,9 +26,16 @@ public class EntityWatchPanel
     /// </summary>
     public ComponentReflector Reflector => _reflector;
 
+    /// <summary>
+    /// When set, single-component copy uses the unified scenario serialization path
+    /// with custom IEntityScenarioTranslator logic.
+    /// </summary>
+    public ScenarioSerializer? Serializer { get; set; }
+
     public EntityWatchPanel(Entity targetEntity)
     {
         _targetEntity = targetEntity;
+        _reflector.CopyComponentJsonFunc = (s, e, t, d) => InspectorJsonUtils.BuildComponentJson(s, e, t, d, Serializer);
     }
 
     /// <summary>
@@ -44,41 +49,11 @@ public class EntityWatchPanel
             return;
         }
 
-        bool isSingleton = _targetEntity == RepositoryAdapter.SingletonEntity;
-
-        if (isSingleton)
-        {
-            ImGuiApi.TextUnformatted("[Singletons]");
-        }
-        else
-        {
-            long? netId = null;
-            if (session.HasComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity)))
-            {
-                var comp = session.GetComponent(_targetEntity, typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity));
-                if (comp is Fdp.Toolkit.Replication.Components.NetworkIdentity ni)
-                    netId = ni.Value;
-            }
-
-            ImGuiApi.TextUnformatted($"[{_targetEntity.Index}, v{_targetEntity.Generation}]");
-            if (netId.HasValue)
-            {
-                ImGuiApi.SameLine();
-                ImGuiApi.TextColored(ExConViolet, $"({netId.Value})");
-            }
-        }
-
-        ImGuiApi.SameLine();
-        if (ImGuiApi.Button("Copy JSON"))
+        EntityHeaderDrawer.DrawEntityHeader(session, _targetEntity, () =>
         {
             var json = EntityJsonDumper.Dump(session, _targetEntity);
             ImGuiApi.SetClipboardText(json);
-        }
-        if (ImGuiApi.IsItemHovered())
-            ImGuiApi.SetTooltip("Dump exact entity state to clipboard as JSON");
-
-        if (session.IsReadOnly)
-            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), "[READ-ONLY]");
+        });
 
         if (ImGuiApi.SmallButton(">> Expand All")) _reflector.ForceExpandAll = true;
         ImGuiApi.SameLine();
