@@ -77,6 +77,7 @@ namespace Fdp.Toolkit.Runner
 
             foreach (var subsystem in _subsystems)
             {
+                var captured = subsystem; // capture loop variable to avoid closure over iterator
                 var cfg = new SubsystemConfig
                 {
                     DomainId          = _domainId,
@@ -86,6 +87,8 @@ namespace Fdp.Toolkit.Runner
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
                     NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
+                    // GZH-016: inject active-map-owner predicate so subsystems can gate canvas input.
+                    IsActiveMapOwner  = () => _activeMapOwner == captured,
                 };
                 subsystem.Initialize(cfg);
             }

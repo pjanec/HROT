@@ -33,5 +33,12 @@
         /// <summary>Fixed step in seconds. Used only when <see cref="Deterministic"/> is
         /// <c>true</c>. Default = 1/60 s.</summary>
         public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
+
+        /// <summary>
+        /// Returns <c>true</c> when this subsystem is currently the active map owner.
+        /// Injected by <see cref="SubsystemOrchestrator"/> during <c>Initialize()</c>.
+        /// Defaults to <c>() => true</c> so standalone subsystems (non-ClusterRunner) are unaffected.
+        /// </summary>
+        public Func<bool> IsActiveMapOwner { get; set; } = () => true;
     }
 }
