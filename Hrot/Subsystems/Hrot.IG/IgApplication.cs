@@ -18,6 +18,7 @@ using Hrot.IG.Services;
 
 using Hrot.IG.Systems;
 
+using Hrot.Common;
 using Hrot.Common.Systems;
 using Hrot.Common.Constants;
 using Hrot.Common.Interactions;
@@ -227,7 +228,10 @@ public class IgApplication : IDisposable
 
 
 
-    // -- Headless flag � set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
+    // -- IgNodeBootstrapper (SM-010) -------------------------------------------
+    private IgNodeBootstrapper? _igBootstrapper;
+
+    // -- Headless flag - set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
 
     private bool _headless;
 
@@ -608,33 +612,7 @@ public class IgApplication : IDisposable
 
 
 
-        InitializeEcs();
-
-        InitializeNetwork(enableNetwork: true, domainIdOverride: _domainOverride);
-
-    }
-
-
-
-    public EntityRepository World => _world;
-
-
-
-    // -------------------------------------------------------------------------
-
-
-
-    /// <summary>
-
-    /// Initialises the ECS world and kernel (no DDS ��� safe to call in tests).
-
-    /// </summary>
-
-    private void InitializeEcs()
-
-    {
-
-        // �� Build core ECS infrastructure (EAM-M002) �������������������������
+        // Build core ECS infrastructure (EAM-M002)
         // Create participant in the Application Shell (Composition Root) before calling
         // HrotNodeBuilder. Rule: only the outermost executable may instantiate DdsParticipant.
         // HrotNodeBuilder no longer has a fallback.
@@ -659,99 +637,10 @@ public class IgApplication : IDisposable
             // IG creates its own DdsIdAllocator in InitializeNetwork; skip the builder's routing wait.
             SkipAllocatorRouting  = true,
         };
-        _context = new HrotNodeBuilder(igConfig)
-            .WithRole("IgApplication", Hrot.Common.NodeRole.ImageGenerator)
-            .WithNetworkFactory(_networkFactory)
-            .Build();
 
-        // Create replication module via factory (prevents direct NED reference in IG).
-        // When no factory is available (unit-test path), replication runs headless: no ghosts.
-        // Use ConfigureForNode(_context) so the replication module shares the same entityMap and bus as _context.
-        var igNodeFactory = _networkFactory?.ConfigureForNode(_context, Hrot.Common.NodeRole.ImageGenerator);
-        var igReplicationModule = igNodeFactory?.CreateReplicationModule();
-        if (igReplicationModule != null)
-        {
-            _context = _context with
-            {
-                NedReplication      = igReplicationModule as Hrot.Common.Abstractions.INedReplicationModule,
-                GhostCreationSystem = igReplicationModule.GhostCreationSystem,
-            };
-        }
-
-        _world     = _context.World;
-        _entityMap = _context.EntityMap;
-        _kernel    = _context.Kernel;
-
-        _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
-        _context.Kernel.RegisterGlobalSystem(
-            new EventHistoryCaptureSystem("World", _fdpEventHistory, _context.World.Bus));
-        _context.Kernel.RegisterGlobalSystem(
-            new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, _context.EventBus));
-
-        //  Shared foundation 
-        // Registers network replication, geographic, shared definitions, and
-        // lifecycle events identically to SimHost (via SimHostComponentRegistry).
-        HrotSharedComponentRegistry.RegisterAll(_world);
-
-        //  IG-specific visualization and display components 
-        _world.RegisterComponent<ResolvedStyle>();
-        _world.RegisterComponent<CullingState>();
-        _world.RegisterComponent<SelectionState>();
-
-        //  IG copies of replicated simulation components 
-        // (SimHost owns simulation; IG needs these registered for DDS deserialization
-        // and query support, but does not run the associated logic systems.)
-        _world.RegisterComponent<VehicleParams>();
-        _world.RegisterComponent<IgHealthState>();
-        _world.RegisterComponent<PerceptionReceptor>();
-        _world.RegisterComponent<TargetMemory>();
-        _world.RegisterComponent<WeaponState>();
-        _world.RegisterComponent<Health>();
-        _world.RegisterComponent<PhysicsCollider>();
-
-        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
-
-        //  IG Advanced Features components 
-        _world.RegisterComponent<HistoryTrail>();
-        _world.RegisterComponent<VisualEffectState>();
-        _world.RegisterComponent<TracerTarget>();
-        // Events consumed by EventToEffectSystem (registered in CombatComponentRegistry on
-        // SimHost nodes; registered explicitly here since IG does not call that registry).
-        _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
-        _world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
-        _world.RegisterManagedComponent<ContextMenuState>();
-        _world.RegisterManagedComponent<EditablePolyline>();
-        _world.RegisterComponent<MapOverlayStyle>();
-        _world.RegisterComponent<MapDisplayComponent>();
-        _world.RegisterComponent<EntityInfo>();
-
-        // Gizmo activation event for local editing gizmos.
-        _world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
-
-        // �� Route planning components (ROUTES1) �������������������������������
-        _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
-        _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
-        _world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
-
-        // Zone obstacle components required by StatelessGizmoSystem gizmos.
-        _world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
-
-        // �� Ground clamping components (MOD1-P7T2) ����������������������������
-        // Registered unconditionally so they are available even when
-        // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
-        _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
-        _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingState>();
-
-        _entityFilterFactory = new HrotEntityFilterFactory(_world);
-
-
-        // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
-        // FireInteractionEvent are all handled by HrotSharedComponentRegistry above.
-        _userConfig     = new MapUserConfig();
-
-        _cameraViewport = new MapCameraViewport();
-
-
+        // Create objects that do NOT need a world (so the ApplicationSystemsRegistrar lambda can capture them).
+        _userConfig          = new MapUserConfig();
+        _cameraViewport      = new MapCameraViewport();
 
         // -- ImGui UI panels (TASK-IF008) -------------------------------------
 
@@ -767,23 +656,17 @@ public class IgApplication : IDisposable
 
         _miniIosState       = new MiniExConPanelState(_effectiveInstanceId);
 
-        _miniIosPanel       = new MiniExConPanel(_miniIosState, _world.Bus);
-
         _performanceMetrics = new PerformanceMetrics();
 
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
 
         _contextMenuSystem  = new ContextMenuSystem();
 
+        _fdpEventBrowser = new FdpEventBrowserPanel(_fdpEventHistory);
 
-
-        _mapContextEntity = _world.CreateEntity();
-
-        _world.AddComponent(_mapContextEntity, new NetworkIdentity(0));
-
-        // �� ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances ��
+        // ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances.
         // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
-        // in Hrot.SimHost so the JSON�Binary schema stays in sync on both ends of the wire.
+        // in Hrot.SimHost so the JSON-Binary schema stays in sync on both ends of the wire.
         _edgeCompiler = new JsonToRecordCompilerBuilder()
             .Register("Name",                  AttributeIds.Name,        AttributeValueKind.String)
             .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.String)
@@ -792,424 +675,217 @@ public class IgApplication : IDisposable
             .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
 
-    }
+        _igBootstrapper = new IgNodeBootstrapper(
+            _networkFactory,
+            _effectiveInstanceId,
+            _headless,
+            _igTranslatorsProvider,
+            _userConfig,
+            _cameraViewport,
+            _fdpEventHistory,
+            igConfig);
 
-
-
-    /// <summary>
-
-    /// Registers all modules and sets up the DDS participant (unless <paramref name="enableNetwork"/>
-
-    /// is <c>false</c>).  Call after <see cref="InitializeEcs"/>.
-
-    /// </summary>
-
-    private void InitializeNetwork(bool enableNetwork, int? domainIdOverride)
-
-    {
-
-        _networkEnabled = enableNetwork;
-
-
-
-        var domainId = domainIdOverride ?? IgNetworkConstants.DdsDomain;
-
-        var tkb = HrotEnvironment.CreateTkb();
-        _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
-
-        // �� Register base infrastructure modules from builder context ���������
-        // BaseModules = [EntityLifecycleModule, GeographicModule].
-        // NedReplicationModule's GhostPromotionSystem uses the same elm instance.
-        foreach (var baseModule in _context!.BaseModules)
-            _kernel.RegisterModule(baseModule);
-
-        // Assign GhostCreationSystem from the replication module (populated in InitializeEcs).
-        // When context was built headless without a factory, GhostCreationSystem may be null;
-        // it will be set after BindReplicationParticipant in the headless path below.
-        _ghostCreationSystem = _context.GhostCreationSystem;
-
-        DdsParticipant? participant = null;
-
-        List<Fdp.Interfaces.INetworkTranslator>? customTranslators = null;
-
-        _networkEnabled = false;
-
-        // GeoTransform is pure math � create it unconditionally so that
-        // SendGeoSpatialUpdate works even in tests that skip DDS initialisation.
-        _geoTransform = HrotEnvironment.CreateGeoTransform();
-        _miniIosState.SetGeoTransform(_geoTransform);
-
-        if (enableNetwork)
-
+        _igBootstrapper.ApplicationSystemsRegistrar = ctx =>
         {
-                // Use the participant provided by the composition root via HrotNodeBuilder.
-                // The subsystem accepts whatever participant it is given (Rule 3, modular-2 DESIGN.md).
-                // If null, the node operates without DDS (offline / pure-domain test path).
-                participant = _context?.Participant;
+            // EventHistoryCaptureSystem (moved from InitializeEcs)
+            ctx.Kernel.RegisterGlobalSystem(
+                new EventHistoryCaptureSystem("World", _fdpEventHistory, ctx.World.Bus));
+            ctx.Kernel.RegisterGlobalSystem(
+                new EventHistoryCaptureSystem("Orchestration", _fdpEventHistory, ctx.EventBus));
 
-                if (participant == null)
-                {
-                    // No participant available (non-headless but no context) -- skip DDS setup.
-                    customTranslators = new List<Fdp.Interfaces.INetworkTranslator>();
-                }
-                else
-                {
+            // Map context entity (moved from InitializeEcs)
+            _mapContextEntity = ctx.World.CreateEntity();
+            ctx.World.AddComponent(_mapContextEntity, new NetworkIdentity(0));
 
-                // Task 5 / Task 18: Create the protocol-neutral network adapter and obtain gateway from it.
-                // Use the injected factory when available; fall back to a null no-op adapter when no factory.
-                _networkAdapter = _networkFactory != null
-                    ? _networkFactory.CreateIgNetworkAdapter(participant, _effectiveInstanceId)
-                    : Hrot.Core.Network.NullIgNetworkAdapter.Instance;
-                _commandGateway = _networkAdapter.CommandGateway;
+            // GeoTransform is pure math; set miniIos now so SendGeoSpatialUpdate works in tests
+            _miniIosState.SetGeoTransform(ctx.GeoTransform!);
 
+            // E. SlaveSyncController - unified slave that handles Continuous/Stepping transitions.
+            // Must use ctx.EventBus (the same bus as the time translators),
+            // NOT ctx.World.Bus which is swapped internally by the kernel.
+            var timeController = new SlaveSyncController(ctx.EventBus, _effectiveInstanceId);
+            ctx.Kernel.SetTimeController(timeController);
 
+            // DO NOT call ctx.Kernel.RegisterModule(ctx.NedReplication) here.
+            // Phase 6a+ already registered it. Double-registration corrupts the system schedule.
 
-                // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
-                // MapVisualOverlay, MapRoute) is now handled by NedReplicationModule.
-                // Only non-pack translators remain in customTranslators.
-                customTranslators = new List<Fdp.Interfaces.INetworkTranslator>();
+            ctx.Kernel.RegisterGlobalSystem(_contextMenuSystem);
 
-                // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching.
-                // Must use _context.EventBus (the same bus as SlaveSyncController),
-                // NOT _world.Bus which the kernel swaps independently.
-                var igTimeBus = _context!.EventBus;
-                customTranslators.Add(
-                    Fdp.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, igTimeBus));
-
-                // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
-                customTranslators.Add(
-                    Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, igTimeBus, _effectiveInstanceId));
-
-                // Bridge FrameOrder/FrameAck for distributed lockstep stepping so IG sends
-                // its step ACK back to the Orchestrator on every Step() frame.
-                customTranslators.Add(
-                    Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, igTimeBus, _effectiveInstanceId));
-
-                if (_igTranslatorsProvider != null)
-                {
-                    foreach (var t in _igTranslatorsProvider.GetTranslators(
-                        participant, _entityMap, _world.Bus, _ghostCreationSystem, _effectiveInstanceId, _headless))
+            // Gizmo subsystem (GZ020) - renders entity-bound diagnostic overlays.
+            _gizmoBuffer            = new DebugPrimitiveBuffer(capacity: 4096);
+            _gizmoRegistry          = new GizmoRegistry();
+            _statelessGizmoRegistry = new StatelessGizmoRegistry();
+            _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
+            _gizmoUndoStack         = new GizmoUndoStack();
+            _interactionBus         = new FdpEventBus();
+            Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+            // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
+            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
+            // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
+            if (_igBootstrapper!.NetworkEnabled)
+            {
+                _gizmoRegistry!.Register(
+                    new EntityDragGizmoDefinition(onDragCommitted: (entity, worldPos) =>
                     {
-                        customTranslators.Add(t);
-                    }
-                }
+                        _lastDragWorldPos = worldPos;
+                        OnEntityDragEnded(entity);
+                    }));
+            }
+            else
+            {
+                _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
+            }
+            // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
+            _statelessGizmoRegistry.Register(
+                new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(ctx.GeoTransform!),
+                new[] { typeof(SimTransform), typeof(SelectionState) });
 
-                // D005: ACL egress translators convert bus events back to DDS.
-                // Created via network factory to avoid direct NED type references in IG.
-                if (_networkFactory != null)
+            // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
+            // Canvas no longer has a base tool for entity picking.
+
+            _selectionSystem = new SelectionInteractionSystem(ctx.World, _interactionBus!);
+
+            // When a network-enabled entity is clicked, also publish MapClickEvent and
+            // SelectionChangedEvent so that ExCon can track map selections.
+            if (_igBootstrapper!.NetworkEnabled)
+            {
+                _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
                 {
-                    foreach (var t in _networkFactory.CreateIgEgressTranslators(
-                        participant, _world.Bus, _geoTransform!, _effectiveInstanceId))
-                        customTranslators.Add(t);
-                }
+                    OnCanvasClicked(new System.Numerics.Vector2(worldPos.X, worldPos.Y),
+                        MapMouseButton.Left, false, false, entity, updateSelection: true);
+                };
+            }
 
-                // Create the MapCommandController now that canvas and DDS resources are ready.
-                // D004: MapCommandController now takes FdpEventBus instead of IDdsWriter<CreateEntityRequest>.
-                // SpawnEntityCommandEgressTranslator (D005) handles DDS writes for entity creation.
-                _mapCommandController = new MapCommandController(
-                    _canvas,
-                    _world.Bus,
-                    dto => _networkAdapter?.WriteMapCommandAck(dto),
-                    _effectiveInstanceId,
-                    globalGizmoManager: _globalGizmoManager);
+            ctx.Kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
 
+            // MapCommandController - created here when network is available.
+            if (_igBootstrapper!.NetworkEnabled && ctx.Participant != null)
+            {
                 _contextMenuSystem.SetCacheMissWriter(
                     (reqId, mapId, sel) => _networkAdapter?.WriteContextMenuRequest(reqId, mapId, sel),
                     _effectiveInstanceId);
-
-                _networkEnabled = true;
-
-                // CGF1-S0104: wire ClusterSlave once DDS participant is confirmed healthy.
-                // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)
-                // so the IG ClusterSlave always registers on a cluster-unique node ID.
-                // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
-                var igNodeId = _effectiveInstanceId;
-
-                // CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C).
-                _igOrchestrationBus = new Fdp.Core.FdpEventBus();
-                _igSlaveTranslator  = new Hrot.Common.Orchestration.NodeOpSlaveTranslator(
-                    commandReader:   new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(participant!),
-                    statusWriter:    new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(participant!),
-                    heartbeatWriter: new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant!),
-                    bus:             _igOrchestrationBus,
-                    nodeId:          igNodeId);
-                _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(
-                    igNodeId, "IG", _igOrchestrationBus);
-
-                // CGF1-BATCH-23 A.2: IG participates in recording/replay cluster operations as a
-                // listen-only node.  Shared controller tracks IsReplayActive so the
-                // Live-from-Replay branch (CGF1-S0305) is correctly gated.
-                var igRrController = new Hrot.Common.Orchestration.ListenerRecordReplayController("IG");
-
-                // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay
-                // unconditional; PrepareLive only when replay active).
-                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
-                    igRrController,
-                    inputGroup:            null,
-                    simGroup:              null,
-                    postSimGroup:          null,
-                    lifecycleGroup:        null,
-                    bypassLifecycleToggle: null,
-                    storageDirectory:      @"C:\FDP_Temp"));
-
-                // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive
-                // without recording (IG carries no ECS frame data).
-                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
-                    checkpointWorker: null,
-                    controller:       igRrController,
-                    storageDirectory: @"C:\FDP_Temp"));
-
-                // CGF1-BATCH-23 A.2: dummy zone handler � IG acknowledges
-                // PrepareZone / CommitZone without terrain DB load.
-                // Full terrain-DB preload from scenario entities is future work.
-                _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler(_effectiveInstanceId));
-
-                // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
-                var igStorageProvider = new Fdp.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
-                _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
-                    igStorageProvider));
-
-                // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
-                _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
-
-                // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
-                var igArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(() => _kernel);
-                var igEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
-                _fdpEntityInspector.ExtractionService = igEntityService;
-                string igResolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
-                var igLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
-                    igResolvedLogDir,
-                    "IG",
-                    igNodeId);
-                string igIsolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(igNodeId);
-                _clusterSlave.RegisterHandler(new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
-                    _fdpEventHistory,
-                    igArchService,
-                    igEntityService,
-                    igLogService,
-                    new Hrot.Common.Infrastructure.HrotNodeConfig
-                    {
-                        NodeId = igNodeId,
-                        SubsystemName = "IG",
-                        LocalTempRoot = igIsolatedTempRoot,
-                        LogDirectory = igResolvedLogDir,
-                    }));
-
-        } // end else (participant != null)
-
-        } // end if (enableNetwork)
-
-
-
-        // B. Ghost destruction � replaces SpawningModule so IG does not duplicate entities.
-        // SpawnEntityCommand is forwarded to SimHost via SpawnEntityCommandEgressTranslator;
-        // SimHost creates the authoritative ghost which DDS replicates back.
-        // GhostDestructionSystem tears down those ghosts on EntityMaster DISPOSE.
-        _kernel.RegisterGlobalSystem(new GhostDestructionSystem(_entityMap));
-
-        // UnitHierarchySystem � maintains ECS commander-subordinate hierarchy on the IG node (CS016).
-        _kernel.RegisterModule(new IgUnitHierarchyModule(new UnitHierarchySystem()));
-
-
-
-        // E. StyleResolutionModule ��� writes ResolvedStyle each Simulation tick
-
-        _kernel.RegisterModule(new StyleResolutionModule(_userConfig, _effectiveInstanceId));
-
-
-
-        // F. MapCullingModule ��� writes CullingState each PostSimulation tick
-
-        _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
-
-
-
-        // G2. MapLayerModule � assigns MapDisplayComponent bitmask per entity (time-sliced)
-
-        _kernel.RegisterModule(new MapLayerModule());
-
-
-
-        // G. HistoryTrailModule ��� records entity position trails (IG.4.1)
-
-        _kernel.RegisterModule(new HistoryTrailModule());
-
-
-
-        // H. EventEffectModule ��� spawns and cleans up visual effects (IG.4.2)
-
-        if (!_headless)
-
-            _kernel.RegisterModule(new EventEffectModule());
-
-
-
-        // C. IG-specific custom translators (context-actions, time-sync, IG presentation, commands).
-        // EntityStatesIngressPack (EntityMaster, GeoSpatial, EntityInfo, EntityDamage,
-        // MapVisualOverlay, MapRoute) AND FireInteractionEvent are handled by NedReplicationModule.
-        // Only non-pack IG-domain translators remain here, registered via direct systems.
-        if (_networkEnabled && participant != null && customTranslators != null)
-        {
-            _kernel.RegisterGlobalSystem(new CycloneNetworkIngressSystem(customTranslators.ToArray()));
-            _kernel.RegisterGlobalSystem(new CycloneEgressSystem(customTranslators.ToArray()));
-            _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(customTranslators.OfType<Fdp.Interfaces.IDescriptorTranslator>()));
-        }
-
-
-
-        // Gizmo subsystem (GZ020) � renders entity-bound diagnostic overlays.
-        _gizmoBuffer           = new DebugPrimitiveBuffer(capacity: 4096);
-        _gizmoRegistry         = new GizmoRegistry();
-        _statelessGizmoRegistry = new StatelessGizmoRegistry();
-        _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
-        _gizmoUndoStack        = new GizmoUndoStack();
-        _interactionBus = new FdpEventBus();
-        Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-        // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
-        Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
-        // Phase 5: EntityDragGizmo makes entities draggable and emits pick spheres for selection.
-        if (_networkEnabled)
-        {
-            _gizmoRegistry!.Register(
-                new EntityDragGizmoDefinition(onDragCommitted: (entity, worldPos) =>
-                {
-                    _lastDragWorldPos = worldPos;
-                    OnEntityDragEnded(entity);
-                }));
-        }
-        else
-        {
-            _gizmoRegistry!.Register(new EntityDragGizmoDefinition());
-        }
-        // GZ058: manually register MissionPresentationGizmo (constructor requires IGeographicTransform).
-        _statelessGizmoRegistry.Register(
-            new Hrot.ScenarioEditor.Gizmos.MissionPresentationGizmo(_geoTransform!),
-            new[] { typeof(SimTransform), typeof(SelectionState) });
-        // Cache SelectionState query once to avoid per-click allocations (CT-2).
-        _selectionStateQuery = _world.Query()
-            .With<SelectionState>()
-            .WithLifecycle(EntityLifecycle.All)
-            .Build();
-
-        // Phase 5: selection and drag handled by SelectionInteractionSystem + EntityDragGizmo.
-        // Canvas no longer has a base tool for entity picking.
-
-        _selectionSystem = new SelectionInteractionSystem(_world, _interactionBus!);
-
-        // When a network-enabled entity is clicked, also publish MapClickEvent and
-        // SelectionChangedEvent so that ExCon can track map selections.
-        if (_networkEnabled)
-        {
-            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
-            {
-                OnCanvasClicked(new System.Numerics.Vector2(worldPos.X, worldPos.Y),
-                    MapMouseButton.Left, false, false, entity, updateSelection: true);
-            };
-            _miniIosPanel.SetGateway(_commandGateway);
-        }
-
-        _kernel.RegisterGlobalSystem(new SelectionInteractionSystemAdapter(_selectionSystem));
-
-        // E. SlaveSyncController � unified slave that handles Continuous/Stepping transitions.
-        // Must use _context!.EventBus (the same bus as the time translators above),
-        // NOT _world.Bus which is swapped internally by the kernel and carries ECS events.
-        var timeController = new SlaveSyncController(_context!.EventBus, _effectiveInstanceId);
-
-        _kernel.SetTimeController(timeController);
-
-
-
-        // DeadReckoningSyncSystem is now registered by NedReplicationModule (driveFromNetwork:true).
-        // Register NedReplicationModule before kernel init so EntityStatesIngressPack + DR are wired.
-        if (_context?.NedReplication != null)
-            _context.Kernel.RegisterModule(_context.NedReplication);
-
-        _kernel.RegisterGlobalSystem(_contextMenuSystem);
-
-        // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
-        // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
-        _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-            _gizmoRegistry!,
-            _gizmoBuffer!,
-            isSelectedPredicate: null,
-            interactionBus: _interactionBus);
-
-        // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
-        _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
-        _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
-        var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
-        var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
-        using var layerControlSchemaSession = layerControlEditService.Open(
-            new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
-            {
-                Entities = true,
-                Perception = true,
-                AiHelpers = true
-            },
-            typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
-        schemaRegistry.Register(
-            Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
-            layerControlSchemaSession.Document);
-        var gizmoLayer = new DebugGizmoLayer(
-            31,
-            _gizmoBuffer!,
-            _interactionBus,
-            _world,
-            _canvas.Camera,
-            new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
-            schemaRegistry);
-        _gizmoLayer = gizmoLayer;
-        _canvas.AddLayer(gizmoLayer);
-        _canvas.DrawBuffer = _gizmoBuffer;
-        // Route gizmo interaction translators and publisher through the network factory
-        // so that IgApplication has no direct dependency on Hrot.Network.NED.
-        CycloneNetworkIngressSystem? gizmoIngress = null;
-        CycloneEgressSystem? gizmoEgress = null;
-        if (_networkFactory != null)
-        {
-            var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus!, _effectiveInstanceId, _headless);
-            var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
-            var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
-            foreach (var t in gizmoTranslators)
-            {
-                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
-                if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+                _mapCommandController = new MapCommandController(
+                    _canvas,
+                    ctx.World.Bus,
+                    dto => _networkAdapter?.WriteMapCommandAck(dto),
+                    _effectiveInstanceId,
+                    globalGizmoManager: _globalGizmoManager);
             }
-            if (ingressList.Count > 0)
-                gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
-            if (egressList.Count > 0)
-                gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
-            var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer!, _effectiveInstanceId);
-            if (publisherSystem != null)
-                _kernel.RegisterGlobalSystem(publisherSystem);
-        }
-        var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-            _globalGizmoManager,
-            _igDataDrivenGizmoSystem,
-            new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
-        // GZH-003: IG is interactive, always has a window at startup.
-        gizmoGroup.Enabled = true;
-        _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _igDataDrivenGizmoSystem);
-        _kernel.RegisterModule(new GizmoInteractionModule(
-            _interactionBus!,
-            contextIngress: null,
-            interactionSystems: new IEcsModuleSystem[]
-            {
-                gizmoGroup,
-            },
-            gizmoIngress: gizmoIngress,
-            gizmoEgress:  gizmoEgress));
-        _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
-        // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-        _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
-        _kernel.Initialize();
+            // GZ038 reversed: DataDrivenGizmoSystem is registered for local vertex/route editing.
+            // isSelectedPredicate: null because IG is dumb terminal -- draw all active gizmos.
+            _igDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+                _gizmoRegistry!,
+                _gizmoBuffer!,
+                isSelectedPredicate: null,
+                interactionBus: _interactionBus);
+
+            // BATCH-29: GlobalGizmoManager manages non-entity-bound gizmos (placement, picker).
+            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer!, _interactionBus);
+            _measureToolGizmoAdapter = new MeasureToolGizmoAdapter(_globalGizmoManager, _gizmoSettingsRegistry);
+            var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+            var layerControlEditService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            using var layerControlSchemaSession = layerControlEditService.Open(
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto
+                {
+                    Entities = true,
+                    Perception = true,
+                    AiHelpers = true
+                },
+                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            schemaRegistry.Register(
+                Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash,
+                layerControlSchemaSession.Document);
+            var gizmoLayer = new DebugGizmoLayer(
+                31,
+                _gizmoBuffer!,
+                _interactionBus,
+                ctx.World,
+                _canvas.Camera,
+                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
+                schemaRegistry);
+            _gizmoLayer = gizmoLayer;
+            _canvas.AddLayer(gizmoLayer);
+            _canvas.DrawBuffer = _gizmoBuffer;
+            // Route gizmo interaction translators and publisher through the network factory
+            // so that IgApplication has no direct dependency on Hrot.Network.NED.
+            CycloneNetworkIngressSystem? gizmoIngress = null;
+            CycloneEgressSystem? gizmoEgress = null;
+            if (_networkFactory != null)
+            {
+                var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus!, _effectiveInstanceId, _headless);
+                var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                foreach (var t in gizmoTranslators)
+                {
+                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
+                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+                }
+                if (ingressList.Count > 0)
+                    gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
+                if (egressList.Count > 0)
+                    gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
+                var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer!, _effectiveInstanceId);
+                if (publisherSystem != null)
+                    ctx.Kernel.RegisterGlobalSystem(publisherSystem);
+            }
+            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+                _globalGizmoManager,
+                _igDataDrivenGizmoSystem,
+                new StatelessGizmoSystem(_statelessGizmoRegistry!, _gizmoBuffer!));
+            // GZH-003: IG is interactive, always has a window at startup.
+            gizmoGroup.Enabled = true;
+            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _igDataDrivenGizmoSystem);
+            ctx.Kernel.RegisterModule(new GizmoInteractionModule(
+                _interactionBus!,
+                contextIngress: null,
+                interactionSystems: new IEcsModuleSystem[]
+                {
+                    gizmoGroup,
+                },
+                gizmoIngress: gizmoIngress,
+                gizmoEgress:  gizmoEgress));
+            ctx.Kernel.RegisterGlobalSystem(
+                new EventHistoryCaptureSystem("Interaction", _fdpEventHistory, _interactionBus!));
+            // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+            ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+        };
+
+        _context = _igBootstrapper.BootstrapNode(igConfig, NodeRole.ImageGenerator, _networkFactory);
+
+        _world     = _context.World;
+        _entityMap = _context.EntityMap;
+        _kernel    = _context.Kernel;
+        _geoTransform = _context.GeoTransform as WGS84Transform;
+        _ghostCreationSystem = _context.GhostCreationSystem;
+
+        _networkEnabled      = _igBootstrapper.NetworkEnabled;
+        _networkAdapter      = _igBootstrapper.NetworkAdapter;
+        _commandGateway      = _igBootstrapper.CommandGateway;
+        _clusterSlave        = _context.ClusterSlave;
+        _igSlaveTranslator   = _igBootstrapper.IgSlaveTranslator;
+        _igOrchestrationBus  = _igBootstrapper.OrchestrationBus;
+
+        _miniIosPanel = new MiniExConPanel(_miniIosState, _world.Bus);
+        if (_networkEnabled)
+            _miniIosPanel.SetGateway(_commandGateway);
+
+        _entityFilterFactory = new HrotEntityFilterFactory(_world);
+        // Cache SelectionState query once to avoid per-click allocations (CT-2).
+        _selectionStateQuery = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
+
+        var igEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
+        _fdpEntityInspector.ExtractionService = igEntityService;
 
         // Advertise this IG's capabilities so the ExCon can build its layer-control UI.
         if (_networkEnabled)
             IgCapabilitiesPublisher.Publish(_networkAdapter, _effectiveInstanceId);
 
     }
+
+
+
+    public EntityRepository World => _world;
 
 
 
@@ -4105,51 +3781,6 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     }
 
     // �� Ghost entity cleanup ������������������������������������������������������
-
-    /// <summary>
-    /// Handles <see cref="DestroyEntityCommand"/> events (published when SimHost sends
-    /// EntityMaster DISPOSE) by unregistering and destroying the local ghost entity.
-    /// Replaces <see cref="SpawningModule"/> so the IG no longer acts as an authoritative
-    /// spawner and thus avoids duplicate local entities.
-    /// </summary>
-    [UpdateInPhase(SystemPhase.PostSimulation)]
-    private sealed class GhostDestructionSystem : IEcsModuleSystem
-    {
-        private readonly NetworkEntityMap _entityMap;
-
-        public GhostDestructionSystem(NetworkEntityMap entityMap)
-        {
-            _entityMap = entityMap;
-        }
-
-        public void Execute(ISimulationView view, float dt)
-        {
-            var world = view as EntityRepository;
-            if (world == null) return;
-
-            foreach (var cmd in view.ReadManagedEvents<DestroyEntityCommand>())
-            {
-                if (_entityMap.TryGetEntity(cmd.NetworkId, out var entity))
-                {
-                    _entityMap.Unregister(cmd.NetworkId, view.Tick);
-                    if (world.IsAlive(entity))
-                        world.DestroyEntity(entity);
-                }
-            }
-        }
-    }
-
-    // IEcsModule wrapper that routes UnitHierarchySystem into the Simulation phase slot.
-    // RegisterGlobalSystem rejects SystemPhase.Simulation; it must be registered via RegisterModule.
-    private sealed class IgUnitHierarchyModule : Fdp.ModuleHost.Abstractions.IEcsModule
-    {
-        private readonly Fdp.ModuleHost.Abstractions.IEcsModuleSystem _system;
-        public string Name => "IgUnitHierarchy";
-        public Fdp.ModuleHost.Abstractions.ExecutionPolicy Policy => Fdp.ModuleHost.Abstractions.ExecutionPolicy.Synchronous();
-        public IgUnitHierarchyModule(Fdp.ModuleHost.Abstractions.IEcsModuleSystem system) => _system = system;
-        public void RegisterSystems(Fdp.ModuleHost.Abstractions.ISystemRegistry registry) => registry.RegisterSystem(_system);
-        public void Tick(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime) { }
-    }
 
     // Phase 5: wraps SelectionInteractionSystem (POJO) as an IEcsModuleSystem so it can be
     // registered via _kernel.RegisterGlobalSystem and ticked by the kernel each frame.
