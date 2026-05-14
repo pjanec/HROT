@@ -4,6 +4,7 @@ using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D.Components;
+using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.IG.Components;
@@ -106,12 +107,7 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider
         // Gate camera input on active map ownership so background tabs do not
         // consume mouse events. Skip entirely in headless mode (no input provider).
         if (!_headless && _isActiveMapOwner())
-        {
-            // In embedded ClusterRunner mode there is no standalone RaylibInputProvider;
-            // camera input is handled by the orchestrator's window controller.
-            // Calling HandleInput here with a null-like provider would be a no-op,
-            // so we intentionally leave it unhooked until SM-008 wires the window.
-        }
+            _core.Camera.HandleInput(new RaylibInputProvider());
 
         _core.Camera.Update(deltaTime);
         _script.Update(deltaTime);

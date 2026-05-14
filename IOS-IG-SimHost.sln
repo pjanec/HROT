@@ -229,6 +229,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.StrideMock.Tests", "Hr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.FakeStrideApp", "Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.csproj", "{B3C4D5E6-F7A8-9012-3456-789012CDEF01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.FakeStrideApp.Tests", "Hrot\Runner\Hrot.FakeStrideApp\Hrot.FakeStrideApp.Tests\Hrot.FakeStrideApp.Tests.csproj", "{C4D5E6F7-A8B9-0123-4567-890123DEF012}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1319,6 +1321,18 @@ Global
 		{B3C4D5E6-F7A8-9012-3456-789012CDEF01}.Release|x64.Build.0 = Release|Any CPU
 		{B3C4D5E6-F7A8-9012-3456-789012CDEF01}.Release|x86.ActiveCfg = Release|Any CPU
 		{B3C4D5E6-F7A8-9012-3456-789012CDEF01}.Release|x86.Build.0 = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|x64.Build.0 = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Debug|x86.Build.0 = Debug|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|x64.ActiveCfg = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|x64.Build.0 = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|x86.ActiveCfg = Release|Any CPU
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1434,6 +1448,7 @@ Global
 		{F1E2D3C4-B5A6-7890-1234-567890ABCDEF} = {9DCE0DFF-1A90-4579-AFBF-04768ED55A11}
 		{A2B3C4D5-E6F7-8901-2345-678901BCDEF0} = {9DCE0DFF-1A90-4579-AFBF-04768ED55A11}
 		{B3C4D5E6-F7A8-9012-3456-789012CDEF01} = {AB52B5F7-FFC0-4C1A-B659-DCF37B733CDC}
+		{C4D5E6F7-A8B9-0123-4567-890123DEF012} = {AB52B5F7-FFC0-4C1A-B659-DCF37B733CDC}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}

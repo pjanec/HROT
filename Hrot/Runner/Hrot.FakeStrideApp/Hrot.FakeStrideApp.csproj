@@ -11,6 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Exclude test subdirectory from main project compilation -->
+    <Compile Remove="Hrot.FakeStrideApp.Tests\**" />
+    <EmbeddedResource Remove="Hrot.FakeStrideApp.Tests\**" />
+    <None Remove="Hrot.FakeStrideApp.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- StrideMock library with StrideNodeBootstrapper -->
     <ProjectReference Include="..\..\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
     <!-- FdpApplication rendering shell -->

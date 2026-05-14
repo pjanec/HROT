@@ -44,7 +44,7 @@
 
 **Goal:** Build the independent `FakeStrideApp` executable for lightweight testing outside `ClusterRunner`.
 
-- [ ] **SM-008** Implement `FakeStrideApp` (Raylib/ImGui shell, 2D entity rendering, map pan/zoom) [details](./TASK-DETAILS.md#sm-008--implement-fakestrideapp)
+- [x] **SM-008** Implement `FakeStrideApp` (Raylib/ImGui shell, 2D entity rendering, map pan/zoom) [details](./TASK-DETAILS.md#sm-008--implement-fakestrideapp)
 
 ---
 
