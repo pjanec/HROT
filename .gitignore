@@ -58,4 +58,4 @@ nunit-*.xml
 imgui.ini
 cyclonedds.log
 *.csproj.user
-/.codebase
+.codebase
