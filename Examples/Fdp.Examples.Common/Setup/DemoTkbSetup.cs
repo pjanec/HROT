@@ -35,11 +35,15 @@ namespace Fdp.Examples.Common.Setup
         /// <summary>
         /// Registers all DistributedTank entity templates with <paramref name="tkb"/>.
         /// Call once at kernel setup, before <c>ModuleHostKernel.Initialize()</c>.
+        /// Idempotent: safe to call multiple times, skips if template is already registered.
         /// </summary>
         /// <param name="tkb">The TKB database that will own the registered templates.</param>
         public static void RegisterAll(ITkbDatabase tkb)
         {
-            RegisterCommandTank(tkb);
+            if (!tkb.TryGetByType(DemoTemplateIds.CommandTank, out _))
+            {
+                RegisterCommandTank(tkb);
+            }
         }
 
         // ── Template: CommandTank (ID 100) ───────────────────────────────────────────
