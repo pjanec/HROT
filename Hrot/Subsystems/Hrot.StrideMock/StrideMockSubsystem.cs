@@ -1,7 +1,11 @@
 using System;
 using System.Numerics;
+using Fdp.Core.Diagnostics;
 using Fdp.Examples.Scenarios.Integrated;
 using Fdp.ModuleHost.Diagnostics;
+using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Adapters;
+using Fdp.Presentation.Panels;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Runner;
@@ -45,6 +49,13 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
     private Func<bool> _isActiveMapOwner = () => true;
     private bool _headless;
 
+    // ── FDP framework panels ──────────────────────────────────────────────────
+    private readonly EntityInspectorPanel _fdpEntityInspector = new();
+    private EventBrowserPanel _fdpEventBrowser = null!;
+    private readonly DiagnosticEventHistoryService _fdpEventHistory = new();
+    private RepositoryAdapter? _fdpRepoAdapter;
+    private readonly InspectorState _fdpInspectorState = new();
+
     /// <summary>
     /// Initializes the subsystem with a network factory injected by the composition root.
     /// </summary>
@@ -72,12 +83,43 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
     {
         if (_core == null) return;
 
+        // Existing Architecture Diagnostics
         windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
             "stridemock_architecture_diagnostics",
             "StrideMock Diagnostics",
             "StrideMock",
-            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+            new ArchitectureDiagnosticsPanel(
                 new ArchitectureDiagnosticsService(() => _core.Context.Kernel)),
+            TitleBarColor));
+
+        // Ensure the repository adapter is created once the world exists
+        _fdpRepoAdapter ??= new RepositoryAdapter(_core.Context.World);
+
+        // 1. Entity Inspector
+        windowManager.RegisterWindow(new FdpEntityInspectorWindow(
+            "stridemock_fdp_inspector",
+            "StrideMock Entity Inspector",
+            "StrideMock",
+            _fdpEntityInspector,
+            () => _fdpRepoAdapter,
+            () => _fdpInspectorState,
+            TitleBarColor));
+
+        // Wire component editor reflector and "Inspect..." context menu
+        FdpEntityInspectorHelper.WireInspectorWithInspectContextMenu(
+            _fdpEntityInspector,
+            windowManager,
+            "StrideMock",
+            () => _fdpRepoAdapter,
+            null, // No map pick bridge for StrideMock yet
+            TitleBarColor);
+
+        // 2. Event Browser
+        windowManager.RegisterWindow(new FdpEventBrowserWindow(
+            "stridemock_fdp_events",
+            "StrideMock Event Browser",
+            "StrideMock",
+            _fdpEventBrowser,
             TitleBarColor));
     }
 
@@ -102,7 +144,17 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
             LogDirectory         = System.IO.Path.Combine(AppContext.BaseDirectory, "logs"),
         };
 
+        _fdpEventBrowser = new EventBrowserPanel(_fdpEventHistory);
+
         _core = new StrideNodeBootstrapper();
+
+        // Inject the history capture system into the kernel pipeline (Phase 6d)
+        _core.ApplicationSystemsRegistrar = ctx =>
+        {
+            ctx.Kernel.RegisterGlobalSystem(
+                new EventHistoryCaptureSystem("World", _fdpEventHistory, ctx.World.Bus));
+        };
+
         _core.BootstrapNode(nodeConfig, StrideNodeBootstrapper.Role, _networkFactory);
 
         // Populate TKB AFTER BootstrapNode.
