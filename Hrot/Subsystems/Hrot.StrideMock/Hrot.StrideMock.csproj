@@ -25,6 +25,8 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <!-- Toolkits: ClusterSlave, ScenarioSerializer, ISubsystem -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- VisualEffectState, TracerTarget, EventToEffectSystem, VisualEffectCleanupSystem -->
+    <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
   </ItemGroup>
 
 </Project>
