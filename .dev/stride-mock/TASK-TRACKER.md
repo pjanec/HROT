@@ -9,7 +9,7 @@
 
 **Goal:** Create the two new C# projects and wire them into the solution.
 
-- [ ] **SM-001** Create project scaffolding (`Hrot.StrideMock` + `Hrot.FakeStrideApp` + solution wiring) [details](./TASK-DETAILS.md#sm-001--create-project-scaffolding)
+- [x] **SM-001** Create project scaffolding (`Hrot.StrideMock` + `Hrot.FakeStrideApp` + solution wiring) [details](./TASK-DETAILS.md#sm-001--create-project-scaffolding)
 
 ---
 
@@ -17,7 +17,7 @@
 
 **Goal:** Extract the common 7-phase initialisation sequence to `Hrot.Common.Infrastructure` to eliminate duplication across SimHost, IG, and StrideMock.
 
-- [ ] **SM-002** Implement `SharedApplicationBootstrapper` (Template Method, 7-phase pipeline, 5 trap-safe order) [details](./TASK-DETAILS.md#sm-002--implement-sharedapplicationbootstrapper)
+- [x] **SM-002** Implement `SharedApplicationBootstrapper` (Template Method, 7-phase pipeline, 5 trap-safe order) [details](./TASK-DETAILS.md#sm-002--implement-sharedapplicationbootstrapper)
 
 ---
 

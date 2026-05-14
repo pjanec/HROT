@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\Subsystems\Hrot.IG\Hrot.IG.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.ExCon\Hrot.ExCon.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.Editor\Hrot.Editor.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.StrideMock\Hrot.StrideMock.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- IScenario + ScenarioSubsystem for mode ci -->
     <ProjectReference Include=".\..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
