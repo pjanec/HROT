@@ -61,7 +61,7 @@ public abstract class SharedApplicationBootstrapper
     public HrotNodeContext BootstrapNode(
         HrotNodeConfig config,
         NodeRole role,
-        INetworkFactory networkFactory)
+        INetworkFactory? networkFactory)
     {
         // Phase 1 — Build core context and populate NedReplication via the configured factory.
         // Hrot.Common cannot reference Hrot.Network.NED (circular dependency), so
@@ -73,7 +73,7 @@ public abstract class SharedApplicationBootstrapper
             .WithNetworkFactory(networkFactory)
             .Build();
 
-        INetworkFactory? configuredFactory = networkFactory.ConfigureForNode(context, role, GetBehaviorRegistry());
+        INetworkFactory? configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
         var replicationModule = configuredFactory?.CreateReplicationModule();
         if (replicationModule != null)
         {
@@ -164,6 +164,11 @@ public abstract class SharedApplicationBootstrapper
         // ClusterOpRequest messages into the void and the cluster clock ignores all UI commands.
         TimeControl = configuredFactory?.CreateTimeControlGateway();
 
+        // Phase 6d — Application-level systems (virtual, defaults to no-op).
+        // Override to register gizmo modules, UI capture systems, or any other systems that
+        // must be part of the initialized kernel topology but are not part of the domain core.
+        RegisterApplicationSystems(context);
+
         // Phase 7 — Initialize kernel. Always last.
         context.Kernel.Initialize();
 
@@ -224,10 +229,11 @@ public abstract class SharedApplicationBootstrapper
     /// Phase 6b: Register domain-specific DDS translators (entity state, combat, etc.).
     /// The <paramref name="configuredFactory"/> is the result of
     /// <c>networkFactory.ConfigureForNode(context...)</c> — NOT the raw input factory.
+    /// May be <c>null</c> when no factory was provided (headless / offline mode).
     /// </summary>
     protected abstract void RegisterNetworkTranslators(
         HrotNodeContext context,
-        INetworkFactory configuredFactory);
+        INetworkFactory? configuredFactory);
 
     // ── Virtual hooks (subclasses may override) ──────────────────────────────
 
@@ -244,6 +250,14 @@ public abstract class SharedApplicationBootstrapper
     /// factory configuration. Default returns null (no behaviors registered).
     /// </summary>
     protected virtual BehaviorRegistry? GetBehaviorRegistry() => null;
+
+    /// <summary>
+    /// Phase 6d: Called after all translator registrations and before Phase 7 (Initialize).
+    /// Override to register application-level systems (e.g. gizmo modules, UI capture systems)
+    /// that must be part of the initialized kernel topology but are not part of the domain core.
+    /// Default is a no-op.
+    /// </summary>
+    protected virtual void RegisterApplicationSystems(HrotNodeContext context) { }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 

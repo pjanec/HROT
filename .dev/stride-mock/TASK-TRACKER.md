@@ -52,7 +52,7 @@
 
 **Goal:** Migrate `SimHostApp` and `IgApplication` to use `SharedApplicationBootstrapper`, eliminating duplicated initialisation code.
 
-- [ ] **SM-009** Refactor `SimHostApp` to use `SharedApplicationBootstrapper` (all SimHost tests green) [details](./TASK-DETAILS.md#sm-009--refactor-simhostapp-to-use-sharedapplicationbootstrapper)
+- [x] **SM-009** Refactor `SimHostApp` to use `SharedApplicationBootstrapper` (all SimHost tests green) [details](./TASK-DETAILS.md#sm-009--refactor-simhostapp-to-use-sharedapplicationbootstrapper)
 - [ ] **SM-010** Refactor `IgApplication` to use `SharedApplicationBootstrapper` (all IG tests green) [details](./TASK-DETAILS.md#sm-010--refactor-igapplication-to-use-sharedapplicationbootstrapper)
 
 ---

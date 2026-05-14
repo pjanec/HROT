@@ -102,7 +102,7 @@ public sealed class SharedApplicationBootstrapperTests
         protected override void RegisterSpawningPipeline(HrotNodeContext ctx)
             => CallLog.Add(nameof(RegisterSpawningPipeline));
 
-        protected override void RegisterNetworkTranslators(HrotNodeContext ctx, INetworkFactory factory)
+        protected override void RegisterNetworkTranslators(HrotNodeContext ctx, INetworkFactory? factory)
             => CallLog.Add(nameof(RegisterNetworkTranslators));
     }
 
@@ -299,7 +299,7 @@ public sealed class SharedApplicationBootstrapperTests
     public void AbstractAndVirtualHooks_ExactlyAsSpecified_Reflection()
     {
         // SC_SM002_5: the class exposes exactly the 6 specified abstract hooks
-        // and exactly the 2 specified virtual hooks.
+        // and exactly the 3 specified virtual hooks (including Phase 6d RegisterApplicationSystems).
         var type = typeof(SharedApplicationBootstrapper);
 
         // Abstract hooks
@@ -318,6 +318,7 @@ public sealed class SharedApplicationBootstrapperTests
         {
             "GetAdditionalModules",
             "GetBehaviorRegistry",
+            "RegisterApplicationSystems",
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

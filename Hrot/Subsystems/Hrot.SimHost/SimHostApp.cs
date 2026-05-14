@@ -143,14 +143,11 @@ namespace Hrot.SimHost
         private Fdp.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
         // HEXAG2-S012: factory-managed slave translator (was NodeOpSlaveTranslator directly).
         private Hrot.Core.Network.ISlaveOrchestrationTranslator? _slaveTranslator;
-        // Time-control translators: bridge SwitchTimeModeEvent and FrameOrder/FrameAck so that
-        // the SlaveSyncController (installed by HrotNodeBuilder) receives time events from the
-        // Orchestrator via DDS (same pattern as CgfApplication).
-        private Fdp.Interfaces.IDescriptorTranslator? _timeModeTranslator;
-        private Fdp.Interfaces.IDescriptorTranslator? _lockstepTranslator;
         // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
         // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
         private CheckpointIOWorker? _checkpointWorker;
+        // Bootstrapper for SM-009: delegates 7-phase initialization to SharedApplicationBootstrapper.
+        private SimHostNodeBootstrapper? _bootstrapper;
 
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
@@ -317,340 +314,177 @@ namespace Hrot.SimHost
                 LogDirectory        = Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 SubsystemName       = "SimHost",
             };
-            var baseContext = new HrotNodeBuilder(hrotConfig)
-                .WithRole("SimHost", _role)
-                .WithNetworkFactory(_networkFactory)
-                .Build();
 
-            // Configure the injected factory with this node's participant, entityMap, etc.
-            // then create the replication module from the factory.
-            // When no factory is injected (unit-test / offline path), fall back to a no-op module.
-            INetworkFactory? nodeFactory = _networkFactory?.ConfigureForNode(baseContext, _role, behaviorRegistry);
-            Hrot.Common.Abstractions.IReplicationModule replicationModule = nodeFactory?.CreateReplicationModule() ?? new NullReplicationModule();
-
-            _context = baseContext with
-            {
-                NedReplication      = replicationModule as Hrot.Common.Abstractions.INedReplicationModule,
-                GhostCreationSystem = replicationModule.GhostCreationSystem,
-            };
-
-            _world       = _context.World;
-            _kernel      = _context.Kernel;
-            _eventBus    = _context.EventBus;
-            _entityMap   = _context.EntityMap;
-            _idAllocator = _context.IdAllocator;
-            _world.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
-            var ddsParticipant = _context.Participant;  // null in headless mode
-            var entityMap      = _entityMap;            // alias used by downstream code
-            base.World  = _world;
-            base.Kernel = _kernel;
-            RegisterSimComponents(_world);
-
-            // Distributed time control: bridge SwitchTimeModeEvent and FrameOrder/FrameAck
-            // over DDS so the SlaveSyncController (installed by HrotNodeBuilder via
-            // TimeControllerFactory) can transition to Stepping mode and advance time on Step.
-            if (ddsParticipant != null)
-            {
-                _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(
-                    ddsParticipant, _eventBus!);
-                _lockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(
-                    ddsParticipant, _eventBus!, localNodeId);
-            }
-
-            // tkbDb and wgs84 come from the built context (same instances as in BaseModules).
-            var tkbDb = _context.TkbDb!;
-
-            // ── 6. Road network ───────────────────────────────────────────────
-            var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath, localNodeId: localNodeId);
-
-            // ── 7. SimHostCoreLogicPack (Muscle-tier simulation modules) ──────
-            _simCorePack = new SimHostCoreLogicPack(
-                entityMap,
-                roadNetwork);
-
-            // Build system lists from the logic pack and wrap in togglable phase groups.
-            // Must happen before BuildOrchestration so _toggleSim is non-null for the call.
-            var allInputSystems   = new System.Collections.Generic.List<IEcsModuleSystem>();
-            var allSimSystems     = new System.Collections.Generic.List<IEcsModuleSystem>();
-            var allPostSimSystems = new System.Collections.Generic.List<IEcsModuleSystem>();
-
-            // Add DDS attribute/descriptor update systems from factory (NED-specific, NOP in offline mode).
-            if (nodeFactory != null)
-            {
-                foreach (var sys in nodeFactory.CreateSimHostAttributeUpdateSystems())
-                    allInputSystems.Add(sys);
-            }
-            foreach (var s in _simCorePack.InputSystems)          allInputSystems.Add(s);
-            foreach (var s in _simCorePack.SimulationSystems)     allSimSystems.Add(s);
-            foreach (var s in _simCorePack.PostSimulationSystems) allPostSimSystems.Add(s);
-
-            _toggleInput   = new TogglableInputGroup("SimHostInput",          allInputSystems);
-            _toggleSim     = new TogglableSimulationGroup("SimHostSimulation", allSimSystems);
-            _togglePostSim = new TogglablePostSimulationGroup("SimHostPostSim", allPostSimSystems);
-
-            _kernel.RegisterGlobalSystem(_toggleInput);
-            _kernel.RegisterModule(new SimHostSimulationModule(_toggleSim));
-            _kernel.RegisterGlobalSystem(_togglePostSim);
-
-            // GenesisMaterializationSystem -- Input phase, registered after the togglable groups
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
-
-            // ── 8. ClusterSlave (CGF1-S0104) ────────────────────────────────────
-            // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
-            // Must be built after RegisterSimComponents so the auto-serializer compiles
-            // delegates for all registered component types.
-            // These translators replace the auto-serializer stubs for components that contain
-            // fixed-size buffers or InlineArrays embedding Entity cross-references.
-            // The auto-serialiser produces empty/truncated JSON for those fields, zeroing
-            // entity handles on every round-trip.
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
-
-            // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
-            // and disposed in Shutdown().
-            // Storage directory: derived from NodeConfiguration.LocalTempRoot so that checkpoints
-            // are co-located with pre-fetched scenario files under the same root volume
-            // (CGF1-S0303 / A.3 config alignment).  Default: C:\FDP_Temp\checkpoints.
-            // Override LocalTempRoot in config.json for non-default deployments.
-            var checkpointStoragePath = System.IO.Path.Combine(nodeConfig.LocalTempRoot, "checkpoints");
-            _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
-
-            // GhostCreationSystem and NetworkLifecycleGroup come from the replication module.
-            // The same instances are used for both orchestration replay control and the
-            // replication module itself, ensuring a single source of truth.
-            var simHostArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_kernel);
-            var simHostEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
-            var simHostLogService = new Hrot.Core.Diagnostics.LogArchiveExtractionService(
-                string.IsNullOrWhiteSpace(hrotConfig.LogDirectory)
-                    ? System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs")
-                    : hrotConfig.LogDirectory,
-                hrotConfig.SubsystemName,
-                localNodeId);
-            var diagnosticsDumpHandler = new Hrot.Common.Diagnostics.DiagnosticsDumpClusterOpHandler(
+            // -- 6. Bootstrapper setup (SM-009) -----------------------------------------------
+            // Create SimHostNodeBootstrapper and delegate 7-phase initialization.
+            // The bootstrapper creates: CoreLogicPack, ClusterSlave, CheckpointWorker,
+            // PhysicsModule, PerceptionModule, and wires all network translators.
+            _bootstrapper = new SimHostNodeBootstrapper(
+                _networkFactory,
+                _role,
+                nodeConfig.LocalTempRoot,
                 _eventHistoryService,
-                simHostArchService,
-                simHostEntityService,
-                simHostLogService,
-                hrotConfig);
-            var ghostCreationSystem   = replicationModule.GhostCreationSystem;
-            var networkLifecycleGroup = replicationModule.NetworkLifecycleGroup;
-            var nedModule = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
+                hrotConfig,
+                nodeConfig.RoadNetworkBlobPath,
+                nodeConfig.SimulationRateHz);
 
-            var bootstrapper = new NodeBootstrapper(_networkFactory);
-            _clusterSlave = bootstrapper.BuildOrchestration(
-                _role, _kernel, _world, localNodeId,
-                participant: ddsParticipant,
-                subsystemName: "SimHost",
-                eventBus: _eventBus,
-                scenarioSerializer: null, // simhost does not load/save scenarios (cgf does)
-				localTempRoot: nodeConfig.LocalTempRoot,
-                checkpointWorker: _checkpointWorker,
-                simGroup: _toggleSim,
-                lifecycleGroup: networkLifecycleGroup,
-                ghostCreationSystem: ghostCreationSystem,
-                eventAccumulator: _context.EventAccumulator,
-                afterSeek: nedModule?.AfterSeekCallback,
-                diagnosticsDumpHandler: diagnosticsDumpHandler);
-            _slaveTranslator = bootstrapper.SlaveTranslator;
-
-            // Seed GlobalTime singleton.
-            _world.SetSingletonUnmanaged(new GlobalTime
+            // -- Gizmo systems (GZ032) --------------------------------------------------------
+            // Registered via Phase 6d callback so they are part of the kernel before Initialize().
+            // RegisterModule / RegisterGlobalSystem throw after Initialize() — must run in Phase 6d.
+            var capturedLocalNodeId = localNodeId;
+            _bootstrapper.ApplicationSystemsRegistrar = ctx =>
             {
-                DeltaTime = 1.0f / nodeConfig.SimulationRateHz,
-                TimeScale = 1.0f
-            });
-
-            // ── 9. Toolkit modules ────────────────────────────────────────────
-            // Physics: allocate RaycastBatchData singleton so BallisticsSystem and
-            // RaycastSolverSystem operate (guards inside those systems return early
-            // when the singleton is absent).
-            _physicsModule = new PhysicsToolkitModule();
-            _physicsModule.Initialize(_world);
-
-            // ── Register infrastructure base modules from builder context ──────
-            // BaseModules contains EntityLifecycleModule and GeographicModule.
-            // The same elm instance is used by NedReplicationModule's GhostPromotionSystem.
-            foreach (var m in _context.BaseModules)
-                _kernel.RegisterModule(m);
-
-            // Extract elm reference for spawning systems (uses same instance as BaseModules[0]).
-            var elm = (Fdp.Toolkit.Lifecycle.EntityLifecycleModule)_context.BaseModules[0];
-
-            var spawningSystem = new NetworkSpawningSystem(
-                tkbDb,
-                elm,
-                entityMap,
-                _idAllocator!,
-                localNodeId,
-                onEntitySpawned: (world, entity, isLocalAuthority) =>
-                {
-                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
-                    {
-                        world.SetAuthority<SimTransform>(entity, true);
-                        if (world.HasComponent<NetworkTransform>(entity))
-                            world.SetAuthority<NetworkTransform>(entity, true);
-                        if (world.HasComponent<NetworkVelocity>(entity))
-                            world.SetAuthority<NetworkVelocity>(entity, true);
-                    }
-                });
-
-            // ── DDS adapters and request-handling systems ───────────────────────
-            // Entity lifecycle (create/delete) is handled by the brain (CGF), not the muscle (SimHost).
-            // UpdateEntityAttributeRequestSystem and UpdateEntityDescriptorRequestSystem are
-            // registered by INetworkFactory.CreateSimHostAuxiliaryTranslators().
-
-            var simHostMod = new SimHostModule(
-                spawnSystem: spawningSystem);
-            _kernel.RegisterModule(simHostMod);
-
-            // Register the core simulation logic pack.
-            _kernel.RegisterModule(_simCorePack!);
-            _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
-            _perceptionMod = new CognitiveSpatialModule(
-                _world!,
-                colliderRadiusReader: (view, e) => view.HasComponent<PhysicsCollider>(e)
-                    ? view.GetComponentRO<PhysicsCollider>(e).Radius
-                    : 0f);
-            _kernel.RegisterModule(_perceptionMod);
-
-            // ── 10. Register replication module (bundles all translator packs) ──
-            // Packs included: SharedTranslatorPack (EntityMaster, EntityInfo, EntityDamage, FireInteraction),
-            //                 KinematicTranslatorPack (GeoSpatial, MapVisualOverlay, MapRoute, NavStatus, NavIntent),
-            //                 CognitiveTranslatorPack (NavIntent, EntityMission*).
-            _kernel.RegisterModule(replicationModule);
-
-            // ── 11. Auxiliary network translators (time-sync, combat, mission-control) ──
-            // These translators are SimHost-domain-specific and cannot be bundled into the
-            // shared packs due to layer constraints. They are registered alongside the packs.
-            if (ddsParticipant != null && nodeFactory != null)
-            {
-                nodeFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(_kernel);
-                nodeFactory.CreateSimHostPerceptionTranslators(ghostCreationSystem).RegisterOn(_kernel);
-                nodeFactory.CreateSimHostPathfindingTranslators(_simCorePack!.TrajectoryPool).RegisterOn(_kernel);
-            }
-            // ── Gizmo systems (GZ032) ────────────────────────────────────────
-            // Must be registered before kernel.Initialize().
-            _gizmoBuffer = new DebugPrimitiveBuffer();
-            _gizmoRegistry = new GizmoRegistry();
-            _statelessGizmoRegistry = new StatelessGizmoRegistry();
-            // GZ057: register entity presentation gizmos for SimHost.
-            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
-                _gizmoRegistry,
-                _statelessGizmoRegistry,
-                settings: new GizmoSettingsRegistry());
-            // Register CanvasContextMenuGizmo for empty-space right-click context menus.
-            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
-                _gizmoRegistry,
-                _statelessGizmoRegistry,
-                settings: new GizmoSettingsRegistry());
-            // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
-            _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
-            _interactionBus = new FdpEventBus();
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
-            _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
-                _gizmoRegistry,
-                _gizmoBuffer,
-                isSelectedPredicate: static (view, entity) =>
-                    view.HasComponent<SelectionState>(entity) &&
-                    view.GetComponentRO<SelectionState>(entity).IsSelected,
-                interactionBus: _interactionBus);
-            // Register the global action registry and wire operator action handlers.
-            var actionRegistry = new GlobalActionRegistry();
-            long layerControlId = GlobalGizmoManager.NewId();
-            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
-                layerControlId,
-                _interactionBus,
-                new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
-                _gizmoUiHub);
-            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
-            actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
-            {
-                _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
-            });
-            actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                if (!view.HasComponent<SimTransform>(target)) return;
-                // Always start fresh: deactivate any existing gizmo, then inject the new one.
-                _dataDrivenGizmoSystem!.DeactivateGizmo(target);
-                var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
-                    view, target,
-                    onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
-                _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
-            });
-            // Route gizmo interaction translators and publisher through the network factory
-            // so that SimHostApp has no direct dependency on Hrot.Network.NED.
-            CycloneNetworkIngressSystem? gizmoIngress = null;
-            CycloneEgressSystem? gizmoEgress = null;
-            if (_networkFactory != null)
-            {
-                // SimHostApp always receives UI interactions from remote viewers (headless=true).
-                var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus, localNodeId, headless: true);
-                var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
-                var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
-                foreach (var t in gizmoTranslators)
-                {
-                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
-                    if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
-                }
-                if (ingressList.Count > 0)
-                {
-                    _gizmoIngressTranslator = ingressList[0];
-                    gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
-                }
-                if (egressList.Count > 0)
-                    gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
-                var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer, localNodeId);
-                if (publisherSystem != null)
-                    _kernel.RegisterGlobalSystem(publisherSystem);
-            }
-            var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
-                _globalGizmoManager,
-                _dataDrivenGizmoSystem,
-                new StatelessGizmoSystem(
+                _gizmoBuffer = new DebugPrimitiveBuffer();
+                _gizmoRegistry = new GizmoRegistry();
+                _statelessGizmoRegistry = new StatelessGizmoRegistry();
+                // GZ057: register entity presentation gizmos for SimHost.
+                Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
+                    _gizmoRegistry,
                     _statelessGizmoRegistry,
+                    settings: new GizmoSettingsRegistry());
+                // Register CanvasContextMenuGizmo for empty-space right-click context menus.
+                Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(
+                    _gizmoRegistry,
+                    _statelessGizmoRegistry,
+                    settings: new GizmoSettingsRegistry());
+                // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
+                _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
+                _interactionBus = new FdpEventBus();
+                _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
+                _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
+                    _gizmoRegistry,
                     _gizmoBuffer,
                     isSelectedPredicate: static (view, entity) =>
                         view.HasComponent<SelectionState>(entity) &&
-                        view.GetComponentRO<SelectionState>(entity).IsSelected));
-            // GZH-003: headless-first; enable only when a terminal connects.
-            gizmoGroup.Enabled = false;
-            _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
-            _kernel.RegisterModule(new GizmoInteractionModule(
-                _interactionBus,
-                contextIngress: new ContextActionIngressSystem(_entityMap!, _interactionBus),
-                interactionSystems: new IEcsModuleSystem[]
+                        view.GetComponentRO<SelectionState>(entity).IsSelected,
+                    interactionBus: _interactionBus);
+                // Register the global action registry and wire operator action handlers.
+                var actionRegistry = new GlobalActionRegistry();
+                long layerControlId = GlobalGizmoManager.NewId();
+                var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
+                    layerControlId,
+                    _interactionBus,
+                    new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
+                    _gizmoUiHub);
+                _globalGizmoManager.Register(layerControlId, layerControlGizmo);
+                actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
                 {
-                    new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
-                    gizmoGroup,
-                },
-                gizmoIngress: gizmoIngress,
-                gizmoEgress:  gizmoEgress));
-            // ── GZ052: Entity attribute schema publisher ──────────────────────
-            // Build the compiler using the same geographic transform as the network factory.
-            // SimHost is always the default processor in standalone mode.
-            _jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
-            IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
-                ddsParticipant != null
-                    ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ddsParticipant)
-                    : null;
-            _kernel.RegisterGlobalSystem(new Hrot.Network.NED.Attributes.EntityAttributeSchemaPublisherSystem(
-                nodeId:             localNodeId,
-                compiler:           _jsonAttributeCompiler,
-                writer:             schemaWriter,
-                isDefaultProcessor: true));
-            // ── 11. Kernel init ───────────────────────────────────────────────
-            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, _world.Bus));
-            if (_eventBus != null)
-                _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, _eventBus));
-            _kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
-            // Register canvas menu update so CanvasContextMenuGizmo has state to project.
-            _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
-            _kernel.Initialize();
+                    _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+                });
+                actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
+                {
+                    if (target == Entity.Null) return;
+                    if (!view.HasComponent<SimTransform>(target)) return;
+                    // Always start fresh: deactivate any existing gizmo, then inject the new one.
+                    _dataDrivenGizmoSystem!.DeactivateGizmo(target);
+                    var gizmo = new Hrot.SimHost.Gizmos.EntityRotatorGizmo(
+                        view, target,
+                        onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
+                    _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
+                });
+                // Route gizmo interaction translators and publisher through the network factory
+                // so that SimHostApp has no direct dependency on Hrot.Network.NED.
+                CycloneNetworkIngressSystem? gizmoIngress = null;
+                CycloneEgressSystem? gizmoEgress = null;
+                if (_networkFactory != null)
+                {
+                    // SimHostApp always receives UI interactions from remote viewers (headless=true).
+                    var gizmoTranslators = _networkFactory.CreateGizmoTranslators(_interactionBus, capturedLocalNodeId, headless: true);
+                    var ingressList = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                    var egressList  = new System.Collections.Generic.List<Fdp.Interfaces.INetworkTranslator>();
+                    foreach (var t in gizmoTranslators)
+                    {
+                        if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Ingress) != 0) ingressList.Add(t);
+                        if ((t.Direction & Fdp.Interfaces.TranslatorDirection.Egress)  != 0) egressList.Add(t);
+                    }
+                    if (ingressList.Count > 0)
+                    {
+                        _gizmoIngressTranslator = ingressList[0];
+                        gizmoIngress = new CycloneNetworkIngressSystem(ingressList.ToArray());
+                    }
+                    if (egressList.Count > 0)
+                        gizmoEgress = new CycloneEgressSystem(egressList.ToArray());
+                    var publisherSystem = _networkFactory.CreateGizmoPublisherSystem(_gizmoBuffer, capturedLocalNodeId);
+                    if (publisherSystem != null)
+                        ctx.Kernel.RegisterGlobalSystem(publisherSystem);
+                }
+                var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
+                    _globalGizmoManager,
+                    _dataDrivenGizmoSystem,
+                    new StatelessGizmoSystem(
+                        _statelessGizmoRegistry,
+                        _gizmoBuffer,
+                        isSelectedPredicate: static (view, entity) =>
+                            view.HasComponent<SelectionState>(entity) &&
+                            view.GetComponentRO<SelectionState>(entity).IsSelected));
+                // GZH-003: headless-first; enable only when a terminal connects.
+                gizmoGroup.Enabled = false;
+                _gizmoController = new GizmoExecutionController(gizmoGroup, _globalGizmoManager, _dataDrivenGizmoSystem);
+                ctx.Kernel.RegisterModule(new GizmoInteractionModule(
+                    _interactionBus,
+                    contextIngress: new ContextActionIngressSystem(ctx.EntityMap!, _interactionBus),
+                    interactionSystems: new IEcsModuleSystem[]
+                    {
+                        new GlobalActionDispatchSystem(actionRegistry, _interactionBus),
+                        gizmoGroup,
+                    },
+                    gizmoIngress: gizmoIngress,
+                    gizmoEgress:  gizmoEgress));
+                // ── GZ052: Entity attribute schema publisher ──────────────────────
+                // Build the compiler using the same geographic transform as the network factory.
+                // SimHost is always the default processor in standalone mode.
+                _jsonAttributeCompiler = Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+                IDdsWriter<Hrot.NED.Messages.EntityAttributeSchema>? schemaWriter =
+                    ctx.Participant != null
+                        ? new DdsWriterGizmoAdapter<Hrot.NED.Messages.EntityAttributeSchema>(ctx.Participant)
+                        : null;
+                ctx.Kernel.RegisterGlobalSystem(new Hrot.Network.NED.Attributes.EntityAttributeSchemaPublisherSystem(
+                    nodeId:             capturedLocalNodeId,
+                    compiler:           _jsonAttributeCompiler,
+                    writer:             schemaWriter,
+                    isDefaultProcessor: true));
+                // -- Event history and canvas menu (Phase 6d, before kernel.Initialize()) --
+                ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("World", _eventHistoryService, ctx.World.Bus));
+                if (ctx.EventBus != null)
+                    ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Orchestration", _eventHistoryService, ctx.EventBus));
+                ctx.Kernel.RegisterGlobalSystem(new EventHistoryCaptureSystem("Interaction", _eventHistoryService, _interactionBus));
+                // Register canvas menu update so CanvasContextMenuGizmo has state to project.
+                ctx.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
+            };
+
+            // BootstrapNode runs all 7 phases including Phase 6d (callback) and Phase 7 (Initialize).
+            _context = _bootstrapper.BootstrapNode(hrotConfig, _role, _networkFactory);
+
+            // Extract context fields after bootstrapping.
+            _world          = _context.World;
+            _kernel         = _context.Kernel;
+            _eventBus       = _context.EventBus;
+            _entityMap      = _context.EntityMap;
+            _idAllocator    = _context.IdAllocator;
+            _clusterSlave   = _context.ClusterSlave;
+            _slaveTranslator = _bootstrapper.SlaveTranslator;
+            _checkpointWorker = _bootstrapper.CheckpointWorker;
+            _simCorePack    = _bootstrapper.CoreLogicPack;
+            _physicsModule  = _bootstrapper.PhysicsModule;
+            _perceptionMod  = _bootstrapper.PerceptionModule;
+            _behaviorRegistry = _bootstrapper.BehaviorRegistry;
+
+            // Update base.World and base.Kernel for FdpApplication compatibility.
+            base.World  = _world;
+            base.Kernel = _kernel;
+
+            // Ensure _entityMap is available as a singleton.
+            _world.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
+
+            // Architectural diagnostics service needed for visualization.
+            var simHostEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
             Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
 
-            // ── 12. Visualization ─────────────────────────────────────────────
+            // -- 12. Visualization ---------------------------------------------------------
             if (!_headless)
             {
+                var roadNetwork = _bootstrapper!.RoadNetwork ?? new CarKinem.Road.RoadNetworkBlob();
+                var configuredFactory = _networkFactory?.ConfigureForNode(_context, _role, _behaviorRegistry);
                 _vis = new SimHostVisualization();
                 _vis.Initialize(
                     _world,
@@ -658,7 +492,7 @@ namespace Hrot.SimHost
                     roadNetwork,
                     _simCorePack!.TrajectoryPool,
                     _simCorePack!.FormationTemplates,
-                    nodeFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
+                    configuredFactory?.CreateSimHostMissionSender() ?? new NullSimHostMissionSender(),
                     _eventHistoryService,
                     idAllocator: _idAllocator,
                     localNodeId: localNodeId,
@@ -683,14 +517,11 @@ namespace Hrot.SimHost
             _vis?.Update(dt);
             // Clear the primitive buffer before backend ECS systems populate it.
             _gizmoBuffer?.EndFrame(dt);
-            _kernel?.Update();     // then run egress scan (picks up dirty -> publishes immediately)
-            // Bridge SwitchTimeModeEvent and FrameOrder/FrameAck for distributed time control.
-            // Placed after kernel.Update() so ScanAndPublish picks up FrameStepCompletedEvent
-            // that SlaveSyncController published this frame (1-frame-delay egress).
-            _timeModeTranslator?.ScanAndPublish(null!);
-            _timeModeTranslator?.PollIngress(null!, null!);
-            _lockstepTranslator?.ScanAndPublish(null!);
-            _lockstepTranslator?.PollIngress(null!, null!);
+            _kernel?.Update();
+            // NOTE: TimeNetworkModule translators (_timeModeTranslator, _lockstepTranslator) are now
+            // registered by SharedApplicationBootstrapper.BootstrapNode() in Phase 6c. They tick
+            // automatically as part of kernel.Update() via CycloneNetworkIngressSystem and
+            // CycloneEgressSystem. No manual tick calls needed here.
             _eventBus?.SwapBuffers();
         }
 

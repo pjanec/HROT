@@ -294,8 +294,9 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// <inheritdoc/>
     protected override void RegisterNetworkTranslators(
         HrotNodeContext context,
-        INetworkFactory configuredFactory)
+        INetworkFactory? configuredFactory)
     {
+        if (configuredFactory == null) return;
         // SimHost auxiliary translators: entity attribute updates, combat egress, etc.
         configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
     }
