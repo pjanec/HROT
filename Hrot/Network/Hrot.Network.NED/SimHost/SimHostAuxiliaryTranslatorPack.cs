@@ -13,10 +13,16 @@ namespace Hrot.Network.NED.SimHost;
 ///
 /// <para><b>Included translators:</b></para>
 /// <list type="bullet">
-///   <item>Time-sync / lockstep translators (FDP.Toolkit.Time).</item>
 ///   <item>Combat egress/ingress translators (WeaponFire*, MunitionDetonation*, combat events).</item>
 ///   <item>Mission-control CQRS translators (MissionControlIngress, MissionControlAckEgress).</item>
+///   <item>EQS area-query translators (Brain and Muscle sides).</item>
 /// </list>
+///
+/// <para>
+/// <b>Note:</b> Time-sync and lockstep translators are registered by
+/// <c>SharedApplicationBootstrapper.Phase6c</c> and are not included here
+/// to avoid double-registration.
+/// </para>
 ///
 /// <para>
 /// <see cref="SimHostApp.OnLoad"/> calls <see cref="Create"/> after building the
@@ -43,20 +49,6 @@ public static class SimHostAuxiliaryTranslatorPack
         NodeRole         role)
     {
         var translators = new List<IDescriptorTranslator>();
-
-        // ── Time sync ──────────────────────────────────────────────────────
-        // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for
-        // distributed time-mode switching (SlaveSyncController ingress).
-        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(
-            participant, eventBus));
-
-        // Bridge FrameOrder/FrameAck for distributed lockstep stepping (slave side).
-        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(
-            participant, eventBus, localNodeId));
-
-        // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
-        translators.Add(Fdp.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(
-            participant, eventBus, localNodeId));
 
         // ── Mission control CQRS ───────────────────────────────────────────
         if (role.HasFlag(NodeRole.Brain))
