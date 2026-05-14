@@ -60,10 +60,16 @@ namespace Fdp.ModuleHost.Providers
                 // Pool empty, create new
                 snapshot = CreateSnapshot();
             }
-            
+
+            // Detect time-travel to prevent event dropping
+            if (_liveWorld.GlobalVersion < _lastSeenTick)
+            {
+                _lastSeenTick = 0;
+            }
+
             // Sync from live world (with component mask filtering)
             snapshot.SyncFrom(_liveWorld, _componentMask);
-            
+
             // Flush event history (only events after lastSeenTick).
             // FlushToReplica calls InjectIntoCurrent which writes directly into the READ buffer
             // of each NativeEventStream<T>.  We must NOT call SwapBuffers after this: Swap()
@@ -73,7 +79,7 @@ namespace Fdp.ModuleHost.Providers
             _eventAccumulator.FlushToReplica(snapshot.Bus, _lastSeenTick);
 
             _lastSeenTick = _liveWorld.GlobalVersion;
-            
+
             return snapshot;
         }
         

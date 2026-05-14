@@ -61,13 +61,19 @@ namespace Fdp.ModuleHost.Providers
         /// </summary>
         public void Update()
         {
+            // Detect time-travel to prevent event dropping
+            if (_liveWorld.GlobalVersion < _lastSyncTick)
+            {
+                _lastSyncTick = 0;
+            }
+
             // Sync using the configured mask (or default snapshotable mask if null)
             _replica.SyncFrom(_liveWorld, _mask);
-            
+
             // Flush event history
             // We flush events that happened since the last sync
             _eventAccumulator.FlushToReplica(_replica.Bus, _lastSyncTick);
-            
+
             // Track current tick for next flush
             _lastSyncTick = _liveWorld.GlobalVersion;
         }
