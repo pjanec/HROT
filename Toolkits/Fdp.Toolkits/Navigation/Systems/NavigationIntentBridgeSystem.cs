@@ -50,6 +50,14 @@ namespace Fdp.Toolkit.Navigation.Systems
                     $"{nameof(NavigationIntentBridgeSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
+            // STRICT ARCHITECTURAL BOUNDARY: Detect time-travel (snapshot restore or world clear)
+            // and invalidate tracking caches to force a full baseline re-evaluation.
+            if (repo.GlobalVersion < _lastScanTick)
+            {
+                _lastScanTick = 0;
+                _lastAppliedIntentId.Clear();
+            }
+
             var query = repo.Query()
                 .With<NavigationIntent>()
                 .With<NavState>()
