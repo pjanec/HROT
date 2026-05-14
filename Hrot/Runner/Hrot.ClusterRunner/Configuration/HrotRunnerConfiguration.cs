@@ -72,7 +72,7 @@ namespace Hrot.ClusterRunner.Configuration
                 // "ios" is a legacy alias for "excon"
                 var normalized = name == "ios" ? "excon" : name;
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor" };
+                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor", "stridemock" };
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
                         $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");

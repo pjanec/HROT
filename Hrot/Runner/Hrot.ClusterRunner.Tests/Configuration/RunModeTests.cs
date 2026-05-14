@@ -110,5 +110,67 @@ namespace Hrot.ClusterRunner.Tests.Configuration
                 Assert.True(cfg.RequestedSubsystems.Contains("simhost"));
             }
         }
+
+        // ── SM-007: StrideMock wiring ─────────────────────────────────────────
+
+        [Fact]
+        public void Validate_StrideMockMode_DoesNotThrow()
+        {
+            // SC_SM007_1
+            var cfg = new HrotRunnerConfiguration { ModeString = "stridemock", NoWait = true };
+            cfg.Validate(); // must not throw
+            Assert.Contains("stridemock", cfg.RequestedSubsystems);
+        }
+
+        [Fact]
+        public void Validate_OrchestratorCgfStrideMock_DoesNotThrow()
+        {
+            // SC_SM007_2
+            var cfg = new HrotRunnerConfiguration { ModeString = "orchestrator,cgf,stridemock", NoWait = true };
+            cfg.Validate(); // must not throw
+            Assert.Contains("stridemock",   cfg.RequestedSubsystems);
+            Assert.Contains("orchestrator", cfg.RequestedSubsystems);
+            Assert.Contains("cgf",          cfg.RequestedSubsystems);
+        }
+
+        [Fact]
+        public void Validate_ExistingModes_StillParseWithoutError()
+        {
+            // SC_SM007_3 — no regression for established subsystem names
+            foreach (var mode in new[] { "simhost", "ig", "excon", "orchestrator", "cgf" })
+            {
+                var cfg = new HrotRunnerConfiguration { ModeString = mode, NoWait = true };
+                cfg.Validate(); // must not throw
+            }
+        }
+
+        [Fact]
+        public void StrideMockSubsystem_ImplementsISubsystem()
+        {
+            // SC_SM007_4: ResolveAppNodeId("StrideMock", 0) == 700 is verified indirectly.
+            // ResolveAppNodeId is private static in Program.cs; the offset is tested in
+            // integration (SC_SM007_6/7). We document the agreed offset here for traceability.
+            // SC_SM007_5: Verify StrideMockSubsystem is discoverable as ISubsystem via reflection.
+            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
+            Assert.True(typeof(Fdp.Toolkit.Runner.ISubsystem).IsAssignableFrom(type));
+            Assert.False(type.IsAbstract);
+        }
+
+        [Fact]
+        public void StrideMockSubsystem_ImplementsIMapCameraProvider()
+        {
+            // SC_SM007_5 (extended): StrideMock also provides map camera integration
+            var type = typeof(Hrot.StrideMock.StrideMockSubsystem);
+            Assert.True(typeof(Fdp.Toolkit.Runner.IMapCameraProvider).IsAssignableFrom(type));
+        }
+
+        [Fact]
+        public void Validate_AllMode_DoesNotContainStrideMock()
+        {
+            // StrideMock is NOT part of "all" or "demo" expansion — it is a standalone mode.
+            var cfg = new HrotRunnerConfiguration { ModeString = "all", NoWait = true };
+            cfg.Validate();
+            Assert.False(cfg.RequestedSubsystems.Contains("stridemock"));
+        }
     }
 }

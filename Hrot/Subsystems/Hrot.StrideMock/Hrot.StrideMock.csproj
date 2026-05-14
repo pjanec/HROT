@@ -27,6 +27,11 @@
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- VisualEffectState, TracerTarget, EventToEffectSystem, VisualEffectCleanupSystem -->
     <ProjectReference Include="..\Hrot.IG\Hrot.IG.csproj" />
+    <!-- UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates (IDs 1001-2003) -->
+    <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
+    <!-- Raylib and ImGui for DrawWorld / DrawUI -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
   </ItemGroup>
 
 </Project>

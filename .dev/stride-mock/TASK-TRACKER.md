@@ -25,9 +25,9 @@
 
 **Goal:** Build the engine-agnostic `Hrot.StrideMock` library: bootstrapper, ECS sync script, visual effects.
 
-- [ ] **SM-003** Implement `StrideNodeBootstrapper` (concrete bootstrapper, full SimHost-role parity, gizmo terminal, slave time sync) [details](./TASK-DETAILS.md#sm-003--implement-stridenodebootstrapper)
-- [ ] **SM-004** Implement `SyncFdpToStrideScript` (2-pass differential ECS sync, cluster state gating) [details](./TASK-DETAILS.md#sm-004--implement-syncfdptostridesscript)
-- [ ] **SM-005** Visual effects wiring (`EventToEffectSystem` + `VisualEffectCleanupSystem`, `FakeStrideEffect` rendering) [details](./TASK-DETAILS.md#sm-005--visual-effects-wiring)
+- [x] **SM-003** Implement `StrideNodeBootstrapper` (concrete bootstrapper, full SimHost-role parity, gizmo terminal, slave time sync) [details](./TASK-DETAILS.md#sm-003--implement-stridenodebootstrapper)
+- [x] **SM-004** Implement `SyncFdpToStrideScript` (2-pass differential ECS sync, cluster state gating) [details](./TASK-DETAILS.md#sm-004--implement-syncfdptostridesscript)
+- [x] **SM-005** Visual effects wiring (`EventToEffectSystem` + `VisualEffectCleanupSystem`, `FakeStrideEffect` rendering) [details](./TASK-DETAILS.md#sm-005--visual-effects-wiring)
 
 ---
 
@@ -35,8 +35,8 @@
 
 **Goal:** Plug `StrideMockSubsystem` into `ClusterRunner` with camera sync, gated rendering, and CLI support.
 
-- [ ] **SM-006** Implement `StrideMockSubsystem` (`ISubsystem` + `IMapCameraProvider`, camera pan/zoom, DrawWorld/DrawUI) [details](./TASK-DETAILS.md#sm-006--implement-stridemocksubsystem)
-- [ ] **SM-007** Wire `StrideMockSubsystem` into `ClusterRunner` (CLI validation, NodeId offset 700, project reference) [details](./TASK-DETAILS.md#sm-007--wire-stridemocksubsystem-into-clusterrunner)
+- [x] **SM-006** Implement `StrideMockSubsystem` (`ISubsystem` + `IMapCameraProvider`, camera pan/zoom, DrawWorld/DrawUI) [details](./TASK-DETAILS.md#sm-006--implement-stridemocksubsystem)
+- [x] **SM-007** Wire `StrideMockSubsystem` into `ClusterRunner` (CLI validation, NodeId offset 700, project reference) [details](./TASK-DETAILS.md#sm-007--wire-stridemocksubsystem-into-clusterrunner)
 
 ---
 

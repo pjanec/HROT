@@ -343,6 +343,7 @@ class Program
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
+            "STRIDEMOCK"   => 700,
             _              => 600,
         };
         return baseNodeId + offset;
