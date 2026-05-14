@@ -100,6 +100,13 @@ namespace Hrot.Map.Common.Replication.Egress
             if (repo == null)
                 return;
 
+            // Detect time-travel and force a full network baseline
+            if (repo.GlobalVersion < _lastScanTick)
+            {
+                _lastScanTick = 0;
+                _lastPublishedIntentId.Clear();
+            }
+
             var query = view.Query()
                 .With<EcsNavigationIntent>()
                 .With<NetworkIdentity>()
