@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using Fdp.Examples.Scenarios.Integrated;
+using Fdp.ModuleHost.Diagnostics;
+using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D.Components;
@@ -8,6 +10,7 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.IG.Components;
+using Hrot.Presentation.Windows;
 
 namespace Hrot.StrideMock;
 
@@ -23,7 +26,7 @@ namespace Hrot.StrideMock;
 /// <para>Pattern identical to <c>SimHostSubsystem</c>: a thin adapter over the
 /// core application class.</para>
 /// </summary>
-public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider
+public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
 {
     // ── Identity ─────────────────────────────────────────────────────────────
 
@@ -61,6 +64,22 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider
 
     /// <inheritdoc/>
     public void ApplyCameraView(MapCameraView view) => _core?.Camera.ApplyCameraView(view);
+
+    // ── IWindowRegistrar ──────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public void RegisterWindows(WindowManager windowManager)
+    {
+        if (_core == null) return;
+
+        windowManager.RegisterWindow(new ArchitectureDiagnosticsWindow(
+            "stridemock_architecture_diagnostics",
+            "StrideMock Diagnostics",
+            "StrideMock",
+            new Fdp.Presentation.Panels.ArchitectureDiagnosticsPanel(
+                new ArchitectureDiagnosticsService(() => _core.Context.Kernel)),
+            TitleBarColor));
+    }
 
     // ── ISubsystem ────────────────────────────────────────────────────────────
 

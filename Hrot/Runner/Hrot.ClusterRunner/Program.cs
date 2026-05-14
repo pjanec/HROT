@@ -224,10 +224,11 @@ class Program
             // Maps perspective names to subsystem names used by SwitchMapOwner.
             var perspectiveMap = new Dictionary<string, string>
             {
-                ["IG"]      = "IG",
-                ["SimHost"] = "SimHost",
-                ["ExCon"]   = "ExCon",
-                ["CGF"]     = "CGF",
+                ["IG"]        = "IG",
+                ["SimHost"]   = "SimHost",
+                ["ExCon"]     = "ExCon",
+                ["CGF"]       = "CGF",
+                ["StrideMock"] = "StrideMock",
             };
             // GZH-014: build gizmo-controllable map keyed by perspective name.
             var gizmoControllables = subsystems
