@@ -361,17 +361,17 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
             _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
 
-        var storageProvider = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+        var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
-            rrController, 
+            rrController,
             inputGroup:            _toggleInput,
-            simGroup:              _toggleSim, 
+            simGroup:              _toggleSim,
             postSimGroup:          null,
-            lifecycleGroup:        null, 
-            bypassLifecycleToggle: null, 
-            storageDirectory:      OrchestrationConstants.DefaultStagingDirectory,
+            lifecycleGroup:        null,
+            bypassLifecycleToggle: null,
+            storageDirectory:      isolatedTempRoot,
             suspendGlobalTimePush: _context.Kernel.SuspendGlobalTimePush,
             resumeGlobalTimePush:  _context.Kernel.ResumeGlobalTimePush));
 
@@ -385,22 +385,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfScenarioLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World,
             remapper: behaviorRemapper, controller: rrController,
-            storageDirectory: OrchestrationConstants.DefaultStagingDirectory));
+            storageDirectory: isolatedTempRoot));
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
 
         // 3. Fallback Live Load Handler (claims PrepareLive ONLY if scenario handlers didn't)
         newClusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-            checkpointWorker: null, 
-            controller: rrController, 
-            storageDirectory: OrchestrationConstants.DefaultStagingDirectory));
+            checkpointWorker: null,
+            controller: rrController,
+            storageDirectory: isolatedTempRoot));
 
         // 4. Utility handlers
         newClusterSlave.RegisterHandler(new ReferencePreviewHandler(_context.World));
         newClusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
         newClusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-            OrchestrationConstants.DefaultStagingDirectory, _context.NodeId));
+            isolatedTempRoot, _context.NodeId));
         var cgfArchService = new Fdp.ModuleHost.Diagnostics.ArchitectureDiagnosticsService(_context.Kernel);
         var cgfEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_context.World, _context.EntityMap, scenarioSerializer);
         _fdpEntityInspector.ExtractionService = cgfEntityService;

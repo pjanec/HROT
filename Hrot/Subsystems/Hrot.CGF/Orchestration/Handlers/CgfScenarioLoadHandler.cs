@@ -125,9 +125,24 @@ namespace Hrot.CGF.Orchestration.Handlers
             if (string.IsNullOrWhiteSpace(scenarioId))
                 return null;
 
-            var json = _scenarioLoader.TryLoadScenarioJson(scenarioId);
+            string? json = null;
+            int retries = 0;
+            while (json == null && retries < 100)
+            {
+                json = _scenarioLoader.TryLoadScenarioJson(scenarioId);
+                if (json == null)
+                {
+                    await Task.Delay(20, ct).ConfigureAwait(false);
+                    retries++;
+                }
+            }
+
             if (json == null)
+            {
+                Fdp.Core.Logging.FdpLog<CgfScenarioLoadHandler>.Error(
+                    "[CgfScenarioLoadHandler] Scenario file '{0}' not found after waiting for prefetch.", scenarioId);
                 return null;
+            }
 
             _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator, episodeId: null, behaviorRemapper: _remapper);
             _pendingTransactionId = intent.TransactionId;
