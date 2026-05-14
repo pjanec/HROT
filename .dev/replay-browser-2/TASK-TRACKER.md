@@ -10,10 +10,10 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 
 **Goal**: Working `.fdp` → JSON streaming, with full CLI, fully covered by EX-T01..EX-T32.
 
-- [ ] **RB-1.0** Codebase Audit and Gap Fix [details](./TASK-DETAILS.md#rb-10--codebase-audit-and-gap-fix)
-- [ ] **RB-1.1** `FdpRecordingHarness` Test Substrate [details](./TASK-DETAILS.md#rb-11--fdprecordingharness-test-substrate)
-- [ ] **RB-1.2** Domain DTOs (`JsonExportOptions`, `ChangelogEntryDto`, enums) [details](./TASK-DETAILS.md#rb-12--domain-dtos-jsonexportoptions-changelogentrydto-enums)
-- [ ] **RB-1.3** `IRecordingExportService` Contract [details](./TASK-DETAILS.md#rb-13--irecordingexportservice-contract)
+- [x] **RB-1.0** Codebase Audit and Gap Fix [details](./TASK-DETAILS.md#rb-10--codebase-audit-and-gap-fix)
+- [x] **RB-1.1** `FdpRecordingHarness` Test Substrate [details](./TASK-DETAILS.md#rb-11--fdprecordingharness-test-substrate)
+- [x] **RB-1.2** Domain DTOs (`JsonExportOptions`, `ChangelogEntryDto`, enums) [details](./TASK-DETAILS.md#rb-12--domain-dtos-jsonexportoptions-changelogentrydto-enums)
+- [x] **RB-1.3** `IRecordingExportService` Contract [details](./TASK-DETAILS.md#rb-13--irecordingexportservice-contract)
 - [ ] **RB-1.4** Headless `ReplayBrowserContext` [details](./TASK-DETAILS.md#rb-14--headless-replaybrowsercontext)
 - [ ] **RB-1.5** `RecordingExportService` Implementation (absolute-state path) [details](./TASK-DETAILS.md#rb-15--recordingexportservice-implementation)
 - [ ] **RB-1.6** `Fdp.Tools.RecordingDumper` Console App [details](./TASK-DETAILS.md#rb-16--fdptoolsrecordingdumper-console-app)
