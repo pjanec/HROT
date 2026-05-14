@@ -68,6 +68,9 @@ namespace CarKinem.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // Prevent frustration accumulation during paused/frozen frames
+            if (deltaTime <= 0f) return;
+
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(NavigationExecutionSystem)} requires direct EntityRepository access " +
