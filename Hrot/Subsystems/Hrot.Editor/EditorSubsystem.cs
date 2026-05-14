@@ -494,12 +494,15 @@ namespace Hrot.Editor
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 scenarioLoadSource,
                 mapperRegistry);
+
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
-                simHostCorePack.InputSystems.Concat(cgfLogicPackInst.InputSystems).ToArray());
+                cgfLogicPackInst.InputSystems.Concat(simHostCorePack.InputSystems).ToArray());
+    
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                simHostCorePack.SimulationSystems.Concat(cgfLogicPackInst.SimulationSystems).ToArray());
+                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).ToArray());
+
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
                 simHostCorePack.PostSimulationSystems.ToArray());
