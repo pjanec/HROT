@@ -63,26 +63,10 @@ public abstract class SharedApplicationBootstrapper
         NodeRole role,
         INetworkFactory? networkFactory)
     {
-        // Phase 1 — Build core context and populate NedReplication via the configured factory.
-        // Hrot.Common cannot reference Hrot.Network.NED (circular dependency), so
-        // .WithReplication() is not available here. The equivalent is achieved by calling
-        // configuredFactory.CreateReplicationModule() after Build(), which is the same
-        // pattern used in SimHostApp.cs.
-        var context = new HrotNodeBuilder(config)
-            .WithRole(config.SubsystemName, role)
-            .WithNetworkFactory(networkFactory)
-            .Build();
+        // Phase 1 — Build core context via subclass hook to guarantee .WithReplication is called.
+        var context = BuildContext(config, role, networkFactory);
 
         INetworkFactory? configuredFactory = networkFactory?.ConfigureForNode(context, role, GetBehaviorRegistry());
-        var replicationModule = configuredFactory?.CreateReplicationModule();
-        if (replicationModule != null)
-        {
-            context = context with
-            {
-                NedReplication      = replicationModule as INedReplicationModule,
-                GhostCreationSystem = replicationModule.GhostCreationSystem,
-            };
-        }
 
         // Phase 2 — Register domain ECS components BEFORE the serializer is built.
         RegisterDomainComponents(context.World);
@@ -176,6 +160,19 @@ public abstract class SharedApplicationBootstrapper
     }
 
     // ── Abstract hooks (must be implemented by subclasses) ───────────────────
+
+    /// <summary>
+    /// Phase 1: Constructs the initial HrotNodeContext. Subclasses must chain
+    /// .WithReplication(role) before calling .Build() to properly provision network replication.
+    ///
+    /// <para>
+    /// This hook is necessary because Hrot.Common cannot reference Hrot.Network.NED
+    /// (circular dependency), but concrete subclasses can. By delegating context
+    /// construction to the subclass, we ensure that .WithReplication() is available
+    /// and properly applied.
+    /// </para>
+    /// </summary>
+    protected abstract HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory);
 
     /// <summary>
     /// Phase 2: Register all ECS component types needed by this node.

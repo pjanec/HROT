@@ -23,6 +23,7 @@ using Hrot.Common.Diagnostics;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
+using Hrot.Network.Infrastructure;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Serializers;
 using Hrot.SimHost.Systems;
@@ -115,6 +116,17 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         _hrotConfig = hrotConfig;
         _roadNetworkBlobPath = roadNetworkBlobPath;
         _simulationRateHz = simulationRateHz;
+    }
+
+    /// <inheritdoc/>
+    protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
+    {
+        return new HrotNodeBuilder(config)
+            .WithRole(config.SubsystemName, role)
+            .WithNetworkFactory(networkFactory)
+            .WithReplication(role)
+            .WithBehaviorRegistry(GetBehaviorRegistry())
+            .Build();
     }
 
     /// <inheritdoc/>

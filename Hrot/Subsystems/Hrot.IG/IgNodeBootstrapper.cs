@@ -30,6 +30,7 @@ using Hrot.Common.Orchestration;
 using Hrot.Common.Systems;
 using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
+using Hrot.Network.Infrastructure;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.IG.Modules;
@@ -94,6 +95,19 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         _cameraViewport = cameraViewport;
         _eventHistoryService = eventHistoryService;
         _hrotConfig = hrotConfig;
+    }
+
+    // ── Phase 1: Build context ────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
+    {
+        return new HrotNodeBuilder(config)
+            .WithRole(config.SubsystemName, role)
+            .WithNetworkFactory(networkFactory)
+            .WithReplication(role)
+            .WithBehaviorRegistry(GetBehaviorRegistry())
+            .Build();
     }
 
     // ── Phase 2: Register domain ECS components ───────────────────────────────

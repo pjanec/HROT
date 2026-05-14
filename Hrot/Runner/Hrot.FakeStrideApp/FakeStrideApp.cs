@@ -89,13 +89,12 @@ public sealed class FakeStrideApp : FdpApplication
         _core.BootstrapNode(nodeConfig, StrideNodeBootstrapper.Role, networkFactory);
 
         // 5. Populate TKB AFTER BootstrapNode.
-        // NOTE: Do NOT call DemoTkbSetup.RegisterAll(tkb) here.
-        // HrotNodeBuilder.Build() already calls HrotEnvironment.CreateTkb() which calls
-        // NedTkbCatalog.RegisterAll(tkb), registering TkbEntityTypes.Tank_M1Abrams = 100.
-        // Calling DemoTkbSetup.RegisterAll again would throw a duplicate-key exception.
         var tkb = _core.Context.TkbDb;
         if (tkb != null)
+        {
+            Fdp.Examples.Common.Setup.DemoTkbSetup.RegisterAll(tkb);
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkb); // IDs 1001-2003
+        }
 
         // 6. Script.
         _script = new SyncFdpToStrideScript(_core);

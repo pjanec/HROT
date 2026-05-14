@@ -87,12 +87,12 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider
         _core.BootstrapNode(nodeConfig, StrideNodeBootstrapper.Role, _networkFactory);
 
         // Populate TKB AFTER BootstrapNode.
-        // NOTE: The Hrot NED catalog (TkbType 100-505, 8801-8803) is already pre-registered by
-        // HrotEnvironment.CreateTkb() inside HrotNodeBuilder.Build(). Only add UrbanCombat
-        // types (IDs 1001-2003) which are absent from the NED catalog.
         var tkb = _core.Context.TkbDb;
         if (tkb != null)
+        {
+            Fdp.Examples.Common.Setup.DemoTkbSetup.RegisterAll(tkb);
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkb); // IDs 1001-2003
+        }
 
         _script = new SyncFdpToStrideScript(_core);
         _script.Start();

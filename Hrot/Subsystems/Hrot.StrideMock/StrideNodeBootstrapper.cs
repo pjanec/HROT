@@ -16,6 +16,7 @@ using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.IG.Components;
+using Hrot.Network.Infrastructure;
 using Hrot.IG.Systems;
 using Hrot.Map.Common;
 using Hrot.SimHost;
@@ -175,6 +176,17 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     }
 
     // ── Abstract hook implementations ─────────────────────────────────────────
+
+    /// <inheritdoc/>
+    protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
+    {
+        return new HrotNodeBuilder(config)
+            .WithRole(config.SubsystemName, role)
+            .WithNetworkFactory(networkFactory)
+            .WithReplication(role)
+            .WithBehaviorRegistry(GetBehaviorRegistry())
+            .Build();
+    }
 
     /// <inheritdoc/>
     protected override void RegisterDomainComponents(EntityRepository world)
