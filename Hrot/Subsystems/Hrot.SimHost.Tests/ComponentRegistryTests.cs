@@ -89,6 +89,15 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<FormationTarget>()));
         }
 
+        [Fact]
+        public void MuscleRoleComponentRegistry_RegisterAll_RegistersNavigationIntent()
+        {
+            using var world = new EntityRepository();
+            MuscleRoleComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
+        }
+
         // ── CombatComponentRegistry ───────────────────────────────────────────
 
         [Fact]
@@ -112,6 +121,27 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<WeaponState>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<Health>()));
             Assert.Null(Record.Exception(() => world.GetComponentTable<PhysicsCollider>()));
+        }
+
+        [Fact]
+        public void HierarchyComponentRegistry_RegisterAll_RegistersHierarchyComponents()
+        {
+            using var world = new EntityRepository();
+            HierarchyComponentRegistry.RegisterAll(world);
+
+            Assert.NotNull(world.GetComponentTable<UnitRoster>());
+            Assert.NotNull(world.GetComponentTable<UnitSubordinate>());
+        }
+
+        [Fact]
+        public void NavigationSolverComponentRegistry_RegisterAll_RegistersSolverState()
+        {
+            using var world = new EntityRepository();
+            NavigationSolverComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetSingleton<PathfindingBatchData>()));
+            Assert.Null(Record.Exception(() => world.GetSingleton<AreaQueryBatchData>()));
+            Assert.Null(Record.Exception(() => world.GetSingleton<EqsTargetPool>()));
         }
 
         // ── SimHostComponentRegistry (idempotency via delegation) ─────────────

@@ -123,54 +123,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // lifecycle events identically to SimHost (via SimHostComponentRegistry).
         HrotSharedComponentRegistry.RegisterAll(world);
 
-        //  IG-specific visualization and display components 
-        world.RegisterComponent<ResolvedStyle>();
-        world.RegisterComponent<CullingState>();
-        world.RegisterComponent<SelectionState>();
-
-        //  IG copies of replicated simulation components 
-        // (SimHost owns simulation; IG needs these registered for DDS deserialization
-        // and query support, but does not run the associated logic systems.)
-        world.RegisterComponent<VehicleParams>();
-        world.RegisterComponent<IgHealthState>();
-        world.RegisterComponent<PerceptionReceptor>();
-        world.RegisterComponent<TargetMemory>();
-        world.RegisterComponent<WeaponState>();
-        world.RegisterComponent<Health>();
-        world.RegisterComponent<PhysicsCollider>();
-
-        world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
-
-        //  IG Advanced Features components 
-        world.RegisterComponent<HistoryTrail>();
-        world.RegisterComponent<VisualEffectState>();
-        world.RegisterComponent<TracerTarget>();
-        // Events consumed by EventToEffectSystem (registered in CombatComponentRegistry on
-        // SimHost nodes; registered explicitly here since IG does not call that registry).
-        world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
-        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
-        world.RegisterManagedComponent<ContextMenuState>();
-        world.RegisterManagedComponent<EditablePolyline>();
-        world.RegisterComponent<MapOverlayStyle>();
-        world.RegisterComponent<MapDisplayComponent>();
-        world.RegisterComponent<EntityInfo>();
-
-        // Gizmo activation event for local editing gizmos.
-        world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
-
-        // Route planning components (ROUTES1)
-        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
-        world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
-        world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
-
-        // Zone obstacle components required by StatelessGizmoSystem gizmos.
-        world.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
-
-        // Ground clamping components (MOD1-P7T2)
-        // Registered unconditionally so they are available even when
-        // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
-        world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
-        world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingState>();
+        IgRoleComponentRegistry.RegisterAll(world);
 
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
         // FireInteractionEvent are all handled by HrotSharedComponentRegistry above.

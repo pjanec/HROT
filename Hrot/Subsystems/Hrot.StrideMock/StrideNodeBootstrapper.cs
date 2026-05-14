@@ -208,28 +208,19 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         // CognitiveComponentRegistry is intentionally excluded — Brain AI data stays
         // on the CGF node. TkbTemplate.ApplyTo() silently skips missing components,
         // so entity spawning works correctly here without the Brain tables.
-        KinematicComponentRegistry.RegisterAll(world);
+        MuscleRoleComponentRegistry.RegisterAll(world);
 
         // IG presentation components — not covered by any shared registry.
         // Required by SyncFdpToStrideScript queries and EventToEffectSystem.
+        PresentationComponentRegistry.RegisterAll(world);
         world.RegisterComponent<VisualEffectState>();
         world.RegisterComponent<TracerTarget>();
-
-        // Combat notification events: consumed by EventToEffectSystem.
-        // Only register the two events that this node actually processes.
-        world.RegisterEvent<WeaponFireNotification>();
-        world.RegisterEvent<DetonationNotification>();
 
         // Genesis Intent DTOs: transient managed components resolved by
         // GenesisMaterializationSystem during scenario load. Must mirror the
         // set registered in SimHostComponentRegistry so cross-entity references
         // are correctly materialised on this node.
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialPassengersIntent>();
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialVehicleIntent>();
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialHierarchyIntent>();
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialRouteIntent>();
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialTargetsIntent>();
-        world.RegisterManagedComponent<Hrot.Common.Serializers.InitialUnitSubordinateIntent>();
+        GenesisIntentRegistry.RegisterAll(world);
     }
 
     /// <inheritdoc/>

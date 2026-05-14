@@ -4,15 +4,14 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Events;
-using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Components;
-using Hrot.Common.Serializers;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
+using Hrot.SimHost;
 
 namespace Hrot.CGF;
 
@@ -53,24 +52,8 @@ public static class CgfComponentRegistry
         HrotSharedComponentRegistry.RegisterAll(world);
 
         // ── Tier 2: Cognitive (Brain-tier AI) ─────────────────────────────────
-        world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<LocomotionChannel>();
-        world.RegisterComponent<WeaponChannel>();
-        world.RegisterComponent<InteractionChannel>();
-        world.RegisterComponent<ActorCapabilityState>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<Blackboard1024>();
-        world.RegisterComponent<BrainHsm128>();
-        world.RegisterComponent<BrainHsm64>();
-        world.RegisterComponent<MissionPlanQueue>();
-        world.RegisterComponent<NavigationIntent>();
-        world.RegisterComponent<PreviousCapabilities>(); 
-        world.RegisterComponent<UnitRoster>();
-        world.RegisterComponent<UnitSubordinate>();
-        world.RegisterEvent<CmdAssignSubordinate>();
-        world.RegisterEvent<CmdRemoveSubordinate>();
-        world.RegisterEvent<CmdAssignSubordinateRejected>();
+        CognitiveComponentRegistry.RegisterAll(world);
+        HierarchyComponentRegistry.RegisterAll(world);
 
         // ── Tier 2: Perception (Brain-side threat awareness) ──────────────────
         // PerceptionReceptor and TargetMemory are part of the TKB entity template
@@ -84,23 +67,10 @@ public static class CgfComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
 
         // ── Tier 2: Kinematic (Muscle-tier physics) ───────────────────────────
-        world.RegisterComponent<VehicleState>();
-        world.RegisterComponent<VehicleParams>();
-        world.RegisterComponent<NavState>();
-        world.RegisterComponent<FormationFollower>();
-        world.RegisterComponent<FormationController>();
-        world.RegisterComponent<FormationTarget>();
-        world.RegisterComponent<NavigationStatus>();
-        world.RegisterComponent<FrustrationTicks>();
+        KinematicComponentRegistry.RegisterAll(world);
 
         // ── Tier 3: IG presentation ───────────────────────────────────────────
-        // EntityInfoIngressTranslator writes EntityInfo (ID 164).
-        world.RegisterComponent<EntityInfo>();
-        // EntityDamageIngressTranslator writes IgHealthState (ID 165).
-        world.RegisterComponent<IgHealthState>();
-        // MapVisualOverlayIngressTranslator writes EditablePolyline + MapOverlayStyle.
-        world.RegisterManagedComponent<EditablePolyline>();
-        world.RegisterComponent<MapOverlayStyle>();
+        PresentationComponentRegistry.RegisterAll(world);
         world.RegisterComponent<MapDisplayComponent>();
         // MapRouteIngressTranslator writes RoutePlan, PersonalRouteRef, RouteTrajectoryCache.
         world.RegisterManagedComponent<RoutePlan>();
@@ -122,12 +92,7 @@ public static class CgfComponentRegistry
         world.RegisterManagedComponent<ZoneMembership>();
         // EntityMissionIngressTranslator and mission feedback write ActiveMissionPlan.
         world.RegisterManagedComponent<ActiveMissionPlan>();
-        world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
-        world.RegisterManagedComponent<InitialTargetsIntent>();
-        world.RegisterManagedComponent<InitialPassengersIntent>();
-        world.RegisterManagedComponent<InitialVehicleIntent>();
-        world.RegisterManagedComponent<InitialHierarchyIntent>();
-        world.RegisterManagedComponent<InitialRouteIntent>();
+        GenesisIntentRegistry.RegisterAll(world);
 
     }
 }
