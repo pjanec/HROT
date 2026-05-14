@@ -1,5 +1,7 @@
 using System;
 using System.Numerics;
+using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using Fdp.Core.Diagnostics;
 using Fdp.Examples.Scenarios.Integrated;
 using Fdp.ModuleHost.Diagnostics;
@@ -14,6 +16,7 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.IG.Components;
+using Hrot.Map.Common;
 using Hrot.Presentation.Windows;
 
 namespace Hrot.StrideMock;
@@ -131,6 +134,17 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
         _headless = config.Headless;
         _isActiveMapOwner = config.IsActiveMapOwner;
 
+        var shellParticipant = _networkFactory?.Participant;
+        if (shellParticipant == null)
+        {
+            shellParticipant = HrotEnvironment.CreateParticipant(config.DomainId);
+            shellParticipant?.EnableSenderTracking(new CycloneDDS.Runtime.Tracking.SenderIdentityConfig
+            {
+                AppDomainId   = config.DomainId,
+                AppInstanceId = config.NodeId,
+            });
+        }
+
         var nodeConfig = new HrotNodeConfig
         {
             DomainId             = config.DomainId,
@@ -138,6 +152,7 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
             Headless             = config.Headless,
             SubsystemName        = "StrideMock",
             SkipAllocatorRouting = config.Headless,
+            ExternalParticipant  = shellParticipant,
             LocalTempRoot        = System.IO.Path.Combine(
                 OrchestrationConstants.DefaultStagingDirectory,
                 "nodes", $"node-{config.NodeId}"),

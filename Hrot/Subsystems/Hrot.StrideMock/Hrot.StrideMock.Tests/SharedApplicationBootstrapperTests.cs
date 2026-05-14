@@ -25,6 +25,7 @@ using Hrot.Common.Infrastructure;
 using Hrot.Core.Network;
 using Hrot.SimHost;
 using Hrot.SimHost.Serializers;
+using Hrot.Network.Infrastructure;
 
 // Disambiguate the two IOrchestrationTranslator definitions that come into scope via
 // Hrot.Common.Infrastructure (HrotNodeContext) and Hrot.Core.Network (INetworkFactory).
@@ -66,6 +67,16 @@ public sealed class SharedApplicationBootstrapperTests
         {
             CallLog.Add(nameof(RegisterDomainComponents));
             world.RegisterComponent<TestComponentA>();
+        }
+
+        protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
+        {
+            CallLog.Add(nameof(BuildContext));
+            return new HrotNodeBuilder(config)
+                .WithRole(config.SubsystemName, role)
+                .WithNetworkFactory(networkFactory)
+                .WithReplication(role)
+                .Build();
         }
 
         protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)

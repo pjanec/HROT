@@ -58,6 +58,11 @@ public sealed class FakeStrideApp : FdpApplication
     {
         // 1. DDS participant.
         _participant = HrotEnvironment.CreateParticipant(_domainId);
+        _participant?.EnableSenderTracking(new CycloneDDS.Runtime.Tracking.SenderIdentityConfig
+        {
+            AppDomainId   = _domainId,
+            AppInstanceId = _nodeId,
+        });
 
         // 2. Network factory.
         var entityMap    = new NetworkEntityMap();
@@ -74,14 +79,15 @@ public sealed class FakeStrideApp : FdpApplication
         // 3. Node config.
         var nodeConfig = new HrotNodeConfig
         {
-            DomainId      = _domainId,
-            NodeId        = _nodeId,
-            Headless      = false,
-            SubsystemName = "StrideMock",
-            LocalTempRoot = Path.Combine(
+            DomainId            = _domainId,
+            NodeId              = _nodeId,
+            Headless            = false,
+            SubsystemName       = "StrideMock",
+            ExternalParticipant = _participant,
+            LocalTempRoot       = Path.Combine(
                 OrchestrationConstants.DefaultStagingDirectory,
                 "nodes", $"node-{_nodeId}"),
-            LogDirectory  = Path.Combine(AppContext.BaseDirectory, "logs"),
+            LogDirectory        = Path.Combine(AppContext.BaseDirectory, "logs"),
         };
 
         // 4. Bootstrap node (registers NED TKB catalog internally via HrotEnvironment.CreateTkb()).
