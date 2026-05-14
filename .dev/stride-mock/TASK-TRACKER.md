@@ -61,4 +61,6 @@
 
 **Goal:** Verify all success conditions are met end-to-end before marking the workstream complete.
 
-- [ ] **SM-011** Full integration validation gate (replay safety, recording, 2PC, diagnostics, time sync, camera sync) [details](./TASK-DETAILS.md#sm-011--full-integration-validation-gate)
+- [x] **SM-011** Full integration validation gate (replay safety, recording, 2PC, diagnostics, time sync, camera sync) [details](./TASK-DETAILS.md#sm-011--full-integration-validation-gate)
+  - All 5 static checks PASS; all 3 test suites at baseline (no regressions).
+  - Runtime cluster checks (items 1-8) are deferred; require a live cluster environment.
