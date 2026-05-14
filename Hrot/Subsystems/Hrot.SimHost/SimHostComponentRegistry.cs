@@ -1,6 +1,5 @@
 using Hrot.IG.Components;
 using Hrot.Map.Common;
-using Hrot.Map.Common.Components;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -21,12 +20,10 @@ public static class SimHostComponentRegistry
         MuscleRoleComponentRegistry.RegisterAll(world);
         CombatComponentRegistry.RegisterAll(world);
 
-        world.RegisterManagedComponent<ActiveMissionPlan>();
+        MissionComponentRegistry.RegisterAll(world);
         PresentationComponentRegistry.RegisterAll(world);
 
-        world.RegisterManagedComponent<RoutePlan>();
-        world.RegisterComponent<PersonalRouteRef>();
-        world.RegisterComponent<RouteTrajectoryCache>();
+        RouteComponentRegistry.RegisterAll(world);
 
         GenesisIntentRegistry.RegisterAll(world);
 

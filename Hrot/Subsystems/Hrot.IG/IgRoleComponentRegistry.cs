@@ -6,6 +6,7 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Components;
 using Hrot.IG.Components;
+using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 
 namespace Hrot.IG;
@@ -32,7 +33,7 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<Health>();
         world.RegisterComponent<PhysicsCollider>();
 
-        world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>();
+        MissionComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<HistoryTrail>();
         world.RegisterComponent<VisualEffectState>();
@@ -47,10 +48,8 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<EntityInfo>();
         world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 
-        world.RegisterManagedComponent<RoutePlan>();
-        world.RegisterComponent<PersonalRouteRef>();
-        world.RegisterComponent<RouteTrajectoryCache>();
-        world.RegisterManagedComponent<ZoneMembership>();
+        RouteComponentRegistry.RegisterAll(world);
+        ZoneComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<GroundClampingConfig>();
         world.RegisterComponent<GroundClampingState>();
