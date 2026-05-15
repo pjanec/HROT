@@ -18,6 +18,17 @@ namespace Fdp.Core
     }
 
     /// <summary>
+    /// Non-generic gateway into the event type registry.
+    /// </summary>
+    public static class EventType
+    {
+        /// <summary>
+        /// Returns a snapshot of all currently registered event types.
+        /// </summary>
+        public static IReadOnlyList<Type> GetAllRegistered() => EventTypeRegistry.GetAllRegistered();
+    }
+
+    /// <summary>
     /// Internal registry for event type IDs.
     /// Validates [EventId] attributes and prevents ID collisions.
     /// </summary>
@@ -72,6 +83,14 @@ namespace Fdp.Core
         {
             _idToType.TryGetValue(id, out var type);
             return type!;
+        }
+
+        /// <summary>
+        /// Returns a snapshot of all registered event types.
+        /// </summary>
+        public static IReadOnlyList<Type> GetAllRegistered()
+        {
+            return _typeToId.Keys.ToArray();
         }
 
         /// <summary>

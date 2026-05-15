@@ -396,6 +396,21 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// Returns a snapshot of all registered component types.
+        /// The list is ordered by component ID.
+        /// </summary>
+        public static IReadOnlyList<Type> GetAllRegistered()
+        {
+            lock (_lock)
+            {
+                return _idToType
+                    .OrderBy(kvp => kvp.Key)
+                    .Select(kvp => kvp.Value)
+                    .ToArray();
+            }
+        }
+
+        /// <summary>
         /// Returns all registered component type IDs (supports sparse/non-sequential IDs).
         /// </summary>
         public static int[] GetAllIds()

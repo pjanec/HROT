@@ -38,6 +38,19 @@ namespace Fdp.Core
         }
 
         /// <summary>
+        /// Pre-registers a native event type so that events of this type injected during
+        /// playback land in a typed <see cref="NativeEventStream{T}"/> rather than an
+        /// <see cref="UntypedNativeEventStream"/>.  Typed streams implement
+        /// <see cref="IEventStreamInspector"/> and are therefore visible to export tools.
+        /// No-op if the type is already registered.
+        /// </summary>
+        public void PrepareForNativeEventReplay<T>() where T : unmanaged
+        {
+            int typeId = EventType<T>.Id;
+            _nativeStreams.GetOrAdd(typeId, _ => new NativeEventStream<T>());
+        }
+
+        /// <summary>
         /// Publishes a managed event to the bus.
         /// Thread-safe via locking.
         /// Event will be visible in the next frame (after SwapBuffers).
