@@ -396,7 +396,7 @@ public sealed class ClusterDiagnosticsPanel
 
             async void SaveLocal()
             {
-                var dest = await _fileDialogService.ShowSaveAsDialogAsync(capturedName, capturedExt);
+                var dest = await _fileDialogService.ShowSaveAsDialogAsync("Orchestrator_SaveLocalCopy", capturedName, capturedExt);
                 if (dest != null)
                     File.Copy(capturedFull, dest, overwrite: true);
             }

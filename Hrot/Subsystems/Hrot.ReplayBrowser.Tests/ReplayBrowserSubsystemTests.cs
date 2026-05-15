@@ -264,10 +264,10 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     private sealed class StubFileDialogService : Fdp.Presentation.Abstractions.IFileDialogService
     {
         public System.Threading.Tasks.Task<string?> ShowSaveAsDialogAsync(
-            string defaultFileName, string extensionFilter)
+            string callSiteId, string defaultFileName, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
 
-        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
     }
 

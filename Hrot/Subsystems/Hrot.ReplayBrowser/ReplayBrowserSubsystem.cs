@@ -255,10 +255,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private sealed class NullFileDialogService : IFileDialogService
     {
         public System.Threading.Tasks.Task<string?> ShowSaveAsDialogAsync(
-            string defaultFileName, string extensionFilter)
+            string callSiteId, string defaultFileName, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
 
-        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
     }
 }

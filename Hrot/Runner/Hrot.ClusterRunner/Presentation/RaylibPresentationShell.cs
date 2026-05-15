@@ -1,8 +1,13 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+
 namespace Hrot.ClusterRunner.Presentation;
 
 internal sealed class RaylibPresentationShell : IPresentationShell
 {
     private Raylib_cs.Texture2D _atlasTexture;
+    private IntPtr _iniFilenamePtr;
 
     public void InitWindow(int width, int height, string title, int targetFps)
     {
@@ -15,10 +20,29 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     public void SetupImGui()
     {
         rlImGui_cs.rlImGui.Setup(true);
-        ImGuiNET.ImGui.GetIO().ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
+        var io = ImGuiNET.ImGui.GetIO();
+        io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
+
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string configDir = Path.Combine(appData, "HROT");
+        Directory.CreateDirectory(configDir);
+        string iniPath = Path.Combine(configDir, "imgui.ini");
+        _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
+        unsafe
+        {
+            io.NativePtr->IniFilename = (byte*)_iniFilenamePtr;
+        }
     }
 
-    public void ShutdownImGui() => rlImGui_cs.rlImGui.Shutdown();
+    public void ShutdownImGui()
+    {
+        rlImGui_cs.rlImGui.Shutdown();
+        if (_iniFilenamePtr != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_iniFilenamePtr);
+            _iniFilenamePtr = IntPtr.Zero;
+        }
+    }
 
     public void CloseWindow()
     {
