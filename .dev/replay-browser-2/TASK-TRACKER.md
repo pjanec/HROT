@@ -82,5 +82,5 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 
 ## Cross-Stage / Continuous
 
-- [ ] **RB-X.1** Documentation Hygiene [details](./TASK-DETAILS.md#rb-x1--documentation-hygiene)
-- [ ] **RB-X.2** Style and Allocation Audits [details](./TASK-DETAILS.md#rb-x2--style-and-allocation-audits)
+- [x] **RB-X.1** Documentation Hygiene [details](./TASK-DETAILS.md#rb-x1--documentation-hygiene)
+- [x] **RB-X.2** Style and Allocation Audits [details](./TASK-DETAILS.md#rb-x2--style-and-allocation-audits)
