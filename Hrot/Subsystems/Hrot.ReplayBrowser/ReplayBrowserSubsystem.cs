@@ -43,6 +43,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private InspectorState? _inspectorState;
     private RepositoryAdapter? _session;
     private ReplayTimelinePanel? _timelinePanel;
+    private ImGuiFileDialogService? _fileDialogService;
+    private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
@@ -76,13 +78,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _inspectorState = new InspectorState();
             _session = new RepositoryAdapter(_context.SandboxRepo);
 
-            // Null export/file services; wired properly in production by the composition
-            // root that owns real implementations. Here they are left null so the panel
-            // compiles and does not crash during headless-adjacent testing paths.
+            _exportService = new RecordingExportService();
+            _fileDialogService = new ImGuiFileDialogService();
             _timelinePanel = new ReplayTimelinePanel(
                 _context,
-                new NullRecordingExportService(),
-                new NullFileDialogService(),
+                _exportService,
+                _fileDialogService,
                 _playbackHistory);
 
             _inspectorPanel = new EntityInspectorPanel();
@@ -116,6 +117,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void RegisterWindows(WindowManager windowManager)
     {
         if (_headless) return;
+        if (_fileDialogService != null)
+            windowManager.SetFileDialogService(_fileDialogService);
+
         RegisterWindowsCore(
             windowManager,
             _timelinePanel!,
