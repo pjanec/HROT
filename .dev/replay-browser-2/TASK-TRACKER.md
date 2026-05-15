@@ -36,19 +36,19 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 **Goal**: Perspective-bound subsystem with timeline + 4 reused windows + history navigation. All FND-T tests passing.
 
 - [x] **RB-2.1** History Trackers (`EntitySelectionHistory`, `PlaybackHistoryTracker`) [details](./TASK-DETAILS.md#rb-21--history-trackers)
-- [ ] **RB-2.2** `ImGuiEntityLink` Utility [details](./TASK-DETAILS.md#rb-22--imguientitylink-utility)
-- [ ] **RB-2.3** `ReplayBrowserSubsystem` Skeleton [details](./TASK-DETAILS.md#rb-23--replaybrowsersubsystem-skeleton)
-- [ ] **RB-2.4** Reused Panel Wiring + 5 Windows [details](./TASK-DETAILS.md#rb-24--reused-panel-wiring-inspector--events-and-4-windows)
-- [ ] **RB-2.5** `ReplayTimelinePanel` (full layout incl. export expander) [details](./TASK-DETAILS.md#rb-25--replaytimelinepanel)
-- [ ] **RB-2.6** Subsystem Composition Root + Delegate Wiring [details](./TASK-DETAILS.md#rb-26--subsystem-composition-root-and-delegate-wiring)
-- [ ] **RB-2.7** Stage 2 Acceptance Gate (all FND-T green) [details](./TASK-DETAILS.md#rb-27--stage-2-acceptance-gate)
+- [x] **RB-2.2** `ImGuiEntityLink` Utility [details](./TASK-DETAILS.md#rb-22--imguientitylink-utility)
+- [x] **RB-2.3** `ReplayBrowserSubsystem` Skeleton [details](./TASK-DETAILS.md#rb-23--replaybrowsersubsystem-skeleton)
+- [x] **RB-2.4** Reused Panel Wiring + 5 Windows [details](./TASK-DETAILS.md#rb-24--reused-panel-wiring-inspector--events-and-4-windows)
+- [x] **RB-2.5** `ReplayTimelinePanel` (full layout incl. export expander) [details](./TASK-DETAILS.md#rb-25--replaytimelinepanel)
+- [x] **RB-2.6** Subsystem Composition Root + Delegate Wiring [details](./TASK-DETAILS.md#rb-26--subsystem-composition-root-and-delegate-wiring)
+- [x] **RB-2.7** Stage 2 Acceptance Gate (all FND-T green) [details](./TASK-DETAILS.md#rb-27--stage-2-acceptance-gate)
 
 ---
 
 ## Stage 3.B — Diff Panel UI
 
-- [ ] **RB-3.4** `ComponentDiffPanel` (preserve full layout) [details](./TASK-DETAILS.md#rb-34--componentdiffpanel)
-- [ ] **RB-3.5** Stage 3 Acceptance Gate [details](./TASK-DETAILS.md#rb-35--stage-3-acceptance-gate)
+- [x] **RB-3.4** `ComponentDiffPanel` (preserve full layout) [details](./TASK-DETAILS.md#rb-34--componentdiffpanel)
+- [x] **RB-3.5** Stage 3 Acceptance Gate [details](./TASK-DETAILS.md#rb-35--stage-3-acceptance-gate)
 
 ---
 

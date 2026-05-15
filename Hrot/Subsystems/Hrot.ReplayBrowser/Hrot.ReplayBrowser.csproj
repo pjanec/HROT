@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.ReplayBrowser</RootNamespace>
+    <AssemblyName>Hrot.ReplayBrowser</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ReplayBrowser.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FDP kernel and toolkits -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Visualization / UI (ImGui panels, MapCanvas, WindowManager, IWindowRegistrar) -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <!-- Replay browser services (ReplayBrowserContext, histories, diff, export) -->
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Hrot network interface (INetworkFactory) required for subsystem discovery -->
+    <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+  </ItemGroup>
+
+</Project>
