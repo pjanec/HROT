@@ -14,10 +14,10 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 - [x] **RB-1.1** `FdpRecordingHarness` Test Substrate [details](./TASK-DETAILS.md#rb-11--fdprecordingharness-test-substrate)
 - [x] **RB-1.2** Domain DTOs (`JsonExportOptions`, `ChangelogEntryDto`, enums) [details](./TASK-DETAILS.md#rb-12--domain-dtos-jsonexportoptions-changelogentrydto-enums)
 - [x] **RB-1.3** `IRecordingExportService` Contract [details](./TASK-DETAILS.md#rb-13--irecordingexportservice-contract)
-- [ ] **RB-1.4** Headless `ReplayBrowserContext` [details](./TASK-DETAILS.md#rb-14--headless-replaybrowsercontext)
-- [ ] **RB-1.5** `RecordingExportService` Implementation (absolute-state path) [details](./TASK-DETAILS.md#rb-15--recordingexportservice-implementation)
-- [ ] **RB-1.6** `Fdp.Tools.RecordingDumper` Console App [details](./TASK-DETAILS.md#rb-16--fdptoolsrecordingdumper-console-app)
-- [ ] **RB-1.7** Stage 1 Acceptance Gate (all EX-T green) [details](./TASK-DETAILS.md#rb-17--stage-1-acceptance-gate)
+- [x] **RB-1.4** Headless `ReplayBrowserContext` [details](./TASK-DETAILS.md#rb-14--headless-replaybrowsercontext)
+- [x] **RB-1.5** `RecordingExportService` Implementation (absolute-state path) [details](./TASK-DETAILS.md#rb-15--recordingexportservice-implementation)
+- [x] **RB-1.6** `Fdp.Tools.RecordingDumper` Console App [details](./TASK-DETAILS.md#rb-16--fdptoolsrecordingdumper-console-app)
+- [x] **RB-1.7** Stage 1 Acceptance Gate (all EX-T green) [details](./TASK-DETAILS.md#rb-17--stage-1-acceptance-gate)
 
 ---
 
