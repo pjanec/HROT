@@ -187,43 +187,47 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
         // ── DIF-T09: Allocation budget ─────────────────────────────────────────
 
         [Fact]
-        public void DIF_T09_AllocationBudget_1000Calls_Under512MB()
+        public void DIF_T09_AllocationBudget_1000Calls_Under300MB()
         {
-            // Build a 200-leaf flat JsonObject
-            var oldObj = new JsonObject();
-            var newObj = new JsonObject();
+            // Pre-build the JSON string once — parse it per iteration to satisfy JsonNode's
+            // ownership model (each JsonNode can belong to only one parent at a time).
+            // This isolates the measurement to parse + diff + output, not to JsonObject
+            // builder calls.
+            var sb = new System.Text.StringBuilder();
+            sb.Append("{");
             for (int i = 0; i < 200; i++)
             {
-                oldObj[$"Prop{i}"] = JsonValue.Create((double)i);
-                newObj[$"Prop{i}"] = JsonValue.Create((double)i);
+                if (i > 0) sb.Append(",");
+                sb.Append($"\"Prop{i}\":{(double)i}");
             }
+            sb.Append("}");
+            string jsonStr = sb.ToString();
 
-            // Warm up
-            _svc.ComputeDiff("root", oldObj, newObj, 0.001);
+            // Warm up JIT
+            {
+                var a = JsonNode.Parse(jsonStr)!;
+                var b = JsonNode.Parse(jsonStr)!;
+                _svc.ComputeDiff("root", a, b, 0.001);
+            }
 
             GC.Collect(2, GCCollectionMode.Forced, blocking: true);
             long allocBefore = GC.GetTotalAllocatedBytes(true);
 
             for (int i = 0; i < 1000; i++)
             {
-                // Re-parse each iteration to avoid shared-node aliasing
-                var a = new JsonObject();
-                var b = new JsonObject();
-                for (int j = 0; j < 200; j++)
-                {
-                    a[$"Prop{j}"] = JsonValue.Create((double)j);
-                    b[$"Prop{j}"] = JsonValue.Create((double)j);
-                }
+                var a = JsonNode.Parse(jsonStr)!;
+                var b = JsonNode.Parse(jsonStr)!;
                 _svc.ComputeDiff("root", a, b, 0.001);
             }
 
             long allocAfter = GC.GetTotalAllocatedBytes(true);
             long allocatedBytes = allocAfter - allocBefore;
 
-            // Each iteration allocates ~200 JsonValues + ~200 DiffValues + containers.
-            // Budget: 512 MB total for 1000 calls (512 KB/call on average).
-            Assert.True(allocatedBytes < 512L * 1024 * 1024,
-                $"Allocated {allocatedBytes / 1024} KB for 1000 calls; expected < 512 MB.");
+            // 300 MB budget: each call parses two 200-field JSON objects + runs the diff.
+            // This guards against algorithmic allocation regressions without being
+            // sensitive to JsonNode's baseline overhead (~200 KB/call from JSON parsing).
+            Assert.True(allocatedBytes < 300L * 1024 * 1024,
+                $"Allocated {allocatedBytes / 1024} KB for 1000 calls; expected < 300 MB.");
         }
 
         // ── DIF-T10: Same tree diffed twice produces no modifications ──────────

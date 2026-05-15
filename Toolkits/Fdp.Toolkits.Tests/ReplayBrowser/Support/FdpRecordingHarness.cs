@@ -6,7 +6,7 @@ using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Toolkit.ReplayBrowser.Support
 {
-    // Component IDs 202-203 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Support)
+    // Component IDs 202-204 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Support)
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(202)]
     public struct HarnessPosition { public float X, Y, Z; }
@@ -14,6 +14,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Support
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(203)]
     public struct HarnessVelocity { public float Vx, Vy; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(204)]
+    public struct HarnessTransform
+    {
+        public System.Numerics.Vector3 Position;
+    }
 
     /// <summary>
     /// Test helper that builds deterministic .fdp recordings in temp files.
@@ -34,6 +41,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Support
             _repo = new EntityRepository();
             _repo.RegisterComponent<HarnessPosition>();
             _repo.RegisterComponent<HarnessVelocity>();
+            _repo.RegisterComponent<HarnessTransform>();
 
             _tempFilePath = Path.GetTempFileName() + ".fdp";
             _recorder = new AsyncRecorder(_tempFilePath);

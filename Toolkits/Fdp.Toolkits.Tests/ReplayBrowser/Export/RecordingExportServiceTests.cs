@@ -536,21 +536,42 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
         [Fact]
         public void EX_T20_NumericArrayPayloads_AreFlattenedToSingleLine()
         {
-            // HarnessPosition has float fields X,Y,Z — not a Vector3, but the
-            // FlattenNumericArrays call should still produce a compact payload.
-            // This test verifies no multi-line numeric arrays appear in the output.
-            string fdpPath = BuildBasicRecording(out _);
+            // Build a recording with HarnessTransform (has Vector3 Position field).
+            // FdpAutoSerializer serializes Vector3 as a JSON array [x, y, z].
+            // FlattenNumericArrays must collapse the multi-line array to a single line.
+            string fdpPath = BuildRecordingWithTransform(out _);
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
                 new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
                 string text = File.ReadAllText(outPath);
-                // Numeric arrays like [1.0, 2.0, 3.0] must not span multiple lines
-                // i.e. no pattern of "  1.0,\n  2.0" should exist
-                Assert.DoesNotContain("  1,\n", text);
-                // The test is weaker here since HarnessPosition is a flat struct,
-                // not a Vector3. The key assertion is that the file is well-formed.
-                Assert.True(text.Length > 0);
+
+                // Locate the HarnessTransform component payload and assert the Position array
+                // is on a single line (no embedded newline inside [...]).
+                var root = JsonNode.Parse(text)!.AsObject();
+                bool foundTransform = false;
+                foreach (var frame in root["Frames"]!.AsArray())
+                {
+                    foreach (var entityNode in frame!["Entities"]!.AsArray())
+                    {
+                        foreach (var comp in entityNode!["Components"]!.AsArray())
+                        {
+                            if (comp!["ComponentType"]!.GetValue<string>() != "HarnessTransform") continue;
+                            string payloadJson = comp["Payload"]!.ToJsonString();
+                            // The Position value is a JSON array [x, y, z].
+                            // After FlattenNumericArrays it must be on one line: no \n inside [...]
+                            Assert.DoesNotMatch(
+                                new System.Text.RegularExpressions.Regex(@"\[\s*[0-9eE.+\-]+\s*,\s*\n"),
+                                payloadJson);
+                            // The array itself must exist in the payload.
+                            Assert.Matches(
+                                new System.Text.RegularExpressions.Regex(@"\["),
+                                payloadJson);
+                            foundTransform = true;
+                        }
+                    }
+                }
+                Assert.True(foundTransform, "HarnessTransform component entry not found in export output.");
             }
             finally { TryDelete(outPath); }
         }
@@ -597,15 +618,32 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
 
             repo.Dispose();
 
-            // Also verify: passing this serializer to RecordingExportService does not error.
-            // RecordingExportService uses the AutoSerializer portion of the ScenarioSerializer.
-            string fdpPath = BuildBasicRecording(out _);
+            // Also verify: RecordingExportService actually invokes the translator for HarnessVelocity.
+            string fdpPath = BuildBasicRecordingWithVelocity(out var velEntity);
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
                 new RecordingExportService(serializer: serializer)
                     .ExportToJson(fdpPath, outPath, new JsonExportOptions());
-                Assert.True(File.Exists(outPath), "Export must produce a file.");
+
+                string text = File.ReadAllText(outPath);
+                var root = JsonNode.Parse(text)!.AsObject();
+                // Find the HarnessVelocity component in the first frame's entity list.
+                bool found = false;
+                foreach (var frame in root["Frames"]!.AsArray())
+                {
+                    foreach (var entityNode in frame!["Entities"]!.AsArray())
+                    {
+                        foreach (var comp in entityNode!["Components"]!.AsArray())
+                        {
+                            if (comp!["ComponentType"]!.GetValue<string>() != "HarnessVelocity") continue;
+                            string payloadJson = comp["Payload"]!.ToJsonString();
+                            Assert.Contains("FooBlackboard", payloadJson);
+                            found = true;
+                        }
+                    }
+                }
+                Assert.True(found, "HarnessVelocity component entry with FooBlackboard payload not found in export.");
             }
             finally { TryDelete(outPath); }
         }
@@ -1011,6 +1049,32 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
                     p => new HarnessPosition { X = p.X + 0.001f, Y = p.Y, Z = p.Z });
                 h.Tick().RecordDelta(100_000L + i * 1_000L);
             }
+            return h.BuildToTempFile();
+        }
+
+        /// <summary>
+        /// Single-entity, 1-frame recording containing HarnessVelocity so EX-T22 can verify
+        /// translator dispatch in ExportToJson.
+        /// </summary>
+        private static string BuildBasicRecordingWithVelocity(out Entity entity)
+        {
+            var h = new FdpRecordingHarness();
+            h.SpawnEntity()
+             .WithComponent(new HarnessPosition { X = 0f, Y = 0f, Z = 0f })
+             .WithComponent(new HarnessVelocity { Vx = 1.5f, Vy = 2.5f });
+            entity = h.LastSpawned;
+            h.Tick().RecordKeyframe(100_000L);
+            return h.BuildToTempFile();
+        }
+
+        private static string BuildRecordingWithTransform(out Entity entity)
+        {
+            var h = new FdpRecordingHarness();
+            h.SpawnEntity()
+             .WithComponent(new HarnessPosition { X = 1f, Y = 0f, Z = 0f })
+             .WithComponent(new HarnessTransform { Position = new System.Numerics.Vector3(1f, 2f, 3f) });
+            entity = h.LastSpawned;
+            h.Tick().RecordKeyframe(100_000L);
             return h.BuildToTempFile();
         }
 

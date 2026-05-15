@@ -198,6 +198,21 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                         // Components list
                         writer.WriteStartArray("Components");
+
+                        // Build a translator payload map for this entity.
+                        // Translators claim component bits and return named payloads (keyed by component name).
+                        var translatorPayloads = new System.Collections.Generic.Dictionary<string, JsonNode?>();
+                        if (_serializer != null)
+                        {
+                            foreach (var translator in _serializer.Translators)
+                            {
+                                if (!translator.CanTranslate(sandboxRepo, entity)) continue;
+                                var extracted = translator.Extract(sandboxRepo, entity, guidResolver);
+                                foreach (var kvp in extracted)
+                                    translatorPayloads[kvp.Key] = kvp.Value as JsonNode;
+                            }
+                        }
+
                         for (int bit = 0; bit < 256; bit++)
                         {
                             if (!header.ComponentMask.IsSet(bit)) continue;
@@ -208,7 +223,11 @@ namespace Fdp.Toolkit.ReplayBrowser
                             if (compName == null) continue;
 
                             bool hasAuth = sandboxRepo.HasAuthority(entity, bit);
-                            JsonObject? payload = autoSerializer.TryExtract(sandboxRepo, entity, bit, guidResolver);
+                            JsonNode? payload;
+                            if (translatorPayloads.TryGetValue(compName, out var translatorPayload))
+                                payload = translatorPayload;
+                            else
+                                payload = autoSerializer.TryExtract(sandboxRepo, entity, bit, guidResolver);
 
                             writer.WriteStartObject();
                             writer.WriteString("ComponentType", compName);
@@ -370,7 +389,7 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                     // Build a flat JsonObject keyed by component name for this entity
                     System.Text.Json.Nodes.JsonObject current = BuildEntityStateNode(
-                        sandboxRepo, target, autoSerializer, guidResolver);
+                        sandboxRepo, target, autoSerializer, guidResolver, _serializer?.Translators);
 
                     // First time we see this entity: initialize the baseline without emitting
                     if (baselines[target] == null)
@@ -448,10 +467,24 @@ namespace Fdp.Toolkit.ReplayBrowser
             EntityRepository repo,
             Entity entity,
             ToolkitAutoSerializer autoSerializer,
-            DiagnosticGuidResolver guidResolver)
+            DiagnosticGuidResolver guidResolver,
+            System.Collections.Generic.IReadOnlyList<IEntityScenarioTranslator>? translators = null)
         {
             var obj = new System.Text.Json.Nodes.JsonObject();
             ref EntityHeader header = ref repo.GetHeader(entity.Index);
+
+            // Build a translator payload map for this entity.
+            var translatorPayloads = new System.Collections.Generic.Dictionary<string, System.Text.Json.Nodes.JsonNode?>();
+            if (translators != null)
+            {
+                foreach (var translator in translators)
+                {
+                    if (!translator.CanTranslate(repo, entity)) continue;
+                    var extracted = translator.Extract(repo, entity, guidResolver);
+                    foreach (var kvp in extracted)
+                        translatorPayloads[kvp.Key] = kvp.Value as System.Text.Json.Nodes.JsonNode;
+                }
+            }
 
             for (int bit = 0; bit < 256; bit++)
             {
@@ -462,6 +495,12 @@ namespace Fdp.Toolkit.ReplayBrowser
                 if (compName == null)
                     compName = compType?.Name;
                 if (compName == null) continue;
+
+                if (translatorPayloads.TryGetValue(compName, out var translatorPayload))
+                {
+                    obj[compName] = translatorPayload;
+                    continue;
+                }
 
                 System.Text.Json.Nodes.JsonObject? payload =
                     autoSerializer.TryExtract(repo, entity, bit, guidResolver);
