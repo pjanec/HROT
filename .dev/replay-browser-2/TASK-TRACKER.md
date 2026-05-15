@@ -25,9 +25,9 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 
 **Goal**: `IComponentDiffService` complete and covered by DIF-T01..DIF-T13, changelog export EX-T27..T29 passing.
 
-- [ ] **RB-3.1** `DiffNode` Hierarchy [details](./TASK-DETAILS.md#rb-31--diffnode-hierarchy)
-- [ ] **RB-3.2** `IComponentDiffService` + `ComponentDiffService` [details](./TASK-DETAILS.md#rb-32--icomponentdiffservice--componentdiffservice)
-- [ ] **RB-3.3** Wire Changelog Mode into `RecordingExportService` [details](./TASK-DETAILS.md#rb-33--wire-changelog-mode-into-recordingexportservice)
+- [x] **RB-3.1** `DiffNode` Hierarchy [details](./TASK-DETAILS.md#rb-31--diffnode-hierarchy)
+- [x] **RB-3.2** `IComponentDiffService` + `ComponentDiffService` [details](./TASK-DETAILS.md#rb-32--icomponentdiffservice--componentdiffservice)
+- [x] **RB-3.3** Wire Changelog Mode into `RecordingExportService` [details](./TASK-DETAILS.md#rb-33--wire-changelog-mode-into-recordingexportservice)
 
 ---
 
@@ -35,7 +35,7 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 
 **Goal**: Perspective-bound subsystem with timeline + 4 reused windows + history navigation. All FND-T tests passing.
 
-- [ ] **RB-2.1** History Trackers (`EntitySelectionHistory`, `PlaybackHistoryTracker`) [details](./TASK-DETAILS.md#rb-21--history-trackers)
+- [x] **RB-2.1** History Trackers (`EntitySelectionHistory`, `PlaybackHistoryTracker`) [details](./TASK-DETAILS.md#rb-21--history-trackers)
 - [ ] **RB-2.2** `ImGuiEntityLink` Utility [details](./TASK-DETAILS.md#rb-22--imguientitylink-utility)
 - [ ] **RB-2.3** `ReplayBrowserSubsystem` Skeleton [details](./TASK-DETAILS.md#rb-23--replaybrowsersubsystem-skeleton)
 - [ ] **RB-2.4** Reused Panel Wiring + 5 Windows [details](./TASK-DETAILS.md#rb-24--reused-panel-wiring-inspector--events-and-4-windows)
