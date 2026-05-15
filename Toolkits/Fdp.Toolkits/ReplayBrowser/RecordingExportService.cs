@@ -580,7 +580,23 @@ namespace Fdp.Toolkit.ReplayBrowser
                 writer.WriteNullValue();
                 return;
             }
-            node.WriteTo(writer);
+
+            if (minified)
+            {
+                node.WriteTo(writer);
+                return;
+            }
+
+            string rawJson = node.ToJsonString();
+            string prettyJson = JsonAestheticFormatter.FlattenNumericArrays(rawJson);
+            string indent = new string(' ', writer.CurrentDepth * 2);
+
+            string indentedJson = prettyJson
+                .Replace("\r\n", "\n")
+                .Replace("\r", "\n")
+                .Replace("\n", Environment.NewLine + indent);
+
+            writer.WriteRawValue(indentedJson, skipInputValidation: true);
         }
 
         /// <summary>
