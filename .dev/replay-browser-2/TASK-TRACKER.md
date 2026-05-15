@@ -56,26 +56,26 @@ Status legend: `[ ]` not done, `[x]` done. Backend-first ordering — never mark
 
 **Goal Backend (4.1–4.7)**: All SR-T01..SR-T36 passing before any search UI is written.
 
-- [ ] **RB-4.1** Search Domain DTOs [details](./TASK-DETAILS.md#rb-41--search-domain-dtos)
-- [ ] **RB-4.2** `IPropertyEvaluator` (StructEdit binding) [details](./TASK-DETAILS.md#rb-42--ipropertyevaluator--structedit-binding)
-- [ ] **RB-4.3** `IPredicateCompiler` (+ `PredicateCompiler`) [details](./TASK-DETAILS.md#rb-43--ipredicatecompiler--predicatecompiler)
-- [ ] **RB-4.4** `IEventScannerCompiler` (+ scanners) [details](./TASK-DETAILS.md#rb-44--ieventscannercompiler--fasteventscannert-managedeventscannert-occurrence-scanner)
-- [ ] **RB-4.5** `IRecordingSearchService` (+ `RecordingSearchService`) [details](./TASK-DETAILS.md#rb-45--irecordingsearchservice--recordingsearchservice)
-- [ ] **RB-4.6** `BoundingBoxPickerGizmo` [details](./TASK-DETAILS.md#rb-46--boundingboxpickergizmo)
-- [ ] **RB-4.7** Stage 4 Backend Acceptance Gate (all SR-T green) [details](./TASK-DETAILS.md#rb-47--stage-4-backend-acceptance-gate)
+- [x] **RB-4.1** Search Domain DTOs [details](./TASK-DETAILS.md#rb-41--search-domain-dtos)
+- [x] **RB-4.2** `IPropertyEvaluator` (StructEdit binding) [details](./TASK-DETAILS.md#rb-42--ipropertyevaluator--structedit-binding)
+- [x] **RB-4.3** `IPredicateCompiler` (+ `PredicateCompiler`) [details](./TASK-DETAILS.md#rb-43--ipredicatecompiler--predicatecompiler)
+- [x] **RB-4.4** `IEventScannerCompiler` (+ scanners) [details](./TASK-DETAILS.md#rb-44--ieventscannercompiler--fasteventscannert-managedeventscannert-occurrence-scanner)
+- [x] **RB-4.5** `IRecordingSearchService` (+ `RecordingSearchService`) [details](./TASK-DETAILS.md#rb-45--irecordingsearchservice--recordingsearchservice)
+- [x] **RB-4.6** `BoundingBoxPickerGizmo` [details](./TASK-DETAILS.md#rb-46--boundingboxpickergizmo)
+- [x] **RB-4.7** Stage 4 Backend Acceptance Gate (all SR-T green) [details](./TASK-DETAILS.md#rb-47--stage-4-backend-acceptance-gate)
 
 **Goal UI (4.8–4.11)**:
 
-- [ ] **RB-4.8** StructEdit Plumbing for the Search Panel [details](./TASK-DETAILS.md#rb-48--structedit-plumbing-for-the-search-panel)
-- [ ] **RB-4.9** Custom `IImGuiFieldDrawer`s (BBox, BehaviorHash, FilteredTypeCombo) [details](./TASK-DETAILS.md#rb-49--custom-iimguifielddrawers)
-- [ ] **RB-4.10** `ReplaySearchPanel` — all five modes incl. compound [details](./TASK-DETAILS.md#rb-410--replaysearchpanel-all-five-modes)
-- [ ] **RB-4.11** Stage 4 Final Gate [details](./TASK-DETAILS.md#rb-411--stage-4-final-gate)
+- [x] **RB-4.8** StructEdit Plumbing for the Search Panel [details](./TASK-DETAILS.md#rb-48--structedit-plumbing-for-the-search-panel)
+- [x] **RB-4.9** Custom `IImGuiFieldDrawer`s (BBox, BehaviorHash, FilteredTypeCombo) [details](./TASK-DETAILS.md#rb-49--custom-iimguifielddrawers)
+- [x] **RB-4.10** `ReplaySearchPanel` — all five modes incl. compound [details](./TASK-DETAILS.md#rb-410--replaysearchpanel-all-five-modes)
+- [x] **RB-4.11** Stage 4 Final Gate [details](./TASK-DETAILS.md#rb-411--stage-4-final-gate)
 
 ---
 
 ## Stage 5 — Global Registration
 
-- [ ] **RB-5.1** Add `Hrot.ReplayBrowser.csproj` to the ClusterRunner Solution [details](./TASK-DETAILS.md#rb-51--add-hrotreplaybrowsercsproj-to-the-clusterrunner-solution)
+- [x] **RB-5.1** Add `Hrot.ReplayBrowser.csproj` to the ClusterRunner Solution [details](./TASK-DETAILS.md#rb-51--add-hrotreplaybrowsercsproj-to-the-clusterrunner-solution)
 - [ ] **RB-5.2** End-to-End Manual Smoke [details](./TASK-DETAILS.md#rb-52--end-to-end-manual-smoke)
 
 ---

@@ -9,9 +9,11 @@ using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D;
 using Hrot.Core.Network;
+using StructEdit.Reflection;
 
 namespace Hrot.ReplayBrowser;
 
@@ -173,8 +175,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _inspectorPanel!.OnEntitySelected = selectIntent;
         _inspectorPanel.ChainToMap = true;
 
-        // Search panel receives raw intents; history wiring is our responsibility.
-        _searchPanel = new ReplaySearchPanel(seekIntent, selectIntent);
+        // Build search services.
+        var editSvc = new ComponentEditServiceBuilder().Build();
+        var predicateCompiler = new PredicateCompiler(editSvc);
+        var eventScannerCompiler = new EventScannerCompiler(editSvc);
+        var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
+
+        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent);
     }
 
     /// <summary>

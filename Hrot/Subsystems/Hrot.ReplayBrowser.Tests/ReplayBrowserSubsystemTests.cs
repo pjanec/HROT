@@ -129,7 +129,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var diffPanel      = new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel();
         var eventPanel     = new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService());
         var searchPanel    = new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(
-            _ => { }, _ => { });
+            new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { });
 
         _subsystem.RegisterWindowsCore(wm, timelinePanel, inspectorPanel, diffPanel, eventPanel, searchPanel);
 
@@ -277,5 +277,36 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             => Array.Empty<Fdp.Core.Diagnostics.CapturedEventDto>();
 
         public void ClearHistory() { }
+    }
+
+    private sealed class NopPanelEditService : StructEdit.Core.IComponentEditService
+    {
+        private sealed class NopSession : StructEdit.Core.IEditSession
+        {
+            public StructEdit.Core.EditDocument Document => null!;
+            public bool IsDirty => false;
+            public StructEdit.Core.EditRebuildState RebuildState => StructEdit.Core.EditRebuildState.Stable;
+            public void MarkStructuralChange() { }
+            public void RebuildDocument() { }
+            public StructEdit.Core.ValidationResult Validate() => StructEdit.Core.ValidationResult.Ok();
+            public object Commit() => new object();
+            public void Cancel() { }
+            public void Dispose() { }
+        }
+
+        public StructEdit.Core.IEditSession Open(object component, Type componentType,
+            StructEdit.Core.EditScope? scope = null, StructEdit.Core.EditContext? context = null)
+            => new NopSession();
+    }
+
+    private sealed class NopPanelSearchService : Fdp.Toolkit.ReplayBrowser.Search.IRecordingSearchService
+    {
+        public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.ReplayBrowser.Search.SearchResultDto> ExecuteSearch(
+            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto root)
+            => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Search.SearchResultDto>();
+
+        public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.ReplayBrowser.Search.LifecycleSearchResultDto> ExecuteLifecycleSearch(
+            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.LifecyclePredicateDto criteria)
+            => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Search.LifecycleSearchResultDto>();
     }
 }

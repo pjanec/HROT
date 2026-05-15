@@ -39,7 +39,8 @@
     <!-- Ensures Hrot.AI.Behaviors.dll is copied to the output directory for hot-reload.
          No types from this assembly are used statically; the C# compiler strips the
          IL reference, but MSBuild copy-local mechanics still deliver the DLL. -->
-    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.ReplayBrowser\Hrot.ReplayBrowser.csproj" />  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
