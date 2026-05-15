@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             // Pre-allocate the callback target entity list (reused per frame).
             var frameCandidates = new List<Entity>(32);
-            Action<Entity> collectEntity = entity => frameCandidates.Add(entity);
+            uint lastScannedVersion = 0;
 
             while (playback.StepForward(repo))
             {
@@ -120,18 +120,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (deltaQuery != null)
                 {
                     frameCandidates.Clear(); // no allocation: Clear() only sets Count = 0
-                    // Full entity scan: RestoreChunkFromBuffer during playback does not update
-                    // NativeChunkTable._chunkVersions, so QueryDelta's version-based detection
-                    // misses delta-frame entities. For offline replay search, scanning all
-                    // active entities per frame is correct.
-                    int maxIdx = repo.MaxEntityIndex;
-                    for (int idx = 0; idx <= maxIdx; idx++)
+                    foreach (var entity in repo.QueryDelta(deltaQuery, lastScannedVersion))
                     {
-                        ref EntityHeader hdr = ref repo.GetHeader(idx);
-                        if (!hdr.IsActive) continue;
-                        if (!deltaQuery.Matches(idx, hdr)) continue;
-                        Entity e = repo.GetEntityByIndex(idx);
-                        if (!e.IsNull) frameCandidates.Add(e);
+                        frameCandidates.Add(entity);
                     }
 
                     for (int i = 0; i < frameCandidates.Count; i++)
@@ -182,6 +173,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 }
 
                 repo.ClearDestructionLog();
+                lastScannedVersion = repo.GlobalVersion;
             }
 
             return results;

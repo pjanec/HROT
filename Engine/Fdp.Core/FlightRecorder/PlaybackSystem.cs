@@ -362,22 +362,8 @@ namespace Fdp.Core.FlightRecorder
              using (var reader = new BinaryReader(ms))
              {
                  T?[] chunkData = FdpAutoSerializer.Deserialize<T?[]>(reader);
-                 
-                 // We don't have the exact version from the file in this chunk. 
-                 // The file format: [ChunkID] [CompCount] [TypeID] [Len] [Data]
-                 // It doesn't store 'ChunkVersion'.
-                 // But we are dealing with a SNAPSHOT or DELTA.
-                 // If it's in the delta, it's effectively version = CurrentTick.
-                 // But PlaybackSystem doesn't easily expose CurrentTick in this method signature.
-                 // We need to pass it down or assume 0/max?
-                 // Actually, ApplyFrame reads the tick/GlobalVersion.
-                 // But ApplyChunkData doesn't take it. 
-                 // However, for restoration, ensuring data is set is enough.
-                 // We can use 0 or some value, key is that it's there.
-                 // Let's use 0 because we don't have the tick easily here and it might not matter for pure playback 
-                 // unless we support further recording *on top* of playback (which assigns new versions anyway).
-                 
-                 table.SetChunk(chunkIndex, chunkData, 0);
+
+                 table.SetChunk(chunkIndex, chunkData, repo.GlobalVersion);
                  
                  // NOTE: ComponentMask bits are normally correct from the EntityIndex chunk
                  // (restored earlier in the same ApplyFrame call). RepairManagedComponentMasks()

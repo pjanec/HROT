@@ -435,6 +435,8 @@ namespace Fdp.Core
             {
                 Unsafe.CopyBlock(destPtr, srcPtr, (uint)copySize);
             }
+
+            IncrementChunkVersion(chunkIndex);
         }
 
         /// <summary>
