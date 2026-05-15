@@ -29,17 +29,27 @@ public sealed class ImGuiFileDialogService : IFileDialogService
     private string _currentDirectory = Directory.GetCurrentDirectory();
     private string _fileNameBuffer   = string.Empty;
     private string _extensionFilter  = "*";
+    private string _dialogTitle      = "Save As";
     private TaskCompletionSource<string?>? _tcs;
 
     /// <inheritdoc/>
     public Task<string?> ShowSaveAsDialogAsync(string defaultFileName, string extensionFilter)
+        => OpenDialogInternal("Save As", defaultFileName, extensionFilter);
+
+    /// <inheritdoc/>
+    public Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+        => OpenDialogInternal("Open File", string.Empty, extensionFilter);
+
+    private Task<string?> OpenDialogInternal(string title, string defaultFileName, string extensionFilter)
     {
         // Cancel any pending dialog.
         _tcs?.TrySetCanceled();
 
         _fileNameBuffer   = defaultFileName;
         _extensionFilter  = extensionFilter;
-        _currentDirectory = Directory.GetCurrentDirectory();
+        _dialogTitle      = title;
+        if (!Directory.Exists(_currentDirectory))
+            _currentDirectory = Directory.GetCurrentDirectory();
         _tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _isOpen = true;
         return _tcs.Task;
@@ -54,7 +64,7 @@ public sealed class ImGuiFileDialogService : IFileDialogService
         if (!_isOpen) return;
 
         bool open = true;
-        if (ImGuiApi.BeginPopupModal("Save As##FileDialog", ref open,
+        if (ImGuiApi.BeginPopupModal($"{_dialogTitle}##FileDialog", ref open,
             ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoSavedSettings))
         {
             // Current directory label
@@ -63,6 +73,19 @@ public sealed class ImGuiFileDialogService : IFileDialogService
             // Up button
             if (ImGuiApi.Button("Up") && Directory.GetParent(_currentDirectory) is { } parent)
                 _currentDirectory = parent.FullName;
+
+            ImGuiApi.SameLine();
+            ImGuiApi.SetNextItemWidth(80f);
+            string? currentRoot = Path.GetPathRoot(_currentDirectory);
+            if (ImGuiApi.BeginCombo("##drives", string.IsNullOrEmpty(currentRoot) ? "<drive>" : currentRoot))
+            {
+                foreach (string drive in Directory.GetLogicalDrives())
+                {
+                    if (ImGuiApi.Selectable(drive))
+                        _currentDirectory = drive;
+                }
+                ImGuiApi.EndCombo();
+            }
 
             ImGuiApi.Separator();
 
@@ -95,7 +118,8 @@ public sealed class ImGuiFileDialogService : IFileDialogService
             if (ImGuiApi.InputText("File name", buf, (uint)buf.Length))
                 _fileNameBuffer = Encoding.UTF8.GetString(buf).TrimEnd('\0');
 
-            if (ImGuiApi.Button("Save"))
+            string confirmLabel = _dialogTitle == "Open File" ? "Open" : "Save";
+            if (ImGuiApi.Button(confirmLabel))
             {
                 string result = Path.Combine(_currentDirectory, _fileNameBuffer);
                 _isOpen = false;
@@ -124,7 +148,7 @@ public sealed class ImGuiFileDialogService : IFileDialogService
         else if (_isOpen)
         {
             // First frame after ShowSaveAsDialogAsync: open the popup.
-            ImGuiApi.OpenPopup("Save As##FileDialog");
+            ImGuiApi.OpenPopup($"{_dialogTitle}##FileDialog");
         }
     }
 }

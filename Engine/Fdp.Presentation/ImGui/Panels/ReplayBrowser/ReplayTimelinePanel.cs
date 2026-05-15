@@ -228,7 +228,7 @@ public sealed class ReplayTimelinePanel
 
     private async Task LoadFdpAsync()
     {
-        var path = await _fileDialogService.ShowSaveAsDialogAsync("", "*.fdp");
+        var path = await _fileDialogService.ShowOpenFileDialogAsync("*.fdp");
         if (!string.IsNullOrEmpty(path))
             _context.LoadRecording(path);
     }
