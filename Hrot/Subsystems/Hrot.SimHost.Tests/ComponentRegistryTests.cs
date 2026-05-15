@@ -5,6 +5,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.Map.Common;
 using Xunit;
 using CarKinem.Core;
