@@ -64,14 +64,22 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
             return Task.FromResult<object?>(null);
         }
 
-        var manifest = new[]
+        var manifest = new System.Collections.Generic.List<FileManifestResult>
         {
             new FileManifestResult(
                 SourceUnc:    file,
                 RelativeDest: Path.Combine(exerciseIdText, fileName)),
         };
 
-        return Task.FromResult<object?>(manifest);
+        var metaFile = file + ".meta.json";
+        if (File.Exists(metaFile))
+        {
+            manifest.Add(new FileManifestResult(
+                SourceUnc:    metaFile,
+                RelativeDest: Path.Combine(exerciseIdText, fileName + ".meta.json")));
+        }
+
+        return Task.FromResult<object?>(manifest.ToArray());
     }
 
     /// <inheritdoc />

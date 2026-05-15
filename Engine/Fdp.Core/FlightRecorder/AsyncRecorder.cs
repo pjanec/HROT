@@ -330,13 +330,20 @@ namespace Fdp.Core.FlightRecorder
                 // Skip managed class components — Marshal.SizeOf is not applicable.
                 if (!type.IsValueType || type.IsEnum) continue;
 
-                manifest[componentId] = new ComponentSchemaInfo
+                try
                 {
-                    Name       = type.FullName ?? type.Name,
-                    Size       = Marshal.SizeOf(type),
-                    LayoutHash = ComponentLayoutHasher.ComputeHash(type),
-                    IsManaged  = false
-                };
+                    manifest[componentId] = new ComponentSchemaInfo
+                    {
+                        Name       = type.FullName ?? type.Name,
+                        Size       = Marshal.SizeOf(type),
+                        LayoutHash = ComponentLayoutHasher.ComputeHash(type),
+                        IsManaged  = false
+                    };
+                }
+                catch
+                {
+                    // Skip empty marker/tag structs that Marshal.SizeOf cannot handle.
+                }
             }
 
             return manifest;

@@ -570,6 +570,45 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// </summary>
         internal static void RegisterAllComponents(EntityRepository repo, PlaybackController playback)
         {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.IsDynamic) continue;
+                string? fullName = assembly.FullName;
+                if (!string.IsNullOrEmpty(fullName) &&
+                    (fullName.StartsWith("System", StringComparison.Ordinal) ||
+                     fullName.StartsWith("Microsoft", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (ReflectionTypeLoadException ex)
+                {
+                    types = System.Array.FindAll(ex.Types, t => t != null)!;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (Type type in types)
+                {
+                    if (type.GetCustomAttributes(typeof(ComponentIdAttribute), false).Length == 0) continue;
+                    try
+                    {
+                        ComponentTypeRegistry.GetOrRegisterManaged(type);
+                    }
+                    catch
+                    {
+                        // Skip types that cannot be registered.
+                    }
+                }
+            }
+
             // Prefer schema manifest (only registers types actually in the recording).
             var manifest = playback.Metadata?.SchemaManifest;
             if (manifest != null && manifest.Count > 0)

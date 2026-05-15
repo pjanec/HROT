@@ -114,6 +114,7 @@ namespace Fdp.Core.FlightRecorder
             // After applying all chunk data, we need to synchronize the EntityIndex
             // Metadata (ActiveCount, MaxIssuedIndex, etc.) needs to be rebuilt from the restored headers
             repo.GetEntityIndex().RebuildMetadata();
+            RepairEntityIndex(repo);
             
             // 5. MANAGED COMPONENT MASK REPAIR (defensive)
             // In the normal case, EntityIndex chunks are written first by the recorder,

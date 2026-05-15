@@ -595,6 +595,44 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// </summary>
         private static void AutoRegisterAllComponentTypes(EntityRepository repo)
         {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.IsDynamic) continue;
+                string? fullName = assembly.FullName;
+                if (!string.IsNullOrEmpty(fullName) &&
+                    (fullName.StartsWith("System", StringComparison.Ordinal) ||
+                     fullName.StartsWith("Microsoft", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                Type[] types;
+                try
+                {
+                    types = assembly.GetTypes();
+                }
+                catch (System.Reflection.ReflectionTypeLoadException ex)
+                {
+                    types = System.Array.FindAll(ex.Types, t => t != null)!;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (Type type in types)
+                {
+                    if (type.GetCustomAttributes(typeof(ComponentIdAttribute), false).Length == 0) continue;
+                    try
+                    {
+                        ComponentTypeRegistry.GetOrRegisterManaged(type);
+                    }
+                    catch
+                    {
+                        // Skip types that cannot be registered.
+                    }
+                }
+            }
             // Find RegisterComponent<T>(DataPolicy? policyOverride = null) — the single
             // public generic instance method of that name with exactly one parameter.
             System.Reflection.MethodInfo? registerMethod = null;
@@ -624,10 +662,9 @@ namespace Fdp.Toolkit.ReplayBrowser
         }
 
         /// <summary>
-        /// Iterates all registered native event types (types for which
-        /// <see cref="EventType{T}.Id"/> has already been resolved in this process)
-        /// and calls <see cref="FdpEventBus.PrepareForNativeEventReplay{T}()"/> so that
-        /// events injected during playback land in typed, inspectable streams.
+        /// Iterates AppDomain assemblies for value types with EventIdAttribute and calls
+        /// <see cref="FdpEventBus.PrepareForNativeEventReplay{T}()"/> so events injected
+        /// during playback land in typed, inspectable streams.
         /// </summary>
         private static void AutoRegisterAllEventTypes(FdpEventBus bus)
         {
@@ -635,16 +672,44 @@ namespace Fdp.Toolkit.ReplayBrowser
                 nameof(FdpEventBus.PrepareForNativeEventReplay),
                 System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)!;
 
-            foreach (Type type in EventType.GetAllRegistered())
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (!type.IsValueType) continue; // PrepareForNativeEventReplay requires unmanaged (value) type
+                if (assembly.IsDynamic) continue;
+                string? fullName = assembly.FullName;
+                if (!string.IsNullOrEmpty(fullName) &&
+                    (fullName.StartsWith("System", StringComparison.Ordinal) ||
+                     fullName.StartsWith("Microsoft", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                Type[] types;
                 try
                 {
-                    method.MakeGenericMethod(type).Invoke(bus, null);
+                    types = assembly.GetTypes();
+                }
+                catch (System.Reflection.ReflectionTypeLoadException ex)
+                {
+                    types = System.Array.FindAll(ex.Types, t => t != null)!;
                 }
                 catch
                 {
-                    // Skip types that cannot be registered.
+                    continue;
+                }
+
+                foreach (Type type in types)
+                {
+                    if (!type.IsValueType) continue;
+                    bool hasEventId = type.GetCustomAttributes(typeof(EventIdAttribute), false).Length > 0;
+                    if (!hasEventId) continue;
+                    try
+                    {
+                        method.MakeGenericMethod(type).Invoke(bus, null);
+                    }
+                    catch
+                    {
+                        // Skip types that cannot be registered.
+                    }
                 }
             }
         }
