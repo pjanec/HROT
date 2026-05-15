@@ -30,6 +30,8 @@
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- Hrot network interface (INetworkFactory) required for subsystem discovery -->
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
+    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
   </ItemGroup>
 
 </Project>

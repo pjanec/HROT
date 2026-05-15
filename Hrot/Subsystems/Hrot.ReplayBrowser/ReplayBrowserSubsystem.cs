@@ -7,11 +7,14 @@ using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Panels;
 using Fdp.Presentation.Panels.ReplayBrowser;
 using Fdp.Presentation.WindowManager;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Vis2D;
+using Hrot.CGF.Configuration;
 using Hrot.Core.Network;
 using StructEdit.Reflection;
 
@@ -78,7 +81,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _inspectorState = new InspectorState();
             _session = new RepositoryAdapter(_context.SandboxRepo);
 
-            _exportService = new RecordingExportService();
+            var behaviorRegistry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(
+                behaviorRegistry,
+                geoTransform: null,
+                entityMap: new NetworkEntityMap());
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
+
+            _exportService = new RecordingExportService(scenarioSerializer);
             _fileDialogService = new WinFormsFileDialogService();
             _timelinePanel = new ReplayTimelinePanel(
                 _context,
@@ -87,6 +97,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 _playbackHistory);
 
             _inspectorPanel = new EntityInspectorPanel();
+            _inspectorPanel.Serializer = scenarioSerializer;
             _diffPanel = new ComponentDiffPanel();
             _eventPanel = new EventBrowserPanel(_context.HistoryService);
 
