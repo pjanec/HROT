@@ -8,7 +8,7 @@ VERIFY FACTS
 
 Do not assume. Verify all facts with the codebase before writing the design and tasks.
 
-CLARIFY BEFORE WRITING DESIGN
+ASK BEFORE WRITING DESIGN
 If there is anything ambiguos or unclear, ask the user clarifying questions first.
 
 FINAL CHECK
