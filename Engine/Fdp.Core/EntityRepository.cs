@@ -1409,18 +1409,11 @@ namespace Fdp.Core
         /// </summary>
         public void QueryDelta(EntityQuery query, uint sinceVersion, Action<Entity> action)
         {
-            // 1. Resolve tables involved in query (supports sparse/non-sequential component IDs)
-            var tables = new List<IComponentTable>();
-            foreach (var kvp in _componentTables)
-            {
-                int typeId = kvp.Value.ComponentTypeId;
-                if (query.IncludeMask.IsSet(typeId))
-                    tables.Add(kvp.Value);
-            }
-            
+            // Iterate component tables inline (no List allocation) so this method is
+            // zero-allocation when no entities match (SR-T34 invariant).
             int maxIndex = _entityIndex.MaxIssuedIndex;
             
-            // 2. Iterate entities
+            // Iterate entities
             // Optimization TODO: Use Chunk Skipping if possible (requires aligned chunks or block checks)
             // For now, linear scan with O(1) version checks is reasonably fast.
             for (int i = 0; i <= maxIndex; i++)
@@ -1437,10 +1430,13 @@ namespace Fdp.Core
                  }
                  else
                  {
-                     // Check component value changes
-                     foreach (var table in tables)
+                     // Check component value changes for tables in the query.
+                     // Using foreach on Dictionary<K,V> uses the value-type enumerator — no allocation.
+                     foreach (var kvp in _componentTables)
                      {
-                         if (table.GetVersionForEntity(i) > sinceVersion)
+                         int typeId = kvp.Value.ComponentTypeId;
+                         if (query.IncludeMask.IsSet(typeId) &&
+                             kvp.Value.GetVersionForEntity(i) > sinceVersion)
                          {
                              changed = true;
                              break;

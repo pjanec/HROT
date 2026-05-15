@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.FlightRecorder;
+using Fdp.Toolkit.ReplayBrowser.Search;
 
 namespace Fdp.Toolkit.ReplayBrowser
 {
@@ -54,6 +55,9 @@ namespace Fdp.Toolkit.ReplayBrowser
             Playback = new PlaybackController(fdpPath);
             Playback.EventBus = SandboxBus;
             CurrentFdpPath = fdpPath;
+            // Register all component types found in the recording's schema manifest so that
+            // ApplyChunkData can restore component data into SandboxRepo.
+            RecordingSearchService.RegisterAllComponents(SandboxRepo, Playback);
         }
 
         /// <summary>

@@ -305,6 +305,10 @@ namespace Fdp.Core
         /// </summary>
         public void ClearCurrentBuffers()
         {
+            // Also clear the active-event lookup so HasEvent is consistent with
+            // the cleared buffers (important for playback: new frame starts clean).
+            _activeEventIds.Clear();
+
             // Clear native streams
             foreach (var stream in _nativeStreams.Values)
             {
@@ -334,6 +338,8 @@ namespace Fdp.Core
             if (_nativeStreams.TryGetValue(typeId, out var stream))
             {
                 stream.InjectIntoCurrent(data);
+                // Mark event type as active so HasEvent returns true after injection.
+                _activeEventIds.Add(typeId);
             }
             else
             {
@@ -376,6 +382,9 @@ namespace Fdp.Core
                 _nativeStreams.TryAdd(typeId, untypedStream);
                 untypedStream.InjectIntoCurrent(data);
             }
+
+            // Mark event type as active so HasEvent returns true immediately after injection.
+            _activeEventIds.Add(typeId);
         }
 
         /// <summary>
