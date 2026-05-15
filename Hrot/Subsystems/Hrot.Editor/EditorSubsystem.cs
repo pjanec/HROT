@@ -185,7 +185,7 @@ namespace Hrot.Editor
         private ClusterUiCache?                _uiCache;
         private ClusterScenarioPanel?          _clusterPanel;
         private ClusterDiagnosticsPanel?       _clusterDiagnosticsPanel;
-        private ImGuiFileDialogService?        _fileDialogService;
+        private IFileDialogService?            _fileDialogService;
         private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
         private DiagnosticLogMergeWorker?      _logMergeWorker;
 
@@ -795,7 +795,7 @@ namespace Hrot.Editor
                 OrchestrationConstants.DefaultStagingDirectory);
             _uiCache = new ClusterUiCache(_orchestrationBus, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus, _uiCache);
-            _fileDialogService = new ImGuiFileDialogService();
+            _fileDialogService = new WinFormsFileDialogService();
             _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
                 _uiCache,
                 _orchestrationBus,
@@ -1215,8 +1215,6 @@ namespace Hrot.Editor
             windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
             if (_clusterPanel != null && _uiCache != null)
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
-            if (_fileDialogService != null)
-                windowManager.SetFileDialogService(_fileDialogService);
             if (_clusterDiagnosticsPanel != null)
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
 

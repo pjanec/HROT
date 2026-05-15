@@ -105,7 +105,7 @@ namespace Hrot.ExCon
         private ClusterScenarioPanel?             _clusterPanel;
         private Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel? _clusterDiagnosticsPanel;
         private DiagnosticLogMergeWorker?         _mergeWorker;
-        private Fdp.Presentation.Panels.ImGuiFileDialogService?   _exConFileDialogService;
+        private Fdp.Presentation.Abstractions.IFileDialogService? _exConFileDialogService;
 
         // ── TC2-P3: Slave time sync ─────────────────────────────────────────────────
         private SlaveSyncController?   _slaveSyncController;
@@ -297,7 +297,7 @@ namespace Hrot.ExCon
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
 
             // Wire the cluster diagnostics panel (reads UICache on observerBus; publishes via bus).
-            _exConFileDialogService  = new Fdp.Presentation.Panels.ImGuiFileDialogService();
+            _exConFileDialogService  = new Fdp.Presentation.Panels.WinFormsFileDialogService();
             _clusterDiagnosticsPanel = new Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel(
                 _uiCache,
                 _bus,
@@ -415,10 +415,6 @@ namespace Hrot.ExCon
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
-
-            // Register file dialog service so it draws each frame.
-            if (_exConFileDialogService != null)
-                windowManager.SetFileDialogService(_exConFileDialogService);
 
             // Register diagnostics window.
             if (_clusterDiagnosticsPanel != null)

@@ -43,7 +43,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private InspectorState? _inspectorState;
     private RepositoryAdapter? _session;
     private ReplayTimelinePanel? _timelinePanel;
-    private ImGuiFileDialogService? _fileDialogService;
+    private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
     private EntityInspectorPanel? _inspectorPanel;
@@ -79,7 +79,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _session = new RepositoryAdapter(_context.SandboxRepo);
 
             _exportService = new RecordingExportService();
-            _fileDialogService = new ImGuiFileDialogService();
+            _fileDialogService = new WinFormsFileDialogService();
             _timelinePanel = new ReplayTimelinePanel(
                 _context,
                 _exportService,
@@ -117,9 +117,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void RegisterWindows(WindowManager windowManager)
     {
         if (_headless) return;
-        if (_fileDialogService != null)
-            windowManager.SetFileDialogService(_fileDialogService);
-
         RegisterWindowsCore(
             windowManager,
             _timelinePanel!,

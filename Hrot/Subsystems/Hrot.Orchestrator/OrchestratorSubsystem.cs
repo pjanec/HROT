@@ -43,7 +43,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private DiagnosticsDumpProcessManager? _diagnosticsDumpProcessManager;
     private DiagnosticLogMergeWorker?      _mergeWorker;
     private ClusterDiagnosticsPanel?       _diagnosticsPanel;
-    private Fdp.Presentation.Panels.ImGuiFileDialogService? _fileDialogService;
+    private Fdp.Presentation.Abstractions.IFileDialogService? _fileDialogService;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
@@ -247,7 +247,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _mergeWorker = new DiagnosticLogMergeWorker(_bus!);
 
         // Wire the diagnostics panel (reads from _uiCache, publishes via _bus).
-        _fileDialogService = new Fdp.Presentation.Panels.ImGuiFileDialogService();
+        _fileDialogService = new Fdp.Presentation.Panels.WinFormsFileDialogService();
         _diagnosticsPanel = new ClusterDiagnosticsPanel(
             _uiCache!,
             _bus!,
@@ -327,10 +327,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     {
         if (_scenarioPanel == null) return;
         windowManager.RegisterWindow(new OrchestratorWindow(_scenarioPanel));
-
-        // Register shared file dialog service so it draws each frame.
-        if (_fileDialogService != null)
-            windowManager.SetFileDialogService(_fileDialogService);
 
         // Register diagnostics window.
         if (_diagnosticsPanel != null)
