@@ -1,8 +1,10 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using StructEdit.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
@@ -14,22 +16,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     {
         private readonly IComponentEditService _editService;
 
-        // Cache of per-type boxed component getters: (EntityRepository, Entity) -> object?
-        private static readonly ConcurrentDictionary<Type, Func<EntityRepository, Entity, object?>> _componentGetters
-            = new ConcurrentDictionary<Type, Func<EntityRepository, Entity, object?>>();
-
-        // Generic helper method referenced via reflection to box unmanaged component values.
-        private static readonly MethodInfo _getComponentBoxedMethod =
-            typeof(PredicateCompiler).GetMethod(
-                nameof(GetComponentBoxed),
-                BindingFlags.NonPublic | BindingFlags.Static)!;
-
         public PredicateCompiler(IComponentEditService editService)
         {
             _editService = editService ?? throw new ArgumentNullException(nameof(editService));
         }
-
-        // ── IPredicateCompiler ───────────────────────────────────────────────
 
         /// <inheritdoc/>
         public Func<EntityRepository, Entity, bool> CompileComponentPredicate(SearchPredicateDto root)
@@ -45,8 +35,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             CollectMandatoryComponents(root, result);
             return result;
         }
-
-        // ── Recursive compilation ────────────────────────────────────────────
 
         private Func<EntityRepository, Entity, bool> Compile(SearchPredicateDto dto)
         {
@@ -101,103 +89,125 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private Func<EntityRepository, Entity, bool> CompilePropertyMatch(PropertyMatchDto prop)
         {
             Type componentType = prop.ComponentType;
-            int typeId = ComponentTypeRegistry.GetId(componentType);
 
-            // Compile the IPropertyEvaluator for this component+path.
-            var evaluator = new PropertyEvaluator(_editService, componentType, prop.PropertyPath);
-
-            // Compile the operator function based on the sub-predicate.
-            Func<string, bool> operatorFn = CompileOperatorFn(prop.Operator, prop.Predicate);
-
-            // Build cached getter for this component type.
-            Func<EntityRepository, Entity, object?> getter = GetOrBuildGetter(componentType);
-
-            return (repo, entity) =>
+            if (componentType.IsValueType)
             {
-                // Guard: entity must have the component.
-                if (!repo.HasComponentByTypeId(entity, typeId)) return false;
-
-                // Get the component as object and evaluate.
-                object? component = getter(repo, entity);
-                if (component == null) return false;
-
-                string value = evaluator.GetValueAsString(component);
-                return operatorFn(value);
-            };
-        }
-
-        // ── Operator compilation ─────────────────────────────────────────────
-
-        private static Func<string, bool> CompileOperatorFn(SearchOperator op, SearchPredicateDto? valuePredicate)
-        {
-            switch (op)
+                var method = typeof(PredicateCompiler).GetMethod(nameof(BuildUnmanagedMatcher), BindingFlags.NonPublic | BindingFlags.Static)!;
+                return (Func<EntityRepository, Entity, bool>)method.MakeGenericMethod(componentType).Invoke(null, new object[] { prop })!;
+            }
+            else
             {
-                case SearchOperator.Changed:
-                    // "Changed" fires whenever the component mutates; value is irrelevant.
-                    return static _ => true;
-
-                case SearchOperator.Equals:
-                    if (valuePredicate is NumericPredicateDto numEq)
-                    {
-                        double minV = numEq.MinValue;
-                        double maxV = numEq.MaxValue;
-                        return value =>
-                            double.TryParse(value, System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture, out double d)
-                            && d >= minV && d <= maxV;
-                    }
-                    if (valuePredicate is StringPredicateDto strEq)
-                    {
-                        string sub = strEq.Substring;
-                        return value => string.Equals(value, sub, StringComparison.OrdinalIgnoreCase);
-                    }
-                    // Fallback: treat as always-match if no sub-predicate.
-                    return static _ => true;
-
-                case SearchOperator.Contains:
-                    if (valuePredicate is StringPredicateDto strCon)
-                    {
-                        string sub = strCon.Substring;
-                        return value => value.Contains(sub, StringComparison.OrdinalIgnoreCase);
-                    }
-                    return static _ => true;
-
-                case SearchOperator.StartsWith:
-                    if (valuePredicate is StringPredicateDto strSw)
-                    {
-                        string sub = strSw.Substring;
-                        return value => value.StartsWith(sub, StringComparison.OrdinalIgnoreCase);
-                    }
-                    return static _ => true;
-
-                case SearchOperator.GreaterThan:
-                    if (valuePredicate is NumericPredicateDto numGt)
-                    {
-                        double min = numGt.MinValue;
-                        return value =>
-                            double.TryParse(value, System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture, out double d)
-                            && d > min;
-                    }
-                    return static _ => true;
-
-                case SearchOperator.LessThan:
-                    if (valuePredicate is NumericPredicateDto numLt)
-                    {
-                        double max = numLt.MaxValue;
-                        return value =>
-                            double.TryParse(value, System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture, out double d)
-                            && d < max;
-                    }
-                    return static _ => true;
-
-                default:
-                    return static _ => true;
+                var method = typeof(PredicateCompiler).GetMethod(nameof(BuildManagedMatcher), BindingFlags.NonPublic | BindingFlags.Static)!;
+                return (Func<EntityRepository, Entity, bool>)method.MakeGenericMethod(componentType).Invoke(null, new object[] { prop })!;
             }
         }
 
-        // ── ExtractMandatoryComponents ───────────────────────────────────────
+        private delegate bool ComponentMatcherDelegate<T>(ref T component);
+
+        private static Func<EntityRepository, Entity, bool> BuildUnmanagedMatcher<T>(PropertyMatchDto prop) where T : unmanaged
+        {
+            int typeId = ComponentTypeRegistry.GetId(typeof(T));
+
+            var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
+            Expression fieldAccess = param;
+            if (!string.IsNullOrEmpty(prop.PropertyPath))
+            {
+                foreach (string seg in prop.PropertyPath.Split('.'))
+                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
+            }
+
+            Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
+            var matcher = Expression.Lambda<ComponentMatcherDelegate<T>>(condition, param).Compile();
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, typeId)) return false;
+
+                ref readonly T comp = ref repo.GetComponentRO<T>(entity);
+                return matcher(ref Unsafe.AsRef(in comp));
+            };
+        }
+
+        private static Func<EntityRepository, Entity, bool> BuildManagedMatcher<T>(PropertyMatchDto prop) where T : class
+        {
+            var param = Expression.Parameter(typeof(T), "comp");
+            Expression fieldAccess = param;
+            if (!string.IsNullOrEmpty(prop.PropertyPath))
+            {
+                foreach (string seg in prop.PropertyPath.Split('.'))
+                    fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
+            }
+
+            Expression condition = BuildConditionExpression(fieldAccess, prop.Operator, prop.Predicate);
+            var matcher = Expression.Lambda<Func<T, bool>>(condition, param).Compile();
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasManagedComponent<T>(entity)) return false;
+
+                T comp = ((ISimulationView)repo).GetManagedComponentRO<T>(entity);
+                if (comp == null) return false;
+                return matcher(comp);
+            };
+        }
+
+        private static Expression BuildConditionExpression(Expression fieldAccess, SearchOperator op, SearchPredicateDto? predicate)
+        {
+            if (op == SearchOperator.Changed) return Expression.Constant(true);
+
+            if (predicate is NumericPredicateDto num)
+            {
+                Expression asDouble;
+                if (fieldAccess.Type.IsEnum)
+                    asDouble = Expression.Convert(Expression.Convert(fieldAccess, Enum.GetUnderlyingType(fieldAccess.Type)), typeof(double));
+                else if (fieldAccess.Type == typeof(bool))
+                    asDouble = Expression.Condition(fieldAccess, Expression.Constant(1.0), Expression.Constant(0.0));
+                else
+                    asDouble = Expression.Convert(fieldAccess, typeof(double));
+
+                if (op == SearchOperator.Equals)
+                {
+                    return Expression.AndAlso(
+                        Expression.GreaterThanOrEqual(asDouble, Expression.Constant(num.MinValue)),
+                        Expression.LessThanOrEqual(asDouble, Expression.Constant(num.MaxValue))
+                    );
+                }
+                if (op == SearchOperator.GreaterThan)
+                    return Expression.GreaterThan(asDouble, Expression.Constant(num.MinValue));
+                if (op == SearchOperator.LessThan)
+                    return Expression.LessThan(asDouble, Expression.Constant(num.MaxValue));
+            }
+            else if (predicate is StringPredicateDto str)
+            {
+                var target = Expression.Constant(str.Substring ?? string.Empty, typeof(string));
+                var comparison = Expression.Constant(StringComparison.OrdinalIgnoreCase);
+
+                Expression asString;
+                if (fieldAccess.Type == typeof(string))
+                {
+                    asString = fieldAccess;
+                }
+                else
+                {
+                    var toStringMethod = fieldAccess.Type.GetMethod("ToString", Type.EmptyTypes) ?? typeof(object).GetMethod("ToString")!;
+                    asString = Expression.Call(fieldAccess, toStringMethod);
+                }
+
+                var isNotNull = Expression.NotEqual(asString, Expression.Constant(null, typeof(string)));
+
+                Expression stringCheck;
+                if (op == SearchOperator.Equals)
+                    stringCheck = Expression.Call(typeof(string), "Equals", null, asString, target, comparison);
+                else if (op == SearchOperator.StartsWith)
+                    stringCheck = Expression.Call(asString, typeof(string).GetMethod("StartsWith", new[] { typeof(string), typeof(StringComparison) })!, target, comparison);
+                else
+                    stringCheck = Expression.Call(asString, typeof(string).GetMethod("Contains", new[] { typeof(string), typeof(StringComparison) })!, target, comparison);
+
+                return Expression.AndAlso(isNotNull, stringCheck);
+            }
+
+            return Expression.Constant(true);
+        }
 
         private static void CollectMandatoryComponents(SearchPredicateDto dto, List<Type> result)
         {
@@ -222,42 +232,5 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     result.Add(single.ComponentType);
             }
         }
-
-        // ── Per-type component getter ─────────────────────────────────────────
-
-        private static Func<EntityRepository, Entity, object?> GetOrBuildGetter(Type componentType)
-        {
-            return _componentGetters.GetOrAdd(componentType, BuildGetter);
-        }
-
-        private static Func<EntityRepository, Entity, object?> BuildGetter(Type componentType)
-        {
-            if (componentType.IsValueType)
-            {
-                // Unmanaged struct: call GetComponent<T>(entity) via a cached generic delegate.
-                // GetComponentBoxed<T> is a static helper that boxes the ref readonly T value.
-                MethodInfo concreteMethod = _getComponentBoxedMethod.MakeGenericMethod(componentType);
-
-                // CreateDelegate requires exact signature match: Func<EntityRepository, Entity, object?>
-                return (Func<EntityRepository, Entity, object?>)
-                    Delegate.CreateDelegate(typeof(Func<EntityRepository, Entity, object?>), concreteMethod);
-            }
-            else
-            {
-                // Managed component: use GetManagedComponentByTypeId which returns object directly.
-                int typeId = ComponentTypeRegistry.GetId(componentType);
-                return (repo, entity) => repo.GetManagedComponentByTypeId(entity, typeId);
-            }
-        }
-
-        // GetComponentBoxed is a static generic helper that can be bound via CreateDelegate.
-        // The `where T : unmanaged` constraint is satisfied at MakeGenericMethod call time.
-#pragma warning disable IDE0051 // Used via reflection
-        private static object? GetComponentBoxed<T>(EntityRepository repo, Entity entity)
-            where T : unmanaged
-        {
-            return repo.GetComponent<T>(entity);
-        }
-#pragma warning restore IDE0051
     }
 }
