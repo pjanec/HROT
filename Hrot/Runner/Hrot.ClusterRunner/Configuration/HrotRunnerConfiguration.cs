@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|simhost,ig|orchestrator,cgf")]
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|stridemock|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -72,15 +72,15 @@ namespace Hrot.ClusterRunner.Configuration
                 // "ios" is a legacy alias for "excon"
                 var normalized = name == "ios" ? "excon" : name;
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor", "stridemock" };
+                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor", "stridemock", "replaybrowser" };
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
-                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
+                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, stridemock, replaybrowser, or comma-separated combination.");
                 RequestedSubsystems.Add(normalized);
             }
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, stridemock, replaybrowser, or comma-separated combination.");
 
             // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
@@ -117,8 +117,15 @@ namespace Hrot.ClusterRunner.Configuration
                     "Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF).");
             }
 
-            // Editor mode is always standalone (no peer synchronisation required).
-            if (RequestedSubsystems.Contains("editor")) return;
+            // ReplayBrowser mode is always standalone - must not be combined with distributed flags.
+            if (RequestedSubsystems.Contains("replaybrowser") && RequestedSubsystems.Count > 1)
+            {
+                throw new InvalidOperationException(
+                    "ReplayBrowser must run in isolation and cannot be combined with other subsystems.");
+            }
+
+            // Editor and ReplayBrowser modes are always standalone (no peer synchronisation required).
+            if (RequestedSubsystems.Contains("editor") || RequestedSubsystems.Contains("replaybrowser")) return;
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
