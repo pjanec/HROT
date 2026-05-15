@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using ImGuiNET;
 using StructEdit.Core;
 
@@ -18,15 +19,18 @@ internal sealed class ComponentEditDrawer
     private readonly IEditSession _session;
     private readonly IComponentPickerContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
+    private readonly ISpatialPickerContext? _spatialPickerCtx;
 
     internal ComponentEditDrawer(
         IEditSession session,
         IComponentPickerContext? pickerCtx,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
+        ISpatialPickerContext? spatialPickerCtx = null)
     {
-        _session   = session;
-        _pickerCtx = pickerCtx;
-        _customDrawers = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
+        _session            = session;
+        _pickerCtx          = pickerCtx;
+        _customDrawers      = customDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
+        _spatialPickerCtx   = spatialPickerCtx;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -205,6 +209,22 @@ internal sealed class ComponentEditDrawer
             if (_pickerCtx.TryConsumeLocationPick(node.JsonPath, out var location))
             {
                 node.Binding?.SetBoxed(location);
+                changed = true;
+            }
+        }
+
+        // Picker: bounding box area (spatial search).
+        var bboxAttr = node.Metadata.CustomAttributes
+            .OfType<MapPickableBoundingBoxAttribute>().FirstOrDefault();
+        if (bboxAttr != null && _spatialPickerCtx != null)
+        {
+            ImGuiApi.SameLine();
+            if (ImGuiApi.Button($"Pick Area##{node.Id.Value}"))
+                _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
+
+            if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
+            {
+                node.Binding?.SetBoxed(pickedBox);
                 changed = true;
             }
         }
