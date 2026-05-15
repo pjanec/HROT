@@ -580,11 +580,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                 writer.WriteNullValue();
                 return;
             }
-
-            string rawJson = node.ToJsonString();
-            if (!minified)
-                rawJson = JsonAestheticFormatter.FlattenNumericArrays(rawJson);
-            writer.WriteRawValue(rawJson, skipInputValidation: true);
+            node.WriteTo(writer);
         }
 
         /// <summary>
