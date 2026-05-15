@@ -249,5 +249,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         public System.Threading.Tasks.Task<string?> ShowSaveAsDialogAsync(
             string defaultFileName, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
+
+        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+            => System.Threading.Tasks.Task.FromResult<string?>(null);
     }
 }

@@ -266,6 +266,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         public System.Threading.Tasks.Task<string?> ShowSaveAsDialogAsync(
             string defaultFileName, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
+
+        public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+            => System.Threading.Tasks.Task.FromResult<string?>(null);
     }
 
     private sealed class StubHistoryService : Fdp.Core.Diagnostics.IDiagnosticEventHistoryService
