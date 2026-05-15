@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Presentation.Abstractions;
@@ -13,15 +16,39 @@ namespace Fdp.Presentation.Panels;
 /// </summary>
 public sealed class WinFormsFileDialogService : IFileDialogService
 {
-    private string _currentDirectory = Environment.CurrentDirectory;
+    private readonly ConcurrentDictionary<string, string> _openDirectories = new();
+    private readonly ConcurrentDictionary<string, string> _saveDirectories = new();
+    private readonly string _settingsFilePath;
+    private readonly object _stateFileLock = new();
 
-    public Task<string?> ShowSaveAsDialogAsync(string defaultFileName, string extensionFilter)
-        => ShowDialogAsync(openDialog: false, defaultFileName, extensionFilter);
+    public WinFormsFileDialogService()
+    {
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string configDir = Path.Combine(appData, "HROT");
+        Directory.CreateDirectory(configDir);
+        _settingsFilePath = Path.Combine(configDir, "file_dialogs.json");
+        LoadState();
+    }
 
-    public Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
-        => ShowDialogAsync(openDialog: true, string.Empty, extensionFilter);
+    public Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter)
+    {
+        string dir = _saveDirectories.GetOrAdd(callSiteId, Environment.CurrentDirectory);
+        return ShowDialogAsync(openDialog: false, callSiteId, defaultFileName, extensionFilter, dir, _saveDirectories);
+    }
 
-    private Task<string?> ShowDialogAsync(bool openDialog, string defaultFileName, string extensionFilter)
+    public Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
+    {
+        string dir = _openDirectories.GetOrAdd(callSiteId, Environment.CurrentDirectory);
+        return ShowDialogAsync(openDialog: true, callSiteId, string.Empty, extensionFilter, dir, _openDirectories);
+    }
+
+    private Task<string?> ShowDialogAsync(
+        bool openDialog,
+        string callSiteId,
+        string defaultFileName,
+        string extensionFilter,
+        string initialDir,
+        ConcurrentDictionary<string, string> stateStore)
     {
         var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -35,9 +62,12 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         {
             try
             {
-                string? result = ShowNativeDialog(openDialog, defaultFileName, extensionFilter);
+                string? result = ShowNativeDialog(openDialog, defaultFileName, extensionFilter, initialDir);
                 if (!string.IsNullOrEmpty(result))
-                    _currentDirectory = Path.GetDirectoryName(result) ?? _currentDirectory;
+                {
+                    stateStore[callSiteId] = Path.GetDirectoryName(result) ?? initialDir;
+                    SaveState();
+                }
                 tcs.TrySetResult(result);
             }
             catch (Exception ex)
@@ -53,7 +83,7 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         return tcs.Task;
     }
 
-    private string? ShowNativeDialog(bool openDialog, string defaultFileName, string extensionFilter)
+    private string? ShowNativeDialog(bool openDialog, string defaultFileName, string extensionFilter, string initialDir)
     {
         const int maxPath = 1024;
         IntPtr filterPtr = IntPtr.Zero;
@@ -65,12 +95,12 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         try
         {
             string filter = BuildComdlgFilter(extensionFilter);
-            string initialDir = Directory.Exists(_currentDirectory) ? _currentDirectory : Environment.CurrentDirectory;
+            string safeInitialDir = Directory.Exists(initialDir) ? initialDir : Environment.CurrentDirectory;
             string title = openDialog ? "Open File" : "Save As";
 
             filterPtr = Marshal.StringToHGlobalUni(filter);
             titlePtr = Marshal.StringToHGlobalUni(title);
-            initialDirPtr = Marshal.StringToHGlobalUni(initialDir);
+            initialDirPtr = Marshal.StringToHGlobalUni(safeInitialDir);
 
             if (!openDialog)
             {
@@ -158,6 +188,62 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         return trimmed;
     }
 
+    private void LoadState()
+    {
+        if (!File.Exists(_settingsFilePath))
+            return;
+
+        try
+        {
+            string json = File.ReadAllText(_settingsFilePath, Encoding.UTF8);
+            FileDialogState? state = JsonSerializer.Deserialize<FileDialogState>(json);
+            if (state == null)
+                return;
+
+            if (state.OpenDirectories != null)
+            {
+                foreach (KeyValuePair<string, string> kv in state.OpenDirectories)
+                    _openDirectories[kv.Key] = kv.Value;
+            }
+
+            if (state.SaveDirectories != null)
+            {
+                foreach (KeyValuePair<string, string> kv in state.SaveDirectories)
+                    _saveDirectories[kv.Key] = kv.Value;
+            }
+        }
+        catch
+        {
+            // Best-effort load. Corrupted or locked state file should not break dialogs.
+        }
+    }
+
+    private void SaveState()
+    {
+        try
+        {
+            var state = new FileDialogState
+            {
+                OpenDirectories = new Dictionary<string, string>(_openDirectories),
+                SaveDirectories = new Dictionary<string, string>(_saveDirectories)
+            };
+
+            string json = JsonSerializer.Serialize(state, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            lock (_stateFileLock)
+            {
+                File.WriteAllText(_settingsFilePath, json, Encoding.UTF8);
+            }
+        }
+        catch
+        {
+            // Best-effort persistence. Failures must not crash picker flow.
+        }
+    }
+
     private const int OFN_HIDEREADONLY = 0x00000004;
     private const int OFN_OVERWRITEPROMPT = 0x00000002;
     private const int OFN_FILEMUSTEXIST = 0x00001000;
@@ -197,4 +283,10 @@ public sealed class WinFormsFileDialogService : IFileDialogService
 
     [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetSaveFileName(ref OPENFILENAME ofn);
+
+    private sealed class FileDialogState
+    {
+        public Dictionary<string, string>? OpenDirectories { get; set; }
+        public Dictionary<string, string>? SaveDirectories { get; set; }
+    }
 }

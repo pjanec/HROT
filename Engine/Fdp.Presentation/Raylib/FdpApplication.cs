@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost;
 using Raylib_cs;
@@ -23,6 +26,7 @@ public abstract class FdpApplication : IDisposable
     }
 
     private bool _shouldQuit = false;
+    private IntPtr _iniFilenamePtr;
 
     /// <summary>
     /// Signals the application to close at the end of the current frame.
@@ -72,20 +76,37 @@ public abstract class FdpApplication : IDisposable
 
     private void InitializeWindow()
     {
-        // TODO: Load persistence logic here if Config.PersistenceEnabled
-        
         Raylib_cs.Raylib.SetConfigFlags(Config.Flags);
         Raylib_cs.Raylib.InitWindow(Config.Width, Config.Height, Config.WindowTitle);
         Raylib_cs.Raylib.SetTargetFPS(Config.TargetFPS);
         
         rlImGui.Setup(true); // Enable Docking by default
+
+        if (Config.PersistenceEnabled)
+        {
+            var io = ImGuiNET.ImGui.GetIO();
+            io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
+
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string configDir = Path.Combine(appData, "HROT");
+            Directory.CreateDirectory(configDir);
+            string iniPath = Path.Combine(configDir, "imgui.ini");
+            _iniFilenamePtr = Marshal.StringToHGlobalAnsi(iniPath);
+            unsafe
+            {
+                io.NativePtr->IniFilename = (byte*)_iniFilenamePtr;
+            }
+        }
     }
 
     private void ShutdownWindow()
     {
-        // TODO: Save persistence logic here if Config.PersistenceEnabled
-        
         rlImGui.Shutdown();
+        if (_iniFilenamePtr != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_iniFilenamePtr);
+            _iniFilenamePtr = IntPtr.Zero;
+        }
         Raylib_cs.Raylib.CloseWindow();
     }
 

@@ -33,11 +33,11 @@ public sealed class ImGuiFileDialogService : IFileDialogService
     private TaskCompletionSource<string?>? _tcs;
 
     /// <inheritdoc/>
-    public Task<string?> ShowSaveAsDialogAsync(string defaultFileName, string extensionFilter)
+    public Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter)
         => OpenDialogInternal("Save As", defaultFileName, extensionFilter);
 
     /// <inheritdoc/>
-    public Task<string?> ShowOpenFileDialogAsync(string extensionFilter)
+    public Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
         => OpenDialogInternal("Open File", string.Empty, extensionFilter);
 
     private Task<string?> OpenDialogInternal(string title, string defaultFileName, string extensionFilter)

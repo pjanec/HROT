@@ -12,21 +12,23 @@ public interface IFileDialogService
     /// <summary>
     /// Displays a "Save As" modal dialog.
     /// </summary>
+    /// <param name="callSiteId">Stable call-site identifier used to persist directory memory.</param>
     /// <param name="defaultFileName">Pre-populated file name in the dialog's input field.</param>
     /// <param name="extensionFilter">File extension filter string, e.g. <c>"*.json"</c>.</param>
     /// <returns>
     /// The full save path chosen by the user, or <c>null</c> if the user cancelled
     /// or the dialog was superseded by a subsequent call.
     /// </returns>
-    Task<string?> ShowSaveAsDialogAsync(string defaultFileName, string extensionFilter);
+    Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter);
 
     /// <summary>
     /// Displays an "Open File" modal dialog.
     /// </summary>
+    /// <param name="callSiteId">Stable call-site identifier used to persist directory memory.</param>
     /// <param name="extensionFilter">File extension filter string, e.g. <c>"*.fdp"</c>.</param>
     /// <returns>
     /// The full path chosen by the user, or <c>null</c> if the user cancelled
     /// or the dialog was superseded by a subsequent call.
     /// </returns>
-    Task<string?> ShowOpenFileDialogAsync(string extensionFilter);
+    Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter);
 }

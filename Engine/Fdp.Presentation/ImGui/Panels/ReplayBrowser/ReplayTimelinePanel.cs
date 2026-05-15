@@ -228,7 +228,7 @@ public sealed class ReplayTimelinePanel
 
     private async Task LoadFdpAsync()
     {
-        var path = await _fileDialogService.ShowOpenFileDialogAsync("*.fdp");
+        var path = await _fileDialogService.ShowOpenFileDialogAsync("ReplayBrowser_LoadRecording", "*.fdp");
         if (!string.IsNullOrEmpty(path))
             _context.LoadRecording(path);
     }
@@ -238,7 +238,7 @@ public sealed class ReplayTimelinePanel
         _isExporting = true;
         try
         {
-            string? outPath = await _fileDialogService.ShowSaveAsDialogAsync("dump.json", "*.json");
+            string? outPath = await _fileDialogService.ShowSaveAsDialogAsync("ReplayBrowser_ExportJson", "dump.json", "*.json");
             if (string.IsNullOrEmpty(outPath)) return;
 
             string inputPath = _context.CurrentFdpPath!;
