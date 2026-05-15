@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
@@ -18,17 +19,20 @@ namespace Fdp.Toolkit.Replication
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         public GhostCreationSystem GhostCreationSystem => _ghostCreationSystem;
 
         public ReplicationLogicModule(
             NetworkEntityMap entityMap,
             ITkbDatabase tkbDatabase,
-            EntityLifecycleModule lifecycleModule)
+            EntityLifecycleModule lifecycleModule,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
+            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _ghostCreationSystem = new GhostCreationSystem(_entityMap);
         }
 
@@ -36,7 +40,7 @@ namespace Fdp.Toolkit.Replication
         {
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap));
             registry.RegisterSystem(_ghostCreationSystem);
-            registry.RegisterSystem(new GhostPromotionSystem(_tkbDatabase, _lifecycleModule));
+            registry.RegisterSystem(new GhostPromotionSystem(_tkbDatabase, _lifecycleModule, _translators));
             registry.RegisterSystem(new SubEntityCleanupSystem());
             registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
             registry.RegisterSystem(new OwnershipEgressSystem());

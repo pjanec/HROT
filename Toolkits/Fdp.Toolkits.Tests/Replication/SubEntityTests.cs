@@ -25,6 +25,10 @@ namespace Fdp.Toolkit.Replication.Tests
             {
                 return Templates.TryGetValue(tkbType, out template);
             }
+            public string? ActiveTkbName { get; set; }
+            public void Clear() { }
+            public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+                => throw new NotImplementedException();
         }
 
         [Fact]

@@ -1,13 +1,5 @@
-using CarKinem.Core;
 using Fdp.Interfaces;
-using Fdp.Core;
-using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Combat.Components;
-using Fdp.Toolkit.Perception.Components;
-
-using Fdp.Toolkit.Physics;
-using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Examples.UrbanCombat.Setup
 {
@@ -52,34 +44,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterCivilianPedestrian(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("CivilianPedestrian", tkbType: 1001);
-
-            // Universal spatial primitives (Phase 0)
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-
-            // Behaviour
-            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new BehaviorState());
-            t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-            t.AddComponent(new LocomotionChannel());
-
-            // Vehicle kinematics (Phase 0: VehicleState is motor-only, no Position/Forward)
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-
-            // Perception
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = UrbanCombatConstants.CivilianVisionRange,
-                HearingRange   = UrbanCombatConstants.CivilianHearingRange,
-                FieldOfViewCos = 0f   // 360° awareness
-            });
-            t.AddComponent(new TargetMemory());
-
-            // Physics
-            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-
+            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
             tkb.Register(t);
         }
 
@@ -89,21 +54,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterCivilianCar(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("CivilianCar", tkbType: 1002);
-
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-
-            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new BehaviorState());
-            t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-            t.AddComponent(new LocomotionChannel());
-
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.PersonalCar));
-            t.AddComponent(new NavState());
-
-            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.CarColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-
+            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
             tkb.Register(t);
         }
 
@@ -116,42 +67,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterMilitaryAPC(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("MilitaryAPC", tkbType: 2001);
-
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-
-            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-
-            // HSM brain
-            t.AddComponent(new BrainHsm128());
-            t.AddComponent(new BrainBlackboard());
-
-            // Required by HsmDamageBridgeSystem (BATCH-12 back-port)
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract
-            });
-
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract
-            });
-
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new InteractionChannel());
-
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Tank));
-            t.AddComponent(new NavState());
-
-            // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = UrbanCombatConstants.ApcMaxHealth, Max = UrbanCombatConstants.ApcMaxHealth });
-
-            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.ApcColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-            t.AddComponent(new PassengerBuffer());
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
-
+            t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
             tkb.Register(t);
         }
 
@@ -164,58 +80,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterInfantrySoldier(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("InfantrySoldier", tkbType: 2002);
-
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-
-            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-
-            // BTree brain
-            t.AddComponent(new BrainBTreeState());
-            t.AddComponent(new BrainBlackboard());
-
-            // Required by HsmDamageBridgeSystem (BATCH-12 back-port)
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
-            });
-
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
-            });
-
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new WeaponChannel());
-            t.AddComponent(new InteractionChannel());
-
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-
-            // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
-
-            // Rifle: ammo=30, muzzle=800 m/s, 5 Hz → cooldown = 60/5 = 12 ticks
-            t.AddComponent(new WeaponState
-            {
-                Ammo                      = UrbanCombatConstants.RifleAmmo,
-                MuzzleVelocity            = UrbanCombatConstants.RifleMuzzleVelocity,
-                CooldownSecondsRemaining  = 0f
-            });
-
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = UrbanCombatConstants.SoldierVisionRange,
-                HearingRange   = UrbanCombatConstants.SoldierHearingRange,
-                FieldOfViewCos = 0f
-            });
-            t.AddComponent(new TargetMemory());
-
-            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
-
+            t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
             tkb.Register(t);
         }
 
@@ -228,58 +93,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
         private static void RegisterInsurgent(ITkbDatabase tkb)
         {
             var t = new TkbTemplate("Insurgent", tkbType: 2003);
-
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-
-            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-
-            // BTree brain
-            t.AddComponent(new BrainBTreeState());
-            t.AddComponent(new BrainBlackboard());
-
-            // Required by HsmDamageBridgeSystem (BATCH-12 back-port)
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
-            });
-
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
-            });
-
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new WeaponChannel());
-            t.AddComponent(new InteractionChannel());
-
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-
-            // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
-
-            // RPG: ammo=1, muzzle=300 m/s, 0.1 Hz -> cooldown = 10 seconds between shots
-            t.AddComponent(new WeaponState
-            {
-                Ammo                      = UrbanCombatConstants.RpgAmmo,
-                MuzzleVelocity            = UrbanCombatConstants.RpgMuzzleVelocity,
-                CooldownSecondsRemaining  = 0f
-            });
-
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = UrbanCombatConstants.SoldierVisionRange,
-                HearingRange   = UrbanCombatConstants.SoldierHearingRange,
-                FieldOfViewCos = 0f
-            });
-            t.AddComponent(new TargetMemory());
-
-            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
-
+            t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
             tkb.Register(t);
         }
     }

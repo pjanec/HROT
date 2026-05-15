@@ -186,6 +186,8 @@ namespace Fdp.Toolkit.Scenario
                 ["SubsystemType"]  = JsonValue.Create(header.SubsystemType),
                 ["SchemaVersion"]  = JsonValue.Create(header.SchemaVersion),
             };
+            if (header.TkbName != null)
+                headerNode["TkbName"] = JsonValue.Create(header.TkbName);
 
             return new JsonObject
             {

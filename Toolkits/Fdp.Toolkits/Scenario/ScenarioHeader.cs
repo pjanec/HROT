@@ -13,5 +13,8 @@ namespace Fdp.Toolkit.Scenario
     /// Integer schema version.  Increment when structural changes to the JSON
     /// contract are made that break old readers.
     /// </param>
-    public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1);
+    /// <param name="TkbName">
+    /// Optional TKB name required by this scenario. Null means no opinion.
+    /// </param>
+    public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1, string? TkbName = null);
 }

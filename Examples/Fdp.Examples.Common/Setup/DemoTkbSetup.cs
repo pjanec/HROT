@@ -1,9 +1,7 @@
-using CarKinem.Core;
 using Fdp.Examples.Common.Constants;
 using Fdp.Interfaces;
-using Fdp.Core;
-using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Examples.Common.Setup
 {
@@ -29,9 +27,6 @@ namespace Fdp.Examples.Common.Setup
     /// </summary>
     public static class DemoTkbSetup
     {
-        /// <summary>Default arrival radius for tank hull navigation (metres).</summary>
-        private const float CommandTankArrivalRadius = 2f;
-
         /// <summary>
         /// Registers all DistributedTank entity templates with <paramref name="tkb"/>.
         /// Call once at kernel setup, before <c>ModuleHostKernel.Initialize()</c>.
@@ -57,27 +52,10 @@ namespace Fdp.Examples.Common.Setup
         {
             var t = new TkbTemplate("CommandTank", tkbType: DemoTemplateIds.CommandTank);
 
-            // Universal spatial primitives
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
+            t.AddDescriptor(new TkbMasterDto { CustomName = "CommandTank" });
 
-            // Vehicle kinematics (required by CarKinematicsSystem)
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Tank));
-
-            // Navigation target  — populated via DemoLocomotionMsg translation at runtime
-            t.AddComponent(new NavState
-            {
-                Mode             = KinematicsMode.None,
-                TrajectoryId     = -1,
-                CurrentSegmentId = -1,
-                ArrivalRadius    = CommandTankArrivalRadius,
-                TargetSpeed      = 0f,
-            });
-
-            // Locomotion channel — written by DemoLocomotionMsg translator, read by
-            // LocomotionDispatcherSystem (if registered) or used for split-authority checks.
-            t.AddComponent(new LocomotionChannel());
+            // TKB-014 (Phase 6): ECS components (SimTransform, SimVelocity, VehicleState,
+            // VehicleParams, NavState, LocomotionChannel) will be injected by translators.
 
             tkb.Register(t);
         }

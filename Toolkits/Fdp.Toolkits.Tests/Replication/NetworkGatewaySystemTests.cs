@@ -163,5 +163,9 @@ namespace Fdp.Toolkit.Replication.Tests
         public void        Register(TkbTemplate t)                { }
         public bool TryGetByName(string name, out TkbTemplate t)  { t = null!; return false; }
         public bool TryGetByType(long type, out TkbTemplate t)    { t = null!; return false; }
+        public string? ActiveTkbName { get; set; }
+        public void Clear() { }
+        public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+            => throw new NotImplementedException();
     }
 }

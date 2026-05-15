@@ -200,7 +200,8 @@ namespace Fdp.Examples.UrbanCombat
                 ?? throw new InvalidOperationException($"TKB template not found for type {tkbTypeId}.");
 
             var entity = _world.CreateEntity();
-            template.ApplyTo(_world, entity);
+            // TKB-014 (Phase 6): translator loop will replace ApplyTo here.
+            // foreach (var t in _translators) t.Inject(_world, entity, template);
 
             // Set spawn position.
             ref var tf = ref _world.GetComponentRW<SimTransform>(entity);

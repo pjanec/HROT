@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Lifecycle
         public IReadOnlyList<Type>? WatchComponents => null;
         
         private readonly ITkbDatabase _tkb;
+        private IReadOnlyList<ITkbEntityTranslator> _translators;
         
         /// <summary>
         /// Global participants that care about all entities.
@@ -56,18 +57,29 @@ namespace Fdp.Toolkit.Lifecycle
             ITkbDatabase tkb,
             IEnumerable<int> participatingModuleIds,
             int timeoutFrames = 300,
-            long localNodeId = 0) 
+            long localNodeId = 0,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null) 
         {
             _tkb = tkb;
             _globalParticipants = new HashSet<int>(participatingModuleIds);
             _timeoutFrames = timeoutFrames;
             _localNodeId = localNodeId;
+            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
         
         public void RegisterSystems(ISystemRegistry registry)
         {
-            registry.RegisterSystem(new BlueprintApplicationSystem(_tkb));
+            registry.RegisterSystem(new BlueprintApplicationSystem(_tkb, _translators));
             registry.RegisterSystem(new LifecycleSystem(this));
+        }
+
+        /// <summary>
+        /// Replaces the translator list used by <see cref="Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem"/>.
+        /// Must be called before the module host kernel calls <see cref="RegisterSystems"/>.
+        /// </summary>
+        public void SetTranslators(IReadOnlyList<ITkbEntityTranslator> translators)
+        {
+            _translators = translators;
         }
         
         public void Tick(ISimulationView view, float deltaTime)

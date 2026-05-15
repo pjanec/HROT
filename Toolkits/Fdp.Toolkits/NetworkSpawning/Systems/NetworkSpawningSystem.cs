@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Lifecycle;
@@ -25,6 +26,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
         private readonly int _localNodeId;
+        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
         /// <param name="tkbDb">TKB template registry.</param>
@@ -38,6 +40,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             NetworkEntityMap networkMap,
             INetworkIdAllocator idAllocator,
             int localNodeId,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null,
             Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
@@ -45,6 +48,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             _networkMap       = networkMap  ?? throw new ArgumentNullException(nameof(networkMap));
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId      = localNodeId;
+            _translators      = translators ?? System.Array.Empty<ITkbEntityTranslator>();
             _onEntitySpawned  = onEntitySpawned;
         }
 
@@ -93,7 +97,8 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             // Set lifecycle header immediately so queries that filter by Constructing
             // can find this entity even before all peer ACKs arrive.
             world.SetLifecycleState(entity, EntityLifecycle.Constructing);
-            template.ApplyTo(world, entity);
+            foreach (var t in _translators)
+                t.Inject(world, entity, template);
 
             // 5. Core network components (order matches design doc §4.3)
             world.SetComponent(entity, new NetworkIdentity(networkId));

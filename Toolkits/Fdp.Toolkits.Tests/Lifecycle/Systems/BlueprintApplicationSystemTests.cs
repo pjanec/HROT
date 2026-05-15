@@ -6,88 +6,51 @@ using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Tkb.Domain;
 using Moq;
 
 namespace Fdp.Toolkit.Lifecycle.Tests.Systems
 {
-    [ComponentId(244)]
-    public struct TestComponentA
-    {
-        public int Value;
-    }
-
     public class BlueprintApplicationSystemTests
     {
         [Fact]
-        public void Execute_PreservesExistingComponents()
+        public void Execute_UnknownTkbType_DoesNotThrow()
         {
-            // Register template with Component A (Value=10).
-            var template = new TkbTemplate("TestTemplate", 1);
-            template.AddComponent(new TestComponentA { Value = 10 });
-            
             var mockTkb = new Mock<ITkbDatabase>();
-            TkbTemplate outTemplate = template;
-            mockTkb.Setup(x => x.TryGetByType(1, out outTemplate)).Returns(true);
+            TkbTemplate? outTemplate = null;
+            mockTkb.Setup(x => x.TryGetByType(It.IsAny<long>(), out outTemplate)).Returns(false);
 
-            // Create entity with Component A (Value=20).
             var repo = new EntityRepository();
-            repo.RegisterComponent<TestComponentA>();
-            
             var system = new BlueprintApplicationSystem(mockTkb.Object);
-            var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new TestComponentA { Value = 20 });
-            
-            // Add ConstructionOrder event
-            repo.Bus.Publish(new ConstructionOrder 
-            { 
-                Entity = entity, 
-                BlueprintId = 1 
-            });
-            
-            // Swap buffers to make event visible for consumption
+
+            repo.Bus.Publish(new ConstructionOrder { Entity = default, BlueprintId = 99 });
             repo.Bus.SwapBuffers();
 
-            // Run system.
+            // Must not throw even when template is not found.
             system.Execute(repo, 0.1f);
-
-            // Assert Value is 20 (Preserved).
-            var comp = repo.GetComponent<TestComponentA>(entity);
-            Assert.Equal(20, comp.Value);
         }
 
         [Fact]
-        public void Execute_AppliesMissingComponents()
+        public void Execute_KnownTkbType_ConsumesOrderWithoutThrowing()
         {
-            // Same template.
             var template = new TkbTemplate("TestTemplate", 1);
-            template.AddComponent(new TestComponentA { Value = 10 });
-            
+            template.AddDescriptor(new TkbMasterDto { CustomName = "TestTemplate" });
+
             var mockTkb = new Mock<ITkbDatabase>();
             TkbTemplate outTemplate = template;
             mockTkb.Setup(x => x.TryGetByType(1, out outTemplate)).Returns(true);
 
-            // Empty entity.
             var repo = new EntityRepository();
-            repo.RegisterComponent<TestComponentA>();
+            repo.RegisterEvent<ConstructionOrder>();
             var system = new BlueprintApplicationSystem(mockTkb.Object);
             var entity = repo.CreateEntity();
 
-            // Add ConstructionOrder event
-            repo.Bus.Publish(new ConstructionOrder 
-            { 
-                Entity = entity, 
-                BlueprintId = 1 
-            });
-            
-            // Swap buffers
+            repo.Bus.Publish(new ConstructionOrder { Entity = entity, BlueprintId = 1 });
             repo.Bus.SwapBuffers();
 
-            // Run system.
+            // No exception — template found, no translators yet (Phase 6).
             system.Execute(repo, 0.1f);
-
-            // Assert Value is 10 (Applied from template).
-            var comp = repo.GetComponent<TestComponentA>(entity);
-            Assert.Equal(10, comp.Value);
         }
     }
 }
+

@@ -65,7 +65,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             // Template has a default TestPositionComponent so EntityComponentReflector
             // is exercised as an override (not first touch).
             var template = new TkbTemplate("IntegrationTemplate", TkbType);
-            template.AddComponent(new TestPositionComponent { X = 0f, Y = 0f });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkbDb.Register(template);
 
             _elm        = new EntityLifecycleModule(_tkbDb, participatingModuleIds: System.Array.Empty<int>());

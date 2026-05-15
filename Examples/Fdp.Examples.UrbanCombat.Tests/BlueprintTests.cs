@@ -102,61 +102,6 @@ namespace Fdp.Examples.UrbanCombat.Tests
             Assert.NotNull(tkb.GetByType(2003)); // Insurgent
         }
 
-        /// <summary>The MilitaryAPC template must stamp PassengerBuffer and FactionBlue.</summary>
-        [Fact]
-        public void APC_Template_HasPassengerBuffer()
-        {
-            var template = _app.Tkb.GetByType(2001)!;
-            var e = _app.World.CreateEntity();
-            template.ApplyTo(_app.World, e);
-
-            Assert.True(_app.World.HasComponent<PassengerBuffer>(e));
-            Assert.True(_app.World.HasComponent<EntityInfo>(e));
-            var info = _app.World.GetComponent<EntityInfo>(e);
-            Assert.Equal(ForceId.Friend, info.ForceId);   // FactionBlue = Friend
-        }
-
-        /// <summary>The MilitaryAPC template must stamp BehaviorState with BrainTierHsm (=1), not BrainTierBTree (=2).</summary>
-        [Fact]
-        public void APC_Template_HasHsmBrainTier()
-        {
-            var template = _app.Tkb.GetByType(2001)!;
-            var e = _app.World.CreateEntity();
-            template.ApplyTo(_app.World, e);
-            var ds = _app.World.GetComponent<BehaviorState>(e);
-            Assert.Equal(BehaviorConstants.BrainTierHsm, ds.BrainTier);  // must be 1, not 2
-        }
-
-        /// <summary>The InfantrySoldier template must stamp WeaponState with 30 rounds.</summary>
-        [Fact]
-        public void Soldier_Template_HasWeaponState()
-        {
-            var template = _app.Tkb.GetByType(2002)!;
-            var e = _app.World.CreateEntity();
-            template.ApplyTo(_app.World, e);
-
-            Assert.True(_app.World.HasComponent<WeaponState>(e));
-            var ws = _app.World.GetComponent<WeaponState>(e);
-            Assert.Equal(UrbanCombatConstants.RifleAmmo, ws.Ammo);   // Rifle: 30 rounds
-        }
-
-        /// <summary>The Insurgent template must stamp WeaponState with 1 round (RPG) and FactionRed.</summary>
-        [Fact]
-        public void Insurgent_Template_HasWeaponState_WithExpectedAmmo()
-        {
-            var template = _app.Tkb.GetByType(2003)!;
-            var e = _app.World.CreateEntity();
-            template.ApplyTo(_app.World, e);
-
-            Assert.True(_app.World.HasComponent<WeaponState>(e));
-            var ws = _app.World.GetComponent<WeaponState>(e);
-            Assert.Equal(UrbanCombatConstants.RpgAmmo, ws.Ammo);   // RPG: single rocket
-
-            Assert.True(_app.World.HasComponent<EntityInfo>(e));
-            var info = _app.World.GetComponent<EntityInfo>(e);
-            Assert.Equal(ForceId.Hostile, info.ForceId);   // FactionRed = Hostile
-        }
-
         // ════════════════════════════════════════════════════════════════════════════
         // T4 — TrafficBrainSystem (BCS-P7-T4)
         // ════════════════════════════════════════════════════════════════════════════

@@ -406,184 +406,35 @@ namespace Fdp.Examples.Scenarios.Integrated
         private void RegisterCivilianPedestrian()
         {
             var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-            t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new BehaviorState());
-            t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = CivilianVisionRange,
-                HearingRange   = CivilianHearingRange,
-                FieldOfViewCos = 0f,
-            });
-            t.AddComponent(new TargetMemory());
-            t.AddComponent(new PhysicsCollider
-            {
-                Radius         = HumanoidRadius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkb.Register(t);
         }
 
         private void RegisterCivilianCar()
         {
             var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-            t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-            t.AddComponent(new BehaviorState());
-            t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.PersonalCar));
-            t.AddComponent(new NavState());
-            t.AddComponent(new PhysicsCollider
-            {
-                Radius         = CarRadius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkb.Register(t);
         }
 
         private void RegisterMilitaryApc()
         {
             var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-            t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-            t.AddComponent(new BrainHsm128());
-            t.AddComponent(new BrainBlackboard());
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
-            });
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
-            });
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new InteractionChannel());
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Tank));
-            t.AddComponent(new NavState());
-            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
-            {
-                Current = ApcMaxHealth,
-                Max     = ApcMaxHealth,
-            });
-            t.AddComponent(new PhysicsCollider
-            {
-                Radius         = ApcRadius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
-            t.AddComponent(new PassengerBuffer());
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkb.Register(t);
         }
 
         private void RegisterInfantrySoldier()
         {
             var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-            t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-            t.AddComponent(new BrainBTreeState());
-            t.AddComponent(new BrainBlackboard());
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
-            });
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
-            });
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new WeaponChannel());
-            t.AddComponent(new InteractionChannel());
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
-            {
-                Current = SoldierMaxHealth,
-                Max     = SoldierMaxHealth,
-            });
-            t.AddComponent(new WeaponState
-            {
-                Ammo                   = RifleAmmo,
-                MuzzleVelocity         = RifleMuzzleVelocity,
-                CooldownSecondsRemaining = 0f,
-            });
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = SoldierVisionRange,
-                HearingRange   = SoldierHearingRange,
-                FieldOfViewCos = 0f,
-            });
-            t.AddComponent(new TargetMemory());
-            t.AddComponent(new PhysicsCollider
-            {
-                Radius         = HumanoidRadius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkb.Register(t);
         }
 
         private void RegisterInsurgent()
         {
             var t = new TkbTemplate("Insurgent", TkbInsurgent);
-            t.AddComponent(new SimTransform());
-            t.AddComponent(new SimVelocity());
-            t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-            t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-            t.AddComponent(new BrainBTreeState());
-            t.AddComponent(new BrainBlackboard());
-            t.AddComponent(new PreviousCapabilities
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
-            });
-            t.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
-            });
-            t.AddComponent(new LocomotionChannel());
-            t.AddComponent(new WeaponChannel());
-            t.AddComponent(new InteractionChannel());
-            t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-            t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-            t.AddComponent(new NavState());
-            t.AddComponent(new Fdp.Toolkit.Combat.Components.Health
-            {
-                Current = SoldierMaxHealth,
-                Max     = SoldierMaxHealth,
-            });
-            t.AddComponent(new WeaponState
-            {
-                Ammo                   = RpgAmmo,
-                MuzzleVelocity         = RpgMuzzleVelocity,
-                CooldownSecondsRemaining = 0f,
-            });
-            t.AddComponent(new PerceptionReceptor
-            {
-                VisionRange    = SoldierVisionRange,
-                HearingRange   = SoldierHearingRange,
-                FieldOfViewCos = 0f,
-            });
-            t.AddComponent(new TargetMemory());
-            t.AddComponent(new PhysicsCollider
-            {
-                Radius         = HumanoidRadius,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer,
-            });
-            t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             _tkb.Register(t);
         }
 
@@ -662,109 +513,35 @@ namespace Fdp.Examples.Scenarios.Integrated
             // CivilianPedestrian (1001)
             {
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                t.AddComponent(new SimTransform());
-                t.AddComponent(new SimVelocity());
-                t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-                t.AddComponent(new BehaviorState());
-                t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-                t.AddComponent(new LocomotionChannel());
-                t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-                t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-                t.AddComponent(new NavState());
-                t.AddComponent(new PerceptionReceptor { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewCos = 0f });
-                t.AddComponent(new TargetMemory());
-                t.AddComponent(new PhysicsCollider { Radius = HumanoidRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
+                // TKB-014 (Phase 6): ECS components will be injected by translators.
                 tkb.Register(t);
             }
 
             // CivilianCar (1002)
             {
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                t.AddComponent(new SimTransform());
-                t.AddComponent(new SimVelocity());
-                t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierCivilian });
-                t.AddComponent(new BehaviorState());
-                t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
-                t.AddComponent(new LocomotionChannel());
-                t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-                t.AddComponent(VehiclePresets.GetPreset(VehicleClass.PersonalCar));
-                t.AddComponent(new NavState());
-                t.AddComponent(new PhysicsCollider { Radius = CarRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
+                // TKB-014 (Phase 6): ECS components will be injected by translators.
                 tkb.Register(t);
             }
 
             // MilitaryAPC (2001)
             {
                 var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-                t.AddComponent(new SimTransform());
-                t.AddComponent(new SimVelocity());
-                t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-                t.AddComponent(new BrainHsm128());
-                t.AddComponent(new BrainBlackboard());
-                t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
-                t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract });
-                t.AddComponent(new LocomotionChannel());
-                t.AddComponent(new InteractionChannel());
-                t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-                t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Tank));
-                t.AddComponent(new NavState());
-                t.AddComponent(new Fdp.Toolkit.Combat.Components.Health { Current = ApcMaxHealth, Max = ApcMaxHealth });
-                t.AddComponent(new PhysicsCollider { Radius = ApcRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-                t.AddComponent(new PassengerBuffer());
-                t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
+                // TKB-014 (Phase 6): ECS components will be injected by translators.
                 tkb.Register(t);
             }
 
             // InfantrySoldier (2002)
             {
                 var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-                t.AddComponent(new SimTransform());
-                t.AddComponent(new SimVelocity());
-                t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-                t.AddComponent(new BrainBTreeState());
-                t.AddComponent(new BrainBlackboard());
-                t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
-                t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
-                t.AddComponent(new LocomotionChannel());
-                t.AddComponent(new WeaponChannel());
-                t.AddComponent(new InteractionChannel());
-                t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-                t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-                t.AddComponent(new NavState());
-                t.AddComponent(new Fdp.Toolkit.Combat.Components.Health { Current = SoldierMaxHealth, Max = SoldierMaxHealth });
-                t.AddComponent(new WeaponState { Ammo = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity, CooldownSecondsRemaining = 0f });
-                t.AddComponent(new PerceptionReceptor { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewCos = 0f });
-                t.AddComponent(new TargetMemory());
-                t.AddComponent(new PhysicsCollider { Radius = HumanoidRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-                t.AddComponent(new EntityInfo { ForceId = ForceId.Friend });
+                // TKB-014 (Phase 6): ECS components will be injected by translators.
                 tkb.Register(t);
             }
 
             // Insurgent (2003)
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                t.AddComponent(new SimTransform());
-                t.AddComponent(new SimVelocity());
-                t.AddComponent(new SimTier  { Value = BehaviorConstants.SimTierTactical });
-                t.AddComponent(new BehaviorState { BrainTier = BehaviorConstants.BrainTierBTree });
-                t.AddComponent(new BrainBTreeState());
-                t.AddComponent(new BrainBlackboard());
-                t.AddComponent(new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
-                t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
-                t.AddComponent(new LocomotionChannel());
-                t.AddComponent(new WeaponChannel());
-                t.AddComponent(new InteractionChannel());
-                t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-                t.AddComponent(VehiclePresets.GetPreset(VehicleClass.Pedestrian));
-                t.AddComponent(new NavState());
-                t.AddComponent(new Fdp.Toolkit.Combat.Components.Health { Current = SoldierMaxHealth, Max = SoldierMaxHealth });
-                t.AddComponent(new WeaponState { Ammo = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, CooldownSecondsRemaining = 0f });
-                t.AddComponent(new PerceptionReceptor { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewCos = 0f });
-                t.AddComponent(new TargetMemory());
-                t.AddComponent(new PhysicsCollider { Radius = HumanoidRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
-                t.AddComponent(new EntityInfo { ForceId = ForceId.Hostile });
+                // TKB-014 (Phase 6): ECS components will be injected by translators.
                 tkb.Register(t);
             }
         }
@@ -921,7 +698,8 @@ namespace Fdp.Examples.Scenarios.Integrated
                 ?? throw new InvalidOperationException($"TKB type {tkbTypeId} not registered.");
 
             var entity = world.CreateEntity();
-            template.ApplyTo(world, entity);
+            // TKB-014 (Phase 6): translator loop will replace ApplyTo here.
+            // foreach (var t in _translators) t.Inject(world, entity, template);
 
             world.AddComponent(entity, new TkbIdentity { TkbType = tkbTypeId });
 

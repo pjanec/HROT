@@ -23,5 +23,14 @@ namespace Fdp.Interfaces
         
         // Enumeration
         IEnumerable<TkbTemplate> GetAll();
+
+        // Lifecycle
+        void Clear();
+
+        // Category-based enumeration
+        IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath);
+
+        // Active TKB name (set by the TKB loader when a file is loaded)
+        string? ActiveTkbName { get; set; }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Interfaces;
 
 namespace Fdp.Toolkit.Tkb
@@ -57,6 +58,23 @@ namespace Fdp.Toolkit.Tkb
         public IEnumerable<TkbTemplate> GetAll()
         {
             return _byType.Values;
+        }
+
+        public string? ActiveTkbName { get; set; }
+
+        public void Clear()
+        {
+            _byName.Clear();
+            _byType.Clear();
+        }
+
+        public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+        {
+            if (string.IsNullOrEmpty(categoryPath))
+                return _byType.Values;
+            return _byType.Values.Where(t =>
+                t.CategoryPath.Equals(categoryPath, StringComparison.OrdinalIgnoreCase) ||
+                t.CategoryPath.StartsWith(categoryPath + "/", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

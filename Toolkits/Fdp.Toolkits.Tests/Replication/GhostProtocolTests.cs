@@ -27,6 +27,10 @@ namespace Fdp.Toolkit.Replication.Tests
             template = TemplateToReturn;
             return template != null;
         }
+        public string? ActiveTkbName { get; set; }
+        public void Clear() { }
+        public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+            => throw new NotImplementedException();
     }
 
     class SlowMockTkbDatabase : ITkbDatabase
@@ -51,6 +55,10 @@ namespace Fdp.Toolkit.Replication.Tests
             template = GetByType(tkbType);
             return template != null;
         }
+        public string? ActiveTkbName { get; set; }
+        public void Clear() { }
+        public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+            => throw new NotImplementedException();
     }
 
     public class GhostProtocolTests

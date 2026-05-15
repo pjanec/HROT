@@ -6,7 +6,7 @@ namespace Fdp.Interfaces
 {
     /// <summary>
     /// Represents a blueprint for spawning entities.
-    /// Contains a list of components to apply to the new entity.
+    /// Contains descriptor DTOs and mandatory component requirements.
     /// </summary>
     public class TkbTemplate
     {
@@ -19,6 +19,12 @@ namespace Fdp.Interfaces
         /// Unique identifier for this template (Name).
         /// </summary>
         public string Name { get; }
+
+        /// <summary>
+        /// File-system category derived from the VFS path when loading from TKB files.
+        /// Empty string for programmatically-registered templates.
+        /// </summary>
+        public string CategoryPath { get; }
 
         /// <summary>
         /// List of ECS-native component requirements that must be physically present on the
@@ -38,27 +44,24 @@ namespace Fdp.Interfaces
         /// </summary>
         public List<ChildBlueprintDefinition> ChildBlueprints { get; } = new();
 
-        // We use delegates to abstract the type-specific SetComponent calls.
-        private readonly List<Action<EntityRepository, Entity, bool>> _applicators = new();
+        private readonly Dictionary<(Type, int), object> _descriptors = new();
 
         /// <summary>
         /// DIS Entity Type associated with this template.
         /// Set by <see cref="NedTkbBuilder"/> during catalog registration.
-        /// When non-zero, <see cref="ApplyTo"/> stamps it onto the entity header via
-        /// <see cref="EntityRepository.SetDisType"/> so that rendering systems can
-        /// perform bitwise layer-mask evaluation without string look-ups.
         /// </summary>
         public DISEntityType DisType { get; set; }
 
-        public TkbTemplate(string name, long tkbType)
+        public TkbTemplate(string name, long tkbType, string categoryPath = "")
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentNullException(nameof(name));
             if (tkbType == 0)
                 throw new ArgumentException("TkbType cannot be zero", nameof(tkbType));
-            
-            Name = name;
-            TkbType = tkbType;
+
+            Name         = name;
+            TkbType      = tkbType;
+            CategoryPath = categoryPath ?? "";
         }
 
         /// <summary>
@@ -81,68 +84,61 @@ namespace Fdp.Interfaces
         {
             MandatoryComponents.Add(new MandatoryComponent
             {
-                ComponentTypeId  = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)),
-                IsHard           = isHard,
+                ComponentTypeId   = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)),
+                IsHard            = isHard,
                 SoftTimeoutFrames = softTimeoutFrames
             });
         }
 
         /// <summary>
-        /// Adds an unmanaged component to the template.
-        /// The value is copied when adding, and copied again when spawning.
-        /// Components that are not registered in the target repository are silently skipped,
-        /// allowing shared templates to be applied on both server (SimHost) and client (IG) worlds.
+        /// Stores a descriptor DTO in the bag. Uses (Type, partId) as the key.
+        /// Overwrites any previously stored descriptor with the same key.
         /// </summary>
-        public void AddComponent<T>(T component) where T : unmanaged
+        public void AddDescriptor<T>(T descriptor, int partId = 0) where T : notnull
         {
-            _applicators.Add((repo, entity, preserve) =>
-            {
-                if (!repo.IsComponentTypeRegistered<T>()) return; // skip simulation-only components on client worlds
-                if (preserve && repo.HasComponent<T>(entity))
-                {
-                    return;
-                }
-                repo.AddComponent(entity, component);
-            });
+            _descriptors[(typeof(T), partId)] = descriptor;
         }
 
         /// <summary>
-        /// Adds a managed component using a factory function.
-        /// The factory is called each time an entity is spawned, ensuring a fresh instance.
+        /// Retrieves a descriptor of type T (for reference types).
+        /// Returns null if not found.
         /// </summary>
-        public void AddManagedComponent<T>(Func<T> factory) where T : class
+        public T? GetDescriptor<T>(int partId = 0) where T : class
         {
-            if (factory == null) throw new ArgumentNullException(nameof(factory));
-            
-            _applicators.Add((repo, entity, preserve) =>
-            {
-                if (preserve && repo.HasManagedComponent<T>(entity))
-                {
-                    return;
-                }
-                var instance = factory();
-                repo.SetManagedComponent(entity, instance);
-            });
+            _descriptors.TryGetValue((typeof(T), partId), out var obj);
+            return obj as T;
         }
 
         /// <summary>
-        /// Applies all components in this template to the target entity.
-        /// Also stamps <see cref="DisType"/> onto the entity header when it is non-zero.
+        /// Tries to retrieve a descriptor of type T (for value types).
+        /// Returns false if not found.
         /// </summary>
-        /// <param name="repo">The repository to modify.</param>
-        /// <param name="entity">The target entity.</param>
-        /// <param name="preserveExisting">If true, existing components on the entity will NOT be overwritten.</param>
-        public void ApplyTo(EntityRepository repo, Entity entity, bool preserveExisting = false)
+        public bool TryGetDescriptor<T>(out T descriptor, int partId = 0) where T : struct
         {
-            foreach (var apply in _applicators)
+            if (_descriptors.TryGetValue((typeof(T), partId), out var obj) && obj is T typed)
             {
-                apply(repo, entity, preserveExisting);
+                descriptor = typed;
+                return true;
             }
+            descriptor = default;
+            return false;
+        }
 
-            // Stamp DIS type directly into the entity header so the rendering hot-path
-            // can evaluate layer membership via a single integer comparison.
-            if (DisType.Value != 0)
-                repo.SetDisType(entity, DisType);
+        /// <summary>
+        /// Returns true if a descriptor of type T (with the given partId) is present.
+        /// </summary>
+        public bool HasDescriptor<T>(int partId = 0)
+        {
+            return _descriptors.ContainsKey((typeof(T), partId));
+        }
+
+        /// <summary>
+        /// Enumerates all stored descriptors as (Type, PartId, Data) tuples.
+        /// </summary>
+        public IEnumerable<(Type Type, int PartId, object Data)> GetAllDescriptors()
+        {
+            foreach (var kv in _descriptors)
+                yield return (kv.Key.Item1, kv.Key.Item2, kv.Value);
         }
     }
 }

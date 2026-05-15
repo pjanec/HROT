@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -10,10 +11,14 @@ namespace Fdp.Toolkit.Lifecycle.Systems
     public class BlueprintApplicationSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkb;
+        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
-        public BlueprintApplicationSystem(ITkbDatabase tkb)
+        public BlueprintApplicationSystem(
+            ITkbDatabase tkb,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkb = tkb;
+            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -30,8 +35,8 @@ namespace Fdp.Toolkit.Lifecycle.Systems
             {
                 if (_tkb.TryGetByType(order.BlueprintId, out var template))
                 {
-                    // Apply template with preservation
-                    template.ApplyTo(repo, order.Entity, preserveExisting: true);
+                    foreach (var t in _translators)
+                        t.Inject(repo, order.Entity, template);
                 }
             }
         }

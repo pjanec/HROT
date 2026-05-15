@@ -102,6 +102,10 @@ namespace Fdp.Toolkit.Lifecycle.Tests
             public TkbTemplate GetByName(string name) => null;
             public TkbTemplate GetTemplateByEntityType(Fdp.Core.DISEntityType entityType) => null;
             public TkbTemplate GetTemplateByName(string templateName) => null;
+            public string? ActiveTkbName { get; set; }
+            public void Clear() { }
+            public IEnumerable<TkbTemplate> GetEntitiesByCategory(string categoryPath)
+                => throw new NotImplementedException();
         }
 
         [Fact]

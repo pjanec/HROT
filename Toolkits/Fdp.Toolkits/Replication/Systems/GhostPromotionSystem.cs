@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Replication.Systems
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
+        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
@@ -37,10 +38,14 @@ namespace Fdp.Toolkit.Replication.Systems
         private EntityRepository? _world;
         private EntityQuery? _readyGhostQuery;
 
-        public GhostPromotionSystem(ITkbDatabase tkbDatabase, EntityLifecycleModule lifecycleModule)
+        public GhostPromotionSystem(
+            ITkbDatabase tkbDatabase,
+            EntityLifecycleModule lifecycleModule,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
             _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
+            _translators = translators ?? System.Array.Empty<ITkbEntityTranslator>();
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -114,7 +119,8 @@ namespace Fdp.Toolkit.Replication.Systems
                 }
 
                 // All requirements satisfied: apply blueprint defaults.
-                template.ApplyTo(_world!, entity, preserveExisting: true);
+                foreach (var t in _translators)
+                    t.Inject(_world!, entity, template);
             }
 
             // Promote: Ghost → Constructing.
