@@ -23,7 +23,10 @@
     "Editor": {
       "commandName": "Project",
       "commandLineArgs": "-m editor --no-wait"
+    },
+    "ReplayBrowser": {
+      "commandName": "Project",
+      "commandLineArgs": "-m replaybrowser --no-wait"
     }
-
   }
 }
