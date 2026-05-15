@@ -3,8 +3,10 @@ using Hrot.Common.Infrastructure;
 using Hrot.Map.Common;
 using Hrot.Network.Replication;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Lifecycle;
+using System.Collections.Generic;
 
 namespace Hrot.Network.Infrastructure;
 
@@ -26,6 +28,7 @@ public sealed class HrotNodeBuilderWithReplication
     private readonly HrotNodeBuilder _builder;
     private readonly NodeRole        _role;
     private BehaviorRegistry?        _behaviorRegistry;
+    private IReadOnlyList<ITkbEntityTranslator>? _translators;
 
     internal HrotNodeBuilderWithReplication(HrotNodeBuilder builder, NodeRole role)
     {
@@ -41,6 +44,19 @@ public sealed class HrotNodeBuilderWithReplication
     public HrotNodeBuilderWithReplication WithBehaviorRegistry(BehaviorRegistry? registry)
     {
         _behaviorRegistry = registry;
+        return this;
+    }
+
+    /// <summary>
+    /// Specifies the translator list forwarded to <see cref="NedReplicationModule"/> so that
+    /// <see cref="Fdp.Toolkit.Replication.Systems.GhostPromotionSystem"/> receives the same
+    /// translator instances as
+    /// <see cref="Fdp.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/> and
+    /// <see cref="Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem"/>.
+    /// </summary>
+    public HrotNodeBuilderWithReplication WithTranslators(IReadOnlyList<ITkbEntityTranslator>? translators)
+    {
+        _translators = translators;
         return this;
     }
 
@@ -62,19 +78,20 @@ public sealed class HrotNodeBuilderWithReplication
         }
 
         var ned = new NedReplicationModule(
-            participant:      context.Participant,
-            role:             _role,
-            entityMap:        context.EntityMap,
-            geoTransform:     HrotEnvironment.CreateGeoTransform(),
+            participant:          context.Participant,
+            role:                 _role,
+            entityMap:            context.EntityMap,
+            geoTransform:         HrotEnvironment.CreateGeoTransform(),
             // Use world.Bus so that events published by EntityMasterIngressTranslator.ProcessDispose()
             // during the Input kernel phase are made visible to GhostDestructionSystem (PostSimulation)
             // via view.ReadManagedEvents<T>() after the kernel's internal Bus.SwapBuffers().
-            eventBus:         context.World.Bus,
-            localNodeId:      context.NodeId,
-            domainId:         0,
-            behaviorRegistry: _behaviorRegistry,
-            tkbDb:            HrotEnvironment.CreateTkb(),
-            lifecycleModule:  elm);
+            eventBus:             context.World.Bus,
+            localNodeId:          context.NodeId,
+            domainId:             0,
+            behaviorRegistry:     _behaviorRegistry,
+            tkbDb:                HrotEnvironment.CreateTkb(),
+            lifecycleModule:      elm,
+            tkbEntityTranslators: _translators);
 
         return context with
         {

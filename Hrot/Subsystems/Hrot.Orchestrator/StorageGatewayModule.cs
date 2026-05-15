@@ -241,6 +241,9 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' is empty. " +
                 $"Ensure scenario '{scenarioId}' contains at least one file before prefetching.");
 
+        // NEW: sanity gate -- TkbName must agree across all scenario files.
+        CheckTkbNameConsensus(files);
+
         int success = 0, failure = 0;
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 
@@ -421,5 +424,88 @@ public sealed class StorageGatewayModule
         var manifestPath = Path.Combine(nasBasePath, "scenario_manifest.json");
         Directory.CreateDirectory(nasBasePath);
         await File.WriteAllTextAsync(manifestPath, json).ConfigureAwait(false);
+    }
+
+    // ── TkbName consensus helpers ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Reads the <c>TkbName</c> field from the <c>Header</c> section of each JSON file
+    /// using a forward-only <see cref="System.Text.Json.Utf8JsonReader"/> (no DOM allocation).
+    /// Throws <see cref="InvalidOperationException"/> if any two non-empty TkbName values disagree.
+    /// </summary>
+    private static void CheckTkbNameConsensus(string[] files)
+    {
+        string? agreedTkbName   = null;
+        string? agreedSourceFile = null;
+
+        foreach (var file in files)
+        {
+            if (!file.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string? tkbName = PeekTkbNameFromFile(file);
+            if (string.IsNullOrEmpty(tkbName))
+                continue;
+
+            if (agreedTkbName == null)
+            {
+                agreedTkbName    = tkbName;
+                agreedSourceFile = file;
+            }
+            else if (!string.Equals(agreedTkbName, tkbName, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"[Gateway] TkbName consensus check failed: " +
+                    $"'{agreedTkbName}' (from '{Path.GetFileName(agreedSourceFile)}') " +
+                    $"conflicts with '{tkbName}' (from '{Path.GetFileName(file)}').");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads <c>Header.TkbName</c> from a JSON file using a forward-only
+    /// <see cref="System.Text.Json.Utf8JsonReader"/>. Returns null when the field
+    /// is absent or the file cannot be read.
+    /// </summary>
+    private static string? PeekTkbNameFromFile(string filePath)
+    {
+        try
+        {
+            var bytes  = File.ReadAllBytes(filePath);
+            var reader = new System.Text.Json.Utf8JsonReader(bytes,
+                new System.Text.Json.JsonReaderOptions { AllowTrailingCommas = true });
+
+            bool inHeader = false;
+            while (reader.Read())
+            {
+                switch (reader.TokenType)
+                {
+                    case System.Text.Json.JsonTokenType.PropertyName:
+                        var propName = reader.GetString();
+                        if (!inHeader && (propName == "Header" || propName == "header"))
+                        {
+                            inHeader = true;
+                        }
+                        else if (inHeader && (propName == "TkbName" || propName == "tkbName"))
+                        {
+                            reader.Read();
+                            return reader.TokenType == System.Text.Json.JsonTokenType.String
+                                ? reader.GetString() : null;
+                        }
+                        break;
+                    case System.Text.Json.JsonTokenType.StartObject:
+                    case System.Text.Json.JsonTokenType.EndObject:
+                        // Once we exit the header object, stop searching.
+                        if (inHeader && reader.TokenType == System.Text.Json.JsonTokenType.EndObject)
+                            return null;
+                        break;
+                }
+            }
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

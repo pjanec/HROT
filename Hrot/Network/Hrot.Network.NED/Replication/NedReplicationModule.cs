@@ -72,6 +72,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ── Ghost lifecycle deps (IG role — GhostPromotionSystem) ─────────────────
     private readonly ITkbDatabase?         _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
+    private readonly IReadOnlyList<ITkbEntityTranslator>? _tkbEntityTranslators;
 
     // ── Translator lists ───────────────────────────────────────────────────────
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
@@ -145,6 +146,12 @@ public sealed class NedReplicationModule : INedReplicationModule
     ///   uses to look up TKB templates for ghost-to-Constructing lifecycle transitions.
     ///   Required when <paramref name="tkbDb"/> is provided.
     /// </param>
+    /// <param name="tkbEntityTranslators">
+    ///   Optional translator list forwarded to <see cref="GhostPromotionSystem"/> so that
+    ///   component injection uses the same translator instances as
+    ///   <see cref="Fdp.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/> and
+    ///   <see cref="Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem"/>.
+    /// </param>
     /// <exception cref="ArgumentException">
     /// Thrown when <paramref name="role"/> is not one of the supported replication roles
     /// (MuscleGround, ImageGenerator, Brain, AllInOne).
@@ -159,7 +166,8 @@ public sealed class NedReplicationModule : INedReplicationModule
         int                   domainId,
         BehaviorRegistry?     behaviorRegistry  = null,
         ITkbDatabase?         tkbDb             = null,
-        EntityLifecycleModule? lifecycleModule  = null)
+        EntityLifecycleModule? lifecycleModule  = null,
+        IReadOnlyList<ITkbEntityTranslator>? tkbEntityTranslators = null)
     {
         _participant     = participant;
         _role            = role;
@@ -169,6 +177,7 @@ public sealed class NedReplicationModule : INedReplicationModule
         _localNodeId     = localNodeId;
         _tkbDb           = tkbDb;
         _lifecycleModule = lifecycleModule;
+        _tkbEntityTranslators = tkbEntityTranslators;
 
         // Validate role
         _roleHasMuscle = role.HasFlag(NodeRole.MuscleGround);
@@ -296,7 +305,7 @@ public sealed class NedReplicationModule : INedReplicationModule
             // These replace the legacy ReplicationLogicModule for pure IG nodes.
             registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
             if (_tkbDb != null && _lifecycleModule != null)
-                registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
+                registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
             registry.RegisterSystem(new SubEntityCleanupSystem());
 
             // DR sync -- smooth ALL remote entities (IG can create owned entities as well!)
@@ -344,8 +353,7 @@ public sealed class NedReplicationModule : INedReplicationModule
 		// separate registration so that CGF-spawned entities (WorldPos delegated to Muscle)
 		// transition from Ghost → Constructing before DeferredTakeoverSystem claims authority.
 		if( _roleHasMuscle && _tkbDb != null && _lifecycleModule != null)
-            registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule));
-
+            registry.RegisterSystem(new GhostPromotionSystem(_tkbDb, _lifecycleModule, _tkbEntityTranslators));
         // ── Cleanup systems (all roles) ──────────────────────────────────────
         var allCleanupTranslators = new List<FdpIDescriptorTranslator>(allTranslators.OfType<FdpIDescriptorTranslator>());
         if (_dtoIngress != null) allCleanupTranslators.Add(_dtoIngress);

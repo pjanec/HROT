@@ -9,6 +9,7 @@ using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Tkb;
 using Hrot.Common.Orchestration.Handlers;
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Orchestration.Handlers;
@@ -101,6 +102,11 @@ namespace Hrot.SimHost
         /// Local staging directory root used by <c>ScenarioLoadClusterStateHandler</c> to locate pre-fetched
         /// scenario files.  Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
+        /// <param name="tkbDb">
+        /// Optional TKB database. When non-null, a <see cref="TkbLoadClusterStateHandler"/>
+        /// is registered before the scenario handler block so TKB loading precedes scenario
+        /// deserialization during <c>PrepareLive</c> and <c>PrepareEdit</c>.
+        /// </param>
         /// <param name="checkpointWorker">
         /// Optional <see cref="CheckpointIOWorker"/> owned by the caller.  When provided a
         /// <see cref="CheckpointClusterOpHandler"/> is registered (handles <c>TakeSnapshot</c>) and the
@@ -136,6 +142,7 @@ namespace Hrot.SimHost
             ScenarioEntityCreationRequestSource? scenarioSource = null,
             INetworkIdAllocator? scenarioIdAllocator = null,
             string localTempRoot = @"C:\FDP_Temp",
+            ITkbDatabase? tkbDb = null,             // TKB-020: used by TkbLoadClusterStateHandler
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.ModuleHost.Scheduling.TogglableSimulationGroup?    simGroup = null,
             Fdp.ModuleHost.Scheduling.TogglableInputGroup?          inputGroup = null,
@@ -199,6 +206,11 @@ namespace Hrot.SimHost
 
             // Wire ReferenceArchiveHandler so this node can report .fdp archives to ClusterMaster (CGF1-S0505).
             clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, nodeId));
+
+            // Wire TkbLoadClusterStateHandler to populate ITkbDatabase before HrotScenarioLoadHandler
+            // deserializes entities. Must be registered BEFORE the scenario handler block (TKB-020).
+            if (tkbDb != null)
+                clusterSlave.RegisterHandler(new TkbLoadClusterStateHandler(tkbDb, localTempRoot));
 
             // Wire scenario/episode handlers when a serializer is provided.
             if (scenarioSerializer != null)

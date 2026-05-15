@@ -17,4 +17,9 @@ public sealed class ScenarioHeaderDto
     /// Schema version string (e.g. "1.0").
     /// </summary>
     public string? SchemaVersion { get; set; }
+
+    /// <summary>
+    /// Identifies the TKB required by this scenario. Null means "no opinion" -- the node uses the fallback catalog.
+    /// </summary>
+    public string? TkbName { get; set; }
 }

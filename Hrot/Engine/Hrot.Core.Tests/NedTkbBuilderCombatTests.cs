@@ -1,66 +1,41 @@
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
-using CarKinem.Core;
-using Fdp.Core;
 using Fdp.Toolkit.Tkb;
-using Fdp.Toolkit.Combat.Components;
-using Fdp.Toolkit.Perception.Components;
-using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Map.Common.Tests
 {
     public class NedTkbBuilderCombatTests
     {
         [Fact]
-        public void NedTkbBuilder_WithCombat_AttachesWeaponState()
+        public void WithCombat_StoresWeaponCapabilitiesDescriptor()
         {
-            using var world = CreateWorld();
-            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams);
-            var entity = world.CreateEntity();
-
-            template.ApplyTo(world, entity);
-
-            Assert.True(world.HasComponent<WeaponState>(entity));
-            Assert.True(world.TryGetComponent(entity, out WeaponState weapon));
-            Assert.Equal(42, weapon.Ammo);
+            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams)!;
+            Assert.True(template.HasDescriptor<WeaponCapabilitiesDto>());
         }
 
         [Fact]
-        public void NedTkbBuilder_WithCombat_AttachesPerceptionReceptor()
+        public void WithCombat_WeaponCapabilities_HasExpectedEffectiveRange()
         {
-            using var world = CreateWorld();
-            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams);
-            var entity = world.CreateEntity();
-
-            template.ApplyTo(world, entity);
-
-            Assert.True(world.HasComponent<PerceptionReceptor>(entity));
-            Assert.True(world.TryGetComponent(entity, out PerceptionReceptor receptor));
-            Assert.Equal(8000f, receptor.VisionRange);
+            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams)!;
+            var dto = template.GetDescriptor<WeaponCapabilitiesDto>()!;
+            Assert.Equal(3000f, dto.EffectiveRange);
         }
 
         [Fact]
-        public void NedTkbBuilder_WithCombat_AttachesHealth()
+        public void WithCombat_WeaponCapabilities_HasExpectedRateOfFire()
         {
-            using var world = CreateWorld();
-            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams);
-            var entity = world.CreateEntity();
-
-            template.ApplyTo(world, entity);
-
-            Assert.True(world.HasComponent<Health>(entity));
+            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams)!;
+            var dto = template.GetDescriptor<WeaponCapabilitiesDto>()!;
+            Assert.Equal(6f, dto.RateOfFire);
         }
 
         [Fact]
-        public void NedTkbBuilder_WithCombat_KeepsManagedCombatDefinition()
+        public void WithCombat_WeaponCapabilities_HasExpectedMagazineCapacity()
         {
-            using var world = CreateWorld();
-            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams);
-            var entity = world.CreateEntity();
-
-            template.ApplyTo(world, entity);
-
-            Assert.True(world.HasManagedComponent<SimCombatDef>(entity));
+            var template = BuildDatabase().GetByType(TkbEntityTypes.Tank_M1Abrams)!;
+            var dto = template.GetDescriptor<WeaponCapabilitiesDto>()!;
+            Assert.Equal(42, dto.MagazineCapacity);
         }
 
         private static TkbDatabase BuildDatabase()
@@ -69,22 +44,6 @@ namespace Hrot.Map.Common.Tests
             NedTkbCatalog.RegisterAll(db);
             return db;
         }
-
-        private static EntityRepository CreateWorld()
-        {
-            var world = new EntityRepository();
-
-            world.RegisterComponent<PerceptionReceptor>();
-            world.RegisterComponent<TargetMemory>();
-            world.RegisterComponent<WeaponState>();
-            world.RegisterComponent<Health>();
-            world.RegisterComponent<PhysicsCollider>();
-            world.RegisterComponent<EntityInfo>();
-            world.RegisterComponent<VisualData>();
-            world.RegisterComponent<VehicleParams>();
-            world.RegisterManagedComponent<SimCombatDef>();
-
-            return world;
-        }
     }
 }
+

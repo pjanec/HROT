@@ -238,16 +238,14 @@ namespace Hrot.Map.Definitions.Tkb
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
-            areaTemplate.AddComponent(new Fdp.Toolkit.Replication.Components.NetworkTransform());
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             tkbDb.Register(areaTemplate);
 
             // Tactical graphic: route entity (ROUTES1-T003)
-            // Provides a default SimTransform. RoutePlan (managed) is added by
-            // RouteTkbExtensions.ApplyRoutePlanToBlueprint() called from SimHostApp
-            // and IgApplication, where Hrot.Map.Common is reachable without
-            // introducing a circular project dependency.
+            // RoutePlan (managed) is added by RouteTkbExtensions.ApplyRoutePlanToBlueprint()
+            // in Phase 6 via translator.
             var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
-            routeTemplate.AddComponent(new SimTransform());
+            // TKB-014 (Phase 6): ECS components will be injected by translators.
             tkbDb.Register(routeTemplate);
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
+using CarKinem.Tkb;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost;
@@ -46,6 +47,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private readonly float _simulationRateHz;
 
     private NodeBootstrapper? _nodeBootstrapper;
+    private ITkbDatabase? _tkbDb;
+    private IReadOnlyList<ITkbEntityTranslator>? _translators;
 
     /// <summary>
     /// Core simulation systems pack. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -121,12 +124,21 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
-        return new HrotNodeBuilder(config)
+        _translators = new List<ITkbEntityTranslator>
+        {
+            new VehicleKinematicsTkbTranslator(),
+        }.AsReadOnly();
+
+        var ctx = new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)
             .WithNetworkFactory(networkFactory)
             .WithReplication(role)
             .WithBehaviorRegistry(GetBehaviorRegistry())
+            .WithTranslators(_translators)   // TKB-022 -- threads through to NedReplicationModule
             .Build();
+
+        _tkbDb = ctx.TkbDb;
+        return ctx;
     }
 
     /// <inheritdoc/>
@@ -140,6 +152,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     protected override void RegisterDomainComponents(EntityRepository world)
     {
         SimHostComponentRegistry.RegisterAll(world);
+        world.SetSingletonManaged<ITkbDatabase>(_tkbDb!);  // TKB-015
     }
 
     /// <inheritdoc/>
@@ -209,6 +222,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             eventBus:             context.EventBus,
             scenarioSerializer:   null,
             localTempRoot:        _localTempRoot,
+            tkbDb:                _tkbDb,         // TKB-020
             checkpointWorker:     CheckpointWorker,
             simGroup:             simGroup,
             lifecycleGroup:       context.NedReplication?.NetworkLifecycleGroup,
@@ -230,6 +244,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         // elm reference for spawning (BaseModules[0] == EntityLifecycleModule)
         var elm = (EntityLifecycleModule)context.BaseModules[0];
+        elm.SetTranslators(_translators!);   // TKB-022: set before kernel Initialize
 
         var spawningSystem = new NetworkSpawningSystem(
             context.TkbDb!,
@@ -237,6 +252,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             context.EntityMap,
             context.IdAllocator!,
             context.NodeId,
+            translators:      _translators,       // TKB-022
             onEntitySpawned: (world, entity, isLocalAuthority) =>
             {
                 if (isLocalAuthority && world.HasComponent<SimTransform>(entity))

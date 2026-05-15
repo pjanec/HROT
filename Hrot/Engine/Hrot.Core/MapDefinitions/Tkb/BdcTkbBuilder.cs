@@ -11,6 +11,7 @@ using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Map.Common;
 
@@ -31,30 +32,10 @@ namespace Hrot.Map.Definitions.Tkb
         public NedTkbBuilder DefineVehicle(long tkbId, string name)
         {
             var template = new TkbTemplate(name, tkbId);
-
-            template.AddComponent(new EntityInfo
-            {
-                Name = new FixedString64(name),
-                ForceId = ForceId.Neutral
-            });
+            template.AddDescriptor(new TkbMasterDto { CustomName = name });
             template.AddMandatoryComponent<EntityInfo>(isHard: true);
-
-            // Include SimTransform so that the Muscle authority path (DeferredTakeoverSystem)
-            // can claim it when WorldPos is delegated. Silently skipped on worlds that
-            // haven't registered the component (e.g. pure-IG worlds that receive SimTransform
-            // via GeoSpatialIngressTranslator; preserveExisting=true protects the live value).
-            template.AddComponent(new SimTransform());
-
-            // Include NetworkTransform so entities spawned from this blueprint
-            // already have a shadow-state component for GeoSpatial egress change-detection
-            // (SimHost) and for ingress interpolation (IG). Silently skipped on worlds
-            // that haven't registered the component (safe via TkbTemplate design).
-            template.AddComponent(new NetworkTransform());
-
-            // block promotion (and the ownership takeover by SimHost) until the initial coordinates arrive over the network
+            // SimTransform will be stamped by translator in Phase 6.
             template.AddMandatoryComponent<SimTransform>(isHard: true);
-
-            // Override: RegisterTemplate -> Register
             _db.Register(template);
             return this;
         }
@@ -86,17 +67,8 @@ namespace Hrot.Map.Definitions.Tkb
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
-            
-            var visualDef = new IgVisualDef();
-            configure(visualDef);
 
-            template.AddComponent(new VisualData
-            {
-                SymbolCode   = visualDef.SymbolCode ?? string.Empty,
-                ModelPath    = visualDef.ModelPath ?? string.Empty,
-                ColorHex     = visualDef.ColorHex ?? string.Empty,
-                MapShapeName = visualDef.MapShapeName ?? string.Empty,
-            });
+            // VisualData ECS component will be applied by IG-side translator in Phase 6.
             return this;
         }
         
@@ -108,16 +80,20 @@ namespace Hrot.Map.Definitions.Tkb
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
-            
+
             var physicsDef = new SimVehicleDef();
             configure(physicsDef);
 
-            template.AddComponent(BuildVehicleParams(physicsDef));
-            template.AddComponent(new PhysicsCollider
+            template.AddDescriptor(new VehicleParametersDto
             {
-                Radius         = Math.Max(physicsDef.Length, physicsDef.Width) / 2f,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer
+                Mass        = physicsDef.Mass,
+                Length      = physicsDef.Length,
+                Width       = physicsDef.Width,
+                MaxSpeedFwd = physicsDef.MaxSpeed,
+                MaxSpeedRev = physicsDef.MaxSpeedRev,
+                MaxAccel    = physicsDef.Acceleration,
             });
+            // Height, TurnRate, Mobility mapped to VehicleParams by translator in Phase 6.
             return this;
         }
         
@@ -130,49 +106,25 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            // Keep managed definition for IG inspector / ORBAT display.
-            template.AddManagedComponent(() =>
-            {
-                var combatDef = new SimCombatDef();
-                configure(combatDef);
-                return combatDef;
-            });
+            var combatDef = new SimCombatDef();
+            configure(combatDef);
 
-            // Translate to real FDP ECS unmanaged components.
-            var combatDefComponents = new SimCombatDef();
-            configure(combatDefComponents);
+            // Store the combat definition as a descriptor for inspector / ORBAT display.
+            template.AddDescriptor(combatDef);
 
-            if (combatDefComponents.SensorRange > 0f)
+            // Derived capability DTO for the general TKB pipeline.
+            if (combatDef.Weapons.Count > 0)
             {
-                template.AddComponent(new PerceptionReceptor
+                var primary = combatDef.Weapons[0];
+                template.AddDescriptor(new WeaponCapabilitiesDto
                 {
-                    VisionRange    = combatDefComponents.SensorRange,
-                    HearingRange   = combatDefComponents.SensorRange * 0.5f,
-                    FieldOfViewCos = 0f
-                });
-                template.AddComponent(new TargetMemory());
-            }
-
-            if (combatDefComponents.Weapons.Count > 0)
-            {
-                var primary = combatDefComponents.Weapons[0];
-                template.AddComponent(new WeaponState
-                {
-                    Ammo                   = primary.Ammunition,
-                    MuzzleVelocity         = primary.Range > 0f ? primary.Range : 800f,
-                    CooldownSecondsRemaining = 0f
+                    EffectiveRange   = primary.Range,
+                    RateOfFire       = primary.RateOfFire,
+                    MagazineCapacity = primary.Ammunition,
                 });
             }
-
-            float maxHp = combatDefComponents.ArmorFront > 400f ? 300f
-                        : combatDefComponents.ArmorFront > 100f ? 150f
-                        : 100f;
-            template.AddComponent(new Health { Current = maxHp, Max = maxHp });
-            template.AddComponent(new PhysicsCollider
-            {
-                Radius         = 2.5f,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer
-            });
+            // ECS components (PerceptionReceptor, WeaponState, Health, PhysicsCollider)
+            // will be stamped by translators in Phase 6.
 
             return this;
         }
@@ -186,13 +138,7 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            var forceId = factionId switch
-            {
-                1 => ForceId.Friend,
-                2 => ForceId.Hostile,
-                _ => ForceId.Neutral,
-            };
-            template.AddComponent(new EntityInfo { ForceId = forceId });
+            // EntityInfo.ForceId will be stamped by translator in Phase 6.
             return this;
         }
 
@@ -220,42 +166,7 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            // CarKinem navigation
-            template.AddComponent(new VehicleState());
-            template.AddComponent(new NavState());
-            template.AddComponent(new SimVelocity());
-
-            // Behavior / mission
-            template.AddComponent(new BehaviorState
-            {
-                BrainTier = BehaviorConstants.BrainTierBTree
-            });
-            template.AddComponent(new MissionPlanQueue());
-
-            // Brain execution
-            template.AddComponent(new BrainBTreeState());
-            template.AddComponent(new BrainBlackboard());
-
-            // Action dispatch channels
-            template.AddComponent(new LocomotionChannel());
-            template.AddComponent(new WeaponChannel());
-            template.AddComponent(new InteractionChannel());
-
-            // Capability bits — vehicles can move and shoot by default
-            template.AddComponent(new ActorCapabilityState
-            {
-                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
-            });
-
-            // CQRS navigation contract (MOD1-P1T1): Brain writes NavigationIntent;
-            // Muscle layer (NavigationExecutionSystem) writes NavigationStatus.
-            // FrustrationTicks is the per-entity stuck-detection counter.
-            // All three must be present on the template so MoveToExecutor never
-            // encounters a missing-component exception on entity spawn.
-            template.AddComponent(new NavigationIntent());
-            template.AddComponent(new NavigationStatus());
-            template.AddComponent(new FrustrationTicks());
-
+            // Behavior and navigation ECS components will be applied by translators in Phase 6.
             return this;
         }
 
@@ -271,8 +182,7 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            template.AddComponent(new Blackboard1024());
-
+            // Blackboard1024 ECS component will be applied by translator in Phase 6.
             return this;
         }
         
@@ -310,12 +220,8 @@ namespace Hrot.Map.Definitions.Tkb
                 }
             }
 
-            template.AddManagedComponent(() =>
-            {
-                var freshDef = new TkbCompositionDef();
-                configure(freshDef);
-                return freshDef;
-            });
+            // Store as descriptor instead of managed component.
+            template.AddDescriptor(compositionDef);
             return this;
         }
 

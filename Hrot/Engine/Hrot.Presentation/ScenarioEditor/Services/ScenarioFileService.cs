@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
 using Hrot.Map.Common;
@@ -34,16 +35,19 @@ public sealed class ScenarioFileService
     private readonly ScenarioSerializer _serializer;
     private readonly FdpEventBus? _bus;
     private readonly IZoneManagerService? _zoneService;
+    private readonly ITkbDatabase? _tkbDb;
     private Action? _worldResetObservers;
 
     public ScenarioFileService(
         ScenarioSerializer serializer,
         FdpEventBus? bus = null,
-        IZoneManagerService? zoneService = null)
+        IZoneManagerService? zoneService = null,
+        ITkbDatabase? tkbDb = null)
     {
         _serializer  = serializer  ?? throw new ArgumentNullException(nameof(serializer));
         _bus         = bus;
         _zoneService = zoneService;
+        _tkbDb       = tkbDb;
     }
 
     /// <summary>
@@ -80,14 +84,19 @@ public sealed class ScenarioFileService
         if (repo == null)     throw new ArgumentNullException(nameof(repo));
         if (filePath == null) throw new ArgumentNullException(nameof(filePath));
 
-        var header  = new ScenarioHeader("Hrot.Scenario");
+        var header  = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
         var fdpDom  = _serializer.Serialize(repo, header);
 
         var activeZones = _zoneService?.GetActiveZones();
 
         var envelope = new HrotScenarioEnvelopeDto
         {
-            Header   = new ScenarioHeaderDto { SubsystemType = "Hrot.Scenario", SchemaVersion = "1.0" },
+            Header   = new ScenarioHeaderDto
+            {
+                SubsystemType = "Hrot.Scenario",
+                SchemaVersion = "1.0",
+                TkbName       = _tkbDb?.ActiveTkbName,
+            },
             Zones    = (activeZones != null && activeZones.Count > 0) ? activeZones : null,
             Entities = fdpDom["Entities"]?.AsObject() ?? fdpDom["entities"]?.AsObject(),
         };

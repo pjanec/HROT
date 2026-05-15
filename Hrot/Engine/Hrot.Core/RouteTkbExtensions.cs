@@ -31,7 +31,7 @@ public static class RouteTkbExtensions
     /// </summary>
     public static void ApplyRoutePlanToBlueprint(TkbDatabase tkbDb)
     {
-        if (tkbDb.TryGetByType(TkbEntityTypes.TacGraphic_Route, out var routeTemplate))
-            routeTemplate.AddManagedComponent(() => new RoutePlan());
+        // TKB-014 (Phase 6): RoutePlan managed component will be injected by translator.
+        _ = tkbDb; // suppress unused parameter warning until Phase 6
     }
 }

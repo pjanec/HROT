@@ -1,8 +1,11 @@
 ----------
+[IDEA]
+TerrainName into scenario header (next to TkbName). Orchestrator extracts from header, check consensus, tell everyone in
+loadingLive/Preview/Replay request.
+
+----------
 [BUG] in fire intent there is cooldown parameters and the behavior must provide it.
 behavior usually doe not care. Weapon system should read use TKB defined value if not provided in the intent.
--------
-[IDEA] Gizmo for spatial grid area - absolutely necessary to see where the tanks are recognized when hit detection and where not
 -------
 [IDEA] merged diagnostic snapshot
 The cross-cluster diagnostics could support merging all the partial information info one big text file with the following structure

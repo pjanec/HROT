@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Hrot.Network.Orchestration;
 using Xunit;
@@ -323,6 +324,203 @@ public sealed class StorageGatewayTests
             if (Directory.Exists(baseDir)) Directory.Delete(baseDir, recursive: true);
             foreach (var d in destDirs)
                 if (Directory.Exists(d)) Directory.Delete(d, recursive: true);
+        }
+    }
+}
+
+/// <summary>
+/// TKB-018 -- Tests for <see cref="StorageGatewayModule"/> TkbName consensus check.
+/// </summary>
+[Collection("OrchestratorTests")]
+public sealed class StorageGatewayTkbConsensusTests
+{
+    // ── Helper ────────────────────────────────────────────────────────────────
+
+    private static void WriteJson(string path, string json) =>
+        File.WriteAllText(path, json, new UTF8Encoding(false));
+
+    private static string MakeScenarioDir(string nasBase, string scenarioId)
+    {
+        var dir = Path.Combine(nasBase, "scenarios", scenarioId);
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    // ── Test 1 ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PrefetchScenario_SameTkbName_AllFiles_Succeeds()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "same_tkb";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"),
+                "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\",\"TkbName\":\"Alpha_v1\"},\"Entities\":{}}");
+            WriteJson(Path.Combine(srcDir, "Hrot.CGF.json"),
+                "{\"Header\":{\"SubsystemType\":\"Hrot.CGF\",\"TkbName\":\"Alpha_v1\"},\"Entities\":{}}");
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+            };
+
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
+    // ── Test 2 ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PrefetchScenario_ConflictingTkbNames_ThrowsInvalidOperationException()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "conflict_tkb";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"),
+                "{\"Header\":{\"TkbName\":\"Alpha_v1\"},\"Entities\":{}}");
+            WriteJson(Path.Combine(srcDir, "Hrot.CGF.json"),
+                "{\"Header\":{\"TkbName\":\"Beta_v1\"},\"Entities\":{}}");
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+            };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir));
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
+    // ── Test 3 ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PrefetchScenario_NullTkbNames_AllFiles_Succeeds()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "no_tkb";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"),
+                "{\"Header\":{\"SubsystemType\":\"Hrot.SimHost\"},\"Entities\":{}}");
+            WriteJson(Path.Combine(srcDir, "Hrot.CGF.json"),
+                "{\"Header\":{\"SubsystemType\":\"Hrot.CGF\"},\"Entities\":{}}");
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+            };
+
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
+    // ── Test 4 ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PrefetchScenario_MixedNullAndNonNull_SameName_Succeeds()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "mixed_tkb";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"),
+                "{\"Header\":{\"TkbName\":\"Alpha_v1\"},\"Entities\":{}}");
+            WriteJson(Path.Combine(srcDir, "Hrot.CGF.json"),
+                "{\"Header\":{\"SubsystemType\":\"Orchestrator\"},\"Entities\":{}}");
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+            };
+
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
+        }
+    }
+
+    // ── Test 5 ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PrefetchScenario_NonJsonFiles_AreIgnoredByConsensusCheck()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "non_json_tkb";
+        var srcDir     = MakeScenarioDir(nasDir, scenarioId);
+
+        var destDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(destDir);
+
+        try
+        {
+            WriteJson(Path.Combine(srcDir, "Hrot.SimHost.json"),
+                "{\"Header\":{\"TkbName\":\"Alpha_v1\"},\"Entities\":{}}");
+            File.WriteAllBytes(Path.Combine(srcDir, "some.bin"), new byte[] { 0x01, 0x02, 0x03 });
+
+            var gateway = new StorageGatewayModule();
+            var targets = new List<NodeDistributionTarget>
+            {
+                new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
+            };
+
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir))  Directory.Delete(nasDir,  recursive: true);
+            if (Directory.Exists(destDir)) Directory.Delete(destDir, recursive: true);
         }
     }
 }
