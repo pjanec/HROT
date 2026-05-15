@@ -32,6 +32,12 @@ public class EventBrowserPanel
     private bool _paused;
     private CapturedEventDto[] _cachedSnapshot = Array.Empty<CapturedEventDto>();
 
+    /// <summary>
+    /// Fired when the user clicks a clickable entity-handle link inside an event payload.
+    /// Wire this in the composition root to propagate selection to the entity history.
+    /// </summary>
+    public Action<Entity>? OnEntityLinkClicked { get; set; }
+
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
         _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
