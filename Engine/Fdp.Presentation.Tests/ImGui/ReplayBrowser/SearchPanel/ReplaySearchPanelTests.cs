@@ -135,21 +135,21 @@ public class FilteredTypeComboFieldDrawerTests
     };
 
     [Fact]
-    public void FilterTypes_EmptyFilter_ReturnsAll()
+    public void SR_T40_FilterTypes_EmptyFilter_ReturnsAll()
     {
         var result = FilteredTypeComboFieldDrawer.FilterTypes(_testTypes, "").ToList();
         Assert.Equal(3, result.Count);
     }
 
     [Fact]
-    public void FilterTypes_NullFilter_ReturnsAll()
+    public void SR_T41_FilterTypes_NullFilter_ReturnsAll()
     {
         var result = FilteredTypeComboFieldDrawer.FilterTypes(_testTypes, null).ToList();
         Assert.Equal(3, result.Count);
     }
 
     [Fact]
-    public void FilterTypes_MatchingFilter_ReturnsOnlyMatching()
+    public void SR_T42_FilterTypes_MatchingFilter_ReturnsOnlyMatching()
     {
         // "bool" matches "Boolean" (OrdinalIgnoreCase)
         var result = FilteredTypeComboFieldDrawer.FilterTypes(_testTypes, "bool").ToList();
@@ -158,14 +158,14 @@ public class FilteredTypeComboFieldDrawerTests
     }
 
     [Fact]
-    public void FilterTypes_NoMatch_ReturnsEmpty()
+    public void SR_T43_FilterTypes_NoMatch_ReturnsEmpty()
     {
         var result = FilteredTypeComboFieldDrawer.FilterTypes(_testTypes, "XYZ").ToList();
         Assert.Empty(result);
     }
 
     [Fact]
-    public void FilteredTypeComboFieldDrawer_TargetType_IsTypeType()
+    public void SR_T44_FilteredTypeComboFieldDrawer_TargetType_IsTypeType()
     {
         // [PARTIAL -- combo rendering requires ImGui context]
         var drawer = new FilteredTypeComboFieldDrawer(TypeComboMode.Component);

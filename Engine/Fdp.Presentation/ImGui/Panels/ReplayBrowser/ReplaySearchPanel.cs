@@ -50,6 +50,7 @@ public sealed class ReplaySearchPanel
 
     // Search results
     private Task? _searchTask;
+    private readonly object _resultsLock = new();
     private IReadOnlyList<SearchResultDto> _results = Array.Empty<SearchResultDto>();
     private IReadOnlyList<LifecycleSearchResultDto> _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
     private string _statusLine = string.Empty;
@@ -225,9 +226,12 @@ public sealed class ReplaySearchPanel
                 var pred = (LifecyclePredicateDto)dto;
                 _searchTask = Task.Run(() =>
                 {
-                    var r             = _searchService.ExecuteLifecycleSearch(path, pred);
-                    _lifecycleResults = r;
-                    _statusLine       = $"Found {r.Count} lifecycle event(s).";
+                    var r = _searchService.ExecuteLifecycleSearch(path, pred);
+                    lock (_resultsLock)
+                    {
+                        _lifecycleResults = r;
+                        _statusLine       = $"Found {r.Count} lifecycle event(s).";
+                    }
                 });
             }
             else
@@ -235,22 +239,35 @@ public sealed class ReplaySearchPanel
                 var pred = (SearchPredicateDto)dto;
                 _searchTask = Task.Run(() =>
                 {
-                    var r       = _searchService.ExecuteSearch(path, pred);
-                    _results    = r;
-                    _statusLine = $"Found {r.Count} result(s).";
+                    var r = _searchService.ExecuteSearch(path, pred);
+                    lock (_resultsLock)
+                    {
+                        _results    = r;
+                        _statusLine = $"Found {r.Count} result(s).";
+                    }
                 });
             }
         }
 
-        if (!string.IsNullOrEmpty(_statusLine))
+        string statusSnapshot;
+        lock (_resultsLock) { statusSnapshot = _statusLine; }
+        if (!string.IsNullOrEmpty(statusSnapshot))
         {
             ImGuiApi.SameLine();
-            ImGuiApi.TextDisabled(_statusLine);
+            ImGuiApi.TextDisabled(statusSnapshot);
         }
     }
 
     private void DrawResultsGrid()
     {
+        IReadOnlyList<SearchResultDto> resultsSnapshot;
+        IReadOnlyList<LifecycleSearchResultDto> lifecycleResultsSnapshot;
+        lock (_resultsLock)
+        {
+            resultsSnapshot          = _results;
+            lifecycleResultsSnapshot = _lifecycleResults;
+        }
+
         var tableFlags = ImGuiTableFlags.Borders
             | ImGuiTableFlags.RowBg
             | ImGuiTableFlags.ScrollY;
@@ -266,7 +283,7 @@ public sealed class ReplaySearchPanel
             ImGuiApi.TableSetupColumn("Context");
             ImGuiApi.TableHeadersRow();
 
-            var results = _lifecycleResults;
+            var results = lifecycleResultsSnapshot;
             for (int i = 0; i < results.Count; i++)
             {
                 var r = results[i];
@@ -294,7 +311,7 @@ public sealed class ReplaySearchPanel
             ImGuiApi.TableSetupColumn("Event Type / Context");
             ImGuiApi.TableHeadersRow();
 
-            var results = _results;
+            var results = resultsSnapshot;
             for (int i = 0; i < results.Count; i++)
             {
                 var r = results[i];
