@@ -44,8 +44,6 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 			var scenarioId = intent.DomainPayload is EditLoadHandlerPayload elp
 				? elp.ScenarioId
 				: intent.DomainPayload as string;
-			System.Console.WriteLine(
-				$"[DIAG] RSL.PrepareAsync: op={intent.Operation} scenId='{scenarioId ?? "(null)"}' payloadType={intent.DomainPayload?.GetType().Name ?? "(null)"}");
 			Fdp.Core.Logging.FdpLog<ReferenceScenarioLoadHandler>.Info(
 				"[ReferenceScenarioLoadHandler] PrepareAsync called. Operation={0}, ScenarioId={1}, PayloadType={2}",
 				intent.Operation,
@@ -64,8 +62,6 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 		/// <inheritdoc />
 		public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo)
 		{
-			System.Console.WriteLine(
-				$"[DIAG] RSL.Commit: txId={intent.TransactionId} pendingJson={(_pendingJson != null ? "set" : "null")} pendingTx={_pendingTransactionId} match={_pendingTransactionId == intent.TransactionId}");
 			if (_pendingJson == null || _pendingTransactionId != intent.TransactionId) return;
 
 			var targetRepo = repo ?? _world;

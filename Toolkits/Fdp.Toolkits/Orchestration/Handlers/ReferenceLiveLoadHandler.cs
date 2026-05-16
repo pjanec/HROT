@@ -69,19 +69,27 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <inheritdoc />
         public bool CanHandle(NodeOpType operation) =>
             operation == NodeOpType.PrepareLive ||
+            operation == NodeOpType.PrepareState ||
             operation == NodeOpType.FinalizeLive;
 
         /// <inheritdoc />
         public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
-            if (intent.Operation == NodeOpType.PrepareLive)
+            if (intent.Operation == NodeOpType.PrepareState)
             {
-                if (_controller != null)
+                if (intent.DomainPayload is EditLoadHandlerPayload payload && payload.TargetState == ClusterState.OperatingLive)
                 {
-                    var exerciseId = ResolveExerciseId(intent.DomainPayload);
-                    await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                        .ConfigureAwait(false);
+                    if (_controller != null)
+                    {
+                        var exerciseId = ResolveExerciseId(intent.DomainPayload);
+                        if (exerciseId != Guid.Empty)
+                            await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
+                                .ConfigureAwait(false);
+                    }
                 }
+            }
+            else if (intent.Operation == NodeOpType.PrepareLive)
+            {
             }
             else if (intent.Operation == NodeOpType.FinalizeLive)
             {
