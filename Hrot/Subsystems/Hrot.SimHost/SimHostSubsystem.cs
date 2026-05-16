@@ -3,12 +3,12 @@ using Hrot.Common;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost;
-using Hrot.SimHost.Utilities;
 using Fdp.Presentation.Panels;
 using Fdp.Presentation.Utils;
 using Fdp.ModuleHost.Diagnostics;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Core;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.Vis2D.Components;
 using System;
 using System.Collections.Generic;
@@ -292,7 +292,7 @@ namespace Hrot.SimHost
                 Name         = "SimHost-Loop"
             };
             _loopThread.Start();
-            Logger.Info($"[Node-{_nodeId}] Background loop started.");
+            FdpLog<SimHostSubsystem>.Info("[Node-{0}] Background loop started.", _nodeId);
         }
 
         /// <summary>
@@ -317,6 +317,6 @@ namespace Hrot.SimHost
                 _app?.Tick(0f); // dt managed internally by time controller
                 Thread.Sleep(1); // ~1 ms yield; time controller manages dt
             }
-            Logger.Info($"[Node-{_nodeId}] Background loop exited.");
+            FdpLog<SimHostSubsystem>.Info("[Node-{0}] Background loop exited.", _nodeId);
         }
     }}

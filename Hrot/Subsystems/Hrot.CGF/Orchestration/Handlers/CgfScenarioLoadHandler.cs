@@ -99,7 +99,16 @@ namespace Hrot.CGF.Orchestration.Handlers
                     elp.TargetState == ClusterState.OperatingLive)
                 {
                     _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    return await _operatingLiveTcs.Task.ConfigureAwait(false);
+                    await _operatingLiveTcs.Task.ConfigureAwait(false);
+
+                    if (_controller != null)
+                    {
+                        var exerciseId = ResolveExerciseId(intent.DomainPayload);
+                        if (exerciseId != Guid.Empty)
+                            await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
+                                .ConfigureAwait(false);
+                    }
+                    return null;
                 }
                 return null;
             }
@@ -110,17 +119,6 @@ namespace Hrot.CGF.Orchestration.Handlers
             var scenarioId = intent.DomainPayload is EditLoadHandlerPayload payload
                 ? payload.ScenarioId
                 : intent.DomainPayload as string;
-
-            // Start recording when an exercise ID is provided.
-            // This mirrors HrotScenarioLoadHandler so that CGF writes node_400.fdp alongside
-            // SimHost's node_1.fdp when transitioning into a live exercise.
-            if (_controller != null)
-            {
-                var exerciseId = ResolveExerciseId(intent.DomainPayload);
-                if (exerciseId != Guid.Empty)
-                    await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                        .ConfigureAwait(false);
-            }
 
             if (string.IsNullOrWhiteSpace(scenarioId))
                 return null;

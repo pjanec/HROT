@@ -103,7 +103,16 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
                 elpState.TargetState == ClusterState.OperatingLive)
             {
                 _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-                return await _operatingLiveTcs.Task.ConfigureAwait(false);
+                await _operatingLiveTcs.Task.ConfigureAwait(false);
+
+                if (_controller != null)
+                {
+                    var exerciseId = ResolveExerciseId(intent.DomainPayload);
+                    if (exerciseId != Guid.Empty)
+                        await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
+                            .ConfigureAwait(false);
+                }
+                return null;
             }
             return null;
         }
@@ -131,17 +140,6 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
                 _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator);
                 _pendingTransactionId = intent.TransactionId;
             }
-        }
-
-        // Start recording when an exercise ID is provided (bus-mode path).
-        // This mirrors what ReferenceLiveLoadHandler.PrepareAsync does for the
-        // "cold PrepareLive" case (no scenario serializer registered).
-        if (_controller != null)
-        {
-            var exerciseId = ResolveExerciseId(intent.DomainPayload);
-            if (exerciseId != Guid.Empty)
-                await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                    .ConfigureAwait(false);
         }
 
         return null;

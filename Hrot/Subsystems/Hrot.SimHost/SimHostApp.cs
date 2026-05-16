@@ -5,7 +5,6 @@ using Hrot.Map.Common.Events;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
-using Hrot.SimHost.Utilities;
 using Hrot.Common.Infrastructure;
 using Hrot.Common.Scenario;
 using Hrot.Common.Constants;
@@ -255,11 +254,11 @@ namespace Hrot.SimHost
         {
             Console.Title = "Hrot.SimHost";
             var localNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
-            Logger.Info($"[Node-{localNodeId}] Starting graphical application...");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Starting graphical application...", localNodeId);
 
             // ── 0. Apply node configuration (sets CYCLONEDDS_URI if needed) ───
             _nodeConfig?.ApplyEnvironment();
-            Logger.Info($"[Node-{localNodeId}] Node role: {_role}");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Node role: {1}", localNodeId, _role);
 
             // ── 1. Load configuration ─────────────────────────────────────────
             // NodeConfiguration is the unified config type (DB-MOD1-09); SimHostConfig was absorbed.
@@ -271,9 +270,9 @@ namespace Hrot.SimHost
             // Safe to call even when _nodeConfig?.ApplyEnvironment() already ran above — idempotent.
             if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
             var domainId   = _domainOverride ?? (int)nodeConfig.DdsDomainId;
-            Logger.Info($"[Node-{localNodeId}] Domain ID:       {domainId}");
-            Logger.Info($"[Node-{localNodeId}] Node ID:         {localNodeId}");
-            Logger.Info($"[Node-{localNodeId}] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Domain ID:       {1}", localNodeId, domainId);
+            FdpLog<SimHostApp>.Info("[Node-{0}] Node ID:         {1}", localNodeId, localNodeId);
+            FdpLog<SimHostApp>.Info("[Node-{0}] Simulation Rate: {1} Hz", localNodeId, nodeConfig.SimulationRateHz);
 
             // ── 2. Geodetic transform — created before builder so behavior lambdas can close over it ──
             var wgs84     = HrotEnvironment.CreateGeoTransform();
@@ -478,7 +477,7 @@ namespace Hrot.SimHost
 
             // Architectural diagnostics service needed for visualization.
             var simHostEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);
-            Logger.Info($"[Node-{localNodeId}] Kernel initialized.");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Kernel initialized.", localNodeId);
 
             // -- 12. Visualization ---------------------------------------------------------
             if (!_headless)
@@ -502,11 +501,11 @@ namespace Hrot.SimHost
                     interactionBus: _interactionBus);
                 _vis.FdpEntityInspector.ExtractionService = simHostEntityService;
 
-                Logger.Info($"[Node-{localNodeId}] Visualization ready. Window open.");
+                FdpLog<SimHostApp>.Info("[Node-{0}] Visualization ready. Window open.", localNodeId);
             }
 
             _initialized = true;
-            Logger.Info($"[Node-{localNodeId}] Initialized.");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Initialized.", localNodeId);
         }
 
         protected override void OnUpdate(float dt)
@@ -592,7 +591,7 @@ namespace Hrot.SimHost
             _idAllocator?.Dispose();
             _kernel?.Dispose();
 
-            Logger.Info($"[Node-{localNodeId}] Shutdown complete.");
+            FdpLog<SimHostApp>.Info("[Node-{0}] Shutdown complete.", localNodeId);
 
             if (ownsWindow)
             {
