@@ -32,6 +32,7 @@ using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Layers;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Perception.Events;
+using Fdp.Toolkit.Perception.Translators;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -86,6 +87,11 @@ using FdpRepositoryAdapter = Fdp.Presentation.Adapters.RepositoryAdapter;
 using FdpInspectorState = Fdp.Presentation.Abstractions.InspectorState;
 // (Phase 5: EditorInteractionTool alias removed with StandardInteractionTool)
 using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Spatial;
+using CarKinem.Tkb;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
 
 namespace Hrot.Editor
 {
@@ -443,9 +449,18 @@ namespace Hrot.Editor
             // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
+            var translators = new List<ITkbEntityTranslator>
+            {
+                new SpatialCoreTkbTranslator(),
+                new VehicleKinematicsTkbTranslator(),
+                new BehaviorTkbTranslator(),
+                new CombatTkbTranslator(),
+                new PerceptionTkbTranslator()
+            }.AsReadOnly();
             var elm               = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
+            elm.SetTranslators(translators);
             var idAllocator       = new SequentialIdAllocator();
-            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId);
+            var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
             var extractor          = new StagingEntityExtractor();
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);

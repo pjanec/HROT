@@ -14,6 +14,11 @@ using Hrot.UI.Common.Facades;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Spatial;
+using CarKinem.Tkb;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
+using Fdp.Toolkit.Perception.Translators;
 using Hrot.CGF;
 using Hrot.Core.Network;
 using Hrot.Editor;
@@ -153,9 +158,19 @@ public sealed class EditorHarness : IDisposable
         var tkbDb = new TkbDatabase();
         tkbDb.Register(new TkbTemplate("TestUnit", tkbType: 1L));
 
+        var translators = new List<ITkbEntityTranslator>
+        {
+            new SpatialCoreTkbTranslator(),
+            new VehicleKinematicsTkbTranslator(),
+            new BehaviorTkbTranslator(),
+            new CombatTkbTranslator(),
+            new PerceptionTkbTranslator()
+        }.AsReadOnly();
+
         var elm      = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
+        elm.SetTranslators(translators);
         _idAllocator = new SequentialIdAllocator();
-        var spawnSys = new NetworkSpawningSystem(tkbDb, elm, EntityMap, _idAllocator, localNodeId: 0);
+        var spawnSys = new NetworkSpawningSystem(tkbDb, elm, EntityMap, _idAllocator, localNodeId: 0, translators: translators);
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);

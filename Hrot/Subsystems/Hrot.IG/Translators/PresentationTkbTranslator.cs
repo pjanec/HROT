@@ -31,15 +31,18 @@ namespace Hrot.IG.Translators
             var dto = template.GetDescriptor<VisualDefinitionDto>();
             if (dto == null) return;
 
-            repo.AddComponent(entity, new VisualData
+            if (!repo.HasComponent<VisualData>(entity))
             {
-                SymbolCode  = new FixedString32(dto.SymbolCode),
-                ModelPath   = new FixedString64(dto.ModelPath),
-                ColorHex    = new FixedString32(dto.ColorHex),
-                MapShapeName = new FixedString32(dto.MapShapeName ?? string.Empty)
-            });
+                repo.AddComponent(entity, new VisualData
+                {
+                    SymbolCode  = new FixedString32(dto.SymbolCode),
+                    ModelPath   = new FixedString64(dto.ModelPath),
+                    ColorHex    = new FixedString32(dto.ColorHex),
+                    MapShapeName = new FixedString32(dto.MapShapeName ?? string.Empty)
+                });
+            }
 
-            if (repo.IsComponentTypeRegistered<EntityInfo>())
+            if (repo.IsComponentTypeRegistered<EntityInfo>() && !repo.HasComponent<EntityInfo>(entity))
             {
                 var forceId = DeriveForceId(dto.SymbolCode);
                 repo.AddComponent(entity, new EntityInfo { ForceId = forceId });
