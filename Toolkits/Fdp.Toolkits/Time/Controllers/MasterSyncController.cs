@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Time.Controllers
             {
                 MasterMode.Continuous     => UpdateContinuous(currentTicks, elapsedTicks, elapsedSeconds, scaledDelta),
                 MasterMode.BarrierPending => UpdateBarrierPending(currentTicks, elapsedTicks, elapsedSeconds, scaledDelta),
-                MasterMode.Stepping       => UpdateStepping(),
+                MasterMode.Stepping       => UpdateStepping(elapsedTicks),
                 _                         => GetCurrentState(),
             };
         }
@@ -400,7 +400,7 @@ namespace Fdp.Toolkit.Time.Controllers
             return BuildGlobalTime(0.0f, 0.0f);
         }
 
-        private GlobalTime UpdateStepping()
+        private GlobalTime UpdateStepping(long elapsedTicks)
         {
             // Drain any incoming ACKs from slaves.  Unknown node IDs are silently discarded.
             var acks = _eventBus.ReadManaged<FrameStepCompletedEvent>();
@@ -419,6 +419,8 @@ namespace Fdp.Toolkit.Time.Controllers
                     "[TimeSync] STEP SUCCESS. All slaves ACKed. SimTime: {0}",
                     TimeSpan.FromSeconds(_totalTime).ToString(@"hh\:mm\:ss\.fff"));
             }
+
+            _totalWallTicks += elapsedTicks;
 
             float dt = _pendingStepDelta;
             float unscaledDt = _pendingUnscaledStepDelta;
