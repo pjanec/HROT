@@ -57,7 +57,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         var exerciseIdText = exerciseId.ToString();
 
         var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
-        var file = Path.Combine(_localTempRoot, exerciseIdText, fileName);
+        var file = Path.Combine(_localTempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName);
         if (!File.Exists(file))
         {
             FdpLog<ReferenceArchiveHandler>.Warn($"[ReferenceArchiveHandler] No local .fdp at {file}; cannot report manifest.");
@@ -68,7 +68,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         {
             new FileManifestResult(
                 SourceUnc:    file,
-                RelativeDest: Path.Combine(exerciseIdText, fileName)),
+                RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName)),
         };
 
         var metaFile = file + ".meta.json";
@@ -76,7 +76,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         {
             manifest.Add(new FileManifestResult(
                 SourceUnc:    metaFile,
-                RelativeDest: Path.Combine(exerciseIdText, fileName + ".meta.json")));
+                RelativeDest: Path.Combine(OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName + ".meta.json")));
         }
 
         return Task.FromResult<object?>(manifest.ToArray());
@@ -92,7 +92,7 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         if (exerciseId == Guid.Empty) return;
         var exerciseIdText = exerciseId.ToString();
         var fileName = OrchestrationConstants.GetNodeRecordingFileName(_nodeId);
-        var file = Path.Combine(_localTempRoot, exerciseIdText, fileName);
+        var file = Path.Combine(_localTempRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseIdText, fileName);
         try { if (File.Exists(file)) File.Delete(file); }
         catch (Exception ex)
         {
