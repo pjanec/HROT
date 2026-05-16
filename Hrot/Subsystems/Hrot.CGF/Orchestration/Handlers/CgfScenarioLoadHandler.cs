@@ -90,6 +90,15 @@ namespace Hrot.CGF.Orchestration.Handlers
             operation == NodeOpType.PrepareState;
 
         /// <inheritdoc />
+        public bool CanHandle(ExecuteNodeOpIntent intent)
+        {
+            if (intent.Operation == NodeOpType.PrepareLive) return true;
+            return intent.Operation == NodeOpType.PrepareState &&
+                   intent.DomainPayload is EditLoadHandlerPayload p &&
+                   p.TargetState == ClusterState.OperatingLive;
+        }
+
+        /// <inheritdoc />
         public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             // Intercept PrepareState targeting OperatingLive: hold the cluster in LoadingLive

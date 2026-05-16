@@ -83,6 +83,15 @@ public sealed class HrotEditLoadHandler : ITickableClusterStateHandler
         operation == NodeOpType.FinalizeEdit;
 
     /// <inheritdoc />
+    public bool CanHandle(ExecuteNodeOpIntent intent)
+    {
+        if (intent.Operation == NodeOpType.PrepareEdit || intent.Operation == NodeOpType.FinalizeEdit) return true;
+        return intent.Operation == NodeOpType.PrepareState &&
+               intent.DomainPayload is EditLoadHandlerPayload p &&
+               (p.TargetState == ClusterState.LoadingEdit || p.TargetState == ClusterState.OperatingEdit);
+    }
+
+    /// <inheritdoc />
     public System.Threading.Tasks.Task<object?> PrepareAsync(
         ExecuteNodeOpIntent intent,
         System.Threading.CancellationToken ct)
