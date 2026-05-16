@@ -71,6 +71,8 @@ public sealed class TkbLoadClusterStateHandler : IClusterStateHandler
             // overwriting a previously loaded TKB catalog.
             if (!_tkbDb.GetAll().Any())
                 NedTkbCatalog.RegisterAll((TkbDatabase)_tkbDb);
+            _lastLoadedTkbName = null;
+            _tkbDb.ActiveTkbName = null;
             return Task.FromResult<object?>(null);
         }
 

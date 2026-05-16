@@ -35,6 +35,7 @@ using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Hrot.IG.Modules;
 using Hrot.IG.Modules.Orchestration;
+using Hrot.IG.Translators;
 using Hrot.Map.Common;
 
 namespace Hrot.IG;
@@ -102,11 +103,17 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override HrotNodeContext BuildContext(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
     {
+        var translators = new List<ITkbEntityTranslator>
+        {
+            new PresentationTkbTranslator(),
+        }.AsReadOnly();
+
         return new HrotNodeBuilder(config)
             .WithRole(config.SubsystemName, role)
             .WithNetworkFactory(networkFactory)
             .WithReplication(role)
             .WithBehaviorRegistry(GetBehaviorRegistry())
+            .WithTranslators(translators)
             .Build();
     }
 

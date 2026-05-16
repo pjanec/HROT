@@ -112,6 +112,17 @@ namespace Hrot.Map.Definitions.Tkb
             // Store the combat definition as a descriptor for inspector / ORBAT display.
             template.AddDescriptor(combatDef);
 
+            // Typed DTO consumed by CombatTkbTranslator.
+            // Derive max health from armor: ArmorFront * 5 gives roughly 500 HP for a 100 mm armour.
+            // Entities without armour default to 100 HP.
+            template.AddDescriptor(new CombatPlatformDefDto
+            {
+                MaxHealth  = combatDef.ArmorFront > 0f ? combatDef.ArmorFront * 5f : 100f,
+                ArmorFront = combatDef.ArmorFront,
+                ArmorSide  = combatDef.ArmorSide,
+                ArmorRear  = combatDef.ArmorRear,
+            });
+
             // Derived capability DTO for the general TKB pipeline.
             if (combatDef.Weapons.Count > 0)
             {
@@ -122,7 +133,31 @@ namespace Hrot.Map.Definitions.Tkb
                     RateOfFire       = primary.RateOfFire,
                     MagazineCapacity = primary.Ammunition,
                 });
+
+                // Typed weapon suite consumed by CombatTkbTranslator.
+                var suite = new WeaponSuiteDto();
+                foreach (var wm in combatDef.Weapons)
+                {
+                    suite.Mounts.Add(new WeaponMountDto
+                    {
+                        InitialAmmunition = wm.Ammunition,
+                        MuzzleVelocity    = wm.Range > 0f ? wm.Range * 0.5f : 800f,
+                    });
+                }
+                template.AddDescriptor(suite);
             }
+
+            // Perception DTO from sensor range (if specified).
+            if (combatDef.SensorRange > 0f)
+            {
+                template.AddDescriptor(new SensorCapabilitiesDto
+                {
+                    VisionRange        = combatDef.SensorRange,
+                    HearingRange       = combatDef.SensorRange * 1.5f,
+                    FieldOfViewDegrees = 360f,
+                });
+            }
+
             // ECS components (PerceptionReceptor, WeaponState, Health, PhysicsCollider)
             // will be stamped by translators in Phase 6.
 
@@ -166,7 +201,15 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
 
-            // Behavior and navigation ECS components will be applied by translators in Phase 6.
+            template.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier    = BehaviorConstants.SimTierTactical,
+                BrainTier  = BehaviorConstants.BrainTierBTree,
+                CanMove    = true,
+                CanShoot   = true,
+                CanInteract = true
+            });
+
             return this;
         }
 

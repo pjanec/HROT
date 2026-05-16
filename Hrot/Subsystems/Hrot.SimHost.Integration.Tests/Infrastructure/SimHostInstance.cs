@@ -42,9 +42,15 @@ using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Scenario;
+using CarKinem.Tkb;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Spatial;
 
 using NetworkEntityMap = Fdp.Toolkit.Replication.Services.NetworkEntityMap;
 using Fdp.Toolkit.NetworkSpawning;
@@ -243,8 +249,16 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             _tkbDb            = BuildTkbDatabase();
             _behaviorRegistry = BuildBehaviorRegistry(_wgs84, _entityMap);
 
-            // 3. Entity lifecycle module (empty participant list â†’ bypass ACK protocol) â”€
-            _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
+            // 3. Entity lifecycle module (empty participant list -> bypass ACK protocol) -
+            var translators = new List<ITkbEntityTranslator>
+            {
+                new SpatialCoreTkbTranslator(),
+                new VehicleKinematicsTkbTranslator(),
+                new BehaviorTkbTranslator(),
+                new CombatTkbTranslator(),
+                new PerceptionTkbTranslator(),
+            }.AsReadOnly();
+            _elm = new EntityLifecycleModule(_tkbDb, new List<int>(), translators: translators);
             _elm.RegisterSystems(_elmSystems);
 
             // 4. Request / spawn systems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -256,6 +270,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             _spawnSystem = new NetworkSpawningSystem(
                 _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
+                translators: translators,
                 onEntitySpawned: (world, entity, isLocalAuthority) =>
                 {
                     // Mark locally-owned physics components as authoritative so
@@ -797,43 +812,32 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var template = new TkbTemplate(name, tkbType);
 
-            // Physics
+            // Physics DTO -- consumed by VehicleKinematicsTkbTranslator and SpatialCoreTkbTranslator.
             var preset = CarKinem.Core.VehiclePresets.GetPreset(vehicleClass);
-            preset.Class = vehicleClass;
-            preset.MaxSpeedFwd = maxSpeed;
-            template.AddComponent(preset);
-            template.AddComponent(new CarKinem.Core.VehicleState());
-            template.AddComponent(new CarKinem.Core.NavState());
-            template.AddComponent(new CarKinem.Formation.FormationController());
-            template.AddComponent(new NetworkTransform());
-
-            // Simulation transform
-            template.AddComponent(new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            template.AddComponent(new SimVelocity  { Linear  = Vector3.Zero, Angular  = Vector3.Zero });
-
-            // Behavior
-            template.AddComponent(new BehaviorState { BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
-            template.AddComponent(new BrainBlackboard());
-            template.AddComponent(new BrainBTreeState());
-            template.AddComponent(new LocomotionChannel());
-            template.AddComponent(new WeaponChannel());
-            template.AddComponent(new InteractionChannel());
-            template.AddComponent(new ActorCapabilityState
+            template.AddDescriptor(new TkbMasterDto { CustomName = name });
+            template.AddDescriptor(new VehicleParametersDto
             {
-                Capabilities = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove
-                             | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
+                Length      = preset.Length,
+                Width       = preset.Width,
+                MaxSpeedFwd = maxSpeed,
+                MaxAccel    = preset.MaxAccel,
             });
-            template.AddComponent(new MissionPlanQueue());
 
-            // CQRS navigation contract (CT-MOD1-C2 fix):
-            // These must be present so MoveToExecutor.OnEnter does not throw
-            // "Entity missing NavigationIntent".
-            template.AddComponent(new Fdp.Toolkit.Navigation.NavigationIntent());
-            template.AddComponent(new Fdp.Toolkit.Navigation.NavigationStatus());
-            template.AddComponent(new CarKinem.Core.FrustrationTicks());
+            // Behavior DTO -- consumed by BehaviorTkbTranslator.
+            template.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier     = Fdp.Toolkit.Behavior.BehaviorConstants.SimTierTactical,
+                BrainTier   = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+                CanMove     = true,
+                CanShoot    = true,
+                CanInteract = true,
+            });
 
-            // Managed components
-            template.AddManagedComponent<ActiveMissionPlan>(() => new ActiveMissionPlan());
+            // Network replication gate: entity must have NetworkTransform before going Live.
+            template.AddMandatoryComponent<NetworkTransform>(isHard: false, softTimeoutFrames: 10);
+
+            // Managed components not covered by any translator.
+            template.AddMandatoryComponent<ActiveMissionPlan>();
 
             db.Register(template);
         }

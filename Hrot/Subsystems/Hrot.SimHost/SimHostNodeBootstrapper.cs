@@ -9,7 +9,11 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Diagnostics;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Spatial;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
@@ -126,7 +130,11 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     {
         _translators = new List<ITkbEntityTranslator>
         {
+            new SpatialCoreTkbTranslator(),
             new VehicleKinematicsTkbTranslator(),
+            new BehaviorTkbTranslator(),
+            new CombatTkbTranslator(),
+            new PerceptionTkbTranslator(),
         }.AsReadOnly();
 
         var ctx = new HrotNodeBuilder(config)
