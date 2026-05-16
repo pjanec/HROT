@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using CarKinem.Core;
+using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
@@ -12,6 +14,8 @@ namespace CarKinem.Tkb
     /// Reference ITkbEntityTranslator implementation.
     /// Projects VehicleParametersDto into four ECS components:
     ///   VehicleParams, VehicleState, NavState, PhysicsCollider.
+    /// Also stamps navigation contract components required by MoveToExecutor:
+    ///   NavigationIntent, NavigationStatus, FrustrationTicks, FormationController.
     /// Each AddComponent call is guarded by IsComponentTypeRegistered.
     /// </summary>
     public sealed class VehicleKinematicsTkbTranslator : ITkbEntityTranslator
@@ -48,6 +52,18 @@ namespace CarKinem.Tkb
                     Radius         = System.Math.Max(dto.Length, dto.Width) / 2f,
                     CollisionLayer = 1
                 });
+
+            if (repo.IsComponentTypeRegistered<NavigationIntent>())
+                repo.AddComponent(entity, new NavigationIntent());
+
+            if (repo.IsComponentTypeRegistered<NavigationStatus>())
+                repo.AddComponent(entity, new NavigationStatus());
+
+            if (repo.IsComponentTypeRegistered<FrustrationTicks>())
+                repo.AddComponent(entity, new FrustrationTicks());
+
+            if (repo.IsComponentTypeRegistered<FormationController>())
+                repo.AddComponent(entity, new FormationController());
         }
     }
 }

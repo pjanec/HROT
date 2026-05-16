@@ -1,4 +1,5 @@
 using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Examples.UrbanCombat.Setup
@@ -45,6 +46,25 @@ namespace Fdp.Examples.UrbanCombat.Setup
         {
             var t = new TkbTemplate("CivilianPedestrian", tkbType: 1001);
             t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 0.6f,
+                Width       = 0.4f,
+                MaxSpeedFwd = 2.0f,
+                MaxAccel    = 1.0f
+            });
+            t.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier  = BehaviorConstants.SimTierCivilian,
+                BrainTier = 0,
+                CanMove  = true
+            });
+            t.AddDescriptor(new SensorCapabilitiesDto
+            {
+                VisionRange       = UrbanCombatConstants.CivilianVisionRange,
+                HearingRange      = UrbanCombatConstants.CivilianHearingRange,
+                FieldOfViewDegrees = 360f
+            });
             tkb.Register(t);
         }
 
@@ -55,6 +75,19 @@ namespace Fdp.Examples.UrbanCombat.Setup
         {
             var t = new TkbTemplate("CivilianCar", tkbType: 1002);
             t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 4.5f,
+                Width       = 2.0f,
+                MaxSpeedFwd = 25.0f,
+                MaxAccel    = 3.0f
+            });
+            t.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier  = BehaviorConstants.SimTierCivilian,
+                BrainTier = 0,
+                CanMove  = true
+            });
             tkb.Register(t);
         }
 
@@ -68,6 +101,24 @@ namespace Fdp.Examples.UrbanCombat.Setup
         {
             var t = new TkbTemplate("MilitaryAPC", tkbType: 2001);
             t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 7.0f,
+                Width       = 3.5f,
+                MaxSpeedFwd = 12.0f,
+                MaxAccel    = 2.0f
+            });
+            t.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier    = BehaviorConstants.SimTierTactical,
+                BrainTier  = BehaviorConstants.BrainTierHsm,
+                CanMove    = true,
+                CanInteract = true
+            });
+            t.AddDescriptor(new CombatPlatformDefDto
+            {
+                MaxHealth = UrbanCombatConstants.ApcMaxHealth
+            });
             tkb.Register(t);
         }
 
@@ -81,6 +132,41 @@ namespace Fdp.Examples.UrbanCombat.Setup
         {
             var t = new TkbTemplate("InfantrySoldier", tkbType: 2002);
             t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 0.6f,
+                Width       = 0.4f,
+                MaxSpeedFwd = 2.0f,
+                MaxAccel    = 1.0f
+            });
+            t.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier   = BehaviorConstants.SimTierTactical,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+                CanMove   = true,
+                CanShoot  = true
+            });
+            t.AddDescriptor(new CombatPlatformDefDto
+            {
+                MaxHealth = UrbanCombatConstants.SoldierMaxHealth
+            });
+            t.AddDescriptor(new WeaponSuiteDto
+            {
+                Mounts =
+                {
+                    new WeaponMountDto
+                    {
+                        InitialAmmunition = UrbanCombatConstants.RifleAmmo,
+                        MuzzleVelocity    = UrbanCombatConstants.RifleMuzzleVelocity
+                    }
+                }
+            });
+            t.AddDescriptor(new SensorCapabilitiesDto
+            {
+                VisionRange        = UrbanCombatConstants.SoldierVisionRange,
+                HearingRange       = UrbanCombatConstants.SoldierHearingRange,
+                FieldOfViewDegrees = 360f
+            });
             tkb.Register(t);
         }
 
@@ -94,6 +180,41 @@ namespace Fdp.Examples.UrbanCombat.Setup
         {
             var t = new TkbTemplate("Insurgent", tkbType: 2003);
             t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 0.6f,
+                Width       = 0.4f,
+                MaxSpeedFwd = 2.0f,
+                MaxAccel    = 1.0f
+            });
+            t.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier   = BehaviorConstants.SimTierTactical,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+                CanMove   = true,
+                CanShoot  = true
+            });
+            t.AddDescriptor(new CombatPlatformDefDto
+            {
+                MaxHealth = UrbanCombatConstants.SoldierMaxHealth
+            });
+            t.AddDescriptor(new WeaponSuiteDto
+            {
+                Mounts =
+                {
+                    new WeaponMountDto
+                    {
+                        InitialAmmunition = UrbanCombatConstants.RpgAmmo,
+                        MuzzleVelocity    = UrbanCombatConstants.RpgMuzzleVelocity
+                    }
+                }
+            });
+            t.AddDescriptor(new SensorCapabilitiesDto
+            {
+                VisionRange        = UrbanCombatConstants.SoldierVisionRange,
+                HearingRange       = UrbanCombatConstants.SoldierHearingRange,
+                FieldOfViewDegrees = 360f
+            });
             tkb.Register(t);
         }
     }

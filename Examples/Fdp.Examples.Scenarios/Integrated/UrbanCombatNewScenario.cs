@@ -12,6 +12,7 @@ using Fdp.Examples.Common.Helpers;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;
@@ -38,6 +39,11 @@ using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Systems;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using CarKinem.Tkb;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
+using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.Spatial;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Vis2D;
 using Fdp.ModuleHost;
@@ -276,6 +282,8 @@ namespace Fdp.Examples.Scenarios.Integrated
         private readonly BehaviorRegistry   _behaviorRegistry = new BehaviorRegistry();
         private readonly NetworkEntityMap   _entityMap        = new NetworkEntityMap();
 
+        private IReadOnlyList<ITkbEntityTranslator> _translators = Array.Empty<ITkbEntityTranslator>();
+
         private PhysicsToolkitModule? _physicsModule;
         private RoadNetworkBlob?      _road;
         private TrajectoryPoolManager? _trajectoryPool;
@@ -303,6 +311,16 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // 4. Create road network.
             _road = DemoRoadGraphFactory.CreateCityIntersection();
+
+            // 5. Build translator pipeline (N:M DTO -> ECS component projection).
+            _translators = new List<ITkbEntityTranslator>
+            {
+                new SpatialCoreTkbTranslator(),
+                new VehicleKinematicsTkbTranslator(),
+                new BehaviorTkbTranslator(),
+                new CombatTkbTranslator(),
+                new PerceptionTkbTranslator(),
+            }.AsReadOnly();
 
             // 5. Initialise physics (persistent NativeArrays — disposed in OnShutdown).
             _physicsModule = new PhysicsToolkitModule();
@@ -406,35 +424,53 @@ namespace Fdp.Examples.Scenarios.Integrated
         private void RegisterCivilianPedestrian()
         {
             var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-            // TKB-014 (Phase 6): ECS components will be injected by translators.
+            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
+            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
             _tkb.Register(t);
         }
 
         private void RegisterCivilianCar()
         {
             var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-            // TKB-014 (Phase 6): ECS components will be injected by translators.
+            t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
+            t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
             _tkb.Register(t);
         }
 
         private void RegisterMilitaryApc()
         {
             var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-            // TKB-014 (Phase 6): ECS components will be injected by translators.
+            t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
+            t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
             _tkb.Register(t);
         }
 
         private void RegisterInfantrySoldier()
         {
             var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-            // TKB-014 (Phase 6): ECS components will be injected by translators.
+            t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
+            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
+            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             _tkb.Register(t);
         }
 
         private void RegisterInsurgent()
         {
             var t = new TkbTemplate("Insurgent", TkbInsurgent);
-            // TKB-014 (Phase 6): ECS components will be injected by translators.
+            t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
+            t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
+            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             _tkb.Register(t);
         }
 
@@ -513,35 +549,53 @@ namespace Fdp.Examples.Scenarios.Integrated
             // CivilianPedestrian (1001)
             {
                 var t = new TkbTemplate("CivilianPedestrian", TkbCivilianPedestrian);
-                // TKB-014 (Phase 6): ECS components will be injected by translators.
+                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianPedestrian" });
+                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
                 tkb.Register(t);
             }
 
             // CivilianCar (1002)
             {
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
-                // TKB-014 (Phase 6): ECS components will be injected by translators.
+                t.AddDescriptor(new TkbMasterDto { CustomName = "CivilianCar" });
+                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 tkb.Register(t);
             }
 
             // MilitaryAPC (2001)
             {
                 var t = new TkbTemplate("MilitaryAPC", TkbMilitaryApc);
-                // TKB-014 (Phase 6): ECS components will be injected by translators.
+                t.AddDescriptor(new TkbMasterDto { CustomName = "MilitaryAPC" });
+                t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth });
                 tkb.Register(t);
             }
 
             // InfantrySoldier (2002)
             {
                 var t = new TkbTemplate("InfantrySoldier", TkbInfantrySoldier);
-                // TKB-014 (Phase 6): ECS components will be injected by translators.
+                t.AddDescriptor(new TkbMasterDto { CustomName = "InfantrySoldier" });
+                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MuzzleVelocity = RifleMuzzleVelocity } } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 tkb.Register(t);
             }
 
             // Insurgent (2003)
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                // TKB-014 (Phase 6): ECS components will be injected by translators.
+                t.AddDescriptor(new TkbMasterDto { CustomName = "Insurgent" });
+                t.AddDescriptor(new VehicleParametersDto { Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 2.0f, MaxAccel = 1.0f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity } } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 tkb.Register(t);
             }
         }
@@ -698,8 +752,9 @@ namespace Fdp.Examples.Scenarios.Integrated
                 ?? throw new InvalidOperationException($"TKB type {tkbTypeId} not registered.");
 
             var entity = world.CreateEntity();
-            // TKB-014 (Phase 6): translator loop will replace ApplyTo here.
-            // foreach (var t in _translators) t.Inject(world, entity, template);
+
+            foreach (var translator in _translators)
+                translator.Inject(world, entity, template);
 
             world.AddComponent(entity, new TkbIdentity { TkbType = tkbTypeId });
 

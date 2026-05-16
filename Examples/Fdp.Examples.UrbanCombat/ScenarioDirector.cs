@@ -1,14 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Road;
+using CarKinem.Tkb;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Translators;
+using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Translators;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Spatial;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -60,6 +66,7 @@ namespace Fdp.Examples.UrbanCombat
         private readonly RoadNetworkBlob   _road;
         private readonly BehaviorRegistry  _registry;
         private readonly NetworkEntityMap? _entityMap;
+        private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         // Auto-incrementing network ID counter used when _entityMap is provided.
         private long _nextNetId = 1;
@@ -82,13 +89,22 @@ namespace Fdp.Examples.UrbanCombat
             ITkbDatabase tkb,
             RoadNetworkBlob road,
             BehaviorRegistry registry,
-            NetworkEntityMap? entityMap = null)
+            NetworkEntityMap? entityMap = null,
+            IReadOnlyList<ITkbEntityTranslator>? translators = null)
         {
             _world     = world    ?? throw new ArgumentNullException(nameof(world));
             _tkb       = tkb      ?? throw new ArgumentNullException(nameof(tkb));
             _road      = road;
             _registry  = registry ?? throw new ArgumentNullException(nameof(registry));
             _entityMap = entityMap;
+            _translators = translators ?? new List<ITkbEntityTranslator>
+            {
+                new SpatialCoreTkbTranslator(),
+                new VehicleKinematicsTkbTranslator(),
+                new BehaviorTkbTranslator(),
+                new CombatTkbTranslator(),
+                new PerceptionTkbTranslator(),
+            }.AsReadOnly();
 
             // Pre-build the APC HSM blob to extract the StructureHash for brain initialization.
             // The blob is also registered independently in HeadlessDemoApp.RegisterBehaviors();
@@ -200,8 +216,9 @@ namespace Fdp.Examples.UrbanCombat
                 ?? throw new InvalidOperationException($"TKB template not found for type {tkbTypeId}.");
 
             var entity = _world.CreateEntity();
-            // TKB-014 (Phase 6): translator loop will replace ApplyTo here.
-            // foreach (var t in _translators) t.Inject(_world, entity, template);
+
+            foreach (var translator in _translators)
+                translator.Inject(_world, entity, template);
 
             // Set spawn position.
             ref var tf = ref _world.GetComponentRW<SimTransform>(entity);

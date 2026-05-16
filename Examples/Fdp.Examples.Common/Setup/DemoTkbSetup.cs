@@ -56,6 +56,14 @@ namespace Fdp.Examples.Common.Setup
 
             // TKB-014 (Phase 6): ECS components (SimTransform, SimVelocity, VehicleState,
             // VehicleParams, NavState, LocomotionChannel) will be injected by translators.
+            t.AddDescriptor(new VehicleParametersDto
+            {
+                Length      = 7.0f,
+                Width       = 3.5f,
+                MaxSpeedFwd = 12.0f,
+                MaxSpeedRev = 8.0f,
+                MaxAccel    = 2.0f
+            });
 
             tkb.Register(t);
         }
