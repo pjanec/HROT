@@ -60,10 +60,17 @@ namespace Fdp.Toolkit.Combat.Systems
             var query = repo.Query()
                 .With<BallisticProjectile>()
                 .With<SimTransform>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
             {
+                if (repo.GetLifecycleState(entity) == EntityLifecycle.TearDown)
+                {
+                    repo.DestroyEntity(entity);
+                    continue;
+                }
+
                 ref var proj = ref repo.GetComponentRW<BallisticProjectile>(entity);
 
                 // ── 1. Lifetime check ────────────────────────────────────────────

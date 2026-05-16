@@ -63,9 +63,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!view.IsAlive(evt.BulletEntity)) continue;
                 if (!view.HasComponent<BallisticProjectile>(evt.BulletEntity)) continue;
 
-                // 4. Read damage from the bullet and then finalize its destruction.
+                // 4. Read damage from the bullet.
                 float damage = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Damage;
-                repo.DestroyEntity(evt.BulletEntity);
 
                 // 5. Apply damage to the hit entity's health.
                 ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
