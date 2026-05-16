@@ -468,6 +468,7 @@ namespace Hrot.Editor
             // ?? 3c. Offline scenario load handler ?????????????????????????????
             var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
             var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+            clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(storageProvider));
 
             // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
             // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
