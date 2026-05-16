@@ -61,6 +61,10 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
 
+        // Reusable buffers for stale-entry sweeping; avoids per-frame heap allocation.
+        private readonly HashSet<int> _seenThisFrame = new();
+        private readonly List<int>    _staleKeys     = new();
+
         // Exposed for unit-testing: number of entities currently being tracked for
         // deduplication of BehaviorFinishedEvent. Should drop to zero after a
         // DestructionOrder for the entity is processed.
@@ -92,6 +96,28 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
             foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
+
+            // Sweep stale entries: entities no longer in the query (brain component removed
+            // without a lifecycle event, e.g. dynamic reclassing or direct RemoveComponent).
+            if (_publishedTerminalForInstanceId.Count > 0)
+            {
+                if (q.IsEmpty)
+                {
+                    _publishedTerminalForInstanceId.Clear();
+                }
+                else
+                {
+                    _seenThisFrame.Clear();
+                    foreach (var seenEntity in q)
+                        _seenThisFrame.Add(seenEntity.Index);
+
+                    _staleKeys.Clear();
+                    foreach (var key in _publishedTerminalForInstanceId.Keys)
+                        if (!_seenThisFrame.Contains(key)) _staleKeys.Add(key);
+                    foreach (var key in _staleKeys)
+                        _publishedTerminalForInstanceId.Remove(key);
+                }
+            }
 
             // Early-exit: skip per-entity overhead when no HSM entities are present.
             if (q.IsEmpty)

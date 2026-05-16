@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Toolkit.Tkb.Attributes;
 
 namespace Fdp.Toolkit.Tkb.Domain
@@ -36,5 +37,11 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Whether the entity can interact with other entities (e.g. embark/disembark).</summary>
         public bool CanInteract { get; init; }
+
+        /// <summary>
+        /// Force affiliation stamped onto <see cref="EntityInfo.ForceId"/> by the translator.
+        /// Defaults to <see cref="ForceId.Neutral"/> (zero).
+        /// </summary>
+        public ForceId Faction { get; init; } = ForceId.Neutral;
     }
 }

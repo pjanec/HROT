@@ -15,6 +15,7 @@ using Fbt.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
@@ -220,6 +221,12 @@ namespace Fdp.Examples.UrbanCombat
                 foreach (var sys in _postSimModuleSystems) sys.Execute(World, Dt);
                 foreach (var sys in _exportModuleSystems) sys.Execute(World, Dt);
 
+                // Flush deferred command buffer: events posted via cmd.PublishEvent during
+                // system execution are recorded in the per-thread ECB and must be played
+                // back so they enter the bus write buffer.  SwapBuffers() at the top of the
+                // next frame then makes them visible to all ReadEvents<T>() calls.
+                ((EntityCommandBuffer)((ISimulationView)World).GetCommandBuffer()).Playback(World);
+
                 World.Tick();
             }
         }
@@ -256,6 +263,11 @@ namespace Fdp.Examples.UrbanCombat
 
             // FDP.Toolkit.Physics
             World.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+
+            // Events routed via EntityCommandBuffer (must be pre-registered so ECB playback
+            // can call Bus.PublishRaw without hitting the "not registered" guard).
+            World.RegisterEvent<RaycastRequestEvent>();
+            World.RegisterEvent<RaycastResultEvent>();
 
             // FDP.Toolkit.Combat
             World.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
@@ -326,9 +338,11 @@ namespace Fdp.Examples.UrbanCombat
             // ── Simulation phase ───────────────────────────────────────────
             _simModuleSystems.Add(new MissionDirectorSystem());
             _simModuleSystems.Add(new TrafficBrainSystem());
-            _simModuleSystems.Add(new ChannelArbitrationSystem());
-            _simModuleSystems.Add(new BTreeTickSystem(_behaviorRegistry));
-            _simModuleSystems.Add(new HsmTickSystem<BrainHsm128>(_behaviorRegistry));
+            // CognitiveRuntimeModule groups ChannelArbitration, CognitiveInterrupt,
+            // BTreeTick, HsmTick, and CognitiveCleanup in the correct order.
+            var cognitiveModule = new CognitiveRuntimeModule(_behaviorRegistry);
+            foreach (var sys in cognitiveModule.SimulationSystems)
+                _simModuleSystems.Add(sys);
             _simModuleSystems.Add(new DamageSystem());
             _simModuleSystems.Add(new AudioPerceptionSystem());
 

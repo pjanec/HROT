@@ -30,6 +30,10 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<SimTier>())
                 repo.AddComponent(entity, new SimTier { Value = dto.SimTier });
 
+            // ── Force affiliation ─────────────────────────────────────────────────
+            if (repo.IsComponentTypeRegistered<EntityInfo>())
+                repo.AddComponent(entity, new EntityInfo { ForceId = dto.Faction });
+
             // ── Actor capabilities ────────────────────────────────────────────────
             var caps = ActorCapabilities.None;
             if (dto.CanMove)     caps |= ActorCapabilities.CanMove;
@@ -42,10 +46,9 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<PreviousCapabilities>())
                 repo.AddComponent(entity, new PreviousCapabilities { Capabilities = caps });
 
-            // Only stamp high-fidelity tactical components when a brain tier is set.
-            if (dto.BrainTier == 0) return;
-
             // ── Behavior state ────────────────────────────────────────────────────
+            // Always stamped when a BehaviorProfileDto is present so that SpawnEntity
+            // can unconditionally read/write BehaviorState regardless of brain tier.
             if (repo.IsComponentTypeRegistered<BehaviorState>())
                 repo.AddComponent(entity, new BehaviorState
                 {
@@ -54,8 +57,19 @@ namespace Fdp.Toolkit.Behavior.Translators
                     InstanceId         = 1
                 });
 
-            // ── Action channels ───────────────────────────────────────────────────
-            if (repo.IsComponentTypeRegistered<LocomotionChannel>())
+            // ── LocomotionChannel: all moveable entities (including tier-0 civilians
+            //    driven by TrafficBrainSystem) need a locomotion channel so the system
+            //    can write ActiveAction = Flee / MoveTo each frame.
+            if (dto.CanMove && repo.IsComponentTypeRegistered<LocomotionChannel>())
+                repo.AddComponent(entity, new LocomotionChannel());
+
+            // Only stamp high-fidelity tactical components when a brain tier is set.
+            if (dto.BrainTier == 0) return;
+
+            // ── Action channels (tactical only) ───────────────────────────────────
+            // LocomotionChannel already added above for any CanMove entity;
+            // add it again only when it was skipped (CanMove == false but BrainTier != 0).
+            if (!dto.CanMove && repo.IsComponentTypeRegistered<LocomotionChannel>())
                 repo.AddComponent(entity, new LocomotionChannel());
 
             if (repo.IsComponentTypeRegistered<WeaponChannel>())

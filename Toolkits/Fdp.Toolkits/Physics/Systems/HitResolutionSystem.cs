@@ -76,12 +76,20 @@ namespace Fdp.Toolkit.Physics.Systems
                     int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
                     var bulletEntity = repo.GetEntityByIndex(bulletIndex);
 
+                    // Read damage from the bullet before consuming it.  DamageSystem runs one frame
+                    // later (after SwapBuffers) when the bullet entity is already destroyed, so the
+                    // damage value must be embedded in the event itself.
+                    float damage = 0f;
+                    if (repo.IsAlive(bulletEntity) && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
+                        damage = repo.GetComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity).Damage;
+
                     // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
                     {
                         HitEntity    = hit.HitEntity,
                         BulletEntity = bulletEntity,
                         HitT         = hit.T,
+                        Damage       = damage,
                     });
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.

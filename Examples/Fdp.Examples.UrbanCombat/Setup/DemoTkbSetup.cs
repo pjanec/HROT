@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Tkb.Domain;
@@ -113,7 +114,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
                 SimTier    = BehaviorConstants.SimTierTactical,
                 BrainTier  = BehaviorConstants.BrainTierHsm,
                 CanMove    = true,
-                CanInteract = true
+                CanInteract = true,
+                Faction    = ForceId.Friend
             });
             t.AddDescriptor(new CombatPlatformDefDto
             {
@@ -144,7 +146,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
                 SimTier   = BehaviorConstants.SimTierTactical,
                 BrainTier = BehaviorConstants.BrainTierBTree,
                 CanMove   = true,
-                CanShoot  = true
+                CanShoot  = true,
+                Faction   = ForceId.Friend
             });
             t.AddDescriptor(new CombatPlatformDefDto
             {
@@ -192,7 +195,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
                 SimTier   = BehaviorConstants.SimTierTactical,
                 BrainTier = BehaviorConstants.BrainTierBTree,
                 CanMove   = true,
-                CanShoot  = true
+                CanShoot  = true,
+                Faction   = ForceId.Hostile
             });
             t.AddDescriptor(new CombatPlatformDefDto
             {

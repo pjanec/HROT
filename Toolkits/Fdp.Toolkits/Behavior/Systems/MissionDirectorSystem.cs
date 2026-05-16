@@ -170,6 +170,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     queue.CurrentPhase++;
                     queue.PhaseElapsedSeconds = 0f;
+
+                    if (queue.CurrentPhase < queue.PhaseCount)
+                    {
+                        // More phases remain: tell BehaviorIngressSystem which behavior to activate.
+                        repo.Bus.Publish(new AssignBehaviorHashEvent
+                        {
+                            Entity       = entity,
+                            BehaviorHash = phases[queue.CurrentPhase].BehaviorId,
+                        });
+                    }
+                    else
+                    {
+                        // Plan exhausted: clear the active behavior so the entity goes brain-dead.
+                        repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+                    }
                 }
             }
         }

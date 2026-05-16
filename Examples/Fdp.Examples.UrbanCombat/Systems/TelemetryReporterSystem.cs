@@ -18,14 +18,16 @@ namespace Fdp.Examples.UrbanCombat.Systems
     public class TelemetryReporterSystem : IEcsModuleSystem
     {
         // Shadow state for change detection.
-        private readonly Dictionary<int, uint> _prevBehaviorInstanceId = new Dictionary<int, uint>();
-        private readonly Dictionary<int, ActorCapabilities> _prevCapabilities = new Dictionary<int, ActorCapabilities>();
+        private readonly Dictionary<int, uint>              _prevBehaviorInstanceId = new Dictionary<int, uint>();
+        private readonly Dictionary<int, ActorCapabilities> _prevCapabilities       = new Dictionary<int, ActorCapabilities>();
+        private readonly Dictionary<int, ushort>            _prevHsmState           = new Dictionary<int, ushort>();
 
         private int _frame;
 
         // Cached queries (lazy-initialised on first Execute).
         private EntityQuery? _qBehavior;
         private EntityQuery? _qCaps;
+        private EntityQuery? _qHsm;
         private EntityQuery? _qInteract;
         private EntityQuery? _qLoco;
 
@@ -86,6 +88,21 @@ namespace Fdp.Examples.UrbanCombat.Systems
                 }
 
                 _prevCapabilities[key] = caps.Capabilities;
+            }
+
+            // -- HSM TRANSITION: BrainHsm128 active leaf index changed --
+
+            _qHsm ??= repo.Query().With<BrainHsm128>().Build();
+            foreach (var entity in _qHsm)
+            {
+                ref readonly var brain = ref view.GetComponentRO<BrainHsm128>(entity);
+                int key = entity.Index;
+                ushort curState = brain.State.ActiveLeafIds[0];
+
+                if (_prevHsmState.TryGetValue(key, out ushort prevState) && prevState != curState)
+                    System.Console.Out.WriteLine($"{frameTag} HSM TRANSITION: entity {key} -> state {curState}");
+
+                _prevHsmState[key] = curState;
             }
 
             // -- INTERACTION: EjectPassengers --

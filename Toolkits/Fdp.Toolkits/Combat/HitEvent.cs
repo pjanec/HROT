@@ -23,12 +23,20 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>
         /// The bullet entity that caused the hit.
-        /// Valid for reading damage and other ballistic data during the Simulation phase,
-        /// because the bullet's lifecycle transitions through TearDown before memory is reclaimed.
+        /// May already be destroyed when <c>DamageSystem</c> processes this event
+        /// (the bullet is consumed by <c>HitResolutionSystem</c> on first impact).
+        /// Use <see cref="Damage"/> instead of reading from this entity.
         /// </summary>
         public Entity BulletEntity;
 
         /// <summary>Hit parameter in [0, 1] along the bullet's Start-End segment.</summary>
         public float HitT;
+
+        /// <summary>
+        /// Damage value copied from <see cref="Fdp.Toolkit.Combat.Components.BallisticProjectile.Damage"/>
+        /// at the time of impact by <c>HitResolutionSystem</c>.
+        /// Allows <c>DamageSystem</c> to apply damage even after the bullet entity is consumed.
+        /// </summary>
+        public float Damage;
     }
 }

@@ -66,6 +66,14 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!repo.IsAlive(shooter)) continue;
                 if (!repo.IsAlive(target))  continue;
 
+                // Skip if the shooter is a remote-owned entity (authority gate, TD-6).
+                if (repo.HasComponent<NetworkAuthority>(shooter) &&
+                    !repo.GetComponent<NetworkAuthority>(shooter).HasAuthority)
+                    continue;
+
+                // Skip if the shooter does not yet have a WeaponState (e.g. incomplete spawn).
+                if (!repo.HasComponent<WeaponState>(shooter)) continue;
+
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
                 var shooterPos  = repo.GetComponent<SimTransform>(shooter).Position;

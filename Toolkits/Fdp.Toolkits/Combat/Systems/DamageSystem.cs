@@ -55,23 +55,18 @@ namespace Fdp.Toolkit.Combat.Systems
                 // 2. Skip if the target has no health component (non-damageable entity).
                 if (!view.HasComponent<Health>(evt.HitEntity)) continue;
 
-                // 3. The bullet entity handle is carried directly in the event.
-                //    Guard: bullet may have been consumed already (e.g. by HitResolutionSystem
-                //    when DamageSystem is absent, or double-hit edge case).
-                if (!view.IsAlive(evt.BulletEntity)) continue;
+                // 3. Use the damage value embedded in the event.  The bullet entity is
+                //    consumed (destroyed) by HitResolutionSystem in the frame the hit is
+                //    detected; by the time DamageSystem processes the event (next frame
+                //    after SwapBuffers) the bullet is no longer alive.
+                float damage = evt.Damage;
 
-                // 4. Confirm the entity is actually a bullet (generation-safety check).
-                if (!view.HasComponent<BallisticProjectile>(evt.BulletEntity)) continue;
-
-                // 5. Read damage from the bullet.
-                float damage = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Damage;
-
-                // 6. Apply damage to the hit entity's health.
+                // 4. Apply damage to the hit entity's health.
                 ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
 
-                // 7. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
+                // 5. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
                 //    the same frame), then destroy the hit entity.
                 if (health.Current <= 0f)
                 {
