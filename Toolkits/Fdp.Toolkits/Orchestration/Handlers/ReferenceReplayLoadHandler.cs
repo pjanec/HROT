@@ -135,7 +135,22 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             operation == NodeOpType.PrepareReplay ||
             operation == NodeOpType.FinalizeReplay ||
             operation == NodeOpType.NodeReplaySeek ||
+            operation == NodeOpType.PrepareState ||
             (operation == NodeOpType.PrepareLive && _controller.IsReplayActive);
+
+        /// <inheritdoc />
+        public bool CanHandle(ExecuteNodeOpIntent intent)
+        {
+            if (intent.Operation == NodeOpType.PrepareReplay ||
+                intent.Operation == NodeOpType.FinalizeReplay ||
+                intent.Operation == NodeOpType.NodeReplaySeek) return true;
+
+            if (intent.Operation == NodeOpType.PrepareLive && _controller.IsReplayActive) return true;
+
+            return intent.Operation == NodeOpType.PrepareState &&
+                   intent.DomainPayload is EditLoadHandlerPayload p &&
+                   (p.TargetState == ClusterState.OperatingReplay || p.TargetState == ClusterState.Idle);
+        }
 
         /// <inheritdoc />
         public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
