@@ -953,5 +953,5 @@ public sealed class ClusterScenarioPanel
     }
 
     private static string FormatExerciseLabel(Fdp.Toolkit.Orchestration.ExerciseInventoryItem item)
-        => $"{item.StartTimeUtc:yyyy-MM-dd HH:mm:ss} | {item.ExerciseId}";
+        => $"{item.StartTimeUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} | {item.ExerciseId}";
 }
