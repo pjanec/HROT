@@ -53,7 +53,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
     public sealed class BehaviorValidationScenario : IScenario
     {
         // ── Blackboard memory layout ──────────────────────────────────────────
-        // BrainBlackboard.Memory is fixed byte[128]. We reserve:
+        // BrainBlackboard.BehaviorParameters is fixed byte[100]. We reserve:
         //   [0]    ThreatVisible: bool (byte) — 0=false, 1=true
         //   [4..7] AmmoCount: int (little-endian)
 
@@ -194,7 +194,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
                 // Inject threat — BTree will pick it up from kernel.Update(tick 10) onwards.
                 ref var bb = ref world.GetComponentRW<BrainBlackboard>(_agent);
-                bb.Memory[MemThreatVisible] = 1;
+                bb.BehaviorParameters[MemThreatVisible] = 1;
             }
 
             // ── Phase 2 (tick 20): threat + ammo → agent engages ──────────────
@@ -212,7 +212,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
                 // Deplete ammo — BTree will detect Condition_HasAmmo fails next tick.
                 ref var bb = ref world.GetComponentRW<BrainBlackboard>(_agent);
-                fixed (byte* mem = bb.Memory)
+                fixed (byte* mem = bb.BehaviorParameters)
                     *(int*)(mem + MemAmmoCount) = 0;
             }
 
@@ -265,10 +265,10 @@ namespace Fdp.Examples.Scenarios.Cognitive
             unsafe
             {
                 int val = InitialAmmo;
-                bb.Memory[MemAmmoCount]     = (byte)val;
-                bb.Memory[MemAmmoCount + 1] = (byte)(val >> 8);
-                bb.Memory[MemAmmoCount + 2] = (byte)(val >> 16);
-                bb.Memory[MemAmmoCount + 3] = (byte)(val >> 24);
+                bb.BehaviorParameters[MemAmmoCount]     = (byte)val;
+                bb.BehaviorParameters[MemAmmoCount + 1] = (byte)(val >> 8);
+                bb.BehaviorParameters[MemAmmoCount + 2] = (byte)(val >> 16);
+                bb.BehaviorParameters[MemAmmoCount + 3] = (byte)(val >> 24);
             }
             world.AddComponent(e, bb);
 
@@ -284,14 +284,14 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         // ── BTree action delegates ────────────────────────────────────────────
 
-        /// <summary>Returns Success when <c>BrainBlackboard.Memory[0]</c> is non-zero.</summary>
+        /// <summary>Returns Success when <c>BrainBlackboard.BehaviorParameters[0]</c> is non-zero.</summary>
         private static unsafe NodeStatus Condition_ThreatVisible(
             ref BrainBlackboard bb,
             ref BehaviorTreeState _,
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            return bb.Memory[MemThreatVisible] != 0
+            return bb.BehaviorParameters[MemThreatVisible] != 0
                 ? NodeStatus.Success
                 : NodeStatus.Failure;
         }
@@ -303,7 +303,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            fixed (byte* mem = bb.Memory)
+            fixed (byte* mem = bb.BehaviorParameters)
             {
                 int ammo = *(int*)(mem + MemAmmoCount);
                 return ammo > 0 ? NodeStatus.Success : NodeStatus.Failure;

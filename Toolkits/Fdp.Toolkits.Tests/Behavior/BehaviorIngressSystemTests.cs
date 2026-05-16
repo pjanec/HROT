@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         /// <summary>
         /// Minimal blackboard used by the FleeToSafety behavior test.
-        /// Must be the first field so it aligns with offset 0 of BrainBlackboard.Memory.
+        /// Must be the first field so it aligns with offset 0 of BrainBlackboard.BehaviorParameters.
         /// </summary>
         private struct FleeBlackboard { public float SafeDistance; }
 
@@ -65,10 +65,10 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             sys.Execute(world, 0.016f);
 
-            // Verify: BrainBlackboard.Memory[0..3] == 50.0f.
+            // Verify: BrainBlackboard.BehaviorParameters[0..3] == 50.0f.
             ref var blackboard = ref world.GetComponentRW<BrainBlackboard>(e);
             var bbPtr = (BrainBlackboard*)Unsafe.AsPointer(ref blackboard);
-            var fb    = *(FleeBlackboard*)bbPtr->Memory;
+            var fb    = *(FleeBlackboard*)bbPtr->BehaviorParameters;
             Assert.Equal(50.0f, fb.SafeDistance);
 
             world.Dispose();

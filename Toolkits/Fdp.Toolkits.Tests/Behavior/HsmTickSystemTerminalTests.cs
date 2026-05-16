@@ -260,9 +260,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainBlackboard());
 
-            // Signal interrupt: set byte 126.
+            // Signal interrupt: set Interrupt_MobilityLost.
             ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
-            bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 1;
+            bb.Interrupt_MobilityLost = 1;
 
             sys.Execute(world, 0.016f);
 

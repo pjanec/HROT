@@ -291,26 +291,26 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ac.Capabilities &= ~ActorCapabilities.CanMove;
             }
 
-            // CognitiveInterruptSystem detects edge (prev=CanMove, curr=no CanMove) -> Memory[126]=1.
+            // CognitiveInterruptSystem detects edge (prev=CanMove, curr=no CanMove) -> Interrupt_MobilityLost=1.
             interruptSys.Execute(world, 0.016f);
 
-            // Assert mid-frame: interrupt byte was set.
+            // Assert mid-frame: interrupt field was set.
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(1, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
-            // HsmTickSystem reads Memory[126]=1, injects MobilityLost, and drives the transition.
+            // HsmTickSystem reads Interrupt_MobilityLost=1, injects MobilityLost, and drives the transition.
             for (int i = 0; i < 10; i++)
                 hsmSys.Execute(world, 0.016f);
 
-            // CognitiveCleanupSystem clears Memory[126].
+            // CognitiveCleanupSystem clears Interrupt_MobilityLost.
             cleanupSys.Execute(world, 0.016f);
 
-            // Assert end-of-frame: byte cleared.
+            // Assert end-of-frame: field cleared.
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(0, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             // Assert: HSM transitioned from Patrol(0) to Stopped(1).
@@ -352,18 +352,18 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ref var ac = ref world.GetComponentRW<ActorCapabilityState>(e);
                 ac.Capabilities &= ~ActorCapabilities.CanMove;
             }
-            interruptSys.Execute(world, 0.016f); // sets Memory[126]=1, updates PreviousCapabilities
+            interruptSys.Execute(world, 0.016f); // sets Interrupt_MobilityLost=1, updates PreviousCapabilities
             for (int i = 0; i < 10; i++)
                 hsmSys.Execute(world, 0.016f);
-            cleanupSys.Execute(world, 0.016f);   // clears Memory[126]
+            cleanupSys.Execute(world, 0.016f);   // clears Interrupt_MobilityLost
 
             // Frame 2: CanMove still false; PreviousCapabilities already updated to no CanMove.
-            // No edge => Memory[126] must remain 0 throughout.
+            // No edge => Interrupt_MobilityLost must remain 0 throughout.
             interruptSys.Execute(world, 0.016f); // no edge: prev==curr==no CanMove
 
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(0, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             for (int i = 0; i < 5; i++)
@@ -372,7 +372,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(0, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             // Assert: HSM remains in Stopped (index 1) -- no spurious second transition.
@@ -382,7 +382,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // IT-BHU-B3: BTree entity also gets byte 126 cleared (brain-tier-agnostic cleanup).
+        // IT-BHU-B3: BTree entity also gets Interrupt_MobilityLost cleared (brain-tier-agnostic cleanup).
         // Proves CognitiveCleanupSystem operates on all BrainBlackboard entities regardless of tier.
         [Fact]
         public void B3_BTreeEntity_Byte126_ClearedByCleanupSystem()
@@ -394,23 +394,23 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BrainBlackboard());
 
-            // Directly force Memory[126] = 1 (simulating an interrupt byte that was set).
+            // Directly set Interrupt_MobilityLost = 1 (simulating what CognitiveInterruptSystem would do).
             {
                 ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
-                bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 1;
+                bb.Interrupt_MobilityLost = 1;
             }
 
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(1, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
-            // CognitiveCleanupSystem must clear the byte for all BrainBlackboard entities.
+            // CognitiveCleanupSystem must clear the field for all BrainBlackboard entities.
             cleanupSys.Execute(world, 0.016f);
 
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(0, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             world.Dispose();

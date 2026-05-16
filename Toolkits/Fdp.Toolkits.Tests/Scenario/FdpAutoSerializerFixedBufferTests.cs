@@ -184,8 +184,8 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entity = _repo.CreateEntity();
 
             var bb = new BrainBlackboard();
-            for (int i = 0; i < BehaviorConstants.BrainBlackboardByteSize; i++)
-                bb.Memory[i] = (byte)(i & 0xFF);
+            for (int i = 0; i < BehaviorConstants.MaxBehaviorParamByteSize; i++)
+                bb.BehaviorParameters[i] = (byte)(i & 0xFF);
             _repo.SetComponent(entity, bb);
 
             var fixedComp = new FixedByteComp();

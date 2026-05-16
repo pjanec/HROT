@@ -23,11 +23,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         // Mirrors BehaviorConstants.MaxBehaviorParamByteSize.
         // Intentionally inlined here because this analyzer targets netstandard2.0
         // and cannot reference the net8.0 Fdp.Toolkits runtime assembly.
-        private const int MaxBehaviorParamByteSize = 60;
+        private const int MaxBehaviorParamByteSize = 100;
 
         private static readonly DiagnosticDescriptor FDP001_DtoTooLarge = new DiagnosticDescriptor(
             id: "FDP_001",
-            title: "Behavior parameter DTO exceeds BlackboardMemoryLayout capacity",
+            title: "Behavior parameter DTO exceeds BrainBlackboard capacity",
             messageFormat: "Method '{0}': DTO type '{1}' requires {2} bytes, exceeding the {3}-byte BehaviorParameters region. This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.",
             category: "Fdp.Memory",
             defaultSeverity: DiagnosticSeverity.Error,

@@ -77,7 +77,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // Reuse the pre-allocated shadow buffer (cleared per iteration below).
 
                     ref readonly var bbRO = ref repo.GetComponentRO<BrainBlackboard>(evt.Entity);
-                    fixed (byte* src = &bbRO.Memory[0], dst = shadow)
+                    fixed (BrainBlackboard* src = &bbRO)
+                    fixed (byte* dst = shadow)
                     {
                         Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
                             BehaviorConstants.BrainBlackboardByteSize);
@@ -104,7 +105,8 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                     // Parse succeeded: commit shadow back to the live blackboard.
                     ref var bbW = ref repo.GetComponentRW<BrainBlackboard>(evt.Entity);
-                    fixed (byte* src = shadow, dst = &bbW.Memory[0])
+                    fixed (byte* src = shadow)
+                    fixed (BrainBlackboard* dst = &bbW)
                     {
                         Buffer.MemoryCopy(src, dst, BehaviorConstants.BrainBlackboardByteSize,
                             BehaviorConstants.BrainBlackboardByteSize);

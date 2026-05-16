@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// Unit test for <see cref="CognitiveCleanupSystem"/> (BHU-015).
-    /// Verifies that interrupt bytes 126 and 127 are cleared each frame.
+    /// Verifies that interrupt fields are cleared each frame.
     /// </summary>
     public unsafe class CognitiveCleanupSystemTests
     {
@@ -20,16 +20,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BrainBlackboard());
 
-            // Set both interrupt bytes.
+            // Set both interrupt fields.
             ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
-            bb.Memory[126] = 1;
-            bb.Memory[127] = 1;
+            bb.Interrupt_MobilityLost = 1;
+            bb.Interrupt_Reserved     = 1;
 
             sys.Execute(world, 0.016f);
 
             var bbAfter = world.GetComponent<BrainBlackboard>(e);
-            Assert.Equal(0, bbAfter.Memory[126]);
-            Assert.Equal(0, bbAfter.Memory[127]);
+            Assert.Equal(0, bbAfter.Interrupt_MobilityLost);
+            Assert.Equal(0, bbAfter.Interrupt_Reserved);
 
             world.Dispose();
         }

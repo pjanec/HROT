@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Behavior
     /// a behaviour blackboard's inline memory — zero allocation, no boxing.
     /// </summary>
     /// <param name="json">Serialised parameter payload (cold path only).</param>
-    /// <param name="memory">Pointer to the first byte of <see cref="BrainBlackboard.Memory"/>.</param>
+    /// <param name="memory">Pointer to the first byte of <see cref="BrainBlackboard.BehaviorParameters"/>.</param>
     public unsafe delegate void ParseParamsDelegate(string json, byte* memory);
 
     /// <summary>
@@ -46,14 +46,14 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
-        /// <see cref="BrainBlackboard.Memory"/>.  May be <c>null</c> if the behavior
+        /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
         /// carries no configurable parameters.
         /// </summary>
         public ParseParamsDelegate? ParseParams { get; init; }
 
         /// <summary>
         /// Optional type of the params DTO struct stored at the start of
-        /// <see cref="BrainBlackboard.Memory"/> for this behavior.
+        /// <see cref="BrainBlackboard.BehaviorParameters"/> for this behavior.
         /// When non-null, enables typed rendering in <c>BrainBlackboardRenderer</c>.
         /// The type must be unmanaged (enforced by convention, not the compiler).
         /// </summary>
@@ -105,7 +105,7 @@ namespace Fdp.Toolkit.Behavior
                     throw new InvalidOperationException(
                         $"Behavior '{name}' params DTO '{definition.ParamsDtoType.Name}' requires {dtoSize} bytes, " +
                         $"which exceeds the maximum allowed parameter size of {BehaviorConstants.MaxBehaviorParamByteSize} bytes. " +
-                        "This would corrupt the SoftAdvice and Interrupt registers in BlackboardMemoryLayout.");
+                        "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
             }
 
             _definitions[id] = definition;

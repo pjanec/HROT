@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Navigation.Executors
 
     /// <summary>
     /// Parameters for the <c>JoinFormation</c> behavior.
-    /// Written into <see cref="BrainBlackboard.Memory"/> by <c>BehaviorDefinition.ParseParams</c>
+    /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> by <c>BehaviorDefinition.ParseParams</c>
     /// and read by <see cref="JoinFormationExecutor.OnEnter"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     ///
     /// <para>
     /// <b>OnEnter:</b> reads <see cref="JoinFormationParams"/> from
-    /// <see cref="BrainBlackboard.Memory"/>, resolves the leader via
+    /// <see cref="BrainBlackboard.BehaviorParameters"/>, resolves the leader via
     /// <see cref="NetworkEntityMap"/>, calls <c>VehicleAPI.JoinFormation</c> and sets
     /// <see cref="LocomotionChannel.Status"/> = <see cref="NodeStatus.Running"/>.
     /// If the leader entity cannot be resolved, sets <c>Status = Failure</c>.
@@ -85,11 +85,11 @@ namespace Fdp.Toolkit.Navigation.Executors
         /// <inheritdoc/>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // Read params written into BrainBlackboard.Memory by BehaviorDefinition.ParseParams.
+            // Read params written into BrainBlackboard.BehaviorParameters by BehaviorDefinition.ParseParams.
             // Use ref to avoid stack-copying the struct (fixed buffer must stay on heap).
             ref var bbRW = ref world.GetComponentRW<BrainBlackboard>(entity);
             JoinFormationParams p;
-            fixed (byte* src = &bbRW.Memory[0])
+            fixed (byte* src = &bbRW.BehaviorParameters[0])
                 p = *(JoinFormationParams*)src;
 
             // Resolve leader network ID → ECS entity.

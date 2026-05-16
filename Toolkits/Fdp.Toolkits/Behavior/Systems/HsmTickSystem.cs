@@ -144,8 +144,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (repo.HasComponent<BrainBlackboard>(entity))
                 {
                     ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                    ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
-                    if (layout.Interrupt_MobilityLost == 1)
+                    if (bb.Interrupt_MobilityLost == 1)
                     {
                         T* instPtr = (T*)Unsafe.AsPointer(ref component);
                         HsmEventQueue.TryEnqueue(instPtr, mobilityLostEvent);

@@ -19,21 +19,27 @@ namespace Fdp.Toolkit.Behavior
         public const int BrainBlackboardByteSize = 128;
 
         /// <summary>
-        /// Maximum byte size for a behavior parameter DTO projected onto the blackboard at offset 0.
+        /// Maximum byte size for a behavior parameter DTO projected onto
+        /// <see cref="Components.BrainBlackboard.BehaviorParameters"/>.
         /// Enforced by <c>BTreeBuilder</c> at tree-compile time.
-        /// Keeps parameter payloads clear of the soft-advice region (bytes 60-125) and the
-        /// interrupt registers (bytes 126-127).
+        /// Keeps parameter payloads clear of the soft-advice region and the interrupt registers.
         /// </summary>
-        public const int MaxBehaviorParamByteSize = 60;
+        public const int MaxBehaviorParamByteSize = 100;
 
-        /// <summary>Byte count of the soft-advice region (bytes 60-125).</summary>
-        public const int SoftAdviceByteSize = 66;
+        /// <summary>Byte count of the soft-advice region inside <see cref="Components.BrainBlackboard"/>.</summary>
+        public const int SoftAdviceByteSize = BrainBlackboardByteSize - MaxBehaviorParamByteSize - 2;
 
-        /// <summary>Byte offset of the MobilityLost interrupt register inside BlackboardMemoryLayout.</summary>
-        public const int Interrupt_MobilityLost_Offset = 126;
+        /// <summary>
+        /// Byte offset of the per-waypoint threat/danger level field inside
+        /// <see cref="Components.BrainBlackboard"/> (see <c>RouteContextSystem</c>).
+        /// </summary>
+        public const int ExpectedThreatLevel_Offset = 120;
 
-        /// <summary>Byte offset of the reserved interrupt register inside BlackboardMemoryLayout.</summary>
-        public const int Interrupt_Reserved_Offset = 127;
+        /// <summary>Byte offset of the MobilityLost interrupt register inside <see cref="Components.BrainBlackboard"/>.</summary>
+        public const int Interrupt_MobilityLost_Offset = BrainBlackboardByteSize - 2;
+
+        /// <summary>Byte offset of the reserved interrupt register inside <see cref="Components.BrainBlackboard"/>.</summary>
+        public const int Interrupt_Reserved_Offset = BrainBlackboardByteSize - 1;
 
         /// <summary>Maximum number of distinct action types per dispatcher.</summary>
         public const int MaxActionTypes = 64;

@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// <summary>
     /// Unit tests for <see cref="CognitiveInterruptSystem"/> (BHU-008).
     /// Verifies edge-triggered detection of <see cref="ActorCapabilities.CanMove"/> loss
-    /// and the corresponding write to blackboard byte 126.
+    /// and the corresponding write to <see cref="BrainBlackboard.Interrupt_MobilityLost"/>.
     /// </summary>
     public unsafe class CognitiveInterruptSystemTests : IDisposable
     {
@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, 0.016f);
 
             var bb = _world.GetComponent<BrainBlackboard>(e);
-            Assert.Equal(1, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+            Assert.Equal(1, bb.Interrupt_MobilityLost);
         }
 
         [Fact]
@@ -68,19 +68,19 @@ namespace Fdp.Toolkit.Behavior.Tests
                 current:  ActorCapabilities.None,
                 previous: ActorCapabilities.CanMove);
 
-            // Frame 1: edge detected -- byte 126 = 1.
+            // Frame 1: edge detected -- Interrupt_MobilityLost = 1.
             _sys.Execute(_world, 0.016f);
             Assert.Equal(1, _world.GetComponent<BrainBlackboard>(e)
-                .Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                .Interrupt_MobilityLost);
 
             // Simulate CognitiveCleanupSystem clearing the interrupt byte.
             ref var bb = ref _world.GetComponentRW<BrainBlackboard>(e);
-            bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 0;
+            bb.Interrupt_MobilityLost = 0;
 
-            // Frame 2: CanMove still absent, no new edge -- byte 126 must stay 0.
+            // Frame 2: CanMove still absent, no new edge -- Interrupt_MobilityLost must stay 0.
             _sys.Execute(_world, 0.016f);
             Assert.Equal(0, _world.GetComponent<BrainBlackboard>(e)
-                .Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+                .Interrupt_MobilityLost);
         }
 
         [Fact]
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _sys.Execute(_world, 0.016f);
 
             var bb = _world.GetComponent<BrainBlackboard>(e);
-            Assert.Equal(0, bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost]);
+            Assert.Equal(0, bb.Interrupt_MobilityLost);
         }
     }
 }

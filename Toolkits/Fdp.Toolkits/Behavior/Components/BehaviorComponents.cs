@@ -51,12 +51,38 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte Value;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Explicit, Size = BehaviorConstants.BrainBlackboardByteSize)]
     [ComponentId(GlobalComponentIds.BrainBlackboard)]
     [DataPolicy(DataPolicy.NoSave)]
     public unsafe struct BrainBlackboard
     {
-        public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize];
+        /// <summary>
+        /// Polymorphic behavior parameter payload at the start of the blackboard.
+        /// AI developers project their specific DTO (e.g. <c>FireAtTargetParams</c>) onto
+        /// this region using <c>Unsafe.As</c>.  Must not exceed
+        /// <see cref="BehaviorConstants.MaxBehaviorParamByteSize"/> bytes.
+        /// </summary>
+        [FieldOffset(0)]
+        public fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize];
+
+        /// <summary>
+        /// Per-waypoint threat/danger level written by <c>RouteContextSystem</c>.
+        /// A value of 0 means unknown/default; higher values indicate increasing danger.
+        /// </summary>
+        [FieldOffset(BehaviorConstants.ExpectedThreatLevel_Offset)]
+        public byte ExpectedThreatLevel;
+
+        /// <summary>
+        /// MobilityLost edge-triggered interrupt.
+        /// Set to 1 by <c>CognitiveInterruptSystem</c> on the tick <c>CanMove</c> transitions
+        /// from set to cleared.  Cleared back to 0 by <c>CognitiveCleanupSystem</c> at end of frame.
+        /// </summary>
+        [FieldOffset(BehaviorConstants.Interrupt_MobilityLost_Offset)]
+        public byte Interrupt_MobilityLost;
+
+        /// <summary>Reserved for future hardware-level interrupt.</summary>
+        [FieldOffset(BehaviorConstants.Interrupt_Reserved_Offset)]
+        public byte Interrupt_Reserved;
     }
 
     /// <summary>

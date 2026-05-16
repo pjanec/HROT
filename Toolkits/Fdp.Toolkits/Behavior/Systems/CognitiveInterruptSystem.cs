@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -8,12 +7,12 @@ namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
     /// Edge-triggered system that writes interrupt bytes into <see cref="BrainBlackboard"/>
-    /// when capability transitions are detected.  Uses a paradigm-agnostic blackboard byte
-    /// (index 126) rather than injecting HSM events directly, so that BTree behaviors can
+    /// when capability transitions are detected.  Uses a paradigm-agnostic blackboard field
+    /// rather than injecting HSM events directly, so that BTree behaviors can
     /// also react to the same signal without coupling to the HSM event queue.
     ///
     /// <para>
-    /// <b>Register 126 — MobilityLost:</b> Set to 1 on the tick when
+    /// <b>Interrupt_MobilityLost:</b> Set to 1 on the tick when
     /// <see cref="ActorCapabilities.CanMove"/> transitions from set to cleared.
     /// Remains 1 until cleared by <see cref="CognitiveCleanupSystem"/> at end of frame.
     /// </para>
@@ -37,7 +36,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>
         /// Blackboard byte index for the MobilityLost interrupt.
         /// Derived from <see cref="BehaviorConstants.Interrupt_MobilityLost_Offset"/> so the
-        /// value is compiler-verified against <see cref="BlackboardMemoryLayout.Interrupt_MobilityLost"/>.
+        /// value is compiler-verified against <see cref="BrainBlackboard.Interrupt_MobilityLost"/>.
         /// Kept here for backward-compatible test access.
         /// </summary>
         internal const int InterruptRegister_MobilityLost = BehaviorConstants.Interrupt_MobilityLost_Offset;
@@ -85,8 +84,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (wasAbleToMove && !canMoveNow)
                 {
                     ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                    ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
-                    layout.Interrupt_MobilityLost = 1;
+                    bb.Interrupt_MobilityLost = 1;
                 }
 
                 prev.Capabilities = curr.Capabilities;

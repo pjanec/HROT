@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -6,8 +5,9 @@ using Fdp.Toolkit.Behavior.Components;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Clears per-frame interrupt bytes in <see cref="BrainBlackboard"/> at the end of the
-    /// simulation tick.  Registers 126 and 127 are one-shot signals written by
+    /// Clears per-frame interrupt fields in <see cref="BrainBlackboard"/> at the end of the
+    /// simulation tick.  <see cref="BrainBlackboard.Interrupt_MobilityLost"/> and
+    /// <see cref="BrainBlackboard.Interrupt_Reserved"/> are one-shot signals written by
     /// <see cref="CognitiveInterruptSystem"/>; they must be cleared each frame so that
     /// edge-triggered logic in the brain systems does not fire on subsequent ticks.
     ///
@@ -27,9 +27,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var entity in q)
             {
                 ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-                ref var layout = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref bb);
-                layout.Interrupt_MobilityLost = 0;
-                layout.Interrupt_Reserved     = 0;
+                bb.Interrupt_MobilityLost = 0;
+                bb.Interrupt_Reserved     = 0;
             }
         }
     }
