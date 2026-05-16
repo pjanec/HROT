@@ -95,9 +95,9 @@ public sealed class ClusterUiCacheTests : IDisposable
         _bus.PublishManaged(new AssetInventoryUpdateEvent
         {
             LocalScenarios           = new[] { "scene1" },
-            LocalExercises           = Array.Empty<string>(),
-            ArchivedExercises        = Array.Empty<string>(),
-            UnarchivedLocalExercises = Array.Empty<string>(),
+            LocalExercises           = Array.Empty<ExerciseInventoryItem>(),
+            ArchivedExercises        = Array.Empty<ExerciseInventoryItem>(),
+            UnarchivedLocalExercises = Array.Empty<ExerciseInventoryItem>(),
         });
 
         Tick();
