@@ -83,6 +83,10 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
             RenderRawBytes(bb);
         }
 
+        ImGui.TextUnformatted($"ExpectedThreatLevel: {bb.ExpectedThreatLevel}");
+        ImGui.TextUnformatted($"Interrupt_MobilityLost: {bb.Interrupt_MobilityLost}");
+        ImGui.TextUnformatted($"Interrupt_Reserved: {bb.Interrupt_Reserved}");
+
         return true;
     }
 
