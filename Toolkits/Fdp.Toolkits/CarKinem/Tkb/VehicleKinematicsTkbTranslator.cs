@@ -30,7 +30,7 @@ namespace CarKinem.Tkb
             var dto = template.GetDescriptor<VehicleParametersDto>();
             if (dto == null) return;
 
-            if (repo.IsComponentTypeRegistered<VehicleParams>())
+            if (repo.IsComponentTypeRegistered<VehicleParams>() && !repo.HasComponent<VehicleParams>(entity))
                 repo.AddComponent(entity, new VehicleParams
                 {
                     Length      = dto.Length,
@@ -40,10 +40,10 @@ namespace CarKinem.Tkb
                     MaxAccel    = dto.MaxAccel
                 });
 
-            if (repo.IsComponentTypeRegistered<VehicleState>())
+            if (repo.IsComponentTypeRegistered<VehicleState>() && !repo.HasComponent<VehicleState>(entity))
                 repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = 0 });
 
-            if (repo.IsComponentTypeRegistered<NavState>())
+            if (repo.IsComponentTypeRegistered<NavState>() && !repo.HasComponent<NavState>(entity))
                 repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });
 
             if (repo.IsComponentTypeRegistered<PhysicsCollider>())
@@ -53,16 +53,16 @@ namespace CarKinem.Tkb
                     CollisionLayer = 1
                 });
 
-            if (repo.IsComponentTypeRegistered<NavigationIntent>())
+            if (repo.IsComponentTypeRegistered<NavigationIntent>() && !repo.HasComponent<NavigationIntent>(entity))
                 repo.AddComponent(entity, new NavigationIntent());
 
-            if (repo.IsComponentTypeRegistered<NavigationStatus>())
+            if (repo.IsComponentTypeRegistered<NavigationStatus>() && !repo.HasComponent<NavigationStatus>(entity))
                 repo.AddComponent(entity, new NavigationStatus());
 
-            if (repo.IsComponentTypeRegistered<FrustrationTicks>())
+            if (repo.IsComponentTypeRegistered<FrustrationTicks>() && !repo.HasComponent<FrustrationTicks>(entity))
                 repo.AddComponent(entity, new FrustrationTicks());
 
-            if (repo.IsComponentTypeRegistered<FormationController>())
+            if (repo.IsComponentTypeRegistered<FormationController>() && !repo.HasComponent<FormationController>(entity))
                 repo.AddComponent(entity, new FormationController());
         }
     }

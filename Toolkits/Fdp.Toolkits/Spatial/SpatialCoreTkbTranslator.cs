@@ -23,10 +23,10 @@ namespace Fdp.Toolkit.Spatial
         {
             if (template.GetDescriptor<TkbMasterDto>() == null) return;
 
-            if (repo.IsComponentTypeRegistered<SimTransform>())
+            if (repo.IsComponentTypeRegistered<SimTransform>() && !repo.HasComponent<SimTransform>(entity))
                 repo.AddComponent(entity, new SimTransform());
 
-            if (repo.IsComponentTypeRegistered<SimVelocity>())
+            if (repo.IsComponentTypeRegistered<SimVelocity>() && !repo.HasComponent<SimVelocity>(entity))
                 repo.AddComponent(entity, new SimVelocity());
         }
     }

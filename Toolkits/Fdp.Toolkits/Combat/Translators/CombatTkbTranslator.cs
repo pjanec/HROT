@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Combat.Translators
             var platformDef = template.GetDescriptor<CombatPlatformDefDto>();
             if (platformDef != null)
             {
-                if (repo.IsComponentTypeRegistered<Health>())
+                if (repo.IsComponentTypeRegistered<Health>() && !repo.HasComponent<Health>(entity))
                     repo.AddComponent(entity, new Health
                     {
                         Current = platformDef.MaxHealth,
@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Combat.Translators
             if (suite != null && suite.Mounts.Count > 0)
             {
                 var primary = suite.Mounts[0];
-                if (repo.IsComponentTypeRegistered<WeaponState>())
+                if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
                     repo.AddComponent(entity, new WeaponState
                     {
                         Ammo           = primary.InitialAmmunition,

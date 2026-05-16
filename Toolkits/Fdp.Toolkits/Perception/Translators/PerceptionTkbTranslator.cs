@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Perception.Translators
             float halfFovRad = dto.FieldOfViewDegrees * 0.5f * (float)Math.PI / 180f;
             float fovCos     = (float)Math.Cos(halfFovRad);
 
-            if (repo.IsComponentTypeRegistered<PerceptionReceptor>())
+            if (repo.IsComponentTypeRegistered<PerceptionReceptor>() && !repo.HasComponent<PerceptionReceptor>(entity))
                 repo.AddComponent(entity, new PerceptionReceptor
                 {
                     VisionRange      = dto.VisionRange,
@@ -36,13 +36,13 @@ namespace Fdp.Toolkit.Perception.Translators
 
             if (dto.VisionRange > 0f)
             {
-                if (repo.IsComponentTypeRegistered<TargetMemory>())
+                if (repo.IsComponentTypeRegistered<TargetMemory>() && !repo.HasComponent<TargetMemory>(entity))
                     repo.AddComponent(entity, new TargetMemory());
 
-                if (repo.IsComponentTypeRegistered<SensorContactList>())
+                if (repo.IsComponentTypeRegistered<SensorContactList>() && !repo.HasComponent<SensorContactList>(entity))
                     repo.AddComponent(entity, new SensorContactList());
 
-                if (repo.IsComponentTypeRegistered<ActiveSensorTracks>())
+                if (repo.IsComponentTypeRegistered<ActiveSensorTracks>() && !repo.HasComponent<ActiveSensorTracks>(entity))
                     repo.AddComponent(entity, new ActiveSensorTracks());
             }
         }
