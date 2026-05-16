@@ -45,7 +45,7 @@ public sealed class ReplayTimelinePanel
     public void DrawContent()
     {
         DrawRow1_Transport();
-        DrawRow2_PlayPause();
+        DrawRow2_TimeInfo();
         DrawRow3_Slider();
         DrawRow4_Meta();
         DrawRow5_FileLoader();
@@ -74,11 +74,31 @@ public sealed class ReplayTimelinePanel
         if (Gui.Button("< Step Back")) _context.StepBackward();
         Gui.SameLine();
         if (Gui.Button("Step Forward >")) _context.StepForward();
+        Gui.SameLine();
+        Gui.Button("|| Pause / Play >");
     }
 
-    private void DrawRow2_PlayPause()
+    private void DrawRow2_TimeInfo()
     {
-        Gui.Button("|| Pause / Play >");
+        if (_context.Playback == null || _context.CurrentFrame < 0)
+        {
+            Gui.TextDisabled("Frame: - | Wall Ticks: - | Wall Time: - | Sim Time: -");
+            return;
+        }
+
+        int current = _context.CurrentFrame;
+        var meta = _context.Playback.GetFrameMetadata(current);
+        long firstFrameWallTicks = _context.Playback.GetFrameMetadata(0).WallClockTicks;
+
+        double relativeWallSec =
+            (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
+
+        double simTimeSec = 0.0;
+        if (_context.SandboxRepo.HasSingletonUnmanaged<GlobalTime>())
+            simTimeSec = _context.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+
+        Gui.TextUnformatted(
+            $"Frame: {current} | Wall Ticks: {meta.WallClockTicks} | Wall Time: {relativeWallSec:F3}s | Sim Time: {simTimeSec:F3}s");
     }
 
     private void DrawRow3_Slider()
