@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         private readonly CheckpointIOWorker?      _checkpointWorker;
         private readonly IRecordReplayController? _controller;
         private readonly string                   _storageDirectory;
+        private Guid _pendingExerciseId;
 
         /// <param name="checkpointWorker">
         /// Optional <see cref="CheckpointIOWorker"/>; when provided,
@@ -75,21 +76,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <inheritdoc />
         public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
-            if (intent.Operation == NodeOpType.PrepareState)
+            if (intent.Operation == NodeOpType.PrepareLive)
+            {
+                _pendingExerciseId = ResolveExerciseId(intent.DomainPayload);
+            }
+            else if (intent.Operation == NodeOpType.PrepareState)
             {
                 if (intent.DomainPayload is EditLoadHandlerPayload payload && payload.TargetState == ClusterState.OperatingLive)
                 {
-                    if (_controller != null)
-                    {
-                        var exerciseId = ResolveExerciseId(intent.DomainPayload);
-                        if (exerciseId != Guid.Empty)
-                            await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                                .ConfigureAwait(false);
-                    }
+                    if (_controller != null && _pendingExerciseId != Guid.Empty)
+                        await _controller.PrepareRecordingAsync(_pendingExerciseId, _storageDirectory)
+                            .ConfigureAwait(false);
                 }
-            }
-            else if (intent.Operation == NodeOpType.PrepareLive)
-            {
             }
             else if (intent.Operation == NodeOpType.FinalizeLive)
             {
@@ -98,6 +96,8 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
                 if (_controller != null)
                     await _controller.FinalizeRecordingAsync().ConfigureAwait(false);
+
+                _pendingExerciseId = Guid.Empty;
             }
 
             return null;
