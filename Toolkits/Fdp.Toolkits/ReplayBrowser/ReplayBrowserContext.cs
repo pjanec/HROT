@@ -3,6 +3,7 @@ using System.Reflection;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.FlightRecorder;
+using Fdp.Core.Logging;
 using Fdp.Toolkit.ReplayBrowser.Search;
 
 namespace Fdp.Toolkit.ReplayBrowser
@@ -65,7 +66,10 @@ namespace Fdp.Toolkit.ReplayBrowser
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ReplayBrowser] FATAL: Failed to load recording '{fdpPath}'.\nReason: {ex.Message}");
+                FdpLog<ReplayBrowserContext>.Error(
+                    "FATAL: Failed to load recording '{0}'. Reason: {1}",
+                    fdpPath,
+                    ex.Message);
                 Playback = null;
             }
         }

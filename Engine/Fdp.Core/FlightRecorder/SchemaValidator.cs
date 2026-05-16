@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Core.Logging;
 
 namespace Fdp.Core.FlightRecorder
 {
@@ -47,7 +48,7 @@ namespace Fdp.Core.FlightRecorder
             {
                 // Old recording produced before schema manifest support.
                 // Log a warning but do not abort — best-effort backward compatibility.
-                Console.WriteLine(
+                FdpLog<PlaybackController>.Warn(
                     "WARNING: Recording has no SchemaManifest. " +
                     "Playback may fail silently if any struct layouts changed since recording.");
                 return;
