@@ -21,7 +21,7 @@
          BehaviorState, NavigationConstants, MoveToParams, TargetMemory, WeaponState,
          CarKinem types, and all other Fdp.Toolkit.* namespaces used by CgfNodes.cs. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
-    <!-- Roslyn source generator: emits GizmoRegistrar.g.cs for [GizmoProjector] classes. -->
+    <!-- Roslyn source generators: GizmoRegistrar.g.cs, FbtActionRegistrar.g.cs, FbtTreeCatalog.g.cs, HsmActionRegistrar.g.cs. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
@@ -30,16 +30,11 @@
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <!-- FastBTree fluent builder (BTreeBuilder<TBlackboard, TContext>) for [BTreeDefinition] methods. -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
-    <!-- Roslyn source generator: emits FbtActionRegistrar.g.cs and FbtTreeCatalog.g.cs. -->
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+
     <!-- FastHSM runtime (HsmDefinitionBlob, HsmActionDispatcher, HotReloadManager, etc.). -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <!-- FastHSM fluent builder (HsmBuilder, HsmCompiler). -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
-    <!-- Roslyn source generator: emits HsmActionRegistrar.g.cs for [HsmAction]/[HsmGuard] methods. -->
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

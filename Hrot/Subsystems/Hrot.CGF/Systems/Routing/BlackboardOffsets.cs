@@ -7,12 +7,4 @@ namespace Hrot.CGF.Systems.Routing;
 /// </summary>
 public static class BlackboardOffsets
 {
-    /// <summary>
-    /// Byte offset for the per-waypoint threat/danger level
-    /// (JSON key: <c>"dangerLevel"</c>).
-    /// A value of 0 means unknown/default; higher values indicate increasing danger.
-    /// Mirrors <see cref="Fdp.Toolkit.Behavior.BehaviorConstants.ExpectedThreatLevel_Offset"/>.
-    /// </summary>
-    public const int ExpectedThreatLevel =
-        Fdp.Toolkit.Behavior.BehaviorConstants.ExpectedThreatLevel_Offset;
 }

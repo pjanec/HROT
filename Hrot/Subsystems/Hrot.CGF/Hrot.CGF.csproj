@@ -46,10 +46,7 @@
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <!-- Fluent BTree builder (BTreeBuilder<TBlackboard, TContext>) -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Compiler\Fbt.Compiler.csproj" />
-    <!-- Roslyn source generator: emits FbtTreeCatalog.g.cs and FbtActionRegistrar.g.cs -->
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.SourceGen\Fbt.SourceGen.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <!-- Source generator for [GizmoProjector] attribute -->
+    <!-- Source generator for [GizmoProjector], [BTreeDefinition], [SharedAiAction]/[SharedAiCondition] attributes -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- NodeBootstrapper and EcsRecordReplayController (CGF record/replay wiring, feedback-5 Point 4) -->
