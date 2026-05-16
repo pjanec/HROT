@@ -56,6 +56,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     private Guid? _pendingTransactionId;
     private int _prepareCallCount;
     private TaskCompletionSource<object?>? _operatingLiveTcs;
+    private Guid _pendingExerciseId;
 
     /// <summary>
     /// Number of times <see cref="PrepareAsync"/> has been invoked.
@@ -105,13 +106,9 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
                 _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                 await _operatingLiveTcs.Task.ConfigureAwait(false);
 
-                if (_controller != null)
-                {
-                    var exerciseId = ResolveExerciseId(intent.DomainPayload);
-                    if (exerciseId != Guid.Empty)
-                        await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                            .ConfigureAwait(false);
-                }
+                if (_controller != null && _pendingExerciseId != Guid.Empty)
+                    await _controller.PrepareRecordingAsync(_pendingExerciseId, _storageDirectory)
+                        .ConfigureAwait(false);
                 return null;
             }
             return null;
@@ -121,6 +118,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         _pendingRequests      = null;
         _pendingZones         = null;
         _pendingTransactionId = null;
+        _pendingExerciseId    = ResolveExerciseId(intent.DomainPayload);
 
         var scenarioId = intent.DomainPayload is EditLoadHandlerPayload elp
             ? elp.ScenarioId
@@ -190,6 +188,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         _pendingTransactionId = null;
         _operatingLiveTcs?.TrySetCanceled();
         _operatingLiveTcs = null;
+        _pendingExerciseId = Guid.Empty;
     }
 
     /// <inheritdoc />

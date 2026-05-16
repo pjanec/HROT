@@ -49,6 +49,7 @@ namespace Hrot.CGF.Orchestration.Handlers
         private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
         private Guid? _pendingTransactionId;
         private TaskCompletionSource<object?>? _operatingLiveTcs;
+        private Guid _pendingExerciseId;
 
         public CgfScenarioLoadHandler(
             ScenarioSerializer serializer,
@@ -101,13 +102,9 @@ namespace Hrot.CGF.Orchestration.Handlers
                     _operatingLiveTcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
                     await _operatingLiveTcs.Task.ConfigureAwait(false);
 
-                    if (_controller != null)
-                    {
-                        var exerciseId = ResolveExerciseId(intent.DomainPayload);
-                        if (exerciseId != Guid.Empty)
-                            await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
-                                .ConfigureAwait(false);
-                    }
+                    if (_controller != null && _pendingExerciseId != Guid.Empty)
+                        await _controller.PrepareRecordingAsync(_pendingExerciseId, _storageDirectory)
+                            .ConfigureAwait(false);
                     return null;
                 }
                 return null;
@@ -115,6 +112,7 @@ namespace Hrot.CGF.Orchestration.Handlers
 
             _pendingRequests      = null;
             _pendingTransactionId = null;
+            _pendingExerciseId    = ResolveExerciseId(intent.DomainPayload);
 
             var scenarioId = intent.DomainPayload is EditLoadHandlerPayload payload
                 ? payload.ScenarioId
@@ -173,6 +171,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             _pendingTransactionId = null;
             _operatingLiveTcs?.TrySetCanceled();
             _operatingLiveTcs = null;
+            _pendingExerciseId = Guid.Empty;
         }
 
         /// <inheritdoc />
