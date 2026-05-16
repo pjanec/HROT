@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using CarKinem.Core;
 using CycloneDDS.Runtime;
 using Fdp.Core;
@@ -16,13 +13,14 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Lifecycle;
-using Fdp.Toolkit.Perception.Components;
-using Fdp.Toolkit.Physics.Components;
-using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.Spatial;
 using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
 using Hrot.Common.Diagnostics;
 using Hrot.Common.Infrastructure;
@@ -30,13 +28,16 @@ using Hrot.Common.Orchestration;
 using Hrot.Common.Systems;
 using Hrot.Core.Diagnostics;
 using Hrot.Core.Network;
-using Hrot.Network.Infrastructure;
 using Hrot.IG.Components;
-using Hrot.IG.Systems;
 using Hrot.IG.Modules;
 using Hrot.IG.Modules.Orchestration;
+using Hrot.IG.Systems;
 using Hrot.IG.Translators;
 using Hrot.Map.Common;
+using Hrot.Network.Infrastructure;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Hrot.IG;
 
@@ -105,6 +106,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     {
         var translators = new List<ITkbEntityTranslator>
         {
+            new SpatialCoreTkbTranslator(), // Enforces zero-initialization of spatial ECS chunks
             new PresentationTkbTranslator(),
         }.AsReadOnly();
 
