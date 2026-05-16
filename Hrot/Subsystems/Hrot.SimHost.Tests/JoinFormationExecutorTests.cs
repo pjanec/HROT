@@ -35,14 +35,14 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// Writes <paramref name="p"/> into the entity's <see cref="BrainBlackboard.Memory"/>
+        /// Writes <paramref name="p"/> into the entity's <see cref="BrainBlackboard.BehaviorParameters"/>
         /// at offset 0, simulating what <c>BehaviorDefinition.ParseParams</c> would do.
         /// </summary>
         private static unsafe void WriteBlackboardParams(
             EntityRepository world, Entity entity, JoinFormationParams p)
         {
             ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            fixed (byte* dst = &bb.Memory[0])
+            fixed (byte* dst = &bb.BehaviorParameters[0])
                 *(JoinFormationParams*)dst = p;
         }
 

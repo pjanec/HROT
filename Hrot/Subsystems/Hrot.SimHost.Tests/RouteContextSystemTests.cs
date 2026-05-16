@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Hrot.Map.Common.Components;
 using Hrot.CGF.Systems.Routing;
 using Fdp.Core;
@@ -99,45 +99,45 @@ public class RouteContextSystemTests
     /// <summary>
     /// When the vehicle's personal route waypoint has <c>"dangerLevel":42</c> in
     /// <see cref="RouteWaypoint.ExtensionJson"/>, the system must write 42 to
-    /// <c>BrainBlackboard.Memory[<see cref="BlackboardOffsets.ExpectedThreatLevel"/>]</c>.
+    /// <c>BrainBlackboard.ExpectedThreatLevel</c>.
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_DangerLevelInExtensionJson_WritesToBlackboard()
+    public void OnUpdate_DangerLevelInExtensionJson_WritesToBlackboard()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":42}");
 
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(42, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(42, (int)bb.ExpectedThreatLevel);
     }
 
     /// <summary>
     /// <c>"dangerLevel"</c> value 255 must be clamped to 255 (max byte) and written correctly.
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_DangerLevel255_ClampedAtMaxByte()
+    public void OnUpdate_DangerLevel255_ClampedAtMaxByte()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":255}");
 
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(255, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(255, (int)bb.ExpectedThreatLevel);
     }
 
     /// <summary>
     /// <c>"dangerLevel"</c> value less than 0 must be clamped to 0.
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_NegativeDangerLevel_ClampedToZero()
+    public void OnUpdate_NegativeDangerLevel_ClampedToZero()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":-10}");
 
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
     // =========================================================================
@@ -149,7 +149,7 @@ public class RouteContextSystemTests
     /// blackboard must remain at its default value (0).
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_MalformedJson_DoesNotThrow_BlackboardUnchanged()
+    public void OnUpdate_MalformedJson_DoesNotThrow_BlackboardUnchanged()
     {
         var vehicle = CreateVehicle(personalRouteJson: "{ not valid json !!!");
 
@@ -157,7 +157,7 @@ public class RouteContextSystemTests
 
         Assert.Null(ex);
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
     // =========================================================================
@@ -169,7 +169,7 @@ public class RouteContextSystemTests
     /// accumulated DeltaTime, the system skips its payload.
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_ThrottleInterval_SkipsPayloadBeforeIntervalElapsed()
+    public void OnUpdate_ThrottleInterval_SkipsPayloadBeforeIntervalElapsed()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":77}");
 
@@ -178,7 +178,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0f); // deltaTime=0 => _elapsed=0 => 0 < 1.0 => skip
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 
     // =========================================================================
@@ -202,7 +202,7 @@ public class RouteContextSystemTests
     /// the danger level to the blackboard.
     /// </summary>
     [Fact]
-    public unsafe void OnUpdate_SharedRouteFallback_CachedQueryWritesDangerLevelToBlackboard()
+    public void OnUpdate_SharedRouteFallback_CachedQueryWritesDangerLevelToBlackboard()
     {
         const int trajectoryId = 42;
 
@@ -237,11 +237,11 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(7, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(7, (int)bb.ExpectedThreatLevel);
     }
 
     [Fact]
-    public unsafe void OnUpdate_MultipleConsecutiveRuns_CachedQueriesRetainCorrectBehavior()
+    public void OnUpdate_MultipleConsecutiveRuns_CachedQueriesRetainCorrectBehavior()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":55}");
 
@@ -250,7 +250,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(55, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(55, (int)bb.ExpectedThreatLevel);
     }
 
     // =========================================================================
@@ -263,7 +263,7 @@ public class RouteContextSystemTests
     /// known danger level must have the blackboard written correctly.
     /// </summary>
     [Fact]
-    public unsafe void PackN004_PositivePath_NavigationIntentAndStatus_WriteBlackboard()
+    public void PackN004_PositivePath_NavigationIntentAndStatus_WriteBlackboard()
     {
         const int trajectoryId = 99;
         const int expectedDanger = 15;
@@ -301,7 +301,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(expectedDanger, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(expectedDanger, (int)bb.ExpectedThreatLevel);
     }
 
     /// <summary>
@@ -309,7 +309,7 @@ public class RouteContextSystemTests
     /// write the blackboard with only NavigationIntent + NavigationStatus present.
     /// </summary>
     [Fact]
-    public unsafe void PackN004_NoNavStateRequired_SystemTicksCorrectly()
+    public void PackN004_NoNavStateRequired_SystemTicksCorrectly()
     {
         // Note: NavState is NOT registered in this world (uses the shared CreateWorld above).
         // Creating a vehicle without NavState proves the system does not require it.
@@ -322,7 +322,7 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(33, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(33, (int)bb.ExpectedThreatLevel);
     }
 
     /// <summary>
@@ -330,7 +330,7 @@ public class RouteContextSystemTests
     /// <see cref="NavigationMode.FollowRoute"/>, the blackboard must NOT be mutated.
     /// </summary>
     [Fact]
-    public unsafe void PackN004_InactiveRoute_BlackboardNotMutated()
+    public void PackN004_InactiveRoute_BlackboardNotMutated()
     {
         var vehicle = _repo.CreateEntity();
         _repo.AddComponent(vehicle, new NavigationIntent
@@ -360,6 +360,6 @@ public class RouteContextSystemTests
         _system.Execute(_repo, 0.016f);
 
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
-        Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+        Assert.Equal(0, (int)bb.ExpectedThreatLevel);
     }
 }

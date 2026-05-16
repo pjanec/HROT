@@ -154,11 +154,10 @@ namespace Hrot.ClusterRunner.Integration.Tests
             var brainF1 = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(1, brainF1.State.ActiveLeafIds[0]);
 
-            // CognitiveCleanupSystem (index 5) must have cleared the interrupt byte.
-            // InterruptRegister_MobilityLost == 126 (internal const; hardcoded here).
+            // CognitiveCleanupSystem (index 5) must have cleared the interrupt field.
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
-                Assert.Equal(0, bb.Memory[126]);
+                Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             // ---- Frame 2: inject EventDone and drive HSM to final state ----

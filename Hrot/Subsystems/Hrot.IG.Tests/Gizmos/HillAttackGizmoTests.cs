@@ -175,7 +175,7 @@ namespace Hrot.IG.Tests.Gizmos
             });
 
             var bb = new BrainBlackboard();
-            fixed (byte* mem = &Unsafe.AsRef(in bb).Memory[0])
+            fixed (byte* mem = &Unsafe.AsRef(in bb).BehaviorParameters[0])
                 *(PlatoonHillAttackParams*)mem = p;
             repo.AddComponent(entity, bb);
 

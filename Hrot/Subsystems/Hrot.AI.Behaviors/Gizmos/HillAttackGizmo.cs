@@ -34,10 +34,10 @@ namespace Hrot.AI.Behaviors.Gizmos
 
             ref readonly var bb = ref view.GetComponentRO<BrainBlackboard>(entity);
 
-            // Project the first bytes of the blackboard memory as PlatoonHillAttackParams.
+            // Project the first bytes of the blackboard parameters as PlatoonHillAttackParams.
             PlatoonHillAttackParams p;
             ref var bbMut = ref Unsafe.AsRef(in bb);
-            fixed (byte* mem = &bbMut.Memory[0])
+            fixed (byte* mem = &bbMut.BehaviorParameters[0])
                 p = *(PlatoonHillAttackParams*)mem;
 
             var fireStart = new Vector3(p.StartX,         p.StartY,         0f);

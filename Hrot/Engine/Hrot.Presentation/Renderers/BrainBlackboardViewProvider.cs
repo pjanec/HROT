@@ -5,8 +5,8 @@ using StructEdit.Core.UnionSupport;
 namespace Hrot.Presentation.Renderers;
 
 /// <summary>
-/// StructEdit plugin that projects the raw 128-byte <see cref="BrainBlackboard.Memory"/>
-/// buffer as the active behavior's <c>ParamsDtoType</c> in the component editor.
+/// StructEdit plugin that projects the raw <see cref="BrainBlackboard.BehaviorParameters"/>
+/// fixed buffer as the active behavior's <c>ParamsDtoType</c> in the component editor.
 /// Registered on startup via <c>ComponentReflector.AddBufferViewProvider</c> when
 /// a behavior registry with typed parameters is available.
 /// </summary>
@@ -14,12 +14,12 @@ public sealed class BrainBlackboardViewProvider : IBufferViewProvider
 {
     /// <inheritdoc/>
     /// <remarks>
-    /// Only intercepts the <c>$.Memory</c> fixed-buffer field of <see cref="BrainBlackboard"/>
+    /// Only intercepts the <c>$.BehaviorParameters</c> fixed-buffer field of <see cref="BrainBlackboard"/>
     /// when the caller has supplied a <c>"ParamsDtoType"</c> key via <see cref="EditContext"/>.
     /// </remarks>
     public bool CanCreateView(BufferViewRequest request)
         => request.ComponentType == typeof(BrainBlackboard)
-        && request.BufferPath.Value == "$.Memory"
+        && request.BufferPath.Value == "$.BehaviorParameters"
         && request.ExternalContext?.Get<Type>("ParamsDtoType") != null;
 
     /// <inheritdoc/>

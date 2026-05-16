@@ -56,7 +56,7 @@ namespace Hrot.SimHost.Serializers
             if (_registry.TryGetDefinition(state.ActiveBehaviorHash, out var def)
                 && def.ParamsDtoType != null)
             {
-                fixed (byte* ptr = &bb.Memory[0])
+                fixed (byte* ptr = &bb.BehaviorParameters[0])
                 {
                     object dto = Marshal.PtrToStructure((IntPtr)ptr, def.ParamsDtoType)!;
                     var mapped   = DtoDiagnosticMapper.MapObject(dto, def.ParamsDtoType, new HashSet<object>(ReferenceEqualityComparer.Instance));

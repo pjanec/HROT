@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Hrot.Map.Common.Components;
 using Fdp.Core;
@@ -26,7 +25,7 @@ namespace Hrot.CGF.Systems.Routing;
 /// Recognised JSON keys:
 /// <list type="table">
 ///   <item><term><c>"dangerLevel"</c></term>
-///         <description>Byte written to <see cref="BlackboardOffsets.ExpectedThreatLevel"/>.</description>
+///         <description>Byte written to <see cref="Fdp.Toolkit.Behavior.Components.BrainBlackboard.ExpectedThreatLevel"/>.</description>
 ///   </item>
 /// </list>
 /// Unrecognised keys are silently ignored. Malformed JSON triggers a warning log and is
@@ -176,7 +175,7 @@ public sealed class RouteContextSystem : IEcsModuleSystem
     /// Parses <paramref name="extensionJson"/> and writes recognised key values
     /// into the vehicle's <see cref="BrainBlackboard"/>.
     /// </summary>
-    private unsafe void ApplyExtensionJson(Entity vehicleEntity, string extensionJson, EntityRepository repo)
+    private void ApplyExtensionJson(Entity vehicleEntity, string extensionJson, EntityRepository repo)
     {
         try
         {
@@ -184,17 +183,11 @@ public sealed class RouteContextSystem : IEcsModuleSystem
             var       root = doc.RootElement;
 
             ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(vehicleEntity);
-            ref var layout     = ref Unsafe.As<BrainBlackboard, BlackboardMemoryLayout>(ref blackboard);
 
             if (root.TryGetProperty("dangerLevel", out var dangerEl)
              && dangerEl.TryGetInt32(out int dangerValue))
             {
-                // SoftAdvice region starts at byte 60; ExpectedThreatLevel is at offset 120
-                // (60 bytes into the SoftAdvice block).
-                // Write directly into the SoftAdvice fixed buffer at the compiler-derived offset.
-                fixed (byte* p = layout.SoftAdvice)
-                    p[BlackboardOffsets.ExpectedThreatLevel - BehaviorConstants.MaxBehaviorParamByteSize] =
-                        (byte)System.Math.Clamp(dangerValue, 0, 255);
+                blackboard.ExpectedThreatLevel = (byte)System.Math.Clamp(dangerValue, 0, 255);
             }
         }
         catch (JsonException ex)

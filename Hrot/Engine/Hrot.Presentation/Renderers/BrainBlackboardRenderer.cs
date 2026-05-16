@@ -13,7 +13,7 @@ namespace Hrot.Presentation.Renderers;
 /// <summary>
 /// Entity-aware ImGui renderer for <see cref="BrainBlackboard"/>.
 /// When the active behavior has a <see cref="BehaviorDefinition.ParamsDtoType"/>,
-/// interprets <see cref="BrainBlackboard.Memory"/> as that typed struct and renders
+/// interprets <see cref="BrainBlackboard.BehaviorParameters"/> as that typed struct and renders
 /// it via <see cref="ImGuiPropertyTree.Render"/>. Falls back to raw hex display otherwise.
 /// </summary>
 [ImGuiRenderer(typeof(BrainBlackboard))]
@@ -74,9 +74,9 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
         if (def.ParamsDtoType != null)
         {
             RenderTypedDto(bb, def.ParamsDtoType, out string? childPath);
-            // Translate "$.Speed" -> "$.Memory.Speed" to match the actual ECS component layout
+            // Translate "$.Speed" -> "$.BehaviorParameters.Speed" to match the actual ECS component layout
             if (childPath != null)
-                doubleClickedPath = "$.Memory" + childPath[1..];
+                doubleClickedPath = "$.BehaviorParameters" + childPath[1..];
         }
         else
         {
@@ -90,14 +90,14 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
     private static unsafe void RenderTypedDto(BrainBlackboard bb, Type dtoType, out string? doubleClickedPath)
     {
-        object boxed = Marshal.PtrToStructure((IntPtr)bb.Memory, dtoType)!;
+        object boxed = Marshal.PtrToStructure((IntPtr)bb.BehaviorParameters, dtoType)!;
         ImGuiPropertyTree.Render(boxed, contextType: dtoType, out doubleClickedPath);
     }
 
     private static unsafe void RenderRawBytes(BrainBlackboard bb)
     {
         const int BytesPerRow = 16;
-        byte* ptr = bb.Memory;
+        byte* ptr = bb.BehaviorParameters;
         int total = BehaviorConstants.BrainBlackboardByteSize;
         for (int row = 0; row < total; row += BytesPerRow)
         {
