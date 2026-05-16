@@ -2,6 +2,8 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {
+    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc);
+
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
     /// (either successfully or with a failure status code).
@@ -120,9 +122,9 @@ namespace Fdp.Toolkit.Orchestration
     public struct AssetInventoryUpdateEvent
     {
         public string[] LocalScenarios;
-        public string[] LocalExercises;
-        public string[] ArchivedExercises;
-        public string[] UnarchivedLocalExercises;
+        public ExerciseInventoryItem[] LocalExercises;
+        public ExerciseInventoryItem[] ArchivedExercises;
+        public ExerciseInventoryItem[] UnarchivedLocalExercises;
     }
 
     /// <summary>
