@@ -74,9 +74,9 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                     _bus.PublishManaged(new AssetInventoryUpdateEvent
                     {
                         LocalScenarios           = DeserializeStringArray(s.Data.LocalScenariosJson),
-                        LocalExercises           = DeserializeStringArray(s.Data.LocalExercisesJson),
-                        ArchivedExercises        = DeserializeStringArray(s.Data.ArchivedExercisesJson),
-                        UnarchivedLocalExercises = DeserializeStringArray(s.Data.UnarchivedLocalExercisesJson),
+                        LocalExercises           = DeserializeExerciseArray(s.Data.LocalExercisesJson),
+                        ArchivedExercises        = DeserializeExerciseArray(s.Data.ArchivedExercisesJson),
+                        UnarchivedLocalExercises = DeserializeExerciseArray(s.Data.UnarchivedLocalExercisesJson),
                     });
 
         // NodeHeartbeat → NodeHeartbeatEvent
@@ -174,5 +174,12 @@ public sealed class OrchestrationObserverTranslator : IDisposable
         if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
         try { return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
         catch { return Array.Empty<string>(); }
+    }
+
+    private static ExerciseInventoryItem[] DeserializeExerciseArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<ExerciseInventoryItem>();
+        try { return JsonSerializer.Deserialize<ExerciseInventoryItem[]>(json) ?? Array.Empty<ExerciseInventoryItem>(); }
+        catch { return Array.Empty<ExerciseInventoryItem>(); }
     }
 }

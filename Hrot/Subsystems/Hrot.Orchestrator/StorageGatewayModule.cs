@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core.Logging;
@@ -376,15 +377,20 @@ public sealed class StorageGatewayModule
     /// contain at least one <c>*.fdp</c> file. Represents locally recorded exercises.
     /// Returns an empty list if <paramref name="root"/> does not exist.
     /// </summary>
-    public IReadOnlyList<string> ScanLocalExercises(string root)
+    public IReadOnlyList<ExerciseInventoryItem> ScanLocalExercises(string root)
     {
-        if (!Directory.Exists(root)) return Array.Empty<string>();
-        return Directory.GetDirectories(root)
-            .Where(d => Directory.GetFiles(d, "*.fdp").Length > 0)
-            .Select(Path.GetFileName)
-            .Where(n => n != null)
-            .Select(n => n!)
-            .ToList();
+        if (!Directory.Exists(root)) return Array.Empty<ExerciseInventoryItem>();
+
+        var result = new List<ExerciseInventoryItem>();
+        foreach (var d in Directory.GetDirectories(root))
+        {
+            if (Directory.GetFiles(d, "*.fdp").Length == 0) continue;
+            if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+
+            var startTime = Directory.GetCreationTimeUtc(d);
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime));
+        }
+        return result;
     }
 
     /// <summary>
@@ -392,15 +398,36 @@ public sealed class StorageGatewayModule
     /// contain at least one <c>*.fdp</c> file. Represents exercises archived to NAS.
     /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
     /// </summary>
-    public IReadOnlyList<string> ScanNasExercises(string nasRoot)
+    public IReadOnlyList<ExerciseInventoryItem> ScanNasExercises(string nasRoot)
     {
-        if (!Directory.Exists(nasRoot)) return Array.Empty<string>();
-        return Directory.GetDirectories(nasRoot)
-            .Where(d => Directory.GetFiles(d, "*.fdp").Length > 0)
-            .Select(Path.GetFileName)
-            .Where(n => n != null)
-            .Select(n => n!)
-            .ToList();
+        if (!Directory.Exists(nasRoot)) return Array.Empty<ExerciseInventoryItem>();
+
+        var result = new List<ExerciseInventoryItem>();
+        foreach (var d in Directory.GetDirectories(nasRoot))
+        {
+            if (Directory.GetFiles(d, "*.fdp").Length == 0) continue;
+            if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
+
+            DateTime startTime = Directory.GetCreationTimeUtc(d);
+            var ctxPath = Path.Combine(d, "Orchestrator.json");
+            if (File.Exists(ctxPath))
+            {
+                try
+                {
+                    var json = File.ReadAllText(ctxPath);
+                    var dto = JsonSerializer.Deserialize<GlobalContextDto>(json,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (dto != null && dto.StartWallTicks > 0)
+                        startTime = new DateTime(dto.StartWallTicks, DateTimeKind.Utc);
+                }
+                catch
+                {
+                }
+            }
+
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime));
+        }
+        return result;
     }
 
     /// <summary>

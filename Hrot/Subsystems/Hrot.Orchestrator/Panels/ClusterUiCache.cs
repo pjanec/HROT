@@ -38,9 +38,9 @@ public sealed class ClusterUiCache : IDisposable
     public bool        HasInFlightTransaction  { get; private set; }
 
     public string[]    AvailableScenarios     { get; private set; } = Array.Empty<string>();
-    public string[]    AvailableExercises        { get; private set; } = Array.Empty<string>();
-    public string[]    ArchivedExercises         { get; private set; } = Array.Empty<string>();
-    public string[]    UnarchivedLocalExercises  { get; private set; } = Array.Empty<string>();
+    public ExerciseInventoryItem[] AvailableExercises        { get; private set; } = Array.Empty<ExerciseInventoryItem>();
+    public ExerciseInventoryItem[] ArchivedExercises         { get; private set; } = Array.Empty<ExerciseInventoryItem>();
+    public ExerciseInventoryItem[] UnarchivedLocalExercises  { get; private set; } = Array.Empty<ExerciseInventoryItem>();
 
     public double      MasterSimTime          =>
         _localTimeController != null
@@ -149,9 +149,9 @@ public sealed class ClusterUiCache : IDisposable
         foreach (var ev in _bus.ReadManaged<AssetInventoryUpdateEvent>())
         {
             AvailableScenarios           = ev.LocalScenarios           ?? Array.Empty<string>();
-            AvailableExercises           = ev.LocalExercises           ?? Array.Empty<string>();
-            ArchivedExercises            = ev.ArchivedExercises        ?? Array.Empty<string>();
-            UnarchivedLocalExercises     = ev.UnarchivedLocalExercises ?? Array.Empty<string>();
+            AvailableExercises           = ev.LocalExercises           ?? Array.Empty<ExerciseInventoryItem>();
+            ArchivedExercises            = ev.ArchivedExercises        ?? Array.Empty<ExerciseInventoryItem>();
+            UnarchivedLocalExercises     = ev.UnarchivedLocalExercises ?? Array.Empty<ExerciseInventoryItem>();
         }
     }
 

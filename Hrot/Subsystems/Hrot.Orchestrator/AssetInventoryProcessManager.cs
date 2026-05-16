@@ -102,15 +102,22 @@ public sealed class AssetInventoryProcessManager
             var scenariosNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName);
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
-            var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath);
-            var localExercises    = _unarchivedLedger.Keys.Select(id => id.ToString()).ToArray();
-            var unarchived        = localExercises.Except(archivedExercises).ToArray();
+            var localExercises = _unarchivedLedger.Values
+                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc))
+                .OrderByDescending(e => e.StartTimeUtc)
+                .ToArray();
+            var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)
+                .OrderByDescending(e => e.StartTimeUtc)
+                .ToArray();
+            var unarchived = localExercises
+                .ExceptBy(archivedExercises.Select(a => a.ExerciseId), e => e.ExerciseId)
+                .ToArray();
 
             _bus.PublishManaged(new AssetInventoryUpdateEvent
             {
                 LocalScenarios           = localScenarios.ToArray(),
                 LocalExercises           = localExercises,
-                ArchivedExercises        = archivedExercises.ToArray(),
+                ArchivedExercises        = archivedExercises,
                 UnarchivedLocalExercises = unarchived,
             });
             _lastInventoryScan = DateTime.UtcNow;

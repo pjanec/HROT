@@ -726,19 +726,35 @@ public sealed class ClusterScenarioPanel
             if (_selectedExerciseIdx >= _uiCache.AvailableExercises.Length) _selectedExerciseIdx = -1;
 
             // Load Replay
-            ImGui.Combo("Select Exercise##OrcReplayId", ref _selectedExerciseIdx,
-                _uiCache.AvailableExercises, _uiCache.AvailableExercises.Length);
+            var available = _uiCache.AvailableExercises;
+            string preview = _selectedExerciseIdx >= 0 && _selectedExerciseIdx < available.Length
+                ? FormatExerciseLabel(available[_selectedExerciseIdx])
+                : "Select Exercise...";
+
+            if (ImGui.BeginCombo("Select Exercise##OrcReplayId", preview))
+            {
+                for (int i = 0; i < available.Length; i++)
+                {
+                    bool isSelected = _selectedExerciseIdx == i;
+                    string label = FormatExerciseLabel(available[i]);
+                    if (ImGui.Selectable(label, isSelected))
+                        _selectedExerciseIdx = i;
+
+                    if (isSelected) ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
             ImGui.SameLine();
             if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
             {
-                string exerciseId = _uiCache.AvailableExercises[_selectedExerciseIdx];
+                Guid exerciseId = available[_selectedExerciseIdx].ExerciseId;
 
                 SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = JsonSerializer.Serialize(
-                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: Guid.TryParse(exerciseId, out var g) ? g : Guid.Empty, TimeMode: null),
+                        new TransitionPayloadDto(TargetState: ClusterState.OperatingReplay, ScenarioId: null, ExerciseId: exerciseId, TimeMode: null),
                         OrchestrationJsonOptions.Default),
                 });
             }
@@ -837,8 +853,22 @@ public sealed class ClusterScenarioPanel
         if (_selectedUnarchivedIdx >= _uiCache.UnarchivedLocalExercises.Length) _selectedUnarchivedIdx = -1;
 
         ImGui.Text("Unarchived Local:");
-        ImGui.Combo("##UnarchivedCombo", ref _selectedUnarchivedIdx,
-                    _uiCache.UnarchivedLocalExercises, _uiCache.UnarchivedLocalExercises.Length);
+        var unarchived = _uiCache.UnarchivedLocalExercises;
+        string unarchivedPreview = _selectedUnarchivedIdx >= 0 && _selectedUnarchivedIdx < unarchived.Length
+            ? FormatExerciseLabel(unarchived[_selectedUnarchivedIdx])
+            : "Select Exercise...";
+        if (ImGui.BeginCombo("##UnarchivedCombo", unarchivedPreview))
+        {
+            for (int i = 0; i < unarchived.Length; i++)
+            {
+                bool isSelected = _selectedUnarchivedIdx == i;
+                string label = FormatExerciseLabel(unarchived[i]);
+                if (ImGui.Selectable(label, isSelected))
+                    _selectedUnarchivedIdx = i;
+                if (isSelected) ImGui.SetItemDefaultFocus();
+            }
+            ImGui.EndCombo();
+        }
 
         if (disableAll || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.BeginDisabled();
@@ -846,14 +876,14 @@ public sealed class ClusterScenarioPanel
             && _selectedUnarchivedIdx >= 0
             && _activeArchiveOpId == Guid.Empty)
         {
-            var exerciselName = _uiCache.UnarchivedLocalExercises[_selectedUnarchivedIdx];
+            var exerciseId = unarchived[_selectedUnarchivedIdx].ExerciseId;
             var requestId = Guid.NewGuid();
             _activeArchiveOpId = requestId;
             SendRequest(new ClusterOpRequest
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ExportArchive,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: Guid.TryParse(exerciselName, out var g) ? g : Guid.Empty), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciseId), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
@@ -865,8 +895,22 @@ public sealed class ClusterScenarioPanel
         if (_selectedArchiveIdx >= _uiCache.ArchivedExercises.Length) _selectedArchiveIdx = -1;
 
         ImGui.Text("Archived on NAS:");
-        ImGui.Combo("##ArchivedCombo", ref _selectedArchiveIdx,
-                    _uiCache.ArchivedExercises, _uiCache.ArchivedExercises.Length);
+        var archived = _uiCache.ArchivedExercises;
+        string archivedPreview = _selectedArchiveIdx >= 0 && _selectedArchiveIdx < archived.Length
+            ? FormatExerciseLabel(archived[_selectedArchiveIdx])
+            : "Select Exercise...";
+        if (ImGui.BeginCombo("##ArchivedCombo", archivedPreview))
+        {
+            for (int i = 0; i < archived.Length; i++)
+            {
+                bool isSelected = _selectedArchiveIdx == i;
+                string label = FormatExerciseLabel(archived[i]);
+                if (ImGui.Selectable(label, isSelected))
+                    _selectedArchiveIdx = i;
+                if (isSelected) ImGui.SetItemDefaultFocus();
+            }
+            ImGui.EndCombo();
+        }
 
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.BeginDisabled();
@@ -874,14 +918,14 @@ public sealed class ClusterScenarioPanel
             && _selectedArchiveIdx >= 0
             && _activeArchiveOpId == Guid.Empty)
         {
-            var exerciseName = _uiCache.ArchivedExercises[_selectedArchiveIdx];
+            var exerciseId = archived[_selectedArchiveIdx].ExerciseId;
             var requestId = Guid.NewGuid();
             _activeArchiveOpId = requestId;
             SendRequest(new ClusterOpRequest
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ImportArchive,
-                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: Guid.TryParse(exerciseName, out var g) ? g : Guid.Empty), OrchestrationJsonOptions.Default),
+                PayloadJson   = JsonSerializer.Serialize(new ArchivePayloadDto(ExerciseId: exerciseId), OrchestrationJsonOptions.Default),
             });
         }
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
@@ -907,4 +951,7 @@ public sealed class ClusterScenarioPanel
             }
         }
     }
+
+    private static string FormatExerciseLabel(Fdp.Toolkit.Orchestration.ExerciseInventoryItem item)
+        => $"{item.StartTimeUtc:yyyy-MM-dd HH:mm:ss} | {item.ExerciseId}";
 }
