@@ -1183,7 +1183,10 @@ public sealed class ClusterMaster : IDisposable
             targets.Add(new NodeDistributionTarget
             {
                 NodeId          = kv.Key,
-                DestinationPath = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseIdText, OrchestrationConstants.GetNodeRecordingFileName(kv.Key)),
+                DestinationPath = Path.Combine(
+                    OrchestrationConstants.GetNodeExercisesRoot(kv.Key),
+                    exerciseIdText,
+                    OrchestrationConstants.GetNodeRecordingFileName(kv.Key)),
             });
         }
         return targets;

@@ -337,6 +337,17 @@ public sealed class StorageGatewayModule
                         partial.Add(target.DestinationPath);
                         File.Copy(srcPath, target.DestinationPath, overwrite: true);
                         partial.TryTake(out _);   // remove on success — only tracked while in-flight
+
+                        // Pull the companion schema manifest file so replay validation succeeds.
+                        var metaSrcPath = srcPath + ".meta.json";
+                        var metaDestPath = target.DestinationPath + ".meta.json";
+                        if (File.Exists(metaSrcPath))
+                        {
+                            partial.Add(metaDestPath);
+                            File.Copy(metaSrcPath, metaDestPath, overwrite: true);
+                            partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        }
+
                         Interlocked.Increment(ref successCount);
                     }
                     catch (Exception)
