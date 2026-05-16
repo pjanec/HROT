@@ -76,20 +76,12 @@ namespace Fdp.Toolkit.Physics.Systems
                     int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
                     var bulletEntity = repo.GetEntityByIndex(bulletIndex);
 
-                    // Read damage from the bullet before consuming it.  DamageSystem runs one frame
-                    // later (after SwapBuffers) when the bullet entity is already destroyed, so the
-                    // damage value must be embedded in the event itself.
-                    float damage = 0f;
-                    if (repo.IsAlive(bulletEntity) && repo.HasComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity))
-                        damage = repo.GetComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>(bulletEntity).Damage;
-
                     // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
                     {
                         HitEntity    = hit.HitEntity,
                         BulletEntity = bulletEntity,
                         HitT         = hit.T,
-                        Damage       = damage,
                     });
 
                     // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
@@ -109,11 +101,14 @@ namespace Fdp.Toolkit.Physics.Systems
                         HitZ    = hitPos.Z,
                     });
 
-                    // Always consume the bullet on first impact so repeated ray hits do not
-                    // re-emit detonation/damage every frame when DamageSystem is not present.
+                    // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
+                    // query drops it (preventing further raycasts), while its component memory
+                    // remains valid for DamageSystem to read BallisticProjectile.Damage on the
+                    // next frame.  DamageSystem is responsible for the final DestroyEntity call.
                     if (repo.IsAlive(bulletEntity))
                     {
-                        repo.DestroyEntity(bulletEntity);
+                        var cmd = view.GetCommandBuffer();
+                        cmd.SetLifecycleState(bulletEntity, EntityLifecycle.TearDown);
                     }
                 }
                 else

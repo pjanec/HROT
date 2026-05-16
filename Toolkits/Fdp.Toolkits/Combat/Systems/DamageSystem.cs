@@ -20,10 +20,12 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <list type="number">
     ///   <item>Verify the hit entity is still alive; skip if not.</item>
     ///   <item>Verify the hit entity has a <see cref="Health"/> component; skip if not.</item>
-    ///   <item>Verify the bullet entity from <see cref="HitEvent.BulletEntity"/> is still alive; skip if not.</item>
+    ///   <item>Verify the bullet entity is alive (it is in <c>TearDown</c> state — <c>IsAlive</c>
+    ///         returns true); skip if already destroyed.</item>
     ///   <item>Read <see cref="BallisticProjectile.Damage"/> from the bullet entity.</item>
+    ///   <item>Destroy the bullet entity now that its payload has been consumed.</item>
     ///   <item>Apply damage: <c>Health.Current -= Damage</c>, clamped to 0.</item>
-    ///   <item>If <c>Health.Current == 0</c>: destroy the hit entity.</item>
+    ///   <item>If <c>Health.Current == 0</c>: strip capabilities then destroy the hit entity.</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -55,18 +57,22 @@ namespace Fdp.Toolkit.Combat.Systems
                 // 2. Skip if the target has no health component (non-damageable entity).
                 if (!view.HasComponent<Health>(evt.HitEntity)) continue;
 
-                // 3. Use the damage value embedded in the event.  The bullet entity is
-                //    consumed (destroyed) by HitResolutionSystem in the frame the hit is
-                //    detected; by the time DamageSystem processes the event (next frame
-                //    after SwapBuffers) the bullet is no longer alive.
-                float damage = evt.Damage;
+                // 3. The bullet is in TearDown state (set by HitResolutionSystem via ECB);
+                //    IsAlive returns true for TearDown entities so we can still read its data.
+                //    If it is already destroyed (e.g. double-hit race), skip this event.
+                if (!view.IsAlive(evt.BulletEntity)) continue;
+                if (!view.HasComponent<BallisticProjectile>(evt.BulletEntity)) continue;
 
-                // 4. Apply damage to the hit entity's health.
+                // 4. Read damage from the bullet and then finalize its destruction.
+                float damage = view.GetComponentRO<BallisticProjectile>(evt.BulletEntity).Damage;
+                repo.DestroyEntity(evt.BulletEntity);
+
+                // 5. Apply damage to the hit entity's health.
                 ref var health = ref repo.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
 
-                // 5. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
+                // 6. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
                 //    the same frame), then destroy the hit entity.
                 if (health.Current <= 0f)
                 {
