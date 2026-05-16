@@ -63,12 +63,14 @@ public sealed class AssetInventoryProcessManager
         {
             if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
             {
-                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow);
+                _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
                 if (_currentRecording != null && _currentRecording.ExerciseId != Guid.Empty)
                 {
+                    var duration = DateTime.UtcNow - _currentRecording.StartTimeUtc;
+                    _currentRecording = _currentRecording with { Duration = duration };
                     _unarchivedLedger[_currentRecording.ExerciseId] = _currentRecording;
                     SaveLedgerEntry(_currentRecording);
                 }
@@ -103,7 +105,7 @@ public sealed class AssetInventoryProcessManager
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
             var localExercises = _unarchivedLedger.Values
-                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc))
+                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)

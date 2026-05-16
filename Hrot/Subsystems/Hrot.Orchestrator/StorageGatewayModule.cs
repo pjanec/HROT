@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Network.Orchestration;
@@ -388,7 +389,7 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime));
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero));
         }
         return result;
     }
@@ -409,6 +410,7 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
+            TimeSpan duration = TimeSpan.Zero;
             var ctxPath = Path.Combine(d, "Orchestrator.json");
             if (File.Exists(ctxPath))
             {
@@ -416,16 +418,37 @@ public sealed class StorageGatewayModule
                 {
                     var json = File.ReadAllText(ctxPath);
                     var dto = JsonSerializer.Deserialize<GlobalContextDto>(json,
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
                     if (dto != null && dto.StartWallTicks > 0)
                         startTime = new DateTime(dto.StartWallTicks, DateTimeKind.Utc);
+                    if (dto != null && dto.ScenarioTimeSeconds > 0)
+                        duration = TimeSpan.FromSeconds(dto.ScenarioTimeSeconds);
                 }
                 catch
                 {
                 }
             }
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime));
+            var metaFiles = Directory.GetFiles(d, "*.meta.json");
+            foreach (var metaPath in metaFiles)
+            {
+                try
+                {
+                    var metaJson = File.ReadAllText(metaPath);
+                    var meta = JsonSerializer.Deserialize<RecordingMetadata>(metaJson,
+                        Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                    if (meta != null && meta.Duration > TimeSpan.Zero)
+                    {
+                        duration = meta.Duration;
+                        break;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration));
         }
         return result;
     }
