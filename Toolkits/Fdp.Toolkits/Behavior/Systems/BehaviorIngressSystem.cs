@@ -119,6 +119,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
                 unchecked { behavior.InstanceId++; }
                 behavior.BrainTier = def.BrainTier;
+                if (def.HeavyDtoType != null &&
+                    repo.IsComponentTypeRegistered<Blackboard1024>() &&
+                    !repo.HasComponent<Blackboard1024>(evt.Entity))
+                {
+                    repo.AddComponent(evt.Entity, new Blackboard1024());
+                }
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
                 if (repo.HasComponent<BrainBTreeState>(evt.Entity))
@@ -172,6 +178,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def))
                 {
                     behavior.BrainTier = def.BrainTier;
+                    if (def.HeavyDtoType != null &&
+                        repo.IsComponentTypeRegistered<Blackboard1024>() &&
+                        !repo.HasComponent<Blackboard1024>(evt.Entity))
+                    {
+                        repo.AddComponent(evt.Entity, new Blackboard1024());
+                    }
                 }
 
                 // Reset BTree execution pointer so the new phase starts from the root.
