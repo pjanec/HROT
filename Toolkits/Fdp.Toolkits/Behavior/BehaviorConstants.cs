@@ -26,20 +26,7 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const int MaxBehaviorParamByteSize = 100;
 
-        /// <summary>Byte count of the soft-advice region inside <see cref="Components.BrainBlackboard"/>.</summary>
-        public const int SoftAdviceByteSize = BrainBlackboardByteSize - MaxBehaviorParamByteSize - 2;
 
-        /// <summary>
-        /// Byte offset of the per-waypoint threat/danger level field inside
-        /// <see cref="Components.BrainBlackboard"/> (see <c>RouteContextSystem</c>).
-        /// </summary>
-        public const int ExpectedThreatLevel_Offset = 120;
-
-        /// <summary>Byte offset of the MobilityLost interrupt register inside <see cref="Components.BrainBlackboard"/>.</summary>
-        public const int Interrupt_MobilityLost_Offset = BrainBlackboardByteSize - 2;
-
-        /// <summary>Byte offset of the reserved interrupt register inside <see cref="Components.BrainBlackboard"/>.</summary>
-        public const int Interrupt_Reserved_Offset = BrainBlackboardByteSize - 1;
 
         /// <summary>Maximum number of distinct action types per dispatcher.</summary>
         public const int MaxActionTypes = 64;

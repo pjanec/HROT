@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// Per-waypoint threat/danger level written by <c>RouteContextSystem</c>.
         /// A value of 0 means unknown/default; higher values indicate increasing danger.
         /// </summary>
-        [FieldOffset(BehaviorConstants.ExpectedThreatLevel_Offset)]
+        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-8)]
         public byte ExpectedThreatLevel;
 
         /// <summary>
@@ -77,11 +77,11 @@ namespace Fdp.Toolkit.Behavior.Components
         /// Set to 1 by <c>CognitiveInterruptSystem</c> on the tick <c>CanMove</c> transitions
         /// from set to cleared.  Cleared back to 0 by <c>CognitiveCleanupSystem</c> at end of frame.
         /// </summary>
-        [FieldOffset(BehaviorConstants.Interrupt_MobilityLost_Offset)]
+        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-2)]
         public byte Interrupt_MobilityLost;
 
         /// <summary>Reserved for future hardware-level interrupt.</summary>
-        [FieldOffset(BehaviorConstants.Interrupt_Reserved_Offset)]
+        [FieldOffset(BehaviorConstants.BrainBlackboardByteSize-1)]
         public byte Interrupt_Reserved;
     }
 

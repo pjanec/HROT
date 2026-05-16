@@ -33,13 +33,6 @@ namespace Fdp.Toolkit.Behavior.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     internal sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
-        /// <summary>
-        /// Blackboard byte index for the MobilityLost interrupt.
-        /// Derived from <see cref="BehaviorConstants.Interrupt_MobilityLost_Offset"/> so the
-        /// value is compiler-verified against <see cref="BrainBlackboard.Interrupt_MobilityLost"/>.
-        /// Kept here for backward-compatible test access.
-        /// </summary>
-        internal const int InterruptRegister_MobilityLost = BehaviorConstants.Interrupt_MobilityLost_Offset;
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
