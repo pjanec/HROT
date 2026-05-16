@@ -74,6 +74,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             operation == NodeOpType.FinalizeLive;
 
         /// <inheritdoc />
+        public bool CanHandle(ExecuteNodeOpIntent intent)
+        {
+            if (intent.Operation == NodeOpType.PrepareLive || intent.Operation == NodeOpType.FinalizeLive) return true;
+            return intent.Operation == NodeOpType.PrepareState &&
+                   intent.DomainPayload is EditLoadHandlerPayload p &&
+                   p.TargetState == ClusterState.OperatingLive;
+        }
+
+        /// <inheritdoc />
         public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             if (intent.Operation == NodeOpType.PrepareLive)

@@ -270,7 +270,7 @@ namespace Fdp.Toolkit.Orchestration
             // Handler dispatch with async-prepare deferral.
             foreach (var handler in _handlers)
             {
-                if (!handler.CanHandle(intent.Operation)) continue;
+                if (!handler.CanHandle(intent)) continue;
 
                 var prepareTask = handler.PrepareAsync(intent, default);
                 if (prepareTask.IsCompleted)

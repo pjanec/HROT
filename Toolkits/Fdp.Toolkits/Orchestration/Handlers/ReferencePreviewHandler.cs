@@ -58,6 +58,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareState;
 
         /// <inheritdoc />
+        public bool CanHandle(ExecuteNodeOpIntent intent)
+        {
+            if (intent.Operation != NodeOpType.PrepareState) return false;
+            return intent.DomainPayload is EditLoadHandlerPayload p &&
+                   (p.TargetState == ClusterState.LoadingPreview || p.TargetState == ClusterState.UnloadingPreview);
+        }
+
+        /// <inheritdoc />
         public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
             => Task.FromResult<object?>(null);
 

@@ -22,6 +22,13 @@ namespace Fdp.Toolkit.Orchestration
         bool CanHandle(NodeOpType operation);
 
         /// <summary>
+        /// Returns <c>true</c> when this handler is responsible for the given
+        /// <paramref name="intent"/>. By default this forwards to
+        /// <see cref="CanHandle(NodeOpType)"/>.
+        /// </summary>
+        bool CanHandle(ExecuteNodeOpIntent intent) => CanHandle(intent.Operation);
+
+        /// <summary>
         /// Performs any async preparation work required before committing the
         /// <paramref name="intent"/>.  Returns a typed result object on success
         /// (or <c>null</c>).  Must not mutate ECS state.
