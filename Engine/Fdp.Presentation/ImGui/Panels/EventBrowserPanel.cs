@@ -269,82 +269,90 @@ public class EventBrowserPanel
             }
             else
             {
-                if (ImGuiApi.BeginTable("EventListTable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
+                // Build the filtered view list (newest first), preserving index semantics
+                // for Shift+Click range selection.
+                var viewList = new List<CapturedEventDto>();
+                uint? targetFrame = CurrentFrameProvider?.Invoke();
+                if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
+                    targetFrame = snapshot.Max(e => e.Frame);
+
+                for (int i = snapshot.Length - 1; i >= 0; i--)
                 {
-                    ImGuiApi.TableSetupColumn("Frame/Type", ImGuiTableColumnFlags.WidthFixed, 180);
-                    ImGuiApi.TableSetupColumn("Summary", ImGuiTableColumnFlags.WidthStretch);
+                    var evt = snapshot[i];
+                    if (_currentFrameOnly && targetFrame.HasValue && evt.Frame != targetFrame.Value)
+                        continue;
+                    if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
+                        && !_disabledTypes.Contains(evt.TypeName))
+                        viewList.Add(evt);
+                }
 
-                    // Build the filtered view list (newest first), preserving index semantics
-                    // for Shift+Click range selection.
-                    var viewList = new List<CapturedEventDto>();
-                    uint? targetFrame = CurrentFrameProvider?.Invoke();
-                    if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
-                        targetFrame = snapshot.Max(e => e.Frame);
-
-                    for (int i = snapshot.Length - 1; i >= 0; i--)
+                if (viewList.Count == 0)
+                {
+                    string message = _currentFrameOnly ? "No events this frame" : "No match for current filters.";
+                    ImGuiApi.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1), message);
+                }
+                else
+                {
+                    if (ImGuiApi.BeginTable("EventListTable", 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
                     {
-                        var evt = snapshot[i];
-                        if (_currentFrameOnly && targetFrame.HasValue && evt.Frame != targetFrame.Value)
-                            continue;
-                        if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
-                            && !_disabledTypes.Contains(evt.TypeName))
-                            viewList.Add(evt);
-                    }
+                        ImGuiApi.TableSetupColumn("Frame/Type", ImGuiTableColumnFlags.WidthFixed, 180);
+                        ImGuiApi.TableSetupColumn("Summary", ImGuiTableColumnFlags.WidthStretch);
 
-                    bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
-                    bool shift = ImGuiApi.GetIO().KeyShift;
+                        bool ctrl  = ImGuiApi.GetIO().KeyCtrl;
+                        bool shift = ImGuiApi.GetIO().KeyShift;
 
-                    for (int vi = 0; vi < viewList.Count; vi++)
-                    {
-                        var evt = viewList[vi];
-                        bool isSelected = _selectedEvents.Contains(evt);
-
-                        ImGuiApi.TableNextRow();
-                        ImGuiApi.TableSetColumnIndex(0);
-
-                        var color = evt.IsManaged
-                            ? new Vector4(0.5f, 1f, 0.5f, 1f)
-                            : new Vector4(1f, 1f, 1f, 1f);
-
-                        if (isSelected)
-                            ImGuiApi.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 0f, 1f));
-                        else
-                            ImGuiApi.PushStyleColor(ImGuiCol.Text, color);
-
-                        // Only show the provider name tag if we are viewing "All" providers
-                        string providerTag = _selectedProvider == "All" ? $" [{evt.ProviderName}]" : "";
-                        string label = $"[{evt.Frame}]{providerTag} {evt.TypeName}##{vi}";
-
-                        if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
+                        for (int vi = 0; vi < viewList.Count; vi++)
                         {
-                            HandleRowClick(viewList, vi, ctrl, shift);
-                        }
+                            var evt = viewList[vi];
+                            bool isSelected = _selectedEvents.Contains(evt);
 
-                        if (ImGuiApi.BeginPopupContextItem($"##ctx_evt_{vi}"))
-                        {
-                            var targetEntity = TryExtractTargetEntity(evt.RawEvent);
-                            if (targetEntity.HasValue && !targetEntity.Value.IsNull)
+                            ImGuiApi.TableNextRow();
+                            ImGuiApi.TableSetColumnIndex(0);
+
+                            var color = evt.IsManaged
+                                ? new Vector4(0.5f, 1f, 0.5f, 1f)
+                                : new Vector4(1f, 1f, 1f, 1f);
+
+                            if (isSelected)
+                                ImGuiApi.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 0f, 1f));
+                            else
+                                ImGuiApi.PushStyleColor(ImGuiCol.Text, color);
+
+                            // Only show the provider name tag if we are viewing "All" providers
+                            string providerTag = _selectedProvider == "All" ? $" [{evt.ProviderName}]" : "";
+                            string label = $"[{evt.Frame}]{providerTag} {evt.TypeName}##{vi}";
+
+                            if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
                             {
-                                if (ImGuiApi.MenuItem("Step Forward and Diff Target"))
-                                {
-                                    OnCausalityJumpRequested?.Invoke((int)evt.Frame, targetEntity.Value);
-                                }                                
+                                HandleRowClick(viewList, vi, ctrl, shift);
                             }
-                            ImGuiApi.EndPopup();
+
+                            if (ImGuiApi.BeginPopupContextItem($"##ctx_evt_{vi}"))
+                            {
+                                var targetEntity = TryExtractTargetEntity(evt.RawEvent);
+                                if (targetEntity.HasValue && !targetEntity.Value.IsNull)
+                                {
+                                    if (ImGuiApi.MenuItem("Step Forward and Diff Target"))
+                                    {
+                                        OnCausalityJumpRequested?.Invoke((int)evt.Frame, targetEntity.Value);
+                                    }                                
+                                }
+                                ImGuiApi.EndPopup();
+                            }
+
+                            ImGuiApi.PopStyleColor();
+
+                            if (ImGuiApi.IsItemHovered())
+                            {
+                                ImGuiApi.SetTooltip(evt.Summary);
+                            }
+
+                            ImGuiApi.TableSetColumnIndex(1);
+                            ImGuiApi.TextDisabled(evt.Summary);
                         }
 
-                        ImGuiApi.PopStyleColor();
-
-                        if (ImGuiApi.IsItemHovered())
-                        {
-                            ImGuiApi.SetTooltip(evt.Summary);
-                        }
-
-                        ImGuiApi.TableSetColumnIndex(1);
-                        ImGuiApi.TextDisabled(evt.Summary);
+                        ImGuiApi.EndTable();
                     }
-
-                    ImGuiApi.EndTable();
                 }
             }
         }
