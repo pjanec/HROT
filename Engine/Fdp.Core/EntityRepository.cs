@@ -388,6 +388,15 @@ namespace Fdp.Core
         }
         
         /// <summary>
+        /// Registers a managed event type to ensure the stream exists.
+        /// Useful for schema validation and delayed events via CommandBuffer.
+        /// </summary>
+        public void RegisterManagedEvent<T>()
+        {
+            Bus.RegisterManaged<T>();
+        }
+        
+        /// <summary>
         /// Destroys an entity and removes all its components.
         /// Thread-safe.
         /// </summary>

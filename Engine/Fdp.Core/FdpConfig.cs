@@ -89,6 +89,13 @@ namespace Fdp.Core
         /// </para>
         /// </summary>
         public static bool EnforceExplicitComponentIds { get; set; } = false;
+        
+        /// <summary>
+        /// When true, FdpEventBus will throw an InvalidOperationException if an event is
+        /// published before its stream has been explicitly registered.
+        /// Set to true in production entry-points to guarantee all events are known to the schema.
+        /// </summary>
+        public static bool EnforceExplicitEventRegistration { get; set; } = false;
 
         /// <summary>
         /// Global switch to control CPU usage for parallel operations.

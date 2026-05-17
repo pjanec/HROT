@@ -16,7 +16,11 @@ namespace Fdp.Examples.Runner
         private static readonly Logger _log = LogManager.GetCurrentClassLogger();
 
         public static int Main(string[] args)
-            => RunMain(args, Console.Out, code => Environment.Exit(code));
+        {
+            Fdp.Core.FdpConfig.EnforceExplicitComponentIds = true;
+            Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = true;
+            return RunMain(args, Console.Out, code => Environment.Exit(code));
+        }
 
         /// <summary>
         /// Testable entry point — identical to <see cref="Main"/> but accepts injectable

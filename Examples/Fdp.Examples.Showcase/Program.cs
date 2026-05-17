@@ -13,6 +13,9 @@ namespace Fdp.Examples.Showcase
 
         static void Main(string[] args)
         {
+            Fdp.Core.FdpConfig.EnforceExplicitComponentIds = true;
+            Fdp.Core.FdpConfig.EnforceExplicitEventRegistration = true;
+
             // Initialize Raylib window
             Raylib.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "FDP Military Showcase - Raylib + ImGui");
             Raylib.SetTargetFPS(TARGET_FPS);

@@ -33,6 +33,15 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void Publish<T>(T evt) where T : unmanaged
         {
+            int typeId = EventType<T>.Id;
+            if (FdpConfig.EnforceExplicitEventRegistration && !_nativeStreams.ContainsKey(typeId))
+            {
+                throw new InvalidOperationException(
+                    $"Strict Mode Violation: Unmanaged event type '{typeof(T).Name}' (ID: {typeId}) " +
+                    "was published without being explicitly registered. " +
+                    $"You must call world.RegisterEvent<{typeof(T).Name}>() during bootstrap.");
+            }
+
             var stream = GetOrCreateNativeStream<T>();
             stream.Write(evt);
         }
@@ -59,6 +68,15 @@ namespace Fdp.Core
         /// <param name="evt">Event to publish</param>
         public void PublishManaged<T>(T evt) // No class constraint — allows managed structs
         {
+            int typeId = GetManagedTypeId<T>();
+            if (FdpConfig.EnforceExplicitEventRegistration && !_managedStreams.ContainsKey(typeId))
+            {
+                throw new InvalidOperationException(
+                    $"Strict Mode Violation: Managed event type '{typeof(T).Name}' " +
+                    "was published without being explicitly registered. " +
+                    $"You must call world.RegisterManagedEvent<{typeof(T).Name}>() during bootstrap.");
+            }
+
             var stream = GetOrCreateManagedStream<T>();
             stream.Write(evt);
         }
@@ -120,6 +138,14 @@ namespace Fdp.Core
         public void Register<T>() where T : unmanaged
         {
             GetOrCreateNativeStream<T>();
+        }
+
+        /// <summary>
+        /// Explicitly registers a managed event type to ensure the stream exists.
+        /// </summary>
+        public void RegisterManaged<T>()
+        {
+            GetOrCreateManagedStream<T>();
         }
 
         /// <summary>
