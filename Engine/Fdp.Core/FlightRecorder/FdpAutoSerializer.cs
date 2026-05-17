@@ -477,7 +477,7 @@ namespace Fdp.Core.FlightRecorder
 
         private static bool IsBuiltInType(Type type)
         {
-            if (type.IsPrimitive || type == typeof(string)) return true;
+            if (type.IsPrimitive || type.IsEnum || type == typeof(string)) return true;
             if (type.IsArray) return true;
             if (type.IsGenericType)
             {
@@ -495,20 +495,20 @@ namespace Fdp.Core.FlightRecorder
         
         private static Expression GenerateWriteExpression(Type type, Expression valueAccess, ParameterExpression writer)
         {
-            // CASE A: Primitive (int, float, string, etc.)
-            var writeMethod = typeof(BinaryWriter).GetMethod("Write", new[] { type });
-            if (writeMethod != null)
-            {
-                return Expression.Call(writer, writeMethod, valueAccess);
-            }
-
-            // CASE A2: Enum
+            // MUST BE ABOVE PRIMITIVE CHECK: Reflection binder may match enums to underlying int
             if (type.IsEnum)
             {
                 Type underlyingType = Enum.GetUnderlyingType(type);
                 var enumWriteMethod = typeof(BinaryWriter).GetMethod("Write", new[] { underlyingType });
                 var castExpr = Expression.Convert(valueAccess, underlyingType);
                 return Expression.Call(writer, enumWriteMethod!, castExpr);
+            }
+
+            // CASE A: Primitive (int, float, string, etc.)
+            var writeMethod = typeof(BinaryWriter).GetMethod("Write", new[] { type });
+            if (writeMethod != null)
+            {
+                return Expression.Call(writer, writeMethod, valueAccess);
             }
             
             // CASE B: List<T>
@@ -569,20 +569,20 @@ namespace Fdp.Core.FlightRecorder
         
         private static Expression GenerateReadExpression(Type type, ParameterExpression reader)
         {
-            // CASE A: Primitive
-            var readMethod = typeof(BinaryReader).GetMethod($"Read{type.Name}");
-            if (readMethod != null && readMethod.ReturnType == type)
-            {
-                return Expression.Call(reader, readMethod);
-            }
-
-            // CASE A2: Enum
+            // MUST BE ABOVE PRIMITIVE CHECK
             if (type.IsEnum)
             {
                 Type underlyingType = Enum.GetUnderlyingType(type);
                 var enumReadMethod = typeof(BinaryReader).GetMethod($"Read{underlyingType.Name}");
                 var readExpr = Expression.Call(reader, enumReadMethod!);
                 return Expression.Convert(readExpr, type);
+            }
+
+            // CASE A: Primitive
+            var readMethod = typeof(BinaryReader).GetMethod($"Read{type.Name}");
+            if (readMethod != null && readMethod.ReturnType == type)
+            {
+                return Expression.Call(reader, readMethod);
             }
             
             // Special case for String
