@@ -1,10 +1,13 @@
+using Fdp.Core;
+
 namespace Hrot.Editor.Commands;
 
 /// <summary>
-/// Managed command requesting the map canvas to pan and zoom to the specified entity.
+/// Command requesting the map canvas to pan and zoom to the specified entity.
 /// </summary>
-public sealed class CenterOnEntityCommand
+[EventId(8104)]
+public struct CenterOnEntityCommand
 {
     /// <summary>Network entity ID to centre the view on.</summary>
-    public long NetworkId { get; init; }
+    public long NetworkId;
 }

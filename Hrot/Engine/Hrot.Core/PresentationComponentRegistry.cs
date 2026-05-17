@@ -20,8 +20,8 @@ public static class PresentationComponentRegistry
         world.RegisterComponent<MapOverlayStyle>();
         world.RegisterComponent<IgHealthState>();
         world.RegisterManagedEvent<Hrot.Common.TogglePerspectiveEvent>();
-        world.RegisterManagedEvent<Hrot.Common.Events.WorldResetEvent>();
-        world.RegisterManagedEvent<Hrot.Common.Events.OpenRenameDialogCommand>();
-        world.RegisterManagedEvent<Hrot.Common.Events.SelectEntityCommand>();
+        world.RegisterEvent<Hrot.Common.Events.WorldResetEvent>();
+        world.RegisterEvent<Hrot.Common.Events.OpenRenameDialogCommand>();
+        world.RegisterEvent<Hrot.Common.Events.SelectEntityCommand>();
     }
 }

@@ -379,7 +379,8 @@ namespace Hrot.Editor
             // Visual effect components required by EventEffectModule (EventToEffectSystem).
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
-            _world.RegisterManagedEvent<ActivateEditorToolEvent>();
+            _world.RegisterEvent<ActivateEditorToolEvent>();
+            _world.RegisterEvent<CenterOnEntityCommand>();
 
             // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
@@ -663,11 +664,11 @@ namespace Hrot.Editor
             });
             actionRegistry.Register(GlobalActionIds.Measure, (_, _) =>
             {
-                _world.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Measure));
+                _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Measure));
             });
             actionRegistry.Register(GlobalActionIds.PlaceEntity, (_, _) =>
             {
-                _world.Bus.PublishManaged(new ActivateEditorToolEvent(EditorTool.Spawn));
+                _world.Bus.Publish(new ActivateEditorToolEvent(EditorTool.Spawn));
             });
             actionRegistry.Register(GlobalActionIds.EditOverlay, (view, target) =>
             {
@@ -714,7 +715,7 @@ namespace Hrot.Editor
                     ? view.GetComponentRO<NetworkIdentity>(target).Value
                     : 0L;
                 if (netId != 0)
-                    _world!.Bus.PublishManaged(new Hrot.Editor.Commands.CenterOnEntityCommand { NetworkId = netId });
+                    _world!.Bus.Publish(new Hrot.Editor.Commands.CenterOnEntityCommand { NetworkId = netId });
             });
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
@@ -1424,7 +1425,7 @@ namespace Hrot.Editor
         {
             if (_world == null || _canvas == null || _selectionState == null) return;
 
-            foreach (var evt in _world.Bus.ReadManaged<Hrot.Editor.Events.ActivateEditorToolEvent>())
+            foreach (ref readonly var evt in _world.Bus.Read<Hrot.Editor.Events.ActivateEditorToolEvent>())
             {
                 switch (evt.Tool)
                 {
@@ -1512,7 +1513,7 @@ namespace Hrot.Editor
             }
 
             // ?? Drain camera-center requests ??????????????????????????????????
-            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.CenterOnEntityCommand>())
+            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Editor.Commands.CenterOnEntityCommand>())
             {
                 if (_camera == null) continue;
                 var q = _world.Query()
@@ -1531,7 +1532,7 @@ namespace Hrot.Editor
             }
 
             // ?? Drain rename-dialog requests ??????????????????????????????????
-            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Common.Events.OpenRenameDialogCommand>())
+            foreach (ref readonly var cmd in _world.Bus.Read<Hrot.Common.Events.OpenRenameDialogCommand>())
             {
                 _renameTargetNetworkId    = cmd.NetworkId;
                 _openRenameModalThisFrame = true;
@@ -1573,6 +1574,8 @@ namespace Hrot.Editor
         }
     }
 }
+
+
 
 
 

@@ -71,7 +71,7 @@ public sealed class ScenarioFileService
         // Reset simulation time: SoftClear() does not touch singletons.
         if (repo.HasSingletonUnmanaged<GlobalTime>())
             repo.SetSingletonUnmanaged(default(GlobalTime));
-        _bus?.PublishManaged(new WorldResetEvent()); // bus event survives because it's after ClearAll
+        _bus?.Publish(new WorldResetEvent()); // bus event survives because it's after ClearAll
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public sealed class ScenarioFileService
         // Reset simulation time: SoftClear() does not touch singletons.
         if (repo.HasSingletonUnmanaged<GlobalTime>())
             repo.SetSingletonUnmanaged(default(GlobalTime));
-        _bus?.PublishManaged(new WorldResetEvent()); // bus event survives because it's after ClearAll
+        _bus?.Publish(new WorldResetEvent()); // bus event survives because it's after ClearAll
 
         if (_zoneService != null)
         {
@@ -162,7 +162,7 @@ public sealed class ScenarioFileService
     private void FireWorldReset()
     {
         _worldResetObservers?.Invoke();
-        _bus?.PublishManaged(new WorldResetEvent());
+        _bus?.Publish(new WorldResetEvent());
     }
 
     private static void ValidateSubsystemType(string jsonText)

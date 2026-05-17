@@ -1,15 +1,15 @@
+using Fdp.Core;
+
 namespace Hrot.Editor.Events;
 
 /// <summary>
 /// Published on <see cref="Fdp.Core.FdpEventBus"/> when the user selects a new
 /// interactive editor tool from the toolbar.
 /// </summary>
-public sealed class ActivateEditorToolEvent
+[EventId(8105)]
+public struct ActivateEditorToolEvent
 {
-    public EditorTool Tool { get; init; }
-
-    // Required by FdpAutoSerializer for managed event deserialization
-    public ActivateEditorToolEvent() { }
+    public EditorTool Tool;
 
     public ActivateEditorToolEvent(EditorTool tool)
     {

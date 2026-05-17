@@ -177,9 +177,9 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public void ActivateTool(EditorTool tool)
     {
-        // Publish an FDP-managed event that the active tool controller listens for.
+        // Publish an event that the active tool controller listens for.
         // The actual tool switch logic lives in EditorSubsystem.DrainToolActivationEvents().
-        _simBus.PublishManaged(new ActivateEditorToolEvent(tool));
+        _simBus.Publish(new ActivateEditorToolEvent(tool));
     }
 
     /// <inheritdoc/>
@@ -223,15 +223,15 @@ public sealed class EditorApplication : IEditorLogic
 
     /// <inheritdoc/>
     public void CenterOnEntity(long entityId) =>
-        _simBus.PublishManaged(new CenterOnEntityCommand { NetworkId = entityId });
+        _simBus.Publish(new CenterOnEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
     public void SelectEntity(long entityId) =>
-        _simBus.PublishManaged(new SelectEntityCommand { NetworkId = entityId });
+        _simBus.Publish(new SelectEntityCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
     public void OpenRenameDialog(long entityId) =>
-        _simBus.PublishManaged(new OpenRenameDialogCommand { NetworkId = entityId });
+        _simBus.Publish(new OpenRenameDialogCommand { NetworkId = entityId });
 
     /// <inheritdoc/>
     public void RebuildAndReloadAI()
