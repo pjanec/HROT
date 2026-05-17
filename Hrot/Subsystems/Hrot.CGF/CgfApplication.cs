@@ -111,6 +111,7 @@ namespace Hrot.CGF
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
             _eventBus         = new FdpEventBus();
             _orchestrationBus = new FdpEventBus();  // Control Plane bus (orchestration/cluster management)
+            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
             if (_participant != null)
             {
                 _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);

@@ -346,6 +346,7 @@ namespace Hrot.SimHost
                 // BATCH-28 Phase 5: EntityDragGizmo replaces EntityDragTool.
                 _gizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
                 _interactionBus = new FdpEventBus();
+                Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
                 _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, _interactionBus);
                 _dataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                     _gizmoRegistry,

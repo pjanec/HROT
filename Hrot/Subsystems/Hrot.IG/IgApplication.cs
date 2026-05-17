@@ -718,6 +718,7 @@ public class IgApplication : IDisposable
             _gizmoSettingsRegistry  = new GizmoSettingsRegistry();
             _gizmoUndoStack         = new GizmoUndoStack();
             _interactionBus         = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
             Hrot.IG.Gizmos.GizmoRegistrar.Register(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);
             // Register CanvasContextMenuGizmo so empty-space right-click resolves through the binding pipeline.
             Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(_gizmoRegistry, _statelessGizmoRegistry, _gizmoSettingsRegistry);

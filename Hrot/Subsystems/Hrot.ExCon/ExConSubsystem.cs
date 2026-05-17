@@ -180,9 +180,11 @@ namespace Hrot.ExCon
 
             // we pass _bus to the active command layer ...
             _bus = new FdpEventBus();
+            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_bus);
             _clusterSlave = new Fdp.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _bus);
 
             _observerBus = new FdpEventBus();
+            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_observerBus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
             // SlaveSyncController is always created (no DDS needed).

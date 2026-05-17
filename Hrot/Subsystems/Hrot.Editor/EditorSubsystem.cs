@@ -353,6 +353,9 @@ namespace Hrot.Editor
             // ?? 1. ECS world ?????????????????????????????????????????????????
             _world = new EntityRepository();
             _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
+            Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
+            _orchestrationBus.RegisterManaged<Hrot.Orchestrator.Events.MergeLogsIntent>();
+            _orchestrationBus.RegisterManaged<Hrot.Orchestrator.Events.LogMergeCompletedEvent>();
             var accumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, accumulator);
             _physicsModule = new PhysicsToolkitModule();
@@ -375,6 +378,7 @@ namespace Hrot.Editor
             // Visual effect components required by EventEffectModule (EventToEffectSystem).
             _world.RegisterComponent<VisualEffectState>();
             _world.RegisterComponent<TracerTarget>();
+            _world.RegisterManagedEvent<ActivateEditorToolEvent>();
 
             // ?? 2. Time controller (MasterSyncController in Deterministic/frozen mode) ??
             var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
@@ -629,6 +633,7 @@ namespace Hrot.Editor
             editorGizmoRegistry.Register(new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition());
             // Editor has no DDS transport so no network ingress/egress translators.
             var interactionBus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(interactionBus);
             _interactionBus = interactionBus;
             _editorDataDrivenGizmoSystem = new DataDrivenGizmoSystem(
                 editorGizmoRegistry,
