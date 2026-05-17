@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// promotion to <c>EntityLifecycle.Constructing</c>.
     /// </summary>
     [ComponentId(GlobalComponentIds.GhostStateTracker)]
+    [DataPolicy(DataPolicy.Transient)]
     public struct GhostStateTracker
     {
         /// <summary>

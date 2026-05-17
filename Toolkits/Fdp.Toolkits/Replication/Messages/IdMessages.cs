@@ -6,6 +6,7 @@ namespace Fdp.Toolkit.Replication.Messages
 {
     [EventId(9020)]
     [MessagePackObject]
+    [DataPolicy(DataPolicy.NoRecord)]
     public class IdBlockRequest
     {
         [Key(0)]
@@ -17,6 +18,7 @@ namespace Fdp.Toolkit.Replication.Messages
 
     [EventId(9021)]
     [MessagePackObject]
+    [DataPolicy(DataPolicy.NoRecord)]
     public class IdBlockResponse
     {
         [Key(0)]

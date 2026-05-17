@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Events
     /// </para>
     /// </summary>
     [EventId(9040)]
+    [DataPolicy(DataPolicy.NoRecord)]
     public class DeferredTakeOwnershipCommand
     {
         /// <summary>Network entity ID the routing table applies to.</summary>

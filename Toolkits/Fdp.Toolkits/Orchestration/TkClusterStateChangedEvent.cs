@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <para>EventId 7002 — adjacent to Hrot's DsmStateChangedEvent (7001).</para>
     /// </summary>
     [EventId(7002)]
+    [DataPolicy(DataPolicy.NoRecord)]
     public struct TkClusterStateChangedEvent
     {
         /// <summary>The integer state ID the cluster was in before the transition.</summary>

@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// in reliable initialization mode. Removed after publishing lifecycle status.
     /// </summary>
     [ComponentId(GlobalComponentIds.PendingNetworkAck)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.Transient)]
     public struct PendingNetworkAck 
     { 
         /// <summary>Reliable Init type required to determine expected peers</summary>
@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Replication.Components
     /// bypassing normal change detection. Used for ownership transfer confirmations.
     /// </summary>
     [ComponentId(GlobalComponentIds.ForceNetworkPublish)]
+    [DataPolicy(DataPolicy.Transient)]
     public struct ForceNetworkPublish { }
 
     /// <summary>
