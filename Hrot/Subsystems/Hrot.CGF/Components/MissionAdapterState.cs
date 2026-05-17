@@ -26,7 +26,7 @@ namespace Hrot.CGF.Components
     /// </para>
     /// </summary>
     [ComponentId(129)]
-    [DataPolicy(DataPolicy.NoSave)]
+    [DataPolicy(DataPolicy.Transient)]
     public struct MissionAdapterState
     {
         /// <summary>

@@ -7,6 +7,7 @@ namespace Hrot.Common.Events
     // event arrives with a parsable integer action name. GlobalActionDispatchSystem
     // reads these and dispatches to the registered handler.
     [EventId(8059)]
+    [DataPolicy(DataPolicy.NoRecord)]
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct GlobalActionRequestedEvent
     {
