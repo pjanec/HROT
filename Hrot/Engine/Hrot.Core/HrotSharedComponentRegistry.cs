@@ -3,6 +3,7 @@ using Hrot.Map.Definitions.Tkb;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
@@ -83,6 +84,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<StepTimeIntent>();
         world.RegisterManagedEvent<SetTimeScaleIntent>();
         world.RegisterManagedEvent<SlaveNodeSetUpdatedEvent>();
+        world.RegisterManagedEvent<SpawnEntityCommand>();
+        world.RegisterManagedEvent<UpdateEntityCommand>();
+        world.RegisterManagedEvent<DestroyEntityCommand>();
+        world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();
         world.RegisterEvent<SwitchTimeModeEvent>();
         world.RegisterEvent<TimeSyncRequest>();
         world.RegisterEvent<TimeSyncResponse>();
