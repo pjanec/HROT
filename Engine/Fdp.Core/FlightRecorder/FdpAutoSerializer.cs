@@ -477,7 +477,7 @@ namespace Fdp.Core.FlightRecorder
 
         private static bool IsBuiltInType(Type type)
         {
-            if (type.IsPrimitive || type.IsEnum || type == typeof(string)) return true;
+            if (type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(Fdp.Core.Entity)) return true;
             if (type.IsArray) return true;
             if (type.IsGenericType)
             {
@@ -502,6 +502,14 @@ namespace Fdp.Core.FlightRecorder
                 var enumWriteMethod = typeof(BinaryWriter).GetMethod("Write", new[] { underlyingType });
                 var castExpr = Expression.Convert(valueAccess, underlyingType);
                 return Expression.Call(writer, enumWriteMethod!, castExpr);
+            }
+
+            // CASE A3: Entity Handle (8-byte blit)
+            if (type == typeof(Fdp.Core.Entity))
+            {
+                var entityWriteMethod = typeof(BinaryWriter).GetMethod("Write", new[] { typeof(ulong) });
+                var packedAccess = Expression.PropertyOrField(valueAccess, "PackedValue");
+                return Expression.Call(writer, entityWriteMethod!, packedAccess);
             }
 
             // CASE A: Primitive (int, float, string, etc.)
@@ -576,6 +584,15 @@ namespace Fdp.Core.FlightRecorder
                 var enumReadMethod = typeof(BinaryReader).GetMethod($"Read{underlyingType.Name}");
                 var readExpr = Expression.Call(reader, enumReadMethod!);
                 return Expression.Convert(readExpr, type);
+            }
+
+            // CASE A3: Entity Handle (8-byte blit)
+            if (type == typeof(Fdp.Core.Entity))
+            {
+                var entityReadMethod = typeof(BinaryReader).GetMethod("ReadUInt64");
+                var readExpr = Expression.Call(reader, entityReadMethod!);
+                var ctor = typeof(Fdp.Core.Entity).GetConstructor(new[] { typeof(ulong) });
+                return Expression.New(ctor!, readExpr);
             }
 
             // CASE A: Primitive
