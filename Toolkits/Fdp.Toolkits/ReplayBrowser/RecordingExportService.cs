@@ -33,8 +33,9 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// <inheritdoc/>
         public void ExportToJson(string inputFdpPath, string outputJsonPath, JsonExportOptions options)
         {
-            // Dispatch to the changelog exporter when requested
-            if (options.FormatMode == ExportFormatMode.Changelog)
+            // Dispatch to mutation exporters when requested
+            if (options.FormatMode == ExportFormatMode.Changelog
+                || options.FormatMode == ExportFormatMode.Incremental)
             {
                 ExportChangelogToJson(inputFdpPath, outputJsonPath, options);
                 return;
@@ -341,7 +342,9 @@ namespace Fdp.Toolkit.ReplayBrowser
                     baselines[target] = null;
             }
 
-            var changelogSerializerOpts = BuildChangelogSerializerOptions(options.Minified);
+            var changelogSerializerOpts = options.FormatMode == ExportFormatMode.Incremental
+                ? BuildIncrementalSerializerOptions(options.Minified)
+                : BuildChangelogSerializerOptions(options.Minified);
 
             using var fileStream = new FileStream(outputJsonPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536);
             var writerOptions = new JsonWriterOptions { Indented = !options.Minified };
@@ -571,6 +574,20 @@ namespace Fdp.Toolkit.ReplayBrowser
             return opts;
         }
 
+        private static JsonSerializerOptions BuildIncrementalSerializerOptions(bool minified)
+        {
+            var opts = new JsonSerializerOptions
+            {
+                IncludeFields = true,
+                WriteIndented = !minified,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            };
+            opts.Converters.Add(new CompactDiffListConverter());
+            opts.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
+            opts.MakeReadOnly();
+            return opts;
+        }
+
         private static System.Collections.Generic.List<Diff.DiffNode> PruneUnchangedNodes(System.Collections.Generic.IReadOnlyList<Diff.DiffNode> nodes)
         {
             var result = new System.Collections.Generic.List<Diff.DiffNode>();
@@ -588,6 +605,41 @@ namespace Fdp.Toolkit.ReplayBrowser
                 result.Add(node);
             }
             return result;
+        }
+
+        private sealed class CompactDiffListConverter : JsonConverter<System.Collections.Generic.IReadOnlyList<Diff.DiffNode>>
+        {
+            public override System.Collections.Generic.IReadOnlyList<Diff.DiffNode> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+                => throw new NotSupportedException("Incremental deserialization is not supported.");
+
+            public override void Write(Utf8JsonWriter writer, System.Collections.Generic.IReadOnlyList<Diff.DiffNode> value, JsonSerializerOptions options)
+            {
+                WriteCompactTree(writer, value);
+            }
+
+            private static void WriteCompactTree(Utf8JsonWriter writer, System.Collections.Generic.IReadOnlyList<Diff.DiffNode> nodes)
+            {
+                writer.WriteStartObject();
+                foreach (var node in nodes)
+                {
+                    if (!node.IsModified) continue;
+
+                    if (node is Diff.DiffObject obj)
+                    {
+                        writer.WritePropertyName(obj.Name);
+                        WriteCompactTree(writer, obj.Children);
+                    }
+                    else if (node is Diff.DiffValue val)
+                    {
+                        writer.WritePropertyName(val.Name);
+                        if (val.NewValue == "null")
+                            writer.WriteNullValue();
+                        else
+                            writer.WriteRawValue(val.NewValue, skipInputValidation: true);
+                    }
+                }
+                writer.WriteEndObject();
+            }
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────────

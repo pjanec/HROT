@@ -4,12 +4,12 @@ using Fdp.Core;
 namespace Fdp.Toolkit.ReplayBrowser
 {
     public enum ExportWindowMode { FullFile, ByFrame, ByTime }
-    public enum ExportFormatMode { AbsoluteState, Changelog }
+    public enum ExportFormatMode { Incremental, AbsoluteState, Changelog }
 
     public sealed class JsonExportOptions
     {
         public ExportWindowMode WindowMode = ExportWindowMode.FullFile;
-        public ExportFormatMode FormatMode = ExportFormatMode.AbsoluteState;
+        public ExportFormatMode FormatMode = ExportFormatMode.Incremental;
 
         public int StartFrame = 0;
         public int EndFrame = int.MaxValue;

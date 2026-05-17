@@ -200,10 +200,13 @@ public sealed class ReplayTimelinePanel
     {
         Gui.TextDisabled("Format");
         int fmt = (int)_options.FormatMode;
+        if (Gui.RadioButton("Incremental (Compact)", ref fmt, (int)ExportFormatMode.Incremental))
+            _options.FormatMode = ExportFormatMode.Incremental;
+        Gui.SameLine();
         if (Gui.RadioButton("Absolute State", ref fmt, (int)ExportFormatMode.AbsoluteState))
             _options.FormatMode = ExportFormatMode.AbsoluteState;
         Gui.SameLine();
-        if (Gui.RadioButton("Changelog", ref fmt, (int)ExportFormatMode.Changelog))
+        if (Gui.RadioButton("Changelog (Verbose)", ref fmt, (int)ExportFormatMode.Changelog))
             _options.FormatMode = ExportFormatMode.Changelog;
     }
 
@@ -232,7 +235,7 @@ public sealed class ReplayTimelinePanel
         Gui.Checkbox("Include Events", ref _options.IncludeEvents);
         Gui.Checkbox("Minified Output", ref _options.Minified);
 
-        bool epsilonDisabled = _options.FormatMode != ExportFormatMode.Changelog;
+        bool epsilonDisabled = _options.FormatMode == ExportFormatMode.AbsoluteState;
         if (epsilonDisabled) Gui.BeginDisabled();
         double eps = _options.EpsilonTolerance;
         if (Gui.InputDouble("Epsilon", ref eps))
