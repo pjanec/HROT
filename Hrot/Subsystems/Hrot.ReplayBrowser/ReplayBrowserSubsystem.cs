@@ -103,6 +103,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
             _interactionBus = new Fdp.Core.FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(_interactionBus);
 
             var gizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
             var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
