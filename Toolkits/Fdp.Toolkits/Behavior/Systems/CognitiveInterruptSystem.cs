@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -78,6 +79,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
                     bb.Interrupt_MobilityLost = 1;
+                    repo.Bus.Publish(new CognitiveInterruptEvent
+                    {
+                        Entity = entity,
+                        InterruptType = CognitiveInterruptType.MobilityLost
+                    });
                 }
 
                 prev.Capabilities = curr.Capabilities;

@@ -70,6 +70,9 @@ namespace Fdp.Toolkit.Behavior
         /// <summary>EventId for <c>AssignBehaviorHashEvent</c>.</summary>
         public const int EventId_AssignBehaviorHash = 3102;
 
+        /// <summary>EventId for <c>CognitiveInterruptEvent</c>.</summary>
+        public const int EventId_CognitiveInterrupt = 3103;
+
         // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
         /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
         public const int EventId_EmbarkEntity    = 3201;
