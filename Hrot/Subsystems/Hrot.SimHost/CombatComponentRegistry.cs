@@ -52,6 +52,7 @@ namespace Hrot.SimHost
             // EventToEffectSystem (visual effects) and network egress translators.
             world.RegisterEvent<WeaponFireNotification>();
             world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<HitEvent>();
         }
     }
 }
