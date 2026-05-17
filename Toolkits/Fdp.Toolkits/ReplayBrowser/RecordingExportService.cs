@@ -230,6 +230,12 @@ namespace Fdp.Toolkit.ReplayBrowser
                             else
                                 payload = autoSerializer.TryExtract(sandboxRepo, entity, bit, guidResolver);
 
+                            Type? compType = ComponentTypeRegistry.GetType(bit);
+                            if (payload == null && compType != null && !compType.IsValueType)
+                            {
+                                payload = TrySerializeManagedComponentByReflection(sandboxRepo, entity, compType);
+                            }
+
                             writer.WriteStartObject();
                             writer.WriteString("ComponentType", compName);
                             writer.WriteBoolean("HasAuthority", hasAuth);
@@ -460,6 +466,11 @@ namespace Fdp.Toolkit.ReplayBrowser
         // Cached TryGetComponent<T>(Entity, out T) generic method definition.
         private static readonly System.Reflection.MethodInfo? _tryGetComponentGenericDef =
             FindTryGetComponentMethod();
+        private static readonly System.Reflection.MethodInfo? _hasManagedComponentGeneric =
+            typeof(EntityRepository).GetMethod("HasManagedComponent");
+        private static readonly System.Reflection.MethodInfo? _getManagedComponentGeneric =
+            typeof(EntityRepository).GetMethod("GetManagedComponentRO")
+            ?? typeof(EntityRepository).GetMethod("GetManagedComponent");
 
         private static System.Reflection.MethodInfo? FindTryGetComponentMethod()
         {
@@ -528,8 +539,9 @@ namespace Fdp.Toolkit.ReplayBrowser
                 // Fallback: serialize via reflection for types the auto-serializer cannot handle
                 // (e.g. internal component types registered from a different assembly).
                 if (compType == null) continue;
-                System.Text.Json.Nodes.JsonNode? fallback =
-                    TrySerializeComponentByReflection(repo, entity, compType);
+                System.Text.Json.Nodes.JsonNode? fallback = compType.IsValueType
+                    ? TrySerializeComponentByReflection(repo, entity, compType)
+                    : TrySerializeManagedComponentByReflection(repo, entity, compType);
                 if (fallback != null)
                     obj[compName] = fallback;
             }
@@ -653,6 +665,26 @@ namespace Fdp.Toolkit.ReplayBrowser
                     }
                 }
                 writer.WriteEndObject();
+            }
+        }
+
+        private static System.Text.Json.Nodes.JsonNode? TrySerializeManagedComponentByReflection(
+            EntityRepository repo, Entity entity, Type compType)
+        {
+            if (_hasManagedComponentGeneric == null || _getManagedComponentGeneric == null) return null;
+            try
+            {
+                var hasMethod = _hasManagedComponentGeneric.MakeGenericMethod(compType);
+                bool found = (bool)hasMethod.Invoke(repo, new object[] { entity })!;
+                if (!found) return null;
+
+                var getMethod = _getManagedComponentGeneric.MakeGenericMethod(compType);
+                object comp = getMethod.Invoke(repo, new object[] { entity })!;
+                return JsonSerializer.SerializeToNode(comp, compType, _reflectionFallbackOpts);
+            }
+            catch
+            {
+                return null;
             }
         }
 
