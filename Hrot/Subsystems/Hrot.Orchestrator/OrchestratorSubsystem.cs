@@ -419,4 +419,6 @@ internal sealed class OrchestratorNullDiagnosticEventHistoryService : IDiagnosti
         => Array.Empty<CapturedEventDto>();
 
     public void ClearHistory() { }
+
+    public void RewindHistory(uint toFrame) { }
 }

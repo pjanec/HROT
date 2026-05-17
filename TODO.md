@@ -1,4 +1,7 @@
-
+----------------------------
+The Diff viewer from replay browser should be added to normal simulation live mode
+as well to normal replay mode as diagnostic tool. Showing what has changed
+on selected entity since previous frame.
 -------------------------------
 in json dump as wel in entity inspector renderer, there are often 
 "PackedValue": 4294967296,

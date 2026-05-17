@@ -281,6 +281,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             => Array.Empty<Fdp.Core.Diagnostics.CapturedEventDto>();
 
         public void ClearHistory() { }
+
+        public void RewindHistory(uint toFrame) { }
     }
 
     private sealed class NopPanelEditService : StructEdit.Core.IComponentEditService

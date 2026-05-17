@@ -528,5 +528,7 @@ namespace Hrot.ExCon
             => Array.Empty<CapturedEventDto>();
 
         public void ClearHistory() { }
+
+        public void RewindHistory(uint toFrame) { }
     }
 }
