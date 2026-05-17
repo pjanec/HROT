@@ -635,8 +635,20 @@ namespace Fdp.Toolkit.ReplayBrowser
                             writer.WriteNullValue();
                         else
                         {
-                            using var doc = System.Text.Json.JsonDocument.Parse(val.NewValue);
-                            doc.WriteTo(writer);
+                            if (writer.Options.Indented)
+                            {
+                                string prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(val.NewValue);
+                                string indent = new string(' ', writer.CurrentDepth * 2);
+                                string indentedJson = prettyJson
+                                    .Replace("\r\n", "\n")
+                                    .Replace("\r", "\n")
+                                    .Replace("\n", Environment.NewLine + indent);
+                                writer.WriteRawValue(indentedJson, skipInputValidation: true);
+                            }
+                            else
+                            {
+                                writer.WriteRawValue(val.NewValue, skipInputValidation: true);
+                            }
                         }
                     }
                 }
