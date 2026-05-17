@@ -71,12 +71,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
             ScenarioSerializer serializer,
             Action applyStepFunc)
         {
+            var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
+            var mask = sandboxRepo.GetSnapshotableMask();
+
             // Serialize before
             JsonObject? before = null;
             if (sandboxRepo.IsAlive(entity))
             {
-                var dom = serializer.Serialize(sandboxRepo, new Fdp.Toolkit.Scenario.ScenarioHeader(serializer.SubsystemType));
-                before = dom;
+                before = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask);
             }
 
             // Apply the step (exactly once)
@@ -86,8 +88,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
             JsonObject? after = null;
             if (sandboxRepo.IsAlive(entity))
             {
-                var dom = serializer.Serialize(sandboxRepo, new Fdp.Toolkit.Scenario.ScenarioHeader(serializer.SubsystemType));
-                after = dom;
+                after = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask);
             }
 
             if (before == null && after == null)
