@@ -271,7 +271,11 @@ public sealed class ReplayTimelinePanel
     {
         var path = await _fileDialogService.ShowOpenFileDialogAsync("ReplayBrowser_LoadRecording", "*.fdp");
         if (!string.IsNullOrEmpty(path))
+        {
+            _playbackHistory.Clear();
+            _inspectorState.SelectedEntity = null;
             _context.LoadRecording(path);
+        }
     }
 
     private async Task SaveAsync(JsonExportOptions snapshot)

@@ -90,6 +90,11 @@ public class EventBrowserPanel
             _cachedSnapshot = _historyService.GetHistory();
 
         CapturedEventDto[] snapshot = _cachedSnapshot;
+        if (snapshot.Length == 0 && _selectedEvents.Count > 0)
+        {
+            _selectedEvents.Clear();
+            _lastClickedIndex = -1;
+        }
 
         // Update known types for the filter popup.
         foreach (var e in snapshot)

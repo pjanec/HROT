@@ -53,5 +53,12 @@ namespace Fdp.Toolkit.ReplayBrowser
             OnSeekRequested?.Invoke(_history[_currentIndex]);
             _isNavigating = false;
         }
+
+        public void Clear()
+        {
+            _history.Clear();
+            _currentIndex = -1;
+            _isNavigating = false;
+        }
     }
 }

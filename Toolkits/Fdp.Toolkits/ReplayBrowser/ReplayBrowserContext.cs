@@ -56,6 +56,10 @@ namespace Fdp.Toolkit.ReplayBrowser
             ThrowIfDisposed();
             Playback?.Dispose();
             CurrentFdpPath = fdpPath;
+            // Purge old sandbox state so entities and events do not bleed across recordings.
+            SandboxRepo.SoftClear();
+            SandboxBus.ClearAll();
+            HistoryService.ClearHistory();
             try
             {
                 Playback = new PlaybackController(fdpPath);
@@ -78,13 +82,16 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// Seeks to a specific frame index.
         /// Order: ClearCurrentBuffers -> SeekToFrame -> HistoryService.Capture.
         /// </summary>
-        public void SeekToFrame(int frameIndex)
+        public void SeekToFrame(int frameIndex, bool suppressHistory = false)
         {
             ThrowIfDisposed();
             if (Playback == null) return;
+            if (!suppressHistory)
+                HistoryService.ClearHistory();
             SandboxBus.ClearCurrentBuffers();
             Playback.SeekToFrame(SandboxRepo, frameIndex);
-            HistoryService.Capture("Replay", SandboxBus, (uint)CurrentFrame);
+            if (!suppressHistory)
+                HistoryService.Capture("Replay", SandboxBus, (uint)CurrentFrame);
         }
 
         /// <summary>
@@ -92,13 +99,13 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// Order: ClearCurrentBuffers -> StepForward -> HistoryService.Capture.
         /// Returns false if already at end of recording.
         /// </summary>
-        public bool StepForward()
+        public bool StepForward(bool suppressHistory = false)
         {
             ThrowIfDisposed();
             if (Playback == null) return false;
             SandboxBus.ClearCurrentBuffers();
             bool stepped = Playback.StepForward(SandboxRepo);
-            if (stepped)
+            if (stepped && !suppressHistory)
                 HistoryService.Capture("Replay", SandboxBus, (uint)CurrentFrame);
             return stepped;
         }
@@ -108,13 +115,15 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// Order: ClearCurrentBuffers -> StepBackward -> HistoryService.Capture.
         /// Returns false if already at start of recording.
         /// </summary>
-        public bool StepBackward()
+        public bool StepBackward(bool suppressHistory = false)
         {
             ThrowIfDisposed();
             if (Playback == null) return false;
+            if (!suppressHistory)
+                HistoryService.ClearHistory();
             SandboxBus.ClearCurrentBuffers();
             bool stepped = Playback.StepBackward(SandboxRepo);
-            if (stepped)
+            if (stepped && !suppressHistory)
                 HistoryService.Capture("Replay", SandboxBus, (uint)CurrentFrame);
             return stepped;
         }
