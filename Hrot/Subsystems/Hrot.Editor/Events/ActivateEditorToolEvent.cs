@@ -8,6 +8,9 @@ public sealed class ActivateEditorToolEvent
 {
     public EditorTool Tool { get; init; }
 
+    // Required by FdpAutoSerializer for managed event deserialization
+    public ActivateEditorToolEvent() { }
+
     public ActivateEditorToolEvent(EditorTool tool)
     {
         Tool = tool;

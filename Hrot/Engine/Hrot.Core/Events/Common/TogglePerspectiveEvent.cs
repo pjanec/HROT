@@ -7,4 +7,8 @@ namespace Hrot.Common;
 /// </summary>
 /// <param name="OldPerspective">The perspective that was active before the switch.</param>
 /// <param name="NewPerspective">The perspective that is now active.</param>
-public record TogglePerspectiveEvent(string OldPerspective, string NewPerspective);
+public record TogglePerspectiveEvent(string OldPerspective, string NewPerspective)
+{
+    // Required by FdpAutoSerializer for managed event deserialization
+    public TogglePerspectiveEvent() : this(string.Empty, string.Empty) { }
+}
