@@ -43,6 +43,27 @@ public class EventBrowserPanel
     /// Wire this in the composition root to propagate selection to the entity history.
     /// </summary>
     public Action<Entity>? OnEntityLinkClicked { get; set; }
+    
+    /// <summary>
+    /// Fired when the user selects the "Step Forward and Diff Target" causality action.
+    /// </summary>
+    public Action<Entity>? OnCausalityJumpRequested { get; set; }
+
+    private static Entity? TryExtractTargetEntity(object? rawEvent)
+    {
+        if (rawEvent == null) return null;
+        var type = rawEvent.GetType();
+        
+        var field = type.GetField("Entity", BindingFlags.Public | BindingFlags.Instance);
+        if (field != null && field.FieldType == typeof(Entity))
+            return (Entity)field.GetValue(rawEvent)!;
+
+        var prop = type.GetProperty("Entity", BindingFlags.Public | BindingFlags.Instance);
+        if (prop != null && prop.PropertyType == typeof(Entity))
+            return (Entity)prop.GetValue(rawEvent)!;
+
+        return null;
+    }
 
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
@@ -271,6 +292,23 @@ public class EventBrowserPanel
                         if (ImGuiApi.Selectable(label, isSelected, ImGuiSelectableFlags.SpanAllColumns))
                         {
                             HandleRowClick(viewList, vi, ctrl, shift);
+                        }
+
+                        if (ImGuiApi.BeginPopupContextItem($"##ctx_evt_{vi}"))
+                        {
+                            var targetEntity = TryExtractTargetEntity(evt.RawEvent);
+                            if (targetEntity.HasValue && !targetEntity.Value.IsNull)
+                            {
+                                if (ImGuiApi.MenuItem("Step Forward and Diff Target"))
+                                {
+                                    OnCausalityJumpRequested?.Invoke(targetEntity.Value);
+                                }
+                            }
+                            else
+                            {
+                                ImGuiApi.TextDisabled("No Entity in payload");
+                            }
+                            ImGuiApi.EndPopup();
                         }
 
                         ImGuiApi.PopStyleColor();
