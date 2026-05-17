@@ -48,6 +48,7 @@ namespace Hrot.SimHost
             // Embarkation commands (edit-1/EDIT1-E001)
             world.RegisterEvent<EmbarkEntityCommand>();
             world.RegisterEvent<DisembarkEntityCommand>();
+            world.RegisterEvent<CognitiveInterruptEvent>();
         }
     }
 }

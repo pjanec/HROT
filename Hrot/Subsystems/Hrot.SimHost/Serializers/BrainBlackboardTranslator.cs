@@ -53,6 +53,13 @@ namespace Hrot.SimHost.Serializers
             ref readonly var bb    = ref repo.GetComponentRO<BrainBlackboard>(entity);
             ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
 
+            var root = new JsonObject
+            {
+                ["ExpectedThreatLevel"] = bb.ExpectedThreatLevel,
+                ["Interrupt_MobilityLost"] = bb.Interrupt_MobilityLost,
+                ["Interrupt_Reserved"] = bb.Interrupt_Reserved
+            };
+
             if (_registry.TryGetDefinition(state.ActiveBehaviorHash, out var def)
                 && def.ParamsDtoType != null)
             {
@@ -60,12 +67,15 @@ namespace Hrot.SimHost.Serializers
                 {
                     object dto = Marshal.PtrToStructure((IntPtr)ptr, def.ParamsDtoType)!;
                     var mapped   = DtoDiagnosticMapper.MapObject(dto, def.ParamsDtoType, new HashSet<object>(ReferenceEqualityComparer.Instance));
-                    JsonNode? node = JsonSerializer.SerializeToNode(mapped, FdpJsonOptionsRegistry.DefaultRelaxed);
-                    return new Dictionary<string, object> { [Key] = node ?? new JsonObject() };
+                    root["BehaviorParameters"] = JsonSerializer.SerializeToNode(mapped, FdpJsonOptionsRegistry.DefaultRelaxed) ?? new JsonObject();
                 }
             }
+            else
+            {
+                root["BehaviorParameters"] = new JsonObject();
+            }
 
-            return new Dictionary<string, object> { [Key] = new JsonObject() };
+            return new Dictionary<string, object> { [Key] = root };
         }
 
         // No-op: BrainBlackboard is transient execution state; never loaded from scenario files.
