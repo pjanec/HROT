@@ -31,6 +31,12 @@ public class EventBrowserPanel
         set => _selectedProvider = value ?? "All";
     }
 
+    /// <summary>
+    /// Optional delegate to provide the exact current frame index from the host application.
+    /// Required for accurate "Current Frame Only" filtering when the current frame has no events.
+    /// </summary>
+    public Func<uint>? CurrentFrameProvider { get; set; }
+
     // ── Multi-select state ────────────────────────────────────────────────
     internal readonly HashSet<CapturedEventDto> _selectedEvents = new();
     internal int _lastClickedIndex = -1;
@@ -179,12 +185,12 @@ public class EventBrowserPanel
         }
 
         ImGuiApi.SameLine();
-        uint? latestFrame = null;
-        if (_currentFrameOnly && snapshot.Length > 0)
-            latestFrame = snapshot.Max(e => e.Frame);
+        uint? targetFrame = CurrentFrameProvider?.Invoke();
+        if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
+            targetFrame = snapshot.Max(e => e.Frame);
 
         int visible = snapshot.Count(e =>
-            (!_currentFrameOnly || (latestFrame.HasValue && e.Frame == latestFrame.Value))
+            (!_currentFrameOnly || (targetFrame.HasValue && e.Frame == targetFrame.Value))
             &&
             (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
             && !_disabledTypes.Contains(e.TypeName));
@@ -271,14 +277,14 @@ public class EventBrowserPanel
                     // Build the filtered view list (newest first), preserving index semantics
                     // for Shift+Click range selection.
                     var viewList = new List<CapturedEventDto>();
-                    uint? latestFrame = null;
-                    if (_currentFrameOnly && snapshot.Length > 0)
-                        latestFrame = snapshot.Max(e => e.Frame);
+                    uint? targetFrame = CurrentFrameProvider?.Invoke();
+                    if (_currentFrameOnly && !targetFrame.HasValue && snapshot.Length > 0)
+                        targetFrame = snapshot.Max(e => e.Frame);
 
                     for (int i = snapshot.Length - 1; i >= 0; i--)
                     {
                         var evt = snapshot[i];
-                        if (_currentFrameOnly && latestFrame.HasValue && evt.Frame != latestFrame.Value)
+                        if (_currentFrameOnly && targetFrame.HasValue && evt.Frame != targetFrame.Value)
                             continue;
                         if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
                             && !_disabledTypes.Contains(evt.TypeName))
