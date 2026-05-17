@@ -4,6 +4,8 @@ using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Time.Domain;
+using Fdp.Toolkit.Time.Messages;
 
 namespace Hrot.Map.Common;
 
@@ -74,5 +76,16 @@ public static class HrotSharedComponentRegistry
 
         // ── Application-layer events ──────────────────────────────────────────
         world.RegisterEvent<FireInteractionEvent>();
+        world.RegisterManagedEvent<AdvanceFrameIntent>();
+        world.RegisterManagedEvent<FrameStepCompletedEvent>();
+        world.RegisterManagedEvent<PauseTimeIntent>();
+        world.RegisterManagedEvent<ResumeTimeIntent>();
+        world.RegisterManagedEvent<StepTimeIntent>();
+        world.RegisterManagedEvent<SetTimeScaleIntent>();
+        world.RegisterManagedEvent<SlaveNodeSetUpdatedEvent>();
+        world.RegisterEvent<SwitchTimeModeEvent>();
+        world.RegisterEvent<TimeSyncRequest>();
+        world.RegisterEvent<TimeSyncResponse>();
+        world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
     }
 }
