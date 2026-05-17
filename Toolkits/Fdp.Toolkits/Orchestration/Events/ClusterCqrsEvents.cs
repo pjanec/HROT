@@ -2,7 +2,7 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Orchestration
 {
-    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration);
+    public record struct ExerciseInventoryItem(Guid ExerciseId, DateTime StartTimeUtc, TimeSpan Duration, string? ScenarioId);
 
     /// <summary>
     /// Published by <c>ClusterMaster</c> when a top-level cluster operation completes
