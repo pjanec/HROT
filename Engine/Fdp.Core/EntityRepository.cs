@@ -350,6 +350,9 @@ namespace Fdp.Core
             {
                 table.Clear();
             }
+
+            // Preserve registered event schemas while flushing buffered event data.
+            Bus.ClearAll();
         }
 
         /// <summary>
@@ -358,7 +361,6 @@ namespace Fdp.Core
         public void SoftClear()
         {
              Clear();
-             Bus.ClearAll();
         }
         
         internal void RebuildFreeList()

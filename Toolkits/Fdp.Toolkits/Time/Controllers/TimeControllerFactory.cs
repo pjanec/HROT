@@ -24,18 +24,21 @@ namespace Fdp.Toolkit.Time.Controllers
             
             return config.Role switch
             {
-                TimeRole.Standalone => CreateStandalone(config),
+                TimeRole.Standalone => CreateStandalone(eventBus, config),
                 TimeRole.Master => CreateMaster(eventBus, config),
                 TimeRole.Slave => CreateSlave(eventBus, config),
                 _ => throw new ArgumentException($"Unknown TimeRole: {config.Role}")
             };
         }
         
-        private static ITimeController CreateStandalone(TimeControllerConfig config)
+        private static ITimeController CreateStandalone(
+            FdpEventBus eventBus,
+            TimeControllerConfig config)
         {
-            // Standalone uses MasterSyncController with a private bus (no DDS publishing).
+            // Standalone uses MasterSyncController with the provided bus.
+            // Isolation from DDS is handled by composition root wiring.
             var controller = new MasterSyncController(
-                eventBus: new FdpEventBus(),
+                eventBus: eventBus,
                 config:   config.SyncConfig
             );
             controller.SetTimeScale(config.InitialTimeScale);
