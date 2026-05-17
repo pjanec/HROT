@@ -70,6 +70,30 @@ namespace Fdp.Core.FlightRecorder
             return hash;
         }
 
+        /// <summary>
+        /// Computes a logical layout hash for managed components by hashing the ordered
+        /// sequence of serialized members, matching FdpAutoSerializer.
+        /// </summary>
+        public static ulong ComputeManagedHash(Type type)
+        {
+            if (type == null) throw new ArgumentNullException(nameof(type));
+
+            var hash = FnvOffsetBasis;
+            var members = FdpAutoSerializer.GetSortedMembers(type);
+
+            foreach (var member in members)
+            {
+                hash = HashString(hash, member.Name);
+                hash = FnvMix(hash, (byte)'|');
+
+                Type memberType = member is PropertyInfo pi ? pi.PropertyType : ((FieldInfo)member).FieldType;
+                hash = HashString(hash, memberType.FullName ?? memberType.Name);
+                hash = FnvMix(hash, (byte)'|');
+            }
+
+            return hash;
+        }
+
         // ── Private helpers ────────────────────────────────────────────────────
 
         private static ulong HashString(ulong hash, string str)

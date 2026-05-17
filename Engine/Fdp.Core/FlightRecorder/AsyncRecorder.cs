@@ -325,19 +325,19 @@ namespace Fdp.Core.FlightRecorder
             foreach (var componentId in ComponentTypeRegistry.GetRecordableTypeIds())
             {
                 var type = ComponentTypeRegistry.GetType(componentId);
-                if (type == null) continue;
-
-                // Skip managed class components — Marshal.SizeOf is not applicable.
-                if (!type.IsValueType || type.IsEnum) continue;
+                if (type == null || type.IsEnum) continue;
 
                 try
                 {
+                    bool isValueType = type.IsValueType;
                     manifest[componentId] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
-                        Size       = Marshal.SizeOf(type),
-                        LayoutHash = ComponentLayoutHasher.ComputeHash(type),
-                        IsManaged  = false
+                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        LayoutHash = isValueType
+                            ? ComponentLayoutHasher.ComputeHash(type)
+                            : ComponentLayoutHasher.ComputeManagedHash(type),
+                        IsManaged  = !isValueType
                     };
                 }
                 catch

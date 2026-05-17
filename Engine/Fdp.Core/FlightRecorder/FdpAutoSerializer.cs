@@ -1553,7 +1553,7 @@ namespace Fdp.Core.FlightRecorder
             throw new NotSupportedException($"No read method for type {t.Name}");
         }
         
-        private static List<MemberInfo> GetSortedMembers(Type t)
+        internal static List<MemberInfo> GetSortedMembers(Type t)
         {
             // Finds public props/fields with [Key] attribute
             // MessagePack's KeyAttribute stores the key in a field, not a property

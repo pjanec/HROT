@@ -117,7 +117,7 @@ public sealed class ReplayTimelinePanel
         Gui.SameLine();
         Gui.TextUnformatted($"Frame {current} / {max}");
     }
-
+                                                                
     private void DrawRow4_Meta()
     {
         // Metadata display (tick, simframe, simtime, frame type, size)

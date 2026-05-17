@@ -66,8 +66,6 @@ namespace Fdp.Core.FlightRecorder
                         "Ensure all required assemblies are loaded before playback.");
                 }
 
-                // For managed components (class types) we cannot use Marshal.SizeOf,
-                // so only validate unmanaged (struct) components.
                 if (currentType.IsValueType && !currentType.IsEnum)
                 {
                     // Validate struct size.
@@ -88,6 +86,18 @@ namespace Fdp.Core.FlightRecorder
                             $"Schema mismatch: component '{recorded.Name}' (ID {componentId}) layout has changed. " +
                             $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16} " +
                             $"(recorded size = {recorded.Size} bytes, current size = {currentSize} bytes). " +
+                            "The recording cannot be played back safely.");
+                    }
+                }
+                else if (!currentType.IsValueType)
+                {
+                    // Validate managed logical hash (detects added/removed fields or [Key] reordering)
+                    ulong currentHash = ComponentLayoutHasher.ComputeManagedHash(currentType);
+                    if (currentHash != recorded.LayoutHash)
+                    {
+                        throw new InvalidOperationException(
+                            $"Schema mismatch: managed component '{recorded.Name}' (ID {componentId}) logical layout has changed. " +
+                            $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16}. " +
                             "The recording cannot be played back safely.");
                     }
                 }
