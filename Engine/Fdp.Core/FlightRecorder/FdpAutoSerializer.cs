@@ -1607,8 +1607,10 @@ namespace Fdp.Core.FlightRecorder
         
         internal static List<MemberInfo> GetSortedMembers(Type t)
         {
-            var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => m is FieldInfo || (m is PropertyInfo p && p.CanRead && p.CanWrite))
+            var members = t.GetFields(BindingFlags.Public | BindingFlags.Instance)
+                .Cast<MemberInfo>()
+                .Concat(t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(p => p.GetIndexParameters().Length == 0 && p.CanRead && p.CanWrite))
                 .Where(m => m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
                 .OrderBy(m => m.Name, StringComparer.Ordinal)
                 .ToList();
