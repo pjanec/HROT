@@ -18,6 +18,7 @@ public sealed class ReplayTimelinePanel
     private readonly IRecordingExportService _exportService;
     private readonly IFileDialogService _fileDialogService;
     private readonly PlaybackHistoryTracker _playbackHistory;
+    private readonly InspectorState _inspectorState;
 
     private JsonExportOptions _options = new();
     private bool _isExporting;
@@ -32,12 +33,14 @@ public sealed class ReplayTimelinePanel
         ReplayBrowserContext context,
         IRecordingExportService exportService,
         IFileDialogService fileDialogService,
-        PlaybackHistoryTracker playbackHistory)
+        PlaybackHistoryTracker playbackHistory,
+        InspectorState inspectorState)
     {
         _context = context;
         _exportService = exportService;
         _fileDialogService = fileDialogService;
         _playbackHistory = playbackHistory;
+        _inspectorState = inspectorState;
     }
 
     // ── Public draw entry point ───────────────────────────────────────────
@@ -236,6 +239,10 @@ public sealed class ReplayTimelinePanel
         if (!canSave) Gui.BeginDisabled();
         if (Gui.Button("Save to JSON..."))
         {
+            _options.TargetEntities.Clear();
+            if (_inspectorState.SelectedEntity.HasValue)
+                _options.TargetEntities.Add(_inspectorState.SelectedEntity.Value);
+
             var snapshot = CloneOptions(_options);
             _ = SaveAsync(snapshot);
         }
