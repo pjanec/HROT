@@ -5,6 +5,7 @@
 - When moving code, move its comments with it unchanged.
 
 2. Preserve existing Unicode and text encoding exactly.
+- Expect the file to contain unicode characters. Use tools and scripts that are unicode aware and unicode enabled.
 - Do not normalize/convert Unicode characters.
 - Do not replace typographic symbols (e.g., ×, →, ─, ≤, em dashes, etc.).
 - Do not introduce mojibake by changing file encoding.
