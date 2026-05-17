@@ -205,7 +205,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _inspectorPanel = new EntityInspectorPanel();
             _inspectorPanel.Serializer = _scenarioSerializer;
             _diffPanel = new ComponentDiffPanel();
-            _eventPanel = new EventBrowserPanel(_context.HistoryService);
+            _eventPanel = new EventBrowserPanel(_context.HistoryService)
+            {
+                SelectedProvider = "All"
+            };
 
             WireDelegates();
 
