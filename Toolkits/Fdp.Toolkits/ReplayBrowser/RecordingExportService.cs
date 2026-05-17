@@ -335,8 +335,11 @@ namespace Fdp.Toolkit.ReplayBrowser
 
             // Per-entity state baselines: null means "not yet seen / entity destroyed"
             var baselines = new System.Collections.Generic.Dictionary<Entity, System.Text.Json.Nodes.JsonNode?>();
-            foreach (Entity target in options.TargetEntities)
-                baselines[target] = null;
+            if (options.FilterBySelection)
+            {
+                foreach (Entity target in options.TargetEntities)
+                    baselines[target] = null;
+            }
 
             var changelogSerializerOpts = BuildChangelogSerializerOptions(options.Minified);
 
@@ -347,8 +350,8 @@ namespace Fdp.Toolkit.ReplayBrowser
             // Root is an array (not an object with "Frames")
             writer.WriteStartArray();
 
-            // If no target entities, just write an empty array
-            if (options.TargetEntities.Count == 0)
+            // If no target entities in selection mode, just write an empty array
+            if (options.FilterBySelection && options.TargetEntities.Count == 0)
             {
                 writer.WriteEndArray();
                 writer.Flush();
@@ -379,27 +382,43 @@ namespace Fdp.Toolkit.ReplayBrowser
                 if (sandboxRepo.HasSingletonUnmanaged<GlobalTime>())
                     simTimeSec = sandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
 
-                foreach (Entity target in options.TargetEntities)
+                var currentTargets = new System.Collections.Generic.HashSet<Entity>();
+                if (options.FilterBySelection)
                 {
-                    if (!sandboxRepo.IsAlive(target))
+                    foreach (Entity e in options.TargetEntities)
+                        currentTargets.Add(e);
+                }
+                else
+                {
+                    var liveQuery = sandboxRepo.Query().Build();
+                    foreach (Entity e in liveQuery)
+                        currentTargets.Add(e);
+                    foreach (Entity e in sandboxRepo.GetDestructionLog())
+                        currentTargets.Add(e);
+                }
+
+                foreach (Entity target in currentTargets)
+                {
+                    bool isAlive = sandboxRepo.IsAlive(target);
+                    System.Text.Json.Nodes.JsonObject? current = null;
+                    if (isAlive)
                     {
-                        baselines[target] = null;
-                        continue;
+                        // Build a flat JsonObject keyed by component name for this entity
+                        current = BuildEntityStateNode(
+                            sandboxRepo, target, autoSerializer, guidResolver, _serializer?.Translators);
                     }
 
-                    // Build a flat JsonObject keyed by component name for this entity
-                    System.Text.Json.Nodes.JsonObject current = BuildEntityStateNode(
-                        sandboxRepo, target, autoSerializer, guidResolver, _serializer?.Translators);
-
-                    // First time we see this entity: initialize the baseline without emitting
-                    if (baselines[target] == null)
+                    if (!baselines.TryGetValue(target, out var baseline))
                     {
                         baselines[target] = current;
                         continue;
                     }
 
+                    if (baseline == null && current == null)
+                        continue;
+
                     System.Collections.Generic.IReadOnlyList<Diff.DiffNode> diffs =
-                        _diffService.ComputeTreeDiff(baselines[target], current, options.EpsilonTolerance);
+                        _diffService.ComputeTreeDiff(baseline, current, options.EpsilonTolerance);
 
                     // Emit entry if any mutation occurred
                     bool hasModification = false;
@@ -424,6 +443,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                     baselines[target] = current;
                 }
 
+                sandboxRepo.ClearDestructionLog();
                 writer.Flush();
             }
 

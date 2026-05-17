@@ -253,12 +253,6 @@ public sealed class ReplayTimelinePanel
                 if (_inspectorState.SelectedEntity.HasValue)
                     _options.TargetEntities.Add(_inspectorState.SelectedEntity.Value);
             }
-            else if (_options.FormatMode == ExportFormatMode.Changelog)
-            {
-                var query = _context.SandboxRepo.Query().Build();
-                foreach (var entity in query)
-                    _options.TargetEntities.Add(entity);
-            }
 
             var snapshot = CloneOptions(_options);
             _ = SaveAsync(snapshot);
