@@ -47,7 +47,7 @@ public class EventBrowserPanel
     /// <summary>
     /// Fired when the user selects the "Step Forward and Diff Target" causality action.
     /// </summary>
-    public Action<Entity>? OnCausalityJumpRequested { get; set; }
+    public Action<int, Entity>? OnCausalityJumpRequested { get; set; }
 
     private static Entity? TryExtractTargetEntity(object? rawEvent)
     {
@@ -301,12 +301,8 @@ public class EventBrowserPanel
                             {
                                 if (ImGuiApi.MenuItem("Step Forward and Diff Target"))
                                 {
-                                    OnCausalityJumpRequested?.Invoke(targetEntity.Value);
-                                }
-                            }
-                            else
-                            {
-                                ImGuiApi.TextDisabled("No Entity in payload");
+                                    OnCausalityJumpRequested?.Invoke((int)evt.Frame, targetEntity.Value);
+                                }                                
                             }
                             ImGuiApi.EndPopup();
                         }

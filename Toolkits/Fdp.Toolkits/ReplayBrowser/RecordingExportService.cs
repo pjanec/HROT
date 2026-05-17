@@ -444,6 +444,38 @@ namespace Fdp.Toolkit.ReplayBrowser
                     baselines[target] = current;
                 }
 
+                var eventsThisFrame = new System.Collections.Generic.List<object>();
+                if (options.IncludeEvents)
+                {
+                    foreach (var inspector in sandboxBus.GetDebugInspectors())
+                    {
+                        if (inspector.Count == 0) continue;
+                        Type eventType = inspector.EventType;
+                        foreach (object evt in inspector.InspectReadBuffer())
+                        {
+                            eventsThisFrame.Add(new
+                            {
+                                EventType = eventType.Name,
+                                Payload = evt
+                            });
+                        }
+                    }
+                }
+
+                if (eventsThisFrame.Count > 0)
+                {
+                    var eventEntry = new
+                    {
+                        FrameIndex = currentFrame,
+                        WallClockTicks = meta.WallClockTicks,
+                        RelativeWallTimeSec = relativeWallTimeSec,
+                        SimTimeSec = simTimeSec,
+                        Events = eventsThisFrame
+                    };
+
+                    JsonSerializer.Serialize(writer, eventEntry, changelogSerializerOpts);
+                }
+
                 sandboxRepo.ClearDestructionLog();
                 writer.Flush();
             }
