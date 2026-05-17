@@ -95,9 +95,11 @@ namespace Fdp.Core.Diagnostics
             {
                 while (_count > 0)
                 {
-                    int newestIndex = (_head + _count - 1) % Capacity;
-                    if (_buffer[newestIndex].Frame > toFrame)
+                    int newestIndex = (_head - 1 + Capacity) % Capacity;
+                    if (_buffer[newestIndex].Frame >= toFrame)
                     {
+                        _buffer[newestIndex] = null!;
+                        _head = newestIndex;
                         _count--;
                     }
                     else

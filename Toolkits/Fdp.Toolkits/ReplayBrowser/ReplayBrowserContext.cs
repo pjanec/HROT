@@ -67,6 +67,13 @@ namespace Fdp.Toolkit.ReplayBrowser
                 // Register all component types found in the recording's schema manifest so that
                 // ApplyChunkData can restore component data into SandboxRepo.
                 RecordingSearchService.RegisterAllComponents(SandboxRepo, Playback);
+
+                // Materialize frame 0 immediately after load so ECS state and event history
+                // match what the timeline presents as the starting point.
+                if (Playback.TotalFrames > 0)
+                {
+                    SeekToFrame(0);
+                }
             }
             catch (Exception ex)
             {
