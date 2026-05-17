@@ -9,7 +9,6 @@
     <IsTestProject>true</IsTestProject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);MsgPack005;xUnit1031;CS0649;CS0618;CS0436;CS8600;CS8602;CS8603;CS8604;CS8605;CS8618</NoWarn>
-    <MessagePackGeneratedResolverName>FdpTestsGeneratedResolver</MessagePackGeneratedResolverName>
   </PropertyGroup>
 
   <ItemGroup>

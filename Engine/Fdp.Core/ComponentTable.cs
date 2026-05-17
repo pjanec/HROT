@@ -138,57 +138,6 @@ namespace Fdp.Core
             Buffer.MemoryCopy((void*)dataPtr, destPtr, size, size);
         }
         
-        public byte[] Serialize(EntityRepository repo, MessagePack.MessagePackSerializerOptions options)
-        {
-            var dataToSave = new System.Collections.Generic.List<EntityComponentPair<T>>();
-            var index = repo.GetEntityIndex();
-            int max = index.MaxIssuedIndex;
-            
-            for (int i = 0; i <= max; i++)
-            {
-                 ref var header = ref index.GetHeader(i);
-                 if (header.IsActive && header.ComponentMask.IsSet(_componentTypeId))
-                 {
-                      dataToSave.Add(new EntityComponentPair<T> { EntityId = i, Value = Get(i) });
-                 }
-            }
-
-            return MessagePack.MessagePackSerializer.Serialize(dataToSave, options);
-        }
-
-        public void Deserialize(EntityRepository repo, byte[] data, MessagePack.MessagePackSerializerOptions options)
-        {
-            var loadedData = MessagePack.MessagePackSerializer.Deserialize<System.Collections.Generic.List<EntityComponentPair<T>>>(data, options);
-            
-            foreach (var item in loadedData)
-            {
-                // Set with version 0 (fresh load)
-                this.Set(item.EntityId, item.Value, 0); 
-                
-                // IMPORTANT: We must ensure the component mask is updated for this entity!
-                // However, the caller (RepositorySerializer) handles mask reconstruction differently?
-                // Step 5 says: "Deserialize method calls .Set() which updates masks/headers automatically in your kernel"
-                // ... Wait. ComponentTable.Set() just sets DATA. It does NOT update the ComponentMask in the EntityHeader.
-                // Repository.SetUnmanagedComponent() updates the mask.
-                // BUT, ComponentTable.Set() is low-level.
-                // IF we use `repo.SetComponent(new Entity(id, gen), val)`, it would be cleaner, but we need the generation.
-                // Since this is LOAD, we might not have the generation handy unless we look it up.
-                // The `Load` method in Step 5 already restored entities (active/generation).
-                // So we can look up generation.
-                
-                // Re-reading Step 5: "Rebuild ComponentMasks for entities as we go (The Deserialize method calls .Set() which updates masks/headers automatically in your kernel)"
-                // This implies the user THINKS .Set() updates masks. It DOES NOT in Fdp.Core.
-                // `ComponentTable.Set` only touches `_data`.
-                // `EntityRepository.SetUnmanagedComponent` calls `table.Set` AND updates `header.ComponentMask`.
-                
-                // SO: I should explicitly update the mask here, OR rely on `repo` to do it.
-                // Since I have `repo`, I can access the header.
-                
-                ref var header = ref repo.GetHeader(item.EntityId);
-                header.ComponentMask.SetBit(_componentTypeId);
-            }
-        }
-        
         // ================================================
         // FLIGHT RECORDER SUPPORT
         // ================================================
@@ -238,12 +187,5 @@ namespace Fdp.Core
             }
             #endif
         }
-    }
-
-    [MessagePack.MessagePackObject]
-    public struct EntityComponentPair<T>
-    {
-        [MessagePack.Key(0)] public int EntityId;
-        [MessagePack.Key(1)] public T Value;
     }
 }

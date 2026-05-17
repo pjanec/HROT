@@ -337,43 +337,6 @@ namespace Fdp.Core
                 _chunks[i] = null!;
             }
         }
-        public byte[] Serialize(EntityRepository repo, MessagePack.MessagePackSerializerOptions options)
-        {
-            var dataToSave = new System.Collections.Generic.List<EntityComponentPair<T>>();
-            var index = repo.GetEntityIndex();
-            int max = index.MaxIssuedIndex;
-            
-            for (int i = 0; i <= max; i++)
-            {
-                 ref var header = ref index.GetHeader(i);
-                 if (header.IsActive && header.ComponentMask.IsSet(_componentTypeId))
-                 {
-                      var val = this[i];
-                      if (val != null)
-                      {
-                          dataToSave.Add(new EntityComponentPair<T> { EntityId = i, Value = val });
-                      }
-                 }
-            }
-
-            return MessagePack.MessagePackSerializer.Serialize(dataToSave, options);
-        }
-
-        public void Deserialize(EntityRepository repo, byte[] data, MessagePack.MessagePackSerializerOptions options)
-        {
-            var loadedData = MessagePack.MessagePackSerializer.Deserialize<System.Collections.Generic.List<EntityComponentPair<T>>>(data, options);
-            
-            foreach (var item in loadedData)
-            {
-                // Set with version 0 (fresh load)
-                this.Set(item.EntityId, item.Value, 0); 
-                
-                // Update component mask
-                ref var header = ref repo.GetHeader(item.EntityId);
-                header.ComponentMask.SetBit(_componentTypeId);
-            }
-        }
-
         public unsafe void* GetRawPointer(int entityIndex)
         {
             throw new NotSupportedException("Cannot get raw pointer for managed component");

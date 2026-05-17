@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using MessagePack;
 using System.Text.Json.Serialization;
 
 namespace Fdp.Core.FlightRecorder
@@ -232,9 +231,7 @@ namespace Fdp.Core.FlightRecorder
             
             statements.Add(Expression.Assign(cloneVar, Expression.New(constructor)));
             
-            // Clone each field/property.
-            // Use [Key]-tagged members when present (MessagePack convention); fall back to
-            // all public readable/writable members for types that carry no [Key] attributes.
+            // Clone each field/property from the deterministic serializer member list.
             var members = GetSortedMembers(type);
             if (members.Count == 0)
             {
@@ -1577,8 +1574,7 @@ namespace Fdp.Core.FlightRecorder
         {
             var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance)
                 .Where(m => m is FieldInfo || (m is PropertyInfo p && p.CanRead && p.CanWrite))
-                .Where(m => m.GetCustomAttribute<IgnoreMemberAttribute>() == null &&
-                            m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+                .Where(m => m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
                 .OrderBy(m => m.Name, StringComparer.Ordinal)
                 .ToList();
 

@@ -43,10 +43,6 @@ namespace Fdp.Core
         /// </summary>
         unsafe void SetRaw(int entityIndex, IntPtr dataPtr, int size, uint version);
 
-        // Serialization
-        byte[] Serialize(EntityRepository repo, MessagePack.MessagePackSerializerOptions options);
-        void Deserialize(EntityRepository repo, byte[] data, MessagePack.MessagePackSerializerOptions options);
-
         /// <summary>
         /// Set component value using type-erased object.
         /// Used by command buffers and network ingress.
