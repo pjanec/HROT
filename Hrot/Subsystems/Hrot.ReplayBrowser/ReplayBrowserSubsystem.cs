@@ -237,12 +237,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 {
                     if (currentFrame > 0 && currentEntity.HasValue && !currentEntity.Value.IsNull)
                     {
-                        _context.SeekToFrame(currentFrame - 1);
+                        _context.SeekToFrame(currentFrame - 1, suppressHistory: true);
                         _diffPanel.CurrentDiffs = _diffService.ComputeEntityDiff(
                             currentEntity.Value,
                             _context.SandboxRepo,
                             _scenarioSerializer,
-                            () => _context.StepForward());
+                            () => _context.StepForward(suppressHistory: true));
                     }
                     else
                     {
