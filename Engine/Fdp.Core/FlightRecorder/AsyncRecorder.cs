@@ -358,6 +358,13 @@ namespace Fdp.Core.FlightRecorder
             {
                 var attr = type.GetCustomAttribute<EventIdAttribute>();
                 if (attr == null || type.IsEnum) continue;
+                
+                // Enforce the DataPolicy.NoRecord contract.
+                var policyAttr = type.GetCustomAttribute<DataPolicyAttribute>();
+                if (policyAttr != null && policyAttr.Policy.HasFlag(DataPolicy.NoRecord))
+                {
+                    continue;
+                }
 
                 try
                 {
