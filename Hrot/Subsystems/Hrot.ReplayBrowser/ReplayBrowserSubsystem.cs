@@ -380,6 +380,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         diffPanel.OnEntityLinkClicked  = selectIntent;
         eventPanel.OnEntityLinkClicked = selectIntent;
+        eventPanel.OnCausalityJumpRequested = ExecuteCausalityJump;
 
         return (seekIntent, selectIntent);
     }
