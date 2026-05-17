@@ -419,15 +419,8 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                     System.Collections.Generic.IReadOnlyList<Diff.DiffNode> diffs =
                         _diffService.ComputeTreeDiff(baseline, current, options.EpsilonTolerance);
-
-                    // Emit entry if any mutation occurred
-                    bool hasModification = false;
-                    foreach (Diff.DiffNode d in diffs)
-                    {
-                        if (d.IsModified) { hasModification = true; break; }
-                    }
-
-                    if (hasModification)
+                    var prunedDiffs = PruneUnchangedNodes(diffs);
+                    if (prunedDiffs.Count > 0)
                     {
                         var entry = new ChangelogEntryDto(
                             FrameIndex: currentFrame,
@@ -435,7 +428,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                             RelativeWallTimeSec: relativeWallTimeSec,
                             SimTimeSec: simTimeSec,
                             EntityHandle: guidResolver.Resolve(target),
-                            Mutations: diffs);
+                            Mutations: prunedDiffs);
 
                         JsonSerializer.Serialize(writer, entry, changelogSerializerOpts);
                     }
@@ -576,6 +569,25 @@ namespace Fdp.Toolkit.ReplayBrowser
             opts.TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver();
             opts.MakeReadOnly();
             return opts;
+        }
+
+        private static System.Collections.Generic.List<Diff.DiffNode> PruneUnchangedNodes(System.Collections.Generic.IReadOnlyList<Diff.DiffNode> nodes)
+        {
+            var result = new System.Collections.Generic.List<Diff.DiffNode>();
+            foreach (var node in nodes)
+            {
+                if (!node.IsModified) continue;
+
+                if (node is Diff.DiffObject obj)
+                {
+                    var prunedChildren = PruneUnchangedNodes(obj.Children);
+                    obj.Children.Clear();
+                    obj.Children.AddRange(prunedChildren);
+                }
+
+                result.Add(node);
+            }
+            return result;
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────────
