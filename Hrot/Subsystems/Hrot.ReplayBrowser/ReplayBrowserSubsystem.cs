@@ -55,6 +55,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
     private ScenarioSerializer _scenarioSerializer = null!;
+    // ── Continuous Diff Tracking ──────────────────────────────────────────
+    private int _lastDiffFrame = -1;
+    private Entity? _lastDiffEntity = null;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
@@ -221,6 +224,33 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         if (!_headless)
         {
+            int currentFrame = _context.CurrentFrame;
+            Entity? currentEntity = _inspectorState?.SelectedEntity;
+
+            // Reactive diff engine: re-evaluate whenever time or selection shifts.
+            if (_lastDiffFrame != currentFrame || _lastDiffEntity != currentEntity)
+            {
+                _lastDiffFrame = currentFrame;
+                _lastDiffEntity = currentEntity;
+
+                if (_diffPanel != null)
+                {
+                    if (currentFrame > 0 && currentEntity.HasValue && !currentEntity.Value.IsNull)
+                    {
+                        _context.SeekToFrame(currentFrame - 1);
+                        _diffPanel.CurrentDiffs = _diffService.ComputeEntityDiff(
+                            currentEntity.Value,
+                            _context.SandboxRepo,
+                            _scenarioSerializer,
+                            () => _context.StepForward());
+                    }
+                    else
+                    {
+                        _diffPanel.CurrentDiffs = Array.Empty<DiffNode>();
+                    }
+                }
+            }
+
             // Allow user to pan the replay viewport when ImGui isn't capturing the mouse
             if (!ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null)
                 _canvas.Camera.HandleInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider());
@@ -354,7 +384,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// Test seam: wires delegates using caller-supplied dependencies.
     /// Returns the seek and select intents so tests can invoke them directly.
     /// Replaces _entityHistory, _playbackHistory, and _context with the injected
-    /// objects so ExecuteCausalityJump operates on the same instances in tests.
+    /// objects so causality-jump and reactive diff logic operate on the same instances in tests.
     /// </summary>
     internal (Action<int> seekIntent, Action<Entity> selectIntent) WireDelegatesForTest(
         EntitySelectionHistory entityHistory,
@@ -386,32 +416,26 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     }
 
     /// <summary>
-    /// Executes the "Step Forward and Diff Target" causality macro.
-    /// Sequence: push pre-frame, step forward, push post-frame, select target.
-    /// Exposed internal for testability.
+    /// Executes the causality jump by seeking to the frame immediately after the source event
+    /// and selecting the target entity. Diff rendering is handled reactively in Update().
+    /// </summary>
+    internal void ExecuteCausalityJump(int eventFrame, Entity target)
+    {
+        _playbackHistory.PushFrame(_context.CurrentFrame);
+        _entityHistory.PushSelection(_inspectorState?.SelectedEntity ?? Entity.Null);
+
+        int targetFrame = eventFrame + 1;
+
+        _entityHistory.PushSelection(target);
+        _playbackHistory.PushFrame(targetFrame);
+        _context.SeekToFrame(targetFrame);
+    }
+
+    /// <summary>
+    /// Compatibility overload retained for existing tests. Uses the current frame as jump origin.
     /// </summary>
     internal void ExecuteCausalityJump(Entity target)
-    {
-        int preFrame = _context.CurrentFrame;
-        _playbackHistory.PushFrame(preFrame);
-
-        if (_diffPanel != null)
-        {
-            _diffPanel.CurrentDiffs = _diffService.ComputeEntityDiff(
-                target,
-                _context.SandboxRepo,
-                _scenarioSerializer,
-                () => _context.StepForward());
-        }
-        else
-        {
-            _context.StepForward();
-        }
-
-        int postFrame = _context.CurrentFrame;
-        _playbackHistory.PushFrame(postFrame);
-        _entityHistory.PushSelection(target);
-    }
+        => ExecuteCausalityJump(_context.CurrentFrame, target);
 
     // ── Null service stubs (used until real implementations are injected) ──
 
