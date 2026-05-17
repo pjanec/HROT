@@ -6,6 +6,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using MessagePack;
+using System.Text.Json.Serialization;
 
 namespace Fdp.Core.FlightRecorder
 {
@@ -42,6 +43,25 @@ namespace Fdp.Core.FlightRecorder
         {
             var deserializer = (Func<BinaryReader, T>)_deserializers.GetOrAdd(typeof(T), t => GenerateDeserializer<T>());
             return deserializer(reader);
+        }
+
+        /// <summary>
+        /// Validates that the type has serializable members and pre-warms serializer caches.
+        /// </summary>
+        public static void EnsureCompiled<T>()
+        {
+            Type type = typeof(T);
+            var members = GetSortedMembers(type);
+
+            if (members.Count == 0 && !type.IsValueType)
+            {
+                throw new InvalidOperationException(
+                    $"Serialization Contract Violation: Managed event '{type.Name}' has no public serializable fields or properties. " +
+                    "If this is intentional, it must be an unmanaged struct, not a class.");
+            }
+
+            _serializers.GetOrAdd(type, _ => GenerateSerializer<T>());
+            _deserializers.GetOrAdd(type, _ => GenerateDeserializer<T>());
         }
 
         /// <summary>
@@ -1555,37 +1575,14 @@ namespace Fdp.Core.FlightRecorder
         
         internal static List<MemberInfo> GetSortedMembers(Type t)
         {
-            // Finds public props/fields with [Key] attribute
-            // MessagePack's KeyAttribute stores the key in a field, not a property
             var members = t.GetMembers(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => (m is PropertyInfo || m is FieldInfo) && m.GetCustomAttribute<KeyAttribute>() != null)
-                .Select(m => new { Member = m, Attr = m.GetCustomAttribute<KeyAttribute>()! })
-                .OrderBy(x => GetMessagePackKey(x.Attr))
-                .Select(x => x.Member)
+                .Where(m => m is FieldInfo || (m is PropertyInfo p && p.CanRead && p.CanWrite))
+                .Where(m => m.GetCustomAttribute<IgnoreMemberAttribute>() == null &&
+                            m.GetCustomAttribute<JsonIgnoreAttribute>() == null)
+                .OrderBy(m => m.Name, StringComparer.Ordinal)
                 .ToList();
-            
+
             return members;
-        }
-
-        private static int GetMessagePackKey(Attribute attr)
-        {
-            var type = attr.GetType();
-            
-            // 1. Try public property (IntKey or Key)
-            var p = type.GetProperty("IntKey") ?? type.GetProperty("Key");
-            if (p != null && p.CanRead && p.PropertyType == typeof(int))
-            {
-                return (int)p.GetValue(attr)!;
-            }
-
-            // 2. Try private field 'intKey' (legacy/internal MessagePack impl)
-            var f = type.GetField("intKey", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (f != null && f.FieldType == typeof(int))
-            {
-                return (int)f.GetValue(attr)!;
-            }
-
-            return 0;
         }
     }
     

@@ -145,6 +145,10 @@ namespace Fdp.Core
         /// </summary>
         public void RegisterManaged<T>()
         {
+            if (FdpConfig.EnforceExplicitEventRegistration)
+            {
+                FlightRecorder.FdpAutoSerializer.EnsureCompiled<T>();
+            }
             GetOrCreateManagedStream<T>();
         }
 
