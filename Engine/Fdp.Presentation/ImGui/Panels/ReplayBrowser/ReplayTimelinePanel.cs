@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
+using Fdp.Presentation.Icons;
 using Fdp.Toolkit.ReplayBrowser;
 using ImGuiNET;
 
@@ -25,6 +26,9 @@ public sealed class ReplayTimelinePanel
     public bool IsPlaying { get; set; }
     public float PlaybackRate { get; set; } = 1.0f;
     private static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
+    private float _stepHoldTime;
+    private int _stepHoldDirection;
+    private float _autoStepAccumulator;
 
     /// <summary>
     /// Fired when the user selects an entity via the timeline panel
@@ -62,27 +66,34 @@ public sealed class ReplayTimelinePanel
 
     private void DrawRow1_Transport()
     {
-        // Back
-        if (!_playbackHistory.CanGoBack) Gui.BeginDisabled();
-        if (Gui.Button("<- Back")) _playbackHistory.GoBack();
-        if (!_playbackHistory.CanGoBack) Gui.EndDisabled();
+        float iconSize = Gui.GetFrameHeight() * 1.8f;
+        float dt = Gui.GetIO().DeltaTime;
+        bool hasRecording = _context.Playback != null;
+
+        if (TransportIconRenderer.DrawButton("##rb_hist_back", iconSize, TransportShape.HistoryBack, _playbackHistory.CanGoBack, out _, out _))
+            _playbackHistory.GoBack();
 
         Gui.SameLine();
-
-        // Forward
-        if (!_playbackHistory.CanGoForward) Gui.BeginDisabled();
-        if (Gui.Button("Fwd ->")) _playbackHistory.GoForward();
-        if (!_playbackHistory.CanGoForward) Gui.EndDisabled();
+        if (TransportIconRenderer.DrawButton("##rb_hist_fwd", iconSize, TransportShape.HistoryFwd, _playbackHistory.CanGoForward, out _, out _))
+            _playbackHistory.GoForward();
 
         Gui.SameLine();
-        if (Gui.Button("|< Rewind")) SeekToFirst();
+        if (TransportIconRenderer.DrawButton("##rb_rewind", iconSize, TransportShape.Rewind, hasRecording, out _, out _))
+        {
+            IsPlaying = false;
+            SeekToFirst();
+        }
+
         Gui.SameLine();
-        string playLabel = IsPlaying ? "|| Pause" : "Play >";
-        if (Gui.Button(playLabel))
+        TransportShape playPauseShape = IsPlaying ? TransportShape.Pause : TransportShape.Play;
+        if (TransportIconRenderer.DrawButton("##rb_play_pause", iconSize, playPauseShape, hasRecording, out _, out _))
         {
             IsPlaying = !IsPlaying;
         }
+
         Gui.SameLine();
+        float comboOffsetY = (iconSize - Gui.GetFrameHeight()) * 0.5f;
+        Gui.SetCursorPosY(Gui.GetCursorPosY() + comboOffsetY);
         Gui.SetNextItemWidth(60f);
         if (Gui.BeginCombo("##playback_rate", $"{PlaybackRate:F1}x"))
         {
@@ -94,10 +105,84 @@ public sealed class ReplayTimelinePanel
             }
             Gui.EndCombo();
         }
+        Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
+
         Gui.SameLine();
-        if (Gui.Button("< Step Back")) _context.StepBackward();
+        TransportIconRenderer.DrawButton("##rb_step_back", iconSize, TransportShape.StepBack, hasRecording, out bool stepBackHeld, out bool stepBackActivated);
+        if (stepBackActivated)
+        {
+            IsPlaying = false;
+            _context.StepBackward();
+            _stepHoldTime = 0f;
+            _stepHoldDirection = -1;
+            _autoStepAccumulator = 0f;
+        }
+
         Gui.SameLine();
-        if (Gui.Button("Step Forward >")) _context.StepForward();
+        TransportIconRenderer.DrawButton("##rb_step_fwd", iconSize, TransportShape.StepFwd, hasRecording, out bool stepFwdHeld, out bool stepFwdActivated);
+        if (stepFwdActivated)
+        {
+            IsPlaying = false;
+            _context.StepForward();
+            _stepHoldTime = 0f;
+            _stepHoldDirection = 1;
+            _autoStepAccumulator = 0f;
+        }
+
+        bool autoBackHeld = stepBackHeld && !stepFwdHeld;
+        bool autoFwdHeld = stepFwdHeld && !stepBackHeld;
+
+        if (hasRecording && (autoBackHeld || autoFwdHeld))
+        {
+            _stepHoldDirection = autoBackHeld ? -1 : 1;
+            _stepHoldTime += dt;
+
+            const float holdDebounceSec = 0.30f;
+            const float holdRampSec = 2.00f;
+
+            if (_stepHoldTime > holdDebounceSec)
+            {
+                IsPlaying = false;
+
+                float rampProgress = Math.Clamp((_stepHoldTime - holdDebounceSec) / holdRampSec, 0f, 1f);
+                float currentRate = 1.0f + 9.0f * rampProgress;
+
+                _autoStepAccumulator += dt * currentRate;
+                float frameTime = 1.0f / 60.0f;
+
+                int framesToStep = 0;
+                while (_autoStepAccumulator >= frameTime)
+                {
+                    _autoStepAccumulator -= frameTime;
+                    framesToStep++;
+                }
+
+                if (framesToStep > 0)
+                {
+                    if (_stepHoldDirection > 0)
+                    {
+                        for (int i = 0; i < framesToStep; i++)
+                        {
+                            if (!_context.StepForward())
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        int currentFrame = _context.CurrentFrame;
+                        int targetFrame = Math.Max(0, currentFrame - framesToStep);
+                        if (targetFrame < currentFrame)
+                            _context.SeekToFrame(targetFrame);
+                    }
+                }
+            }
+        }
+        else
+        {
+            _stepHoldTime = 0f;
+            _stepHoldDirection = 0;
+            _autoStepAccumulator = 0f;
+        }
     }
 
     private void DrawRow2_TimeInfo()
