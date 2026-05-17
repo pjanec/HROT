@@ -58,6 +58,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
+    private float _playbackAccumulator = 0f;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
@@ -225,6 +226,26 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         if (!_headless)
         {
+            if (_timelinePanel != null && _timelinePanel.IsPlaying)
+            {
+                _playbackAccumulator += deltaTime * _timelinePanel.PlaybackRate;
+                float frameTime = 1.0f / 60.0f;
+
+                if (_playbackAccumulator > frameTime * 10f)
+                    _playbackAccumulator = frameTime * 10f;
+
+                while (_playbackAccumulator >= frameTime)
+                {
+                    _playbackAccumulator -= frameTime;
+                    if (!_context.StepForward())
+                    {
+                        _timelinePanel.IsPlaying = false;
+                        _playbackAccumulator = 0f;
+                        break;
+                    }
+                }
+            }
+
             int currentFrame = _context.CurrentFrame;
             Entity? currentEntity = _inspectorState?.SelectedEntity;
 
