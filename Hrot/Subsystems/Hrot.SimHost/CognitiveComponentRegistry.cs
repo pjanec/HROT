@@ -49,6 +49,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<EmbarkEntityCommand>();
             world.RegisterEvent<DisembarkEntityCommand>();
             world.RegisterEvent<CognitiveInterruptEvent>();
+            world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
         }
