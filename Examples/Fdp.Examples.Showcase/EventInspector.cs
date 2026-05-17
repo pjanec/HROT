@@ -236,8 +236,8 @@ namespace Fdp.Examples.Showcase
                 {
                     try
                     {
-                        // Skip IgnoreMember properties for cleaner view
-                        if (prop.GetCustomAttributes(typeof(MessagePack.IgnoreMemberAttribute), true).Length > 0)
+                        // Skip JsonIgnore properties for cleaner view
+                        if (prop.GetCustomAttributes(typeof(System.Text.Json.Serialization.JsonIgnoreAttribute), true).Length > 0)
                             continue;
                         
                         var value = prop.GetValue(evt);

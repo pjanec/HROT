@@ -1,5 +1,4 @@
 using Fdp.Kernel;
-using MessagePack;
 using System.Collections.Generic;
 
 namespace Fdp.Examples.Showcase.Components
@@ -12,28 +11,20 @@ namespace Fdp.Examples.Showcase.Components
     /// This component supplements UnitStats (which has the actual health values)
     /// by tracking detailed combat history.
     /// </summary>
-    [MessagePackObject]
     public class CombatHistory
     {
-        [Key(0)]
         public int TotalDamageTaken { get; set; }
         
-        [Key(1)]
         public int TotalDamageDealt { get; set; }
         
-        [Key(2)]
         public int TimesHit { get; set; }
         
-        [Key(3)]
         public int TimesAttacked { get; set; }
         
-        [Key(4)]
         public int Kills { get; set; }
         
-        [Key(5)]
         public List<string> RecentEvents { get; set; } = new();
         
-        [Key(6)]
         public long CreationTimestamp { get; set; }
         
         public CombatHistory()
