@@ -47,6 +47,9 @@ class Program
 {
     static int Main(string[] args)
     {
+        FdpConfig.EnforceExplicitComponentIds = true;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+
         // Enable NLog Console Output globally for FdpLog<T>.
         // Also register the UI target so the Message Log window captures all output.
         var logConfig = new LoggingConfiguration();
