@@ -124,7 +124,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             CreateNullContext(),
             new StubExportService(),
             new StubFileDialogService(),
-            new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker());
+            new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(),
+            new InspectorState());
         var inspectorPanel = new Fdp.Presentation.Panels.EntityInspectorPanel();
         var diffPanel      = new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel();
         var eventPanel     = new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService());

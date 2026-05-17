@@ -13,6 +13,7 @@ using Fdp.Toolkit.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Runner;
+using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Vis2D;
 using Hrot.CGF.Configuration;
 using Hrot.Core.Network;
@@ -49,9 +50,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
+    private ComponentDiffService _diffService = null!;
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
+    private ScenarioSerializer _scenarioSerializer = null!;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
@@ -96,7 +99,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 behaviorRegistry,
                 geoTransform: null,
                 entityMap: new NetworkEntityMap());
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
+            _scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
             // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
             _interactionBus = new Fdp.Core.FdpEventBus();
@@ -188,16 +191,18 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _canvas.AddLayer(_gizmoLayer);
             _canvas.DrawBuffer = _gizmoBuffer;
 
-            _exportService = new RecordingExportService(scenarioSerializer);
+            _diffService = new ComponentDiffService();
+            _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
             _fileDialogService = new WinFormsFileDialogService();
             _timelinePanel = new ReplayTimelinePanel(
                 _context,
                 _exportService,
                 _fileDialogService,
-                _playbackHistory);
+                _playbackHistory,
+                _inspectorState);
 
             _inspectorPanel = new EntityInspectorPanel();
-            _inspectorPanel.Serializer = scenarioSerializer;
+            _inspectorPanel.Serializer = _scenarioSerializer;
             _diffPanel = new ComponentDiffPanel();
             _eventPanel = new EventBrowserPanel(_context.HistoryService);
 
@@ -384,7 +389,20 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         int preFrame = _context.CurrentFrame;
         _playbackHistory.PushFrame(preFrame);
-        _context.StepForward();
+
+        if (_diffPanel != null)
+        {
+            _diffPanel.CurrentDiffs = _diffService.ComputeEntityDiff(
+                target,
+                _context.SandboxRepo,
+                _scenarioSerializer,
+                () => _context.StepForward());
+        }
+        else
+        {
+            _context.StepForward();
+        }
+
         int postFrame = _context.CurrentFrame;
         _playbackHistory.PushFrame(postFrame);
         _entityHistory.PushSelection(target);
