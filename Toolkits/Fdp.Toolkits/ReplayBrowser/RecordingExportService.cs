@@ -413,8 +413,7 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                     if (!baselines.TryGetValue(target, out var baseline))
                     {
-                        baselines[target] = current;
-                        continue;
+                        baseline = null;
                     }
 
                     if (baseline == null && current == null)
@@ -635,7 +634,10 @@ namespace Fdp.Toolkit.ReplayBrowser
                         if (val.NewValue == "null")
                             writer.WriteNullValue();
                         else
-                            writer.WriteRawValue(val.NewValue, skipInputValidation: true);
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(val.NewValue);
+                            doc.WriteTo(writer);
+                        }
                     }
                 }
                 writer.WriteEndObject();
