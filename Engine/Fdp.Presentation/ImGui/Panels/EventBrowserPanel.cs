@@ -36,6 +36,7 @@ public class EventBrowserPanel
     internal int _lastClickedIndex = -1;
 
     private bool _paused;
+    private bool _currentFrameOnly;
     private CapturedEventDto[] _cachedSnapshot = Array.Empty<CapturedEventDto>();
 
     /// <summary>
@@ -126,6 +127,8 @@ public class EventBrowserPanel
     private void DrawToolbar(CapturedEventDto[] snapshot)
     {
         ImGuiApi.Checkbox("Pause", ref _paused);
+        ImGuiApi.SameLine();
+        ImGuiApi.Checkbox("Current Frame Only", ref _currentFrameOnly);
 
         ImGuiApi.SameLine();
         ImGuiApi.SetNextItemWidth(150f);
@@ -176,7 +179,13 @@ public class EventBrowserPanel
         }
 
         ImGuiApi.SameLine();
+        uint? latestFrame = null;
+        if (_currentFrameOnly && snapshot.Length > 0)
+            latestFrame = snapshot.Max(e => e.Frame);
+
         int visible = snapshot.Count(e =>
+            (!_currentFrameOnly || (latestFrame.HasValue && e.Frame == latestFrame.Value))
+            &&
             (_selectedProvider == "All" || e.ProviderName == _selectedProvider)
             && !_disabledTypes.Contains(e.TypeName));
 
@@ -262,9 +271,15 @@ public class EventBrowserPanel
                     // Build the filtered view list (newest first), preserving index semantics
                     // for Shift+Click range selection.
                     var viewList = new List<CapturedEventDto>();
+                    uint? latestFrame = null;
+                    if (_currentFrameOnly && snapshot.Length > 0)
+                        latestFrame = snapshot.Max(e => e.Frame);
+
                     for (int i = snapshot.Length - 1; i >= 0; i--)
                     {
                         var evt = snapshot[i];
+                        if (_currentFrameOnly && latestFrame.HasValue && evt.Frame != latestFrame.Value)
+                            continue;
                         if ((_selectedProvider == "All" || evt.ProviderName == _selectedProvider)
                             && !_disabledTypes.Contains(evt.TypeName))
                             viewList.Add(evt);

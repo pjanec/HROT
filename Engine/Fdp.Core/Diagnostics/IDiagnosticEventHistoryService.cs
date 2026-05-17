@@ -41,5 +41,11 @@ namespace Fdp.Core.Diagnostics
 
         /// <summary>Clears all entries from the circular buffer.</summary>
         void ClearHistory();
+
+        /// <summary>
+        /// Removes all events that occurred strictly after the specified frame,
+        /// retaining older causality history.
+        /// </summary>
+        void RewindHistory(uint toFrame);
     }
 }

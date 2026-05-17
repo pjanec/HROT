@@ -88,6 +88,26 @@ namespace Fdp.Core.Diagnostics
 
         // ── Headless summary helper (no ImGui dependency) ─────────────────────
 
+        /// <inheritdoc/>
+        public void RewindHistory(uint toFrame)
+        {
+            lock (_lock)
+            {
+                while (_count > 0)
+                {
+                    int newestIndex = (_head + _count - 1) % Capacity;
+                    if (_buffer[newestIndex].Frame > toFrame)
+                    {
+                        _count--;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         private static string GetGenericEventSummary(object evt, Type type)
         {
             if (evt == null) return "null";

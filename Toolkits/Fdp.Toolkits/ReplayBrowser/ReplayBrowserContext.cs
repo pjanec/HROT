@@ -86,8 +86,14 @@ namespace Fdp.Toolkit.ReplayBrowser
         {
             ThrowIfDisposed();
             if (Playback == null) return;
+            if (frameIndex < 0 || frameIndex >= Playback.TotalFrames) return;
             if (!suppressHistory)
-                HistoryService.ClearHistory();
+            {
+                if (frameIndex < CurrentFrame)
+                    HistoryService.RewindHistory((uint)frameIndex);
+                else
+                    HistoryService.ClearHistory();
+            }
             SandboxBus.ClearCurrentBuffers();
             Playback.SeekToFrame(SandboxRepo, frameIndex);
             if (!suppressHistory)
@@ -118,9 +124,10 @@ namespace Fdp.Toolkit.ReplayBrowser
         public bool StepBackward(bool suppressHistory = false)
         {
             ThrowIfDisposed();
-            if (Playback == null) return false;
+            if (Playback == null || Playback.CurrentFrame <= 0) return false;
+            int targetFrame = Playback.CurrentFrame - 1;
             if (!suppressHistory)
-                HistoryService.ClearHistory();
+                HistoryService.RewindHistory((uint)targetFrame);
             SandboxBus.ClearCurrentBuffers();
             bool stepped = Playback.StepBackward(SandboxRepo);
             if (stepped && !suppressHistory)
