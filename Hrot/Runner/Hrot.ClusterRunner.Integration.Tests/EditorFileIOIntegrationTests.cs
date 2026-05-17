@@ -2,7 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
-using Hrot.ScenarioEditor.Events;
+using Hrot.Common.Events;
 using Fdp.Toolkit.Replication;
 using Xunit;
 

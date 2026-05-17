@@ -40,6 +40,7 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<TracerTarget>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Hrot.IG.IgWeaponFireEvent>();
         world.RegisterManagedComponent<ContextMenuState>();
 
         world.RegisterManagedComponent<EditablePolyline>();

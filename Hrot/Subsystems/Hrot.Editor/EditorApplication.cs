@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.NetworkSpawning.Events;
+using Hrot.Common.Events;
 using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
 using Hrot.Editor.Modules;

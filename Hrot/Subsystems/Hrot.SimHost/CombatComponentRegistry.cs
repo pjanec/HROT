@@ -53,6 +53,8 @@ namespace Hrot.SimHost
             world.RegisterEvent<WeaponFireNotification>();
             world.RegisterEvent<DetonationNotification>();
             world.RegisterEvent<HitEvent>();
+            world.RegisterEvent<DamageAssessedEvent>();
+            world.RegisterEvent<FireRequestEvent>();
         }
     }
 }

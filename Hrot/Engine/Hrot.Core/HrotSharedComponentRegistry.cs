@@ -92,5 +92,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<TimeSyncRequest>();
         world.RegisterEvent<TimeSyncResponse>();
         world.RegisterEvent<TimeSyncOffsetCalculatedEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Replication.Components.DescriptorAuthorityChanged>();
+        world.RegisterManagedEvent<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>();
     }
 }

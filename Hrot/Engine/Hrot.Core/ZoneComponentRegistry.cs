@@ -14,5 +14,7 @@ public static class ZoneComponentRegistry
     public static void RegisterAll(EntityRepository world)
     {
         world.RegisterManagedComponent<ZoneMembership>();
+        world.RegisterManagedEvent<Hrot.Map.Common.Events.SpawnZoneObstacleCommand>();
+        world.RegisterManagedEvent<Hrot.Map.Common.Events.UpdateZoneConfigCommand>();
     }
 }

@@ -92,6 +92,8 @@ using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
+using Hrot.Editor.Commands;
+using Hrot.Common.Events;
 
 namespace Hrot.Editor
 {
@@ -1529,7 +1531,7 @@ namespace Hrot.Editor
             }
 
             // ?? Drain rename-dialog requests ??????????????????????????????????
-            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Editor.Commands.OpenRenameDialogCommand>())
+            foreach (var cmd in _world.Bus.ReadManaged<Hrot.Common.Events.OpenRenameDialogCommand>())
             {
                 _renameTargetNetworkId    = cmd.NetworkId;
                 _openRenameModalThisFrame = true;
@@ -1571,5 +1573,7 @@ namespace Hrot.Editor
         }
     }
 }
+
+
 
 

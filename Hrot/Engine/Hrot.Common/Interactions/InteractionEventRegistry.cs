@@ -23,6 +23,10 @@ namespace Hrot.Common.Interactions
 
             // Managed UI Events
             bus.RegisterManaged<GizmoStructUpdateEvent>();
+            bus.RegisterManaged<Fdp.Toolkit.Diagnostics.Gizmos.Events.TerminalConnectedEvent>();
+            bus.RegisterManaged<Fdp.Toolkit.Diagnostics.Gizmos.Events.TerminalDisconnectedEvent>();
+            bus.RegisterManaged<Hrot.Common.Events.ContextActionsUpdate>();
+            bus.RegisterManaged<Hrot.Common.Events.ContextActionTriggered>();
         }
     }
 }

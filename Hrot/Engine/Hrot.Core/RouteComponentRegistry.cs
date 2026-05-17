@@ -16,5 +16,6 @@ public static class RouteComponentRegistry
         world.RegisterManagedComponent<RoutePlan>();
         world.RegisterComponent<PersonalRouteRef>();
         world.RegisterComponent<RouteTrajectoryCache>();
+        world.RegisterEvent<Hrot.Map.Common.Events.CmdAppendPersonalWaypoint>();
     }
 }

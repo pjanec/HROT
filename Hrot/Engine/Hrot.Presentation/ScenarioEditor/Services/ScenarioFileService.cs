@@ -9,7 +9,7 @@ using Fdp.Toolkit.Serialization;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Scenario;
 using Hrot.Map.Common.Services;
-using Hrot.ScenarioEditor.Events;
+using Hrot.Common.Events;
 
 namespace Hrot.ScenarioEditor.Services;
 

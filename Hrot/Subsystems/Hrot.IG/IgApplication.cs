@@ -92,7 +92,7 @@ using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
 using Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo;
 using Hrot.IG.Gizmos;
 using Hrot.Network.NED.Gizmos;   // DebugPrimitivesIngressTranslator (primitive streaming, not interaction)
-using Hrot.ScenarioEditor.Events;
+using Hrot.Common.Events;
 using Fdp.Toolkit.Vis2D.Layers;
 
 using Fdp.Toolkit.Vis2D.Gizmos;

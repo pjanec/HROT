@@ -14,5 +14,6 @@ public static class MissionComponentRegistry
     public static void RegisterAll(EntityRepository world)
     {
         world.RegisterManagedComponent<ActiveMissionPlan>();
+        world.RegisterManagedEvent<Hrot.Common.Events.MissionControlIntent>();
     }
 }

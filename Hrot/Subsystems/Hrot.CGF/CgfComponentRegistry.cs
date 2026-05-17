@@ -26,6 +26,7 @@ public static class CgfComponentRegistry
         RouteComponentRegistry.RegisterAll(world);
         MissionComponentRegistry.RegisterAll(world);
         ZoneComponentRegistry.RegisterAll(world);
+        NavigationSolverComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
