@@ -56,12 +56,12 @@ namespace Fdp.Toolkit.Replay
 
             if (++_framesSinceKeyframe >= KeyframeInterval)
             {
-                _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking);
+                _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
                 _framesSinceKeyframe = 0;
             }
             else
             {
-                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks, blocking: _blocking);
+                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks, blocking: _blocking, eventBus: repo.Bus);
             }
 
             _prevTick = repo.GlobalVersion;

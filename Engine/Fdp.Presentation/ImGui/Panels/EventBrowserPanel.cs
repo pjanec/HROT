@@ -24,6 +24,12 @@ public class EventBrowserPanel
     private readonly HashSet<string> _disabledTypes = new();
     private readonly HashSet<string> _knownProviders = new();
     private string _selectedProvider = "World";
+    
+    public string SelectedProvider
+    {
+        get => _selectedProvider;
+        set => _selectedProvider = value ?? "All";
+    }
 
     // ── Multi-select state ────────────────────────────────────────────────
     internal readonly HashSet<CapturedEventDto> _selectedEvents = new();
