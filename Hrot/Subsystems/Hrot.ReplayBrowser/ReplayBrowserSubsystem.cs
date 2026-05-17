@@ -210,7 +210,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _diffPanel = new ComponentDiffPanel();
             _eventPanel = new EventBrowserPanel(_context.HistoryService)
             {
-                SelectedProvider = "All"
+                SelectedProvider = "All",
+                CurrentFrameProvider = () => (uint)Math.Max(0, _context.CurrentFrame)
             };
 
             WireDelegates();
