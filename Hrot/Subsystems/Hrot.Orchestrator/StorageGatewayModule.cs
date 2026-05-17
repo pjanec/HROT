@@ -400,7 +400,7 @@ public sealed class StorageGatewayModule
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero));
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, TimeSpan.Zero, null));
         }
         return result;
     }
@@ -422,6 +422,7 @@ public sealed class StorageGatewayModule
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
             TimeSpan duration = TimeSpan.Zero;
+            string? scenarioId = null;
             var ctxPath = Path.Combine(d, "Orchestrator.json");
             if (File.Exists(ctxPath))
             {
@@ -434,6 +435,8 @@ public sealed class StorageGatewayModule
                         startTime = new DateTime(dto.StartWallTicks, DateTimeKind.Utc);
                     if (dto != null && dto.ScenarioTimeSeconds > 0)
                         duration = TimeSpan.FromSeconds(dto.ScenarioTimeSeconds);
+                    if (dto != null && !string.IsNullOrEmpty(dto.ScenarioId))
+                        scenarioId = dto.ScenarioId;
                 }
                 catch
                 {
@@ -459,7 +462,7 @@ public sealed class StorageGatewayModule
                 }
             }
 
-            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration));
+            result.Add(new ExerciseInventoryItem(exerciseId, startTime, duration, scenarioId));
         }
         return result;
     }

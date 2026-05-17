@@ -105,7 +105,7 @@ public sealed class AssetInventoryProcessManager
             var exercisesNasPath  = Path.Combine(_nasBasePath, OrchestrationConstants.ExercisesDirectoryName);
             var localScenarios    = _gateway.ScanLocalScenarios(scenariosNasPath);
             var localExercises = _unarchivedLedger.Values
-                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration))
+                .Select(e => new ExerciseInventoryItem(e.ExerciseId, e.StartTimeUtc, e.Duration, e.ScenarioId))
                 .OrderByDescending(e => e.StartTimeUtc)
                 .ToArray();
             var archivedExercises = _gateway.ScanNasExercises(exercisesNasPath)
