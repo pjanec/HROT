@@ -40,6 +40,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<FrameStepCompletedEvent>();
 
             // Unmanaged Time Messages
+            bus.Register<TkClusterStateChangedEvent>();
             bus.Register<SwitchTimeModeEvent>();
             bus.Register<TimeSyncOffsetCalculatedEvent>();
         }
