@@ -354,8 +354,7 @@ namespace Hrot.Editor
             _world = new EntityRepository();
             _orchestrationBus = new FdpEventBus(); // Control Plane bus (cluster management)
             Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_orchestrationBus);
-            _orchestrationBus.RegisterManaged<Hrot.Orchestrator.Events.MergeLogsIntent>();
-            _orchestrationBus.RegisterManaged<Hrot.Orchestrator.Events.LogMergeCompletedEvent>();
+            Hrot.Orchestrator.OrchestratorEventRegistry.RegisterInternalEvents(_orchestrationBus);
             var accumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, accumulator);
             _physicsModule = new PhysicsToolkitModule();

@@ -109,13 +109,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // ── Single unified event bus (HEXAG2-S001) ────────────────────────────────
         _bus          = new FdpEventBus();
         Fdp.Toolkit.Orchestration.OrchestrationEventRegistry.RegisterAll(_bus);
-        _bus.RegisterManaged<GlobalContextManifestReadyEvent>();
-        _bus.RegisterManaged<ExecutePrefetchIntent>();
-        _bus.RegisterManaged<PrefetchStagingCompletedEvent>();
-        _bus.RegisterManaged<ExportArchiveBegunEvent>();
-        _bus.RegisterManaged<ImportArchiveBegunEvent>();
-        _bus.RegisterManaged<Hrot.Orchestrator.Events.MergeLogsIntent>();
-        _bus.RegisterManaged<Hrot.Orchestrator.Events.LogMergeCompletedEvent>();
+        OrchestratorEventRegistry.RegisterInternalEvents(_bus);
         _clusterMaster = new ClusterMaster(_bus, _config);
         int orchestratorNodeId = config.NodeId != 0 ? config.NodeId : 300;
         _clusterSlave = new ClusterSlave(orchestratorNodeId, "Orchestrator", _bus);
