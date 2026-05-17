@@ -22,6 +22,9 @@ public sealed class ReplayTimelinePanel
 
     private JsonExportOptions _options = new();
     private bool _isExporting;
+    public bool IsPlaying { get; set; }
+    public float PlaybackRate { get; set; } = 1.0f;
+    private static readonly float[] TimeRates = { 0.1f, 0.5f, 1.0f, 1.5f, 2.0f, 5.0f, 10.0f };
 
     /// <summary>
     /// Fired when the user selects an entity via the timeline panel
@@ -74,7 +77,23 @@ public sealed class ReplayTimelinePanel
         Gui.SameLine();
         if (Gui.Button("|< Rewind")) SeekToFirst();
         Gui.SameLine();
-        Gui.Button("|| Pause / Play >");
+        string playLabel = IsPlaying ? "|| Pause" : "Play >";
+        if (Gui.Button(playLabel))
+        {
+            IsPlaying = !IsPlaying;
+        }
+        Gui.SameLine();
+        Gui.SetNextItemWidth(60f);
+        if (Gui.BeginCombo("##playback_rate", $"{PlaybackRate:F1}x"))
+        {
+            foreach (float rate in TimeRates)
+            {
+                bool isSelected = Math.Abs(PlaybackRate - rate) < 0.01f;
+                if (Gui.Selectable($"{rate:F1}x", isSelected))
+                    PlaybackRate = rate;
+            }
+            Gui.EndCombo();
+        }
         Gui.SameLine();
         if (Gui.Button("< Step Back")) _context.StepBackward();
         Gui.SameLine();
@@ -112,6 +131,7 @@ public sealed class ReplayTimelinePanel
 
         if (Gui.SliderInt("##timeline", ref current, 0, max))
         {
+            IsPlaying = false;
             _context.SeekToFrame(current);
         }
         Gui.SameLine();
@@ -274,6 +294,7 @@ public sealed class ReplayTimelinePanel
         {
             _playbackHistory.Clear();
             _inspectorState.SelectedEntity = null;
+            IsPlaying = false;
             _context.LoadRecording(path);
         }
     }
