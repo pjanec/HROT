@@ -214,7 +214,14 @@ public sealed class ReplayTimelinePanel
         if (!_options.FilterByEntityIndex) Gui.BeginDisabled();
         Gui.InputInt("Entity Index", ref _options.TargetEntityIndex);
         if (!_options.FilterByEntityIndex) Gui.EndDisabled();
-        Gui.Checkbox("Filter by Selection", ref _options.FilterBySelection);
+        Gui.Spacing();
+        Gui.TextDisabled("Export Scope");
+        int scope = _options.FilterBySelection ? 1 : 0;
+        if (Gui.RadioButton("All Entities", ref scope, 0))
+            _options.FilterBySelection = false;
+        Gui.SameLine();
+        if (Gui.RadioButton("Selected Entity Only", ref scope, 1))
+            _options.FilterBySelection = true;
     }
 
     private void DrawPayloadOptions()
@@ -240,8 +247,18 @@ public sealed class ReplayTimelinePanel
         if (Gui.Button("Save to JSON..."))
         {
             _options.TargetEntities.Clear();
-            if (_inspectorState.SelectedEntity.HasValue)
-                _options.TargetEntities.Add(_inspectorState.SelectedEntity.Value);
+
+            if (_options.FilterBySelection)
+            {
+                if (_inspectorState.SelectedEntity.HasValue)
+                    _options.TargetEntities.Add(_inspectorState.SelectedEntity.Value);
+            }
+            else if (_options.FormatMode == ExportFormatMode.Changelog)
+            {
+                var query = _context.SandboxRepo.Query().Build();
+                foreach (var entity in query)
+                    _options.TargetEntities.Add(entity);
+            }
 
             var snapshot = CloneOptions(_options);
             _ = SaveAsync(snapshot);
