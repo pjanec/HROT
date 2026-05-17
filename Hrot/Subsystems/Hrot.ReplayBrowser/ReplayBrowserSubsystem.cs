@@ -52,6 +52,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
+    // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem? _dataDrivenGizmoSystem;
+    private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
+    private Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? _gizmoLayer;
+    private Fdp.Core.FdpEventBus? _interactionBus;
+    private Hrot.Common.Systems.GlobalActionDispatchSystem? _actionDispatchSystem;
+    private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
+    private readonly Fdp.Toolkit.Diagnostics.Gizmos.Hub.GizmoUiStateHub _gizmoUiHub = new();
 
     // ── Constructors ──────────────────────────────────────────────────────
 
@@ -87,6 +97,96 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 geoTransform: null,
                 entityMap: new NetworkEntityMap());
             var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
+            // â”€â”€ Gizmo Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            _gizmoBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            _interactionBus = new Fdp.Core.FdpEventBus();
+
+            var gizmoRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoRegistry();
+            var statelessRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.StatelessGizmoRegistry();
+            var settingsRegistry = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+
+            // 1. Register SimHost presentation gizmos (safe for SandboxRepo: relies on SimTransform, skips CullingState)
+            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
+            // 2. Register Common diagnostics (LayerControl, SelectionHighlight, etc)
+            Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
+            // 3. Register Canvas context menu
+            Hrot.Presentation.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
+            // 4. Register AI behavior gizmos
+            Hrot.AI.Behaviors.Gizmos.GizmoRegistrar.RegisterAll(gizmoRegistry, statelessRegistry, settingsRegistry);
+
+            // 5. Register specific ScenarioEditor gizmos manually (Overlays, Routes, Areas)
+            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.MapOverlayGizmo(), new[] { typeof(Fdp.Core.SimTransform), typeof(Hrot.IG.Components.MapOverlayStyle) });
+            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.RouteGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
+            statelessRegistry.Register(new Hrot.ScenarioEditor.Gizmos.TacticalAreaGizmo(), new[] { typeof(Fdp.Toolkit.Replication.Components.TkbIdentity) });
+            statelessRegistry.Register(
+                new Hrot.ScenarioEditor.Gizmos.EntityEditorPolylineGizmo(),
+                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+            statelessRegistry.Register(
+                new Hrot.ScenarioEditor.Gizmos.EntityEditorLabelGizmo(behaviorRegistry),
+                new[] { typeof(Fdp.Core.SimTransform), typeof(Fdp.Toolkit.Replication.Components.NetworkIdentity) });
+
+            _globalGizmoManager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(_gizmoBuffer, _interactionBus);
+
+            _dataDrivenGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.DataDrivenGizmoSystem(
+                gizmoRegistry,
+                _gizmoBuffer,
+                isSelectedPredicate: static (view, entity) =>
+                    view.HasComponent<Hrot.IG.Components.SelectionState>(entity) &&
+                    view.GetComponentRO<Hrot.IG.Components.SelectionState>(entity).IsSelected,
+                interactionBus: _interactionBus);
+
+            // â”€â”€ Selection Interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
+            _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
+
+            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_context.SandboxRepo, _interactionBus, rubberBandState);
+            _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
+            {
+                if (entity == Fdp.Core.Entity.Null)
+                    _inspectorState.SelectedEntity = null;
+                else if (_context.SandboxRepo.IsAlive(entity))
+                    _inspectorState.SelectedEntity = entity;
+            };
+
+            // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            var actionRegistry = new Hrot.Common.Interactions.GlobalActionRegistry();
+            long layerControlId = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            var editService = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+            var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(
+                layerControlId, _interactionBus, editService, _gizmoUiHub);
+
+            _globalGizmoManager.Register(layerControlId, layerControlGizmo);
+
+            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
+            {
+                _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+            });
+
+            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
+            {
+                if (target == Fdp.Core.Entity.Null) return;
+                if (view.HasComponent<Fdp.Core.SimTransform>(target))
+                {
+                    ref readonly var tf = ref view.GetComponentRO<Fdp.Core.SimTransform>(target);
+                    _canvas.Camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
+                }
+            });
+
+            _actionDispatchSystem = new Hrot.Common.Systems.GlobalActionDispatchSystem(actionRegistry, _interactionBus);
+
+            var schemaRegistry = new GizmoMap.Presentation.GizmoSchemaRegistry();
+            using var layerControlSchemaSession = editService.Open(
+                new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { Entities = true, Perception = true, AiHelpers = true },
+                typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            schemaRegistry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
+
+            _gizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
+                31, _gizmoBuffer, _interactionBus, _context.SandboxRepo, _canvas.Camera,
+                new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(), schemaRegistry);
+
+            _canvas.AddLayer(_gizmoLayer);
+            _canvas.DrawBuffer = _gizmoBuffer;
 
             _exportService = new RecordingExportService(scenarioSerializer);
             _fileDialogService = new WinFormsFileDialogService();
@@ -108,7 +208,32 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         }
     }
 
-    public void Update(float deltaTime) { }
+    public void Update(float deltaTime)
+    {
+        if (!_headless)
+        {
+            // Allow user to pan the replay viewport when ImGui isn't capturing the mouse
+            if (!ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null)
+                _canvas.Camera.HandleInput(new Fdp.Toolkit.Vis2D.Defaults.RaylibInputProvider());
+
+            _canvas?.Update(deltaTime);
+
+            // Evict transient primitives before backend population
+            _gizmoBuffer?.EndFrame(deltaTime);
+
+            if (_context.SandboxRepo != null)
+            {
+                _selectionSystem?.Tick(deltaTime);
+                _actionDispatchSystem?.Execute(_context.SandboxRepo, deltaTime);
+                _dataDrivenGizmoSystem?.Execute(_context.SandboxRepo, deltaTime);
+                _globalGizmoManager?.Execute(_context.SandboxRepo, deltaTime);
+                _statelessGizmoSystem?.Execute(_context.SandboxRepo, deltaTime);
+            }
+
+            // Swap the interaction bus so intent events are visible on the next frame
+            _interactionBus?.SwapBuffers();
+        }
+    }
 
     public void DrawWorld()
     {
@@ -116,7 +241,27 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _canvas?.Draw();
     }
 
-    public void DrawUI() { }
+    public void DrawUI()
+    {
+        if (_headless) return;
+
+        _gizmoLayer?.DrawContextMenu();
+        _gizmoLayer?.DrawStructInspector();
+
+        // Render gizmo-contributed main menu items (e.g., "View > Tactical Map Layers...")
+        var gizmoMenus = _gizmoLayer?.ConsumeMainMenu();
+        if (gizmoMenus != null && gizmoMenus.Count > 0)
+        {
+            if (ImGuiNET.ImGui.BeginMainMenuBar())
+            {
+                GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenus, actionId =>
+                {
+                    _interactionBus?.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoMenuActionEvent { AnchorId = 0, ActionId = actionId });
+                });
+                ImGuiNET.ImGui.EndMainMenuBar();
+            }
+        }
+    }
 
     public void Shutdown()
     {
