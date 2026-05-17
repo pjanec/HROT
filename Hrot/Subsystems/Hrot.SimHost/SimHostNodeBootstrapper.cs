@@ -217,7 +217,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             _hrotConfig.SubsystemName,
             context.NodeId);
         var diagHandler = new DiagnosticsDumpClusterOpHandler(
-            _eventHistoryService, archService, entityService, logService, _hrotConfig);
+            _eventHistoryService!, archService, entityService, logService, _hrotConfig);
 
         var checkpointPath = System.IO.Path.Combine(_localTempRoot, "checkpoints");
         CheckpointWorker = new CheckpointIOWorker(checkpointPath, context.NodeId);

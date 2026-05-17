@@ -56,7 +56,7 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
         foreach (var entity in _repo.GetAllEntities())
         {
             if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
-            var info = entity.GetDescriptor<EntityInfoDescriptor>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>()!;
 
             if (info.CommanderId == 0)
                 rootIds.Add(entity.EntityId);
@@ -82,7 +82,7 @@ public sealed class ExConOrbatAdapter : IOrbatDataProvider, IOrbatController
             var entity = _repo.GetEntity(entityId);
             if (entity is null || !entity.HasDescriptor<EntityInfoDescriptor>()) return;
 
-            var info = entity.GetDescriptor<EntityInfoDescriptor>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>()!;
             string name = info.Name ?? string.Empty;
 
             bool passesFilter = string.IsNullOrEmpty(filterText)

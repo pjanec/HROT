@@ -780,51 +780,51 @@ namespace Hrot.Editor
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
             var app = new EditorApplication(
-                fileService, _world.Bus, _orchestrationBus, _world, _kernel, logicPacks,
+                fileService, _world.Bus, _orchestrationBus!, _world, _kernel, logicPacks,
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath);
             _editorLogic = app;
 
             // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
-            _clusterMaster  = new ClusterMaster(_orchestrationBus, offlineConfig);
+            _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
 
             // Register the seek aggregator and process manager so the clock snaps on seek
-            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus, _timeController);
+            _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
             _clusterMaster.RegisterAggregator(new ReplaySeekAggregator());
 
             // Register replay manager and aggregator so duration payload flows through 2PC
-            _replayProcessManager = new ReplayProcessManager(_orchestrationBus, _timeController);
+            _replayProcessManager = new ReplayProcessManager(_orchestrationBus!, _timeController);
             _clusterMaster.RegisterAggregator(_replayProcessManager.CreateAggregator());
 
             _storageGateway = new StorageGatewayModule();
             _assetInventoryProcessManager = new AssetInventoryProcessManager(
-                _orchestrationBus,
+                _orchestrationBus!,
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
                 OrchestrationConstants.DefaultStagingDirectory,
                 EditorNodeId);
             _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
-                _orchestrationBus,
+                _orchestrationBus!,
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
                 OrchestrationConstants.DefaultStagingDirectory);
-            _uiCache = new ClusterUiCache(_orchestrationBus, _timeController);
-            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus, _uiCache);
+            _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
+            _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
             _fileDialogService = new WinFormsFileDialogService();
             _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
                 _uiCache,
-                _orchestrationBus,
+                _orchestrationBus!,
                 _fileDialogService,
                 EditorBootstrap.ScenariosRoot);
             var diagnosticsAggregator = new DiagnosticsConsensusAggregator();
             _clusterMaster.RegisterAggregator(diagnosticsAggregator);
             _diagnosticsDumpProcessManager = new DiagnosticsDumpProcessManager(
-                _orchestrationBus,
+                _orchestrationBus!,
                 _storageGateway,
                 EditorBootstrap.ScenariosRoot,
                 diagnosticsAggregator);
-            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus);
+            _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
             app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
 
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
@@ -958,7 +958,7 @@ namespace Hrot.Editor
                     _gizmoBuffer!,
                     interactionBus,
                     _world,
-                    _canvas.Camera,
+                    _canvas!.Camera,
                     new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(),
                     schemaRegistry);
                 _canvas!.AddLayer(_gizmoLayer);
@@ -1291,6 +1291,7 @@ namespace Hrot.Editor
                     as Fdp.Toolkit.Behavior.Components.BehaviorState?;
                 if (ds == null) return null;
                 if (capturedEditorRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
+                if (def == null) return null;
                 if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
                 {
                     if (def.ParamsDtoType == null) return null;

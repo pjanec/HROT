@@ -258,7 +258,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             _hrotConfig.SubsystemName,
             context.NodeId);
         slave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
-            _eventHistoryService,
+            _eventHistoryService!,
             archService,
             entityService,
             logService,

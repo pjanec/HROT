@@ -24,7 +24,7 @@ namespace Hrot.Presentation.Gizmos
         {
             var repo = (EntityRepository)view;
             if (!repo.HasSingletonManaged<CanvasContextMenuState>()) return;
-            var state = repo.GetSingletonManaged<CanvasContextMenuState>();
+            var state = repo.GetSingletonManaged<CanvasContextMenuState>()!;
             if (string.IsNullOrEmpty(state.MenuJson)) return;
             drawBuilder.DrawContextMenuBinding(CanvasAnchorId, state.MenuJson);
         }

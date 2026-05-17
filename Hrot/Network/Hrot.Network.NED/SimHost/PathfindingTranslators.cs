@@ -370,7 +370,7 @@ namespace Hrot.Network.NED.SimHost
                     IsReachable         = evt.IsReachable,
                     TotalDistanceMeters = evt.TotalDistanceMeters,
                     RouteHandle         = evt.RouteHandle,
-                    CoarseWaypoints     = coarseWaypoints,
+                    CoarseWaypoints     = coarseWaypoints!,
                 };
 
                 if (!batchesByNode.TryGetValue(evt.SourceNodeId, out var entry))

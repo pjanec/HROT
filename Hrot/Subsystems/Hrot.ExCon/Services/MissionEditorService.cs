@@ -83,7 +83,7 @@ public sealed class MissionEditorService : IMissionEditorService
         if (!entity.HasDescriptor<EntityMissionDescriptor>())
             return (null, 0);
 
-        var desc = entity.GetDescriptor<EntityMissionDescriptor>();
+        var desc = entity.GetDescriptor<EntityMissionDescriptor>()!;
         return (desc.Plan, desc.Version);
     }
 

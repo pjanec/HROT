@@ -258,7 +258,7 @@ public class MiniExConPanelState
             {
                 FdpLog<MiniExConPanelState>.Warn(
                     "[Node-{0}] SendMissionControlRequestAsync returned failure for entity {1}: {2}",
-                    _localNodeId, entityId, result.ErrorMessage);
+                    _localNodeId, entityId, result.ErrorMessage!);
             }
         }
         catch (Exception ex)

@@ -97,7 +97,7 @@ public sealed class OrbatPanel
         foreach (var entity in repo.GetAllEntities())
         {
             if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
-            var info = entity.GetDescriptor<EntityInfoDescriptor>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>()!;
             if (info.CommanderId == 0)
                 yield return entity;
         }
@@ -113,7 +113,7 @@ public sealed class OrbatPanel
         foreach (var entity in repo.GetAllEntities())
         {
             if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
-            var info = entity.GetDescriptor<EntityInfoDescriptor>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>()!;
             if (info.CommanderId == parentId)
                 yield return entity;
         }
@@ -366,7 +366,7 @@ public sealed class OrbatPanel
         foreach (var entity in repo.GetAllEntities())
         {
             if (!entity.HasDescriptor<EntityInfoDescriptor>()) continue;
-            var info = entity.GetDescriptor<EntityInfoDescriptor>();
+            var info = entity.GetDescriptor<EntityInfoDescriptor>()!;
 
             // Only entities with a non-zero CommanderId are children.
             if (info.CommanderId == 0) continue;
@@ -401,7 +401,7 @@ public sealed class OrbatPanel
         if (!entity.HasDescriptor<EntityInfoDescriptor>())
             return;
 
-        var info     = entity.GetDescriptor<EntityInfoDescriptor>();
+        var info     = entity.GetDescriptor<EntityInfoDescriptor>()!;
 
         // Use the pre-built lookup (O(1) lookup) instead of scanning all entities.
         childrenLookup.TryGetValue(entity.EntityId, out var children);

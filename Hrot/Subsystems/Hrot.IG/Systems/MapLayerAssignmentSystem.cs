@@ -40,7 +40,6 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
 
     private readonly IReadOnlyList<MapLayerDefinition> _layers;
     private IteratorState _iteratorState = new();
-    private float         _timeSinceComplete;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 

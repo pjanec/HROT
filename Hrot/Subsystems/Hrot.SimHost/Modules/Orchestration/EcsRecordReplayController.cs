@@ -98,7 +98,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 // 1. Rebuild NetworkEntityMap from the current ECS state
                 if (_repo.HasSingletonManaged<NetworkEntityMap>())
                 {
-                    var map = _repo.GetSingletonManaged<NetworkEntityMap>();
+                    var map = _repo.GetSingletonManaged<NetworkEntityMap>()!;
 
                     // Prune dead entities from the future
                     map.PruneDeadEntities(_repo);

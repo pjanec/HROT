@@ -88,7 +88,7 @@ namespace Hrot.AI.Behaviors
                     {
                         Name             = "MoveToLocation",
                         BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParseParams      = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform),
+                        ParseParams      = (json, ptr) => CgfNodes.ParseMoveToParams(json, ptr, geoTransform!),
                         ParamsDtoType    = typeof(CgfNodes.MoveToLocationParams),
                         BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
                             moveToBlob, actionRegistry),

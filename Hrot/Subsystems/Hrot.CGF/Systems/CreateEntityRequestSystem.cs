@@ -385,7 +385,7 @@ namespace Hrot.CGF.Systems
                             // Merge component overrides for this child instance
                             if (hasOverride)
                             {
-                                childComponents.AddRange(overrideEntry.Components);
+                                childComponents.AddRange(overrideEntry.Components!);
                             }
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand

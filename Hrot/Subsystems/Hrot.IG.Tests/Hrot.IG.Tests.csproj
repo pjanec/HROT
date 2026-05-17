@@ -7,7 +7,7 @@
      <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <NoWarn>xUnit1031;CS8602;CS8604</NoWarn>
+    <NoWarn>xUnit1031;CS8602;CS8604;xUnit2013</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

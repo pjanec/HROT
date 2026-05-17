@@ -7,7 +7,7 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <NoWarn>xUnit2013</NoWarn>
+    <NoWarn>xUnit2013;xUnit2017;xUnit1031</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

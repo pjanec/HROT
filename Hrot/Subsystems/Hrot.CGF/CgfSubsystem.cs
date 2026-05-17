@@ -629,6 +629,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 as Fdp.Toolkit.Behavior.Components.BehaviorState?;
             if (ds == null) return null;
             if (capturedRegistry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
+            if (def == null) return null;
             if (type == typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard))
             {
                 if (def.ParamsDtoType == null) return null;

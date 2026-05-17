@@ -170,7 +170,7 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
                 new EventHistoryCaptureSystem("World", _fdpEventHistory, ctx.World.Bus));
         };
 
-        _core.BootstrapNode(nodeConfig, StrideNodeBootstrapper.Role, _networkFactory);
+        _core.BootstrapNode(nodeConfig, StrideNodeBootstrapper.Role, _networkFactory!);
 
         // Populate TKB AFTER BootstrapNode.
         var tkb = _core.Context.TkbDb;

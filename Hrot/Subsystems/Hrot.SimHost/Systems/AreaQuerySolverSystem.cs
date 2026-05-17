@@ -83,6 +83,12 @@ namespace Hrot.SimHost.Systems
             // Track pool cursor locally across iterations within this solver tick.
             int localPoolNext = pool.NextFreeIndex;
 
+            // Allocate the candidate buffer once outside the loop (CA2014: avoid repeated
+            // stackallocs of the same constant-size buffer on each iteration).
+            const int MaxCandidates = 256;
+            Span<(Entity entity, Vector2 pos)> candidates =
+                stackalloc (Entity, Vector2)[MaxCandidates];
+
             for (int r = 0; r < requests.Length; r++)
             {
                 ref readonly var req = ref requests[r];
@@ -124,11 +130,7 @@ namespace Hrot.SimHost.Systems
                 Vector2 worldCentroid = localCentroid + areaOrigin;
 
                 // Broad-phase spatial query.
-                unsafe
                 {
-                    const int MaxCandidates = 256;
-                    Span<(Entity entity, Vector2 pos)> candidates =
-                        stackalloc (Entity, Vector2)[MaxCandidates];
                     int nc = grid.QueryNeighbors(worldCentroid, queryRadius, candidates);
 
                     // Allocate pool chunk for this request using ring-buffer semantics.

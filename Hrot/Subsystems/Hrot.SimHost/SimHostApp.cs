@@ -94,9 +94,6 @@ namespace Hrot.SimHost
         // ── Kernel infrastructure ─────────────────────────────────────────────
         private EntityRepository?    _world;
         private ModuleHostKernel?    _kernel;
-        private TogglableInputGroup?          _toggleInput;
-        private TogglableSimulationGroup?     _toggleSim;
-        private TogglablePostSimulationGroup? _togglePostSim;
         private INetworkIdAllocator? _idAllocator;
         private FdpEventBus?         _eventBus;        // Swaps kernel to SlaveSyncController when a SwitchTimeModeEvent(Deterministic) arrives.
         // (SlaveTimeModeListener has been removed; SlaveSyncController handles mode transitions internally.)

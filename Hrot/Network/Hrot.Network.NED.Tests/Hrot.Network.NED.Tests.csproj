@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS8622;xUnit2013</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Network.NED\Hrot.Network.NED.csproj" />
