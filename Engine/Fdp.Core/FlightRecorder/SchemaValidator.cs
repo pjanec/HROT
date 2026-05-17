@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using Fdp.Core;
 using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 
@@ -99,6 +100,52 @@ namespace Fdp.Core.FlightRecorder
                             $"Schema mismatch: managed component '{recorded.Name}' (ID {componentId}) logical layout has changed. " +
                             $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16}. " +
                             "The recording cannot be played back safely.");
+                    }
+                }
+            }
+
+            if (meta.EventManifest != null)
+            {
+                foreach (var (eventId, recorded) in meta.EventManifest)
+                {
+                    var currentType = EventTypeRegistry.GetType(eventId);
+                    if (currentType == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Schema mismatch: event ID {eventId} (recorded as '{recorded.Name}') is not registered in the current binary. " +
+                            "Ensure all required event types are registered via EventTypeRegistry before playback.");
+                    }
+
+                    if (currentType.IsValueType && !currentType.IsEnum)
+                    {
+                        int currentSize = Marshal.SizeOf(currentType);
+                        if (currentSize != recorded.Size)
+                        {
+                            throw new InvalidOperationException(
+                                $"Schema mismatch: event '{recorded.Name}' (ID {eventId}) layout has changed. " +
+                                $"Recorded size = {recorded.Size} bytes, current size = {currentSize} bytes. " +
+                                "The recording cannot be played back safely.");
+                        }
+
+                        ulong currentHash = ComponentLayoutHasher.ComputeHash(currentType);
+                        if (currentHash != recorded.LayoutHash)
+                        {
+                            throw new InvalidOperationException(
+                                $"Schema mismatch: event '{recorded.Name}' (ID {eventId}) layout has changed. " +
+                                $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16}. " +
+                                "The recording cannot be played back safely.");
+                        }
+                    }
+                    else if (!currentType.IsValueType)
+                    {
+                        ulong currentHash = ComponentLayoutHasher.ComputeManagedHash(currentType);
+                        if (currentHash != recorded.LayoutHash)
+                        {
+                            throw new InvalidOperationException(
+                                $"Schema mismatch: managed event '{recorded.Name}' (ID {eventId}) logical layout has changed. " +
+                                $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16}. " +
+                                "The recording cannot be played back safely.");
+                        }
                     }
                 }
             }

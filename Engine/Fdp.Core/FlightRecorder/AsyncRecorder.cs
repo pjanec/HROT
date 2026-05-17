@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -296,6 +297,7 @@ namespace Fdp.Core.FlightRecorder
 
                 // Capture the component schema manifest so playback can detect struct drift.
                 _metadata.SchemaManifest = BuildSchemaManifest();
+                _metadata.EventManifest = BuildEventManifest();
 
                 var json = MetadataSerializer.Serialize(_metadata);
                 File.WriteAllText(_filePath + ".meta.json", json);
@@ -315,8 +317,7 @@ namespace Fdp.Core.FlightRecorder
 
         /// <summary>
         /// Builds a schema manifest from all currently registered recordable component types.
-        /// Only unmanaged struct types are included because managed class components cannot
-        /// be inspected via <see cref="Marshal.SizeOf"/>.
+        /// Includes unmanaged struct components and managed class components.
         /// </summary>
         private static Dictionary<int, ComponentSchemaInfo> BuildSchemaManifest()
         {
@@ -347,5 +348,37 @@ namespace Fdp.Core.FlightRecorder
             }
 
             return manifest;
-        }    }
+        }
+
+        private static Dictionary<int, ComponentSchemaInfo> BuildEventManifest()
+        {
+            var manifest = new Dictionary<int, ComponentSchemaInfo>();
+
+            foreach (var type in EventType.GetAllRegistered())
+            {
+                var attr = type.GetCustomAttribute<EventIdAttribute>();
+                if (attr == null || type.IsEnum) continue;
+
+                try
+                {
+                    bool isValueType = type.IsValueType;
+                    manifest[attr.Id] = new ComponentSchemaInfo
+                    {
+                        Name       = type.FullName ?? type.Name,
+                        Size       = isValueType ? Marshal.SizeOf(type) : 0,
+                        LayoutHash = isValueType
+                            ? ComponentLayoutHasher.ComputeHash(type)
+                            : ComponentLayoutHasher.ComputeManagedHash(type),
+                        IsManaged  = !isValueType
+                    };
+                }
+                catch
+                {
+                    // Skip invalid types or empty marker structs
+                }
+            }
+
+            return manifest;
+        }
+    }
 }

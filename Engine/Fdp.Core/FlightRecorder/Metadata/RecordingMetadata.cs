@@ -25,6 +25,12 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// </para>
         /// </summary>
         public Dictionary<int, ComponentSchemaInfo>? SchemaManifest { get; set; }
+        
+        /// <summary>
+        /// Event schema manifest captured at record time.
+        /// Key: event ID; Value: structural layout info (size, FNV hash, type name).
+        /// </summary>
+        public Dictionary<int, ComponentSchemaInfo>? EventManifest { get; set; }
 
         /// <summary>
         /// The highest network (DIS) entity ID observed during the recording session.
