@@ -71,11 +71,11 @@ public sealed class ReplayTimelinePanel
         Gui.SameLine();
         if (Gui.Button("|< Rewind")) SeekToFirst();
         Gui.SameLine();
+        Gui.Button("|| Pause / Play >");
+        Gui.SameLine();
         if (Gui.Button("< Step Back")) _context.StepBackward();
         Gui.SameLine();
         if (Gui.Button("Step Forward >")) _context.StepForward();
-        Gui.SameLine();
-        Gui.Button("|| Pause / Play >");
     }
 
     private void DrawRow2_TimeInfo()
