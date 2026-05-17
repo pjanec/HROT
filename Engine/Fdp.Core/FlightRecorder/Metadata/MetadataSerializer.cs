@@ -6,10 +6,9 @@ namespace Fdp.Core.FlightRecorder.Metadata
 {
     public static class MetadataSerializer
     {
-        // Use the registry's DefaultRelaxed options for flight recorder metadata.
-        // WriteIndented is not required for programmatic metadata files.
+        // Use the registry's Indented options to format the flight recorder metadata with line breaks.
         private static readonly JsonSerializerOptions _options =
-            FdpJsonOptionsRegistry.DefaultRelaxed;
+            FdpJsonOptionsRegistry.Indented;
 
         public static string Serialize(RecordingMetadata metadata)
         {
