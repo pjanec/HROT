@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             try { dummy = Activator.CreateInstance(componentType); }
             catch { dummy = null; }
 
-            using (var session = editService.Open(dummy, componentType, EditScope.WholeComponent))
+            using (var session = editService.Open(dummy!, componentType, EditScope.WholeComponent))
             {
                 ValidatePathInDocument(session.Document.Root, propertyPath.Split('.'), 0, propertyPath);
             }

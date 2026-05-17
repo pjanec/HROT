@@ -546,7 +546,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 return null; // These modes handle iteration themselves.
 
             var qb = repo.Query();
-            bool addedFilter = false;
 
             foreach (var t in mandatory)
             {
@@ -554,7 +553,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (id >= 0)
                 {
                     qb.WithComponentId(id);
-                    addedFilter = true;
                 }
             }
 

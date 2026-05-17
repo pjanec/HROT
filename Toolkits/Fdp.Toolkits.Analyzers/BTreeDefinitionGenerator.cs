@@ -13,7 +13,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor InvalidDefinitionMethod = new DiagnosticDescriptor(
             id: "BTree002",
             title: "Invalid BTreeDefinition method",
-            messageFormat: "Method '{0}' annotated with [BTreeDefinition] must be static, return BehaviorTreeBlob, and have no parameters.",
+            messageFormat: "Method '{0}' annotated with [BTreeDefinition] must be static, return BehaviorTreeBlob, and have no parameters",
             category: "BTreeSourceGen",
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);

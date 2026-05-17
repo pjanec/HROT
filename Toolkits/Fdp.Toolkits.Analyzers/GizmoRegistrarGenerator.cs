@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Diagnostics.Analyzers
         private static readonly DiagnosticDescriptor FDP002_NotStateless = new DiagnosticDescriptor(
             id:               "FDP_002",
             title:            "GizmoProjector class must implement IStatelessGizmo or IGlobalStatelessGizmo",
-            messageFormat:    "Type '{0}' is decorated with [GizmoProjector] but does not implement IStatelessGizmo or IGlobalStatelessGizmo and was not registered.",
+            messageFormat:    "Type '{0}' is decorated with [GizmoProjector] but does not implement IStatelessGizmo or IGlobalStatelessGizmo and was not registered",
             category:         "Fdp.Gizmos",
             defaultSeverity:  DiagnosticSeverity.Warning,
             isEnabledByDefault: true);

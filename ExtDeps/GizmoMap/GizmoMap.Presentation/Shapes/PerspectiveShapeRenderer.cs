@@ -29,7 +29,9 @@ namespace GizmoMap.Presentation.Shapes
                     continue;
 
                 int n = element.LocalVertices.Length;
+#pragma warning disable CA2014 // stackalloc size depends on element.LocalVertices.Length which varies per element
                 Span<Vector2> pts = n <= 64 ? stackalloc Vector2[n] : new Vector2[n];
+#pragma warning restore CA2014
                 for (int i = 0; i < n; i++)
                 {
                     var p = element.LocalVertices[i];

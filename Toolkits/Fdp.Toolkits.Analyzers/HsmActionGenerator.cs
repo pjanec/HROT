@@ -12,29 +12,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
     {
         // ---- Diagnostic descriptors (BHU-013) ----------------------------------
 
-        private static readonly DiagnosticDescriptor BHU001_TypeMismatch = new DiagnosticDescriptor(
-            id: "BHU_001",
-            title: "SharedAi parameter type mismatch",
-            messageFormat: "Method ''{0}'': ref parameter type ''{1}'' does not match DTO field ''{2}.{3}'' of type ''{4}''",
-            category: "HsmActionGenerator",
-            defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        private static readonly DiagnosticDescriptor BHU002_NonStatic = new DiagnosticDescriptor(
-            id: "BHU_002",
-            title: "SharedAi method must be static",
-            messageFormat: "Method ''{0}'' annotated with [SharedAiCondition] or [SharedAiAction] must be static; skipping",
-            category: "HsmActionGenerator",
-            defaultSeverity: DiagnosticSeverity.Warning,
-            isEnabledByDefault: true);
-
-        private static readonly DiagnosticDescriptor BHU003_UnknownField = new DiagnosticDescriptor(
-            id: "BHU_003",
-            title: "SharedAi DTO field not found",
-            messageFormat: "Method ''{0}'': field ''{1}'' not found on type ''{2}'' or offset cannot be computed",
-            category: "HsmActionGenerator",
-            defaultSeverity: DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
+        private static readonly DiagnosticDescriptor BHU001_TypeMismatch  = SharedBhuDiagnostics.BHU001_TypeMismatch;
+        private static readonly DiagnosticDescriptor BHU002_NonStatic     = SharedBhuDiagnostics.BHU002_NonStatic;
+        private static readonly DiagnosticDescriptor BHU003_UnknownField  = SharedBhuDiagnostics.BHU003_UnknownField;
 
         // ---- Channel kind -> fully-qualified component type --------------------
         private const string LocomotionChannelFqn  = "global::Fdp.Toolkit.Behavior.Components.LocomotionChannel";

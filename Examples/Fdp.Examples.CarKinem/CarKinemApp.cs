@@ -25,8 +25,6 @@ using Fdp.ModuleHost.Time; // ITimeController
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Core.FlightRecorder; // Recorder
 
-using Fdp.Toolkit.Vis2D; // MapCanvas
-
 namespace Fdp.Examples.CarKinem;
 
 public class CarKinemApp : FdpApplication
