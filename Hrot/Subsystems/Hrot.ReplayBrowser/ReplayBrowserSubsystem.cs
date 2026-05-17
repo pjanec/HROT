@@ -164,7 +164,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.OpenLayerControl, (_, _) =>
             {
-                _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+                _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
             });
 
             actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>

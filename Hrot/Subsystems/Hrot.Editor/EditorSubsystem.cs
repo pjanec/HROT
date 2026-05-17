@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -139,7 +139,7 @@ namespace Hrot.Editor
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
         private bool                    _headless;
-        // GZH-016: gate — false when another subsystem owns the map view.
+        // GZH-016: gate � false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
         // ?? Adapters (canvas-dependent; null in headless) ?????????????????????
@@ -648,7 +648,7 @@ namespace Hrot.Editor
             _globalGizmoManager.Register(layerControlId, layerControlGizmo);
             actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
             {
-                interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+                interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
             });
             actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
             {

@@ -14,7 +14,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     // Raised by the action registry when the operator selects
     // "View > Tactical Map Layers..." from the main menu bar.
     // Consumed by LayerControlGizmo.UpdateAndDraw to toggle the StructInspector panel.
-    public sealed class OpenLayerEditorEvent { }
+    [EventId(8061)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public struct OpenLayerEditorEvent { }
 
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
@@ -45,7 +47,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     //
     // Interaction flow:
     //   Operator clicks menu item -> GlobalActionIds.OpenLayerControl action ->
-    //   interactionBus.PublishManaged(new OpenLayerEditorEvent()) ->
+    //   interactionBus.Publish(new OpenLayerEditorEvent()) ->
     //   UpdateAndDraw drains the event -> _isEditing toggled ->
     //   StructInspector panel appears on terminal ->
     //   Operator edits and clicks Apply ->
@@ -95,7 +97,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
         {
             // Drain OpenLayerEditorEvent to toggle the inspector panel.
-            foreach (var _ in _interactionBus.ReadManaged<OpenLayerEditorEvent>())
+            foreach (ref readonly var _ in _interactionBus.Read<OpenLayerEditorEvent>())
                 _isEditing = !_isEditing;
 
             // Emit authoritative layer control mask (consumed by DebugPrimitiveRenderer2D).

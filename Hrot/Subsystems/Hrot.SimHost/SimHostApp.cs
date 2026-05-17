@@ -366,7 +366,7 @@ namespace Hrot.SimHost
                 _globalGizmoManager.Register(layerControlId, layerControlGizmo);
                 actionRegistry.Register(GlobalActionIds.OpenLayerControl, (_, _) =>
                 {
-                    _interactionBus.PublishManaged(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
+                    _interactionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent());
                 });
                 actionRegistry.Register(GlobalActionIds.Rotate, (view, target) =>
                 {

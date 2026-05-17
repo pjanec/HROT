@@ -19,10 +19,10 @@ namespace Hrot.Common.Interactions
             bus.Register<GizmoKeyEvent>();
             bus.Register<GizmoComponentActivatedEvent>();
             bus.Register<GlobalActionRequestedEvent>();
+            bus.Register<OpenLayerEditorEvent>();
 
             // Managed UI Events
             bus.RegisterManaged<GizmoStructUpdateEvent>();
-            bus.RegisterManaged<OpenLayerEditorEvent>();
         }
     }
 }
