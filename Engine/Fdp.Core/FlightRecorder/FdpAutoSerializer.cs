@@ -501,6 +501,15 @@ namespace Fdp.Core.FlightRecorder
             {
                 return Expression.Call(writer, writeMethod, valueAccess);
             }
+
+            // CASE A2: Enum
+            if (type.IsEnum)
+            {
+                Type underlyingType = Enum.GetUnderlyingType(type);
+                var enumWriteMethod = typeof(BinaryWriter).GetMethod("Write", new[] { underlyingType });
+                var castExpr = Expression.Convert(valueAccess, underlyingType);
+                return Expression.Call(writer, enumWriteMethod!, castExpr);
+            }
             
             // CASE B: List<T>
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
@@ -565,6 +574,15 @@ namespace Fdp.Core.FlightRecorder
             if (readMethod != null && readMethod.ReturnType == type)
             {
                 return Expression.Call(reader, readMethod);
+            }
+
+            // CASE A2: Enum
+            if (type.IsEnum)
+            {
+                Type underlyingType = Enum.GetUnderlyingType(type);
+                var enumReadMethod = typeof(BinaryReader).GetMethod($"Read{underlyingType.Name}");
+                var readExpr = Expression.Call(reader, enumReadMethod!);
+                return Expression.Convert(readExpr, type);
             }
             
             // Special case for String
