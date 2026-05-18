@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Presentation.Abstractions;
@@ -60,6 +61,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
     private float _playbackAccumulator = 0f;
+    private Task? _seekToChangeTask;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
@@ -399,6 +401,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         _inspectorPanel!.OnEntitySelected = selectIntent;
         _inspectorPanel.ChainToMap = true;
+        _diffPanel!.OnSeekToChangeRequested = direction =>
+        {
+            if (_inspectorState?.SelectedEntity != null)
+                _seekToChangeTask = SeekToNextChangeAsync(_inspectorState.SelectedEntity.Value, direction);
+        };
 
         // Build search services.
         var editSvc = new ComponentEditServiceBuilder()
@@ -411,6 +418,89 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
 
         _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent, _behaviorRegistry);
+    }
+
+    private async Task SeekToNextChangeAsync(Entity target, int direction)
+    {
+        if (_context.CurrentFdpPath == null || _diffPanel == null || _diffPanel.IsSearching)
+            return;
+
+        _diffPanel.IsSearching = true;
+        string fdpPath = _context.CurrentFdpPath;
+        int startFrame = _context.CurrentFrame;
+
+        try
+        {
+            int? foundFrame = await Task.Run(() =>
+            {
+                using var tempContext = new ReplayBrowserContext();
+                tempContext.LoadRecording(fdpPath);
+                if (tempContext.Playback == null)
+                    return (int?)null;
+
+                var repo = tempContext.SandboxRepo;
+                int targetIndex = target.Index;
+
+                bool DidEntityChange(uint prevVersion)
+                {
+                    Entity currentEntity = repo.GetEntityByIndex(targetIndex);
+                    if (currentEntity.IsNull || !repo.IsAlive(currentEntity))
+                        return false;
+
+                    ref var header = ref repo.GetHeader(targetIndex);
+                    if (header.LastChangeTick > prevVersion)
+                        return true;
+
+                    foreach (var kvp in repo.GetRegisteredComponentTypes())
+                    {
+                        var table = kvp.Value;
+                        if (header.ComponentMask.IsSet(table.ComponentTypeId)
+                            && table.GetVersionForEntity(targetIndex) > prevVersion)
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+                if (direction > 0)
+                {
+                    tempContext.SeekToFrame(startFrame, suppressHistory: true);
+                    while (tempContext.StepForward(suppressHistory: true))
+                    {
+                        uint prevVersion = repo.GlobalVersion - 1;
+                        if (DidEntityChange(prevVersion))
+                            return tempContext.CurrentFrame;
+                    }
+                }
+                else
+                {
+                    tempContext.SeekToFrame(0, suppressHistory: true);
+                    int? lastChangeFrame = null;
+                    while (tempContext.CurrentFrame < startFrame)
+                    {
+                        if (!tempContext.StepForward(suppressHistory: true))
+                            break;
+                        uint prevVersion = repo.GlobalVersion - 1;
+                        if (DidEntityChange(prevVersion))
+                            lastChangeFrame = tempContext.CurrentFrame;
+                    }
+                    return lastChangeFrame;
+                }
+
+                return (int?)null;
+            });
+
+            if (foundFrame.HasValue)
+            {
+                _playbackHistory.PushFrame(_context.CurrentFrame);
+                _context.SeekToFrame(foundFrame.Value);
+            }
+        }
+        finally
+        {
+            _diffPanel.IsSearching = false;
+        }
     }
 
     /// <summary>

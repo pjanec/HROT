@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Presentation.Icons;
 using Fdp.Presentation.Utils.ReplayBrowser;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using ImGuiNET;
@@ -27,6 +28,8 @@ public sealed class ComponentDiffPanel
     /// Fired when the user clicks an entity-handle button inside the diff tree.
     /// </summary>
     public Action<Entity>? OnEntityLinkClicked { get; set; }
+    public Action<int>? OnSeekToChangeRequested { get; set; }
+    public bool IsSearching { get; set; }
 
     // ── Draw entry point ──────────────────────────────────────────────────
 
@@ -41,6 +44,18 @@ public sealed class ComponentDiffPanel
         Gui.Checkbox("Ignore Epsilon (< 0.001)", ref _ignoreEpsilon);
         Gui.SameLine();
         Gui.Checkbox("Hide Unchanged Components & Fields", ref _hideUnchanged);
+
+        Gui.SameLine();
+
+        TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, !IsSearching, out _, out bool prevClicked);
+        if (prevClicked && !IsSearching)
+            OnSeekToChangeRequested?.Invoke(-1);
+
+        Gui.SameLine();
+        TransportIconRenderer.DrawButton("##next_change", 20f, TransportShape.StepFwd, !IsSearching, out _, out bool nextClicked);
+        if (nextClicked && !IsSearching)
+            OnSeekToChangeRequested?.Invoke(1);
+
         Gui.Separator();
 
         if (diffs.Count == 0)
