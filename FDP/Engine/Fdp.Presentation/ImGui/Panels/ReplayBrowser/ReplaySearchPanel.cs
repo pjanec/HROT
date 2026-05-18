@@ -323,7 +323,10 @@ public sealed class ReplaySearchPanel
                     _onSeekRequested(r.StartFrame);
                 ImGuiApi.TableSetColumnIndex(1);
                 if (ImGuiEntityLink.Draw(r.Entity.ToString()))
+                {
                     _onEntitySelected(r.Entity);
+                    _onSeekRequested(r.StartFrame);
+                }
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.Text(r.EndFrame.ToString());
                 ImGuiApi.TableSetColumnIndex(3);
@@ -353,7 +356,10 @@ public sealed class ReplaySearchPanel
                     _onSeekRequested(r.FrameIndex);
                 ImGuiApi.TableSetColumnIndex(1);
                 if (ImGuiEntityLink.Draw(r.Entity.ToString()))
+                {
                     _onEntitySelected(r.Entity);
+                    _onSeekRequested(r.FrameIndex);
+                }
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.TextUnformatted(r.ContextMessage);
                 ImGuiApi.PopID();
