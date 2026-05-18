@@ -106,6 +106,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             // Build EntityQuery for component and compound modes.
             EntityQuery? deltaQuery = BuildDeltaQuery(repo, root, mandatory);
+            var frameCandidates = new List<Entity>(32);
+            var previousMatches = new HashSet<int>();
 
             while (playback.StepForward(repo))
             {
@@ -115,12 +117,23 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 // ── Component / Compound property mode ───────────────────────
                 if (deltaQuery != null)
                 {
+                    frameCandidates.Clear();
                     foreach (var entity in deltaQuery)
                     {
                         if (compiledFn(repo, entity))
-                            results.Add(new SearchResultDto(frame, ticks, entity,
-                                BuildComponentContext(root, repo, entity)));
+                        {
+                            frameCandidates.Add(entity);
+                            if (!previousMatches.Contains(entity.Index))
+                            {
+                                results.Add(new SearchResultDto(frame, ticks, entity,
+                                    BuildComponentContext(root, repo, entity)));
+                            }
+                        }
                     }
+
+                    previousMatches.Clear();
+                    for (int i = 0; i < frameCandidates.Count; i++)
+                        previousMatches.Add(frameCandidates[i].Index);
                 }
 
                 // ── Spatial mode ─────────────────────────────────────────────

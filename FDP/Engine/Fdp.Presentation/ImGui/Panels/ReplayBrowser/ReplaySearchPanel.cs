@@ -316,6 +316,7 @@ public sealed class ReplaySearchPanel
             for (int i = 0; i < results.Count; i++)
             {
                 var r = results[i];
+                ImGuiApi.PushID(i);
                 ImGuiApi.TableNextRow();
                 ImGuiApi.TableSetColumnIndex(0);
                 if (ImGuiApi.SmallButton($"Frame {r.StartFrame}##seek{i}"))
@@ -327,6 +328,7 @@ public sealed class ReplaySearchPanel
                 ImGuiApi.Text(r.EndFrame.ToString());
                 ImGuiApi.TableSetColumnIndex(3);
                 ImGuiApi.TextUnformatted(r.MatchContext);
+                ImGuiApi.PopID();
             }
             ImGuiApi.EndTable();
         }
@@ -344,6 +346,7 @@ public sealed class ReplaySearchPanel
             for (int i = 0; i < results.Count; i++)
             {
                 var r = results[i];
+                ImGuiApi.PushID(i);
                 ImGuiApi.TableNextRow();
                 ImGuiApi.TableSetColumnIndex(0);
                 if (ImGuiApi.SmallButton($"Frame {r.FrameIndex}##seek{i}"))
@@ -353,6 +356,7 @@ public sealed class ReplaySearchPanel
                     _onEntitySelected(r.Entity);
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.TextUnformatted(r.ContextMessage);
+                ImGuiApi.PopID();
             }
             ImGuiApi.EndTable();
         }
