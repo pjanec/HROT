@@ -54,6 +54,9 @@ internal sealed class ComponentEditDrawer
         IContainerBinding? parentContainer = null,
         int elementIndex = -1)
     {
+        if (_session.RebuildState == EditRebuildState.RebuildRequired)
+            return;
+
         switch (node.Kind)
         {
             case EditNodeKind.SelectionRoot:
@@ -115,7 +118,6 @@ internal sealed class ComponentEditDrawer
                 {
                     containerBinding.Resize(containerBinding.Count + 1);
                     _session.MarkStructuralChange();
-                    _session.RebuildDocument();
                 }
             }
             if (canDelete)
@@ -125,7 +127,6 @@ internal sealed class ComponentEditDrawer
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
-                    _session.RebuildDocument();
                 }
             }
         }
@@ -150,7 +151,6 @@ internal sealed class ComponentEditDrawer
                     {
                         node.Binding?.SetBoxed(null);
                         _session.MarkStructuralChange();
-                        _session.RebuildDocument();
                     }
                 }
 
@@ -167,7 +167,6 @@ internal sealed class ComponentEditDrawer
                                 var newInst = Activator.CreateInstance(t);
                                 node.Binding?.SetBoxed(newInst);
                                 _session.MarkStructuralChange();
-                                _session.RebuildDocument();
                             }
                         }
                     }
@@ -181,7 +180,6 @@ internal sealed class ComponentEditDrawer
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
-                    _session.RebuildDocument();
                 }
             }
         }
@@ -194,7 +192,6 @@ internal sealed class ComponentEditDrawer
                 {
                     RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
-                    _session.RebuildDocument();
                 }
             }
         }
@@ -279,7 +276,6 @@ internal sealed class ComponentEditDrawer
             {
                 RemoveElementAtIndex(parentContainer!, elementIndex);
                 _session.MarkStructuralChange();
-                _session.RebuildDocument();
             }
         }
 
@@ -289,7 +285,7 @@ internal sealed class ComponentEditDrawer
             ImGuiApi.SameLine();
             if (_pickerCtx.IsPickPendingFor(node.JsonPath))
             {
-                ImGuiApi.TextDisabled("[Picking...]");
+                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
             }
             else if (ImGuiApi.Button($"Pick Entity##{node.Id.Value}"))
             {
@@ -311,7 +307,7 @@ internal sealed class ComponentEditDrawer
             ImGuiApi.SameLine();
             if (_pickerCtx.IsPickPendingFor(node.JsonPath))
             {
-                ImGuiApi.TextDisabled("[Picking...]");
+                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking...]");
             }
             else if (ImGuiApi.Button($"Pick Map##{node.Id.Value}"))
             {
