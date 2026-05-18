@@ -1,0 +1,21 @@
+{
+  "TreeName": "SimplePatrol",
+  "Version": 1,
+  "Root": {
+    "Type": "Sequence",
+    "Children": [
+      {
+        "Type": "Action",
+        "Action": "FindRandomPatrolPoint"
+      },
+      {
+        "Type": "Action",
+        "Action": "MoveToTarget"
+      },
+      {
+        "Type": "Wait",
+        "WaitTime": 2.0
+      }
+    ]
+  }
+}

@@ -1,7 +1,3 @@
-[submodule "ExtDeps/FastBTree"]
-	path = ExtDeps/FastBTree
-	url = https://github.com/pjanec/FastBTree.git
-	branch = main
 [submodule "ExtDeps/FastHSM"]
 	path = ExtDeps/FastHSM
 	url = https://github.com/pjanec/FastHSM.git
