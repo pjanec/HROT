@@ -233,11 +233,22 @@ public sealed class ReplaySearchPanel
                 var pred = (LifecyclePredicateDto)dto;
                 _searchTask = Task.Run(() =>
                 {
-                    var r = _searchService.ExecuteLifecycleSearch(path, pred);
-                    lock (_resultsLock)
+                    try
                     {
-                        _lifecycleResults = r;
-                        _statusLine       = $"Found {r.Count} lifecycle event(s).";
+                        var r = _searchService.ExecuteLifecycleSearch(path, pred);
+                        lock (_resultsLock)
+                        {
+                            _lifecycleResults = r;
+                            _statusLine       = $"Found {r.Count} lifecycle event(s).";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (_resultsLock)
+                        {
+                            _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
+                            _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                        }
                     }
                 });
             }
@@ -246,11 +257,22 @@ public sealed class ReplaySearchPanel
                 var pred = (SearchPredicateDto)dto;
                 _searchTask = Task.Run(() =>
                 {
-                    var r = _searchService.ExecuteSearch(path, pred);
-                    lock (_resultsLock)
+                    try
                     {
-                        _results    = r;
-                        _statusLine = $"Found {r.Count} result(s).";
+                        var r = _searchService.ExecuteSearch(path, pred);
+                        lock (_resultsLock)
+                        {
+                            _results    = r;
+                            _statusLine = $"Found {r.Count} result(s).";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lock (_resultsLock)
+                        {
+                            _results = Array.Empty<SearchResultDto>();
+                            _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                        }
                     }
                 });
             }

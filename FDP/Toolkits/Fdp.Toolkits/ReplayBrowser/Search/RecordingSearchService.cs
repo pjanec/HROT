@@ -107,10 +107,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             // Build EntityQuery for component and compound modes.
             EntityQuery? deltaQuery = BuildDeltaQuery(repo, root, mandatory);
 
-            // Pre-allocate the callback target entity list (reused per frame).
-            var frameCandidates = new List<Entity>(32);
-            uint lastScannedVersion = 0;
-
             while (playback.StepForward(repo))
             {
                 int frame = playback.CurrentFrame;
@@ -119,15 +115,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 // ── Component / Compound property mode ───────────────────────
                 if (deltaQuery != null)
                 {
-                    frameCandidates.Clear(); // no allocation: Clear() only sets Count = 0
-                    foreach (var entity in repo.QueryDelta(deltaQuery, lastScannedVersion))
+                    foreach (var entity in deltaQuery)
                     {
-                        frameCandidates.Add(entity);
-                    }
-
-                    for (int i = 0; i < frameCandidates.Count; i++)
-                    {
-                        Entity entity = frameCandidates[i];
                         if (compiledFn(repo, entity))
                             results.Add(new SearchResultDto(frame, ticks, entity,
                                 BuildComponentContext(root, repo, entity)));
@@ -173,7 +162,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 }
 
                 repo.ClearDestructionLog();
-                lastScannedVersion = repo.GlobalVersion;
             }
 
             return results;
