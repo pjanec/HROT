@@ -99,18 +99,9 @@ internal sealed class ComponentEditDrawer
         bool opened = ImGuiApi.TreeNodeEx(
             node.Name,
             ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen);
-        if (parentContainer != null && parentContainer.CanResize && elementIndex >= 0)
-        {
-            ImGuiApi.SameLine();
-            if (ImGuiApi.SmallButton($"X##{node.Id.Value}"))
-            {
-                RemoveElementAtIndex(parentContainer, elementIndex);
-                _session.MarkStructuralChange();
-                _session.RebuildDocument();
-            }
-        }
 
         ImGuiApi.TableSetColumnIndex(1);
+        bool canDelete = parentContainer != null && parentContainer.CanResize && elementIndex >= 0;
 
         var containerBinding = node.Binding as IContainerBinding;
         if (containerBinding != null)
@@ -119,10 +110,20 @@ internal sealed class ComponentEditDrawer
 
             if (containerBinding.CanResize)
             {
-                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 60);
-                if (ImGuiApi.SmallButton("+ Add"))
+                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 60f);
+                if (ImGuiApi.SmallButton("+Add"))
                 {
                     containerBinding.Resize(containerBinding.Count + 1);
+                    _session.MarkStructuralChange();
+                    _session.RebuildDocument();
+                }
+            }
+            if (canDelete)
+            {
+                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 30f);
+                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                {
+                    RemoveElementAtIndex(parentContainer!, elementIndex);
                     _session.MarkStructuralChange();
                     _session.RebuildDocument();
                 }
@@ -133,7 +134,11 @@ internal sealed class ComponentEditDrawer
             object? currentObj = node.Binding?.GetBoxed();
             string preview = currentObj != null ? currentObj.GetType().Name : "(null)";
 
-            ImGuiApi.SetNextItemWidth(-float.Epsilon);
+            float comboWidth = ImGuiApi.GetContentRegionAvail().X;
+            if (canDelete) comboWidth -= 30f;
+            if (comboWidth < 60f) comboWidth = 60f;
+
+            ImGuiApi.SetNextItemWidth(comboWidth);
             if (ImGuiApi.BeginCombo("##poly", preview))
             {
                 var derivedAttrs = node.ClrType.GetCustomAttributes(
@@ -168,6 +173,29 @@ internal sealed class ComponentEditDrawer
                     }
                 }
                 ImGuiApi.EndCombo();
+            }
+            if (canDelete)
+            {
+                ImGuiApi.SameLine();
+                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                {
+                    RemoveElementAtIndex(parentContainer!, elementIndex);
+                    _session.MarkStructuralChange();
+                    _session.RebuildDocument();
+                }
+            }
+        }
+        else
+        {
+            if (canDelete)
+            {
+                ImGuiApi.SameLine(ImGuiApi.GetContentRegionAvail().X - 30f);
+                if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
+                {
+                    RemoveElementAtIndex(parentContainer!, elementIndex);
+                    _session.MarkStructuralChange();
+                    _session.RebuildDocument();
+                }
             }
         }
 
@@ -224,7 +252,18 @@ internal sealed class ComponentEditDrawer
             ImGuiTreeNodeFlags.SpanAvailWidth);
 
         ImGuiApi.TableSetColumnIndex(1);
-        ImGuiApi.SetNextItemWidth(-float.Epsilon);
+        bool canDelete = parentContainer != null && parentContainer.CanResize && elementIndex >= 0;
+        float inputWidth = ImGuiApi.GetContentRegionAvail().X;
+        if (canDelete) inputWidth -= 30f;
+
+        var entityAttr = node.Metadata.CustomAttributes.OfType<MapPickableEntityAttribute>().FirstOrDefault();
+        if (entityAttr != null && _pickerCtx != null) inputWidth -= 90f;
+
+        var locationAttr = node.Metadata.CustomAttributes.OfType<MapPickableWorldLocationAttribute>().FirstOrDefault();
+        if (locationAttr != null && _pickerCtx != null) inputWidth -= 90f;
+
+        if (inputWidth < 60f) inputWidth = 60f;
+        ImGuiApi.SetNextItemWidth(inputWidth);
 
         object value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
         bool changed = DrawPrimitiveInput(node.ClrType, ref value, node);
@@ -233,20 +272,18 @@ internal sealed class ComponentEditDrawer
             node.Binding?.SetBoxed(value);
 
         // Delete button for resizable array elements.
-        if (parentContainer != null && parentContainer.CanResize && elementIndex >= 0)
+        if (canDelete)
         {
             ImGuiApi.SameLine();
-            if (ImGuiApi.SmallButton("X"))
+            if (ImGuiApi.SmallButton($"X##del_{node.Id.Value}"))
             {
-                RemoveElementAtIndex(parentContainer, elementIndex);
+                RemoveElementAtIndex(parentContainer!, elementIndex);
                 _session.MarkStructuralChange();
                 _session.RebuildDocument();
             }
         }
 
         // Picker: entity reference.
-        var entityAttr = node.Metadata.CustomAttributes
-            .OfType<MapPickableEntityAttribute>().FirstOrDefault();
         if (entityAttr != null && _pickerCtx != null)
         {
             ImGuiApi.SameLine();
@@ -269,8 +306,6 @@ internal sealed class ComponentEditDrawer
         }
 
         // Picker: world location.
-        var locationAttr = node.Metadata.CustomAttributes
-            .OfType<MapPickableWorldLocationAttribute>().FirstOrDefault();
         if (locationAttr != null && _pickerCtx != null)
         {
             ImGuiApi.SameLine();
