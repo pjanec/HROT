@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
-using MessagePack;
 using Xunit;
 // ReSharper disable AccessToDisposedClosure
 
@@ -13,7 +12,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Support
     internal struct HarnessTestEventA { public int Payload; }
 
     // Managed event — no [EventId] required (managed events use hash of type name)
-    internal sealed class HarnessTestManagedEvent { [Key(0)] public string Tag { get; set; } = ""; }
+    internal sealed class HarnessTestManagedEvent { public string Tag { get; set; } = ""; }
 
     public class FdpRecordingHarnessTests : IDisposable
     {

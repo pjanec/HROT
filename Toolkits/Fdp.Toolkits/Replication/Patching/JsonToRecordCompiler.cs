@@ -41,7 +41,7 @@ public sealed class JsonToRecordCompiler
     private readonly Dictionary<ulong, EdgeSchemaEntry> _routes;
 
     /// <summary>
-    /// Per-instance string intern pool for <see cref="AttributeValueKind.String"/> values.
+    /// Per-instance string intern pool for <see cref="AttributeValueKind.CsString"/> values.
     /// High-cardinality domains (e.g. faction enums) send the same strings repeatedly;
     /// interning returns the cached reference and lets the GC skip short-lived duplicates.
     /// The pool has no hard capacity limit — the string domain is bounded by the attribute schema.
@@ -182,22 +182,22 @@ public sealed class JsonToRecordCompiler
     {
         switch (entry.ExpectedKind)
         {
-            case AttributeValueKind.Int32:
+            case AttributeValueKind.CsInt32:
                 emitter.EmitInt32(entry.AttributeId, reader.GetInt32(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.Int64:
+            case AttributeValueKind.CsInt64:
                 emitter.EmitInt64(entry.AttributeId, reader.GetInt64(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.Float32:
+            case AttributeValueKind.CsFloat32:
                 emitter.EmitFloat32(entry.AttributeId, reader.GetSingle(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.Float64:
+            case AttributeValueKind.CsFloat64:
                 emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
                 break;
             case AttributeValueKind.Bool:
                 emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
                 break;
-            case AttributeValueKind.String:
+            case AttributeValueKind.CsString:
                 emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
                 break;
         }

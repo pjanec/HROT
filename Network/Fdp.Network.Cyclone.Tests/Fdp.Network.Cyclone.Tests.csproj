@@ -21,16 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\ExtDeps\FastCycloneDds\cyclone-compiled\bin\*.dll">
-      <Link>%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
   </ItemGroup>
 
-  <Import Project="..\..\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
-  </ItemGroup>
 </Project>

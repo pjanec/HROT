@@ -160,14 +160,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     /// others are read-only ghosts. Diagnostic searches must be able to scope to one
     /// or the other to avoid investigating phantom state changes on replicas.
     /// </summary>
-    public enum AuthorityRequirement { Any, RequireAuthority, RequireGhost }
+    public enum AuthorityRequirement { AnyAuthority, RequireAuthority, RequireGhost }
 
     public sealed class StructuralPredicateDto : SearchPredicateDto
     {
         [JsonIgnore]
         public Type ComponentType { get; set; } = null!;
         public StructuralModification ModificationType { get; set; } = StructuralModification.Added;
-        public AuthorityRequirement AuthorityRequirement { get; set; } = AuthorityRequirement.Any;
+        public AuthorityRequirement AuthorityRequirement { get; set; } = AuthorityRequirement.AnyAuthority;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

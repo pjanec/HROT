@@ -59,11 +59,9 @@
     <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
   </ItemGroup>
 
-  <!-- CycloneDDS (project references - no PackageReference to CycloneDDS allowed) -->
+  <!-- CycloneDDS NuGet package -->
   <ItemGroup>
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
   </ItemGroup>
 
 

@@ -163,8 +163,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         private static string FormatValue(GizmoSettingValue v) => v.Type switch
         {
             SettingType.Bool    => v.BoolValue.ToString(),
-            SettingType.Int32   => v.IntValue.ToString(CultureInfo.InvariantCulture),
-            SettingType.Float32 => v.FloatValue.ToString(CultureInfo.InvariantCulture),
+            SettingType.CsInt32   => v.IntValue.ToString(CultureInfo.InvariantCulture),
+            SettingType.CsFloat32 => v.FloatValue.ToString(CultureInfo.InvariantCulture),
             _                   => string.Empty,
         };
 

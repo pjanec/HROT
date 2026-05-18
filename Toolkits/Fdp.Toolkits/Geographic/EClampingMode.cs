@@ -8,7 +8,7 @@ namespace Fdp.Modules.Geographic
     public enum EClampingMode : byte
     {
         /// <summary>Engine decides: grounded vehicle = clamped, airborne = unclamped.</summary>
-        Default  = 0,
+        Auto  = 0,
 
         /// <summary>Explicitly clamped — e.g. taxiing aircraft, editor drag-and-drop on terrain.</summary>
         ForceOn  = 1,

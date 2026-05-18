@@ -40,14 +40,11 @@
     </PackageReference>
   </ItemGroup>
 
-  <!-- CycloneDDS for Commands.Tests which uses CycloneDDS project refs -->
+  <!-- CycloneDDS for Commands.Tests -->
   <ItemGroup>
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
   </ItemGroup>
 
-  <Import Project="..\..\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
   <!-- No global usings - test files use explicit using directives -->
 
   <ItemGroup>

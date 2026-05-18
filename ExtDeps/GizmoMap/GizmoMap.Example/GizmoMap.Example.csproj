@@ -14,10 +14,9 @@
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
-    <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
   </ItemGroup>
 </Project>

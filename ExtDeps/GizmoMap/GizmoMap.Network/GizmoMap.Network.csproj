@@ -8,9 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
-    <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
-    <ProjectReference Include="..\..\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
   </ItemGroup>
-  <Import Project="..\..\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
+  <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
+  </ItemGroup>
 </Project>

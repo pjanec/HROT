@@ -705,7 +705,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     ComponentType        = typeof(HarnessVelocity),
                     ModificationType     = StructuralModification.Added,
-                    AuthorityRequirement = AuthorityRequirement.Any
+                    AuthorityRequirement = AuthorityRequirement.AnyAuthority
                 };
                 var anyResults = _service.ExecuteSearch(fdpPath, predAny);
                 Assert.True(anyResults.Any(r => r.Entity.Index == entityAIndex),

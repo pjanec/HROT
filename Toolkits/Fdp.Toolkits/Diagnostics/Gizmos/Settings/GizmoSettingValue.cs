@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
 {
     /// <summary>Discriminator for the setting payload union.</summary>
-    public enum SettingType : byte { Bool = 0, Int32 = 1, Float32 = 2 }
+    public enum SettingType : byte { Bool = 0, CsInt32 = 1, CsFloat32 = 2 }
 
     /// <summary>
     /// 8-byte tagged union that stores one gizmo setting value.
@@ -21,8 +21,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         [FieldOffset(4)] public float FloatValue;
 
         public static GizmoSettingValue From(bool  v) => new() { Type = SettingType.Bool,    BoolValue  = v };
-        public static GizmoSettingValue From(int   v) => new() { Type = SettingType.Int32,   IntValue   = v };
-        public static GizmoSettingValue From(float v) => new() { Type = SettingType.Float32, FloatValue = v };
+        public static GizmoSettingValue From(int   v) => new() { Type = SettingType.CsInt32,   IntValue   = v };
+        public static GizmoSettingValue From(float v) => new() { Type = SettingType.CsFloat32, FloatValue = v };
 
         /// <summary>
         /// Compares type tag and the 4-byte payload (via IntValue overlay, which covers

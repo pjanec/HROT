@@ -7,10 +7,10 @@ namespace Fdp.Toolkit.Replication.Patching;
 /// </summary>
 public enum AttributeValueKind
 {
-    Int32,
-    Int64,
-    Float32,
-    Float64,
+    CsInt32,
+    CsInt64,
+    CsFloat32,
+    CsFloat64,
     Bool,
-    String,
+    CsString,
 }

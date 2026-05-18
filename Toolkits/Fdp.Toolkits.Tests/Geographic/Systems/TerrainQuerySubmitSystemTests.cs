@@ -81,7 +81,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             _world.AddComponent(entity, new SimTransform { Position = new Vector3(10, 20, 5) });
             _world.AddComponent(entity, new GroundClampingConfig
             {
-                Mode                 = EClampingMode.Default,
+                Mode                 = EClampingMode.Auto,
                 BaseRequiresClamping = 0, // aircraft
             });
 

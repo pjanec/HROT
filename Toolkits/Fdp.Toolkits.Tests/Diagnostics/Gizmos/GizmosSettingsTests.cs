@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void SC_GZ007_6_Float_RoundTrips()
         {
             var v = GizmoSettingValue.From(3.14f);
-            Assert.Equal(SettingType.Float32, v.Type);
+            Assert.Equal(SettingType.CsFloat32, v.Type);
             Assert.Equal(3.14f, v.FloatValue);
         }
 
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void Int32_From_RoundTrips()
         {
             var v = GizmoSettingValue.From(42);
-            Assert.Equal(SettingType.Int32, v.Type);
+            Assert.Equal(SettingType.CsInt32, v.Type);
             Assert.Equal(42, v.IntValue);
         }
 

@@ -18,8 +18,8 @@ namespace Fdp.Modules.Geographic.Tests
         [Theory]
         [InlineData(EClampingMode.ForceOn,  1, true)]
         [InlineData(EClampingMode.ForceOn,  0, true)]  // ForceOn overrides blueprint
-        [InlineData(EClampingMode.Default,  1, true)]  // blueprint grounded
-        [InlineData(EClampingMode.Default,  0, false)] // blueprint non-grounded
+        [InlineData(EClampingMode.Auto,  1, true)]  // blueprint grounded
+        [InlineData(EClampingMode.Auto,  0, false)] // blueprint non-grounded
         [InlineData(EClampingMode.ForceOff, 1, false)] // ForceOff overrides blueprint
         [InlineData(EClampingMode.ForceOff, 0, false)]
         public void IsClampingActive_MatchesTruthTable(

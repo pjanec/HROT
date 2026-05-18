@@ -3,16 +3,13 @@ using Xunit;
 using Fdp.Network.Cyclone.Providers;
 using Fdp.Core;
 using Fdp.Toolkit.Lifecycle;
-using MessagePack;
 using Fdp.Interfaces;
 
 namespace Fdp.Network.Cyclone.Tests.Serialization
 {
     [Serializable]
-    [MessagePackObject]
     public class TestChatMsg 
     {
-        [Key(0)]
         public string Text { get; set; } = "";
     }
 

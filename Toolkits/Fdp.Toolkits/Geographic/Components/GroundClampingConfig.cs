@@ -18,7 +18,7 @@ namespace Fdp.Modules.Geographic.Components
         /// <summary>
         /// Seeded from the TKB blueprint: <c>1</c> = grounded vehicle (default clamped),
         /// <c>0</c> = aircraft or floating entity (default unclamped).
-        /// Evaluated only when <see cref="Mode"/> is <see cref="EClampingMode.Default"/>.
+        /// Evaluated only when <see cref="Mode"/> is <see cref="EClampingMode.Auto"/>.
         /// </summary>
         public byte BaseRequiresClamping;
 
@@ -26,12 +26,12 @@ namespace Fdp.Modules.Geographic.Components
         /// Returns <c>true</c> when terrain clamping should be active for this entity:
         /// <list type="bullet">
         ///   <item><see cref="EClampingMode.ForceOn"/> — always clamped.</item>
-        ///   <item><see cref="EClampingMode.Default"/> + <see cref="BaseRequiresClamping"/> == 1 — blueprint default clamped.</item>
+        ///   <item><see cref="EClampingMode.Auto"/> + <see cref="BaseRequiresClamping"/> == 1 — blueprint default clamped.</item>
         ///   <item>All other combinations — unclamped.</item>
         /// </list>
         /// </summary>
         public readonly bool IsClampingActive =>
             Mode == EClampingMode.ForceOn ||
-            (Mode == EClampingMode.Default && BaseRequiresClamping == 1);
+            (Mode == EClampingMode.Auto && BaseRequiresClamping == 1);
     }
 }

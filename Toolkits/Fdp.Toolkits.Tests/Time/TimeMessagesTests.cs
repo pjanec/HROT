@@ -3,7 +3,6 @@ using CycloneDDS.Schema;
 using Fdp.Core;
 using Fdp.Toolkit.Time.Domain;
 using Fdp.Toolkit.Time.Messages;
-using MessagePack;
 using Fdp.ModuleHost.Time;
 using Xunit;
 
@@ -144,44 +143,6 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         // ── TC3-P1-T01: TimeSyncRequest / TimeSyncResponse ───────────────────
-
-        /// <summary>TC3-P1-T01-SC1 — MessagePack round-trip preserves all TimeSyncRequest fields.</summary>
-        [Fact]
-        public void TimeSyncRequest_RoundTrip_PreservesAllFields()
-        {
-            var original = new TimeSyncRequest
-            {
-                ClientNodeId    = 99,
-                ClientSendTicks = 1_234_567_890_123L,
-            };
-
-            byte[] bytes = MessagePackSerializer.Serialize(original);
-            var result   = MessagePackSerializer.Deserialize<TimeSyncRequest>(bytes);
-
-            Assert.Equal(original.ClientNodeId,    result.ClientNodeId);
-            Assert.Equal(original.ClientSendTicks, result.ClientSendTicks);
-        }
-
-        /// <summary>TC3-P1-T01-SC2 — MessagePack round-trip preserves all TimeSyncResponse fields.</summary>
-        [Fact]
-        public void TimeSyncResponse_RoundTrip_PreservesAllFields()
-        {
-            var original = new TimeSyncResponse
-            {
-                ClientNodeId       = 7,
-                ClientSendTicks    = 1_111_111_111L,
-                MasterReceiveTicks = 2_222_222_222L,
-                MasterTransmitTicks = 3_333_333_333L,
-            };
-
-            byte[] bytes = MessagePackSerializer.Serialize(original);
-            var result   = MessagePackSerializer.Deserialize<TimeSyncResponse>(bytes);
-
-            Assert.Equal(original.ClientNodeId,        result.ClientNodeId);
-            Assert.Equal(original.ClientSendTicks,     result.ClientSendTicks);
-            Assert.Equal(original.MasterReceiveTicks,  result.MasterReceiveTicks);
-            Assert.Equal(original.MasterTransmitTicks, result.MasterTransmitTicks);
-        }
 
         /// <summary>TC3-P1-T01-SC3 — FdpEventBus publish/consume round-trip for TimeSyncRequest.</summary>
         [Fact]
