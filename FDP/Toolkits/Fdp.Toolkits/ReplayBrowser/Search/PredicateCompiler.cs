@@ -165,10 +165,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (dto.BehaviorId == 0 || string.IsNullOrEmpty(dto.PropertyPath))
                 return static (_, _) => false;
 
-            if (!_behaviorRegistry.TryGetDefinition(dto.BehaviorId, out var def) || def.ParamsDtoType == null)
+            if (!_behaviorRegistry.TryGetDefinition(dto.BehaviorId, out var def))
                 return static (_, _) => false;
 
-            Type dtoType = def.ParamsDtoType;
+            Type? dtoType = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
+                ? def.HeavyDtoType
+                : def.ParamsDtoType;
+            if (dtoType == null)
+                return static (_, _) => false;
+
             var param = Expression.Parameter(dtoType.MakeByRefType(), "dto");
             Expression fieldAccess = param;
             foreach (string seg in dto.PropertyPath.Split('.'))
@@ -176,15 +181,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             Expression condition = BuildConditionExpression(fieldAccess, dto.Operator, dto.Predicate);
 
+            string methodName = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
+                ? nameof(BuildBehaviorParamMatcherGenericHeavy)
+                : nameof(BuildBehaviorParamMatcherGenericBrain);
             var buildMethod = typeof(PredicateCompiler).GetMethod(
-                nameof(BuildBehaviorParamMatcherGeneric),
+                methodName,
                 BindingFlags.NonPublic | BindingFlags.Static)!;
             var genericBuild = buildMethod.MakeGenericMethod(dtoType);
             return (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
                 null, new object[] { dto.BehaviorId, condition, param })!;
         }
 
-        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGeneric<TDto>(
+        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericBrain<TDto>(
             int behaviorHash,
             Expression condition,
             ParameterExpression dtoParam)
@@ -206,6 +214,36 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 unsafe
                 {
                     fixed (byte* src = bb.BehaviorParameters)
+                    {
+                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
+                        return matcher(ref projected);
+                    }
+                }
+            };
+        }
+
+        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericHeavy<TDto>(
+            int behaviorHash,
+            Expression condition,
+            ParameterExpression dtoParam)
+            where TDto : unmanaged
+        {
+            var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
+            int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
+            int bbTypeId = ComponentTypeRegistry.GetId(typeof(Blackboard1024));
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
+                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
+
+                ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
+                if (state.ActiveBehaviorHash != behaviorHash) return false;
+
+                ref readonly var bb = ref repo.GetComponentRO<Blackboard1024>(entity);
+                unsafe
+                {
+                    fixed (byte* src = bb.Memory)
                     {
                         ref TDto projected = ref Unsafe.AsRef<TDto>(src);
                         return matcher(ref projected);
@@ -294,12 +332,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (!result.Contains(single.ComponentType))
                     result.Add(single.ComponentType);
             }
-            else if (dto is BehaviorParamPredicateDto)
+            else if (dto is BehaviorParamPredicateDto behaviorParam)
             {
                 if (!result.Contains(typeof(BehaviorState)))
                     result.Add(typeof(BehaviorState));
-                if (!result.Contains(typeof(BrainBlackboard)))
-                    result.Add(typeof(BrainBlackboard));
+                Type targetComponentType = behaviorParam.TargetBlackboard == BlackboardTarget.Blackboard1024
+                    ? typeof(Blackboard1024)
+                    : typeof(BrainBlackboard);
+                if (!result.Contains(targetComponentType))
+                    result.Add(targetComponentType);
             }
         }
     }

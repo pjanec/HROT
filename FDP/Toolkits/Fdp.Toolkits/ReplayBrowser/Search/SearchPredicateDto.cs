@@ -198,6 +198,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class BehaviorParamPredicateDto : SearchPredicateDto
     {
+        public BlackboardTarget TargetBlackboard { get; set; } = BlackboardTarget.BrainBlackboard;
+
         [BehaviorHashPicker]
         public int BehaviorId { get; set; }
 
@@ -207,6 +209,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
 
         public SearchPredicateDto Predicate { get; set; } = null!;
+    }
+
+    public enum BlackboardTarget
+    {
+        BrainBlackboard,
+        Blackboard1024
     }
 
     // ──────────────────────────────────────────────────────────────────────────

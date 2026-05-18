@@ -194,6 +194,17 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         if (parentNode == null)
             return null;
 
+        BlackboardTarget targetBlackboard = BlackboardTarget.BrainBlackboard;
+        foreach (EditNode child in parentNode.Children)
+        {
+            if (child.Name == "TargetBlackboard"
+                && child.Binding?.GetBoxed() is BlackboardTarget selectedTarget)
+            {
+                targetBlackboard = selectedTarget;
+                break;
+            }
+        }
+
         foreach (EditNode child in parentNode.Children)
         {
             if (child.Name == "ComponentType" || child.Name == "EventType")
@@ -202,10 +213,11 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             {
                 if (child.Binding?.GetBoxed() is int hash
                     && hash != 0
-                    && _behaviorRegistry.TryGetDefinition(hash, out var def)
-                    && def.ParamsDtoType != null)
+                    && _behaviorRegistry.TryGetDefinition(hash, out var def))
                 {
-                    return def.ParamsDtoType;
+                    return targetBlackboard == BlackboardTarget.Blackboard1024
+                        ? def.HeavyDtoType
+                        : def.ParamsDtoType;
                 }
             }
         }
