@@ -428,6 +428,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _diffPanel.IsSearching = true;
         string fdpPath = _context.CurrentFdpPath;
         int startFrame = _context.CurrentFrame;
+        var excludedMask = new BitMask256();
+        foreach (var type in _diffPanel.ExcludedTypes)
+        {
+            int typeId = ComponentTypeRegistry.GetId(type);
+            if (typeId >= 0)
+                excludedMask.SetBit(typeId);
+        }
 
         try
         {
@@ -441,19 +448,31 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 var repo = tempContext.SandboxRepo;
                 int targetIndex = target.Index;
 
-                bool DidEntityChange(uint prevVersion)
+                bool DidEntityChange(uint prevVersion, BitMask256 prevMask)
                 {
                     Entity currentEntity = repo.GetEntityByIndex(targetIndex);
                     if (currentEntity.IsNull || !repo.IsAlive(currentEntity))
                         return false;
 
                     ref var header = ref repo.GetHeader(targetIndex);
-                    if (header.LastChangeTick > prevVersion)
-                        return true;
 
+                    // Structural changes on included component bits only.
+                    for (int i = 0; i < 256; i++)
+                    {
+                        if (excludedMask.IsSet(i))
+                            continue;
+                        if (header.ComponentMask.IsSet(i) != prevMask.IsSet(i))
+                            return true;
+                    }
+
+                    // Value changes on included component bits only.
                     foreach (var kvp in repo.GetRegisteredComponentTypes())
                     {
                         var table = kvp.Value;
+                        int typeId = table.ComponentTypeId;
+                        if (excludedMask.IsSet(typeId))
+                            continue;
+
                         if (header.ComponentMask.IsSet(table.ComponentTypeId)
                             && table.GetVersionForEntity(targetIndex) > prevVersion)
                         {
@@ -466,24 +485,32 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 if (direction > 0)
                 {
                     tempContext.SeekToFrame(startFrame, suppressHistory: true);
+                    uint lastVersion = repo.GlobalVersion;
+                    BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     while (tempContext.StepForward(suppressHistory: true))
                     {
-                        uint prevVersion = repo.GlobalVersion - 1;
-                        if (DidEntityChange(prevVersion))
+                        if (DidEntityChange(lastVersion, lastMask))
                             return tempContext.CurrentFrame;
+
+                        lastVersion = repo.GlobalVersion;
+                        lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     }
                 }
                 else
                 {
                     tempContext.SeekToFrame(0, suppressHistory: true);
                     int? lastChangeFrame = null;
+                    uint lastVersion = repo.GlobalVersion;
+                    BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     while (tempContext.CurrentFrame < startFrame)
                     {
                         if (!tempContext.StepForward(suppressHistory: true))
                             break;
-                        uint prevVersion = repo.GlobalVersion - 1;
-                        if (DidEntityChange(prevVersion))
+                        if (DidEntityChange(lastVersion, lastMask))
                             lastChangeFrame = tempContext.CurrentFrame;
+
+                        lastVersion = repo.GlobalVersion;
+                        lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     }
                     return lastChangeFrame;
                 }

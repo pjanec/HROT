@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using Fdp.Core;
@@ -19,6 +20,7 @@ public sealed class ComponentDiffPanel
 {
     private bool _ignoreEpsilon;
     private bool _hideUnchanged = true;
+    private readonly HashSet<Type> _excludedTypes = new();
 
     /// <summary>Current diff list displayed by <see cref="DrawContent()"/>.</summary>
     public IReadOnlyList<DiffNode> CurrentDiffs { get; set; }
@@ -30,6 +32,7 @@ public sealed class ComponentDiffPanel
     public Action<Entity>? OnEntityLinkClicked { get; set; }
     public Action<int>? OnSeekToChangeRequested { get; set; }
     public bool IsSearching { get; set; }
+    public IReadOnlySet<Type> ExcludedTypes => _excludedTypes;
 
     // ── Draw entry point ──────────────────────────────────────────────────
 
@@ -43,16 +46,47 @@ public sealed class ComponentDiffPanel
     {
         Gui.Checkbox("Ignore Epsilon (< 0.001)", ref _ignoreEpsilon);
         Gui.SameLine();
-        Gui.Checkbox("Hide Unchanged Components & Fields", ref _hideUnchanged);
+        Gui.Checkbox("Hide Unchanged", ref _hideUnchanged);
 
         Gui.SameLine();
+        if (Gui.Button("Filter"))
+            Gui.OpenPopup("##diff_filter_popup");
 
+        if (Gui.BeginPopup("##diff_filter_popup"))
+        {
+            if (Gui.Button("Select All"))
+                _excludedTypes.Clear();
+            Gui.SameLine();
+            if (Gui.Button("Deselect All"))
+            {
+                foreach (var t in ComponentTypeRegistry.GetAllRegistered())
+                    _excludedTypes.Add(t);
+            }
+            Gui.Separator();
+
+            foreach (var t in ComponentTypeRegistry.GetAllRegistered().OrderBy(x => x.Name))
+            {
+                bool isChecked = !_excludedTypes.Contains(t);
+                if (Gui.Checkbox(t.Name, ref isChecked))
+                {
+                    if (isChecked) _excludedTypes.Remove(t);
+                    else _excludedTypes.Add(t);
+                }
+            }
+            Gui.EndPopup();
+        }
+
+        Gui.SameLine();
         TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, !IsSearching, out _, out bool prevClicked);
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            Gui.SetTooltip("Seek to previous frame with changes");
         if (prevClicked && !IsSearching)
             OnSeekToChangeRequested?.Invoke(-1);
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##next_change", 20f, TransportShape.StepFwd, !IsSearching, out _, out bool nextClicked);
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            Gui.SetTooltip("Seek to next frame with changes");
         if (nextClicked && !IsSearching)
             OnSeekToChangeRequested?.Invoke(1);
 
