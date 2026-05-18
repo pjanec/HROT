@@ -9,7 +9,7 @@ public sealed class GuidFieldDrawer : IImGuiFieldDrawer
 {
     public Type TargetType => typeof(Guid);
 
-    public bool DrawInput(ref object value, EditNodeMetadata meta)
+    public bool DrawInput(ref object value, EditNode node)
     {
         Guid current = value is Guid guid ? guid : Guid.Empty;
         string text = current.ToString();

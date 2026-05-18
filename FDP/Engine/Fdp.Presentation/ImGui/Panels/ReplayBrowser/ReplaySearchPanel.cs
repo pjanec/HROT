@@ -136,11 +136,13 @@ public sealed class ReplaySearchPanel
     private ComponentEditDrawer BuildDrawer(IEditSession session)
     {
         var registry = new BehaviorRegistry();
+        var typeMode = _mode == SearchMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
             [typeof(BoundingBox2D)] = new BoundingBoxFieldDrawer(),
             [typeof(int)]           = new BehaviorHashFieldDrawer(registry),
-            [typeof(Type)]          = new FilteredTypeComboFieldDrawer(TypeComboMode.Component),
+            [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
+            [typeof(string)]        = new PropertyPathFieldDrawer(session),
         };
         return new ComponentEditDrawer(session, pickerCtx: null, drawers, SpatialPickerCtx);
     }

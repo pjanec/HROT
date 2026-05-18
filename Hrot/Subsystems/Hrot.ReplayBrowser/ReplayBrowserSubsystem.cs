@@ -224,6 +224,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     public void Update(float deltaTime)
     {
+        if (_searchPanel != null)
+        {
+            _searchPanel.CurrentFilePath = _context.CurrentFdpPath;
+        }
+
         if (!_headless)
         {
             if (_timelinePanel != null && _timelinePanel.IsPlaying)
@@ -394,7 +399,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _inspectorPanel.ChainToMap = true;
 
         // Build search services.
-        var editSvc = new ComponentEditServiceBuilder().Build();
+        var editSvc = new ComponentEditServiceBuilder()
+            .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
+            .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
+            .Build();
         var predicateCompiler = new PredicateCompiler(editSvc);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);

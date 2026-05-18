@@ -19,7 +19,7 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
 {
     public Type TargetType => typeof(BoundingBox2D);
 
-    public bool DrawInput(ref object value, EditNodeMetadata meta)
+    public bool DrawInput(ref object value, EditNode node)
     {
         var box  = value is BoundingBox2D b ? b : default;
         var min  = box.Min;

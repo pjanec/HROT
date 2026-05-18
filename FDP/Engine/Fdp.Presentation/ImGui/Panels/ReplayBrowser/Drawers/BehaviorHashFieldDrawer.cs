@@ -30,8 +30,9 @@ internal sealed class BehaviorHashFieldDrawer : IImGuiFieldDrawer
 
     public Type TargetType => typeof(int);
 
-    public bool DrawInput(ref object value, EditNodeMetadata meta)
+    public bool DrawInput(ref object value, EditNode node)
     {
+        var meta = node.Metadata;
         bool hasPicker = meta.CustomAttributes.Any(a => a is BehaviorHashPickerAttribute);
         if (!hasPicker)
         {

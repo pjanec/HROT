@@ -1,11 +1,31 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
 {
+    public class TypeNameJsonConverter : JsonConverter<Type>
+    {
+        public override Type? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            string? name = reader.GetString();
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            return ComponentTypeRegistry.GetAllRegistered().FirstOrDefault(t => t.Name == name)
+                ?? EventType.GetAllRegistered().FirstOrDefault(t => t.Name == name);
+        }
+
+        public override void Write(Utf8JsonWriter writer, Type value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value?.Name);
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Base predicate
     // ──────────────────────────────────────────────────────────────────────────
@@ -41,9 +61,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class PropertyMatchDto : SearchPredicateDto
     {
-        [JsonIgnore]
+        [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type ComponentType { get; set; } = null!;
         /// <summary>Dot-separated field path, e.g. "Position.X".</summary>
+        [PropertyPathPicker]
         public string PropertyPath { get; set; } = string.Empty;
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
         /// <summary>Value sub-predicate (NumericPredicateDto, StringPredicateDto, etc.).</summary>
@@ -87,9 +108,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class TransientEventPredicateDto : SearchPredicateDto
     {
-        [JsonIgnore]
+        [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type EventType { get; set; } = null!;
         public bool AnyOccurrence { get; set; } = true;
+        [PropertyPathPicker]
         public string PropertyPath { get; set; } = string.Empty;
         public SearchOperator Operator { get; set; } = SearchOperator.Equals;
         public string TargetValue { get; set; } = string.Empty;
@@ -110,13 +132,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// Optional component type that carries the entity's name field.
         /// If null, EcsHandle mode is used as a fallback for NameSubstring.
         /// </summary>
-        [JsonIgnore]
+        [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type? NameComponentType { get; set; }
 
         /// <summary>
         /// Field path within NameComponentType that holds the name string.
         /// Defaults to "Name".
         /// </summary>
+        [PropertyPathPicker]
         public string NamePropertyPath { get; set; } = "Name";
     }
 
@@ -137,13 +160,15 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// Component type that carries the entity's 2D world position.
         /// Required for spatial search to work.
         /// </summary>
-        [JsonIgnore]
+        [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type PositionComponentType { get; set; } = null!;
 
         /// <summary>Field path for the X coordinate within PositionComponentType.</summary>
+        [PropertyPathPicker]
         public string PositionXPath { get; set; } = "X";
 
         /// <summary>Field path for the Y coordinate within PositionComponentType.</summary>
+        [PropertyPathPicker]
         public string PositionYPath { get; set; } = "Y";
     }
 
@@ -164,7 +189,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     public sealed class StructuralPredicateDto : SearchPredicateDto
     {
-        [JsonIgnore]
+        [JsonConverter(typeof(TypeNameJsonConverter))]
         public Type ComponentType { get; set; } = null!;
         public StructuralModification ModificationType { get; set; } = StructuralModification.Added;
         public AuthorityRequirement AuthorityRequirement { get; set; } = AuthorityRequirement.AnyAuthority;

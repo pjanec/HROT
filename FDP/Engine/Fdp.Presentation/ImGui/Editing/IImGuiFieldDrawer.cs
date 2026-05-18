@@ -15,5 +15,5 @@ public interface IImGuiFieldDrawer
     /// Draws input widgets for <paramref name="value"/>.
     /// Returns <see langword="true"/> if the value changed.
     /// </summary>
-    bool DrawInput(ref object value, EditNodeMetadata meta);
+    bool DrawInput(ref object value, EditNode node);
 }

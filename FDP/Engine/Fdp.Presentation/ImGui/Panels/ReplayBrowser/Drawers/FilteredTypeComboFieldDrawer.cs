@@ -45,7 +45,7 @@ internal sealed class FilteredTypeComboFieldDrawer : IImGuiFieldDrawer
             t => t.Name.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
-    public bool DrawInput(ref object value, EditNodeMetadata meta)
+    public bool DrawInput(ref object value, EditNode node)
     {
         _cachedTypes ??= LoadTypes();
 
@@ -77,7 +77,7 @@ internal sealed class FilteredTypeComboFieldDrawer : IImGuiFieldDrawer
     private IReadOnlyList<Type> LoadTypes()
     {
         return _mode == TypeComboMode.Event
-            ? EventType.GetAllRegistered().ToList()
-            : ComponentTypeRegistry.GetAllRegistered().ToList();
+            ? EventType.GetAllRegistered().OrderBy(t => t.Name).ToList()
+            : ComponentTypeRegistry.GetAllRegistered().OrderBy(t => t.Name).ToList();
     }
 }

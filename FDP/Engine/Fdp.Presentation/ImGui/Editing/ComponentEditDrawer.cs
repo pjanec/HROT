@@ -150,7 +150,7 @@ internal sealed class ComponentEditDrawer
         ImGuiApi.SetNextItemWidth(-float.Epsilon);
 
         object value = node.Binding?.GetBoxed() ?? GetDefaultForType(node.ClrType);
-        bool changed = DrawPrimitiveInput(node.ClrType, ref value, node.Metadata);
+        bool changed = DrawPrimitiveInput(node.ClrType, ref value, node);
 
         if (changed)
             node.Binding?.SetBoxed(value);
@@ -254,10 +254,12 @@ internal sealed class ComponentEditDrawer
 
     // ── Primitive input controls ──────────────────────────────────────────────
 
-    private bool DrawPrimitiveInput(Type type, ref object value, EditNodeMetadata meta)
+    private bool DrawPrimitiveInput(Type type, ref object value, EditNode node)
     {
         if (_customDrawers.TryGetValue(type, out var customDrawer))
-            return customDrawer.DrawInput(ref value, meta);
+            return customDrawer.DrawInput(ref value, node);
+
+        var meta = node.Metadata;
 
         if (type == typeof(float))
         {

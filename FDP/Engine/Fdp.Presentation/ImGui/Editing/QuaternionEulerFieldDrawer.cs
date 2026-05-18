@@ -11,7 +11,7 @@ public sealed class QuaternionEulerFieldDrawer : IImGuiFieldDrawer
 {
     public Type TargetType => typeof(Quaternion);
 
-    public bool DrawInput(ref object value, EditNodeMetadata meta)
+    public bool DrawInput(ref object value, EditNode node)
     {
         Quaternion q = value is Quaternion qv ? qv : Quaternion.Identity;
         var (yaw, pitch, roll) = SimMath.ToYawPitchRollDeg(q);
