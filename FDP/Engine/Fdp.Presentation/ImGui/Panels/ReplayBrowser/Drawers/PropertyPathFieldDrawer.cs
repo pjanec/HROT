@@ -119,7 +119,7 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
         BlackboardTarget targetBlackboard = BlackboardTarget.BrainBlackboard;
         foreach (EditNode child in parentNode.Children)
         {
-            if (child.Name == "TargetBlackboard"
+            if (child.Name == nameof(BehaviorParamPredicateDto.TargetBlackboard)
                 && child.Binding?.GetBoxed() is BlackboardTarget selectedTarget)
             {
                 targetBlackboard = selectedTarget;
@@ -129,15 +129,15 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
 
         foreach (EditNode child in parentNode.Children)
         {
-            if (child.Name == "ComponentType" ||
-                child.Name == "EventType" ||
-                child.Name == "NameComponentType" ||
-                child.Name == "PositionComponentType")
+            if (child.Name == nameof(PropertyMatchDto.ComponentType) ||
+                child.Name == nameof(TransientEventPredicateDto.EventType) ||
+                child.Name == nameof(LifecyclePredicateDto.NameComponentType) ||
+                child.Name == nameof(SpatialBoundingPredicateDto.PositionComponentType))
             {
                 if (child.Binding?.GetBoxed() is Type selectedType)
                     return selectedType;
             }
-            else if (child.Name == "BehaviorId")
+            else if (child.Name == nameof(BehaviorParamPredicateDto.BehaviorId))
             {
                 if (child.Binding?.GetBoxed() is int hash
                     && hash != 0

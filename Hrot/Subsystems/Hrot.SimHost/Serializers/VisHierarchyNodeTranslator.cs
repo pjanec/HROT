@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class VisHierarchyNodeTranslator : IEntityScenarioTranslator
     {
-        private const string Key = "VisHierarchyNode";
+        private const string Key = nameof(VisHierarchyNode);
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

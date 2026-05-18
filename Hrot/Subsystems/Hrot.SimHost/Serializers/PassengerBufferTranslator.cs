@@ -22,7 +22,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class PassengerBufferTranslator : IEntityScenarioTranslator
     {
-        private const string Key = "PassengerBuffer";
+        private const string Key = nameof(PassengerBuffer);
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

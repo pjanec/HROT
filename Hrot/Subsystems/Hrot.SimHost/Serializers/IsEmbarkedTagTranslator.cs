@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class IsEmbarkedTagTranslator : IEntityScenarioTranslator
     {
-        private const string Key = "IsEmbarkedTag";
+        private const string Key = nameof(IsEmbarkedTag);
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

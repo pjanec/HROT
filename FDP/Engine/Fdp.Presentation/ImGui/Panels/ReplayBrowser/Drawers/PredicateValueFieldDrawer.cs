@@ -25,8 +25,8 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
     public bool DrawInput(ref object value, EditNode node)
     {
         Type? targetType = GetTargetType(node.JsonPath);
-        string? propertyPath = GetSiblingValue<string>(node.JsonPath, "PropertyPath");
-        SearchOperator op = GetSiblingValue<SearchOperator>(node.JsonPath, "Operator");
+        string? propertyPath = GetSiblingValue<string>(node.JsonPath, nameof(BehaviorParamPredicateDto.PropertyPath));
+        SearchOperator op = GetSiblingValue<SearchOperator>(node.JsonPath, nameof(BehaviorParamPredicateDto.Operator));
 
         if (targetType == null || string.IsNullOrEmpty(propertyPath))
         {
@@ -197,7 +197,7 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         BlackboardTarget targetBlackboard = BlackboardTarget.BrainBlackboard;
         foreach (EditNode child in parentNode.Children)
         {
-            if (child.Name == "TargetBlackboard"
+            if (child.Name == nameof(BehaviorParamPredicateDto.TargetBlackboard)
                 && child.Binding?.GetBoxed() is BlackboardTarget selectedTarget)
             {
                 targetBlackboard = selectedTarget;
@@ -207,9 +207,12 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
 
         foreach (EditNode child in parentNode.Children)
         {
-            if (child.Name == "ComponentType" || child.Name == "EventType")
+            if (child.Name == nameof(PropertyMatchDto.ComponentType)
+                || child.Name == nameof(TransientEventPredicateDto.EventType)
+                || child.Name == nameof(LifecyclePredicateDto.NameComponentType)
+                || child.Name == nameof(SpatialBoundingPredicateDto.PositionComponentType))
                 return child.Binding?.GetBoxed() as Type;
-            if (child.Name == "BehaviorId")
+            if (child.Name == nameof(BehaviorParamPredicateDto.BehaviorId))
             {
                 if (child.Binding?.GetBoxed() is int hash
                     && hash != 0

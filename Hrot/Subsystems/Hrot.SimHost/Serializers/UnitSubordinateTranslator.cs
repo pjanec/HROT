@@ -22,7 +22,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class UnitSubordinateTranslator : IEntityScenarioTranslator
     {
-        private const string Key = "UnitSubordinate";
+        private const string Key = nameof(UnitSubordinate);
 
         private sealed class UnitSubordinateDto
         {

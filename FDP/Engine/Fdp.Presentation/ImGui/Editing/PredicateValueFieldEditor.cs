@@ -16,7 +16,7 @@ public sealed class PredicateValueFieldEditor : ICustomFieldEditor
         IValueBinding binding,
         EditNodeMetadata metadata)
     {
-        if (name != "Predicate")
+        if (name != nameof(BehaviorParamPredicateDto.Predicate))
             return null;
 
         return new EditNode(
