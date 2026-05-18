@@ -1,0 +1,56 @@
+{
+    "TreeName": "CombatAgent",
+    "Root": {
+        "Type": "Repeater",
+        "RepeatCount": -1,
+        "Children": [
+            {
+                "Type": "Selector",
+                "Children": [
+                    {
+                        "Type": "Sequence",
+                        "Children": [
+                            {
+                                "Type": "Condition",
+                                "Action": "HasEnemy"
+                            },
+                            {
+                                "Type": "Action",
+                                "Action": "ChaseEnemy"
+                            },
+                            {
+                                "Type": "Action",
+                                "Action": "Attack"
+                            },
+                            {
+                                "Type": "Wait",
+                                "Duration": 1.0
+                            }
+                        ]
+                    },
+                    {
+                        "Type": "Sequence",
+                        "Children": [
+                            {
+                                "Type": "Action",
+                                "Action": "FindRandomPoint"
+                            },
+                            {
+                                "Type": "Action",
+                                "Action": "MoveToTarget"
+                            },
+                            {
+                                "Type": "Action",
+                                "Action": "ScanForEnemy"
+                            },
+                            {
+                                "Type": "Wait",
+                                "Duration": 2.0
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

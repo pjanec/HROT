@@ -1,0 +1,18 @@
+namespace Fdp.Examples.Scenarios
+{
+    /// <summary>
+    /// Stable compile-time integer IDs for behaviors used specifically in
+    /// <c>BehaviorValidationScenario</c>.  Uses the upper military range (2001-2999)
+    /// to avoid conflicts with <see cref="Fdp.Toolkit.Behavior.BehaviorIds"/> and
+    /// <see cref="Fdp.Examples.Common.Constants.DemoBehaviorIds"/>.
+    /// </summary>
+    public static class BehaviorValidationBehaviorIds
+    {
+        /// <summary>
+        /// Combat BTree behavior used by <c>BehaviorValidationScenario</c>.
+        /// Selector: Sequence(Condition_ThreatVisible, Condition_HasAmmo, Action_AimAndFire)
+        /// or fallback Action_Flee.
+        /// </summary>
+        public const int Combat = 2900;
+    }
+}

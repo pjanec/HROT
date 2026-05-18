@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>fdp-demo-runner</AssemblyName>
+  </PropertyGroup>
+  <!-- Expose internals to the scenario test project so it can call Program.RunMain -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Fdp.Examples.Scenarios.Tests</_Parameter1>
+    </AssemblyAttribute>  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
+    <ProjectReference Include="..\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NLog" Version="5.2.8" />
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />  </ItemGroup>
+</Project>

@@ -1,0 +1,42 @@
+{
+    "TreeName": "ResourceGatherer",
+    "Root": {
+        "Type": "Repeater",
+        "RepeatCount": -1,
+        "Children": [
+            {
+                "Type": "Sequence",
+                "Children": [
+                    {
+                        "Type": "Action",
+                        "Action": "FindResource"
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "MoveToTarget"
+                    },
+                    {
+                        "Type": "Wait",
+                        "Duration": 0.5
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "Gather"
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "ReturnToBase"
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "MoveToTarget"
+                    },
+                    {
+                        "Type": "Wait",
+                        "Duration": 1.0
+                    }
+                ]
+            }
+        ]
+    }
+}

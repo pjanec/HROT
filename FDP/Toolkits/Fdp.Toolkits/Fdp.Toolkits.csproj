@@ -1,0 +1,87 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>Fdp.Toolkit</RootNamespace>
+  </PropertyGroup>
+
+  <!-- InternalsVisibleTo consolidated from all absorbed projects -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fdp.Toolkits.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Behavior.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Orchestration.Tests" />
+    <InternalsVisibleTo Include="FDP.Toolkit.Replication.Tests" />
+    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+    <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+  </ItemGroup>
+
+  <!-- Fdp.Diagnostics.Contracts: Phase 1 primitive protocol types -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Contracts\Fdp.Diagnostics.Contracts.csproj" />
+  </ItemGroup>
+
+  <!-- GizmoMap.Contracts: ECS-free gizmo interaction interfaces (IGizmoInteractionHandler etc.) -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
+  </ItemGroup>
+
+  <!-- Fdp.Diagnostics.Network: DDS schema types for gizmo network protocol -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Diagnostics\Fdp.Diagnostics.Network\Fdp.Diagnostics.Network.csproj" />
+  </ItemGroup>
+
+  <!-- Engine kernel -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
+  </ItemGroup>
+
+  <!-- External ECS dependencies -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+  </ItemGroup>
+
+  <!-- FDP domain analyzer: enforces BlackboardMemoryLayout size constraints at compile time -->
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- StructEdit for GizmoSettingsPublisherSystem -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
+  </ItemGroup>
+
+  <!-- CycloneDDS NuGet package -->
+  <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
+  </ItemGroup>
+
+
+  <!-- Runner NuGet packages -->
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="NLog" Version="5.2.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Replication\Abstractions\" />
+  </ItemGroup>
+
+  <!-- TKB-011: auto-register [TkbDescriptor]-annotated types at startup -->
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Toolkit.Tkb.SourceGen\Tkb.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+
+</Project>

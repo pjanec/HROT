@@ -1,0 +1,406 @@
+using System;
+using System.Numerics;
+using Raylib_cs;
+using ImGuiNET;
+using Fdp.Core;
+using Fdp.Core.Diagnostics;
+using Fdp.Presentation.Raylib;
+using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Presentation.Panels;
+using Fdp.Examples.CarKinem.Visualization;
+using Fdp.Examples.CarKinem.Core;
+using Fdp.Examples.CarKinem.Components;
+using Fdp.Examples.CarKinem.UI; // UI Panels
+using CarKinem.Core;
+using CarKinem.Road;
+using CarKinem.Spatial;
+using CarKinem.Formation;
+using CarKinem.Commands;
+using CarKinem.Systems;
+using CarKinem.Trajectory;
+using Fdp.ModuleHost;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time; // ITimeController
+using Fdp.Toolkit.Time.Controllers;
+using Fdp.Core.FlightRecorder; // Recorder
+
+namespace Fdp.Examples.CarKinem;
+
+public class CarKinemApp : FdpApplication
+{
+    // Simulation Core
+    private EntityRepository _repository = null!;
+    private ModuleHostKernel _kernel = null!;
+    private EventAccumulator _eventAccumulator = null!;
+    private EntityQuery _vehicleQuery = null!; // Promoted to field for Tools
+    
+    // (Phase 5: StandardInteractionTool removed; entity interaction handled by ECS gizmos)
+    
+    // Time & Recording (Restored)
+    private ITimeController _activeTimeController = null!;
+    private ITimeController _continuousTime = null!;
+    private SteppingTimeController _steppingTime = null!;
+    private AsyncRecorder? _recorder;
+    private PlaybackController? _playback;
+    
+    // Systems
+    private SpatialHashSystem _spatialSystem = null!;
+    private FormationTargetSystem _formationSystem = null!;
+    private VehicleCommandSystem _commandSystem = null!;
+    private CarKinematicsSystem _kinematicsSystem = null!;
+
+    // Managers / Resources
+    private RoadNetworkBlob _roadNetwork = new();
+    private TrajectoryPoolManager _trajectoryPool = null!;
+    private FormationTemplateManager _formationTemplates = null!;
+    private ScenarioManager _scenarioManager = null!;
+    // private InputManager _inputManager = null!; // Removed
+
+    // Visualization
+    private MapCanvas _map = null!;
+    private VehicleVisualizer _vehicleVisualizer = null!;
+    private SelectionManager _selectionManager = null!;
+    private CarKinemInspectorAdapter _inspectorAdapter = null!;
+    
+    // UI Panels (Restored)
+    private MainUI _legacyUI = null!;
+    private DiagnosticEventHistoryService _historyService = null!;
+    
+    // Systems List for Profiling
+    private List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> _systems = new();
+
+    // App State (Removed local state, using UIState from MainUI)
+
+    public CarKinemApp() : base(new ApplicationConfig 
+    { 
+        Width = 1280, 
+        Height = 720, 
+        WindowTitle = "FDP CarKinem (Refactored)",
+        TargetFPS = 60,
+        Flags = ConfigFlags.ResizableWindow | ConfigFlags.Msaa4xHint
+    }) 
+    { 
+    }
+
+    protected override void OnLoad()
+    {
+        // 1. Core Simulation Setup
+        _repository = new EntityRepository();
+        _eventAccumulator = new EventAccumulator();
+        _kernel = new ModuleHostKernel(_repository, _eventAccumulator);
+        
+        // Register Components
+        RegisterComponents();
+        
+        // Singleton Time
+        _repository.RegisterComponent<GlobalTime>();
+        _repository.SetSingletonUnmanaged(new GlobalTime());
+
+        // Load Road Network
+        _roadNetwork = new RoadNetworkBlob();
+        try {
+             _roadNetwork = RoadNetworkLoader.LoadFromJson("Assets/sample_road.json");
+        } catch {
+             // Ignore or log
+        }
+        
+        // Create Managers
+        _trajectoryPool = new TrajectoryPoolManager();
+        _formationTemplates = new FormationTemplateManager();
+        
+        // Initialize Systems
+        _spatialSystem = new SpatialHashSystem();
+        _formationSystem = new FormationTargetSystem(_formationTemplates, _trajectoryPool);
+        _commandSystem = new VehicleCommandSystem();
+        _kinematicsSystem = new CarKinematicsSystem(_trajectoryPool);
+        
+        // Initialize Kernel Time
+        var timeConfig = new TimeControllerConfig { Role = TimeRole.Standalone };
+        
+        // create continuous controller (via factory or directly)
+        _continuousTime = TimeControllerFactory.Create(_repository.Bus, timeConfig);
+        
+        // create stepping controller (manual instantiation as it requires seed state later, 
+        // but we can init with default and seed on switch)
+        _steppingTime = new SteppingTimeController(new GlobalTime());
+
+        // Use Switchable Proxy to avoid ModuleHostKernel exception on swapping
+        _activeTimeController = _continuousTime;
+        _kernel.SetTimeController(_activeTimeController); 
+        _kernel.Initialize();
+        
+        // Scenario Manager
+        _scenarioManager = new ScenarioManager(_repository, _roadNetwork, _trajectoryPool, _formationTemplates);
+        _scenarioManager.SpawnFastOne(); // Initial Spawn
+        
+        // 2. Visualization Setup
+        _map = new MapCanvas();
+        _map.AddResource(_trajectoryPool);
+        var roadLayer = new RoadMapLayer(_roadNetwork);
+        _map.AddLayer(roadLayer);
+        
+        _vehicleVisualizer = new VehicleVisualizer();
+        _selectionManager = new SelectionManager(); 
+        _inspectorAdapter = new CarKinemInspectorAdapter(_selectionManager, _repository);
+        
+        _vehicleQuery = _repository.Query()
+            .With<VehicleState>()
+            .With<VehicleParams>()
+            .Build();
+            
+        var trajectoryLayer = new TrajectoryMapLayer(_trajectoryPool, _repository, _inspectorAdapter);
+        _map.AddLayer(trajectoryLayer);
+        
+        // 3. UI & Input
+        _historyService = new DiagnosticEventHistoryService();
+        _legacyUI = new MainUI(_historyService);
+
+        // (Phase 5: StandardInteractionTool removed; entity interaction handled by ECS gizmos)
+    }
+
+
+    private void RegisterComponents()
+    {
+        _repository.RegisterComponent<SimTransform>();
+        _repository.RegisterComponent<SimVelocity>();
+        _repository.RegisterComponent<VehicleState>();
+        _repository.RegisterComponent<VehicleParams>();
+        _repository.RegisterComponent<NavState>();
+        _repository.RegisterComponent<FormationFollower>();
+        _repository.RegisterComponent<FormationController>();
+        _repository.RegisterComponent<FormationTarget>();
+        _repository.RegisterComponent<VehicleColor>();
+        // _repository.RegisterComponent<NavigationPath>(); // Removed: Trajectories are stored in Pool
+        
+        // Commands
+        _repository.RegisterEvent<CmdSpawnVehicle>();
+        _repository.RegisterEvent<CmdCreateFormation>();
+        _repository.RegisterEvent<CmdJoinFormation>();
+        _repository.RegisterEvent<CmdLeaveFormation>();
+    }
+
+    protected override void OnUpdate(float dt)
+    {
+        // Global Input Handling (Delete)
+        if (Raylib.IsKeyPressed(KeyboardKey.Delete)) 
+        {
+             var toDelete = _selectionManager.SelectedEntities.ToList();
+             if (toDelete.Count > 0)
+             {
+                 foreach(var e in toDelete)
+                 {
+                     if (_repository.IsAlive(e))
+                         _repository.DestroyEntity(e);
+                 }
+                 _selectionManager.Clear();
+             }
+        }
+
+        // --- 1. Handle Input (Pause/Record/Replay) ---
+        
+        // Pause/Play Logic (Time Mode Switching)
+        bool isPaused = _legacyUI.IsPaused;
+        // Use proxy to get active
+        var currentController = _activeTimeController;
+        
+        if (isPaused && currentController != _steppingTime)
+        {
+            // Switch to Deterministic (Stepping)
+            _steppingTime.SeedState(currentController.GetCurrentState());
+            _activeTimeController = _steppingTime;
+            _kernel.SetTimeController(_steppingTime);
+            Console.WriteLine("Switched to Deterministic Time (Paused)");
+        }
+        else if (!isPaused && currentController != _continuousTime)
+        {
+            // Switch to Continuous
+            _continuousTime.SeedState(currentController.GetCurrentState());
+            _activeTimeController = _continuousTime;
+            _kernel.SetTimeController(_continuousTime);
+            Console.WriteLine("Switched to Continuous Time (Playing)");
+        }
+        
+        // Update Time Scale
+        _kernel.GetTimeController().SetTimeScale(_legacyUI.TimeScale);
+        
+        // Handle Recording Toggle
+        if (_legacyUI.ConsumeRecordingToggle())
+        {
+            if (_recorder == null)
+            {
+                // Start Recording
+                string filename = $"recording_{DateTime.Now:yyyyMMdd_HHmmss}.fdprec";
+                _recorder = new AsyncRecorder(filename);
+                _legacyUI.IsRecording = true;
+                Console.WriteLine($"Started recording to {filename}");
+            }
+            else
+            {
+                // Stop Recording
+                _recorder.Dispose();
+                _recorder = null;
+                _legacyUI.IsRecording = false;
+                Console.WriteLine("Stopped recording");
+            }
+        }
+        
+        // Handle Replay Toggle
+        if (_legacyUI.ConsumeReplayToggle())
+        {
+             if (_playback == null)
+             {
+                 // Start Replay (Loads most recent or hardcoded for now)
+                 // Find most recent .fdprec
+                 var files = System.IO.Directory.GetFiles(".", "*.fdprec");
+                 if (files.Length > 0)
+                 {
+                     // FIX: Stop recording if active before starting replay
+                     if (_recorder != null)
+                     {
+                         _recorder.Dispose();
+                         _recorder = null;
+                         _legacyUI.IsRecording = false;
+                         Console.WriteLine("Stopped recording strictly before playback");
+                     }
+                     
+                     // Clear current entities to avoid conflicts/ghosts
+                     _scenarioManager.ClearAll();
+                     
+                     var lastFile = files.OrderByDescending(f => f).First();
+                     _playback = new PlaybackController(lastFile);
+                     // Pause simulation for replay control? Or let playback drive?
+                     // Usually Playback replaces Kernel updates.
+                     _legacyUI.IsReplaying = true;
+                     _legacyUI.IsPaused = true; // Pause sim so we don't conflict
+                     Console.WriteLine($"Started replay of {lastFile}");
+                 }
+             }
+             else
+             {
+                 _playback.Dispose();
+                 _playback = null;
+                 _legacyUI.IsReplaying = false;
+                 Console.WriteLine("Stopped replay");
+             }
+        }
+
+        // --- 2. Simulation Step ---
+
+        bool shouldStep = false;
+
+        // A. ALWAYS Update Kernel (Time & Event Buffer Swap)
+        _kernel.Update();
+
+        // B. ALWAYS Run Logic Systems (Command, Formation)
+        // These systems consume input events from buffers (swapped above).
+        // If we don't run them, next frame properties will be lost.
+        // They only set intentions/state, not physics.
+        // (Unless in Replay Mode, where we might want to disable them)
+        if (_playback == null)
+        {
+            _commandSystem.Execute(_repository, dt);
+            _formationSystem.Execute(_repository, dt);
+        }
+
+        // C. Conditional Physics/Stepping Logic
+        // If Replaying, we drive from Playback
+        if (_playback != null)
+        {
+            // If not paused, OR if step requested, advance frame
+            if (!_legacyUI.IsPaused || _legacyUI.ConsumeStepRequest())
+            {
+                if (!_playback.StepForward(_repository))
+                {
+                    // End of recording
+                    _legacyUI.IsPaused = true;
+                    // Log
+                }
+            }
+        }
+        else
+        {
+            // Normal Simulation Logic
+            if (_legacyUI.ConsumeStepRequest())
+            {
+                // Single Step: Force SteppingController to advance
+                 _steppingTime.Step(1.0f / 60.0f);
+                 shouldStep = true;
+            }
+            else if (!isPaused)
+            {
+                // Continuous Run already updated time in _kernel.Update()
+                shouldStep = true;
+            }
+        }
+
+        // --- 3. Physics & Integration Execution ---
+        
+        if (shouldStep)
+        {
+            // Run Systems that integrate/modify physics state
+            _spatialSystem.Execute(_repository, dt);
+            // _formationSystem.Execute(_repository, dt); // Moved strictly to always run (Logic)
+            // _commandSystem.Execute(_repository, dt);   // Moved strictly to always run (Logic)
+            _kinematicsSystem.Execute(_repository, dt);
+            
+            _scenarioManager.Update();
+            
+            // Record Frame if Recording
+            if (_recorder != null)
+            {
+                var time = _kernel.GetTimeController().GetCurrentState();
+                
+                // Use frame-locked wall clock: TotalWallTicks if populated, else sample at call-site.
+                long wallTicks = time.TotalWallTicks != 0
+                    ? time.TotalWallTicks
+                    : DateTime.UtcNow.Ticks;
+
+                // Capture Keyframe every 60 frames
+                if (time.FrameNumber % 60 == 0)
+                {
+                    _recorder.CaptureKeyframe(_repository, wallTicks);
+                }
+                
+                // prevTick is previous frame index
+                uint prevTick = (uint)Math.Max(0, time.FrameNumber - 1);
+                _recorder.CaptureFrame(_repository, prevTick, wallTicks);
+            }
+        }
+
+        // 4. Input Manager (Right Click -> Navigate) REMOVED
+        // _inputManager.HandleInput(_selectionManager, _scenarioManager, _map.Camera.InnerCamera, _legacyUI.UIState);
+
+        // (Phase 5: PointSequenceTool and _interactionTool removed; path drawing not yet migrated)
+
+        // 5. Map Update (Camera/Zoom/Layers)
+        _map.Update(dt);
+
+        // Capture event history for EventBrowserPanel (PostSimulation equivalent).
+        _historyService.Capture("World", _repository.Bus, (uint)_kernel.GetTimeController().GetCurrentState().FrameNumber);
+    }
+
+    protected override void OnDrawWorld()
+    {
+        _map.Draw();
+    }
+
+    protected override void OnDrawUI()
+    {
+        // Render the restored UI Panels
+        _legacyUI.Render(_repository, _kernel, _scenarioManager, _inspectorAdapter, _systems, _playback); 
+    }
+
+    protected override void OnUnload()
+    {
+        // Cleanup
+        _recorder?.Dispose();
+        _playback?.Dispose();
+        
+        _roadNetwork.Dispose();
+        _trajectoryPool?.Dispose();
+        _formationTemplates?.Dispose();
+        _kernel?.Dispose();
+        _repository?.Dispose();
+    }
+}

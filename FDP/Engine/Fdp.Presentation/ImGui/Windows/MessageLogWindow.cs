@@ -1,0 +1,48 @@
+using Fdp.Core.Logging;
+using Fdp.Presentation.Panels;
+using Fdp.Presentation.WindowManager;
+
+namespace Fdp.Presentation.Windows
+{
+    /// <summary>
+    /// Global <see cref="ManagedWindow"/> that hosts the <see cref="MessageLogPanel"/>.
+    ///
+    /// <para>Uses <see cref="WindowScope.Global"/> so the window is visible in every
+    /// perspective (IG, SimHost, ExCon, CGF, Editor) without pinning.</para>
+    ///
+    /// <para>Instantiate once and register with <c>WindowManager.RegisterWindow</c>.
+    /// Additional <see cref="IMessageLogSource"/> instances can be pushed to the
+    /// underlying <see cref="MessageLogRegistry"/> at any time; new tabs appear on
+    /// the next rendered frame.</para>
+    /// </summary>
+    public sealed class MessageLogWindow : ManagedWindow
+    {
+        private readonly MessageLogPanel _panel;
+
+        /// <param name="registry">
+        /// The shared registry that drives the tab list. Pass the same instance to
+        /// <c>WindowManager.MessageLogRegistry</c> so subsystems can register
+        /// additional sources via their <c>RegisterWindows</c> override.
+        /// </param>
+        public MessageLogWindow(MessageLogRegistry registry)
+            : base("fdp_message_log", "Message Log", string.Empty, WindowScope.Global)
+        {
+            _panel = new MessageLogPanel(registry);
+            IsOpen = true;
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if any underlying message log tab has unseen
+        /// Warning/Error/Critical messages that are not suppressed by the current filters.
+        /// </summary>
+        public bool HasUnobservedAttention => _panel.HasUnobservedAttention;
+
+        /// <summary>
+        /// Instructs the panel to switch to the first tab reporting unobserved
+        /// attention on the next rendered frame.
+        /// </summary>
+        public void FocusFirstAttentionTab() => _panel.FocusFirstAttentionTab();
+
+        protected override void DrawClientArea() => _panel.DrawContent();
+    }
+}

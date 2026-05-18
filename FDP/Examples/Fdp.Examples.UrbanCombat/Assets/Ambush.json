@@ -1,0 +1,26 @@
+{
+    "TreeName": "Ambush_BT",
+    "Version": 1,
+    "Root": {
+        "Type": "Selector",
+        "Children": [
+            {
+                "Type": "Sequence",
+                "Children": [
+                    {
+                        "Type": "Condition",
+                        "Action": "Condition_HasTarget"
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "Action_AimAndFire"
+                    }
+                ]
+            },
+            {
+                "Type": "Action",
+                "Action": "Action_HoldPosition"
+            }
+        ]
+    }
+}

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- InternalsVisibleTo consolidated from all absorbed projects -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FDP.Toolkit_ImGui.Tests" />
+    <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Presentation\GizmoMap.Presentation.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
+  </ItemGroup>
+
+  <!-- Visual/UI NuGet packages (union of all three merged projects) -->
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+  </ItemGroup>
+
+  <!-- Embedded icon atlas (from FDP.Toolkit_ImGui) -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Data\Icons\famfamfam-silk.png">
+      <LogicalName>FDP.Toolkit_ImGui.Icons.famfamfam-silk.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

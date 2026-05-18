@@ -1,0 +1,176 @@
+﻿using System;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
+using Xunit;
+
+namespace Fdp.Toolkit.Physics.Tests
+{
+    /// <summary>
+    /// Tests for <see cref="HitResolutionSystem"/> focused on the PACK-P003 requirement:
+    /// bullet impacts must emit both a <see cref="HitEvent"/> and a
+    /// <see cref="DetonationNotification"/> with local ECS <see cref="Entity"/> handles;
+    /// LOS-check rays must emit neither.
+    ///
+    /// <b>PACK-P003:</b> <see cref="HitResolutionSystem"/> no longer requires
+    /// <see cref="Fdp.Toolkit.Replication.Services.NetworkEntityMap"/> — it always emits
+    /// <see cref="DetonationNotification"/> with local ECS handles.
+    /// </summary>
+    public class HitResolutionSystemDetonationTests : IDisposable
+    {
+        private readonly EntityRepository    _world;
+        private readonly HitResolutionSystem _sys;
+
+        public HitResolutionSystemDetonationTests()
+        {
+            _world = PhysicsTestWorldFactory.Create();
+
+            // Register DetonationNotification for PACK-P003 paths.
+            _world.RegisterEvent<DetonationNotification>();
+
+            // PACK-P003: no-arg constructor — no NetworkEntityMap needed.
+            _sys = new HitResolutionSystem();
+        }
+
+        public void Dispose()
+        {
+            PhysicsTestWorldFactory.DisposeBatch(_world);
+        }
+
+        // ── SC-1: Bullet hit → HitEvent AND DetonationNotification ───────────
+
+        /// <summary>
+        /// PACK-P003 SC-1: A bullet-ray hit must publish both <see cref="HitEvent"/> and
+        /// <see cref="DetonationNotification"/> with the correct local ECS entity handles
+        /// and world-space hit position.
+        /// </summary>
+        [Fact]
+        public void BulletHit_EmitsBothHitEvent_AndDetonationNotification()
+        {
+            // Arrange
+            const int bulletIdx = 7;
+
+            var hitEntity     = _world.CreateEntity();
+            var shooterEntity = _world.CreateEntity();
+
+            // Build the ray: start at (0,0,0), end at (10,0,0), hit at T=0.5 -> world pos (5,0,0).
+            var rayStart = new Vector3(0f, 0f, 0f);
+            var rayEnd   = new Vector3(10f, 0f, 0f);
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit       = 1,
+                    RayId        = PhysicsConstants.PackBulletRayId(bulletIdx),
+                    HitEntity    = hitEntity,
+                    IgnoreEntity = shooterEntity,  // BallisticsSystem sets IgnoreEntity = bullet's Shooter
+                    Start        = rayStart,
+                    End          = rayEnd,
+                    T            = 0.5f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+
+            // Act
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            // Assert — HitEvent still published
+            var hitEvents = _world.Bus.Read<HitEvent>();
+            Assert.Equal(1, hitEvents.Length);
+            Assert.Equal(hitEntity, hitEvents[0].HitEntity);
+
+            // Assert — DetonationNotification also published with Entity handles
+            var detonations = _world.Bus.Read<DetonationNotification>();
+            Assert.Equal(1, detonations.Length);
+
+            var det = detonations[0];
+            // PACK-P003: Entity handles, not network IDs.
+            Assert.Equal(hitEntity,     det.Target);
+            Assert.Equal(shooterEntity, det.Shooter);
+
+            // Hit position = rayStart + 0.5f * (rayEnd - rayStart) = (5, 0, 0)
+            Assert.Equal(5f, det.HitX, precision: 4);
+            Assert.Equal(0f, det.HitY, precision: 4);
+            Assert.Equal(0f, det.HitZ, precision: 4);
+        }
+
+        // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
+
+        /// <summary>
+        /// PACK-P003 SC-2: A LOS-check ray (bit 63 == 0) must NOT produce a
+        /// <see cref="DetonationNotification"/>.
+        /// </summary>
+        [Fact]
+        public void LosHit_DoesNotEmitDetonationNotification()
+        {
+            var observer = _world.CreateEntity();
+            var target   = _world.CreateEntity();
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit   = 1,
+                    RayId    = PhysicsConstants.PackLosRayId(observer.Index, target.Index),
+                    Observer = observer,
+                    Target   = target,
+                    T        = 0.3f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            var detonations = _world.Bus.Read<DetonationNotification>();
+            Assert.Equal(0, detonations.Length);
+        }
+
+        // ── SC-3: Always emits (no-arg constructor, offline scenario) ─────────
+
+        /// <summary>
+        /// PACK-P003 SC-3: <see cref="HitResolutionSystem"/> constructed with no
+        /// arguments must always emit <see cref="DetonationNotification"/> for bullet
+        /// impacts. In offline contexts the event goes unconsumed — this test verifies
+        /// the event is published and carries the correct local Entity handles.
+        /// </summary>
+        [Fact]
+        public void BulletHit_WithNoArgConstructor_AlwaysEmitsDetonationNotification()
+        {
+            var hitEntity     = _world.CreateEntity();
+            var shooterEntity = _world.CreateEntity();
+
+            _world.Bus.Publish(new RaycastResultEvent
+            {
+                Hit = new RaycastHit
+                {
+                    HasHit       = 1,
+                    RayId        = PhysicsConstants.PackBulletRayId(hitEntity.Index),
+                    HitEntity    = hitEntity,
+                    IgnoreEntity = shooterEntity,
+                    Start        = Vector3.Zero,
+                    End          = new Vector3(5f, 0f, 0f),
+                    T            = 1f,
+                }
+            });
+            _world.Bus.SwapBuffers();
+
+            var ex = Record.Exception(() =>
+            {
+                _sys.Execute(_world, 0.016f);
+                _world.Bus.SwapBuffers();
+            });
+            Assert.Null(ex);
+
+            var detonations = _world.Bus.Read<DetonationNotification>();
+            Assert.Equal(1, detonations.Length);
+            // Entity handles carried directly — no network-ID lookup needed.
+            Assert.Equal(hitEntity,     detonations[0].Target);
+            Assert.Equal(shooterEntity, detonations[0].Shooter);
+        }
+    }
+}

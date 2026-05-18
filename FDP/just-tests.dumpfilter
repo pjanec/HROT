@@ -1,0 +1,25 @@
+- *
+! **/*.Tests*
+- **/docs
+- **/Docs
+- **/Debug
+- **/Release
+- **/.*
+- **/obj
+- **/bin
+- **/*Benchmark*
+- **/*benchmark*
+- **/build
+- **/artifacts
+- **/Generated/*
+- **/TestResults
+- **/*.png
+- **/*.dll
+- **/*.exe
+- **/*.md
+- **/*.fdp
+- ExtDeps
+
+
+
+

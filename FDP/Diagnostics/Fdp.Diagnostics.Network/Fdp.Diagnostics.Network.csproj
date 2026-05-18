@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>12.0</LangVersion>
+    <RootNamespace>Fdp.Diagnostics.Network</RootNamespace>
+    <!-- DebugPrimitive (from Fdp.Diagnostics.Contracts) lacks [DdsStruct] — disable cross-project codegen -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Fdp.Diagnostics.Contracts\Fdp.Diagnostics.Contracts.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\GizmoMap\GizmoMap.Network\GizmoMap.Network.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
+  </ItemGroup>
+</Project>
