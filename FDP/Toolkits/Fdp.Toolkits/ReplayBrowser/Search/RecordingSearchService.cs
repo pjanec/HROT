@@ -36,18 +36,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         // ── IRecordingSearchService ──────────────────────────────────────────
 
         /// <inheritdoc/>
-        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, CancellationToken ct = default)
+        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, TargetEntityFilter? entityFilter = null, CancellationToken ct = default)
         {
             if (fdpPath == null) throw new ArgumentNullException(nameof(fdpPath));
             if (root == null) throw new ArgumentNullException(nameof(root));
 
             // Dispatch to specialized loop by root predicate type.
             if (root is TransientEventPredicateDto eventPred)
-                return RunEventScan(fdpPath, eventPred, ct);
+                return RunEventScan(fdpPath, eventPred, entityFilter, ct);
 
             if (root is LifecyclePredicateDto lifecyclePred)
             {
-                var ranges = ExecuteLifecycleSearch(fdpPath, lifecyclePred, ct);
+                var ranges = ExecuteLifecycleSearch(fdpPath, lifecyclePred, entityFilter, ct);
                 // Flatten lifecycle results into SearchResultDto for uniform output.
                 var flat = new List<SearchResultDto>(ranges.Count);
                 foreach (var lr in ranges)
@@ -56,24 +56,25 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
 
             // All other types (component, structural, spatial, compound) use the frame-step loop.
-            return RunFrameStepScan(fdpPath, root, ct);
+            return RunFrameStepScan(fdpPath, root, entityFilter, ct);
         }
 
         /// <inheritdoc/>
         public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(
             string fdpPath,
             LifecyclePredicateDto criteria,
+            TargetEntityFilter? entityFilter = null,
             CancellationToken ct = default)
         {
             if (fdpPath == null) throw new ArgumentNullException(nameof(fdpPath));
             if (criteria == null) throw new ArgumentNullException(nameof(criteria));
 
-            return RunLifecycleScan(fdpPath, criteria, ct);
+            return RunLifecycleScan(fdpPath, criteria, entityFilter, ct);
         }
 
         // ── Frame-step scan (component / structural / spatial / compound) ────
 
-        private List<SearchResultDto> RunFrameStepScan(string fdpPath, SearchPredicateDto root, CancellationToken ct)
+        private List<SearchResultDto> RunFrameStepScan(string fdpPath, SearchPredicateDto root, TargetEntityFilter? entityFilter, CancellationToken ct)
         {
             var results = new List<SearchResultDto>(64);
 
@@ -123,6 +124,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     frameCandidates.Clear();
                     foreach (var entity in deltaQuery)
                     {
+                        if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
                         if (compiledFn(repo, entity))
                         {
                             frameCandidates.Add(entity);
@@ -142,13 +144,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 // ── Spatial mode ─────────────────────────────────────────────
                 if (root is SpatialBoundingPredicateDto spatial && spatialState != null)
                 {
-                    RunSpatialFrame(repo, frame, ticks, spatial, spatialState, results);
+                    RunSpatialFrame(repo, frame, ticks, spatial, spatialState, results, entityFilter);
                 }
 
                 // ── Structural mode ──────────────────────────────────────────
                 if (root is StructuralPredicateDto structural && structuralState != null)
                 {
-                    RunStructuralFrame(repo, frame, ticks, structural, structuralState, results);
+                    RunStructuralFrame(repo, frame, ticks, structural, structuralState, results, entityFilter);
                 }
 
                 // Per-frame cleanup: remove destroyed entities from state sets.
@@ -185,7 +187,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Event scan ───────────────────────────────────────────────────────
 
-        private List<SearchResultDto> RunEventScan(string fdpPath, TransientEventPredicateDto predicate, CancellationToken ct)
+        private List<SearchResultDto> RunEventScan(string fdpPath, TransientEventPredicateDto predicate, TargetEntityFilter? entityFilter, CancellationToken ct)
         {
             EventScannerDelegate scanner = _eventScannerCompiler.CompileScanner(predicate);
             var results = new List<SearchResultDto>(64);
@@ -206,7 +208,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
                 // Step 1 already happened (StepForward injected events into bus).
                 // Step 2: scan immediately without clearing the bus.
-                scanner(bus, frame, ticks, results);
+                scanner(bus, frame, ticks, results, repo, entityFilter);
                 // Deliberately NO bus.ClearCurrentBuffers() here — this is the SR-T38 invariant.
             }
 
@@ -218,6 +220,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private List<LifecycleSearchResultDto> RunLifecycleScan(
             string fdpPath,
             LifecyclePredicateDto criteria,
+            TargetEntityFilter? entityFilter,
             CancellationToken ct)
         {
             var activeRanges = new Dictionary<Entity, int>(); // entity -> startFrame
@@ -242,6 +245,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     Entity entity = repo.GetEntityByIndex(i);
                     if (entity.IsNull) continue;
+                    if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
                     if (activeRanges.ContainsKey(entity)) continue;
 
                     if (MatchesLifecycleCriteria(entity, repo, criteria))
@@ -284,7 +288,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             long ticks,
             SpatialBoundingPredicateDto predicate,
             HashSet<Entity> insideZone,
-            List<SearchResultDto> results)
+            List<SearchResultDto> results,
+            TargetEntityFilter? entityFilter)
         {
             if (predicate.PositionComponentType == null) return;
 
@@ -298,6 +303,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             repo.QueryDelta(posQuery, 0, entity =>
             {
+                if (entityFilter != null && !entityFilter.Passes(repo, entity)) return;
                 if (!repo.HasComponentByTypeId(entity, typeId)) return;
 
                 // Read X and Y from the position component using direct reflection.
@@ -330,7 +336,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             long ticks,
             StructuralPredicateDto predicate,
             HashSet<Entity> hasComponent,
-            List<SearchResultDto> results)
+            List<SearchResultDto> results,
+            TargetEntityFilter? entityFilter)
         {
             int typeId = ComponentTypeRegistry.GetId(predicate.ComponentType);
             if (typeId < 0) return;
@@ -349,6 +356,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 Entity entity = repo.GetEntityByIndex(i);
                 if (entity.IsNull) continue;
+                if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
 
                 bool present = ComputeEffectivePresence(ref header, typeId, predicate.AuthorityRequirement);
                 bool was = hasComponent.Contains(entity);

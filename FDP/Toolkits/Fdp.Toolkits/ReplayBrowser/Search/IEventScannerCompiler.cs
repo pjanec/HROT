@@ -14,7 +14,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         FdpEventBus bus,
         int frame,
         long ticks,
-        List<SearchResultDto> results);
+        List<SearchResultDto> results,
+        EntityRepository repo,
+        TargetEntityFilter? entityFilter);
 
     /// <summary>
     /// Compiles a <see cref="TransientEventPredicateDto"/> into an

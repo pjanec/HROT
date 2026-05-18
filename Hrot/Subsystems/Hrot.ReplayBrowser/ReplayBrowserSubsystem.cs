@@ -430,8 +430,19 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
+        Func<Entity?> getSelectedEntity = () => _inspectorState?.SelectedEntity;
+        Func<long?> getSelectedNetworkId = () =>
+        {
+            var e = _inspectorState?.SelectedEntity;
+            if (e == null || e.Value.IsNull || !_context.SandboxRepo.IsAlive(e.Value)) return null;
+            if (_context.SandboxRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value))
+                return _context.SandboxRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value).Value;
+            return null;
+        };
 
-        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent, matchIntent, _behaviorRegistry);
+        _searchPanel = new ReplaySearchPanel(
+            editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
+            _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
     }
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)

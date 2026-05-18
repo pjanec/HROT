@@ -308,11 +308,15 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
     private sealed class NopPanelSearchService : Fdp.Toolkit.ReplayBrowser.Search.IRecordingSearchService
     {
         public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.ReplayBrowser.Search.SearchResultDto> ExecuteSearch(
-            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto root)
+            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto root,
+            Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter? entityFilter = null,
+            System.Threading.CancellationToken ct = default)
             => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Search.SearchResultDto>();
 
         public System.Collections.Generic.IReadOnlyList<Fdp.Toolkit.ReplayBrowser.Search.LifecycleSearchResultDto> ExecuteLifecycleSearch(
-            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.LifecyclePredicateDto criteria)
+            string fdpPath, Fdp.Toolkit.ReplayBrowser.Search.LifecyclePredicateDto criteria,
+            Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter? entityFilter = null,
+            System.Threading.CancellationToken ct = default)
             => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Search.LifecycleSearchResultDto>();
     }
 }

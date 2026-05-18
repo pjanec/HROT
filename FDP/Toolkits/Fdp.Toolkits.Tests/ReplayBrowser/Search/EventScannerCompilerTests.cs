@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results);
+                scanner(bus, frame, ticks, results, repo, null);
             }
 
             Assert.Equal(2, results.Count);
@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results);
+                scanner(bus, frame, ticks, results, repo, null);
             }
 
             // Only frame 0 should match (Damage = 100 > 50)
@@ -164,7 +164,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                scanner(bus, frame, ticks, results);
+                scanner(bus, frame, ticks, results, repo, null);
             }
 
             Assert.Empty(results);
@@ -202,7 +202,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 {
                     int frame = playback.CurrentFrame;
                     long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
-                    scanner(bus, frame, ticks, results);
+                    scanner(bus, frame, ticks, results, repo, null);
                 }
 
                 Assert.Single(results);

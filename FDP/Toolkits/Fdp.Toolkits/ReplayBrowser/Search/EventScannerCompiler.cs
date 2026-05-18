@@ -72,8 +72,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private static EventScannerDelegate BuildOccurrenceScanner(Type eventType)
         {
             string typeName = eventType.Name;
-            return (bus, frame, ticks, results) =>
+            return (bus, frame, ticks, results, repo, filter) =>
             {
+                if (filter != null) return;
                 if (bus.HasEvent(eventType))
                     results.Add(new SearchResultDto(frame, ticks, Entity.Null, typeName + " Occurred"));
             };
@@ -90,7 +91,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         {
             Func<string, bool> match = CompileStringMatch(op, targetValue);
 
-            return (bus, frame, ticks, results) =>
+            return (bus, frame, ticks, results, repo, filter) =>
             {
                 ReadOnlySpan<T> events = bus.Read<T>();
                 for (int i = 0; i < events.Length; i++)
@@ -100,6 +101,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     if (match(val))
                     {
                         Entity entity = TryExtractEntity(val);
+                        if (filter != null && !filter.Passes(repo, entity)) continue;
                         results.Add(new SearchResultDto(frame, ticks, entity, typeof(T).Name + " " + val));
                     }
                 }
@@ -118,7 +120,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Func<string, bool> match = CompileStringMatch(op, targetValue);
             string typeName = typeof(T).Name;
 
-            return (bus, frame, ticks, results) =>
+            return (bus, frame, ticks, results, repo, filter) =>
             {
                 IReadOnlyList<T> events = bus.ReadManaged<T>();
                 for (int i = 0; i < events.Count; i++)
@@ -129,6 +131,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     if (match(val))
                     {
                         Entity entity = TryExtractEntity(val);
+                        if (filter != null && !filter.Passes(repo, entity)) continue;
                         results.Add(new SearchResultDto(frame, ticks, entity, typeName + " " + val));
                     }
                 }

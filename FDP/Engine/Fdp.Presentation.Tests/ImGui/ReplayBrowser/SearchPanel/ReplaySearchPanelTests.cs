@@ -200,9 +200,9 @@ public class ReplaySearchPanelDecouplingTests
 
     private sealed class NopSearchService : IRecordingSearchService
     {
-        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, CancellationToken ct = default)
+        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, TargetEntityFilter? entityFilter = null, CancellationToken ct = default)
             => Array.Empty<SearchResultDto>();
-        public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(string fdpPath, LifecyclePredicateDto criteria, CancellationToken ct = default)
+        public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(string fdpPath, LifecyclePredicateDto criteria, TargetEntityFilter? entityFilter = null, CancellationToken ct = default)
             => Array.Empty<LifecycleSearchResultDto>();
     }
 

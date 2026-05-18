@@ -32,6 +32,8 @@ public sealed class ReplaySearchPanel
     private readonly Action<Entity> _onEntitySelected;
     private readonly Action<int, Entity> _onMatchSelected;
     private readonly BehaviorRegistry _behaviorRegistry;
+    private readonly Func<Entity?>? _getSelectedEntity;
+    private readonly Func<long?>? _getSelectedNetworkId;
 
     private SearchMode _mode = SearchMode.Component;
     private IEditSession? _predicateSession;
@@ -51,6 +53,11 @@ public sealed class ReplaySearchPanel
     private readonly StructuralPredicateDto _structuralDto = new();
     private readonly CompoundPredicateDto _compoundDto = new();
     private readonly BehaviorParamPredicateDto _behaviorParamDto = new();
+    private bool _filterTargetEntity;
+    private bool _targetUseNetworkId;
+    private int _targetIndex;
+    private int _targetGeneration = 1;
+    private string _targetNetworkIdStr = "0";
 
     // Search results
     private Task? _searchTask;
@@ -69,7 +76,9 @@ public sealed class ReplaySearchPanel
         Action<int> onSeekRequested,
         Action<Entity> onEntitySelected,
         Action<int, Entity> onMatchSelected,
-        BehaviorRegistry? behaviorRegistry = null)
+        BehaviorRegistry? behaviorRegistry = null,
+        Func<Entity?>? getSelectedEntity = null,
+        Func<long?>? getSelectedNetworkId = null)
     {
         _editService      = editService      ?? throw new ArgumentNullException(nameof(editService));
         _searchService    = searchService    ?? throw new ArgumentNullException(nameof(searchService));
@@ -77,6 +86,8 @@ public sealed class ReplaySearchPanel
         _onEntitySelected = onEntitySelected ?? throw new ArgumentNullException(nameof(onEntitySelected));
         _onMatchSelected  = onMatchSelected  ?? throw new ArgumentNullException(nameof(onMatchSelected));
         _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
+        _getSelectedEntity = getSelectedEntity;
+        _getSelectedNetworkId = getSelectedNetworkId;
     }
 
     // ── Public draw entry point ───────────────────────────────────────────
@@ -108,6 +119,7 @@ public sealed class ReplaySearchPanel
             ImGuiApi.EndTable();
         }
 
+        DrawEntityFilter();
         DrawExecuteButton();
         DrawResultsGrid();
     }
@@ -211,6 +223,62 @@ public sealed class ReplaySearchPanel
         }
     }
 
+    private void DrawEntityFilter()
+    {
+        ImGuiApi.Separator();
+        ImGuiApi.Checkbox("Filter by Target Entity", ref _filterTargetEntity);
+
+        if (_filterTargetEntity)
+        {
+            ImGuiApi.SameLine();
+            if (ImGuiApi.Button("Fill from Selected") && _getSelectedEntity != null)
+            {
+                var e = _getSelectedEntity();
+                if (e != null && !e.Value.IsNull)
+                {
+                    _targetIndex = e.Value.Index;
+                    _targetGeneration = e.Value.Generation;
+
+                    if (_getSelectedNetworkId != null)
+                    {
+                        var netId = _getSelectedNetworkId();
+                        if (netId.HasValue)
+                        {
+                            _targetUseNetworkId = true;
+                            _targetNetworkIdStr = netId.Value.ToString();
+                        }
+                        else
+                        {
+                            _targetUseNetworkId = false;
+                        }
+                    }
+                    else
+                    {
+                        _targetUseNetworkId = false;
+                    }
+                }
+            }
+
+            if (ImGuiApi.RadioButton("ECS Handle", !_targetUseNetworkId)) _targetUseNetworkId = false;
+            ImGuiApi.SameLine();
+            if (ImGuiApi.RadioButton("Network ID", _targetUseNetworkId)) _targetUseNetworkId = true;
+
+            if (_targetUseNetworkId)
+            {
+                ImGuiApi.InputText("Target Network ID", ref _targetNetworkIdStr, 32);
+            }
+            else
+            {
+                ImGuiApi.SetNextItemWidth(100f);
+                ImGuiApi.InputInt("Index", ref _targetIndex);
+                ImGuiApi.SameLine();
+                ImGuiApi.SetNextItemWidth(100f);
+                ImGuiApi.InputInt("Generation", ref _targetGeneration);
+            }
+        }
+        ImGuiApi.Separator();
+    }
+
     private void DrawExecuteButton()
     {
         bool isSearching = _searchTask != null && !_searchTask.IsCompleted;
@@ -249,6 +317,17 @@ public sealed class ReplaySearchPanel
                 _searchCts?.Dispose();
                 _searchCts = new CancellationTokenSource();
                 var token = _searchCts.Token;
+                TargetEntityFilter? entityFilter = null;
+                if (_filterTargetEntity)
+                {
+                    entityFilter = new TargetEntityFilter
+                    {
+                        UseNetworkId = _targetUseNetworkId,
+                        Index = _targetIndex,
+                        Generation = _targetGeneration,
+                        NetworkId = long.TryParse(_targetNetworkIdStr, out long nid) ? nid : 0
+                    };
+                }
 
                 if (_mode == SearchMode.Lifecycle)
                 {
@@ -257,7 +336,7 @@ public sealed class ReplaySearchPanel
                     {
                         try
                         {
-                            var r = _searchService.ExecuteLifecycleSearch(path, pred, token);
+                            var r = _searchService.ExecuteLifecycleSearch(path, pred, entityFilter, token);
                             lock (_resultsLock)
                             {
                                 _lifecycleResults = r;
@@ -283,7 +362,7 @@ public sealed class ReplaySearchPanel
                     {
                         try
                         {
-                            var r = _searchService.ExecuteSearch(path, pred, token);
+                            var r = _searchService.ExecuteSearch(path, pred, entityFilter, token);
                             lock (_resultsLock)
                             {
                                 _results = r;
