@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using Hrot.NED.Messages;
@@ -23,12 +23,12 @@ namespace Hrot.SimHost.Tests
         /// <summary>Builds a compiler with all standard SimHost paths plus a test weapon-ammo path.</summary>
         private static JsonToRecordCompiler BuildCompiler() =>
             new JsonToRecordCompilerBuilder()
-                .Register("Name",                  AttributeIds.Name,         AttributeValueKind.String)
-                .Register("Affiliation",            AttributeIds.Affiliation,   AttributeValueKind.String)
-                .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,       AttributeValueKind.Float64)
-                .Register("GeoPosition.Longitude", AttributeIds.GeoLon,       AttributeValueKind.Float64)
-                .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,       AttributeValueKind.Float64)
-                .Register("Weapon.*.Ammo",         WeaponAmmoId,              AttributeValueKind.Int32)
+                .Register("Name",                  AttributeIds.Name,         AttributeValueKind.CsString)
+                .Register("Affiliation",            AttributeIds.Affiliation,   AttributeValueKind.CsString)
+                .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,       AttributeValueKind.CsFloat64)
+                .Register("GeoPosition.Longitude", AttributeIds.GeoLon,       AttributeValueKind.CsFloat64)
+                .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,       AttributeValueKind.CsFloat64)
+                .Register("Weapon.*.Ammo",         WeaponAmmoId,              AttributeValueKind.CsInt32)
                 .Build();
 
         private static (NedAttributeRecordEmitter emitter, AttributeRecord[] buffer) MakeEmitter(int capacity = 8)
@@ -223,10 +223,10 @@ namespace Hrot.SimHost.Tests
         public void Builder_DuplicatePath_ThrowsInvalidOperationException()
         {
             var builder = new JsonToRecordCompilerBuilder()
-                .Register("Name", AttributeIds.Name, AttributeValueKind.String);
+                .Register("Name", AttributeIds.Name, AttributeValueKind.CsString);
 
             Assert.Throws<InvalidOperationException>(() =>
-                builder.Register("Name", 99, AttributeValueKind.String));
+                builder.Register("Name", 99, AttributeValueKind.CsString));
         }
 
         [Fact]
@@ -234,7 +234,7 @@ namespace Hrot.SimHost.Tests
         {
             var builder = new JsonToRecordCompilerBuilder();
             Assert.Throws<ArgumentNullException>(() =>
-                builder.Register(null!, 1, AttributeValueKind.String));
+                builder.Register(null!, 1, AttributeValueKind.CsString));
         }
 
         // ── Test: String interning (ATTR2-DEBT-03) ────────────────────────────────

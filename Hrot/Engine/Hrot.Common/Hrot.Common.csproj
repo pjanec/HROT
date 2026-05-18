@@ -45,8 +45,7 @@
     <!-- Fdp.Network.Cyclone for DdsIdAllocator (used by HrotNodeBuilder) -->
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
     <!-- CycloneDDS.Runtime for DdsParticipant, DdsReader, DdsWriter (used by HrotNodeBuilder) -->
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Core\StructEdit.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\StructEdit\src\StructEdit.Json\StructEdit.Json.csproj" />
 

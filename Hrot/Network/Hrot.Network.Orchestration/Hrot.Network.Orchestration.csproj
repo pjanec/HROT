@@ -18,11 +18,12 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\..\FDP\Network\Fdp.Network.Cyclone\Fdp.Network.Cyclone.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
-    <!-- Hrot.Core reference added after Hrot.Core exists -->
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
+  </ItemGroup>
+  <!-- Hrot.Core reference added after Hrot.Core exists -->
+  <ItemGroup>
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
   </ItemGroup>
-  <Import Project="..\..\..\FDP\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
 </Project>

@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 
 using System.Collections.Generic;
 
@@ -248,7 +248,7 @@ public class IgApplication : IDisposable
     private GizmoExecutionController?    _gizmoController;
     // GZH-003: provides Phase-5 perspective switching with ref-counted gate.
     internal GizmoExecutionController GizmoController => _gizmoController!;
-    // GZH-016: gate — false when another subsystem owns the map view.
+    // GZH-016: gate ï¿½ false when another subsystem owns the map view.
     private Func<bool> _isActiveMapOwner = () => true;
     /// <summary>Set by <see cref="IgSubsystem.Initialize"/> from <c>SubsystemConfig.IsActiveMapOwner</c>.</summary>
     internal Func<bool> IsActiveMapOwner { set => _isActiveMapOwner = value; }
@@ -668,11 +668,11 @@ public class IgApplication : IDisposable
         // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
         // in Hrot.SimHost so the JSON-Binary schema stays in sync on both ends of the wire.
         _edgeCompiler = new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.String)
-            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.String)
-            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.Float64)
-            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.Float64)
-            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
+            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.CsString)
+            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.CsString)
+            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
+            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
+            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
             .Build();
 
         _igBootstrapper = new IgNodeBootstrapper(

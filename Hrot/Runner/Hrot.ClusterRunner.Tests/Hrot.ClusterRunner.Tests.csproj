@@ -22,7 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
     <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />  </ItemGroup>
 

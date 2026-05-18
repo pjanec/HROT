@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
@@ -121,11 +121,11 @@ public static class AttributeCompilerFactory
     public static JsonToRecordCompiler BuildEdgeCompiler()
     {
         return new JsonToRecordCompilerBuilder()
-            .Register("Name",                   AttributeIds.Name,        AttributeValueKind.String)
-            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueKind.String)
-            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.Float64)
-            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.Float64)
-            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.Float64)
+            .Register("Name",                   AttributeIds.Name,        AttributeValueKind.CsString)
+            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueKind.CsString)
+            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.CsFloat64)
+            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.CsFloat64)
+            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.CsFloat64)
             .Build();
     }
 

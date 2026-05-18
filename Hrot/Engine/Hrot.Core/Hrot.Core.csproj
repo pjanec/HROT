@@ -6,11 +6,17 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup>
+    <!-- Hrot.Core uses CycloneDDS.NET only for the DdsParticipant type, not for any DDS topics.
+         Disable code generation to avoid IDL keyword conflicts (e.g. "map" in Hrot.Map.*). -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- CycloneDDS.Runtime: DdsParticipant can be accepted/stored in HrotNodeConfig -->
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
   </ItemGroup>
   <ItemGroup>
     <!-- From Hrot.Common.csproj -->

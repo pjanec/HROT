@@ -23,8 +23,7 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.BDC\Hrot.Network.BDC.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
     <!-- Subsystem libraries (R2) -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.CGF\Hrot.CGF.csproj" />
