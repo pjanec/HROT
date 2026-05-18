@@ -1,4 +1,0 @@
-[submodule "ExtDeps/FastHSM"]
-	path = ExtDeps/FastHSM
-	url = https://github.com/pjanec/FastHSM.git
-	branch = main

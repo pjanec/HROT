@@ -1,0 +1,26 @@
+{
+    "TreeName": "SimplePatrol",
+    "Root": {
+        "Type": "Repeater",
+        "RepeatCount": -1,
+        "Children": [
+            {
+                "Type": "Sequence",
+                "Children": [
+                    {
+                        "Type": "Action",
+                        "Action": "FindPatrolPoint"
+                    },
+                    {
+                        "Type": "Action",
+                        "Action": "MoveToTarget"
+                    },
+                    {
+                        "Type": "Wait",
+                        "Duration": 2.0
+                    }
+                ]
+            }
+        ]
+    }
+}
