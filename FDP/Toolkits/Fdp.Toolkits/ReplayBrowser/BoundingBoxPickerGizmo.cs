@@ -57,14 +57,27 @@ namespace Fdp.Toolkit.ReplayBrowser
         /// <inheritdoc/>
         public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
         {
-            if (!_isDragging) return;
+            if (!_isDragging)
+            {
+                var crossColor = new Rgba32(255, 255, 0, 255);
+                var pos = _currentPos;
+                float hs = 10f, gp = 4f, th = 1.5f;
+
+                draw.DrawLine(new Vector3(pos.X - hs, pos.Y, 0f), new Vector3(pos.X - gp, pos.Y, 0f), crossColor, th);
+                draw.DrawLine(new Vector3(pos.X + gp, pos.Y, 0f), new Vector3(pos.X + hs, pos.Y, 0f), crossColor, th);
+                draw.DrawLine(new Vector3(pos.X, pos.Y - hs, 0f), new Vector3(pos.X, pos.Y - gp, 0f), crossColor, th);
+                draw.DrawLine(new Vector3(pos.X, pos.Y + gp, 0f), new Vector3(pos.X, pos.Y + hs, 0f), crossColor, th);
+                draw.DrawSphere(new Vector3(pos.X, pos.Y, 0f), gp, crossColor);
+                draw.DrawTextLong(pos.X, pos.Y + 20f, "Click & drag to define area", Rgba32.Yellow);
+                return;
+            }
 
             Vector2 start   = new Vector2(_startPos.X,   _startPos.Y);
             Vector2 current = new Vector2(_currentPos.X, _currentPos.Y);
 
             Vector2 center  = (start + current) * 0.5f;
-            Vector2 extents = new Vector2(MathF.Abs(current.X - start.X),
-                                         MathF.Abs(current.Y - start.Y));
+            Vector2 extents = new Vector2(MathF.Abs(current.X - start.X) * 0.5f,
+                                         MathF.Abs(current.Y - start.Y) * 0.5f);
 
             draw.DrawBox2D(center, extents, BoxColor,
                 angleDeg: 0f,

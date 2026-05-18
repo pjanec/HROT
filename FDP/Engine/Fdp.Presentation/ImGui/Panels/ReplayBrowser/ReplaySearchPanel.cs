@@ -46,6 +46,25 @@ public sealed class ReplaySearchPanel
     /// <summary>Optional spatial picker context; injected by the subsystem when needed.</summary>
     public ISpatialPickerContext? SpatialPickerCtx { get; set; }
 
+    /// <summary>Exposes currently configured spatial bounds for map overlay rendering.</summary>
+    public BoundingBox2D? ActiveSpatialBounds
+    {
+        get
+        {
+            if (_mode == SearchMode.Spatial && _predicateSession != null)
+            {
+                foreach (var child in _predicateSession.Document.Root.Children)
+                {
+                    if (child.Name == "Bounds" && child.Binding?.GetBoxed() is BoundingBox2D box)
+                    {
+                        if (box.Min != box.Max) return box;
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
     // Per-mode DTO instances (survive mode switches so user-entered values are preserved).
     private readonly PropertyMatchDto _componentDto = new();
     private readonly TransientEventPredicateDto _eventDto = new();

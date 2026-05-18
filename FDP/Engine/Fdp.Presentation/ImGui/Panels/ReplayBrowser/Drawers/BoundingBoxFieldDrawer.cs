@@ -1,5 +1,4 @@
 using System;
-using System.Numerics;
 using Fdp.Presentation.Editing;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using ImGuiNET;
@@ -26,10 +25,7 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
         var max  = box.Max;
         bool changed = false;
 
-        var style = ImGuiApi.GetStyle();
-        float buttonWidth = ImGuiApi.CalcTextSize("...").X + (style.FramePadding.X * 2f);
-        float reserveForButton = buttonWidth + style.ItemSpacing.X + 6f;
-        float inputWidth = ImGuiApi.GetContentRegionAvail().X - reserveForButton;
+        float inputWidth = ImGuiApi.GetContentRegionAvail().X - 140f;
         if (inputWidth < 60f) inputWidth = 60f;
 
         ImGuiApi.SetNextItemWidth(inputWidth);

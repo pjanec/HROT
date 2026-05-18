@@ -154,6 +154,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             // â”€â”€ Selection Interaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             var rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
             statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBandState));
+            statelessRegistry.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
             _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
 
             _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_context.SandboxRepo, _interactionBus, rubberBandState);
@@ -655,6 +656,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _gizmoManager = gizmoManager;
         }
 
+        public bool IsPickPendingFor(string jsonPath) => _activeGizmoId.HasValue && _pendingPath == jsonPath;
+
         public void RequestBoundingBoxPick(string jsonPath)
         {
             if (_activeGizmoId.HasValue)
@@ -691,6 +694,42 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             box = default;
             return false;
+        }
+    }
+
+    private sealed class ReplaySpatialBoundsGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IGlobalStatelessGizmo
+    {
+        private readonly Func<Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D?> _getBounds;
+
+        public ReplaySpatialBoundsGizmo(Func<Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D?> getBounds)
+        {
+            _getBounds = getBounds;
+        }
+
+        public void Draw(Fdp.ModuleHost.Abstractions.ISimulationView view, Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder drawBuilder)
+        {
+            var bounds = _getBounds();
+            if (!bounds.HasValue) return;
+
+            var box = bounds.Value;
+            if (box.Min == box.Max) return;
+
+            Vector2 center = (box.Min + box.Max) * 0.5f;
+            Vector2 extents = new Vector2(
+                MathF.Abs(box.Max.X - box.Min.X) * 0.5f,
+                MathF.Abs(box.Max.Y - box.Min.Y) * 0.5f);
+
+            drawBuilder.DrawBox2D(
+                center,
+                extents,
+                new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 100, 0, 255),
+                angleDeg: 0f,
+                thickness: 1.5f,
+                sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.All,
+                layer: 0,
+                fillColor: default,
+                style: Fdp.Toolkit.Diagnostics.Gizmos.LineStyle.Dashed);
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using ImGuiNET;
 using StructEdit.Core;
@@ -166,10 +167,17 @@ internal sealed class ComponentEditDrawer
         if (bboxAttr != null && _spatialPickerCtx != null)
         {
             ImGuiApi.SameLine();
-            if (ImGuiApi.Button($"...##{node.Id.Value}"))
-                _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
-            if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
-                ImGuiApi.SetTooltip("Define area boundaries on map");
+            if (_spatialPickerCtx.IsPickPendingFor(node.JsonPath))
+            {
+                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking on Map...]");
+            }
+            else
+            {
+                if (ImGuiApi.Button($"...##{node.Id.Value}"))
+                    _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
+                if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+                    ImGuiApi.SetTooltip("Define area boundaries on map");
+            }
 
             if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
             {
@@ -278,10 +286,17 @@ internal sealed class ComponentEditDrawer
         if (bboxAttr != null && _spatialPickerCtx != null)
         {
             ImGuiApi.SameLine();
-            if (ImGuiApi.Button($"...##{node.Id.Value}"))
-                _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
-            if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
-                ImGuiApi.SetTooltip("Define area boundaries on map");
+            if (_spatialPickerCtx.IsPickPendingFor(node.JsonPath))
+            {
+                ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), "[Picking on Map...]");
+            }
+            else
+            {
+                if (ImGuiApi.Button($"...##{node.Id.Value}"))
+                    _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
+                if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+                    ImGuiApi.SetTooltip("Define area boundaries on map");
+            }
 
             if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
             {

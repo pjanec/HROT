@@ -27,6 +27,9 @@ public class ISpatialPickerContextTests
         public void RequestBoundingBoxPick(string jsonPath)
             => RequestedPaths.Add(jsonPath);
 
+        public bool IsPickPendingFor(string jsonPath)
+            => RequestedPaths.Contains(jsonPath);
+
         public bool TryConsumeBoundingBoxPick(string jsonPath, out BoundingBox2D box)
         {
             if (_pending.TryGetValue(jsonPath, out box))
