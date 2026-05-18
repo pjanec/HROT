@@ -96,6 +96,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         private Func<EntityRepository, Entity, bool> CompilePropertyMatch(PropertyMatchDto prop)
         {
             Type componentType = prop.ComponentType;
+            if (componentType == null)
+                return static (_, _) => false;
 
             if (componentType.IsValueType)
             {

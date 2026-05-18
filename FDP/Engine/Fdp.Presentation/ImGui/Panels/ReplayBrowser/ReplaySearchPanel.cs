@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,6 +67,8 @@ public sealed class ReplaySearchPanel
     private IReadOnlyList<SearchResultDto> _results = Array.Empty<SearchResultDto>();
     private IReadOnlyList<LifecycleSearchResultDto> _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
     private string _statusLine = string.Empty;
+    private string _validationError = string.Empty;
+    private float _validationErrorTimer = 0f;
 
     // Preset JSON (clipboard-style; stored in memory for load-back).
     private string _presetJson = string.Empty;
@@ -279,13 +282,59 @@ public sealed class ReplaySearchPanel
         ImGuiApi.Separator();
     }
 
+    private bool ValidateDto(object dto, out string errorMessage)
+    {
+        switch (dto)
+        {
+            case PropertyMatchDto pm when pm.ComponentType == null:
+                errorMessage = "Select a valid Component Type.";
+                return false;
+            case StructuralPredicateDto st when st.ComponentType == null:
+                errorMessage = "Select a valid Component Type.";
+                return false;
+            case TransientEventPredicateDto te when te.EventType == null:
+                errorMessage = "Select a valid Event Type.";
+                return false;
+            case BehaviorParamPredicateDto bp when bp.BehaviorId == 0:
+                errorMessage = "Select a valid Behavior.";
+                return false;
+            case SpatialBoundingPredicateDto sp when sp.PositionComponentType == null:
+                errorMessage = "Select a valid Position Component Type.";
+                return false;
+            case LifecyclePredicateDto lp when lp.IdentifierType == EntityIdentifierType.NameSubstring && lp.NameComponentType == null:
+                errorMessage = "Select a valid Name Component Type.";
+                return false;
+            case CompoundPredicateDto cp:
+                if (cp.Conditions.Count == 0)
+                {
+                    errorMessage = "Add at least one condition to the Compound search.";
+                    return false;
+                }
+                foreach (var cond in cp.Conditions)
+                {
+                    if (!ValidateDto(cond, out errorMessage))
+                        return false;
+                }
+                break;
+        }
+
+        errorMessage = string.Empty;
+        return true;
+    }
+
     private void DrawExecuteButton()
     {
+        if (_validationErrorTimer > 0f)
+        {
+            _validationErrorTimer -= ImGuiApi.GetIO().DeltaTime;
+            if (_validationErrorTimer <= 0f)
+                _validationError = string.Empty;
+        }
+
         bool isSearching = _searchTask != null && !_searchTask.IsCompleted;
 
         if (isSearching)
         {
-            // Transient UI state while the background task is running
             if (ImGuiApi.Button("Cancel Search"))
             {
                 _searchCts?.Cancel();
@@ -310,6 +359,16 @@ public sealed class ReplaySearchPanel
                 }
 
                 object dto = _predicateSession.Commit();
+
+                if (!ValidateDto(dto, out string errorMsg))
+                {
+                    _validationError = errorMsg;
+                    _validationErrorTimer = 3.0f;
+                    return;
+                }
+
+                _validationError = string.Empty;
+                _validationErrorTimer = 0f;
                 _statusLine       = "Searching...";
                 _results          = Array.Empty<SearchResultDto>();
                 _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
@@ -384,12 +443,20 @@ public sealed class ReplaySearchPanel
             }
         }
 
-        string statusSnapshot;
-        lock (_resultsLock) { statusSnapshot = _statusLine; }
-        if (!string.IsNullOrEmpty(statusSnapshot))
+        if (!string.IsNullOrEmpty(_validationError))
         {
             ImGuiApi.SameLine();
-            ImGuiApi.TextDisabled(statusSnapshot);
+            ImGuiApi.TextColored(new Vector4(1f, 1f, 0f, 1f), _validationError);
+        }
+        else
+        {
+            string statusSnapshot;
+            lock (_resultsLock) { statusSnapshot = _statusLine; }
+            if (!string.IsNullOrEmpty(statusSnapshot))
+            {
+                ImGuiApi.SameLine();
+                ImGuiApi.TextDisabled(statusSnapshot);
+            }
         }
     }
 
