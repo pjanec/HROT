@@ -29,6 +29,7 @@ public sealed class ReplaySearchPanel
     private readonly IRecordingSearchService _searchService;
     private readonly Action<int> _onSeekRequested;
     private readonly Action<Entity> _onEntitySelected;
+    private readonly Action<int, Entity> _onMatchSelected;
     private readonly BehaviorRegistry _behaviorRegistry;
 
     private SearchMode _mode = SearchMode.Component;
@@ -65,12 +66,14 @@ public sealed class ReplaySearchPanel
         IRecordingSearchService searchService,
         Action<int> onSeekRequested,
         Action<Entity> onEntitySelected,
+        Action<int, Entity> onMatchSelected,
         BehaviorRegistry? behaviorRegistry = null)
     {
         _editService      = editService      ?? throw new ArgumentNullException(nameof(editService));
         _searchService    = searchService    ?? throw new ArgumentNullException(nameof(searchService));
         _onSeekRequested  = onSeekRequested  ?? throw new ArgumentNullException(nameof(onSeekRequested));
         _onEntitySelected = onEntitySelected ?? throw new ArgumentNullException(nameof(onEntitySelected));
+        _onMatchSelected  = onMatchSelected  ?? throw new ArgumentNullException(nameof(onMatchSelected));
         _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
     }
 
@@ -320,13 +323,10 @@ public sealed class ReplaySearchPanel
                 ImGuiApi.TableNextRow();
                 ImGuiApi.TableSetColumnIndex(0);
                 if (ImGuiApi.SmallButton($"Frame {r.StartFrame}##seek{i}"))
-                    _onSeekRequested(r.StartFrame);
+                    _onMatchSelected(r.StartFrame, r.Entity);
                 ImGuiApi.TableSetColumnIndex(1);
                 if (ImGuiEntityLink.Draw(r.Entity.ToString()))
-                {
-                    _onEntitySelected(r.Entity);
-                    _onSeekRequested(r.StartFrame);
-                }
+                    _onMatchSelected(r.StartFrame, r.Entity);
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.Text(r.EndFrame.ToString());
                 ImGuiApi.TableSetColumnIndex(3);
@@ -353,13 +353,10 @@ public sealed class ReplaySearchPanel
                 ImGuiApi.TableNextRow();
                 ImGuiApi.TableSetColumnIndex(0);
                 if (ImGuiApi.SmallButton($"Frame {r.FrameIndex}##seek{i}"))
-                    _onSeekRequested(r.FrameIndex);
+                    _onMatchSelected(r.FrameIndex, r.Entity);
                 ImGuiApi.TableSetColumnIndex(1);
                 if (ImGuiEntityLink.Draw(r.Entity.ToString()))
-                {
-                    _onEntitySelected(r.Entity);
-                    _onSeekRequested(r.FrameIndex);
-                }
+                    _onMatchSelected(r.FrameIndex, r.Entity);
                 ImGuiApi.TableSetColumnIndex(2);
                 ImGuiApi.TextUnformatted(r.ContextMessage);
                 ImGuiApi.PopID();

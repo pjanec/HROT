@@ -236,7 +236,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         if (pendingSeek >= 0)
         {
             _pendingChangeSeekFrame = -1;
-            _playbackHistory.PushFrame(_context.CurrentFrame);
+            Entity currentEntity = _inspectorState?.SelectedEntity ?? Entity.Null;
+            _playbackHistory.PushWaypoint(_context.CurrentFrame, currentEntity);
+            _playbackHistory.PushWaypoint(pendingSeek, currentEntity);
             _context.SeekToFrame(pendingSeek);
         }
 
@@ -408,7 +410,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     private void WireDelegates()
     {
-        var (seekIntent, selectIntent) = WireDelegatesForTest(
+        var (seekIntent, selectIntent, matchIntent) = WireDelegatesForTest(
             _entityHistory, _playbackHistory, _inspectorState!, _context, _diffPanel!, _eventPanel!);
 
         _inspectorPanel!.OnEntitySelected = selectIntent;
@@ -429,7 +431,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
 
-        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent, _behaviorRegistry);
+        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent, matchIntent, _behaviorRegistry);
     }
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)
@@ -539,7 +541,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// Replaces _entityHistory, _playbackHistory, and _context with the injected
     /// objects so causality-jump and reactive diff logic operate on the same instances in tests.
     /// </summary>
-    internal (Action<int> seekIntent, Action<Entity> selectIntent) WireDelegatesForTest(
+    internal (Action<int> seekIntent, Action<Entity> selectIntent, Action<int, Entity> matchIntent) WireDelegatesForTest(
         EntitySelectionHistory entityHistory,
         PlaybackHistoryTracker playbackHistory,
         InspectorState inspectorState,
@@ -554,18 +556,37 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         // History-driven selection: when the selection history changes, update inspector state.
         entityHistory.OnSelectionChanged += e => inspectorState.SelectedEntity = e;
 
-        // Seek history: when the playback history fires, seek the context.
-        playbackHistory.OnSeekRequested  += f => context.SeekToFrame(f);
+        // Seek history: when the playback history fires, seek frame + restore selection.
+        playbackHistory.OnWaypointRequested += wp =>
+        {
+            context.SeekToFrame(wp.FrameIndex);
+            inspectorState.SelectedEntity = wp.SelectedEntity.IsNull ? null : wp.SelectedEntity;
+            if (!wp.SelectedEntity.IsNull)
+                entityHistory.PushSelection(wp.SelectedEntity);
+        };
 
         // Intents passed down to panels (panels stay unaware of history trackers).
-        Action<int>    seekIntent   = f => { playbackHistory.PushFrame(f); context.SeekToFrame(f); };
+        Action<int> seekIntent = f =>
+        {
+            Entity selected = inspectorState.SelectedEntity ?? Entity.Null;
+            playbackHistory.PushWaypoint(context.CurrentFrame, selected);
+            playbackHistory.PushWaypoint(f, selected);
+            context.SeekToFrame(f);
+        };
         Action<Entity> selectIntent = e => entityHistory.PushSelection(e);
+        Action<int, Entity> matchIntent = (f, e) =>
+        {
+            playbackHistory.PushWaypoint(context.CurrentFrame, inspectorState.SelectedEntity ?? Entity.Null);
+            playbackHistory.PushWaypoint(f, e);
+            entityHistory.PushSelection(e);
+            context.SeekToFrame(f);
+        };
 
         diffPanel.OnEntityLinkClicked  = selectIntent;
         eventPanel.OnEntityLinkClicked = selectIntent;
         eventPanel.OnCausalityJumpRequested = ExecuteCausalityJump;
 
-        return (seekIntent, selectIntent);
+        return (seekIntent, selectIntent, matchIntent);
     }
 
     /// <summary>
@@ -574,13 +595,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal void ExecuteCausalityJump(int eventFrame, Entity target)
     {
-        _playbackHistory.PushFrame(_context.CurrentFrame);
+        _playbackHistory.PushWaypoint(_context.CurrentFrame, _inspectorState?.SelectedEntity ?? Entity.Null);
         _entityHistory.PushSelection(_inspectorState?.SelectedEntity ?? Entity.Null);
 
         int targetFrame = eventFrame + 1;
 
         _entityHistory.PushSelection(target);
-        _playbackHistory.PushFrame(targetFrame);
+        _playbackHistory.PushWaypoint(targetFrame, target);
         _context.SeekToFrame(targetFrame);
     }
 

@@ -218,7 +218,12 @@ public class ReplaySearchPanelDecouplingTests
             new NopEditService(),
             new NopSearchService(),
             f => log1.Add(f),
-            e => log2.Add(e));
+            e => log2.Add(e),
+            (f, e) =>
+            {
+                log1.Add(f);
+                log2.Add(e);
+            });
     }
 
     [Fact]

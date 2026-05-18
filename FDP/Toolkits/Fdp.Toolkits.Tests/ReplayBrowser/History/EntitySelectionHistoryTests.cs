@@ -115,23 +115,23 @@ namespace Fdp.Toolkit.ReplayBrowser.History
         {
             var tracker = new PlaybackHistoryTracker();
 
-            tracker.PushFrame(5);
-            tracker.PushFrame(10);
-            tracker.PushFrame(15);
+            tracker.PushWaypoint(5, Entity.Null);
+            tracker.PushWaypoint(10, Entity.Null);
+            tracker.PushWaypoint(15, Entity.Null);
 
             Assert.True(tracker.CanGoBack);
             Assert.False(tracker.CanGoForward);
 
-            // GoBack → OnSeekRequested(10)
+            // GoBack → OnWaypointRequested(FrameIndex=10)
             int seekFires = 0;
             int lastSeeked = -1;
-            tracker.OnSeekRequested += f => { seekFires++; lastSeeked = f; };
+            tracker.OnWaypointRequested += wp => { seekFires++; lastSeeked = wp.FrameIndex; };
 
             tracker.GoBack();
             Assert.Equal(1, seekFires);
             Assert.Equal(10, lastSeeked);
 
-            // GoBack again → OnSeekRequested(5)
+            // GoBack again → OnWaypointRequested(FrameIndex=5)
             seekFires = 0;
             tracker.GoBack();
             Assert.Equal(1, seekFires);
@@ -139,14 +139,14 @@ namespace Fdp.Toolkit.ReplayBrowser.History
 
             Assert.False(tracker.CanGoBack, "CanGoBack should be false at the start.");
 
-            // GoForward → OnSeekRequested(10)
+            // GoForward → OnWaypointRequested(FrameIndex=10)
             seekFires = 0;
             tracker.GoForward();
             Assert.Equal(1, seekFires);
             Assert.Equal(10, lastSeeked);
 
             // Push 20 — truncates forward (15 is gone)
-            tracker.PushFrame(20);
+            tracker.PushWaypoint(20, Entity.Null);
             Assert.False(tracker.CanGoForward, "After new push, CanGoForward should be false.");
             Assert.True(tracker.CanGoBack, "CanGoBack should be true.");
         }

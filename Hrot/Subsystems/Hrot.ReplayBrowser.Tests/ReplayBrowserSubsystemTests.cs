@@ -130,7 +130,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var diffPanel      = new Fdp.Presentation.Panels.ReplayBrowser.ComponentDiffPanel();
         var eventPanel     = new Fdp.Presentation.Panels.EventBrowserPanel(new StubHistoryService());
         var searchPanel    = new Fdp.Presentation.Panels.ReplayBrowser.ReplaySearchPanel(
-            new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { });
+            new NopPanelEditService(), new NopPanelSearchService(), _ => { }, _ => { }, (_, _) => { });
 
         _subsystem.RegisterWindowsCore(wm, timelinePanel, inspectorPanel, diffPanel, eventPanel, searchPanel);
 
@@ -164,7 +164,7 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var diffPanel       = new ComponentDiffPanel();
         var eventPanel      = new EventBrowserPanel(context.HistoryService);
 
-        var (_, selectIntent) = _subsystem.WireDelegatesForTest(
+        var (_, selectIntent, _) = _subsystem.WireDelegatesForTest(
             entityHistory, playbackHistory, inspectorState, context, diffPanel, eventPanel);
 
         int changeCount = 0;
@@ -234,19 +234,19 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         var diffPanel       = new ComponentDiffPanel();
         var eventPanel      = new EventBrowserPanel(context.HistoryService);
 
-        var (seekIntent, _) = _subsystem.WireDelegatesForTest(
+        var (seekIntent, _, _) = _subsystem.WireDelegatesForTest(
             entityHistory, playbackHistory, inspectorState, context, diffPanel, eventPanel);
 
-        // seekIntent must call PushFrame (two distinct frames produce CanGoBack)
+        // seekIntent must push waypoints (two distinct frames produce CanGoBack)
         seekIntent(5);
         seekIntent(10);
 
         // After two seeks with different frames, CanGoBack must be true
-        Assert.True(playbackHistory.CanGoBack, "seekIntent must call PushFrame so two calls produce CanGoBack");
+        Assert.True(playbackHistory.CanGoBack, "seekIntent must call PushWaypoint so two calls produce CanGoBack");
 
-        // GoBack fires OnSeekRequested with the previous frame
+        // GoBack fires OnWaypointRequested with the previous frame
         int seekTarget = -1;
-        playbackHistory.OnSeekRequested += f => seekTarget = f;
+        playbackHistory.OnWaypointRequested += wp => seekTarget = wp.FrameIndex;
         playbackHistory.GoBack();
         Assert.Equal(5, seekTarget);
     }
