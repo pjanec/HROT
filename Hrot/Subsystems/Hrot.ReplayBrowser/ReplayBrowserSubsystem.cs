@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
@@ -428,6 +431,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _diffPanel.IsSearching = true;
         string fdpPath = _context.CurrentFdpPath;
         int startFrame = _context.CurrentFrame;
+        var excludedNames = new HashSet<string>(_diffPanel.ExcludedTypes.Select(t => t.Name));
+        double epsilon = _diffPanel.IsEpsilonIgnored ? 0.001 : 0.0;
         var excludedMask = new BitMask256();
         foreach (var type in _diffPanel.ExcludedTypes)
         {
@@ -447,6 +452,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
                 var repo = tempContext.SandboxRepo;
                 int targetIndex = target.Index;
+                var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
+                var snapshotMask = repo.GetSnapshotableMask();
+                var registeredTypes = repo.GetRegisteredComponentTypes();
 
                 bool DidEntityChange(uint prevVersion, BitMask256 prevMask)
                 {
@@ -466,7 +474,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     }
 
                     // Value changes on included component bits only.
-                    foreach (var kvp in repo.GetRegisteredComponentTypes())
+                    foreach (var kvp in registeredTypes)
                     {
                         var table = kvp.Value;
                         int typeId = table.ComponentTypeId;
@@ -482,15 +490,39 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     return false;
                 }
 
+                bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
+                {
+                    var diffs = _diffService.ComputeTreeDiff(before, after, epsilon);
+                    foreach (var node in diffs)
+                    {
+                        if (node.IsModified && !excludedNames.Contains(node.Name))
+                            return true;
+                    }
+
+                    return false;
+                }
+
                 if (direction > 0)
                 {
                     tempContext.SeekToFrame(startFrame, suppressHistory: true);
                     uint lastVersion = repo.GlobalVersion;
                     BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
+                    JsonNode? baseline = repo.IsAlive(target)
+                        ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                        : null;
                     while (tempContext.StepForward(suppressHistory: true))
                     {
                         if (DidEntityChange(lastVersion, lastMask))
-                            return tempContext.CurrentFrame;
+                        {
+                            JsonNode? current = repo.IsAlive(target)
+                                ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                                : null;
+
+                            if (IsActualIncludedDiff(baseline, current))
+                                return tempContext.CurrentFrame;
+
+                            baseline = current;
+                        }
 
                         lastVersion = repo.GlobalVersion;
                         lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
@@ -502,12 +534,24 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     int? lastChangeFrame = null;
                     uint lastVersion = repo.GlobalVersion;
                     BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
+                    JsonNode? baseline = repo.IsAlive(target)
+                        ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                        : null;
                     while (tempContext.CurrentFrame < startFrame)
                     {
                         if (!tempContext.StepForward(suppressHistory: true))
                             break;
                         if (DidEntityChange(lastVersion, lastMask))
-                            lastChangeFrame = tempContext.CurrentFrame;
+                        {
+                            JsonNode? current = repo.IsAlive(target)
+                                ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                                : null;
+
+                            if (IsActualIncludedDiff(baseline, current))
+                                lastChangeFrame = tempContext.CurrentFrame;
+
+                            baseline = current;
+                        }
 
                         lastVersion = repo.GlobalVersion;
                         lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();

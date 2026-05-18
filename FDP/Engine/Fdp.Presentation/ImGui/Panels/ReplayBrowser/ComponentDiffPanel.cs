@@ -21,6 +21,7 @@ public sealed class ComponentDiffPanel
     private bool _ignoreEpsilon;
     private bool _hideUnchanged = true;
     private readonly HashSet<Type> _excludedTypes = new();
+    private string _typeFilter = string.Empty;
 
     /// <summary>Current diff list displayed by <see cref="DrawContent()"/>.</summary>
     public IReadOnlyList<DiffNode> CurrentDiffs { get; set; }
@@ -32,6 +33,7 @@ public sealed class ComponentDiffPanel
     public Action<Entity>? OnEntityLinkClicked { get; set; }
     public Action<int>? OnSeekToChangeRequested { get; set; }
     public bool IsSearching { get; set; }
+    public bool IsEpsilonIgnored => _ignoreEpsilon;
     public IReadOnlySet<Type> ExcludedTypes => _excludedTypes;
 
     // ── Draw entry point ──────────────────────────────────────────────────
@@ -54,6 +56,10 @@ public sealed class ComponentDiffPanel
 
         if (Gui.BeginPopup("##diff_filter_popup"))
         {
+            Gui.SetNextItemWidth(250f);
+            Gui.InputTextWithHint("##diff_type_filter", "Filter components...", ref _typeFilter, 128);
+            Gui.Separator();
+
             if (Gui.Button("Select All"))
                 _excludedTypes.Clear();
             Gui.SameLine();
@@ -64,8 +70,15 @@ public sealed class ComponentDiffPanel
             }
             Gui.Separator();
 
+            Gui.BeginChild("##diff_types_scroll", new Vector2(0, 300), ImGuiChildFlags.None);
             foreach (var t in ComponentTypeRegistry.GetAllRegistered().OrderBy(x => x.Name))
             {
+                if (!string.IsNullOrEmpty(_typeFilter)
+                    && t.Name.IndexOf(_typeFilter, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
                 bool isChecked = !_excludedTypes.Contains(t);
                 if (Gui.Checkbox(t.Name, ref isChecked))
                 {
@@ -73,8 +86,12 @@ public sealed class ComponentDiffPanel
                     else _excludedTypes.Add(t);
                 }
             }
+            Gui.EndChild();
             Gui.EndPopup();
         }
+
+        if (!Gui.IsPopupOpen("##diff_filter_popup"))
+            _typeFilter = string.Empty;
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, !IsSearching, out _, out bool prevClicked);
