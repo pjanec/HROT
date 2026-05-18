@@ -55,6 +55,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
     private ScenarioSerializer _scenarioSerializer = null!;
+    private BehaviorRegistry _behaviorRegistry = new();
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
@@ -99,6 +100,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _session = new RepositoryAdapter(_context.SandboxRepo);
 
             var behaviorRegistry = new BehaviorRegistry();
+            _behaviorRegistry = behaviorRegistry;
             CgfBehaviorSetup.LoadFromAiAssembly(
                 behaviorRegistry,
                 geoTransform: null,
@@ -404,11 +406,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
             .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
-        var predicateCompiler = new PredicateCompiler(editSvc);
+        var predicateCompiler = new PredicateCompiler(editSvc, _behaviorRegistry);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);
         var searchSvc = new RecordingSearchService(predicateCompiler, eventScannerCompiler);
 
-        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent);
+        _searchPanel = new ReplaySearchPanel(editSvc, searchSvc, seekIntent, selectIntent, _behaviorRegistry);
     }
 
     /// <summary>

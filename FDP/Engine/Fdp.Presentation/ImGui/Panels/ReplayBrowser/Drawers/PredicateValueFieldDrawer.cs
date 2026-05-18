@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using StructEdit.Core;
 
@@ -11,10 +12,12 @@ using ImGuiApi = ImGuiNET.ImGui;
 internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
 {
     private readonly IEditSession _session;
+    private readonly BehaviorRegistry _behaviorRegistry;
 
-    public PredicateValueFieldDrawer(IEditSession session)
+    public PredicateValueFieldDrawer(IEditSession session, BehaviorRegistry behaviorRegistry)
     {
         _session = session;
+        _behaviorRegistry = behaviorRegistry;
     }
 
     public Type TargetType => typeof(SearchPredicateDto);
@@ -143,6 +146,10 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             {
                 ImGuiApi.TextDisabled("(Any Change)");
             }
+            else if (IsComplexType(propertyClrType))
+            {
+                ImGuiApi.TextDisabled("(Complex object - pick a leaf field)");
+            }
             else
             {
                 string s = str.Substring ?? string.Empty;
@@ -165,6 +172,17 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
             || t == typeof(float) || t == typeof(double) || t == typeof(decimal);
     }
 
+    private static bool IsComplexType(Type t)
+    {
+        return !(t.IsPrimitive
+            || t.IsEnum
+            || t == typeof(string)
+            || t == typeof(decimal)
+            || t == typeof(Guid)
+            || t == typeof(Fdp.Core.FixedString32)
+            || t == typeof(Fdp.Core.FixedString64));
+    }
+
     private Type? GetTargetType(string jsonPath)
     {
         int lastDot = jsonPath.LastIndexOf('.');
@@ -180,6 +198,16 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         {
             if (child.Name == "ComponentType" || child.Name == "EventType")
                 return child.Binding?.GetBoxed() as Type;
+            if (child.Name == "BehaviorId")
+            {
+                if (child.Binding?.GetBoxed() is int hash
+                    && hash != 0
+                    && _behaviorRegistry.TryGetDefinition(hash, out var def)
+                    && def.ParamsDtoType != null)
+                {
+                    return def.ParamsDtoType;
+                }
+            }
         }
 
         return null;
@@ -229,20 +257,25 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         {
             string segment = rawSegment;
             int bracket = segment.IndexOf('[');
-            if (bracket > 0)
+            bool hasIndexer = bracket > 0;
+            if (hasIndexer)
                 segment = segment.Substring(0, bracket);
 
             FieldInfo? fi = currentType.GetField(segment, flags);
             if (fi != null)
             {
-                currentType = UnwrapCollectionElement(fi.FieldType);
+                currentType = fi.FieldType;
+                if (hasIndexer)
+                    currentType = UnwrapCollectionElement(currentType);
                 continue;
             }
 
             PropertyInfo? pi = currentType.GetProperty(segment, flags);
             if (pi != null)
             {
-                currentType = UnwrapCollectionElement(pi.PropertyType);
+                currentType = pi.PropertyType;
+                if (hasIndexer)
+                    currentType = UnwrapCollectionElement(currentType);
                 continue;
             }
 

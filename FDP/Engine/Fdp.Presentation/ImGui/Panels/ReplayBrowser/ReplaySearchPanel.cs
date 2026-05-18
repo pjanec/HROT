@@ -23,12 +23,13 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// </summary>
 public sealed class ReplaySearchPanel
 {
-    private enum SearchMode { Component, Event, Lifecycle, Spatial, Structural, Compound }
+    private enum SearchMode { Component, Event, Lifecycle, Spatial, Structural, Compound, BehaviorParam }
 
     private readonly IComponentEditService _editService;
     private readonly IRecordingSearchService _searchService;
     private readonly Action<int> _onSeekRequested;
     private readonly Action<Entity> _onEntitySelected;
+    private readonly BehaviorRegistry _behaviorRegistry;
 
     private SearchMode _mode = SearchMode.Component;
     private IEditSession? _predicateSession;
@@ -47,6 +48,7 @@ public sealed class ReplaySearchPanel
     private readonly SpatialBoundingPredicateDto _spatialDto = new();
     private readonly StructuralPredicateDto _structuralDto = new();
     private readonly CompoundPredicateDto _compoundDto = new();
+    private readonly BehaviorParamPredicateDto _behaviorParamDto = new();
 
     // Search results
     private Task? _searchTask;
@@ -62,12 +64,14 @@ public sealed class ReplaySearchPanel
         IComponentEditService editService,
         IRecordingSearchService searchService,
         Action<int> onSeekRequested,
-        Action<Entity> onEntitySelected)
+        Action<Entity> onEntitySelected,
+        BehaviorRegistry? behaviorRegistry = null)
     {
         _editService      = editService      ?? throw new ArgumentNullException(nameof(editService));
         _searchService    = searchService    ?? throw new ArgumentNullException(nameof(searchService));
         _onSeekRequested  = onSeekRequested  ?? throw new ArgumentNullException(nameof(onSeekRequested));
         _onEntitySelected = onEntitySelected ?? throw new ArgumentNullException(nameof(onEntitySelected));
+        _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
     }
 
     // ── Public draw entry point ───────────────────────────────────────────
@@ -130,20 +134,20 @@ public sealed class ReplaySearchPanel
         SearchMode.Spatial     => _spatialDto,
         SearchMode.Structural  => _structuralDto,
         SearchMode.Compound    => _compoundDto,
+        SearchMode.BehaviorParam => _behaviorParamDto,
         _                      => _componentDto
     };
 
     private ComponentEditDrawer BuildDrawer(IEditSession session)
     {
-        var registry = new BehaviorRegistry();
         var typeMode = _mode == SearchMode.Event ? TypeComboMode.Event : TypeComboMode.Component;
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
             [typeof(BoundingBox2D)] = new BoundingBoxFieldDrawer(),
-            [typeof(int)]           = new BehaviorHashFieldDrawer(registry),
+            [typeof(int)]           = new BehaviorHashFieldDrawer(_behaviorRegistry),
             [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
-            [typeof(string)]        = new PropertyPathFieldDrawer(session),
-            [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session),
+            [typeof(string)]        = new PropertyPathFieldDrawer(session, _behaviorRegistry),
+            [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session, _behaviorRegistry),
         };
         return new ComponentEditDrawer(session, pickerCtx: null, drawers, SpatialPickerCtx);
     }
@@ -153,9 +157,9 @@ public sealed class ReplaySearchPanel
         SearchMode[] modes =
         {
             SearchMode.Component, SearchMode.Event, SearchMode.Lifecycle,
-            SearchMode.Spatial, SearchMode.Structural, SearchMode.Compound
+            SearchMode.Spatial, SearchMode.Structural, SearchMode.Compound, SearchMode.BehaviorParam
         };
-        string[] labels = { "Component", "Event", "Lifecycle", "Spatial", "Structural", "Compound" };
+        string[] labels = { "Component", "Event", "Lifecycle", "Spatial", "Structural", "Compound", "Behavior Param" };
 
         for (int i = 0; i < modes.Length; i++)
         {

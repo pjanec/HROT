@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using StructEdit.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
@@ -15,10 +17,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     public sealed class PredicateCompiler : IPredicateCompiler
     {
         private readonly IComponentEditService _editService;
+        private readonly BehaviorRegistry _behaviorRegistry;
 
-        public PredicateCompiler(IComponentEditService editService)
+        public PredicateCompiler(IComponentEditService editService, BehaviorRegistry? behaviorRegistry = null)
         {
             _editService = editService ?? throw new ArgumentNullException(nameof(editService));
+            _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
         }
 
         /// <inheritdoc/>
@@ -45,6 +49,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
                 case PropertyMatchDto prop:
                     return CompilePropertyMatch(prop);
+                
+                case BehaviorParamPredicateDto behaviorParam:
+                    return CompileBehaviorParamMatch(behaviorParam);
 
                 // Specialized loop predicates: pass-through; handled by the service.
                 case StructuralPredicateDto _:
@@ -151,6 +158,62 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             };
         }
 
+        private delegate bool BehaviorParamMatcherDelegate<T>(ref T dto);
+
+        private Func<EntityRepository, Entity, bool> CompileBehaviorParamMatch(BehaviorParamPredicateDto dto)
+        {
+            if (dto.BehaviorId == 0 || string.IsNullOrEmpty(dto.PropertyPath))
+                return static (_, _) => false;
+
+            if (!_behaviorRegistry.TryGetDefinition(dto.BehaviorId, out var def) || def.ParamsDtoType == null)
+                return static (_, _) => false;
+
+            Type dtoType = def.ParamsDtoType;
+            var param = Expression.Parameter(dtoType.MakeByRefType(), "dto");
+            Expression fieldAccess = param;
+            foreach (string seg in dto.PropertyPath.Split('.'))
+                fieldAccess = Expression.PropertyOrField(fieldAccess, seg);
+
+            Expression condition = BuildConditionExpression(fieldAccess, dto.Operator, dto.Predicate);
+
+            var buildMethod = typeof(PredicateCompiler).GetMethod(
+                nameof(BuildBehaviorParamMatcherGeneric),
+                BindingFlags.NonPublic | BindingFlags.Static)!;
+            var genericBuild = buildMethod.MakeGenericMethod(dtoType);
+            return (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
+                null, new object[] { dto.BehaviorId, condition, param })!;
+        }
+
+        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGeneric<TDto>(
+            int behaviorHash,
+            Expression condition,
+            ParameterExpression dtoParam)
+            where TDto : unmanaged
+        {
+            var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
+            int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
+            int bbTypeId = ComponentTypeRegistry.GetId(typeof(BrainBlackboard));
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
+                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
+
+                ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
+                if (state.ActiveBehaviorHash != behaviorHash) return false;
+
+                ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(entity);
+                unsafe
+                {
+                    fixed (byte* src = bb.BehaviorParameters)
+                    {
+                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
+                        return matcher(ref projected);
+                    }
+                }
+            };
+        }
+
         private static Expression BuildConditionExpression(Expression fieldAccess, SearchOperator op, SearchPredicateDto? predicate)
         {
             if (op == SearchOperator.Changed) return Expression.Constant(true);
@@ -230,6 +293,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 if (!result.Contains(single.ComponentType))
                     result.Add(single.ComponentType);
+            }
+            else if (dto is BehaviorParamPredicateDto)
+            {
+                if (!result.Contains(typeof(BehaviorState)))
+                    result.Add(typeof(BehaviorState));
+                if (!result.Contains(typeof(BrainBlackboard)))
+                    result.Add(typeof(BrainBlackboard));
             }
         }
     }

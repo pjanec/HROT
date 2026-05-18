@@ -39,6 +39,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(LifecyclePredicateDto),          "Lifecycle")]
     [JsonDerivedType(typeof(SpatialBoundingPredicateDto),    "SpatialBounding")]
     [JsonDerivedType(typeof(StructuralPredicateDto),         "Structural")]
+    [JsonDerivedType(typeof(BehaviorParamPredicateDto),      "BehaviorParam")]
     public abstract class SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -193,6 +194,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         public Type ComponentType { get; set; } = null!;
         public StructuralModification ModificationType { get; set; } = StructuralModification.Added;
         public AuthorityRequirement AuthorityRequirement { get; set; } = AuthorityRequirement.AnyAuthority;
+    }
+
+    public sealed class BehaviorParamPredicateDto : SearchPredicateDto
+    {
+        [BehaviorHashPicker]
+        public int BehaviorId { get; set; }
+
+        [PropertyPathPicker]
+        public string PropertyPath { get; set; } = string.Empty;
+
+        public SearchOperator Operator { get; set; } = SearchOperator.Equals;
+
+        public SearchPredicateDto Predicate { get; set; } = null!;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

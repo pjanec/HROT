@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using StructEdit.Core;
 
@@ -13,11 +15,13 @@ using ImGuiApi = ImGuiNET.ImGui;
 internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
 {
     private readonly IEditSession _session;
+    private readonly BehaviorRegistry _behaviorRegistry;
     private string _filter = string.Empty;
 
-    public PropertyPathFieldDrawer(IEditSession session)
+    public PropertyPathFieldDrawer(IEditSession session, BehaviorRegistry behaviorRegistry)
     {
         _session = session;
+        _behaviorRegistry = behaviorRegistry;
     }
 
     public Type TargetType => typeof(string);
@@ -122,6 +126,16 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
                 if (child.Binding?.GetBoxed() is Type selectedType)
                     return selectedType;
             }
+            else if (child.Name == "BehaviorId")
+            {
+                if (child.Binding?.GetBoxed() is int hash
+                    && hash != 0
+                    && _behaviorRegistry.TryGetDefinition(hash, out var def)
+                    && def.ParamsDtoType != null)
+                {
+                    return def.ParamsDtoType;
+                }
+            }
         }
 
         return null;
@@ -155,9 +169,15 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
         foreach (FieldInfo field in type.GetFields(flags))
         {
             string path = prefix + field.Name;
-            paths.Add(path);
             if (IsComplexType(field.FieldType))
-                CollectPaths(field.FieldType, path + ".", paths, depth + 1);
+            {
+                if (!IsCollectionType(field.FieldType))
+                    CollectPaths(field.FieldType, path + ".", paths, depth + 1);
+            }
+            else
+            {
+                paths.Add(path);
+            }
         }
 
         foreach (PropertyInfo property in type.GetProperties(flags))
@@ -165,14 +185,39 @@ internal sealed class PropertyPathFieldDrawer : IImGuiFieldDrawer
             if (property.GetIndexParameters().Length > 0)
                 continue;
             string path = prefix + property.Name;
-            paths.Add(path);
             if (IsComplexType(property.PropertyType))
-                CollectPaths(property.PropertyType, path + ".", paths, depth + 1);
+            {
+                if (!IsCollectionType(property.PropertyType))
+                    CollectPaths(property.PropertyType, path + ".", paths, depth + 1);
+            }
+            else
+            {
+                paths.Add(path);
+            }
         }
     }
 
     private static bool IsComplexType(Type type)
     {
-        return !(type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal));
+        return !(type.IsPrimitive
+            || type.IsEnum
+            || type == typeof(string)
+            || type == typeof(decimal)
+            || type == typeof(Guid)
+            || type == typeof(Fdp.Core.FixedString32)
+            || type == typeof(Fdp.Core.FixedString64));
+    }
+
+    private static bool IsCollectionType(Type type)
+    {
+        if (type == typeof(string))
+            return false;
+        if (type.IsArray)
+            return true;
+        if (typeof(System.Collections.IEnumerable).IsAssignableFrom(type))
+            return true;
+        if (type.GetCustomAttributes(typeof(InlineArrayAttribute), false).Length > 0)
+            return true;
+        return false;
     }
 }
