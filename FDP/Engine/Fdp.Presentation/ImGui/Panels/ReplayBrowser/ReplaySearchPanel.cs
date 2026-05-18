@@ -118,7 +118,10 @@ public sealed class ReplaySearchPanel
             ImGuiApi.TableSetupColumn("Value",    ImGuiTableColumnFlags.WidthStretch);
             ImGuiApi.TableHeadersRow();
 
-            _componentEditDrawer.DrawEditNode(_predicateSession.Document.Root);
+            foreach (var child in _predicateSession.Document.Root.Children)
+            {
+                _componentEditDrawer.DrawEditNode(child);
+            }
             ImGuiApi.EndTable();
         }
 
@@ -180,6 +183,16 @@ public sealed class ReplaySearchPanel
             SearchMode.Spatial, SearchMode.Structural, SearchMode.Compound, SearchMode.BehaviorParam
         };
         string[] labels = { "Component", "Event", "Lifecycle", "Spatial", "Structural", "Compound", "Behavior Param" };
+        string[] tooltips =
+        {
+            "Search for exact field value matches on a specific component (or any change).",
+            "Scan the transient event bus for occurrences or specific payload matches.",
+            "Find the exact birth and death frames where a specific entity was alive.",
+            "Detect when entities enter or exit a designated 2D bounding box.",
+            "Find frames where a specific component type was added to or removed from an entity.",
+            "Combine multiple search criteria using AND/OR logical trees.",
+            "Evaluate fields mapped over unmanaged AI blackboard memory blocks."
+        };
 
         for (int i = 0; i < modes.Length; i++)
         {
@@ -194,6 +207,11 @@ public sealed class ReplaySearchPanel
                     _componentEditDrawer = null;
                     EnsureSession();
                 }
+            }
+
+            if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+            {
+                ImGuiApi.SetTooltip(tooltips[i]);
             }
         }
     }

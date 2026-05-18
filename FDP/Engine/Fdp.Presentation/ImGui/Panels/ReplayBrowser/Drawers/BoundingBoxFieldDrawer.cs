@@ -26,7 +26,13 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
         var max  = box.Max;
         bool changed = false;
 
-        ImGuiApi.SetNextItemWidth(-float.Epsilon);
+        var style = ImGuiApi.GetStyle();
+        float buttonWidth = ImGuiApi.CalcTextSize("...").X + (style.FramePadding.X * 2f);
+        float reserveForButton = buttonWidth + style.ItemSpacing.X + 6f;
+        float inputWidth = ImGuiApi.GetContentRegionAvail().X - reserveForButton;
+        if (inputWidth < 60f) inputWidth = 60f;
+
+        ImGuiApi.SetNextItemWidth(inputWidth);
         if (ImGuiApi.DragFloat2("Min##bbox", ref min, 0.5f))
         {
             box     = new BoundingBox2D { Min = min, Max = box.Max };
@@ -34,7 +40,7 @@ internal sealed class BoundingBoxFieldDrawer : IImGuiFieldDrawer
             changed = true;
         }
 
-        ImGuiApi.SetNextItemWidth(-float.Epsilon);
+        ImGuiApi.SetNextItemWidth(inputWidth);
         if (ImGuiApi.DragFloat2("Max##bbox", ref max, 0.5f))
         {
             box     = new BoundingBox2D { Min = box.Min, Max = max };

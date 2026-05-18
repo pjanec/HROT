@@ -160,6 +160,23 @@ internal sealed class ComponentEditDrawer
             }
         }
 
+        // Picker: bounding box area (spatial search) for container-style nodes.
+        var bboxAttr = node.Metadata.CustomAttributes
+            .OfType<MapPickableBoundingBoxAttribute>().FirstOrDefault();
+        if (bboxAttr != null && _spatialPickerCtx != null)
+        {
+            ImGuiApi.SameLine();
+            if (ImGuiApi.Button($"...##{node.Id.Value}"))
+                _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
+            if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+                ImGuiApi.SetTooltip("Define area boundaries on map");
+
+            if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
+            {
+                node.Binding?.SetBoxed(pickedBox);
+            }
+        }
+
         if (opened)
         {
             int i = 0;
@@ -261,8 +278,10 @@ internal sealed class ComponentEditDrawer
         if (bboxAttr != null && _spatialPickerCtx != null)
         {
             ImGuiApi.SameLine();
-            if (ImGuiApi.Button($"Pick Area##{node.Id.Value}"))
+            if (ImGuiApi.Button($"...##{node.Id.Value}"))
                 _spatialPickerCtx.RequestBoundingBoxPick(node.JsonPath);
+            if (ImGuiApi.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+                ImGuiApi.SetTooltip("Define area boundaries on map");
 
             if (_spatialPickerCtx.TryConsumeBoundingBoxPick(node.JsonPath, out var pickedBox))
             {

@@ -443,6 +443,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _searchPanel = new ReplaySearchPanel(
             editSvc, searchSvc, seekIntent, selectIntent, matchIntent,
             _behaviorRegistry, getSelectedEntity, getSelectedNetworkId);
+        if (_globalGizmoManager != null)
+        {
+            _searchPanel.SpatialPickerCtx = new ReplaySpatialPickerContext(_globalGizmoManager);
+        }
     }
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)
@@ -637,5 +641,56 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
+    }
+
+    private sealed class ReplaySpatialPickerContext : Fdp.Presentation.Editing.ISpatialPickerContext
+    {
+        private readonly Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager _gizmoManager;
+        private string? _pendingPath;
+        private Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D? _resolvedBox;
+        private long? _activeGizmoId;
+
+        public ReplaySpatialPickerContext(Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager gizmoManager)
+        {
+            _gizmoManager = gizmoManager;
+        }
+
+        public void RequestBoundingBoxPick(string jsonPath)
+        {
+            if (_activeGizmoId.HasValue)
+            {
+                _gizmoManager.Unregister(_activeGizmoId.Value);
+                _activeGizmoId = null;
+            }
+
+            _pendingPath = jsonPath;
+            _resolvedBox = null;
+
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            var gizmo = new Fdp.Toolkit.ReplayBrowser.BoundingBoxPickerGizmo(
+                box => _resolvedBox = box,
+                () =>
+                {
+                    _gizmoManager.Unregister(id);
+                    _activeGizmoId = null;
+                });
+
+            _activeGizmoId = id;
+            _gizmoManager.Register(id, gizmo);
+        }
+
+        public bool TryConsumeBoundingBoxPick(string jsonPath, out Fdp.Toolkit.ReplayBrowser.Search.BoundingBox2D box)
+        {
+            if (_pendingPath == jsonPath && _resolvedBox.HasValue)
+            {
+                box = _resolvedBox.Value;
+                _pendingPath = null;
+                _resolvedBox = null;
+                return true;
+            }
+
+            box = default;
+            return false;
+        }
     }
 }

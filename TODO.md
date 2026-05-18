@@ -7,7 +7,8 @@ in json dump as wel in entity inspector renderer, there are often
 "PackedValue": 4294967296,
 this is underable for human, some custom serializer could conver to entity index and generation?
 Maybe use special c# struct for packed value (not simple int64?)
-That probabkly conflicts with inline arrays (no struct allowed), what could be the workaround ghere
+That probably conflicts with inline arrays (no struct allowed), what could be the workaround here?
+Do we need to use inline arrays (restricted to primitive types) and fixed buffers (or are those also restricted)?
 ----------
 [IDEA]
 TerrainName into scenario header (next to TkbName). Orchestrator extracts from header, check consensus, tell everyone in
