@@ -117,6 +117,48 @@ internal sealed class ComponentEditDrawer
                 }
             }
         }
+        else if (node.ClrType.IsAbstract || node.ClrType.IsInterface)
+        {
+            object? currentObj = node.Binding?.GetBoxed();
+            string preview = currentObj != null ? currentObj.GetType().Name : "(null)";
+
+            ImGuiApi.SetNextItemWidth(-float.Epsilon);
+            if (ImGuiApi.BeginCombo("##poly", preview))
+            {
+                var derivedAttrs = node.ClrType.GetCustomAttributes(
+                    typeof(System.Text.Json.Serialization.JsonDerivedTypeAttribute), true);
+
+                if (currentObj != null)
+                {
+                    if (ImGuiApi.Selectable("(null)", false))
+                    {
+                        node.Binding?.SetBoxed(null);
+                        _session.MarkStructuralChange();
+                        _session.RebuildDocument();
+                    }
+                }
+
+                foreach (var attrObj in derivedAttrs)
+                {
+                    if (attrObj is System.Text.Json.Serialization.JsonDerivedTypeAttribute attr)
+                    {
+                        var t = attr.DerivedType;
+                        bool isSelected = currentObj != null && currentObj.GetType() == t;
+                        if (ImGuiApi.Selectable(t.Name, isSelected))
+                        {
+                            if (!isSelected)
+                            {
+                                var newInst = Activator.CreateInstance(t);
+                                node.Binding?.SetBoxed(newInst);
+                                _session.MarkStructuralChange();
+                                _session.RebuildDocument();
+                            }
+                        }
+                    }
+                }
+                ImGuiApi.EndCombo();
+            }
+        }
 
         if (opened)
         {

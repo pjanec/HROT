@@ -65,14 +65,6 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         bool isFixedBuffer = fi?.GetCustomAttribute<FixedBufferAttribute>() != null;
         var kind = isFixedBuffer ? EditNodeKind.FixedBuffer : DetermineKind(nodeType);
 
-        // circular reference guard (copy-on-write per DFS branch)
-        if (kind is EditNodeKind.Struct or EditNodeKind.Class or EditNodeKind.Record)
-        {
-            if (visited.Contains(nodeType))
-                return new EditNode(new EditNodeId(idAlloc.Next()), name, jsonPath, EditNodeKind.Unsupported, nodeType);
-            visited = new HashSet<Type>(visited) { nodeType };
-        }
-
         IValueBinding? binding = null;
         List<EditNode>? children = null;
 
@@ -99,9 +91,28 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                 IValueBinding? childParentBinding = explicitBinding;
                 if (childParentBinding == null && (fi != null || pi != null))
                     childParentBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding);
-                children = BuildChildren(buffer, jsonPath, nodeType, nativeOffset, idAlloc, visited,
+
+                Type actualType = nodeType;
+                if (childParentBinding != null)
+                {
+                    var boxedVal = childParentBinding.GetBoxed();
+                    if (boxedVal != null)
+                        actualType = boxedVal.GetType();
+                }
+
+                if (visited.Contains(actualType))
+                {
+                    kind = EditNodeKind.Unsupported;
+                    binding = childParentBinding;
+                    break;
+                }
+
+                var newVisited = new HashSet<Type>(visited) { actualType };
+
+                children = BuildChildren(buffer, jsonPath, actualType, nativeOffset, idAlloc, newVisited,
                     providers, fieldEditors, context,
                     parentBinding: childParentBinding);
+                binding = childParentBinding;
                 break;
 
             case EditNodeKind.InlineArray:

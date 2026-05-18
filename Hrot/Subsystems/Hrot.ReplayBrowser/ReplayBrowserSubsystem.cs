@@ -402,6 +402,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         var editSvc = new ComponentEditServiceBuilder()
             .RegisterFieldEditor<Type>(new Fdp.Presentation.Editing.TypeFieldEditor())
             .RegisterFieldEditor<BoundingBox2D>(new Fdp.Presentation.Editing.BoundingBoxFieldEditor())
+            .RegisterFieldEditor<SearchPredicateDto>(new Fdp.Presentation.Editing.PredicateValueFieldEditor())
             .Build();
         var predicateCompiler = new PredicateCompiler(editSvc);
         var eventScannerCompiler = new EventScannerCompiler(editSvc);

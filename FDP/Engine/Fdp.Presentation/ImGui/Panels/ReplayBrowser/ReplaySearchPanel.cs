@@ -143,6 +143,7 @@ public sealed class ReplaySearchPanel
             [typeof(int)]           = new BehaviorHashFieldDrawer(registry),
             [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
             [typeof(string)]        = new PropertyPathFieldDrawer(session),
+            [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session),
         };
         return new ComponentEditDrawer(session, pickerCtx: null, drawers, SpatialPickerCtx);
     }
