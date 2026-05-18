@@ -95,14 +95,14 @@ public sealed class ComponentDiffPanel
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, !IsSearching, out _, out bool prevClicked);
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
             Gui.SetTooltip("Seek to previous frame with changes");
         if (prevClicked && !IsSearching)
             OnSeekToChangeRequested?.Invoke(-1);
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##next_change", 20f, TransportShape.StepFwd, !IsSearching, out _, out bool nextClicked);
-        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
             Gui.SetTooltip("Seek to next frame with changes");
         if (nextClicked && !IsSearching)
             OnSeekToChangeRequested?.Invoke(1);

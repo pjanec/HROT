@@ -72,10 +72,14 @@ public sealed class ReplayTimelinePanel
 
         if (TransportIconRenderer.DrawButton("##rb_hist_back", iconSize, TransportShape.HistoryBack, _playbackHistory.CanGoBack, out _, out _))
             _playbackHistory.GoBack();
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Navigate backward in selection history");
 
         Gui.SameLine();
         if (TransportIconRenderer.DrawButton("##rb_hist_fwd", iconSize, TransportShape.HistoryFwd, _playbackHistory.CanGoForward, out _, out _))
             _playbackHistory.GoForward();
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Navigate forward in selection history");
 
         Gui.SameLine();
         if (TransportIconRenderer.DrawButton("##rb_rewind", iconSize, TransportShape.Rewind, hasRecording, out _, out _))
@@ -83,6 +87,8 @@ public sealed class ReplayTimelinePanel
             IsPlaying = false;
             SeekToFirst();
         }
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Rewind to start");
 
         Gui.SameLine();
         TransportShape playPauseShape = IsPlaying ? TransportShape.Pause : TransportShape.Play;
@@ -90,6 +96,8 @@ public sealed class ReplayTimelinePanel
         {
             IsPlaying = !IsPlaying;
         }
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip(IsPlaying ? "Pause playback" : "Start playback");
 
         Gui.SameLine();
         float comboOffsetY = (iconSize - Gui.GetFrameHeight()) * 0.5f;
@@ -105,10 +113,14 @@ public sealed class ReplayTimelinePanel
             }
             Gui.EndCombo();
         }
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Set playback speed");
         Gui.SetCursorPosY(Gui.GetCursorPosY() - comboOffsetY);
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##rb_step_back", iconSize, TransportShape.StepBack, hasRecording, out bool stepBackHeld, out bool stepBackActivated);
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Step backward (hold to scrub)");
         if (stepBackActivated)
         {
             IsPlaying = false;
@@ -120,6 +132,8 @@ public sealed class ReplayTimelinePanel
 
         Gui.SameLine();
         TransportIconRenderer.DrawButton("##rb_step_fwd", iconSize, TransportShape.StepFwd, hasRecording, out bool stepFwdHeld, out bool stepFwdActivated);
+        if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
+            Gui.SetTooltip("Step forward (hold to scrub)");
         if (stepFwdActivated)
         {
             IsPlaying = false;
