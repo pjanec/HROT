@@ -69,7 +69,7 @@ internal sealed class ComponentEditDrawer
             case EditNodeKind.InlineArray:
             case EditNodeKind.FixedBuffer:
             case EditNodeKind.BufferView:
-                DrawContainerNode(node);
+                DrawContainerNode(node, parentContainer, elementIndex);
                 break;
 
             case EditNodeKind.Scalar:
@@ -90,7 +90,7 @@ internal sealed class ComponentEditDrawer
 
     // ── Container nodes ───────────────────────────────────────────────────────
 
-    private void DrawContainerNode(EditNode node)
+    private void DrawContainerNode(EditNode node, IContainerBinding? parentContainer, int elementIndex)
     {
         ImGuiApi.TableNextRow();
         ImGuiApi.TableSetColumnIndex(0);
@@ -99,6 +99,16 @@ internal sealed class ComponentEditDrawer
         bool opened = ImGuiApi.TreeNodeEx(
             node.Name,
             ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen);
+        if (parentContainer != null && parentContainer.CanResize && elementIndex >= 0)
+        {
+            ImGuiApi.SameLine();
+            if (ImGuiApi.SmallButton($"X##{node.Id.Value}"))
+            {
+                RemoveElementAtIndex(parentContainer, elementIndex);
+                _session.MarkStructuralChange();
+                _session.RebuildDocument();
+            }
+        }
 
         ImGuiApi.TableSetColumnIndex(1);
 

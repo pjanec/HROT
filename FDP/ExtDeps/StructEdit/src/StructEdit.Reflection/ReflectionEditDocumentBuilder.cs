@@ -39,7 +39,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
     {
         var idAlloc = new IdAllocator(0);
         var fullRoot = BuildNode(buffer, "$", componentType.Name, componentType,
-            nativeOffset: 0, fi: null, pi: null, idAlloc, new HashSet<Type>(), _providers, _fieldEditors, context);
+            nativeOffset: 0, fi: null, pi: null, idAlloc, new HashSet<object>(), _providers, _fieldEditors, context);
         var filteredRoot = ApplyScope(fullRoot, scope);
         return new EditDocument(filteredRoot, componentType, scope);
     }
@@ -55,7 +55,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         FieldInfo? fi,
         PropertyInfo? pi,
         IdAllocator idAlloc,
-        HashSet<Type> visited,
+        HashSet<object> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
@@ -93,21 +93,19 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
                     childParentBinding = CreateLeafBinding(buffer, nativeOffset, fi, pi, nodeType, parentBinding);
 
                 Type actualType = nodeType;
-                if (childParentBinding != null)
-                {
-                    var boxedVal = childParentBinding.GetBoxed();
-                    if (boxedVal != null)
-                        actualType = boxedVal.GetType();
-                }
+                object? boxedVal = childParentBinding?.GetBoxed();
+                if (boxedVal != null)
+                    actualType = boxedVal.GetType();
 
-                if (visited.Contains(actualType))
+                object cycleKey = (boxedVal != null && !actualType.IsValueType) ? boxedVal : actualType;
+                if (visited.Contains(cycleKey))
                 {
                     kind = EditNodeKind.Unsupported;
                     binding = childParentBinding;
                     break;
                 }
 
-                var newVisited = new HashSet<Type>(visited) { actualType };
+                var newVisited = new HashSet<object>(visited) { cycleKey };
 
                 children = BuildChildren(buffer, jsonPath, actualType, nativeOffset, idAlloc, newVisited,
                     providers, fieldEditors, context,
@@ -204,7 +202,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         Type parentType,
         int parentNativeOffset,
         IdAllocator idAlloc,
-        HashSet<Type> visited,
+        HashSet<object> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
@@ -264,7 +262,7 @@ public sealed class ReflectionEditDocumentBuilder : IEditDocumentBuilder
         IContainerBinding cb,
         Type elemType,
         IdAllocator idAlloc,
-        HashSet<Type> visited,
+        HashSet<object> visited,
         IReadOnlyList<IBufferViewProvider> providers,
         IReadOnlyDictionary<Type, ICustomFieldEditor> fieldEditors,
         EditContext? context,
