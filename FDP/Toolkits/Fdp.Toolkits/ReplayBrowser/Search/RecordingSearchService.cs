@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
+using System.Threading;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
 
@@ -35,18 +36,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         // ── IRecordingSearchService ──────────────────────────────────────────
 
         /// <inheritdoc/>
-        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root)
+        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, CancellationToken ct = default)
         {
             if (fdpPath == null) throw new ArgumentNullException(nameof(fdpPath));
             if (root == null) throw new ArgumentNullException(nameof(root));
 
             // Dispatch to specialized loop by root predicate type.
             if (root is TransientEventPredicateDto eventPred)
-                return RunEventScan(fdpPath, eventPred);
+                return RunEventScan(fdpPath, eventPred, ct);
 
             if (root is LifecyclePredicateDto lifecyclePred)
             {
-                var ranges = ExecuteLifecycleSearch(fdpPath, lifecyclePred);
+                var ranges = ExecuteLifecycleSearch(fdpPath, lifecyclePred, ct);
                 // Flatten lifecycle results into SearchResultDto for uniform output.
                 var flat = new List<SearchResultDto>(ranges.Count);
                 foreach (var lr in ranges)
@@ -55,23 +56,24 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
 
             // All other types (component, structural, spatial, compound) use the frame-step loop.
-            return RunFrameStepScan(fdpPath, root);
+            return RunFrameStepScan(fdpPath, root, ct);
         }
 
         /// <inheritdoc/>
         public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(
             string fdpPath,
-            LifecyclePredicateDto criteria)
+            LifecyclePredicateDto criteria,
+            CancellationToken ct = default)
         {
             if (fdpPath == null) throw new ArgumentNullException(nameof(fdpPath));
             if (criteria == null) throw new ArgumentNullException(nameof(criteria));
 
-            return RunLifecycleScan(fdpPath, criteria);
+            return RunLifecycleScan(fdpPath, criteria, ct);
         }
 
         // ── Frame-step scan (component / structural / spatial / compound) ────
 
-        private List<SearchResultDto> RunFrameStepScan(string fdpPath, SearchPredicateDto root)
+        private List<SearchResultDto> RunFrameStepScan(string fdpPath, SearchPredicateDto root, CancellationToken ct)
         {
             var results = new List<SearchResultDto>(64);
 
@@ -111,6 +113,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             while (playback.StepForward(repo))
             {
+                if (ct.IsCancellationRequested) break;
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
 
@@ -182,7 +185,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── Event scan ───────────────────────────────────────────────────────
 
-        private List<SearchResultDto> RunEventScan(string fdpPath, TransientEventPredicateDto predicate)
+        private List<SearchResultDto> RunEventScan(string fdpPath, TransientEventPredicateDto predicate, CancellationToken ct)
         {
             EventScannerDelegate scanner = _eventScannerCompiler.CompileScanner(predicate);
             var results = new List<SearchResultDto>(64);
@@ -198,6 +201,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             // Per DESIGN.md §6.4 strict contract: step first, then scan, no ClearCurrentBuffers.
             while (playback.StepForward(repo))
             {
+                if (ct.IsCancellationRequested) break;
                 int frame = playback.CurrentFrame;
                 long ticks = playback.GetFrameMetadata(frame).WallClockTicks;
                 // Step 1 already happened (StepForward injected events into bus).
@@ -213,7 +217,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         private List<LifecycleSearchResultDto> RunLifecycleScan(
             string fdpPath,
-            LifecyclePredicateDto criteria)
+            LifecyclePredicateDto criteria,
+            CancellationToken ct)
         {
             var activeRanges = new Dictionary<Entity, int>(); // entity -> startFrame
             var results = new List<LifecycleSearchResultDto>(32);
@@ -227,6 +232,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             while (playback.StepForward(repo))
             {
+                if (ct.IsCancellationRequested) break;
                 int frame = playback.CurrentFrame;
                 eofFrame = frame;
 

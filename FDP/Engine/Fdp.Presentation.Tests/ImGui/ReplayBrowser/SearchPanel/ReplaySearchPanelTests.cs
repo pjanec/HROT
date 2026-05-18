@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Fdp.Core;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.Panels.ReplayBrowser;
@@ -199,9 +200,9 @@ public class ReplaySearchPanelDecouplingTests
 
     private sealed class NopSearchService : IRecordingSearchService
     {
-        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root)
+        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, CancellationToken ct = default)
             => Array.Empty<SearchResultDto>();
-        public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(string fdpPath, LifecyclePredicateDto criteria)
+        public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(string fdpPath, LifecyclePredicateDto criteria, CancellationToken ct = default)
             => Array.Empty<LifecycleSearchResultDto>();
     }
 

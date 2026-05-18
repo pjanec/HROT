@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
 {
@@ -12,13 +13,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         /// Executes a search over all frames of the recording at <paramref name="fdpPath"/>.
         /// Returns one <see cref="SearchResultDto"/> per matching (frame, entity) pair.
         /// </summary>
-        IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root);
+        IReadOnlyList<SearchResultDto> ExecuteSearch(
+            string fdpPath,
+            SearchPredicateDto root,
+            CancellationToken ct = default);
 
         /// <summary>
         /// Scans the recording for entity birth/death ranges that match <paramref name="criteria"/>.
         /// </summary>
         IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(
             string fdpPath,
-            LifecyclePredicateDto criteria);
+            LifecyclePredicateDto criteria,
+            CancellationToken ct = default);
     }
 }

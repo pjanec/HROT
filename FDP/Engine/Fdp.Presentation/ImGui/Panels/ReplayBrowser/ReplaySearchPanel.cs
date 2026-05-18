@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Presentation.Editing;
@@ -53,6 +54,7 @@ public sealed class ReplaySearchPanel
 
     // Search results
     private Task? _searchTask;
+    private CancellationTokenSource? _searchCts;
     private readonly object _resultsLock = new();
     private IReadOnlyList<SearchResultDto> _results = Array.Empty<SearchResultDto>();
     private IReadOnlyList<LifecycleSearchResultDto> _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
@@ -211,73 +213,95 @@ public sealed class ReplaySearchPanel
 
     private void DrawExecuteButton()
     {
-        if (ImGuiApi.Button("Execute Search"))
+        bool isSearching = _searchTask != null && !_searchTask.IsCompleted;
+
+        if (isSearching)
         {
-            string path = CurrentFilePath ?? string.Empty;
-            if (string.IsNullOrEmpty(path))
+            // Transient UI state while the background task is running
+            if (ImGuiApi.Button("Cancel Search"))
             {
-                _statusLine = "No recording loaded.";
-                return;
+                _searchCts?.Cancel();
+                _statusLine = "Cancelling...";
             }
-
-            if (_predicateSession == null)
+        }
+        else
+        {
+            if (ImGuiApi.Button("Execute Search"))
             {
-                _statusLine = "No search criteria.";
-                return;
-            }
-
-            object dto = _predicateSession.Commit();
-            _statusLine       = "Searching...";
-            _results          = Array.Empty<SearchResultDto>();
-            _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
-
-            if (_mode == SearchMode.Lifecycle)
-            {
-                var pred = (LifecyclePredicateDto)dto;
-                _searchTask = Task.Run(() =>
+                string path = CurrentFilePath ?? string.Empty;
+                if (string.IsNullOrEmpty(path))
                 {
-                    try
-                    {
-                        var r = _searchService.ExecuteLifecycleSearch(path, pred);
-                        lock (_resultsLock)
-                        {
-                            _lifecycleResults = r;
-                            _statusLine       = $"Found {r.Count} lifecycle event(s).";
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        lock (_resultsLock)
-                        {
-                            _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
-                            _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
-                        }
-                    }
-                });
-            }
-            else
-            {
-                var pred = (SearchPredicateDto)dto;
-                _searchTask = Task.Run(() =>
+                    _statusLine = "No recording loaded.";
+                    return;
+                }
+
+                if (_predicateSession == null)
                 {
-                    try
+                    _statusLine = "No search criteria.";
+                    return;
+                }
+
+                object dto = _predicateSession.Commit();
+                _statusLine       = "Searching...";
+                _results          = Array.Empty<SearchResultDto>();
+                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
+
+                _searchCts?.Dispose();
+                _searchCts = new CancellationTokenSource();
+                var token = _searchCts.Token;
+
+                if (_mode == SearchMode.Lifecycle)
+                {
+                    var pred = (LifecyclePredicateDto)dto;
+                    _searchTask = Task.Run(() =>
                     {
-                        var r = _searchService.ExecuteSearch(path, pred);
-                        lock (_resultsLock)
+                        try
                         {
-                            _results    = r;
-                            _statusLine = $"Found {r.Count} result(s).";
+                            var r = _searchService.ExecuteLifecycleSearch(path, pred, token);
+                            lock (_resultsLock)
+                            {
+                                _lifecycleResults = r;
+                                _statusLine = token.IsCancellationRequested
+                                    ? $"Search cancelled. Yielded {r.Count} partial result(s)."
+                                    : $"Found {r.Count} lifecycle event(s).";
+                            }
                         }
-                    }
-                    catch (Exception ex)
+                        catch (Exception ex)
+                        {
+                            lock (_resultsLock)
+                            {
+                                _lifecycleResults = Array.Empty<LifecycleSearchResultDto>();
+                                _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                            }
+                        }
+                    });
+                }
+                else
+                {
+                    var pred = (SearchPredicateDto)dto;
+                    _searchTask = Task.Run(() =>
                     {
-                        lock (_resultsLock)
+                        try
                         {
-                            _results = Array.Empty<SearchResultDto>();
-                            _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                            var r = _searchService.ExecuteSearch(path, pred, token);
+                            lock (_resultsLock)
+                            {
+                                _results = r;
+                                _statusLine = token.IsCancellationRequested
+                                    ? $"Search cancelled. Yielded {r.Count} partial result(s)."
+                                    : $"Found {r.Count} result(s).";
+                            }
                         }
-                    }
-                });
+                        catch (Exception ex)
+                        {
+                            lock (_resultsLock)
+                            {
+                                _results = Array.Empty<SearchResultDto>();
+                                _statusLine = $"Search failed: {ex.GetType().Name}: {ex.Message}";
+                            }
+                        }
+                    });
+                }
             }
         }
 
