@@ -65,6 +65,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private Entity? _lastDiffEntity = null;
     private float _playbackAccumulator = 0f;
     private Task? _seekToChangeTask;
+    private volatile int _pendingChangeSeekFrame = -1;
     // â”€â”€ Gizmo debug overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? _gizmoBuffer;
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager? _globalGizmoManager;
@@ -231,6 +232,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     public void Update(float deltaTime)
     {
+        int pendingSeek = _pendingChangeSeekFrame;
+        if (pendingSeek >= 0)
+        {
+            _pendingChangeSeekFrame = -1;
+            _playbackHistory.PushFrame(_context.CurrentFrame);
+            _context.SeekToFrame(pendingSeek);
+        }
+
         if (_searchPanel != null)
         {
             _searchPanel.CurrentFilePath = _context.CurrentFdpPath;
@@ -433,13 +442,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         int startFrame = _context.CurrentFrame;
         var excludedNames = new HashSet<string>(_diffPanel.ExcludedTypes.Select(t => t.Name));
         double epsilon = _diffPanel.IsEpsilonIgnored ? 0.001 : 0.0;
-        var excludedMask = new BitMask256();
-        foreach (var type in _diffPanel.ExcludedTypes)
-        {
-            int typeId = ComponentTypeRegistry.GetId(type);
-            if (typeId >= 0)
-                excludedMask.SetBit(typeId);
-        }
+        var diffSvc = _diffService;
+        var serializer = _scenarioSerializer;
 
         try
         {
@@ -447,52 +451,17 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             {
                 using var tempContext = new ReplayBrowserContext();
                 tempContext.LoadRecording(fdpPath);
-                if (tempContext.Playback == null)
+                var playback = tempContext.Playback;
+                if (playback == null)
                     return (int?)null;
 
                 var repo = tempContext.SandboxRepo;
-                int targetIndex = target.Index;
                 var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
-                var snapshotMask = repo.GetSnapshotableMask();
-                var registeredTypes = repo.GetRegisteredComponentTypes();
-
-                bool DidEntityChange(uint prevVersion, BitMask256 prevMask)
-                {
-                    Entity currentEntity = repo.GetEntityByIndex(targetIndex);
-                    if (currentEntity.IsNull || !repo.IsAlive(currentEntity))
-                        return false;
-
-                    ref var header = ref repo.GetHeader(targetIndex);
-
-                    // Structural changes on included component bits only.
-                    for (int i = 0; i < 256; i++)
-                    {
-                        if (excludedMask.IsSet(i))
-                            continue;
-                        if (header.ComponentMask.IsSet(i) != prevMask.IsSet(i))
-                            return true;
-                    }
-
-                    // Value changes on included component bits only.
-                    foreach (var kvp in registeredTypes)
-                    {
-                        var table = kvp.Value;
-                        int typeId = table.ComponentTypeId;
-                        if (excludedMask.IsSet(typeId))
-                            continue;
-
-                        if (header.ComponentMask.IsSet(table.ComponentTypeId)
-                            && table.GetVersionForEntity(targetIndex) > prevVersion)
-                        {
-                            return true;
-                        }
-                    }
-                    return false;
-                }
+                var mask = repo.GetSnapshotableMask();
 
                 bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
                 {
-                    var diffs = _diffService.ComputeTreeDiff(before, after, epsilon);
+                    var diffs = diffSvc.ComputeTreeDiff(before, after, epsilon);
                     foreach (var node in diffs)
                     {
                         if (node.IsModified && !excludedNames.Contains(node.Name))
@@ -505,56 +474,47 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 if (direction > 0)
                 {
                     tempContext.SeekToFrame(startFrame, suppressHistory: true);
-                    uint lastVersion = repo.GlobalVersion;
-                    BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     JsonNode? baseline = repo.IsAlive(target)
-                        ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                        ? serializer.SerializeEntity(repo, target, resolver, mask)
                         : null;
                     while (tempContext.StepForward(suppressHistory: true))
                     {
-                        if (DidEntityChange(lastVersion, lastMask))
-                        {
-                            JsonNode? current = repo.IsAlive(target)
-                                ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
-                                : null;
+                        JsonNode? current = repo.IsAlive(target)
+                            ? serializer.SerializeEntity(repo, target, resolver, mask)
+                            : null;
 
-                            if (IsActualIncludedDiff(baseline, current))
-                                return tempContext.CurrentFrame;
+                        if (IsActualIncludedDiff(baseline, current))
+                            return playback.CurrentFrame;
 
-                            baseline = current;
-                        }
-
-                        lastVersion = repo.GlobalVersion;
-                        lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
+                        baseline = current;
                     }
                 }
                 else
                 {
+                    if (startFrame <= 0)
+                        return null;
+
                     tempContext.SeekToFrame(0, suppressHistory: true);
                     int? lastChangeFrame = null;
-                    uint lastVersion = repo.GlobalVersion;
-                    BitMask256 lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
                     JsonNode? baseline = repo.IsAlive(target)
-                        ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
+                        ? serializer.SerializeEntity(repo, target, resolver, mask)
                         : null;
-                    while (tempContext.CurrentFrame < startFrame)
+
+                    if (IsActualIncludedDiff(null, baseline))
+                        lastChangeFrame = 0;
+
+                    while (playback.CurrentFrame < startFrame - 1)
                     {
                         if (!tempContext.StepForward(suppressHistory: true))
                             break;
-                        if (DidEntityChange(lastVersion, lastMask))
-                        {
-                            JsonNode? current = repo.IsAlive(target)
-                                ? _scenarioSerializer.SerializeEntity(repo, target, resolver, snapshotMask)
-                                : null;
 
-                            if (IsActualIncludedDiff(baseline, current))
-                                lastChangeFrame = tempContext.CurrentFrame;
+                        JsonNode? current = repo.IsAlive(target)
+                            ? serializer.SerializeEntity(repo, target, resolver, mask)
+                            : null;
+                        if (IsActualIncludedDiff(baseline, current))
+                            lastChangeFrame = playback.CurrentFrame;
 
-                            baseline = current;
-                        }
-
-                        lastVersion = repo.GlobalVersion;
-                        lastMask = repo.IsAlive(target) ? repo.GetHeader(targetIndex).ComponentMask : new BitMask256();
+                        baseline = current;
                     }
                     return lastChangeFrame;
                 }
@@ -564,8 +524,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             if (foundFrame.HasValue)
             {
-                _playbackHistory.PushFrame(_context.CurrentFrame);
-                _context.SeekToFrame(foundFrame.Value);
+                _pendingChangeSeekFrame = foundFrame.Value;
             }
         }
         finally
