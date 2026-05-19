@@ -127,7 +127,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
             ? ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.OpenOnArrow
             : ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
 
-        bool open = ImGui.TreeNodeEx($"##n{nodeIndex}", flags, label);
+        bool open = ImGui.TreeNodeEx($"##n{nodeIndex}", flags, $"{nodeIndex} {label}");
 
         if (popColors > 0) ImGui.PopStyleColor(popColors);
 

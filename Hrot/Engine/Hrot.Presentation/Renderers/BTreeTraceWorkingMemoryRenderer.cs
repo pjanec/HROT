@@ -82,7 +82,7 @@ public sealed class BTreeTraceWorkingMemoryRenderer : IEntityAwareImGuiRenderer
             // `traceData` is a stack-local boxed-unboxed value; the `fixed byte Buffer[]`
             // field is already inline in this stack copy. Take its address via Unsafe.AsPointer.
             byte* bufferPtr = (byte*)Unsafe.AsPointer(ref traceData.Buffer[0]);
-            for (int i = 0; i < traceData.RecordCount; i++)
+            for (int i = traceData.RecordCount - 1; i >= 0; i--)
             {
                 int offset = (startOffset + (i * stride)) % payloadBytes;
                 BTreeTraceRecord* rec = (BTreeTraceRecord*)(bufferPtr + offset);

@@ -73,7 +73,7 @@ public sealed class HsmTraceWorkingMemoryRenderer : IEntityAwareImGuiRenderer
             int stride       = HsmTraceWorkingMemory1024.RecordStride;
 
             byte* bufferPtr = (byte*)Unsafe.AsPointer(ref traceData.Buffer[0]);
-            for (int i = 0; i < traceData.RecordCount; i++)
+            for (int i = traceData.RecordCount - 1; i >= 0; i--)
             {
                 int offset = (startOffset + (i * stride)) % payloadBytes;
                 TraceRecord* rec = (TraceRecord*)(bufferPtr + offset);
