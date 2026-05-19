@@ -745,6 +745,56 @@ namespace Hrot.Editor
                 if (_selectionState != null) _selectionState.PrimarySelected = target;
                 _fdpInspectorState.SelectedEntity = target;
             });
+            actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                if (view is not EntityRepository repo) return;
+                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
+
+                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer;
+                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
+                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
+                bool next = !current;
+                string nextStr = next ? "true" : "false";
+                string patchJson = $$"""
+                {
+                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
+                        "{{flag}}": {{nextStr}}
+                    }
+                }
+                """;
+
+                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
+                {
+                    Target = target,
+                    PatchJson = patchJson,
+                });
+            });
+            actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
+            {
+                if (target == Entity.Null) return;
+                if (view is not EntityRepository repo) return;
+                if (!repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(target)) return;
+
+                const Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags flag = Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog;
+                bool current = repo.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target)
+                    && (repo.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.DebugState>(target).Behavior & flag) != 0;
+                bool next = !current;
+                string nextStr = next ? "true" : "false";
+                string patchJson = $$"""
+                {
+                    "{{nameof(Fdp.Toolkit.Behavior.Diagnostics.DebugState.Behavior)}}": {
+                        "{{flag}}": {{nextStr}}
+                    }
+                }
+                """;
+
+                repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Diagnostics.PatchDebugStateCommand
+                {
+                    Target = target,
+                    PatchJson = patchJson,
+                });
+            });
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
             _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
