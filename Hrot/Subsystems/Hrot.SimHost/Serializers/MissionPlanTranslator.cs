@@ -27,7 +27,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class MissionPlanTranslator : IEntityScenarioTranslator
     {
-        private const string Key = nameof(MissionPlanQueue);
+        private const string Key = "MissionPlan";
 
         private readonly BehaviorRegistry _registry;
 

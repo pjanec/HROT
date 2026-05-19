@@ -14,7 +14,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class EditablePolylineTranslator : IEntityScenarioTranslator
     {
-        private const string Key = nameof(EditablePolyline);
+        private const string Key = "EditablePolyline";
 
         // EditablePolyline contains value data only (List<Vector2> + version).
         public bool IsExtractionSafe => true;

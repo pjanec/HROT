@@ -23,7 +23,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed unsafe class TargetMemoryTranslator : IEntityScenarioTranslator
     {
-        private const string Key = nameof(TargetMemory);
+        private const string Key = "TargetMemory";
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

@@ -20,7 +20,7 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class PersonalRouteRefTranslator : IEntityScenarioTranslator
     {
-        private const string Key = nameof(PersonalRouteRef);
+        private const string Key = "PersonalRouteRef";
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 

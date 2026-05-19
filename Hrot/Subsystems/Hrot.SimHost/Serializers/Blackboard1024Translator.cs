@@ -26,7 +26,7 @@ namespace Hrot.SimHost.Serializers
     /// </remarks>
     public sealed class Blackboard1024Translator : IEntityScenarioTranslator
     {
-        private const string Key = nameof(Blackboard1024);
+        private const string Key = "Blackboard1024";
 
         private readonly BehaviorRegistry _registry;
 
