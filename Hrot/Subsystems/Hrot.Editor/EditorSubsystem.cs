@@ -12,6 +12,7 @@ using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
@@ -531,6 +532,7 @@ namespace Hrot.Editor
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
+            _kernel.RegisterModule(new BehaviorDiagnosticsModule());
             _kernel.RegisterModule(perceptionMod);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _kernel.RegisterModule(orchPack);

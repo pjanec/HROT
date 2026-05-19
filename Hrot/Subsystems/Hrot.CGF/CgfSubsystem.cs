@@ -9,6 +9,7 @@ using Fdp.ModuleHost.Diagnostics;
 using Fdp.ModuleHost.Scheduling;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -280,6 +281,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         mapperRegistry.Register(new HullDownAttackMapper());
         var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
             mapperRegistry);
+        _context.Kernel.RegisterModule(new BehaviorDiagnosticsModule());
         _context.Kernel.RegisterModule(cgfLogicPack);
 
         // Execute the Brain systems every frame via two togglable phase groups.
