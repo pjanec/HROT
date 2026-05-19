@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Hrot.Common.Components;
 
 namespace Hrot.IG.Gizmos
 {

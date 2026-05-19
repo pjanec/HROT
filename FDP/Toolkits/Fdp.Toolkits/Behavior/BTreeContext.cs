@@ -1,6 +1,8 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fbt;
+using Fdp.Toolkit.Behavior.Diagnostics;
 
 namespace Fdp.Toolkit.Behavior
 {
@@ -11,8 +13,11 @@ namespace Fdp.Toolkit.Behavior
     ///
     /// Stack-allocated once per entity inside <see cref="Systems.BTreeTickSystem.OnUpdate"/> —
     /// zero heap allocation per tick.
+    ///
+    /// Implements <see cref="ITreeTracer"/> so that the FastBTree interpreter emits structural
+    /// trace events via a constrained generic call (JIT devirtualizes the dispatch).
     /// </summary>
-    public struct BTreeContext : IAIContext
+    public unsafe struct BTreeContext : IAIContext, ITreeTracer
     {
         /// <summary>The entity whose brain is currently being ticked.</summary>
         public Entity Self;
@@ -31,6 +36,18 @@ namespace Fdp.Toolkit.Behavior
         // ── Blob parameter tables (float/int params defined in the tree asset) ────
         internal float[]? _floatParams;
         internal int[]?   _intParams;
+
+        // ── Diagnostics ──────────────────────────────────────────────────────────
+        /// <summary>
+        /// Optional pointer to the per-entity unmanaged trace ring buffer.
+        /// Null when <c>DebugState.Behavior &amp; EnableTraceBuffer == 0</c>.
+        /// Stamped by <c>BTreeTickSystem</c> when constructing the context.
+        /// </summary>
+        public BTreeTraceWorkingMemory1024* TraceBuffer;
+
+        /// <summary>The <c>BehaviorState.InstanceId</c> of the active brain, copied for
+        /// stamping into trace records.</summary>
+        internal uint _instanceId;
 
         // ── IAIContext implementation ──────────────────────────────────────────────
         float IAIContext.DeltaTime   => _deltaTime;
@@ -51,5 +68,44 @@ namespace Fdp.Toolkit.Behavior
         RaycastResult IAIContext.GetRaycastResult(int requestId) => default;
         int IAIContext.RequestPath(Vector3 from, Vector3 to) => -1;
         PathResult IAIContext.GetPathResult(int requestId) => default;
+
+        // ── ITreeTracer implementation ────────────────────────────────────────────
+        // Each call is a single null-check on a ref-struct field; the JIT predicts the
+        // null path and emits near-zero overhead when tracing is disabled.
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status)
+        {
+            if (TraceBuffer != null)
+                TraceBuffer->WriteNodeEvaluated(nodeIndex, status, (ushort)_frameCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TraceScopePushed(ushort newStackDepth)
+        {
+            if (TraceBuffer != null)
+                TraceBuffer->WriteScopePushed(newStackDepth, (ushort)_frameCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TraceScopePopped(ushort newStackDepth)
+        {
+            if (TraceBuffer != null)
+                TraceBuffer->WriteScopePopped(newStackDepth, (ushort)_frameCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TraceWaitStarted(int nodeIndex, float duration)
+        {
+            if (TraceBuffer != null)
+                TraceBuffer->WriteWaitStarted(nodeIndex, duration, (ushort)_frameCount);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TraceWaitCompleted(int nodeIndex, float duration)
+        {
+            if (TraceBuffer != null)
+                TraceBuffer->WriteWaitCompleted(nodeIndex, duration, (ushort)_frameCount);
+        }
     }
 }

@@ -3,7 +3,7 @@ using Fbt;
 
 namespace Fbt.Tests.TestFixtures
 {
-    public struct MockContext : IAIContext
+    public struct MockContext : IAIContext, ITreeTracer
     {
         // BHU-012: Self and World allow the BTree source generator to assign SharedAi entries
         // to the (TestBlackboard, MockContext) group. Types are int here (test stand-in for
@@ -42,5 +42,12 @@ namespace Fbt.Tests.TestFixtures
         
         public float GetFloatParam(int index) => 1.0f;
         public int GetIntParam(int index) => 1;
+
+        // ITreeTracer (no-op — tests don't record traces unless overridden in specific tests).
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
 }

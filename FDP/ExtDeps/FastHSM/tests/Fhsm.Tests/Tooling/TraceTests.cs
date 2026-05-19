@@ -322,7 +322,7 @@ namespace Fhsm.Tests.Tooling
         public void Kernel_SetTraceBuffer_ShouldStoreReference()
         {
             var buffer = new HsmTraceBuffer();
-            HsmKernelCore.SetTraceBuffer(buffer);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             // Requires reflection or trust to verify private field, but we can verify it doesn't throw.
             // Also we can call a method that traces, passing a fake instance with DebugTrace flag, and see if buffer gets data.
@@ -333,7 +333,7 @@ namespace Fhsm.Tests.Tooling
         {
             var buffer = new HsmTraceBuffer();
             buffer.FilterLevel = TraceLevel.All;
-            HsmKernelCore.SetTraceBuffer(buffer);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             // Create a fake instance buffer to pass to ProcessEventPhase?
             // ProcessEventPhase is internal, can't call easily from here.
@@ -346,7 +346,7 @@ namespace Fhsm.Tests.Tooling
             // and rely on manual verification or add a test helper in Kernel.
             // For now, let's just ensure SetTraceBuffer works.
             
-            HsmKernelCore.SetTraceBuffer(null);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             // No crash
         }
 

@@ -79,6 +79,9 @@ namespace Hrot.AI.Behaviors
             HsmNormalizer.Normalize(idleGraph);
             var idleFlat     = HsmFlattener.Flatten(idleGraph);
             HsmDefinitionBlob idleHsmBlob = HsmEmitter.Emit(idleFlat);
+            // Sidecar metadata so AI diagnostic renderers/JSON dumps can symbolicate
+            // raw trace records back to readable state/event/action names.
+            MachineMetadata idleHsmMetadata = HsmEmitter.BuildMachineMetadata(idleGraph);
 
             return (BehaviorRegistry registry) =>
             {
@@ -121,6 +124,7 @@ namespace Hrot.AI.Behaviors
                         Name          = "Idle",
                         BrainTier     = BehaviorConstants.BrainTierHsm,
                         HsmDefinition = idleHsmBlob,
+                        HsmMetadata   = idleHsmMetadata,
                     });
 
                 registry.Register(WanderMilitary_BT, "WanderMilitary",

@@ -99,7 +99,70 @@ namespace Fhsm.Kernel
                     sizeof(TInstance),
                     ctxPtr,
                     deltaTime,
-                    cmdPtr);
+                    cmdPtr,
+                    null);
+            }
+        }
+
+        /// <summary>
+        /// Overload for single instance (with Command Buffer + Trace Context).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void Update<TInstance, TContext>(
+            HsmDefinitionBlob definition,
+            ref TInstance instance,
+            in TContext context,
+            float deltaTime,
+            ref CommandPage commandPage,
+            HsmTraceContext* traceCtx)
+            where TInstance : unmanaged
+            where TContext : unmanaged
+        {
+            fixed (TInstance* instPtr = &instance)
+            fixed (TContext* ctxPtr = &context)
+            fixed (CommandPage* cmdPtr = &commandPage)
+            {
+                HsmKernelCore.UpdateBatchCore(
+                    definition,
+                    instPtr,
+                    1,
+                    sizeof(TInstance),
+                    ctxPtr,
+                    deltaTime,
+                    cmdPtr,
+                    traceCtx);
+            }
+        }
+
+        /// <summary>
+        /// Overload for batch with Trace Context.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void UpdateBatch<TInstance, TContext>(
+            HsmDefinitionBlob definition,
+            Span<TInstance> instances,
+            in TContext context,
+            float deltaTime,
+            ref CommandPage commandPage,
+            HsmTraceContext* traceCtx)
+            where TInstance : unmanaged
+            where TContext : unmanaged
+        {
+            if (instances.Length == 0) return;
+
+            fixed (TInstance* instPtr = instances)
+            fixed (TContext* ctxPtr = &context)
+            fixed (CommandPage* cmdPtr = &commandPage)
+            {
+                HsmKernelCore.UpdateBatchCore(
+                    definition,
+                    instPtr,
+                    instances.Length,
+                    sizeof(TInstance),
+                    ctxPtr,
+                    deltaTime,
+                    cmdPtr,
+                    traceCtx);
             }
         }
         

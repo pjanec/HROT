@@ -104,9 +104,9 @@ Every task below has a unique ID and verifiable success conditions, usually expr
 
 **Scope:**
 - In [BehaviorApplicationComponentIds.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorApplicationComponentIds.cs), add:
-  - `public const byte BTreeTraceWorkingMemory = 163;`
-  - `public const byte HsmTraceWorkingMemory   = 164;`
-  - `public const byte DebugState              = 165;` (used in T3.2)
+  - `public const int BTreeTraceWorkingMemory = 172;`
+  - `public const int HsmTraceWorkingMemory   = 173;`
+  - `public const int DebugState              = 174;` (used in T3.2)
   - Verify these are not already used by other components in either `BehaviorApplicationComponentIds` or `HrotComponentIds`.
 - In [CognitiveComponentRegistry.cs](Hrot/Subsystems/Hrot.SimHost/CognitiveComponentRegistry.cs), add:
   - `world.RegisterComponent<BTreeTraceWorkingMemory1024>();`

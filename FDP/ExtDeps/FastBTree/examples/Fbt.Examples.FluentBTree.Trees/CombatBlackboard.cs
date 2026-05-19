@@ -15,7 +15,7 @@ namespace Fbt.Examples.FluentBTree
         public float EngagementRange;
     }
 
-    public struct CombatContext : IAIContext
+    public struct CombatContext : IAIContext, ITreeTracer
     {
         public float DeltaTime { get; set; }
         public float Time { get; set; }
@@ -27,5 +27,12 @@ namespace Fbt.Examples.FluentBTree
         public PathResult GetPathResult(int requestId) => new PathResult { IsReady = true, Success = true };
         public float GetFloatParam(int index) => 0f;
         public int GetIntParam(int index) => 0;
+
+        // ITreeTracer (no-op — examples do not record traces).
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
 }

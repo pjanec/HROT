@@ -70,7 +70,7 @@ namespace Fhsm.Tests.Kernel
             HsmInstanceManager.Initialize(&instance, blob);
             
             var traceBuffer = new HsmTraceBuffer(4096);
-            HsmKernelCore.SetTraceBuffer(traceBuffer);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             // 1. Initialize (Active: R1Child, R2Child)
             for(int i=0; i<4; i++) HsmKernel.Update(blob, ref instance, 0, 0.016f);
@@ -108,7 +108,7 @@ namespace Fhsm.Tests.Kernel
                 }
             }
             
-            HsmKernelCore.SetTraceBuffer(null);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             if (!foundConflict)
             {
@@ -169,7 +169,7 @@ namespace Fhsm.Tests.Kernel
             HsmInstanceManager.Initialize(&instance, blob);
             
             var traceBuffer = new HsmTraceBuffer(4096);
-            HsmKernelCore.SetTraceBuffer(traceBuffer);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             for(int i=0; i<4; i++) HsmKernel.Update(blob, ref instance, 0, 0.016f);
             
@@ -200,7 +200,7 @@ namespace Fhsm.Tests.Kernel
                 }
             }
             
-            HsmKernelCore.SetTraceBuffer(null);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             Assert.False(foundConflict, "Did not expect conflict trace record");
         }

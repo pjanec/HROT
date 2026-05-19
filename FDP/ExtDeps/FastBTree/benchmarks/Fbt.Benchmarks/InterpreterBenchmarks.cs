@@ -115,7 +115,7 @@ namespace Fbt.Benchmarks
         public int Counter;
     }
     
-    public struct TestContext : IAIContext
+    public struct TestContext : IAIContext, ITreeTracer
     {
         public float Time { get; set; }
         public float DeltaTime { get; set; }
@@ -126,5 +126,12 @@ namespace Fbt.Benchmarks
         public PathResult GetPathResult(int requestId) => new PathResult { IsReady = true, Success = true };
         public float GetFloatParam(int index) => 1.0f;
         public int GetIntParam(int index) => 1;
+
+        // ITreeTracer (no-op).
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
 }

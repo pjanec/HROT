@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Fhsm.Compiler.Graph;
 using Fhsm.Compiler.Hashing;
 using Fhsm.Kernel.Data;
 
@@ -9,6 +10,42 @@ namespace Fhsm.Compiler
 {
     public class HsmEmitter
     {
+        /// <summary>
+        /// Construct a <see cref="MachineMetadata"/> sidecar from the source graph,
+        /// mapping each <c>FlatIndex</c> back to a human-readable state name. Used
+        /// by AI diagnostic renderers/translators to symbolicate raw trace records.
+        /// </summary>
+        public static MachineMetadata BuildMachineMetadata(StateMachineGraph graph)
+        {
+            if (graph == null) throw new ArgumentNullException(nameof(graph));
+
+            var meta = new MachineMetadata();
+
+            foreach (var state in graph.States.Values)
+            {
+                if (state.FlatIndex == 0xFFFF) continue;
+                meta.StateNames[state.FlatIndex] = state.Name;
+            }
+
+            foreach (var kvp in graph.EventNameToId)
+            {
+                meta.EventNames[kvp.Value] = kvp.Key;
+            }
+
+            // Action names: graph.RegisteredActions is just the set of names without
+            // stable IDs. The action-to-ID mapping is built inside HsmFlattener
+            // (BuildActionTable). We rebuild a parallel ordering here.
+            // NOTE: this is best-effort. A future change could expose the action
+            // table from Flatten() and use that directly.
+            ushort actionIdx = 0;
+            foreach (var actionName in graph.RegisteredActions.OrderBy(n => n, StringComparer.Ordinal))
+            {
+                meta.ActionNames[actionIdx++] = actionName;
+            }
+
+            return meta;
+        }
+
         /// <summary>
         /// Emit HsmDefinitionBlob from flattened data.
         /// </summary>

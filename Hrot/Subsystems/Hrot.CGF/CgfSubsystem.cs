@@ -242,6 +242,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
         BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
         Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+        Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
+        Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor   = behaviorRegistry;
+
+        // Wire the FDP-layer trace emitter to the NLog-backed BehaviorLog (behav-diag-1).
+        // Idempotent: safe to overwrite on hot-reload.
+        Fdp.Toolkit.Behavior.Diagnostics.BehaviorTraceLog.Instance =
+            new Hrot.AI.Behaviors.Logging.BehaviorTraceLogEmitter();
 
         // Configure network factory for this node so auxiliary translators can be created.
         var nodeFactory = _networkFactory?.ConfigureForNode(_context, NodeRole.Brain, behaviorRegistry);

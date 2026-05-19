@@ -74,6 +74,9 @@ namespace Hrot.CGF
         /// <summary>Systems to wrap in TogglableInputGroup.</summary>
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
+        /// <summary>Systems that run in the BeforeSync phase (cognitive lifecycle reaction).</summary>
+        public IReadOnlyList<IEcsModuleSystem> BeforeSyncSystems { get; }
+
         /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
@@ -142,11 +145,17 @@ namespace Hrot.CGF
             _routeContextSystem        = new RouteContextSystem();
             _unitHierarchySystem       = new UnitHierarchySystem();
 
-            var inputList = new List<IEcsModuleSystem>();
-            var simList   = new List<IEcsModuleSystem>();
+            var inputList     = new List<IEcsModuleSystem>();
+            var simList       = new List<IEcsModuleSystem>();
 
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
+            foreach (var s in _cognitiveRuntimeModule.InputSystems) inputList.Add(s);
+
+            // BeforeSync systems (TraceBufferLifecycleSystem) need to run BEFORE the BTree/HSM
+            // tick systems each frame. Togglable*Group ignores per-system [UpdateInPhase], so
+            // we inline them at the start of the simulation list to guarantee that ordering.
+            foreach (var s in _cognitiveRuntimeModule.BeforeSyncSystems) simList.Add(s);
 
             simList.Add(_missionAdapterSystem);
             simList.Add(_tacticalIntentResolutionSystem);
@@ -159,8 +168,9 @@ namespace Hrot.CGF
             simList.Add(_routeContextSystem);
             simList.Add(_unitHierarchySystem);
 
-            InputSystems      = inputList;
-            SimulationSystems = simList;
+            InputSystems       = inputList;
+            BeforeSyncSystems  = _cognitiveRuntimeModule.BeforeSyncSystems;
+            SimulationSystems  = simList;
         }
 
         /// <summary>

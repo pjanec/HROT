@@ -40,5 +40,11 @@ namespace Hrot.Common.Constants
 
         // --- Layer control ---
         public const int OpenLayerControl = 250;
+
+        // --- AI Diagnostics (behav-diag-1) ---
+        /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>
+        public const int ToggleAiTrace    = 251;
+        /// <summary>Toggle <c>DebugState.Behavior.EmitToLog</c> on the target entity.</summary>
+        public const int ToggleAiTraceLog = 252;
     }
 }

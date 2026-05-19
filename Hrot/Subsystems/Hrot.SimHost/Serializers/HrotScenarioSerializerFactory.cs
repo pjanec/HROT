@@ -19,6 +19,8 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new EditablePolylineTranslator())
                 .RegisterTranslator(new BrainBlackboardTranslator(behaviorRegistry))
                 .RegisterTranslator(new Blackboard1024Translator(behaviorRegistry))
+                .RegisterTranslator(new BTreeTraceWorkingMemoryTranslator(behaviorRegistry))
+                .RegisterTranslator(new HsmTraceWorkingMemoryTranslator(behaviorRegistry))
                 .Build();
         }
     }

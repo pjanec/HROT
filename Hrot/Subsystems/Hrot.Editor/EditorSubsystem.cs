@@ -141,7 +141,7 @@ namespace Hrot.Editor
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
         private bool                    _headless;
-        // GZH-016: gate — false when another subsystem owns the map view.
+        // GZH-016: gate ï¿½ false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
         // ?? Adapters (canvas-dependent; null in headless) ?????????????????????
@@ -937,6 +937,27 @@ namespace Hrot.Editor
                                     });
                                 }
                         });
+                }));
+
+                // 4) AI tracing toggles (behav-diag-1). Only shown on entities with a brain.
+                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                {
+                    if (!_world.IsAlive(entity)) return;
+                    if (!_world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)) return;
+
+                    builder.AddSeparator();
+                    builder.AddItem("Toggle AI Trace Buffer", () =>
+                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
+                        {
+                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTrace,
+                            Target   = entity,
+                        }));
+                    builder.AddItem("Toggle AI Trace Log", () =>
+                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
+                        {
+                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTraceLog,
+                            Target   = entity,
+                        }));
                 }));
 
                 // Entity query ? all networked simulation entities with a location.

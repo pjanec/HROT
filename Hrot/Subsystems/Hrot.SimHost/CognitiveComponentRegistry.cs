@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Navigation;
 
@@ -44,6 +45,13 @@ namespace Hrot.SimHost
             // CQRS navigation command — written by the Brain tier (MoveToExecutor)
             // and read by the Muscle tier (NavigationIntentBridgeSystem).
             world.RegisterComponent<NavigationIntent>();
+
+            // BTree/HSM diagnostic tracing — opt-in 1024-byte ring buffers per entity,
+            // plus the generic transient DebugState driving them, and the patch event.
+            world.RegisterComponent<BTreeTraceWorkingMemory1024>();
+            world.RegisterComponent<HsmTraceWorkingMemory1024>();
+            world.RegisterComponent<DebugState>();
+            world.RegisterManagedEvent<PatchDebugStateCommand>();
 
             // Embarkation commands (edit-1/EDIT1-E001)
             world.RegisterEvent<EmbarkEntityCommand>();

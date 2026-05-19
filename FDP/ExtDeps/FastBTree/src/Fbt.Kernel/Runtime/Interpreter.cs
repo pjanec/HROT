@@ -7,7 +7,7 @@ namespace Fbt.Runtime
     /// </summary>
     public class Interpreter<TBlackboard, TContext> : ITreeRunner<TBlackboard, TContext>
         where TBlackboard : struct
-        where TContext : struct, IAIContext
+        where TContext : struct, IAIContext, ITreeTracer
     {
         private readonly BehaviorTreeBlob _blob;
         private readonly NodeLogicDelegate<TBlackboard, TContext>[] _actionDelegates;
@@ -298,15 +298,16 @@ namespace Fbt.Runtime
                 // Unpack async token
                 var token = new AsyncToken(state.AsyncData);
                 float startTime = token.FloatA;
-                
+
                 // Check if duration has elapsed
                 float elapsed = ctx.Time - startTime;
                 if (elapsed >= duration)
                 {
                     state.RunningNodeIndex = 0;
+                    ctx.TraceWaitCompleted(nodeIndex, duration);
                     return NodeStatus.Success;
                 }
-                
+
                 return NodeStatus.Running;
             }
             else
@@ -315,6 +316,7 @@ namespace Fbt.Runtime
                 var token = AsyncToken.FromFloat(ctx.Time, 0);
                 state.AsyncData = token.PackedValue;
                 state.RunningNodeIndex = (ushort)nodeIndex;
+                ctx.TraceWaitStarted(nodeIndex, duration);
                 return NodeStatus.Running;
             }
         }
@@ -472,7 +474,11 @@ namespace Fbt.Runtime
 
             var actionDelegate = _actionDelegates[node.PayloadIndex];
             var status = actionDelegate(ref bb, ref state, ref ctx, node.PayloadIndex);
-            
+
+            // Engine-emitted trace: every action/condition evaluation. Devirtualized
+            // by the JIT because TContext is a struct constrained to ITreeTracer.
+            ctx.TraceNodeEvaluated(nodeIndex, status);
+
             if (status == NodeStatus.Running)
             {
                 state.RunningNodeIndex = (ushort)nodeIndex;
@@ -481,7 +487,7 @@ namespace Fbt.Runtime
             {
                 state.RunningNodeIndex = 0;
             }
-            
+
             return status;
         }
 

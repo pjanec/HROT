@@ -72,7 +72,7 @@ namespace Fhsm.Tests.Kernel
             // 65KB buffer should be enough for 100 iterations * 16 bytes = 1600 bytes
             var traceBuffer = new HsmTraceBuffer(65536);
             traceBuffer.FilterLevel = TraceLevel.All;
-            HsmKernelCore.SetTraceBuffer(traceBuffer);
+            // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             
             try 
             {
@@ -85,7 +85,7 @@ namespace Fhsm.Tests.Kernel
             }
             finally
             {
-                HsmKernelCore.SetTraceBuffer(null);
+                // SetTraceBuffer removed in behav-diag-1; trace tests now need HsmTraceContext rewrite (DEBT).
             }
             
             // 1. Check Safe State (0xFFFF)

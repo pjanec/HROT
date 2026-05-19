@@ -189,10 +189,10 @@ The active `TraceLevel` filter is carried in the stack-local `HsmTraceContext` (
 In [BehaviorApplicationComponentIds.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorApplicationComponentIds.cs) (FDP-level, 160–199 block):
 
 ```csharp
-public const byte ActiveMissionPlan         = 162; // existing
-public const byte BTreeTraceWorkingMemory   = 163;
-public const byte HsmTraceWorkingMemory     = 164;
-public const byte DebugState                = 165;
+public const int ActiveMissionPlan         = 162; // existing
+public const int BTreeTraceWorkingMemory   = 172; // 163 was reserved; 164/165 used by IgEntityData/IgHealthState
+public const int HsmTraceWorkingMemory     = 173;
+public const int DebugState                = 174;
 ```
 
 All three new IDs land in `BehaviorApplicationComponentIds` (FDP-level). See §6 for why `DebugState` moves to FDP-level instead of `HrotComponentIds`.

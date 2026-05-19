@@ -247,14 +247,14 @@ namespace Fbt.Demo.Visual
 
     }
     
-    public struct DemoContext : IAIContext
+    public struct DemoContext : IAIContext, ITreeTracer
     {
         public float Time { get; set; }
         public float DeltaTime { get; set; }
         public Agent Agent { get; set; }
         public int FrameCount { get; set; } // Needed by IAIContext
 
-        
+
         // IAIContext implementation
         public int RequestRaycast(Vector3 origin, Vector3 direction, float maxDistance) => 0;
         public RaycastResult GetRaycastResult(int requestId) => new() { IsReady = true };
@@ -262,5 +262,12 @@ namespace Fbt.Demo.Visual
         public PathResult GetPathResult(int requestId) => new() { IsReady = true, Success = true };
         public float GetFloatParam(int index) => 1f;
         public int GetIntParam(int index) => 1;
+
+        // ITreeTracer (no-op — demo does not record traces)
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
 }

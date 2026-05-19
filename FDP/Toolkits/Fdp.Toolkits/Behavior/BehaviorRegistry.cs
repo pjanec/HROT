@@ -45,6 +45,14 @@ namespace Fdp.Toolkit.Behavior
         public HsmDefinitionBlob? HsmDefinition { get; init; }
 
         /// <summary>
+        /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>
+        /// for HSM-backed behaviors so diagnostic renderers / JSON translators can
+        /// resolve raw state, event, and action IDs to human-readable names. May be
+        /// <c>null</c> for legacy behaviors compiled without sidecar metadata.
+        /// </summary>
+        public MachineMetadata? HsmMetadata { get; init; }
+
+        /// <summary>
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
         /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
         /// carries no configurable parameters.

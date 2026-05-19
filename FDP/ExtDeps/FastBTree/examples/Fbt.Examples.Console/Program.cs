@@ -17,12 +17,12 @@ namespace Fbt.Examples.Console
     }
     
     // Simple context for demo
-    public struct DemoContext : IAIContext
+    public struct DemoContext : IAIContext, ITreeTracer
     {
         public float DeltaTime { get; set; }
         public float Time { get; set; }
         public int FrameCount { get; set; }
-        
+
         // Minimal implementation (stubbed)
         public int RequestRaycast(Vector3 origin, Vector3 direction, float maxDistance) => 0;
         public RaycastResult GetRaycastResult(int requestId) => new RaycastResult { IsReady = true };
@@ -30,6 +30,13 @@ namespace Fbt.Examples.Console
         public PathResult GetPathResult(int requestId) => new PathResult { IsReady = true, Success = true };
         public float GetFloatParam(int index) => 1.0f;
         public int GetIntParam(int index) => 1;
+
+        // ITreeTracer (no-op).
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
     
     class Program

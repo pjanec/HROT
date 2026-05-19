@@ -135,6 +135,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             new BehaviorTkbTranslator(),
             new CombatTkbTranslator(),
             new PerceptionTkbTranslator(),
+            new Hrot.SimHost.Diagnostics.AiDiagnosticsTkbTranslator(),  // behav-diag-1: auto-enable AI tracing
         }.AsReadOnly();
 
         var ctx = new HrotNodeBuilder(config)

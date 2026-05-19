@@ -379,6 +379,14 @@ namespace Hrot.SimHost
                         onRemove: () => _dataDrivenGizmoSystem!.DeactivateGizmo(target));
                     _dataDrivenGizmoSystem!.ActivateGizmo(target, gizmo);
                 });
+
+                // ── AI diagnostics toggles (behav-diag-1) ─────────────────────────
+                actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
+                    Hrot.SimHost.Diagnostics.AiTraceContextMenu.PublishToggle(
+                        view, target, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EnableTraceBuffer));
+                actionRegistry.Register(GlobalActionIds.ToggleAiTraceLog, (view, target) =>
+                    Hrot.SimHost.Diagnostics.AiTraceContextMenu.PublishToggle(
+                        view, target, Fdp.Toolkit.Behavior.Diagnostics.BehaviorDebugFlags.EmitToLog));
                 // Route gizmo interaction translators and publisher through the network factory
                 // so that SimHostApp has no direct dependency on Hrot.Network.NED.
                 CycloneNetworkIngressSystem? gizmoIngress = null;

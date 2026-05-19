@@ -7,6 +7,7 @@ using Fbt;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Lifecycle.Events;
 
@@ -20,10 +21,18 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <c>GCHandle.FromIntPtr(bridge->WorldHandle).Target</c>.
     /// See DEBT-007-HSM-ANALYSIS.md for full explanation.
     /// </summary>
-    public struct HsmKernelBridge
+    public unsafe struct HsmKernelBridge
     {
         public Entity Self;
         public IntPtr WorldHandle;   // IntPtr is unmanaged; holds GCHandle table index
+
+        /// <summary>
+        /// Optional pointer to a stack-local <see cref="HsmTraceContext"/> built each
+        /// tick over the entity's <c>HsmTraceWorkingMemory1024</c> component. Null
+        /// when tracing is disabled. User-authored HSM actions/guards may write
+        /// domain errors via <c>bridge.TraceContext-&gt;WriteError(...)</c>.
+        /// </summary>
+        public HsmTraceContext* TraceContext;
     }
 
     /// <summary>
@@ -75,6 +84,18 @@ namespace Fdp.Toolkit.Behavior.Systems
         public HsmTickSystem(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static TraceLevel ResolveTraceLevel(BehaviorDebugFlags flags)
+        {
+            // Highest-tier wins (Tier3 implies Tier2 implies Tier1).
+            if ((flags & BehaviorDebugFlags.HsmTraceTier3) != 0) return TraceLevel.Tier3;
+            if ((flags & BehaviorDebugFlags.HsmTraceTier2) != 0) return TraceLevel.Tier2;
+            if ((flags & BehaviorDebugFlags.HsmTraceTier1) != 0) return TraceLevel.Tier1;
+            // Default when EnableTraceBuffer is on but no tier specified — pick Tier1
+            // (transitions + events + state changes) so the buffer is not silent.
+            return TraceLevel.Tier1;
         }
 
         public unsafe void Execute(ISimulationView view, float deltaTime)
@@ -151,17 +172,75 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
                 }
 
+                // Resolve the optional per-entity HSM trace context. Skipped (and the
+                // chunk version stays clean) unless DebugState.EnableTraceBuffer is set.
+                HsmTraceContext traceCtx = default;
+                HsmTraceContext* traceCtxPtr = null;
+                HsmTraceWorkingMemory1024* hsmTracePtr = null;
+                bool emitToLog = false;
+                if (repo.HasComponent<DebugState>(entity))
+                {
+                    ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
+                    emitToLog = (dbg.Behavior & BehaviorDebugFlags.EmitToLog) != 0;
+                    if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0
+                        && repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
+                    {
+                        ref var traceMem = ref repo.GetComponentRW<HsmTraceWorkingMemory1024>(entity);
+                        traceMem.LastInstanceId = behavior.InstanceId;
+                        hsmTracePtr            = (HsmTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMem);
+                        traceCtx.Buffer        = (byte*)Unsafe.AsPointer(ref traceMem.Buffer[0]);
+                        traceCtx.WritePos      = (ushort*)Unsafe.AsPointer(ref traceMem.WritePos);
+                        traceCtx.RecordCount   = (ushort*)Unsafe.AsPointer(ref traceMem.RecordCount);
+                        traceCtx.CapacityBytes = HsmTraceWorkingMemory1024.PayloadBytes;
+                        traceCtx.MaxRecords    = HsmTraceWorkingMemory1024.CapacityRecords;
+                        traceCtx.FilterLevel   = ResolveTraceLevel(dbg.Behavior);
+                        traceCtx.CurrentTick   = (ushort)repo.GlobalVersion;
+                        traceCtx.InstanceId    = behavior.InstanceId;
+                        traceCtxPtr = &traceCtx;
+
+                        // Honor the per-instance gate inside the kernel: set the bit
+                        // alongside enabling the buffer.
+                        ref var hdrSet = ref Unsafe.As<T, InstanceHeader>(ref component);
+                        hdrSet.Flags |= InstanceFlags.DebugTrace;
+                    }
+                    else if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) == 0)
+                    {
+                        // Clear the gate when the bit flips off so a stale instance flag
+                        // does not keep producing dead traces.
+                        ref var hdrClr = ref Unsafe.As<T, InstanceHeader>(ref component);
+                        hdrClr.Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.DebugTrace);
+                    }
+                }
+
+                // Snapshot the cursor BEFORE stepping so we can decode the per-frame delta.
+                ushort startWritePos = hsmTracePtr != null ? hsmTracePtr->WritePos : (ushort)0;
+
                 // DEBT-007 full resolution: WorldHandle carries the GCHandle IntPtr so that
                 // action delegates can recover the EntityRepository via GCHandle.FromIntPtr.
                 // IntPtr is an unmanaged value type -- satisfies 'where TContext : unmanaged'.
                 var bridge = new HsmKernelBridge
                 {
-                    Self        = entity,
-                    WorldHandle = repo.UnmanagedHandle,  // one property read per entity per tick
+                    Self         = entity,
+                    WorldHandle  = repo.UnmanagedHandle,  // one property read per entity per tick
+                    TraceContext = traceCtxPtr,
                 };
 
                 // sizeof(T) determines the tier (64 / 128 / 256) inside HsmKernelCore.
-                HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime);
+                var dummyPage = new CommandPage();
+                HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime, ref dummyPage, traceCtxPtr);
+
+                // Optional NLog emission for this frame's records.
+                if (hsmTracePtr != null && emitToLog
+                    && BehaviorTraceLog.Instance is { IsTraceEnabled: true } emitter)
+                {
+                    int bytesWritten = hsmTracePtr->WritePos - startWritePos;
+                    if (bytesWritten < 0)
+                        bytesWritten += HsmTraceWorkingMemory1024.PayloadBytes;
+                    int recordsWritten = bytesWritten / HsmTraceWorkingMemory1024.RecordStride;
+                    if (recordsWritten > 0)
+                        EmitHsmRecordsToLog(entity, repo, hsmTracePtr, startWritePos, recordsWritten,
+                            def.HsmMetadata, emitter);
+                }
 
                 // BHU-007: Detect terminal state and publish BehaviorFinishedEvent exactly once
                 // per behavior instance. The Terminated flag is cleared so new behavior
@@ -182,6 +261,47 @@ namespace Fdp.Toolkit.Behavior.Systems
                         hdr.Phase  = InstancePhase.Idle;
                     }
                 }
+            }
+        }
+
+        private static unsafe void EmitHsmRecordsToLog(
+            Entity entity,
+            EntityRepository repo,
+            HsmTraceWorkingMemory1024* traceData,
+            ushort startWritePos,
+            int recordCount,
+            MachineMetadata? meta,
+            IBehaviorTraceLogEmitter emitter)
+        {
+            int payloadBytes = HsmTraceWorkingMemory1024.PayloadBytes;
+            int stride       = HsmTraceWorkingMemory1024.RecordStride;
+            byte* bufferPtr  = (byte*)Unsafe.AsPointer(ref traceData->Buffer[0]);
+
+            for (int i = 0; i < recordCount; i++)
+            {
+                int offset = (startWritePos + (i * stride)) % payloadBytes;
+                var rec = (TraceRecord*)(bufferPtr + offset);
+
+                string msg = rec->OpCode switch
+                {
+                    TraceOpCode.StateEnter =>
+                        $"State enter [{rec->StateIndex}] {meta?.GetStateName(rec->StateIndex) ?? "?"}",
+                    TraceOpCode.StateExit =>
+                        $"State exit [{rec->StateIndex}] {meta?.GetStateName(rec->StateIndex) ?? "?"}",
+                    TraceOpCode.Transition =>
+                        $"Transition {meta?.GetStateName(rec->StateIndex) ?? "?"} -> {meta?.GetStateName(rec->TargetStateIndex) ?? "?"} on {meta?.GetEventName(rec->TriggerEventId) ?? "?"}",
+                    TraceOpCode.EventHandled =>
+                        $"Event handled [{rec->EventId}] {meta?.GetEventName(rec->EventId) ?? "?"}",
+                    TraceOpCode.ActionExecuted =>
+                        $"Action [{rec->ActionId}] {meta?.GetActionName(rec->ActionId) ?? "?"}",
+                    TraceOpCode.GuardEvaluated =>
+                        $"Guard [{rec->GuardId}] {meta?.GetActionName(rec->GuardId) ?? "?"} -> {(rec->GuardResult != 0 ? "PASS" : "FAIL")}",
+                    TraceOpCode.Error =>
+                        $"ERROR code={rec->ErrorCode}",
+                    _ => $"OpCode {rec->OpCode}",
+                };
+
+                emitter.EmitTrace(entity, repo, msg, "HsmTrace");
             }
         }
     }

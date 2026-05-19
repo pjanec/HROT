@@ -10,13 +10,6 @@ namespace Fhsm.Kernel
     /// </summary>
     internal static unsafe class HsmKernelCore
     {
-        private static HsmTraceBuffer? _traceBuffer = null;
-
-        public static void SetTraceBuffer(HsmTraceBuffer? buffer)
-        {
-            _traceBuffer = buffer;
-        }
-
         // Event ID for Timer Fired (System Reserved)
         private const ushort TimerEventId = 0xFFFE;
 
@@ -45,12 +38,13 @@ namespace Fhsm.Kernel
             int instanceSize,
             void* contextPtr,
             float deltaTime,
-            void* commandPagePtr)
+            void* commandPagePtr,
+            HsmTraceContext* traceCtx = null)
         {
             if (definition == null) throw new ArgumentNullException(nameof(definition));
             if (instancePtr == null) throw new ArgumentNullException(nameof(instancePtr));
             if (instanceCount <= 0) return;
-            
+
             var cmdWriter = new HsmCommandWriter((CommandPage*)commandPagePtr, 4080);
 
             // Process each instance
@@ -58,13 +52,13 @@ namespace Fhsm.Kernel
             {
                 byte* instPtr = (byte*)instancePtr + (i * instanceSize);
                 InstanceHeader* header = (InstanceHeader*)instPtr;
-                
+
                 // Skip instances with invalid phase or wrong definition
                 if (!ValidateInstance(header, definition))
                 {
                     continue;
                 }
-                
+
                 // Process based on current phase
                 ProcessInstancePhase(
                     definition,
@@ -73,7 +67,8 @@ namespace Fhsm.Kernel
                     contextPtr,
                     deltaTime,
                     header,
-                    ref cmdWriter);
+                    ref cmdWriter,
+                    traceCtx);
             }
         }
         
@@ -104,46 +99,47 @@ namespace Fhsm.Kernel
             void* contextPtr,
             float deltaTime,
             InstanceHeader* header,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             switch (header->Phase)
             {
                 case InstancePhase.Idle:
                     // Timer Phase
                     ProcessTimerPhase(definition, instancePtr, instanceSize, deltaTime);
-                    
+
                     // Check if any events in queue (triggered by timers or external)
                     if (HsmEventQueue.GetCount(instancePtr, instanceSize) > 0)
                     {
                         header->Phase = InstancePhase.Entry;
                     }
                     break;
-                    
+
                 case InstancePhase.Entry:
                     {
                         // Check if uninitialized
                         ushort* activeLeafIds = GetActiveLeafIds(instancePtr, instanceSize, out int regionCount);
                         if (activeLeafIds != null && activeLeafIds[0] == 0xFFFF)
                         {
-                            InitializeMachine(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter);
-                            
+                            InitializeMachine(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx);
+
                             // Advance to Activity immediately (skip event phase this tick)
                             header->Phase = InstancePhase.Activity;
                             break;
                         }
-                    
+
                         // Advance to Event processing
-                        ProcessEventPhase(definition, instancePtr, instanceSize, contextPtr, ref cmdWriter);
+                        ProcessEventPhase(definition, instancePtr, instanceSize, contextPtr, ref cmdWriter, traceCtx);
                     }
                     break;
-                    
+
                 case InstancePhase.RTC:
                     ushort eventId = GetCurrentEventId(instancePtr, instanceSize);
-                    ProcessRTCPhase(definition, instancePtr, instanceSize, contextPtr, eventId, ref cmdWriter);
+                    ProcessRTCPhase(definition, instancePtr, instanceSize, contextPtr, eventId, ref cmdWriter, traceCtx);
                     break;
-                    
+
                 case InstancePhase.Activity:
-                    ProcessActivityPhase(definition, instancePtr, instanceSize, contextPtr, deltaTime, ref cmdWriter);
+                    ProcessActivityPhase(definition, instancePtr, instanceSize, contextPtr, deltaTime, ref cmdWriter, traceCtx);
                     break;
             }
         }
@@ -154,7 +150,8 @@ namespace Fhsm.Kernel
             int instanceSize,
             void* contextPtr,
             ushort* activeLeafIds,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             if (definition.Header.StateCount == 0) return;
 
@@ -167,7 +164,7 @@ namespace Fhsm.Kernel
             }
 
             // 1. Initialize Root (Slot 0)
-            InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, 0, 0, 0xFFFF);
+            InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx, 0, 0, 0xFFFF);
             
             // 2. Initialize Orthogonal Regions
             var regions = definition.Regions;
@@ -214,7 +211,7 @@ namespace Fhsm.Kernel
 
                     if (parentActive)
                     {
-                         InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, r, region.InitialStateIndex, region.ParentStateIndex);
+                         InitializeSlot(definition, instancePtr, instanceSize, contextPtr, activeLeafIds, ref cmdWriter, traceCtx, r, region.InitialStateIndex, region.ParentStateIndex);
                          changed = true;
                     }
                 }
@@ -228,6 +225,7 @@ namespace Fhsm.Kernel
             void* contextPtr,
             ushort* activeLeafIds,
             ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx,
             int slotIndex,
             ushort startState,
             ushort fromParent)
@@ -291,9 +289,9 @@ namespace Fhsm.Kernel
             // So if LCA == fromParent, EntryPath starts at child of fromParent.
             // This is exactly what we want! We don't want to re-enter fromParent.
             
-            if (_traceBuffer != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+            if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
             {
-                _traceBuffer.WriteStateChange(header->MachineId, targetState, true);
+                traceCtx->WriteStateChange(header->MachineId, targetState, true);
             }
 
             // 3. Execute Entry Actions
@@ -304,7 +302,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
                 }
             }
             
@@ -376,29 +374,30 @@ namespace Fhsm.Kernel
             byte* instancePtr,
             int instanceSize,
             void* contextPtr,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             const int MaxEventsPerTick = 10;
             int eventsProcessed = 0;
             InstanceHeader* header = (InstanceHeader*)instancePtr;
-            
+
             while (eventsProcessed < MaxEventsPerTick)
             {
                 if (!HsmEventQueue.TryDequeue(instancePtr, instanceSize, out HsmEvent evt))
                 {
                     break;
                 }
-                
+
                 eventsProcessed++;
-                
+
                 // Trace event handled
-                if (_traceBuffer != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+                if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
                 {
                     byte result = 0; // 0=consumed
                     if ((evt.Flags & EventFlags.IsDeferred) != 0)
                         result = 1; // 1=deferred
-                    
-                    _traceBuffer.WriteEventHandled(header->MachineId, evt.EventId, result);
+
+                    traceCtx->WriteEventHandled(header->MachineId, evt.EventId, result);
                 }
 
                 if ((evt.Flags & EventFlags.IsDeferred) != 0)
@@ -426,29 +425,30 @@ namespace Fhsm.Kernel
             int instanceSize,
             void* contextPtr,
             float deltaTime,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             InstanceHeader* header = (InstanceHeader*)instancePtr;
             ushort* activeLeafIds = GetActiveLeafIds(instancePtr, instanceSize, out int regionCount);
-            
+
             // Execute activities for all active states
             for (int r = 0; r < regionCount; r++)
             {
                 ushort leafId = activeLeafIds[r];
                 if (leafId == 0xFFFF) continue;
-                
+
                 // Walk up from leaf to root, executing activities
                 ushort current = leafId;
                 while (current != 0xFFFF)
                 {
                     ref readonly var state = ref definition.GetState(current);
-                    
+
                     // Execute activity if present
                     if (state.ActivityActionId != 0 && state.ActivityActionId != 0xFFFF)
                     {
-                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter);
+                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
                     }
-                    
+
                     current = state.ParentIndex;
                 }
             }
@@ -465,21 +465,22 @@ namespace Fhsm.Kernel
             int instanceSize,
             void* contextPtr,
             ushort currentEventId,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             const int MaxRTCIterations = 100;
             InstanceHeader* header = (InstanceHeader*)instancePtr;
             ushort* activeLeafIds = GetActiveLeafIds(instancePtr, instanceSize, out int regionCount);
-            
+
             int iteration = 0;
             while (true)
             {
                 if (iteration >= MaxRTCIterations)
                 {
                     // Fail-Safe: Infinite loop detected
-                     if (_traceBuffer != null)
+                    if (traceCtx != null)
                     {
-                        _traceBuffer.WriteError(header->MachineId, 1); // Error 1: RTC Loop
+                        traceCtx->WriteError(header->MachineId, 1); // Error 1: RTC Loop
                     }
                     
                     // Reset to 0xFFFF (Safe State)
@@ -499,15 +500,16 @@ namespace Fhsm.Kernel
                     activeLeafIds,
                     regionCount,
                     currentEventId,
-                    contextPtr);
-                
+                    contextPtr,
+                    traceCtx);
+
                 if (selectedTransition == null)
                 {
                     // Consumed
                     break;
                 }
-                
-                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, contextPtr, ref cmdWriter);
+
+                ExecuteTransition(definition, instancePtr, instanceSize, selectedTransition.Value, activeLeafIds, regionCount, contextPtr, ref cmdWriter, traceCtx);
                 
                 // Event consumed - subsequent iterations check for Epsilon (0) transitions
                 currentEventId = 0;
@@ -524,7 +526,8 @@ namespace Fhsm.Kernel
             ushort* activeLeafIds,
             int regionCount,
             ushort eventId,
-            void* contextPtr)
+            void* contextPtr,
+            HsmTraceContext* traceCtx)
         {
             // 1. Global transitions
             var globalSpan = definition.GlobalTransitions;
@@ -533,7 +536,7 @@ namespace Fhsm.Kernel
                 ref readonly var gt = ref globalSpan[i];
                 if (gt.EventId == eventId)
                 {
-                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId))
+                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx))
                     {
                         return new TransitionDef
                         {
@@ -576,7 +579,7 @@ namespace Fhsm.Kernel
                                 // Priority is top 4 bits (12-15) of Flags
                                 byte priority = (byte)((ushort)(trans.Flags) >> 12);
 
-                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId))
+                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx))
                                 {
                                     if (bestTransition == null || priority > highestPriority)
                                     {
@@ -595,16 +598,16 @@ namespace Fhsm.Kernel
             return bestTransition;
         }
         
-        private static bool EvaluateGuard(ushort guardId, byte* instancePtr, void* contextPtr, ushort eventId)
+        private static bool EvaluateGuard(ushort guardId, byte* instancePtr, void* contextPtr, ushort eventId, HsmTraceContext* traceCtx)
         {
             bool result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId);
 
-            if (_traceBuffer != null)
+            if (traceCtx != null)
             {
                 InstanceHeader* header = (InstanceHeader*)instancePtr;
                 if ((header->Flags & InstanceFlags.DebugTrace) != 0)
                 {
-                    _traceBuffer.WriteGuardEvaluated(header->MachineId, guardId, result, 0);
+                    traceCtx->WriteGuardEvaluated(header->MachineId, guardId, result, 0);
                 }
             }
 
@@ -621,79 +624,80 @@ namespace Fhsm.Kernel
             ushort* activeLeafIds,
             int regionCount,
             void* contextPtr,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
             // NEW: Region arbitration for orthogonal regions
             // NEW: Region arbitration for orthogonal regions
             if (definition.Header.RegionCount > 1)
             {
-                ArbitrateOutputLanes(definition, instancePtr, activeLeafIds, regionCount);
+                ArbitrateOutputLanes(definition, instancePtr, activeLeafIds, regionCount, traceCtx);
             }
 
             ushort sourceStateId = transition.SourceStateIndex;
             ushort targetStateId = transition.TargetStateIndex;
-            
+
             // Compute LCA path
             TransitionPath path = ComputeLCA(definition, sourceStateId, targetStateId);
-            
+
             InstanceHeader* header = (InstanceHeader*)instancePtr;
-            if (_traceBuffer != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+            if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
             {
-                _traceBuffer.WriteTransition(
+                traceCtx->WriteTransition(
                     header->MachineId,
                     transition.SourceStateIndex,
                     transition.TargetStateIndex,
                     transition.EventId);
             }
-            
+
             // 1. Execute exit actions (leaf -> LCA)
             for (int i = 0; i < path.ExitCount; i++)
             {
                 ushort stateId = path.ExitPath[i];
-                
-                if (_traceBuffer != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+
+                if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
                 {
-                    _traceBuffer.WriteStateChange(header->MachineId, stateId, false);
+                    traceCtx->WriteStateChange(header->MachineId, stateId, false);
                 }
 
                 ref readonly var state = ref definition.GetState(stateId);
-                
+
                 // Cancel timers owned by this state (clears all for now)
                 CancelTimers(instancePtr, instanceSize);
 
                 if (state.OnExitActionId != 0 && state.OnExitActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter);
+                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
                 }
-                
+
                 // Save history if this state has history
                 if ((state.Flags & StateFlags.IsHistory) != 0 || state.HistorySlotIndex != 0xFFFF)
                 {
                     SaveHistory(definition, instancePtr, instanceSize, stateId, activeLeafIds[0]);
                 }
             }
-            
+
             // 2. Execute transition action
             if (transition.ActionId != 0 && transition.ActionId != 0xFFFF)
             {
-                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter);
+                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
             }
-            
+
             // 3. Execute entry actions (LCA -> leaf)
             ushort finalLeafId = targetStateId;
             bool historyRestored = false;
-            
+
             for (int i = 0; i < path.EntryCount; i++)
             {
                 ushort stateId = path.EntryPath[i];
-                
-                if (_traceBuffer != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
+
+                if (traceCtx != null && (header->Flags & InstanceFlags.DebugTrace) != 0)
                 {
-                    _traceBuffer.WriteStateChange(header->MachineId, stateId, true);
+                    traceCtx->WriteStateChange(header->MachineId, stateId, true);
                 }
 
                 ref readonly var state = ref definition.GetState(stateId);
-                
+
                 // Check if history state
                 if ((state.Flags & StateFlags.IsHistory) != 0)
                 {
@@ -702,13 +706,13 @@ namespace Fhsm.Kernel
                     if (RestoreHistory(definition, instancePtr, instanceSize, stateId, isDeep))
                     {
                         historyRestored = true;
-                        break; 
+                        break;
                     }
                 }
-                
+
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
                 }
                 
                 // If composite, resolve to initial child
@@ -741,14 +745,15 @@ namespace Fhsm.Kernel
             ushort actionId,
             byte* instancePtr,
             void* contextPtr,
-            ref HsmCommandWriter cmdWriter)
+            ref HsmCommandWriter cmdWriter,
+            HsmTraceContext* traceCtx)
         {
-            if (_traceBuffer != null)
+            if (traceCtx != null)
             {
                 InstanceHeader* header = (InstanceHeader*)instancePtr;
                 if ((header->Flags & InstanceFlags.DebugTrace) != 0)
                 {
-                    _traceBuffer.WriteActionExecuted(header->MachineId, actionId);
+                    traceCtx->WriteActionExecuted(header->MachineId, actionId);
                 }
             }
 
@@ -762,7 +767,8 @@ namespace Fhsm.Kernel
             HsmDefinitionBlob definition,
             byte* instancePtr,
             ushort* activeLeafIds,
-            int regionCount)
+            int regionCount,
+            HsmTraceContext* traceCtx)
         {
             byte combinedMask = 0;
             int firstRegionWithConflict = -1;
@@ -790,13 +796,13 @@ namespace Fhsm.Kernel
                     // For v1.0: Log conflict (if tracing enabled) and continue
                     // Full arbitration with priority would be P4 (future)
                     
-                    if (_traceBuffer != null)
+                    if (traceCtx != null)
                     {
                         InstanceHeader* header = (InstanceHeader*)instancePtr;
-                        _traceBuffer.WriteConflict(
+                        traceCtx->WriteConflict(
                             header->MachineId,
-                            activeLeafIds[i], 
-                            laneMask, 
+                            activeLeafIds[i],
+                            laneMask,
                             (byte)(combinedMask & laneMask)
                         );
                     }
