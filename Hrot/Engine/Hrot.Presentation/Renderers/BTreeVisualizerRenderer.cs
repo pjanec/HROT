@@ -223,14 +223,32 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
             }
 
             case NodeType.Action:
+            {
+                if (blob.DebugMetadata != null && (uint)nodeIndex < (uint)blob.DebugMetadata.Length)
+                {
+                    var meta = blob.DebugMetadata[nodeIndex];
+                    if (meta != null && !string.IsNullOrEmpty(meta.Label))
+                        return $"[A] {meta.Label}";
+                }
+
                 return blob.MethodNames.Length > node.PayloadIndex
-                    ? $"[A] {blob.MethodNames[node.PayloadIndex]}"
+                    ? $"[A] {ShortenNodeName(blob.MethodNames[node.PayloadIndex])}"
                     : "[A]";
+            }
 
             case NodeType.Condition:
+            {
+                if (blob.DebugMetadata != null && (uint)nodeIndex < (uint)blob.DebugMetadata.Length)
+                {
+                    var meta = blob.DebugMetadata[nodeIndex];
+                    if (meta != null && !string.IsNullOrEmpty(meta.Label))
+                        return $"[C] {meta.Label}";
+                }
+
                 return blob.MethodNames.Length > node.PayloadIndex
-                    ? $"[C] {blob.MethodNames[node.PayloadIndex]}"
+                    ? $"[C] {ShortenNodeName(blob.MethodNames[node.PayloadIndex])}"
                     : "[C]";
+            }
 
             default:
                 return node.Type.ToString();
@@ -263,5 +281,16 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
         if (runningNodeIndex > 0 && runningNodeIndex == nodeIndex) return 1; // green
         if (runningNodeIndex != 0 && !hasChildren) return 2;                 // gray
         return 0;                                                             // default
+    }
+
+    private static string ShortenNodeName(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return fullName;
+
+        int atIdx = fullName.IndexOf('@');
+        string baseName = atIdx >= 0 ? fullName.Substring(0, atIdx) : fullName;
+
+        int dotIdx = baseName.LastIndexOf('.');
+        return dotIdx >= 0 ? baseName.Substring(dotIdx + 1) : baseName;
     }
 }
