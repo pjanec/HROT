@@ -1,0 +1,41 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000009",
+  "Name": "InstanceBlueprint",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000020",
+      "Name": "Alive",
+      "Type": { "TypeId": "System.Boolean" },
+      "DefaultValueJson": "true"
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000060",
+      "Name": "Construction",
+      "Kind": "Construction",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "SetVariable",
+          "Id": "cccccccc-0000-0000-0000-000000000070",
+          "VariableId": "aaaaaaaa-0000-0000-0000-000000000020",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

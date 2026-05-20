@@ -1,0 +1,87 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000005-0000-0000-0000-000000000001",
+  "Name": "MoveToAndFire",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Parameters": [
+    {
+      "Id": "b0000005-0000-0000-0000-000000000001",
+      "Name": "TargetEntity",
+      "Type": { "TypeId": "System.UInt64" },
+      "DefaultValueJson": null
+    }
+  ],
+  "WorkingState": [
+    {
+      "Id": "b0000005-0000-0000-0000-000000000010",
+      "Name": "Phase",
+      "Type": { "TypeId": "System.Int32" },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000005-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "20000005-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "20000005-0000-0000-0000-000000000002",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "WaitForChannel",
+          "Id": "20000005-0000-0000-0000-000000000003",
+          "ChannelType": "LocomotionChannel",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "20000005-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000005-0000-0000-0000-000000000001",
+          "FromPinId": "e0000005-0000-0000-0000-000000000001",
+          "ToNodeId": "20000005-0000-0000-0000-000000000002",
+          "ToPinId": "e0000005-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000005-0000-0000-0000-000000000002",
+          "FromPinId": "e0000005-0000-0000-0000-000000000003",
+          "ToNodeId": "20000005-0000-0000-0000-000000000003",
+          "ToPinId": "e0000005-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000005-0000-0000-0000-000000000003",
+          "FromPinId": "e0000005-0000-0000-0000-000000000005",
+          "ToNodeId": "20000005-0000-0000-0000-000000000004",
+          "ToPinId": "e0000005-0000-0000-0000-000000000006"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

@@ -1,0 +1,36 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000001-0000-0000-0000-000000000001",
+  "Name": "LibraryMath",
+  "Dispatch": "Library",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000001-0000-0000-0000-000000000001",
+      "Name": "Add",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "FunctionCall",
+          "Id": "20000001-0000-0000-0000-000000000001",
+          "TargetTypeId": "System.Math",
+          "MethodName": "Add",
+          "IsPure": true,
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

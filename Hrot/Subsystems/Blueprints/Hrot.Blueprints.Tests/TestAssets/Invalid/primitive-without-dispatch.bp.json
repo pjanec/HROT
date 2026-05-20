@@ -1,0 +1,15 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000097",
+  "Name": "PrimitiveWithoutDispatch",
+  "Dispatch": "Library",
+  "Primitive": { "Intent": "Action", "Hostings": [] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [],
+  "EditorMetadata": {}
+}

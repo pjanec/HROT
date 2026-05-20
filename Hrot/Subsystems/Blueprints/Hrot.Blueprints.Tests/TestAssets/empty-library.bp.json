@@ -1,0 +1,15 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000001",
+  "Name": "EmptyLibrary",
+  "Dispatch": "Library",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [],
+  "EditorMetadata": {}
+}

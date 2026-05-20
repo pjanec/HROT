@@ -1,0 +1,28 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000003-0000-0000-0000-000000000001",
+  "Name": "HealthRegen",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a0000003-0000-0000-0000-000000000001",
+      "Name": "CurrentHealth",
+      "Type": { "TypeId": "System.Single" },
+      "DefaultValueJson": "100"
+    },
+    {
+      "Id": "a0000003-0000-0000-0000-000000000002",
+      "Name": "MaxHealth",
+      "Type": { "TypeId": "System.Single" },
+      "DefaultValueJson": "100"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [],
+  "EditorMetadata": {}
+}

@@ -1,0 +1,28 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000006-0000-0000-0000-000000000001",
+  "Name": "DoorActor",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a0000006-0000-0000-0000-000000000001",
+      "Name": "IsOpen",
+      "Type": { "TypeId": "System.Boolean" },
+      "DefaultValueJson": "false"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [
+    {
+      "Id": "c0000006-0000-0000-0000-000000000001",
+      "Name": "OnDoorOpen",
+      "Parameters": []
+    }
+  ],
+  "CallablePeers": [],
+  "Graphs": [],
+  "EditorMetadata": {}
+}

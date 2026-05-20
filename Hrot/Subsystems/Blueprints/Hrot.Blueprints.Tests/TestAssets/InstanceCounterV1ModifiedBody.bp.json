@@ -1,0 +1,41 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000002-0000-0000-0000-000000000001",
+  "Name": "InstanceCounterV1ModifiedBody",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a0000002-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": { "TypeId": "System.Int32" },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000002-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "SetVariable",
+          "Id": "20000002-0000-0000-0000-000000000001",
+          "VariableId": "a0000002-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

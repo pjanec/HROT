@@ -1,0 +1,39 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000007",
+  "Name": "WithDelay",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000040",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "Delay",
+          "Id": "cccccccc-0000-0000-0000-000000000050",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "cccccccc-0000-0000-0000-000000000051",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

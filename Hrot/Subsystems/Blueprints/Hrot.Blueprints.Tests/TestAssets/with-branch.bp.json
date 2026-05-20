@@ -1,0 +1,59 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000004",
+  "Name": "WithBranch",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "Name": "Flag",
+      "Type": { "TypeId": "System.Boolean" },
+      "DefaultValueJson": "false"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000010",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "GetVariable",
+          "Id": "cccccccc-0000-0000-0000-000000000020",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Branch",
+          "Id": "cccccccc-0000-0000-0000-000000000021",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "cccccccc-0000-0000-0000-000000000022",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "cccccccc-0000-0000-0000-000000000020",
+          "FromPinId": "eeeeeeee-0000-0000-0000-000000000001",
+          "ToNodeId": "cccccccc-0000-0000-0000-000000000021",
+          "ToPinId": "eeeeeeee-0000-0000-0000-000000000002"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

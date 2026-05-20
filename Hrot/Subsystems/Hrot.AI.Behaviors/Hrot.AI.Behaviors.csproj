@@ -9,6 +9,12 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Hrot.AI.Behaviors</AssemblyName>
     <RootNamespace>Hrot.AI.Behaviors</RootNamespace>
+    <!-- Blueprint generator output: emit .g.cs files to disk for debugger source resolution. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
+    <!-- Portable PDB enables step-through debugging of generated Blueprint code. -->
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,6 +42,15 @@
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <!-- FastHSM fluent builder (HsmBuilder, HsmCompiler). -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+
+    <!-- Blueprint source generator: emits C# from *.bp.json AdditionalFiles. -->
+    <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Generators\Hrot.Blueprints.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Blueprint asset files: picked up by the incremental generator. -->
+  <ItemGroup>
+    <AdditionalFiles Include="Blueprints\**\*.bp.json" />
   </ItemGroup>
 
 </Project>

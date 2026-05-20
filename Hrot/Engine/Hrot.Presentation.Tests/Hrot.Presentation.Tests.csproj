@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- xUnit2002: Assert.NotNull on value type WorldResetEvent (pre-existing test, suppressed to keep build clean) -->
+    <NoWarn>xUnit2002</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />

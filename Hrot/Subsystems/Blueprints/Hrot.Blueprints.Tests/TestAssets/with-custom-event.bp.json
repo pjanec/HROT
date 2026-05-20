@@ -1,0 +1,46 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000005",
+  "Name": "WithCustomEvent",
+  "Dispatch": "Library",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [
+    {
+      "Id": "ffffffff-0000-0000-0000-000000000001",
+      "Name": "OnHit",
+      "Parameters": [
+        {
+          "Id": "ffffffff-0000-0000-0000-000000000002",
+          "Name": "Damage",
+          "Type": { "TypeId": "System.Single" },
+          "DefaultValueJson": null
+        }
+      ]
+    }
+  ],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000020",
+      "Name": "OnHit",
+      "Kind": "Event",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "cccccccc-0000-0000-0000-000000000030",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

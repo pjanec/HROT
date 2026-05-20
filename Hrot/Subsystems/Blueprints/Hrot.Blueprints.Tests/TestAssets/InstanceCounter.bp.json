@@ -1,0 +1,22 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000002-0000-0000-0000-000000000001",
+  "Name": "InstanceCounter",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a0000002-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": { "TypeId": "System.Int32" },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [],
+  "EditorMetadata": {}
+}

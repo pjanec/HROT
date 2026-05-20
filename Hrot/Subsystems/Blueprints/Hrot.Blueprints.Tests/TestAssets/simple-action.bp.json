@@ -1,0 +1,49 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000002",
+  "Name": "SimpleAction",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "Name": "Counter",
+      "Type": { "TypeId": "System.Int32" },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000001",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "FunctionCall",
+          "Id": "cccccccc-0000-0000-0000-000000000001",
+          "TargetTypeId": "System.Console",
+          "MethodName": "WriteLine",
+          "IsPure": false,
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "cccccccc-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

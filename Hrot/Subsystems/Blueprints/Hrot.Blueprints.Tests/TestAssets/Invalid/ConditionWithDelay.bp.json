@@ -1,0 +1,33 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000011-0000-0000-0000-000000000001",
+  "Name": "ConditionWithDelay",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Condition", "Hostings": [ "BTreeCondition" ] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000011-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "Delay",
+          "Id": "20000011-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

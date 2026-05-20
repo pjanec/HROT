@@ -1,0 +1,46 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000004-0000-0000-0000-000000000001",
+  "Name": "HasVisibleTarget",
+  "Dispatch": "AiPrimitive",
+  "Primitive": { "Intent": "Condition", "Hostings": [ "BTreeCondition" ] },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000004-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "20000004-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "20000004-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000004-0000-0000-0000-000000000001",
+          "FromPinId": "e0000004-0000-0000-0000-000000000001",
+          "ToNodeId": "20000004-0000-0000-0000-000000000002",
+          "ToPinId": "e0000004-0000-0000-0000-000000000002"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

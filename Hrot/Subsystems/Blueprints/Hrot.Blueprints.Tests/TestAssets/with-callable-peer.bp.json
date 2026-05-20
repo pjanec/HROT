@@ -1,0 +1,35 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "11111111-0000-0000-0000-000000000008",
+  "Name": "WithCallablePeer",
+  "Dispatch": "Library",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [
+    "22222222-0000-0000-0000-000000000001"
+  ],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000050",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "CallPeerBlueprint",
+          "Id": "cccccccc-0000-0000-0000-000000000060",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

@@ -1,0 +1,17 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000007-0000-0000-0000-000000000001",
+  "Name": "DoorSensor",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [
+    "00000006-0000-0000-0000-000000000001"
+  ],
+  "Graphs": [],
+  "EditorMetadata": {}
+}
