@@ -26,10 +26,13 @@ public static class DebugMapSerializer
                 .ThenBy(n => n.StartLine)
                 .Select(n => new EntryDto
                 {
-                    NodeId    = n.NodeId,
-                    GraphId   = n.GraphId,
-                    StartLine = n.StartLine,
-                    EndLine   = n.EndLine,
+                    NodeId      = n.NodeId,
+                    GraphId     = n.GraphId,
+                    StartLine   = n.StartLine,
+                    EndLine     = n.EndLine,
+                    NodeKind    = n.NodeKind,
+                    DisplayName = n.DisplayName,
+                    PhaseIndex  = n.PhaseIndex,
                 })
                 .ToList(),
         };
@@ -50,7 +53,12 @@ public static class DebugMapSerializer
                 n.NodeId,
                 n.GraphId,
                 n.StartLine,
-                n.EndLine)).ToList(),
+                n.EndLine)
+            {
+                NodeKind    = n.NodeKind,
+                DisplayName = n.DisplayName,
+                PhaseIndex  = n.PhaseIndex,
+            }).ToList(),
         };
     }
 
@@ -64,9 +72,12 @@ public static class DebugMapSerializer
 
     private sealed class EntryDto
     {
-        public Guid NodeId    { get; set; }
-        public Guid GraphId   { get; set; }
-        public int  StartLine { get; set; }
-        public int  EndLine   { get; set; }
+        public Guid   NodeId      { get; set; }
+        public Guid   GraphId     { get; set; }
+        public int    StartLine   { get; set; }
+        public int    EndLine     { get; set; }
+        public string NodeKind    { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public int?   PhaseIndex  { get; set; }
     }
 }

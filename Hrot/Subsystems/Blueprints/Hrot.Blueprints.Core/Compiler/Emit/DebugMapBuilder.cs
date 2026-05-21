@@ -11,7 +11,12 @@ public sealed record DebugMap
     public IReadOnlyList<DebugMapEntry> Entries { get; init; } = Array.Empty<DebugMapEntry>();
 }
 
-public sealed record DebugMapEntry(Guid NodeId, Guid GraphId, int StartLine, int EndLine);
+public sealed record DebugMapEntry(Guid NodeId, Guid GraphId, int StartLine, int EndLine)
+{
+    public string NodeKind    { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public int?   PhaseIndex  { get; init; } = null;
+}
 
 /// <summary>
 /// Tracks source spans alongside emission.

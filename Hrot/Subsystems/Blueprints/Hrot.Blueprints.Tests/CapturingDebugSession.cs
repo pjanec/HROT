@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Debug;
 
 namespace Hrot.Blueprints.Tests.Debug;
@@ -12,6 +13,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     private readonly List<NodeEnterRecord> _nodeEntries = new();
     private readonly List<PinValueRecord>  _pinValues   = new();
     private readonly HashSet<string>       _breakpoints = new();
+    private readonly Dictionary<Guid, DebugMap> _maps   = new();
 
     // ---- IBlueprintProbeSink ------------------------------------------------
 
@@ -80,6 +82,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public event Action<BreakpointHit>? OnBreakpointHit;
     public event Action<NodeExecuted>?  OnNodeExecuted;
     public event Action? OnSessionStateChanged;
+    public event Action<Guid>? OnBreakpointListChanged;
 
     // Explicit interface impl: avoids conflict with generic method OnPinValueChanged<T>.
     private Action<PinValueChanged>? _pinValueChangedHandlers;
@@ -89,6 +92,9 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
         add    => _pinValueChangedHandlers += value;
         remove => _pinValueChangedHandlers -= value;
     }
+
+    public void RegisterDebugMap(DebugMap map)   => _maps[map.AssetId] = map;
+    public void UnregisterDebugMap(Guid assetId) => _maps.Remove(assetId);
 
     // ---- Inspection helpers -------------------------------------------------
 

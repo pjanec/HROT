@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
+using Hrot.Blueprints.Core.Compiler.Emit;
 
 namespace Hrot.Blueprints.Core.Debug;
 
@@ -17,6 +18,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // Minimal breakpoint storage for SC3 wiring.
     private readonly HashSet<string> _nodeBreakpoints = new();
+
+    // Registered debug maps, indexed by AssetId.
+    private readonly Dictionary<Guid, DebugMapIndex> _debugMaps = new();
+
+    // Per-entity execution history ring-buffers.
+    private readonly Dictionary<Entity, ExecutionHistory> _history = new();
 
     public BlueprintDebugSession(
         BlueprintRegistry registry,
@@ -40,6 +47,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             OnBreakpointHit?.Invoke(new BreakpointHit(self, nodeId, Guid.Empty, 0f, 0u));
             OnSessionStateChanged?.Invoke();
         }
+        // Record execution history for this entity.
+        if (!_history.TryGetValue(self, out var hist))
+            _history[self] = hist = new ExecutionHistory();
+        hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
     }
 
     public void OnPinValueChanged<T>(Entity self, string pinId, T value)
@@ -103,12 +114,45 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public BlueprintStateSnapshot? GetCurrentStateSnapshot() => throw new NotImplementedException();
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
-        => throw new NotImplementedException();
+        => Array.Empty<NodeExecuted>();
+
+    // Non-interface overload: returns per-entity execution history.
+    // Per-entity view is the primary entry point; GetRecentNodeHistory (no entity) deferred to DBG-005.
+    public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)
+    {
+        if (!_history.TryGetValue(entity, out var hist))
+            return Array.Empty<NodeHistoryEntry>();
+        return hist.GetRecent(maxCount);
+    }
+
+    // ---- IBlueprintDebugSession -- map registration ------------------------
+
+    public void RegisterDebugMap(DebugMap map)
+    {
+        var index = new DebugMapIndex(map);
+        if (_debugMaps.TryGetValue(map.AssetId, out var existing) &&
+            existing.StructureHash != map.StructureHash)
+        {
+            // Structure changed: clear breakpoints for this asset and notify.
+            // Full per-asset breakpoint filtering deferred to DBG-003; stub clears all.
+            _nodeBreakpoints.Clear();
+            OnBreakpointListChanged?.Invoke(map.AssetId);
+            // Stale watch marking deferred to DBG-004.
+        }
+        _debugMaps[map.AssetId] = index;
+    }
+
+    public void UnregisterDebugMap(Guid assetId)
+    {
+        _debugMaps.Remove(assetId);
+        // Stale watch cleanup deferred to DBG-004.
+    }
 
     // ---- IBlueprintDebugSession -- events -----------------------------------
 
     public event Action<BreakpointHit>? OnBreakpointHit;
     public event Action? OnSessionStateChanged;
+    public event Action<Guid>? OnBreakpointListChanged;
 
     // Explicit implementations for events not yet raised (stubs for DBG-002 / DBG-003 / DBG-004).
     private Action<NodeExecuted>? _onNodeExecuted;

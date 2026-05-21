@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Hrot.Blueprints.Core.Compiler.Emit;
 
 namespace Hrot.Blueprints.Core.Debug;
 
@@ -94,11 +95,17 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     BlueprintStateSnapshot? GetCurrentStateSnapshot();
     IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100);
 
+    // -- Map registration --
+    void RegisterDebugMap(DebugMap map);
+    void UnregisterDebugMap(Guid assetId);
+
     // -- Events --
     event Action<BreakpointHit>? OnBreakpointHit;
     event Action<NodeExecuted>? OnNodeExecuted;
     // Named OnPinValueChangedEvent to avoid C# conflict with generic method OnPinValueChanged<T>.
     event Action<PinValueChanged>? OnPinValueChangedEvent;
     event Action? OnSessionStateChanged;
+    // Fired when RegisterDebugMap detects a structure-hash mismatch; Guid is the affected asset.
+    event Action<Guid>? OnBreakpointListChanged;
 }
 
