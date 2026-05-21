@@ -31,7 +31,7 @@
 - [x] **TASK-TH-007** Mock Contract Tests -- [details](./TASK-DETAIL.md#task-th-007----mock-contract-tests-8)
 - [x] **TASK-TH-008** CapturingDebugSession -- [details](./TASK-DETAIL.md#task-th-008----capturingdebugsession-10)
 - [x] **TASK-TH-009** TestData Infrastructure -- [details](./TASK-DETAIL.md#task-th-009----testdata-infrastructure-11)
-- [ ] **TASK-TH-010** BehaviorRegistry + InvokeBTree/Hsm + MockDispatcherSystem -- [details](./TASK-DETAIL.md#task-th-010----behaviorregistry-wiring--invokebtreehsm-helpers--mockdispatchersystem-12-resolutions--patches-3-q-121-through-q-124)
+- [x] **TASK-TH-010** BehaviorRegistry + InvokeBTree/Hsm + MockDispatcherSystem -- [details](./TASK-DETAIL.md#task-th-010----behaviorregistry-wiring--invokebtreehsm-helpers--mockdispatchersystem-12-resolutions--patches-3-q-121-through-q-124)
 
 ---
 

@@ -51,25 +51,60 @@ public sealed class AlcUnloadTests
         fixture.Dispose();
     }
 
-    // SC3 / SS7.5: After multiple loads, all ALCs tracked; all live until Dispose
+    // SC3 / SS7.5: Old ALCs are reclaimed after unload+GC; newest is still live.
+    // Loads are isolated in a [NoInlining] helper so Assembly temporaries (which
+    // keep their ALC alive) are confined to that frame and don't pin ALCs in the
+    // test-method frame (DEBT-009).
     [Fact]
     public void Fixture_AfterMultipleLoads_OldAlcsReclaimedNewestStillLive()
     {
         using var fixture = new BlueprintTestFixture(
             new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
 
-        var bytes = GetTestAsmBytes();
-
-        // Simulate three "generations" of loaded assemblies
-        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 1
-        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 2
-        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 3
+        // Load in a [NoInlining] helper -- Assembly refs stay in that frame.
+        LoadThreeGenerations(fixture);
 
         Assert.Equal(3, fixture.GetAlcWeakReferences().Count);
 
-        // All three ALCs should be live until Unload() is called
-        Assert.All(fixture.GetAlcWeakReferences(),
-            w => Assert.True(w.TryGetTarget(out _), "All ALCs should be live before Dispose"));
+        // Remove and unload first two ALCs, simulating SimulateReload for gen-1/gen-2.
+        UnloadFirstTwoAlcs(fixture);
+
+        // Drive GC to reclaim the two unloaded ALCs.
+        fixture.ForceGcReclaim();
+
+        Assert.False(fixture.GetAlcWeakReferences()[0].TryGetTarget(out _),
+            "First ALC should be GC-reclaimed after Unload()");
+        Assert.False(fixture.GetAlcWeakReferences()[1].TryGetTarget(out _),
+            "Second ALC should be GC-reclaimed after Unload()");
+        Assert.True(fixture.GetAlcWeakReferences()[2].TryGetTarget(out _),
+            "Third ALC should still be live (still referenced by fixture._activeAlcs)");
+    }
+
+    // [NoInlining] confines the Assembly temporaries from LoadTestAssemblyFromBytes
+    // to this frame's locals, preventing Debug-JIT from pinning them in the test-method
+    // frame (DEBT-009).
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void LoadThreeGenerations(BlueprintTestFixture fixture)
+    {
+        var bytes = GetTestAsmBytes();
+        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 1
+        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 2
+        fixture.LoadTestAssemblyFromBytes(bytes);   // gen 3
+    }
+
+    // [NoInlining] ensures alc1/alc2 are confined to this frame's locals and do not
+    // spill into the test-method frame as Debug-JIT GC roots after this helper returns.
+    // Calls fixture.UnloadAndReleaseAlc to remove each ALC from _activeAlcs first,
+    // mirroring what SimulateReload does for old-generation ALCs.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void UnloadFirstTwoAlcs(BlueprintTestFixture fixture)
+    {
+        fixture.GetAlcWeakReferences()[0].TryGetTarget(out var alc1);
+        fixture.GetAlcWeakReferences()[1].TryGetTarget(out var alc2);
+        fixture.UnloadAndReleaseAlc(alc1!);
+        fixture.UnloadAndReleaseAlc(alc2!);
+        alc1 = null;
+        alc2 = null;
     }
 
     // SC1 / SS7.5: Dispose with VerifyAlcUnloadOnDispose=false and no ALCs is instant

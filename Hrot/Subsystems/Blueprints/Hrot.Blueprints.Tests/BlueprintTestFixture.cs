@@ -5,7 +5,9 @@ using System.Text;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints;
+using Fhsm.Kernel;
 using Fdp.Toolkit.Blueprints.Attributes;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
@@ -31,6 +33,7 @@ public sealed class BlueprintTestFixture : IDisposable
     public MockSimulationView View { get; }
     public MockEntityCommandBuffer Ecb { get; }
     public BlueprintRegistry Registry { get; }
+    public BehaviorRegistry BehaviorRegistry { get; }
     public BlueprintTickSystem TickSystem { get; }
     public BlueprintMaintenanceSystem MaintenanceSystem { get; }
     public BlueprintCompiler Compiler { get; }
@@ -55,6 +58,7 @@ public sealed class BlueprintTestFixture : IDisposable
         Ecb = new MockEntityCommandBuffer(_repo);
         View = new MockSimulationView(_repo, Ecb);
         Registry = new BlueprintRegistry();
+        BehaviorRegistry = new BehaviorRegistry();
         DebugSession = new CapturingDebugSession();
         TickSystem = new BlueprintTickSystem(Registry);
         MaintenanceSystem = new BlueprintMaintenanceSystem();
@@ -83,7 +87,7 @@ public sealed class BlueprintTestFixture : IDisposable
         // 3. Simulation phase
         TickSystem.Execute(View);
         foreach (var sys in _auxSimulationSystems)
-            sys.Execute(View, deltaTime);
+            sys.Execute(_repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
 
         // 4. BeforeSync phase
         MaintenanceSystem.Execute(View);
@@ -160,6 +164,16 @@ public sealed class BlueprintTestFixture : IDisposable
         return alc;
     }
 
+    // Test-only: removes a specific ALC from active tracking and initiates unload.
+    // Mirrors what SimulateReload does for old-generation ALCs (Phase 3+).
+    // Use inside a [NoInlining] helper to avoid Debug-JIT pinning (see DEBT-009).
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal void UnloadAndReleaseAlc(AssemblyLoadContext alc)
+    {
+        _activeAlcs.Remove(alc);
+        alc.Unload();
+    }
+
     // ---- Simulate reload ----------------------------------------------------
 
     public void SimulateReload(IReadOnlyList<BlueprintAsset> newVersions)
@@ -173,6 +187,18 @@ public sealed class BlueprintTestFixture : IDisposable
         foreach (var alc in oldAlcs)
             alc.Unload();
     }
+
+    // ---- Invoke helpers (Phase 1 stubs) ------------------------------------
+    // Phase 1 stubs -- throw NotImplementedException until Phase 3 compiler is in place.
+
+    public NodeStatus InvokeBTreeAction(BlueprintAsset asset, Entity entity, int paramIndex = 0)
+        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
+
+    public unsafe bool InvokeHsmAction(BlueprintAsset asset, Entity entity)
+        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
+
+    public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
+        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
 
     // ---- Slot inspection helpers --------------------------------------------
 
@@ -317,6 +343,7 @@ public sealed class BlueprintTestFixture : IDisposable
     {
         if (t == typeof(BlueprintRegistryStaging)) return staging;
         if (t == typeof(BlueprintRegistry))        return Registry;
+        if (t == typeof(BehaviorRegistry))         return BehaviorRegistry;
         throw new InvalidOperationException(
             $"Unknown registrar parameter type: {t.FullName}");
     }
@@ -333,6 +360,7 @@ public sealed class BlueprintTestFixture : IDisposable
 
     public void Dispose()
     {
+        HsmActionDispatcher.ClearAll();  // clear stale function pointers before ALC unload
         UnloadAndClearAlcs();
         // ALCs are unloaded and _activeAlcs is cleared; the foreach variable inside
         // UnloadAndClearAlcs is now off-stack, allowing the GC to reclaim them.

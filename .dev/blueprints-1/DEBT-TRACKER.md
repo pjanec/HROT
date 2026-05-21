@@ -14,6 +14,9 @@
 | DEBT-009 | BATCH-04 | Dev insight: Debug JIT keeps all locals alive for method scope -- any ALC-touching temp in a test method pins the ALC. Always isolate ALC ops in [NoInlining] helpers. | P3 | ongoing | OPEN |
 | DEBT-010 | BATCH-04 | Dev insight: `WeakReference<T>.TryGetTarget(out _)` creates a strong ref via the out slot. Use non-generic `WeakReference.IsAlive` in GC reclaim loops. | P3 | ongoing | OPEN |
 
+| DEBT-011 | BATCH-05 | Assembly objects from `LoadTestAssemblyFromBytes` (even discarded) are kept alive by Debug JIT as implicit stack locals, preventing ALC GC. Fix: isolate ALL ALC loading calls in `[NoInlining]` helpers. Extends DEBT-009. | P3 | ongoing | OPEN |
+| DEBT-012 | BATCH-05 | `HsmActionDispatcher` is a `static class` (not singleton instance). TASK-TH-010 design anticipated `HsmDispatcher { get; }` property on fixture -- not implementable in C#. ClearAll() called statically in Dispose(). Future design docs should document this. | P3 | BATCH-07+ | OPEN |
+
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
 - P2 = Should fix (tracked here, assigned target batch)
