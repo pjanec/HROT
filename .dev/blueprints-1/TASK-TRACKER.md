@@ -51,8 +51,8 @@
 
 ## Phase 3 -- Compiler
 
-- [ ] **TASK-CP-000** Implement Static Catalog Stubs (Engine bindings for Demos) -- [details](./TASK-DETAIL.md#task-cp-000----implement-static-catalog-stubs)
-- [ ] **TASK-CP-001** Compiler Infrastructure and IR Data Model -- [details](./TASK-DETAIL.md#task-cp-001----compiler-infrastructure-and-ir-data-model)
+- [x] **TASK-CP-000** Implement Static Catalog Stubs (Engine bindings for Demos) -- [details](./TASK-DETAIL.md#task-cp-000----implement-static-catalog-stubs)
+- [x] **TASK-CP-001** Compiler Infrastructure and IR Data Model -- [details](./TASK-DETAIL.md#task-cp-001----compiler-infrastructure-and-ir-data-model)
 - [ ] **TASK-CP-002** Pipeline Stages 1-5 (Parse through Schedule) -- [details](./TASK-DETAIL.md#task-cp-002----pipeline-stages-1-5-parse-through-schedule)
 - [ ] **TASK-CP-003** Stage 6: Lower (Dispatch-Aware Transformations) -- [details](./TASK-DETAIL.md#task-cp-003----stage-6-lower-dispatch-aware-transformations)
 - [ ] **TASK-CP-004** Stage 7: Emit (C# Code Generation) -- [details](./TASK-DETAIL.md#task-cp-004----stage-7-emit-c-code-generation)

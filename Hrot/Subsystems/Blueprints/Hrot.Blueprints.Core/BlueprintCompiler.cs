@@ -4,8 +4,8 @@ using Fdp.Toolkit.Blueprints;
 namespace Hrot.Blueprints.Core;
 
 /// <summary>
-/// Compiles BlueprintAsset objects to C# source code.
-/// Minimal stub for Phase 1; full implementation in Phase 3 (Compiler DD).
+/// Backward-compatibility wrapper used by test fixtures and Phase 1 callers.
+/// Full compiler infrastructure lives in Hrot.Blueprints.Core.Compiler (Phase 3).
 /// </summary>
 public sealed class BlueprintCompiler
 {
