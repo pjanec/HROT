@@ -1,4 +1,4 @@
-# Blueprint Subsystem â€” Task Detail
+ï»¿# Blueprint Subsystem â€” Task Detail
 
 **Reference documents:**
 - Architecture: [Blueprint_Subsystem_Architecture_v1.2.md](./Blueprint_Subsystem_Architecture_v1.2.md) + [InlinePatches](./Blueprint_Subsystem_Architecture_v1.2_InlinePatches.md) + [FinalResolutions](./Blueprint_Subsystem_Architecture_v1.2_FinalResolutions.md)
@@ -1395,6 +1395,141 @@ All tests use `BlueprintTestFixture.SimulateReload` and `SimulateQuickReload` fr
 
 ---
 
+## TASK-DBG-000 -- Blueprint Time Controller Adapter
+
+**Phase:** 5 -- Debug Protocol
+**Design Reference:** [Debug Protocol DD Inline Patches (Patch 1)](./Blueprint_Subsystem_Debug_Protocol_Detailed_Design_InlinePatches.md#patch-1--soft-pause-via-time-controller-request-supersedes-16-64-65-7x), [Editor DD section 13](./Blueprint_Subsystem_Editor_Detailed_Design.md#13-time-controller-adapter)
+**Effort:** 0.5 days
+
+### Scope
+
+**What IS included:**
+- Define the `IBlueprintTimeController` interface in `Hrot.Blueprints.Core.Debug` with the following members: `bool IsPausedByDebugger { get; }`, `void RequestPause()`, `void RequestResume()`, and `void RequestStepOneTick()`.
+- Implement `MasterSyncTimeControllerAdapter : IBlueprintTimeController` in `Hrot.Blueprints.Editor.Debug` that wraps the engine's native `Fdp.Toolkit.Time.Controllers.MasterSyncController`.
+- **Pause Logic:** `RequestPause()` must call `_masterSync.SwitchToDeterministic(new HashSet<int>())` to halt local simulation time advancement while keeping the UI loop alive.
+- **Resume Logic:** `RequestResume()` must call `_masterSync.SwitchToContinuous()`.
+- **Step Logic:** `RequestStepOneTick()` must call `_masterSync.Step(1.0f / 60.0f)`.
+- Add concrete implementation samples (documentation only, no code changes) for:
+  - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Debug/IBlueprintTimeController.cs`
+  - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Debug/MasterSyncTimeControllerAdapter.cs`
+  - DI registration snippet for later `TASK-ED-001` integration.
+
+**What is NOT included:**
+- Injecting the adapter into the Dependency Injection container (this is handled in `TASK-ED-001` Editor Infrastructure).
+- Implementing the actual Debug Session that consumes this interface (this is `TASK-DBG-001`).
+- Modifying any core engine time controllers.
+
+### Constraints
+
+- The adapter must execute its operations without blocking the calling thread. `RequestPause()` must return immediately (Soft Pause semantics) to prevent UI deadlocks.
+- The `IBlueprintTimeController` interface must reside in the `Hrot.Blueprints.Core` assembly so the debug protocol can depend on it without referencing Editor or Engine Toolkit types.
+
+### Concrete Code Implementation (Documentation Sample Only)
+
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Debug/IBlueprintTimeController.cs`
+
+```csharp
+namespace Hrot.Blueprints.Core.Debug
+{
+    /// <summary>
+    /// Abstracts the engine's time control for the Blueprint debugger.
+    /// Provides soft-pause semantics (returns immediately; halts on next frame).
+    /// </summary>
+    public interface IBlueprintTimeController
+    {
+        bool IsPausedByDebugger { get; }
+        void RequestPause();
+        void RequestResume();
+        void RequestStepOneTick();
+    }
+}
+```
+
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Debug/MasterSyncTimeControllerAdapter.cs`
+
+```csharp
+using System;
+using System.Collections.Generic;
+using Fdp.ModuleHost.Time;
+using Fdp.Toolkit.Time.Controllers;
+using Hrot.Blueprints.Core.Debug;
+
+namespace Hrot.Blueprints.Editor.Debug
+{
+    /// <summary>
+    /// Adapts the engine's native MasterSyncController to the Blueprint debug protocol.
+    /// </summary>
+    public sealed class MasterSyncTimeControllerAdapter : IBlueprintTimeController
+    {
+        private readonly MasterSyncController _masterSync;
+
+        // 60 Hz fixed delta for stepping
+        private const float StepDeltaSeconds = 1.0f / 60.0f;
+
+        public MasterSyncTimeControllerAdapter(MasterSyncController masterSync)
+        {
+            _masterSync = masterSync ?? throw new ArgumentNullException(nameof(masterSync));
+        }
+
+        /// <summary>
+        /// True if the engine is currently in lockstep/paused mode.
+        /// </summary>
+        public bool IsPausedByDebugger => _masterSync.GetMode() == TimeMode.Deterministic;
+
+        /// <summary>
+        /// Requests a soft pause. The current tick will finish, and time advancement
+        /// will halt on the next frame.
+        /// </summary>
+        public void RequestPause()
+        {
+            // Transitioning to deterministic mode with an empty slave roster
+            // effectively pauses the local simulation clock without waiting for network ACKs.
+            _masterSync.SwitchToDeterministic(new HashSet<int>());
+        }
+
+        /// <summary>
+        /// Resumes continuous time advancement.
+        /// </summary>
+        public void RequestResume()
+        {
+            _masterSync.SwitchToContinuous();
+        }
+
+        /// <summary>
+        /// Advances the simulation clock by exactly one 60Hz frame.
+        /// </summary>
+        public void RequestStepOneTick()
+        {
+            if (IsPausedByDebugger)
+            {
+                _masterSync.Step(StepDeltaSeconds);
+            }
+        }
+    }
+}
+```
+
+DI wiring sample (implemented later in `TASK-ED-001`):
+
+```csharp
+// Inside your Editor bootstrap/DI setup:
+services.AddSingleton<IBlueprintTimeController>(sp =>
+{
+    var masterSync = sp.GetRequiredService<MasterSyncController>();
+    return new MasterSyncTimeControllerAdapter(masterSync);
+});
+```
+
+### Success Conditions
+
+- SC1: `IBlueprintTimeController` exists in `Hrot.Blueprints.Core.Debug` with the exact API (`IsPausedByDebugger`, `RequestPause`, `RequestResume`, `RequestStepOneTick`).
+- SC2: `MasterSyncTimeControllerAdapter` exists in `Hrot.Blueprints.Editor.Debug` and wraps `MasterSyncController` via constructor injection.
+- SC3: `RequestPause()` calls `_masterSync.SwitchToDeterministic(new HashSet<int>())` and returns immediately (soft pause semantics).
+- SC4: `RequestResume()` calls `_masterSync.SwitchToContinuous()`.
+- SC5: `RequestStepOneTick()` calls `_masterSync.Step(1.0f / 60.0f)`.
+- SC6: `dotnet build` zero errors.
+
+---
 ## TASK-DBG-001 -- Debug Session Interface and DebugProbe Dispatcher
 
 **Phase:** 5 -- Debug Protocol
@@ -1406,7 +1541,8 @@ All tests use `BlueprintTestFixture.SimulateReload` and `SimulateQuickReload` fr
 **What IS included:**
 - `IBlueprintDebugSession` interface (Â§2.1): all methods and events listed, with `OnPinValueChanged<T>(T)` constrained to `where T : unmanaged` per Patch 2.
 - `IBlueprintProbeSink` interface: `OnNodeEnter`, `OnPinValueChanged<T> where T : unmanaged`, `OnPeerCallEnter`, `OnPeerCallExit`.
-- `IBlueprintTimeController` interface (Patch 1): `RequestPause()`, `RequestResume()`, `RequestStepOneTick()`, `IsPausedByDebugger` property.
+- `IBlueprintTimeController` interface (provided by `TASK-DBG-000`): `RequestPause()`, `RequestResume()`, `RequestStepOneTick()`, `IsPausedByDebugger` property.
+- `BlueprintDebugSession` constructor explicitly expects `IBlueprintTimeController` dependency from `TASK-DBG-000`: `(BlueprintRegistry registry, ISimulationView view, IBlueprintTimeController timeController)`.
 - `DebugProbe` static class (Â§3): `public static IBlueprintProbeSink? Sink` field, static probe methods (`NodeEnter`, `PinValueChanged<T> where T : unmanaged`, `PeerCallEnter`, `PeerCallExit`), all using `Sink?.OnX(...)` null-conditional dispatch. Thread-safety note from Â§3.4: `Sink` assignment is a single-reference write (atomic on 64-bit platforms); no lock needed for the read path.
 - `BlueprintDebugSession` class skeleton with constructor `(BlueprintRegistry registry, ISimulationView view, IBlueprintTimeController timeController)` per Patch 1 -- stub implementations of `IBlueprintDebugSession` that throw `NotImplementedException` (filled in by subsequent tasks).
 - `MockTimeController` for tests: exposes `PauseWasRequested: bool`, `PauseRequestCount: int`, `ResumeCount: int`, `StepRequestCount: int`.
@@ -1913,7 +2049,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 ## TASK-DEMO-001 -- Demo: MathUtilsLib (Library Dispatch)
 
 **Phase:** 7 -- Demos
-**Design Reference:** [Roadmap §5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture §1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
+**Design Reference:** [Roadmap ï¿½5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture ï¿½1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
 **Effort:** 1-2 days
 
 ### Scope
@@ -1951,7 +2087,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 ## TASK-DEMO-002 -- Demo: HealthRegen (Instance Dispatch)
 
 **Phase:** 7 -- Demos
-**Design Reference:** [Roadmap §5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture §1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
+**Design Reference:** [Roadmap ï¿½5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture ï¿½1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
 **Effort:** 2-3 days
 
 ### Scope
@@ -1992,7 +2128,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 ## TASK-DEMO-003 -- Demo: DoorActor + DoorSensor (Multi-Blueprint Peer Calls)
 
 **Phase:** 7 -- Demos
-**Design Reference:** [Roadmap §5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture §1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
+**Design Reference:** [Roadmap ï¿½5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture ï¿½1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
 **Effort:** 2-3 days
 
 ### Scope
@@ -2031,7 +2167,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 ## TASK-DEMO-004 -- Demo: HasVisibleTarget (AiPrimitive Multi-Hosting)
 
 **Phase:** 7 -- Demos
-**Design Reference:** [Roadmap §5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture §1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
+**Design Reference:** [Roadmap ï¿½5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture ï¿½1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
 **Effort:** 2-3 days
 
 ### Scope
@@ -2072,7 +2208,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 ## TASK-DEMO-005 -- Demo: MoveToAndFire (Headline AiPrimitive Action)
 
 **Phase:** 7 -- Demos
-**Design Reference:** [Roadmap §5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture §1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
+**Design Reference:** [Roadmap ï¿½5](./Blueprint_Subsystem_Implementation_Roadmap_v1.1.md#5-slice-1-demo-scenarios), [Architecture ï¿½1.2](./Blueprint_Subsystem_Architecture_v1.2.md)
 **Effort:** 3-4 days
 
 ### Scope
@@ -2089,7 +2225,7 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 - ALC leak test (chained reloads: 3 Quick Reloads, no ALC leak).
 - Registrar shape: `Register(BlueprintRegistryStaging staging, BehaviorRegistry behReg)` -- `HsmActionDispatcher.RegisterAction` static call present in generated code.
 - Snapshot: full generated source snapshot for `MoveToAndFire` in `Snapshots/Demos/MoveToAndFire.cs.txt`.
-- M16 acceptance gate (Roadmap §10, definition of Slice 1 Complete item 2): this demo constitutes the "headline demo" walkthrough.
+- M16 acceptance gate (Roadmap ï¿½10, definition of Slice 1 Complete item 2): this demo constitutes the "headline demo" walkthrough.
 
 **What is NOT included:**
 - Real game engine AI integration (tests use mocked BTree/HSM evaluators via `BlueprintTestFixture`).
@@ -2114,4 +2250,4 @@ All tests use `BlueprintTestFixture` from Phase 1 (with `MockTimeController` fro
 - SC6: Generated registrar has `Register(BlueprintRegistryStaging, BehaviorRegistry)` with static `HsmActionDispatcher.RegisterAction` call.
 - SC7: `StructureHash` identical across two independent compiles of the same asset.
 - SC8: `dotnet test --filter "DEMO-005|MoveToAndFire"` passes.
-- SC9: Manual demo walkthrough checklist (in test file comments) covers all 6 Roadmap §10 items.
+- SC9: Manual demo walkthrough checklist (in test file comments) covers all 6 Roadmap ï¿½10 items.

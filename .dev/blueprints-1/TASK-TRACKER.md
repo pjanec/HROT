@@ -1,4 +1,4 @@
-# Task Tracker — Blueprint Subsystem
+﻿# Task Tracker — Blueprint Subsystem
 
 **Reference:** See [TASK-DETAIL.md](./TASK-DETAIL.md) for detailed task descriptions.
 
@@ -70,6 +70,7 @@
 
 ## Phase 5 -- Debug Protocol
 
+- [ ] **TASK-DBG-000** Blueprint Time Controller Adapter (Interface & MasterSyncController wrapper) -- [details](./TASK-DETAIL.md#task-dbg-000----blueprint-time-controller-adapter)
 - [ ] **TASK-DBG-001** Debug Session Interface and DebugProbe Dispatcher -- [details](./TASK-DETAIL.md#task-dbg-001----debug-session-interface-and-debugprobe-dispatcher)
 - [ ] **TASK-DBG-002** Debug Map Format and Node-ID Resolution -- [details](./TASK-DETAIL.md#task-dbg-002----debug-map-format-and-node-id-resolution)
 - [ ] **TASK-DBG-003** Breakpoints and Step Semantics -- [details](./TASK-DETAIL.md#task-dbg-003----breakpoints-and-step-semantics)
