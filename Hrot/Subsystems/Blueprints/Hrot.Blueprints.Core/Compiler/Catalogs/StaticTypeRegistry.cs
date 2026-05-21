@@ -31,6 +31,10 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             ["System.Single"]   = Unmanaged("System.Single",   4),
             ["System.Double"]   = Unmanaged("System.Double",   8),
 
+            // Managed reference types (not allowed in unmanaged state structs)
+            ["System.String"] = new IrTypeRef { FullName = "System.String", IsUnmanaged = false, SizeBytes = 0 },
+            ["System.Object"] = new IrTypeRef { FullName = "System.Object", IsUnmanaged = false, SizeBytes = 0 },
+
             // Numeric vector types
             ["System.Numerics.Vector2"]     = Unmanaged("System.Numerics.Vector2",    8),
             ["System.Numerics.Vector3"]     = Unmanaged("System.Numerics.Vector3",    12),

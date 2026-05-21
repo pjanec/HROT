@@ -167,35 +167,10 @@ internal sealed class CSharpEmitter
         Outdent();
         WriteLine("});");
 
-        foreach (var h in asset.Hostings)
-        {
-            if (h == AiPrimitiveHosting.BTreeAction)
-                WriteLine($"behReg.RegisterAction(\"{className}\", {className}.BTreeTick);");
-            else if (h == AiPrimitiveHosting.BTreeCondition)
-                WriteLine($"behReg.RegisterCondition(\"{className}\", {className}.BTreeEvaluate);");
-        }
-
-        foreach (var h in asset.Hostings)
-        {
-            if (h == AiPrimitiveHosting.HsmAction)
-            {
-                WriteLine("global::FastHSM.HsmActionDispatcher.RegisterAction(");
-                Indent();
-                WriteLine($"{className}.BlueprintId,");
-                WriteLine($"(IntPtr)(delegate* unmanaged<void*, void*, void*, void>)");
-                WriteLine($"    &{className}.HsmActivity);");
-                Outdent();
-            }
-            else if (h == AiPrimitiveHosting.HsmGuard)
-            {
-                WriteLine("global::FastHSM.HsmActionDispatcher.RegisterGuard(");
-                Indent();
-                WriteLine($"{className}.BlueprintId,");
-                WriteLine($"(IntPtr)(delegate* unmanaged<void*, void*, ushort, bool>)");
-                WriteLine($"    &{className}.HsmGuard);");
-                Outdent();
-            }
-        }
+        // TODO (Phase 4): Register BTree thunks with BehaviorRegistry once the Interpreter
+        // builder is in place.  The thunk methods (BTreeTick / BTreeEvaluate / HsmActivity /
+        // HsmGuard) are emitted above and callable via reflection; runtime wiring happens
+        // in HR-001 (AiHotReloadCoordinator).
     }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)

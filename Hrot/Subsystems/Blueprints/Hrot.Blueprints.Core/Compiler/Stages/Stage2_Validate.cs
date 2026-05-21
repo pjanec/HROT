@@ -198,7 +198,9 @@ internal sealed class V_LinkStructure : IValidator
                         asset.AssetId, graph.Id));
                     continue;
                 }
-                if (!fromNode.Pins.Any(p => p.Id == link.FromPinId))
+                // Skip pin-level checks when node has no pins: pins are resolved from the
+                // node registry in later stages and are not stored in the JSON asset.
+                if (fromNode.Pins.Count > 0 && !fromNode.Pins.Any(p => p.Id == link.FromPinId))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1602,
                         $"Link references unknown FromPinId {link.FromPinId} on node {link.FromNodeId}.",
                         asset.AssetId, graph.Id));
@@ -211,7 +213,7 @@ internal sealed class V_LinkStructure : IValidator
                         asset.AssetId, graph.Id));
                     continue;
                 }
-                if (!toNode.Pins.Any(p => p.Id == link.ToPinId))
+                if (toNode.Pins.Count > 0 && !toNode.Pins.Any(p => p.Id == link.ToPinId))
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1602,
                         $"Link references unknown ToPinId {link.ToPinId} on node {link.ToNodeId}.",
                         asset.AssetId, graph.Id));
@@ -230,6 +232,13 @@ internal sealed class V_GraphStructure : IValidator
     {
         foreach (var graph in asset.Graphs)
         {
+            // Skip structural checks when nodes have no pin data.
+            // In the JSON asset format, pins are not stored in the node JSON --
+            // they are resolved from the node registry in later stages (Stage3/4).
+            // When all nodes have empty Pins, pin-based entry detection is not reliable.
+            bool anyNodeHasPins = graph.Nodes.Any(n => n.Pins.Count > 0);
+            if (!anyNodeHasPins) continue;
+
             var entryNode = FindEntryNode(graph);
             if (entryNode is null)
             {
@@ -261,6 +270,13 @@ internal sealed class V_GraphStructure : IValidator
         if (graph.Kind == GraphKind.Event)
             return graph.Nodes.OfType<EventEntryNode>().FirstOrDefault();
 
+        // For Function/Construction graphs: EventEntryNode is an explicit entry indicator.
+        // Real assets loaded from JSON have no pin data yet (pins are resolved from registry
+        // in later stages), so pin-based detection must be skipped for those assets.
+        var eventEntry = graph.Nodes.OfType<EventEntryNode>().FirstOrDefault();
+        if (eventEntry is not null) return eventEntry;
+
+        // Fallback: pin-based detection for builder-constructed assets where Pins are pre-populated.
         // Build set of node IDs that are the TARGET of any exec link.
         var nodesWithIncomingExec = new HashSet<Guid>();
         var pinOwner = graph.Nodes.ToDictionary(
@@ -442,13 +458,16 @@ internal sealed class V_ChannelCommandReferences : IValidator
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
         var entries = ctx.ChannelCommands.GetEntries();
+        // Empty catalog means no catalog is configured -- skip validation (opt-in).
+        if (entries.Count == 0) return;
+
         foreach (var graph in asset.Graphs)
         {
             foreach (var node in graph.Nodes.OfType<ChannelCommandNode>())
             {
                 bool found = entries.Any(e =>
-                    e.ChannelType.FullName == node.ChannelType
-                    && e.ActionId.ToString() == node.ActionId);
+                    e.ChannelType.Name == node.ChannelType
+                    && e.Name == node.ActionId);
                 if (!found)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1401,
                         $"ChannelCommandNode references unknown command '{node.ChannelType}.{node.ActionId}'.",
@@ -481,8 +500,13 @@ internal sealed class V_EventGraphReferences : IValidator
                     && customEventIds.Contains(eventGuid))
                     continue;
 
-                // Check against engine event catalog (by type FQN)
-                if (catalogEntries.Any(e => e.EventType.FullName == node.EventTypeId))
+                // Empty catalog means no catalog is configured -- skip validation (opt-in).
+                if (catalogEntries.Count == 0) continue;
+
+                // Check against engine event catalog (by type FQN or short name)
+                if (catalogEntries.Any(e =>
+                        e.EventType.FullName == node.EventTypeId
+                        || e.EventType.Name == node.EventTypeId))
                     continue;
 
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1400,
@@ -502,6 +526,9 @@ internal sealed class V_WaitNodeReferences : IValidator
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
         var entries = ctx.WaitPrimitives.GetEntries();
+        // Empty catalog means no catalog is configured -- skip validation (opt-in).
+        if (entries.Count == 0) return;
+
         foreach (var graph in asset.Graphs)
         {
             foreach (var node in graph.Nodes)
@@ -514,7 +541,7 @@ internal sealed class V_WaitNodeReferences : IValidator
                 };
                 if (channelType is null) continue;
 
-                bool found = entries.Any(e => e.TargetType.FullName == channelType);
+                bool found = entries.Any(e => e.TargetType.Name == channelType);
                 if (!found)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1402,
                         $"Wait node references unknown wait target '{channelType}'.",

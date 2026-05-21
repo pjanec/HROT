@@ -7,6 +7,8 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints;
 using Fhsm.Kernel;
 using Fdp.Toolkit.Blueprints.Attributes;
@@ -15,9 +17,15 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Blueprints.Systems;
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Roslyn;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Tests.Debug;
 using Hrot.Blueprints.Tests.Mocks;
+using BlueprintCompiler = Hrot.Blueprints.Core.Compiler.BlueprintCompiler;
+using InMemoryRoslynCompiler = Hrot.Blueprints.Core.Compiler.Roslyn.InMemoryRoslynCompiler;
 
 namespace Hrot.Blueprints.Tests;
 
@@ -49,6 +57,9 @@ public sealed class BlueprintTestFixture : IDisposable
     private readonly List<IEcsModuleSystem> _auxSimulationSystems = new();
     private Action<ISimulationView, IEntityCommandBuffer>? _tickActions;
 
+    // Persistent working-state per (assetId, entity) for TickCore reflection invocation.
+    private readonly Dictionary<(Guid assetId, Entity entity), object> _persistedWorkingState = new();
+
     // ---- Constructor --------------------------------------------------------
 
     public BlueprintTestFixture(BlueprintTestFixtureOptions? options = null)
@@ -71,6 +82,13 @@ public sealed class BlueprintTestFixture : IDisposable
         // BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
         // reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
         // NativeMemoryAllocator.  Tests that need BB16384 must use a standalone fixture.
+
+        // Register behavior channel components needed for end-to-end compiled blueprint tests.
+        _repo.RegisterComponent<LocomotionChannel>();
+        _repo.RegisterComponent<WeaponChannel>();
+        _repo.RegisterComponent<InteractionChannel>();
+        _repo.RegisterComponent<BrainBlackboard>();
+        _repo.RegisterComponent<Blackboard1024>();   // FBT behavior blackboard (AiPrimitive working state)
 
         DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
     }
@@ -133,18 +151,39 @@ public sealed class BlueprintTestFixture : IDisposable
         IReadOnlyList<BlueprintAsset> assets,
         CompilerMode mode = CompilerMode.Debug)
     {
-        // Compile each asset to C# source (will throw NotImplementedException in Phase 1)
+        var sink = new DiagnosticSink();
+        var options = new CompileOptions(
+            Mode:              mode,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>());
+
         var sb = new StringBuilder();
         foreach (var asset in assets)
         {
-            var src = Compiler.Compile(asset, mode);
-            sb.AppendLine(src);
+            var result = Compiler.Compile(asset, options);
+            if (!result.Succeeded)
+                throw new InvalidOperationException(
+                    $"Blueprint '{asset.Name}' failed to compile: " +
+                    string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+            sb.AppendLine(result.GeneratedSource);
         }
 
-        // Roslyn in-memory compile (also stub in Phase 1)
         var assemblyName = $"Bp_{Guid.NewGuid():N}";
-        var assembly = new InMemoryRoslynCompiler()
-            .CompileAndLoad(sb.ToString(), CreateCollectibleAlc(assemblyName));
+        var resolver = MetadataReferenceResolver.ForRuntimeAssemblies(
+            AppDomain.CurrentDomain.GetAssemblies());
+        var roslynCompiler = new InMemoryRoslynCompiler(resolver);
+        var (assembly, alc) = roslynCompiler.CompileAndLoad(
+            sb.ToString(),
+            $"{assemblyName}.g.cs",
+            assemblyName,
+            sink);
+
+        _activeAlcs.Add(alc);
+        _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
 
         DiscoverAndInvokeRegistrars(assembly);
         return assembly;
@@ -197,17 +236,59 @@ public sealed class BlueprintTestFixture : IDisposable
             alc.Unload();
     }
 
-    // ---- Invoke helpers (Phase 1 stubs) ------------------------------------
-    // Phase 1 stubs -- throw NotImplementedException until Phase 3 compiler is in place.
+    // ---- Invoke helpers ----------------------------------------------------
 
     public NodeStatus InvokeBTreeAction(BlueprintAsset asset, Entity entity, int paramIndex = 0)
-        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
+    {
+        var genType = FindGeneratedType(asset);
+        var paramsType = genType.GetNestedType("Params")
+            ?? throw new InvalidOperationException($"No Params nested type in {genType.Name}");
+        var wsType = genType.GetNestedType("WorkingState")
+            ?? throw new InvalidOperationException($"No WorkingState nested type in {genType.Name}");
+        var tickCore = genType.GetMethod("TickCore", BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"No TickCore method in {genType.Name}");
+
+        var stateKey = (asset.AssetId, entity);
+        if (!_persistedWorkingState.TryGetValue(stateKey, out var wsBoxed))
+            wsBoxed = Activator.CreateInstance(wsType)!;
+
+        var paramsBoxed = Activator.CreateInstance(paramsType)!;
+        var args = new object?[] { paramsBoxed, wsBoxed, entity, World, View.Time };
+        var status = (NodeStatus)tickCore.Invoke(null, args)!;
+
+        // args[1] contains the updated WorkingState after invocation (ref param updated in-place).
+        _persistedWorkingState[stateKey] = args[1]!;
+
+        return status;
+    }
 
     public unsafe bool InvokeHsmAction(BlueprintAsset asset, Entity entity)
-        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
+        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 4).");
 
     public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
-        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 3).");
+        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 4).");
+
+    private Type FindGeneratedType(BlueprintAsset asset)
+    {
+        var prefix = SanitizeNameForClass(asset.Name) + "_";
+        foreach (var alc in _activeAlcs)
+            foreach (var asm in alc.Assemblies)
+            {
+                var t = asm.GetTypes().FirstOrDefault(
+                    t => t.Name.StartsWith(prefix, StringComparison.Ordinal)
+                      && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
+                if (t != null) return t;
+            }
+        throw new InvalidOperationException($"No generated blueprint type found for '{asset.Name}'.");
+    }
+
+    private static string SanitizeNameForClass(string name)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var c in name)
+            sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+        return sb.ToString();
+    }
 
     // ---- Slot inspection helpers --------------------------------------------
 

@@ -1,0 +1,4 @@
+IrAsset: MoveToAndFire (0x649F8F53) AiPrimitive
+  Graph: Main [Function] Entry=0
+    Block 0 (entry):
+      fall_through

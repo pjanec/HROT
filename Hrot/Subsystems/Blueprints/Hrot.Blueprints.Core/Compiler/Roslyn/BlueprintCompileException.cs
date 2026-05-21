@@ -7,7 +7,7 @@ public sealed class BlueprintCompileException : Exception
     public BlueprintCompileException(
         string message,
         IReadOnlyList<Diagnostics.Diagnostic> diagnostics)
-        : base(message)
+        : base(message + "\n" + string.Join("\n", diagnostics.Select(d => $"  {d.Code}: {d.Message}")))
     {
         CompilerDiagnostics = diagnostics;
     }

@@ -37,6 +37,6 @@ public sealed class SampleAssetLoadTests
     public void LoadSnapshot_NonExistentSnapshot_ThrowsFileNotFoundException()
     {
         Assert.Throws<FileNotFoundException>(
-            () => TestData.LoadSnapshot("Schedule/LibraryMath.ir.txt"));
+            () => TestData.LoadSnapshot("Schedule/Definitely_Does_Not_Exist.ir.txt"));
     }
 }

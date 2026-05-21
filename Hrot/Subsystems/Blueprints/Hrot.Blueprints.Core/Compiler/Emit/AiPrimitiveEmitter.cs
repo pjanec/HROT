@@ -80,7 +80,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitTickCore(CSharpEmitter e, IrAsset asset)
     {
-        e.WriteLine("public static global::Fdp.Toolkit.Blueprints.NodeStatus TickCore(");
+        e.WriteLine("public static global::Hrot.Blueprints.Core.Assets.NodeStatus TickCore(");
         e.Indent();
         e.WriteLine("ref Params p,");
         e.WriteLine("ref WorkingState ws,");
@@ -96,8 +96,11 @@ internal static class AiPrimitiveEmitter
 
         if (mainGraph != null)
             LibraryEmitter.EmitGraphBody(e, asset, mainGraph);
-        else
-            e.WriteLine("return global::Fdp.Toolkit.Blueprints.NodeStatus.Failure;");
+
+        // Fallback: ensures the method always compiles when the graph body does not
+        // terminate every control-flow path (e.g. stub/placeholder graphs in Phase 3).
+        // Unreachable if the graph already returns on all paths.
+        e.WriteLine("return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;");
 
         e.Outdent();
         e.WriteLine("}");
@@ -135,10 +138,10 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static global::Fdp.Toolkit.Blueprints.NodeStatus BTreeTick(");
+        e.WriteLine("public static unsafe global::Hrot.Blueprints.Core.Assets.NodeStatus BTreeTick(");
         e.Indent();
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.BrainBlackboard bb,");
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.BehaviorTreeState state,");
+        e.WriteLine("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,");
+        e.WriteLine("ref global::Fbt.BehaviorTreeState state,");
         e.WriteLine("ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,");
         e.WriteLine("int paramIndex)");
         e.Outdent();
@@ -146,7 +149,7 @@ internal static class AiPrimitiveEmitter
         e.Indent();
         e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
-        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Blackboard1024>(ctx.Self);");
+        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");
         e.Indent();
@@ -157,13 +160,13 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("if (storedHash != StructureHash)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Blueprints.Blackboard1024>());");
+        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
         e.WriteLine("*(ulong*)memory = StructureHash;");
         e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);");
+        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -174,10 +177,10 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitBTreeConditionThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static bool BTreeEvaluate(");
+        e.WriteLine("public static unsafe bool BTreeEvaluate(");
         e.Indent();
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.BrainBlackboard bb,");
-        e.WriteLine("ref global::Fdp.Toolkit.Behavior.BehaviorTreeState state,");
+        e.WriteLine("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,");
+        e.WriteLine("ref global::Fbt.BehaviorTreeState state,");
         e.WriteLine("ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,");
         e.WriteLine("int paramIndex)");
         e.Outdent();
@@ -185,7 +188,7 @@ internal static class AiPrimitiveEmitter
         e.Indent();
         e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref bb.BehaviorParameters[paramIndex * global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>()]);");
-        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Blackboard1024>(ctx.Self);");
+        e.WriteLine("ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);");
         e.WriteLine("unsafe");
         e.WriteLine("{");
         e.Indent();
@@ -196,13 +199,13 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("if (storedHash != StructureHash)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Blueprints.Blackboard1024>());");
+        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
         e.WriteLine("*(ulong*)memory = StructureHash;");
         e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time) == global::Fdp.Toolkit.Blueprints.NodeStatus.Success;");
+        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -217,23 +220,23 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public static unsafe void HsmActivity(void* instance, void* context, void* writer)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("var bridge = (global::FastHSM.HsmKernelBridge*)context;");
+        e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine("ref var p = ref *(Params*)instance;");
-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Blueprints.Blackboard1024>(bridge->Self);");
+        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
         e.WriteLine("fixed (byte* memory = bb1024.Memory)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("if (*(ulong*)memory != StructureHash)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Blueprints.Blackboard1024>());");
+        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
         e.WriteLine("*(ulong*)memory = StructureHash;");
         e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("TickCore(ref p, ref ws, bridge->Self, world, world.Time);");
+        e.WriteLine("TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -246,23 +249,23 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("var bridge = (global::FastHSM.HsmKernelBridge*)context;");
+        e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine("ref var p = ref *(Params*)instance;");
-        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Blueprints.Blackboard1024>(bridge->Self);");
+        e.WriteLine("ref var bb1024 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(bridge->Self);");
         e.WriteLine("fixed (byte* memory = bb1024.Memory)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("if (*(ulong*)memory != StructureHash)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Blueprints.Blackboard1024>());");
+        e.WriteLine("global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());");
         e.WriteLine("*(ulong*)memory = StructureHash;");
         e.WriteLine("InitDefaultWorkingState((WorkingState*)(memory + 8));");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.Time) == global::Fdp.Toolkit.Blueprints.NodeStatus.Success;");
+        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -271,7 +274,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitBlueprintCallThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static global::Fdp.Toolkit.Blueprints.NodeStatus Call(");
+        e.WriteLine("public static global::Hrot.Blueprints.Core.Assets.NodeStatus Call(");
         e.Indent();
         e.WriteLine("ref Params p,");
         e.WriteLine("ref WorkingState ws,");

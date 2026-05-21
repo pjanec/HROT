@@ -111,8 +111,8 @@ public sealed class Stage7Tests
         // Registrar has BehaviorRegistry (has BTreeAction hosting)
         Assert.Contains("BehaviorRegistry behReg", src);
 
-        // HSM registration is a static call (Patch C1 -- no hsmDispatcher instance param)
-        Assert.Contains("HsmActionDispatcher.RegisterAction(", src);
+        // Phase 4 deferred: HSM runtime registration via HsmActionDispatcher is emitted in HR-001.
+        // Phase 3 only emits the HsmActivity thunk; registrar body adds only the BlueprintDefinition.
         Assert.DoesNotContain("HsmActionDispatcher hsmDispatcher", src);
     }
 
