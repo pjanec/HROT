@@ -339,6 +339,13 @@ public sealed class BlueprintAssetBuilder
     public static BlueprintAssetBuilder Instance(string name)
         => new(name, BlueprintDispatchKind.Instance);
 
+    public static BlueprintAssetBuilder Instance(string name, Guid assetId)
+    {
+        var builder = new BlueprintAssetBuilder(name, BlueprintDispatchKind.Instance);
+        builder._assetGuid = assetId;
+        return builder;
+    }
+
     // -- Fluent methods --
 
     public BlueprintAssetBuilder WithAssetId(string id)

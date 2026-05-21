@@ -57,7 +57,7 @@
 - [x] **TASK-CP-003** Stage 6: Lower (Dispatch-Aware Transformations) -- [details](./TASK-DETAIL.md#task-cp-003----stage-6-lower-dispatch-aware-transformations)
 - [x] **TASK-CP-004** Stage 7: Emit (C# Code Generation) -- [details](./TASK-DETAIL.md#task-cp-004----stage-7-emit-c-code-generation)
 - [x] **TASK-CP-005** Stage 8: Roslyn + Incremental Generator + Debug Map + Determinism + Catalogs -- [details](./TASK-DETAIL.md#task-cp-005----stage-8-roslyn--incremental-generator--debug-map--determinism--catalogs)
-- [ ] **TASK-CP-006** Compiler Test Suite -- [details](./TASK-DETAIL.md#task-cp-006----compiler-test-suite)
+- [x] **TASK-CP-006** Compiler Test Suite -- [details](./TASK-DETAIL.md#task-cp-006----compiler-test-suite)
 
 ---
 

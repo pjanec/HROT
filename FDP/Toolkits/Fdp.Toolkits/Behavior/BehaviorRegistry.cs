@@ -147,6 +147,17 @@ namespace Fdp.Toolkit.Behavior
             => _nameToId.Keys.ToList();
 
         /// <summary>
+        /// Removes all registered behaviors. Called by AiHotReloadCoordinator.Dispose()
+        /// to release managed delegate references into collectible assemblies so they
+        /// can be GC-reclaimed.
+        /// </summary>
+        public void Clear()
+        {
+            _definitions.Clear();
+            _nameToId.Clear();
+        }
+
+        /// <summary>
         /// Reverse-maps a stable integer behavior ID back to its registered name.
         /// Returns <c>false</c> when the ID has not been registered.
         /// Used by egress translators to emit the human-readable <c>BehaviorId</c>

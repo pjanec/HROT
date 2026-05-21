@@ -11,7 +11,6 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints;
 using Fhsm.Kernel;
-using Fdp.Toolkit.Blueprints.Attributes;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Blueprints.Systems;
@@ -55,6 +54,7 @@ public sealed class BlueprintTestFixture : IDisposable
     private readonly List<WeakReference<AssemblyLoadContext>> _alcWeakRefs = new();
     private readonly List<AssemblyLoadContext> _activeAlcs = new();
     private readonly List<IEcsModuleSystem> _auxSimulationSystems = new();
+    private readonly AiHotReloadCoordinator _coordinator;
     private Action<ISimulationView, IEntityCommandBuffer>? _tickActions;
 
     // Persistent working-state per (assetId, entity) for TickCore reflection invocation.
@@ -75,6 +75,11 @@ public sealed class BlueprintTestFixture : IDisposable
         TickSystem = new BlueprintTickSystem(Registry);
         MaintenanceSystem = new BlueprintMaintenanceSystem();
         Compiler = new BlueprintCompiler();
+
+        _coordinator = new AiHotReloadCoordinator(
+            BehaviorRegistry,
+            Registry,
+            new AiHotReloadCoordinatorOptions());
 
         MockTestComponents.Register(_repo);
         _repo.RegisterComponent<BlueprintBlackboard1024>();
@@ -147,6 +152,7 @@ public sealed class BlueprintTestFixture : IDisposable
     /// Compiles multiple Blueprint assets and loads them into a new collectible ALC.
     /// Requires Phase 3 compiler -- throws NotImplementedException in Phase 1.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public Assembly CompileAndLoadMany(
         IReadOnlyList<BlueprintAsset> assets,
         CompilerMode mode = CompilerMode.Debug)
@@ -182,10 +188,10 @@ public sealed class BlueprintTestFixture : IDisposable
             assemblyName,
             sink);
 
-        _activeAlcs.Add(alc);
         _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
 
-        DiscoverAndInvokeRegistrars(assembly);
+        // Hand off to coordinator so _currentAlc is tracked.
+        _coordinator.ApplyQuickReload(alc, assembly);
         return assembly;
     }
 
@@ -224,16 +230,105 @@ public sealed class BlueprintTestFixture : IDisposable
 
     // ---- Simulate reload ----------------------------------------------------
 
+    /// <summary>
+    /// Compiles the given assets, loads them into a new collectible ALC,
+    /// and applies the reload through the coordinator (Patch 3 path).
+    /// Old ALC is unloaded by the coordinator after successful commit.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public void SimulateReload(IReadOnlyList<BlueprintAsset> newVersions)
     {
-        var oldAlcs = new List<AssemblyLoadContext>(_activeAlcs);
-        // Remove old ALCs from active list (they stay in _alcWeakRefs for GC tracking)
-        _activeAlcs.Clear();
+        // Compile to in-memory PE bytes.
+        var sink = new DiagnosticSink();
+        var options = new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>());
 
-        CompileAndLoadMany(newVersions);   // populates _activeAlcs with new ALC(s)
+        var sb = new StringBuilder();
+        foreach (var asset in newVersions)
+        {
+            var result = Compiler.Compile(asset, options);
+            if (!result.Succeeded)
+                throw new InvalidOperationException(
+                    $"Blueprint '{asset.Name}' failed to compile: " +
+                    string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+            sb.AppendLine(result.GeneratedSource);
+        }
 
-        foreach (var alc in oldAlcs)
-            alc.Unload();
+        // Compile to PE bytes via Roslyn.
+        var assemblyName = $"Bp_{Guid.NewGuid():N}";
+        var resolver = MetadataReferenceResolver.ForRuntimeAssemblies(
+            AppDomain.CurrentDomain.GetAssemblies());
+        var roslynCompiler = new InMemoryRoslynCompiler(resolver);
+        var (assembly, alc) = roslynCompiler.CompileAndLoad(
+            sb.ToString(),
+            $"{assemblyName}.g.cs",
+            assemblyName,
+            sink);
+
+        // Track ALC for GC-reclaim verification.
+        _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
+
+        // Hand off to coordinator (Patch 3) — coordinator owns ALC lifecycle.
+        _coordinator.ApplyQuickReload(alc, assembly);
+    }
+
+    /// <summary>Single-asset convenience wrapper for SimulateReload.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public void SimulateQuickReload(BlueprintAsset asset)
+        => SimulateReload(new[] { asset });
+
+    /// <summary>
+    /// Returns the coordinator's current ALC.
+    /// Used by hot reload tests to verify ALC identity across reloads.
+    /// </summary>
+    public AssemblyLoadContext? GetCurrentAlc()
+        => _coordinator.GetCurrentAlc();
+
+    /// <summary>
+    /// Compiles a minimal assembly with a [BlueprintRegistrar] whose Register method
+    /// throws InvalidOperationException. Used to test failure-rollback behavior.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public void SimulateReloadWithThrowingRegistrar()
+    {
+        const string source = @"
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
+
+[BlueprintRegistrar]
+public static class ThrowingRegistrar
+{
+    public static void Register(BlueprintRegistryStaging staging)
+        => throw new System.InvalidOperationException(""Deliberate registrar failure for testing."");
+}
+";
+        var assemblyName = $"ThrowingReg_{Guid.NewGuid():N}";
+        var resolver = MetadataReferenceResolver.ForRuntimeAssemblies(
+            AppDomain.CurrentDomain.GetAssemblies());
+        var roslynCompiler = new InMemoryRoslynCompiler(resolver);
+        var sink = new DiagnosticSink();
+        var (assembly, alc) = roslynCompiler.CompileAndLoad(
+            source, $"{assemblyName}.g.cs", assemblyName, sink);
+
+        _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
+        _coordinator.ApplyQuickReload(alc, assembly);
+    }
+
+    /// <summary>
+    /// Test-only: calls coordinator.ApplyQuickReload with a pre-built ALC.
+    /// Tracks the ALC for GC-reclaim verification. Throws on registrar errors.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal void SimulateReloadFromAlc(AssemblyLoadContext alc, Assembly assembly)
+    {
+        _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
+        _coordinator.ApplyQuickReload(alc, assembly);
     }
 
     // ---- Invoke helpers ----------------------------------------------------
@@ -271,6 +366,21 @@ public sealed class BlueprintTestFixture : IDisposable
     private Type FindGeneratedType(BlueprintAsset asset)
     {
         var prefix = SanitizeNameForClass(asset.Name) + "_";
+
+        // Check coordinator's current ALC first (normal CompileAndLoad path).
+        var currentAlc = _coordinator.GetCurrentAlc();
+        if (currentAlc != null)
+        {
+            foreach (var asm in currentAlc.Assemblies)
+            {
+                var t = asm.GetTypes().FirstOrDefault(
+                    t => t.Name.StartsWith(prefix, StringComparison.Ordinal)
+                      && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
+                if (t != null) return t;
+            }
+        }
+
+        // Fallback to _activeAlcs (for LoadTestAssemblyFromBytes path).
         foreach (var alc in _activeAlcs)
             foreach (var asm in alc.Assemblies)
             {
@@ -468,36 +578,15 @@ public sealed class BlueprintTestFixture : IDisposable
             GC.WaitForPendingFinalizers();
             GC.Collect();
             if (AllAlcsReclaimed()) return true;
+            if (_options.VerboseLeakDiagnostics)
+            {
+                int alive = _alcWeakRefs.Count(w => w.TryGetTarget(out _));
+                Console.Error.WriteLine(
+                    $"[ALC GC] retry {i + 1}/{maxRetries}: {alive} ALC(s) still alive");
+            }
             if (i < maxRetries - 1) Thread.Sleep(delayMs);
         }
         return AllAlcsReclaimed();
-    }
-
-    // ---- Registrar discovery ------------------------------------------------
-
-    private void DiscoverAndInvokeRegistrars(Assembly assembly)
-    {
-        var staging = Registry.BeginStaging();
-        foreach (var type in assembly.GetTypes())
-        {
-            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null) continue;
-            var method = type.GetMethod("Register",
-                BindingFlags.Public | BindingFlags.Static);
-            if (method == null) continue;
-            var prms = method.GetParameters();
-            var args = prms.Select(p => ResolveRegistrarParam(p.ParameterType, staging)).ToArray();
-            method.Invoke(null, args);
-        }
-        Registry.CommitStaging(staging);
-    }
-
-    private object? ResolveRegistrarParam(Type t, BlueprintRegistryStaging staging)
-    {
-        if (t == typeof(BlueprintRegistryStaging)) return staging;
-        if (t == typeof(BlueprintRegistry))        return Registry;
-        if (t == typeof(BehaviorRegistry))         return BehaviorRegistry;
-        throw new InvalidOperationException(
-            $"Unknown registrar parameter type: {t.FullName}");
     }
 
     // ---- IDisposable --------------------------------------------------------
@@ -513,6 +602,9 @@ public sealed class BlueprintTestFixture : IDisposable
     public void Dispose()
     {
         HsmActionDispatcher.ClearAll();  // clear stale function pointers before ALC unload
+        _coordinator.Dispose();          // unloads coordinator's current ALC + clears BehaviorRegistry
+        _persistedWorkingState.Clear();  // release boxed working-state objects from collectible assemblies
+        Registry.CommitStaging(Registry.BeginStaging()); // release Tick/InitDefault delegates from collectible assemblies
         UnloadAndClearAlcs();
         // ALCs are unloaded and _activeAlcs is cleared; the foreach variable inside
         // UnloadAndClearAlcs is now off-stack, allowing the GC to reclaim them.

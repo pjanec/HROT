@@ -104,8 +104,8 @@ internal static class InstanceEmitter
         e.WriteLine($"public static void Event_{evtGraph.Name}(");
         e.Indent();
         e.WriteLine("ref State s,");
-        e.WriteLine("global::Fdp.Interfaces.ISimulationView view,");
-        e.WriteLine("global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,");
+        e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine($"float deltaTime{extraParamStr})");
@@ -123,8 +123,8 @@ internal static class InstanceEmitter
         e.WriteLine("public static void Tick(");
         e.Indent();
         e.WriteLine("ref State s,");
-        e.WriteLine("global::Fdp.Interfaces.ISimulationView view,");
-        e.WriteLine("global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,");
+        e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine("float deltaTime,");
@@ -149,8 +149,8 @@ internal static class InstanceEmitter
         e.WriteLine("public static void TickThunk(");
         e.Indent();
         e.WriteLine("global::System.Span<byte> bytes,");
-        e.WriteLine("global::Fdp.Interfaces.ISimulationView view,");
-        e.WriteLine("global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,");
+        e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine("float deltaTime,");
@@ -171,8 +171,8 @@ internal static class InstanceEmitter
         e.WriteLine($"public static void Event_{evtGraph.Name}_Thunk(");
         e.Indent();
         e.WriteLine("global::System.Span<byte> bytes,");
-        e.WriteLine("global::Fdp.Interfaces.ISimulationView view,");
-        e.WriteLine("global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,");
+        e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine("float deltaTime,");

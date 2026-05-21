@@ -38,4 +38,7 @@ public readonly unsafe struct BlueprintStateView
     /// <summary>Returns the raw payload as a read-only span.</summary>
     public ReadOnlySpan<byte> AsSpan()
         => new ReadOnlySpan<byte>(_slotMemory, _payloadSize);
+
+    /// <summary>The StructureHash of the Blueprint definition for this slot.</summary>
+    public ulong StructureHash => _def.StructureHash;
 }

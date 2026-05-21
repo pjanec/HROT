@@ -21,6 +21,9 @@
 | DEBT-014 | BATCH-06 | `BlueprintSlotEntry.StructureHash` is `uint` (not `ulong` per spec) due to 16-byte struct budget. When used in `BlueprintTickSystem` reload detection, compare via `slot.StructureHash != (uint)def.StructureHash` with an explicit comment. Add XML doc note to the field. CT0 in BATCH-07. | P2 | BATCH-07 CT0 | RESOLVED (BATCH-07 CT0-A) |
 | DEBT-015 | BATCH-06 | `BlueprintDefinition.StateFields` is `IReadOnlyList<BlueprintFieldDescriptor>` instead of `IReadOnlyDictionary<string, BlueprintFieldDescriptor>` per spec. Must be corrected before `BlueprintStateView.GetField` is implemented (Phase 2 systems). CT0 in BATCH-07. | P2 | BATCH-07 CT0 | RESOLVED (BATCH-07 CT0-B) |
 
+| DEBT-016 | BATCH-15 review | `CompileAndLoadMany`, `SimulateReload`, `SimulateQuickReload`, `SimulateReloadWithThrowingRegistrar`, `SimulateReloadFromAlc` in `BlueprintTestFixture` not marked `[NoInlining]` — Debug JIT can inline them into the test body and pin their ALC locals for the body's lifetime. Extends DEBT-011. | P1 | BATCH-16 CT0-A | OPEN |
+| DEBT-017 | BATCH-15 review | `FailedReload_DoesNotLeakNewAlc` body checks `liveAlcs == 1` while `ex` (exception with `InnerException.TargetSite` pointing into failed ALC) is alive. Isolate `Record.Exception` + assertion into a `[NoInlining]` helper so `ex` goes out of scope before the GC check. | P1 | BATCH-16 CT0-B | OPEN |
+
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
 - P2 = Should fix (tracked here, assigned target batch)
