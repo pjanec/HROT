@@ -43,9 +43,9 @@
 - [x] **TASK-RT-002** BlueprintDefinition, Delegate Types, and BlueprintLatentCursor -- [details](./TASK-DETAIL.md#task-rt-002----blueprintdefinition-delegate-types-and-blueprintlatentcursor)
 - [x] **TASK-RT-003** BlueprintBlackboard Components and Slot-Table Types -- [details](./TASK-DETAIL.md#task-rt-003----blueprintblackboard-components-and-slot-table-types)
 - [x] **TASK-RT-004** BlueprintBlackboardPartitions (Partition Allocator) -- [details](./TASK-DETAIL.md#task-rt-004----blueprintblackboardpartitions-partition-allocator)
-- [ ] **TASK-RT-005** BlueprintTickSystem + World-Singleton Dispatch -- [details](./TASK-DETAIL.md#task-rt-005----blueprinttickystem--world-singleton-dispatch)
-- [ ] **TASK-RT-006** BlueprintMaintenanceSystem -- [details](./TASK-DETAIL.md#task-rt-006----blueprintmaintenancesystem)
-- [ ] **TASK-RT-007** Runtime Test Suite -- [details](./TASK-DETAIL.md#task-rt-007----runtime-test-suite)
+- [x] **TASK-RT-005** BlueprintTickSystem + World-Singleton Dispatch -- [details](./TASK-DETAIL.md#task-rt-005----blueprinttickystem--world-singleton-dispatch)
+- [x] **TASK-RT-006** BlueprintMaintenanceSystem -- [details](./TASK-DETAIL.md#task-rt-006----blueprintmaintenancesystem)
+- [x] **TASK-RT-007** Runtime Test Suite -- [details](./TASK-DETAIL.md#task-rt-007----runtime-test-suite)
 
 ---
 

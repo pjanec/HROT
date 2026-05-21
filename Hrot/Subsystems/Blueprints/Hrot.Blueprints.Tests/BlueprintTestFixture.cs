@@ -67,6 +67,10 @@ public sealed class BlueprintTestFixture : IDisposable
 
         MockTestComponents.Register(_repo);
         _repo.RegisterComponent<BlueprintBlackboard1024>();
+        _repo.RegisterComponent<BlueprintBlackboard4096>();
+        // BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
+        // reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
+        // NativeMemoryAllocator.  Tests that need BB16384 must use a standalone fixture.
 
         DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
     }
@@ -87,12 +91,15 @@ public sealed class BlueprintTestFixture : IDisposable
         View.AdvanceTime(deltaTime);
 
         // 3. Simulation phase
-        TickSystem.Execute(View);
+        // Pass _repo (EntityRepository) so BlueprintTickSystem can cast for write access.
+        // Also sync repo simulation time so view.Time is accurate for tick delegates.
+        _repo.SetSimulationTime(View.Time);
+        TickSystem.Execute(_repo, deltaTime);
         foreach (var sys in _auxSimulationSystems)
             sys.Execute(_repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
 
         // 4. BeforeSync phase
-        MaintenanceSystem.Execute(View);
+        MaintenanceSystem.Execute(_repo, deltaTime);
 
         // 5. Sync phase: ECB playback (structural mutations + queued events apply)
         Ecb.Playback(_repo);
@@ -213,10 +220,11 @@ public sealed class BlueprintTestFixture : IDisposable
     {
         if (!Registry.TryGetById(BlueprintIdHash.Compute(asset.AssetId), out var def))
             return null;
-        if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out var offset))
+        if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out var payloadOffset))
             return null;
 
-        return null;
+        GetTierMemoryAndMeta(entity, tier, out byte* memory, out _, out _);
+        return new BlueprintStateView(memory + payloadOffset, def!.StateSize, def!);
     }
 
     private unsafe bool TryGetSlotAcrossTiers(

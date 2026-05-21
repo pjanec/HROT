@@ -1,5 +1,9 @@
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
+using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Tests.Mocks;
 
 namespace Hrot.Blueprints.Tests.Mocks;
@@ -99,11 +103,35 @@ public sealed class MockContractTests
         Assert.Equal(3, repo.GetComponentRO<TestComponent>(e).Value);
     }
 
-    // 6. TierUpgrade -- requires BlueprintMaintenanceSystem (implemented in BATCH-04).
-    [Fact(Skip = "Requires BlueprintMaintenanceSystem (BATCH-04)")]
+    // 6. TierUpgrade -- BlueprintMaintenanceSystem upgrades BB1024->BB4096 in BeforeSync.
+    [Fact]
     public void TierUpgrade_HappensInBeforeSync_NotInSimulation()
     {
-        // Will be implemented when BlueprintMaintenanceSystem is available.
+        using var fixture = new BlueprintTestFixture();
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "TestBp" };
+        var staging = fixture.Registry.BeginStaging();
+        var def = new BlueprintDefinition
+        {
+            Name = "TestBp",
+            Kind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
+            StructureHash = 0xABCDEF01UL,
+            StateSize = 8,
+            InitDefault = b => b.Clear(),
+        };
+        staging.Add(BlueprintIdHash.Compute(asset.AssetId), def);
+        fixture.Registry.CommitStaging(staging);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Manually add BB4096 to signal the tier upgrade.
+        fixture.World.AddComponent(entity, default(BlueprintBlackboard4096));
+
+        fixture.TickFrame(0.016f);
+
+        // After maintenance: BB4096 present, BB1024 promoted and removed.
+        Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
+        Assert.False(fixture.World.HasComponent<BlueprintBlackboard1024>(entity));
     }
 
     // 7. AddEmptyComponent with large struct -- all bytes zero after playback.

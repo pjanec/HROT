@@ -18,6 +18,7 @@
     <InternalsVisibleTo Include="FDP.Toolkit.Replication.Tests" />
     <InternalsVisibleTo Include="Hrot.IG.Tests" />
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.Blueprints.Tests" />
   </ItemGroup>
 
   <!-- Fdp.Diagnostics.Contracts: Phase 1 primitive protocol types -->
