@@ -111,6 +111,7 @@ namespace Hrot.IG.Tests
             public Entity CreateEntity() => new Entity();
             public void DestroyEntity(Entity entity) { }
             public void AddComponent<T>(Entity entity, in T component) where T : unmanaged { }
+            public void AddEmptyComponent<T>(Entity entity) where T : unmanaged { }
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged { }
             public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }

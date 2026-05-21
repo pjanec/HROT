@@ -133,6 +133,7 @@ namespace Hrot.SimHost.Modules
             public Entity CreateEntity() => _realEcb.CreateEntity();
             public void DestroyEntity(Entity entity) => _realEcb.DestroyEntity(entity);
             public void AddComponent<T>(Entity entity, in T component) where T : unmanaged => _realEcb.AddComponent(entity, component);
+            public void AddEmptyComponent<T>(Entity entity) where T : unmanaged => _realEcb.AddEmptyComponent<T>(entity);
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => _realEcb.SetComponent(entity, component);
             public void RemoveComponent<T>(Entity entity) where T : unmanaged => _realEcb.RemoveComponent<T>(entity);
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class => _realEcb.AddManagedComponent(entity, component);

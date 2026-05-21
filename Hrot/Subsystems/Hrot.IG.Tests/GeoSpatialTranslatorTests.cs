@@ -189,6 +189,7 @@ namespace Hrot.IG.Tests
                 if (component is SimTransform)
                     AddSimTransformCalled = true;
             }
+            public void AddEmptyComponent<T>(Entity entity) where T : unmanaged { }
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
             {
                 if (component is NetworkTransform position)

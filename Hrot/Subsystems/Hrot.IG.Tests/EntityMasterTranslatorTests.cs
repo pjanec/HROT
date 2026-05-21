@@ -186,6 +186,7 @@ public class EntityMasterTranslatorTests
             if (component is NetworkAuthority netAuth)
                 LastNetworkAuthority = netAuth;
         }
+        public void AddEmptyComponent<T>(Entity entity) where T : unmanaged { }
         public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
         public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
         public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }
