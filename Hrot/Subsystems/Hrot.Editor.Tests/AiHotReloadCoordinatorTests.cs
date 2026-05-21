@@ -264,22 +264,23 @@ namespace Hrot.Editor.Tests
             var badAlc      = new AssemblyLoadContext("bad-alc", isCollectible: true);
             var staging1    = _blueprintRegistry.BeginStaging();
             var staging2    = _blueprintRegistry.BeginStaging();
-            var def         = new BlueprintDefinition { AssetId = Guid.NewGuid(), Name = "Dup" };
-            staging1.Add(def);
-            staging2.Add(def); // Add same def to a second staging (OK for staging2 alone)
+            var def         = new BlueprintDefinition { Name = "Dup", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 };
+            staging1.Add(BlueprintIdHash.Compute(Guid.NewGuid()), def);
+            staging2.Add(BlueprintIdHash.Compute(Guid.NewGuid()), def); // Add same def to a second staging (OK for staging2 alone)
 
             // CommitStaging(staging1) succeeds.
             coordinator.ApplyQuickReload(badAlc, new BehaviorRegistry(), staging1);
 
             // Now commit staging2 with the same def — this is fine because staging has
             // its own list. So we need a different way to force an exception.
-            // Instead, create a staging with TWO entries sharing the same AssetId.
+            // Instead, create a staging with TWO entries sharing the same blueprintId.
             var badAlc2   = new AssemblyLoadContext("bad-alc-2", isCollectible: true);
             var badStaging = _blueprintRegistry.BeginStaging();
             var dupId      = Guid.NewGuid();
-            badStaging.Add(new BlueprintDefinition { AssetId = dupId, Name = "A" });
+            int dupBpId    = BlueprintIdHash.Compute(dupId);
+            badStaging.Add(dupBpId, new BlueprintDefinition { Name = "A", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
             Assert.Throws<InvalidOperationException>(
-                () => badStaging.Add(new BlueprintDefinition { AssetId = dupId, Name = "B" }));
+                () => badStaging.Add(dupBpId, new BlueprintDefinition { Name = "B", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 }));
             // badAlc2 is still unloaded if ApplyQuickReload throws — but we can't easily
             // force an exception inside CommitStaging without a duplicate that bypasses
             // the staging guard. The guard is in the staging.Add(), not CommitStaging.

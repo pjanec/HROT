@@ -39,9 +39,9 @@
 
 **Goal:** Build the engine-side runtime machinery (registry, blackboard tiers, partition allocator, tick and maintenance systems) using hand-crafted fake generated code as the test vehicle, before the compiler exists.
 
-- [ ] **TASK-RT-001** BlueprintRegistry -- [details](./TASK-DETAIL.md#task-rt-001----blueprintregistry)
-- [ ] **TASK-RT-002** BlueprintDefinition, Delegate Types, and BlueprintLatentCursor -- [details](./TASK-DETAIL.md#task-rt-002----blueprintdefinition-delegate-types-and-blueprintlatentcursor)
-- [ ] **TASK-RT-003** BlueprintBlackboard Components and Slot-Table Types -- [details](./TASK-DETAIL.md#task-rt-003----blueprintblackboard-components-and-slot-table-types)
+- [x] **TASK-RT-001** BlueprintRegistry -- [details](./TASK-DETAIL.md#task-rt-001----blueprintregistry)
+- [x] **TASK-RT-002** BlueprintDefinition, Delegate Types, and BlueprintLatentCursor -- [details](./TASK-DETAIL.md#task-rt-002----blueprintdefinition-delegate-types-and-blueprintlatentcursor)
+- [x] **TASK-RT-003** BlueprintBlackboard Components and Slot-Table Types -- [details](./TASK-DETAIL.md#task-rt-003----blueprintblackboard-components-and-slot-table-types)
 - [ ] **TASK-RT-004** BlueprintBlackboardPartitions (Partition Allocator) -- [details](./TASK-DETAIL.md#task-rt-004----blueprintblackboardpartitions-partition-allocator)
 - [ ] **TASK-RT-005** BlueprintTickSystem + World-Singleton Dispatch -- [details](./TASK-DETAIL.md#task-rt-005----blueprinttickystem--world-singleton-dispatch)
 - [ ] **TASK-RT-006** BlueprintMaintenanceSystem -- [details](./TASK-DETAIL.md#task-rt-006----blueprintmaintenancesystem)

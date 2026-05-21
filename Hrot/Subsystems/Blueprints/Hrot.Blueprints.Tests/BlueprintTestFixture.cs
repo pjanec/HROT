@@ -209,7 +209,7 @@ public sealed class BlueprintTestFixture : IDisposable
 
     public unsafe BlueprintStateView? GetBlueprintState(BlueprintAsset asset, Entity entity)
     {
-        if (!Registry.TryGetById(asset.AssetId, out var def))
+        if (!Registry.TryGetById(BlueprintIdHash.Compute(asset.AssetId), out var def))
             return null;
         if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out _, out var offset))
             return null;
@@ -224,17 +224,18 @@ public sealed class BlueprintTestFixture : IDisposable
         out BlackboardTier tier, out int slotIndex, out int payloadOffset)
     {
         // Check each tier component
+        int blueprintId = BlueprintIdHash.Compute(assetId);
         if (_repo.HasComponent<BlueprintBlackboard1024>(entity) &&
             BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, assetId, out tier, out slotIndex, out payloadOffset))
+                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
             return true;
         if (_repo.HasComponent<BlueprintBlackboard4096>(entity) &&
             BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, assetId, out tier, out slotIndex, out payloadOffset))
+                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
             return true;
         if (_repo.HasComponent<BlueprintBlackboard16384>(entity) &&
             BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, assetId, out tier, out slotIndex, out payloadOffset))
+                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
             return true;
 
         tier = BlackboardTier.B1024;
@@ -247,7 +248,7 @@ public sealed class BlueprintTestFixture : IDisposable
 
     public unsafe void AttachBlueprint(BlueprintAsset asset, Entity entity)
     {
-        if (!Registry.TryGetById(asset.AssetId, out var def))
+        if (!Registry.TryGetById(BlueprintIdHash.Compute(asset.AssetId), out var def))
             throw new InvalidOperationException(
                 $"Blueprint '{asset.Name}' not loaded into registry. Call CompileAndLoad first.");
 
