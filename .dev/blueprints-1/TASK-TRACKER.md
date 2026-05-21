@@ -24,9 +24,9 @@
 
 - [x] **TASK-TH-001** MockSimulationView -- [details](./TASK-DETAIL.md#task-th-001----mocksimulationview)
 - [x] **TASK-TH-002** MockEntityCommandBuffer -- [details](./TASK-DETAIL.md#task-th-002----mockentitycommandbuffer)
-- [ ] **TASK-TH-003** BlueprintTestFixture Core Infrastructure -- [details](./TASK-DETAIL.md#task-th-003----blueprinttestfixture-core-infrastructure)
+- [x] **TASK-TH-003** BlueprintTestFixture Core Infrastructure -- [details](./TASK-DETAIL.md#task-th-003----blueprinttestfixture-core-infrastructure)
 - [x] **TASK-TH-004** BlueprintAssetBuilder Fluent API -- [details](./TASK-DETAIL.md#task-th-004----blueprintassetbuilder-fluent-api)
-- [ ] **TASK-TH-005** ALC Lifecycle and Unload Verification -- [details](./TASK-DETAIL.md#task-th-005----alc-lifecycle-and-unload-verification)
+- [x] **TASK-TH-005** ALC Lifecycle and Unload Verification -- [details](./TASK-DETAIL.md#task-th-005----alc-lifecycle-and-unload-verification)
 - [x] **TASK-TH-006** TickFrame Refinements (Patches 1 + 2 Applied) -- [details](./TASK-DETAIL.md#task-th-006----tickframe-refinements-patches-1--2-applied)
 - [x] **TASK-TH-007** Mock Contract Tests -- [details](./TASK-DETAIL.md#task-th-007----mock-contract-tests-8)
 - [x] **TASK-TH-008** CapturingDebugSession -- [details](./TASK-DETAIL.md#task-th-008----capturingdebugsession-10)

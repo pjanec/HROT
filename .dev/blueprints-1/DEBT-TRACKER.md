@@ -7,6 +7,13 @@
 | DEBT-003 | BATCH-03 | `BreakpointKey(string NodeId)` record specified in TASK-TH-008 but not implemented. Breakpoints use raw strings. No functional impact in Slice 1. | P3 | BATCH-07+ | OPEN |
 | DEBT-004 | BATCH-03 | `IBlueprintDebugSession` event named `OnPinValueChangedEvent` instead of `OnPinValueChanged` (design name) due to C# conflict with generic method of same base name. Deliberate deviation; add comment in source. | P3 | BATCH-07+ | OPEN |
 
+| DEBT-005 | BATCH-04 | `Fixture_AfterMultipleLoads_OldAlcsReclaimedNewestStillLive` only asserts ALCs are live, never tests reclaim-after-unload. SC3 of TASK-TH-005 is not covered. Fix: load 3 ALCs, manually unload first 2, ForceGcReclaim, assert first two are dead. | P2 | BATCH-05 | OPEN |
+| DEBT-006 | BATCH-04 | `SnapshotAllBlackboards()` absent from BlueprintTestFixture (TASK-TH-003 spec). Defer until TASK-RT-004 provides real partitions. | P3 | BATCH-07+ | OPEN |
+| DEBT-007 | BATCH-04 | `SetChannelStatus<TChannel>()` absent from BlueprintTestFixture (TASK-TH-003 spec). Defer until channel types exist in Phase 5. | P3 | BATCH-07+ | OPEN |
+| DEBT-008 | BATCH-04 | `GetSlotEntry(BlueprintAsset, Entity)` absent from BlueprintTestFixture (TASK-TH-003 spec). Defer until TASK-RT-004. | P3 | BATCH-07+ | OPEN |
+| DEBT-009 | BATCH-04 | Dev insight: Debug JIT keeps all locals alive for method scope -- any ALC-touching temp in a test method pins the ALC. Always isolate ALC ops in [NoInlining] helpers. | P3 | ongoing | OPEN |
+| DEBT-010 | BATCH-04 | Dev insight: `WeakReference<T>.TryGetTarget(out _)` creates a strong ref via the out slot. Use non-generic `WeakReference.IsAlive` in GC reclaim loops. | P3 | ongoing | OPEN |
+
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
 - P2 = Should fix (tracked here, assigned target batch)
