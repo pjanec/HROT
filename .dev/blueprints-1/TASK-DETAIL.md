@@ -953,6 +953,169 @@ What is NOT included:
 
 ## Phase 3 -- Compiler
 
+## TASK-CP-000 -- Implement Static Catalog Stubs
+
+**Phase:** 3 -- Compiler
+**Design Reference:** [Compiler DD section 14](./Blueprint_Subsystem_Compiler_Detailed_Design.md#14-catalog-abstraction-node-registry-and-type-lookup), [Architecture v1.2 section 15](./Blueprint_Subsystem_Architecture_v1.2.md#15-catalogs-and-authoring-integration)
+**Effort:** 0.5 days
+
+### Scope
+
+**What IS included:**
+- Define `IEngineEventCatalog`, `IChannelCommandCatalog`, and `IWaitPrimitiveCatalog` interfaces in `Hrot.Blueprints.Core.Compiler.Catalogs`.
+- Define the related catalog DTO records and `WaitKind` enum in the compiler core (`EngineEventCatalogEntry`, `ChannelCommandCatalogEntry`, `WaitPrimitiveCatalogEntry`).
+- Implement `BuiltInEngineEventCatalog` in `Fdp.Toolkit.Blueprints` with `HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`, and `TargetHeardEvent`.
+- Implement `BuiltInChannelCommandCatalog` with `MoveTo`, `FollowRoute`, `AimAndFire`, `OpenDoor`, and `EjectPassengers`.
+- Implement `BuiltInWaitPrimitiveCatalog` with locomotion/weapon/interaction channel waits, `BehaviorFinishedEvent`, and `PathfindingResult` ring buffer wait.
+- Add concrete implementation samples (documentation only, no code changes) for:
+  - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Compiler/Catalogs/CatalogInterfaces.cs`
+  - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInEngineEventCatalog.cs`
+  - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInChannelCommandCatalog.cs`
+  - `FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInWaitPrimitiveCatalog.cs`
+
+**What is NOT included:**
+- Attribute-driven reflection catalog discovery (Slice 2 work).
+- Runtime engine type changes.
+- Compiler Stage 4 algorithm changes beyond consuming these catalogs.
+
+### Constraints
+
+- The catalog implementations must reference the real engine types directly via `typeof()`.
+- Catalog interfaces and DTOs must remain in the compiler core assembly so validation and emission stages can depend on them without taking runtime-engine assembly dependencies.
+
+### Concrete Code Implementation (Documentation Sample Only)
+
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Compiler/Catalogs/CatalogInterfaces.cs`
+
+```csharp
+using System;
+using System.Collections.Generic;
+
+namespace Hrot.Blueprints.Core.Compiler.Catalogs
+{
+    public record EngineEventCatalogEntry(string Name, Type EventType);
+
+    public record ChannelCommandCatalogEntry(string Name, Type ChannelType, ushort ActionId, Type ParamsType);
+
+    public enum WaitKind { Channel, Event, RingBufferResult }
+    public record WaitPrimitiveCatalogEntry(string Name, WaitKind Kind, Type TargetType);
+
+    public interface IEngineEventCatalog
+    {
+        IReadOnlyList<EngineEventCatalogEntry> GetEntries();
+    }
+
+    public interface IChannelCommandCatalog
+    {
+        IReadOnlyList<ChannelCommandCatalogEntry> GetEntries();
+    }
+
+    public interface IWaitPrimitiveCatalog
+    {
+        IReadOnlyList<WaitPrimitiveCatalogEntry> GetEntries();
+    }
+}
+```
+
+`FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInEngineEventCatalog.cs`
+
+```csharp
+using System.Collections.Generic;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception.Events;
+
+namespace Fdp.Toolkit.Blueprints.Catalogs
+{
+    public class BuiltInEngineEventCatalog : IEngineEventCatalog
+    {
+        public IReadOnlyList<EngineEventCatalogEntry> GetEntries() => new List<EngineEventCatalogEntry>
+        {
+            // Core demo events
+            new EngineEventCatalogEntry("OnHit", typeof(HitEvent)),
+            new EngineEventCatalogEntry("OnBehaviorFinished", typeof(BehaviorFinishedEvent)),
+
+            // Perception events
+            new EngineEventCatalogEntry("OnTargetVisible", typeof(TargetVisibleEvent)),
+            new EngineEventCatalogEntry("OnTargetHeard", typeof(TargetHeardEvent))
+        };
+    }
+}
+```
+
+`FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInChannelCommandCatalog.cs`
+
+```csharp
+using System.Collections.Generic;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Executors;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Executors;
+
+namespace Fdp.Toolkit.Blueprints.Catalogs
+{
+    public class BuiltInChannelCommandCatalog : IChannelCommandCatalog
+    {
+        public IReadOnlyList<ChannelCommandCatalogEntry> GetEntries() => new List<ChannelCommandCatalogEntry>
+        {
+            // Locomotion
+            new ChannelCommandCatalogEntry("Locomotion/MoveTo", typeof(LocomotionChannel), NavigationConstants.ActionIdMoveTo, typeof(MoveToParams)),
+            new ChannelCommandCatalogEntry("Locomotion/FollowRoute", typeof(LocomotionChannel), NavigationConstants.ActionIdFollowRoute, typeof(FollowRouteParams)),
+
+            // Weapon
+            new ChannelCommandCatalogEntry("Weapon/AimAndFire", typeof(WeaponChannel), CombatConstants.ActionIdAimAndFire, typeof(AimAndFireParams)),
+
+            // Interaction (Including the OpenDoor dummy added previously)
+            new ChannelCommandCatalogEntry("Interaction/OpenDoor", typeof(InteractionChannel), BehaviorConstants.ActionIdOpenDoor, typeof(OpenDoorParams)),
+            new ChannelCommandCatalogEntry("Interaction/EjectPassengers", typeof(InteractionChannel), BehaviorConstants.ActionIdEjectPassengers, typeof(EjectPassengersParams))
+        };
+    }
+}
+```
+
+`FDP/Toolkits/Fdp.Toolkits/Blueprints/Catalogs/BuiltInWaitPrimitiveCatalog.cs`
+
+```csharp
+using System.Collections.Generic;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Navigation;
+
+namespace Fdp.Toolkit.Blueprints.Catalogs
+{
+    public class BuiltInWaitPrimitiveCatalog : IWaitPrimitiveCatalog
+    {
+        public IReadOnlyList<WaitPrimitiveCatalogEntry> GetEntries() => new List<WaitPrimitiveCatalogEntry>
+        {
+            // Channel Waits (Lower to reading the channel's Status field)
+            new WaitPrimitiveCatalogEntry("WaitForChannel:Locomotion", WaitKind.Channel, typeof(LocomotionChannel)),
+            new WaitPrimitiveCatalogEntry("WaitForChannel:Weapon", WaitKind.Channel, typeof(WeaponChannel)),
+            new WaitPrimitiveCatalogEntry("WaitForChannel:Interaction", WaitKind.Channel, typeof(InteractionChannel)),
+
+            // Event Waits (Lower to reading the event bus for the current entity)
+            new WaitPrimitiveCatalogEntry("WaitForEvent:BehaviorFinishedEvent", WaitKind.Event, typeof(BehaviorFinishedEvent)),
+
+            // Async buffer waits
+            new WaitPrimitiveCatalogEntry("WaitForRingBufferResult:PathfindingResult", WaitKind.RingBufferResult, typeof(PathfindingBatchData))
+        };
+    }
+}
+```
+
+### Success Conditions
+
+- SC1: `IEngineEventCatalog`, `IChannelCommandCatalog`, and `IWaitPrimitiveCatalog` exist under `Hrot.Blueprints.Core.Compiler.Catalogs`.
+- SC2: `BuiltInEngineEventCatalog` exposes `OnHit`, `OnBehaviorFinished`, `OnTargetVisible`, and `OnTargetHeard` mapped with direct `typeof(...)` references.
+- SC3: `BuiltInChannelCommandCatalog` exposes `Locomotion/MoveTo`, `Locomotion/FollowRoute`, `Weapon/AimAndFire`, `Interaction/OpenDoor`, and `Interaction/EjectPassengers` with channel type, action id, and params type.
+- SC4: `BuiltInWaitPrimitiveCatalog` exposes channel waits, `BehaviorFinishedEvent` wait, and `PathfindingResult` ring buffer wait.
+- SC5: `dotnet build` zero errors.
+
+---
 ## TASK-CP-001 -- Compiler Infrastructure and IR Data Model
 
 **Phase:** 3 -- Compiler
