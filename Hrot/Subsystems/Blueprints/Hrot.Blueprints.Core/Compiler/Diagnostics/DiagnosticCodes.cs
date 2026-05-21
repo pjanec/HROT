@@ -15,6 +15,10 @@ public static class DiagnosticCodes
     public const string BP1013 = "BP1013";
     public const string BP1020 = "BP1020";
     public const string BP1021 = "BP1021";
+    public const string BP1022 = "BP1022";
+    public const string BP1023 = "BP1023";
+    public const string BP1024 = "BP1024";
+    public const string BP1025 = "BP1025";
     public const string BP1030 = "BP1030";
     public const string BP1031 = "BP1031";
 
@@ -33,11 +37,21 @@ public static class DiagnosticCodes
     public const string BP1301 = "BP1301";
     public const string BP1302 = "BP1302";
 
-    // Stage 2 -- Validate (wait/latent rules)
+    // Stage 2 -- Validate (catalog references)
+    public const string BP1400 = "BP1400";
+    public const string BP1401 = "BP1401";
+    public const string BP1402 = "BP1402";
+
+    // Stage 2 -- Validate (type references)
     public const string BP1500 = "BP1500";
     public const string BP1501 = "BP1501";
-    public const string BP1502 = "BP1502";
-    public const string BP1503 = "BP1503";
+    public const string BP1502 = "BP1502";  // UnresolvableWildcard
+    public const string BP1503 = "BP1503";  // ManagedTypeInState
+
+    // Stage 2 -- Validate (graph structure)
+    public const string BP1600 = "BP1600";  // OrphanedNode (unused, alias of BP2001)
+    public const string BP1601 = "BP1601";  // GraphHasNoReturn
+    public const string BP1602 = "BP1602";  // GraphHasNoEntry
 
     // Stage 3 -- Normalize
     public const string BP2001 = "BP2001";

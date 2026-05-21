@@ -61,7 +61,10 @@ public sealed class EventEntryNode : Node
     public string EventTypeId { get; set; } = "";
 }
 
-public sealed class ReturnNode : Node { }
+public sealed class ReturnNode : Node
+{
+    public NodeStatus Status { get; set; } = NodeStatus.Success;
+}
 
 public sealed class CastNode : Node
 {

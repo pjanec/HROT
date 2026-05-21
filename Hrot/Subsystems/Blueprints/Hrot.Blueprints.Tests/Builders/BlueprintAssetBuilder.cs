@@ -185,7 +185,7 @@ public sealed class GraphBuilder
     public GraphBuilder Return(NodeStatus status = NodeStatus.Success)
     {
         var nodeId = MakeNodeId("Return", _nodes.Count);
-        var node = new ReturnNode { Id = nodeId };
+        var node = new ReturnNode { Id = nodeId, Status = status };
         RegisterNode(node, hasExecIn: true, hasExecOut: false);
         return this;
     }
