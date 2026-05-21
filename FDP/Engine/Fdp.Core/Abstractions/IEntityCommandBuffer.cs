@@ -13,6 +13,11 @@ namespace Fdp.Interfaces
         void DestroyEntity(Entity entity);
         
         void AddComponent<T>(Entity entity, in T component) where T : unmanaged;
+        /// <summary>
+        /// Adds a zero-initialized unmanaged component to the entity.
+        /// Bypasses the 1024-byte ECB payload limit for large components like blackboards.
+        /// </summary>
+        void AddEmptyComponent<T>(Entity entity) where T : unmanaged;
         void SetComponent<T>(Entity entity, in T component) where T : unmanaged;
         void RemoveComponent<T>(Entity entity) where T : unmanaged;
         

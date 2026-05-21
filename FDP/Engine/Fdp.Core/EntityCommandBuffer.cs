@@ -24,7 +24,8 @@ namespace Fdp.Core
             SetManagedComponent = 7,
             PublishUnmanagedEvent = 8,
             PublishManagedEvent = 9,
-            SetLifecycleState = 10
+            SetLifecycleState = 10,
+            AddEmptyComponentUnmanaged = 11
         }
         
         // Simple byte buffer for command stream
@@ -90,6 +91,22 @@ namespace Fdp.Core
             WriteInt(typeId);
             WriteInt(componentSize);
             WriteComponent(component);
+        }
+
+        /// <summary>
+        /// Records an AddEmptyComponent command.
+        /// </summary>
+        public void AddEmptyComponent<T>(Entity entity) where T : unmanaged
+        {
+            int componentSize = Unsafe.SizeOf<T>();
+            int typeId = ComponentType<T>.ID;
+
+            EnsureCapacity(1 + 8 + 4 + 4); // OpCode + Entity + TypeID + Size
+
+            _buffer[_position++] = (byte)OpCode.AddEmptyComponentUnmanaged;
+            WriteEntity(entity);
+            WriteInt(typeId);
+            WriteInt(componentSize);
         }
         
         /// <summary>
@@ -326,6 +343,32 @@ namespace Fdp.Core
                         }
                         
                         readPos += size;
+                        break;
+                    }
+
+                    case OpCode.AddEmptyComponentUnmanaged:
+                    {
+                        Entity entity = ReadEntity(ref readPos, entityRemap);
+                        int typeId = ReadInt(ref readPos);
+                        int size = ReadInt(ref readPos);
+
+                        if (repo.IsAlive(entity))
+                        {
+                            byte[] emptyBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(size);
+                            try
+                            {
+                                Array.Clear(emptyBuffer, 0, size);
+
+                                fixed (byte* dataPtr = emptyBuffer)
+                                {
+                                    repo.AddComponentRaw(entity, typeId, (IntPtr)dataPtr, size);
+                                }
+                            }
+                            finally
+                            {
+                                System.Buffers.ArrayPool<byte>.Shared.Return(emptyBuffer);
+                            }
+                        }
                         break;
                     }
                     

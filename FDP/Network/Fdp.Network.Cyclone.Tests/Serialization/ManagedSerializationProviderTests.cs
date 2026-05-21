@@ -60,6 +60,7 @@ namespace Fdp.Network.Cyclone.Tests.Serialization
             public Entity CreateEntity() => throw new NotImplementedException();
             public void DestroyEntity(Entity entity) {}
             public void AddComponent<T>(Entity entity, in T component) where T : unmanaged {}
+            public void AddEmptyComponent<T>(Entity entity) where T : unmanaged {}
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged {}
             public void RemoveComponent<T>(Entity entity) where T : unmanaged {}
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class => CapturedComponent = component;

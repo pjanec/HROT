@@ -125,6 +125,7 @@ namespace Fdp.Network.Cyclone.Tests.Mocks
         public void DestroyEntity(Entity entity) { }
         public void SetLifecycleState(Entity entity, EntityLifecycle state) { }
         public void AddComponent<T>(Entity entity, in T component) where T : unmanaged { }
+        public void AddEmptyComponent<T>(Entity entity) where T : unmanaged { }
         
         public void AddManagedComponent<T>(Entity entity, T? component) where T : class 
         {

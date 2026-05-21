@@ -377,7 +377,16 @@ namespace Fdp.Core
         /// <summary><c>EqsTargetPool</c> — ECS singleton native array pool for packed entity handles returned by area queries.</summary>
         public const byte EqsTargetPool = 203;
 
-        // IDs 204–255 are reserved for future toolkit/zone components.
+        /// <summary><c>BlueprintBlackboard1024</c> - 1024-byte tier component for Blueprint Instance state.</summary>
+        public const byte BlueprintBlackboard1024 = 204;
+
+        /// <summary><c>BlueprintBlackboard4096</c> - 4096-byte tier component for Blueprint Instance state.</summary>
+        public const byte BlueprintBlackboard4096 = 205;
+
+        /// <summary><c>BlueprintBlackboard16384</c> - 16384-byte tier component for Blueprint Instance state.</summary>
+        public const byte BlueprintBlackboard16384 = 206;
+
+        // IDs 207–255 are reserved for future toolkit/zone components.
 
     }
 }
