@@ -69,6 +69,7 @@ public static class DiagnosticCodes
 
     // Stage 6 -- Lower
     public const string BP5001 = "BP5001";
+    public const string BP5001_LibraryHasNoFunctions = "BP5001";
 
     // Stage 7 -- Emit
     public const string BP6001 = "BP6001";
@@ -78,4 +79,5 @@ public static class DiagnosticCodes
 
     // Internal compiler errors
     public const string BP9001 = "BP9001";
+    public const string BP9001_InternalLibraryLatent = "BP9001";
 }

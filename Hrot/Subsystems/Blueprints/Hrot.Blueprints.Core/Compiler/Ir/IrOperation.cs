@@ -86,6 +86,21 @@ public sealed record IrOp_LatentDelay(IrValue Seconds) : IrOperation;
 // Cursor version check (Instance lowering, per Q-18.1)
 public sealed record IrOp_CheckCursorVersion : IrOperation;
 
+// AiPrimitive working-state phase field reads/writes (Stage 6 lowering)
+public sealed record IrOp_WriteWorkingStatePhase(int PhaseValue) : IrOperation;
+public sealed record IrOp_ReadWorkingStatePhase : IrOperation;
+public sealed record IrOp_WriteWorkingStateWaitUntilTime(IrValue Value) : IrOperation;
+public sealed record IrOp_ReadWorkingStateWaitUntilTime : IrOperation;
+
+// Instance cursor reads/writes (Stage 6 lowering)
+public sealed record IrOp_WriteCursorResumeAt(int ResumeAtValue) : IrOperation;
+public sealed record IrOp_ReadCursorResumeAt : IrOperation;
+public sealed record IrOp_WriteCursorInstanceVersion : IrOperation;
+public sealed record IrOp_WriteCursorWaitUntilTime(IrValue Seconds) : IrOperation;
+
+// Field read from a component ref (Stage 6 lowering)
+public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType) : IrOperation;
+
 // Debug probes (Debug/Trace modes)
 public sealed record IrOp_DebugProbe_NodeEnter(Guid NodeId, string NodeKind) : IrOperation;
 public sealed record IrOp_DebugProbe_PinValue(Guid PinId, IrValue Value, string PinName) : IrOperation;

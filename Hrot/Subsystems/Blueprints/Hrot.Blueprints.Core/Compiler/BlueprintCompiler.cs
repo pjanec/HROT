@@ -35,8 +35,12 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         var ir = Stage5_Schedule.Run(typed, ctx);
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
-        // Stages 6-8 are implemented in CP-003/004/005.
-        throw new NotImplementedException("Stage 6-8 not yet implemented (CP-003/004/005).");
+        // Stage 6 -- Lower
+        var lowered = Stage6_Lower.Run(ir, options.Mode, sink);
+        if (sink.HasErrors) return FailResult(sink, typed.Asset);
+
+        // Stages 7-8 are implemented in CP-004/005.
+        throw new NotImplementedException("Stage 7 not yet implemented (CP-004)");
     }
 
     public ValidationResult Validate(BlueprintAsset asset, ValidationOptions? options = null)
