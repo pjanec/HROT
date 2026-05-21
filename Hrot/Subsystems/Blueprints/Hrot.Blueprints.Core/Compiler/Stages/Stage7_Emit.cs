@@ -9,5 +9,9 @@ internal static class Stage7_Emit
 {
     public static (string GeneratedSource, DebugMap DebugMap) Run(
         IrAsset asset, CompilerMode mode, DiagnosticSink sink)
-        => throw new NotImplementedException("Stage 7 Emit not yet implemented (TASK-CP-004).");
+    {
+        var ctx = new EmissionContext(asset, mode);
+        var emitter = new CSharpEmitter(ctx);
+        return emitter.Emit(asset);
+    }
 }

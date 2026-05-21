@@ -39,8 +39,21 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         var lowered = Stage6_Lower.Run(ir, options.Mode, sink);
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
-        // Stages 7-8 are implemented in CP-004/005.
-        throw new NotImplementedException("Stage 7 not yet implemented (CP-004)");
+        // Stage 7 -- Emit C# source
+        var (generatedSource, debugMap) = Stage7_Emit.Run(lowered, options.Mode, sink);
+        if (sink.HasErrors) return FailResult(sink, typed.Asset);
+
+        return new CompileResult(
+            Succeeded:         true,
+            GeneratedSource:   generatedSource,
+            GeneratedFileName: $"{lowered.SanitizedName}_{lowered.BlueprintId:X8}_Bp.g.cs",
+            BlueprintId:       lowered.BlueprintId,
+            StructureHash:     lowered.StructureHash,
+            DebugMap:          debugMap,
+            Diagnostics:       sink.All,
+            CanonicalAsset:    typed.Asset,
+            PortablePdb:       null,
+            PortablePe:        null);
     }
 
     public ValidationResult Validate(BlueprintAsset asset, ValidationOptions? options = null)
