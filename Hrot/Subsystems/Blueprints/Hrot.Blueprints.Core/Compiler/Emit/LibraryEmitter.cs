@@ -29,8 +29,10 @@ internal static class LibraryEmitter
 
     private static void EmitFunctionGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
     {
+        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
         var returnType = graph.Outputs.Count > 0
             ? CSharpType(graph.Outputs[0].Type)
+            : hasStatusReturn ? "global::Hrot.Blueprints.Core.Assets.NodeStatus"
             : "void";
 
         var paramList = string.Join(", ",

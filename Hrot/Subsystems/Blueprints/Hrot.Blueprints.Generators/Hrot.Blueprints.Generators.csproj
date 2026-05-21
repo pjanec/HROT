@@ -14,13 +14,23 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
+    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" PrivateAssets="all" />
   </ItemGroup>
 
-  <!-- NOTE: The project reference to Hrot.Blueprints.Core cannot be included here
-       because netstandard2.0 cannot restore a net8.0 project reference via NuGet.
-       The reference is deferred to later milestones when the generator actually uses
-       Core types at generation time (via SkipGetTargetFrameworkProperties or multi-targeting).
-       The placeholder generator reads .bp.json content as raw text and emits diagnostics
-       without requiring Core type knowledge. -->
+  <PropertyGroup>
+    <AssetTargetFallback>$(AssetTargetFallback);net8.0</AssetTargetFallback>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference
+      Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj"
+      SkipGetTargetFrameworkProperties="true"
+      PrivateAssets="all"
+      ExcludeAssets="build;buildTransitive;analyzers" />
+  </ItemGroup>
+
+  <!-- NOTE: SkipGetTargetFrameworkProperties="true" allows this netstandard2.0 generator
+       project to reference the net8.0 Core project. The generator output is consumed only
+       at build time, not deployed, so this is safe. -->
 
 </Project>

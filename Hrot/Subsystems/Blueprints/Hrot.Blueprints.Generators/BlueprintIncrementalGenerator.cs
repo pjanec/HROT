@@ -1,51 +1,148 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Assets;
+using Fdp.Toolkit.Blueprints;
+using BpDiagnostic = Hrot.Blueprints.Core.Compiler.Diagnostics.Diagnostic;
+using BpCompiler = Hrot.Blueprints.Core.Compiler.BlueprintCompiler;
 
 namespace Hrot.Blueprints.Generators;
 
-/// <summary>
-/// Roslyn incremental source generator for Blueprint .bp.json assets.
-/// Reads AdditionalFiles matching *.bp.json and generates C# thunks.
-/// </summary>
-[Generator]
+[Generator(LanguageNames.CSharp)]
 public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Placeholder: full implementation in later milestones.
-        // Register interest in *.bp.json AdditionalFiles.
-        var bpJsonFiles = context.AdditionalTextsProvider
-            .Where(static f => f.Path.EndsWith(".bp.json",
-                System.StringComparison.OrdinalIgnoreCase));
+        // Provider 1 -- raw file text from .bp.json AdditionalTexts
+        IncrementalValuesProvider<(string Path, string Text)> rawFiles =
+            context.AdditionalTextsProvider
+                .Where(at => at.Path.EndsWith(".bp.json", System.StringComparison.OrdinalIgnoreCase))
+                .Select((at, ct) =>
+                {
+                    var text = at.GetText(ct)?.ToString() ?? "";
+                    return (at.Path, text);
+                });
 
-        context.RegisterSourceOutput(bpJsonFiles, static (spc, file) =>
+        // Provider 2 -- per-asset signature (lightweight parse)
+        IncrementalValuesProvider<BlueprintSignature> signatures =
+            rawFiles.Select((rf, ct) => BlueprintSignatureParser.Parse(rf.Path, rf.Text));
+
+        // Provider 3 -- collected sibling catalog
+        IncrementalValueProvider<ImmutableArray<BlueprintSignature>> siblingCatalog =
+            signatures.Collect();
+
+        // Provider 4 -- per-asset full compile combined with sibling catalog
+        IncrementalValuesProvider<CompileResult> compileResults =
+            rawFiles.Combine(siblingCatalog)
+                    .Select((pair, ct) =>
+                    {
+                        var (rawFile, siblings) = pair;
+                        return CompileOneAsset(rawFile.Path, rawFile.Text, siblings, ct);
+                    });
+
+        // Register source output
+        context.RegisterSourceOutput(compileResults, static (spc, result) =>
         {
-            var text = file.GetText(spc.CancellationToken);
-            if (text == null)
-                return;
-
-            // Validate JSON is parseable; report diagnostic if not.
-            var content = text.ToString();
-            if (string.IsNullOrWhiteSpace(content))
-                return;
-
-            // Simple well-formedness check: attempt to find the opening brace.
-            var trimmed = content.TrimStart();
-            if (!trimmed.StartsWith("{"))
+            if (result.GeneratedSource == null || !result.Succeeded)
             {
-                spc.ReportDiagnostic(Diagnostic.Create(
-                    new DiagnosticDescriptor(
-                        id: "BP0001",
-                        title: "Invalid Blueprint JSON",
-                        messageFormat: "Blueprint file '{0}' does not contain valid JSON: expected '{{' at start.",
-                        category: "Blueprints",
-                        defaultSeverity: DiagnosticSeverity.Error,
-                        isEnabledByDefault: true),
-                    Location.None,
-                    System.IO.Path.GetFileName(file.Path)));
+                foreach (var diag in result.Diagnostics)
+                    spc.ReportDiagnostic(ToRoslynDiagnostic(diag));
                 return;
             }
-
-            // Full parse + codegen is implemented in later milestones.
+            spc.AddSource(result.GeneratedFileName ?? "Blueprint.g.cs", result.GeneratedSource);
         });
+    }
+
+    private static CompileResult CompileOneAsset(
+        string path,
+        string text,
+        ImmutableArray<BlueprintSignature> siblings,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        BlueprintAsset? asset;
+        try
+        {
+            asset = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(text);
+        }
+        catch
+        {
+            return FailedParse(path);
+        }
+
+        if (asset is null)
+            return FailedParse(path);
+
+        var compiler = new BpCompiler();
+        var options = new CompileOptions(
+            Mode:              CompilerMode.Release,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: siblings.ToList(),
+            EmitPdbWithEmbeddedSource: false);
+
+        try
+        {
+            return compiler.Compile(asset, options);
+        }
+        catch (Exception ex)
+        {
+            return new CompileResult(
+                Succeeded:         false,
+                GeneratedSource:   null,
+                GeneratedFileName: null,
+                BlueprintId:       0,
+                StructureHash:     0UL,
+                DebugMap:          null,
+                Diagnostics:       new[]
+                {
+                    BpDiagnostic.Error(DiagnosticCodes.BP0002_JsonParseError,
+                        $"Blueprint '{path}' threw during compile: {ex.Message}")
+                },
+                CanonicalAsset:    null,
+                PortablePdb:       null,
+                PortablePe:        null);
+        }
+    }
+
+    private static CompileResult FailedParse(string path) =>
+        new CompileResult(
+            Succeeded:         false,
+            GeneratedSource:   null,
+            GeneratedFileName: null,
+            BlueprintId:       0,
+            StructureHash:     0UL,
+            DebugMap:          null,
+            Diagnostics:       new[]
+            {
+                BpDiagnostic.Error(DiagnosticCodes.BP0002_JsonParseError,
+                    $"Blueprint file '{path}' could not be parsed.")
+            },
+            CanonicalAsset:    null,
+            PortablePdb:       null,
+            PortablePe:        null);
+
+    private static Microsoft.CodeAnalysis.Diagnostic ToRoslynDiagnostic(
+        BpDiagnostic diag)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            id:                 diag.Code,
+            title:              diag.Code,
+            messageFormat:      diag.Message,
+            category:           "Blueprints",
+            defaultSeverity:    diag.IsError
+                                    ? Microsoft.CodeAnalysis.DiagnosticSeverity.Error
+                                    : Microsoft.CodeAnalysis.DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+        return Microsoft.CodeAnalysis.Diagnostic.Create(descriptor, Location.None);
     }
 }

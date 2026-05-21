@@ -17,7 +17,7 @@ internal sealed class CSharpEmitter
     public CSharpEmitter(EmissionContext ctx)
     {
         _ctx = ctx;
-        _debugMap = new DebugMapBuilder(ctx.Asset.AssetId);
+        _debugMap = new DebugMapBuilder(ctx.Asset.AssetId, ctx.Asset.BlueprintId, ctx.Asset.StructureHash);
     }
 
     public EmissionContext Ctx => _ctx;
@@ -108,7 +108,7 @@ internal sealed class CSharpEmitter
         bool needsBehReg = asset.Hostings.Any(h =>
             h == AiPrimitiveHosting.BTreeAction || h == AiPrimitiveHosting.BTreeCondition);
 
-        WriteLine("[global::Fdp.Toolkit.Blueprints.BlueprintRegistrar]");
+        WriteLine("[global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]");
         WriteLine($"public static class {registrarName}");
         WriteLine("{");
         Indent();

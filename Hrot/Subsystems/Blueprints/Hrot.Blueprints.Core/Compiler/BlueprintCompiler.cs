@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Roslyn;
 using Hrot.Blueprints.Core.Compiler.Stages;
 using Fdp.Toolkit.Blueprints;
 
@@ -43,6 +44,30 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         var (generatedSource, debugMap) = Stage7_Emit.Run(lowered, options.Mode, sink);
         if (sink.HasErrors) return FailResult(sink, typed.Asset);
 
+        // Stage 8 -- Roslyn finalize (optional, only when PDB with embedded source is requested)
+        byte[]? pe = null;
+        byte[]? pdb = null;
+
+        if (options.EmitPdbWithEmbeddedSource)
+        {
+            var references = MetadataReferenceResolver.ForRuntimeAssemblies(
+                AppDomain.CurrentDomain.GetAssemblies());
+            var virtualPath = options.VirtualSourcePath
+                ?? $"{lowered.SanitizedName}_{lowered.BlueprintId:X8}_Bp.g.cs";
+            var asmName = $"{lowered.SanitizedName}_{lowered.BlueprintId:X8}";
+
+            try
+            {
+                (pe, pdb) = Stage8_RoslynFinalize.Run(
+                    generatedSource, virtualPath, asmName, references, sink);
+            }
+            catch (Roslyn.BlueprintCompileException)
+            {
+                // diagnostics already added to sink; return failure
+                if (sink.HasErrors) return FailResult(sink, typed.Asset);
+            }
+        }
+
         return new CompileResult(
             Succeeded:         true,
             GeneratedSource:   generatedSource,
@@ -52,8 +77,8 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
             DebugMap:          debugMap,
             Diagnostics:       sink.All,
             CanonicalAsset:    typed.Asset,
-            PortablePdb:       null,
-            PortablePe:        null);
+            PortablePdb:       pdb,
+            PortablePe:        pe);
     }
 
     public ValidationResult Validate(BlueprintAsset asset, ValidationOptions? options = null)

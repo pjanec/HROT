@@ -13,6 +13,8 @@ public sealed record Diagnostic(
     public Guid? NodeId  { get; init; }
     public Guid? PinId   { get; init; }
 
+    public bool IsError => Severity == DiagnosticSeverity.Error;
+
     public static Diagnostic Error(string code, string message)
         => new(DiagnosticSeverity.Error, code, message);
     public static Diagnostic Warning(string code, string message)
