@@ -8,5 +8,7 @@ namespace Hrot.Blueprints.Core.Debug;
 public interface IBlueprintProbeSink
 {
     void OnNodeEnter(Entity self, string nodeId);
-    void OnPinValueChanged<T>(Entity self, string pinId, T value);
+    void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged;
+    void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName);
+    void OnPeerCallExit(Entity entity);
 }
