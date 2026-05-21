@@ -8,7 +8,7 @@ namespace Hrot.Blueprints.Core.Debug;
 /// <summary>
 /// Production debug session. Wires DebugProbe probe calls to breakpoint checking,
 /// execution history, and editor UI event dispatch.
-/// Stub implementation for TASK-DBG-001; breakpoint logic filled in by DBG-003.
+/// Implements soft-pause semantics per Patch 1: probes never block the calling thread.
 /// </summary>
 public sealed class BlueprintDebugSession : IBlueprintDebugSession
 {
@@ -16,14 +16,29 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private readonly ISimulationView _view;
     private readonly IBlueprintTimeController _timeController;
 
-    // Minimal breakpoint storage for SC3 wiring.
-    private readonly HashSet<string> _nodeBreakpoints = new();
+    // Breakpoint storage: indexed by BreakpointId for management, by node-id string for fast probe lookup.
+    private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints    = new();
+    private readonly Dictionary<string, Breakpoint>       _bpByNodeString = new(StringComparer.Ordinal);
+    private int _nextBpId = 1;
 
     // Registered debug maps, indexed by AssetId.
     private readonly Dictionary<Guid, DebugMapIndex> _debugMaps = new();
 
     // Per-entity execution history ring-buffers.
     private readonly Dictionary<Entity, ExecutionHistory> _history = new();
+
+    // Per-entity call depth counter for step semantics.
+    private readonly Dictionary<Entity, int> _currentCallDepth = new();
+
+    // Pause state (soft-pause per Patch 1).
+    private bool       _isPaused;
+    private Breakpoint? _pausedAt;
+    private Entity?    _pausedOnEntity;
+
+    // Step state.
+    private StepMode _stepMode      = StepMode.None;
+    private Entity   _stepFromEntity;
+    private int      _stepFromDepth;
 
     public BlueprintDebugSession(
         BlueprintRegistry registry,
@@ -39,18 +54,34 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void OnNodeEnter(Entity self, string nodeId)
     {
-        // Minimal breakpoint wiring for SC3: check if any registered breakpoint matches
-        // the entering node and request a soft pause if so.
-        if (_nodeBreakpoints.Contains(nodeId))
-        {
-            _timeController.RequestPause();
-            OnBreakpointHit?.Invoke(new BreakpointHit(self, nodeId, Guid.Empty, 0f, 0u));
-            OnSessionStateChanged?.Invoke();
-        }
         // Record execution history for this entity.
         if (!_history.TryGetValue(self, out var hist))
             _history[self] = hist = new ExecutionHistory();
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
+
+        // Check breakpoints: re-entrant guard prevents extra RequestPause when already paused.
+        if (!_isPaused && _bpByNodeString.TryGetValue(nodeId, out var bp))
+            HandleBreakpointHit(self, bp, nodeId);
+
+        // Check step mode (only when not already paused from the BP check above).
+        if (_stepMode != StepMode.None && !_isPaused && self == _stepFromEntity)
+        {
+            int depth = _currentCallDepth.GetValueOrDefault(self, 0);
+            bool matched = _stepMode switch
+            {
+                StepMode.Into => true,                     // any next node for this entity
+                StepMode.Over => depth <= _stepFromDepth,  // same or shallower depth
+                StepMode.Out  => depth < _stepFromDepth,   // strictly shallower
+                _             => false,
+            };
+            if (matched)
+            {
+                _stepMode = StepMode.None;
+                // Pseudo-breakpoint: no real BP entry; step hit uses same event as breakpoint.
+                var pseudoBp = new Breakpoint(default, Guid.Empty, Guid.Empty, nodeId, 0, true);
+                HandleBreakpointHit(self, pseudoBp, nodeId);
+            }
+        }
     }
 
     public void OnPinValueChanged<T>(Entity self, string pinId, T value)
@@ -61,12 +92,13 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName)
     {
-        // Step depth tracking implemented in DBG-003.
+        _currentCallDepth[entity] = _currentCallDepth.GetValueOrDefault(entity, 0) + 1;
     }
 
     public void OnPeerCallExit(Entity entity)
     {
-        // Step depth tracking implemented in DBG-003.
+        int current = _currentCallDepth.GetValueOrDefault(entity, 0);
+        _currentCallDepth[entity] = Math.Max(0, current - 1);
     }
 
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
@@ -78,15 +110,33 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
     {
-        // Full matching logic in DBG-003. Minimal wiring: track by nodeId string for SC3.
-        _nodeBreakpoints.Add(nodeId.ToString());
-        return default;
+        var nodeIdStr = nodeId.ToString("D");
+        var id = new BreakpointId(_nextBpId++);
+        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true);
+        _breakpoints[id]          = bp;
+        _bpByNodeString[nodeIdStr] = bp;
+        return id;
     }
 
-    public void ClearBreakpoint(BreakpointId id) => throw new NotImplementedException();
-    public void ClearAllBreakpoints() => _nodeBreakpoints.Clear();
-    public IReadOnlyList<Breakpoint> GetBreakpoints() => throw new NotImplementedException();
-    public bool IsAnyBreakpointActive => _nodeBreakpoints.Count > 0;
+    public void ClearBreakpoint(BreakpointId id)
+    {
+        if (_breakpoints.TryGetValue(id, out var bp))
+        {
+            _breakpoints.Remove(id);
+            _bpByNodeString.Remove(bp.NodeId);
+        }
+    }
+
+    public void ClearAllBreakpoints()
+    {
+        _breakpoints.Clear();
+        _bpByNodeString.Clear();
+    }
+
+    public IReadOnlyList<Breakpoint> GetBreakpoints()
+        => _breakpoints.Values.ToList().AsReadOnly();
+
+    public bool IsAnyBreakpointActive => _breakpoints.Count > 0;
 
     // ---- IBlueprintDebugSession -- watches ----------------------------------
 
@@ -98,21 +148,75 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
-    public bool IsPaused => _timeController.IsPausedByDebugger;
-    public Breakpoint? PausedAt => null;
-    public Entity? PausedOnEntity => null;
+    public bool IsPaused => _isPaused;
+    public Breakpoint? PausedAt => _pausedAt;
+    public Entity? PausedOnEntity => _pausedOnEntity;
 
     // ---- IBlueprintDebugSession -- pause control ----------------------------
 
-    public void Continue()    => throw new NotImplementedException();
-    public void StepOver()    => throw new NotImplementedException();
-    public void StepInto()    => throw new NotImplementedException();
-    public void StepOut()     => throw new NotImplementedException();
-    public void Pause()       => throw new NotImplementedException();
+    public void Continue()
+    {
+        _isPaused       = false;
+        _pausedAt       = null;
+        _pausedOnEntity = null;
+        _stepMode       = StepMode.None;
+        _timeController.RequestResume();
+        OnSessionStateChanged?.Invoke();
+    }
+
+    public void Pause()
+    {
+        _timeController.RequestPause();
+        _isPaused = true;
+        OnSessionStateChanged?.Invoke();
+    }
+
+    public void StepOver()
+    {
+        var fromEntity = _pausedOnEntity ?? default;
+        _stepMode       = StepMode.Over;
+        _stepFromEntity = fromEntity;
+        _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _isPaused       = false;
+        _pausedAt       = null;
+        _pausedOnEntity = null;
+        _timeController.RequestStepOneTick();
+        OnSessionStateChanged?.Invoke();
+    }
+
+    public void StepInto()
+    {
+        var fromEntity = _pausedOnEntity ?? default;
+        _stepMode       = StepMode.Into;
+        _stepFromEntity = fromEntity;
+        _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _isPaused       = false;
+        _pausedAt       = null;
+        _pausedOnEntity = null;
+        _timeController.RequestStepOneTick();
+        OnSessionStateChanged?.Invoke();
+    }
+
+    public void StepOut()
+    {
+        var fromEntity = _pausedOnEntity ?? default;
+        _stepMode       = StepMode.Out;
+        _stepFromEntity = fromEntity;
+        _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _isPaused       = false;
+        _pausedAt       = null;
+        _pausedOnEntity = null;
+        _timeController.RequestStepOneTick();
+        OnSessionStateChanged?.Invoke();
+    }
 
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
-    public BlueprintStateSnapshot? GetCurrentStateSnapshot() => throw new NotImplementedException();
+    public BlueprintStateSnapshot? GetCurrentStateSnapshot()
+        => _isPaused && _pausedOnEntity.HasValue
+            ? new BlueprintStateSnapshot(_pausedOnEntity.Value, Guid.Empty)  // assetId stub until DBG-004
+            : null;
+
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
         => Array.Empty<NodeExecuted>();
 
@@ -134,8 +238,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             existing.StructureHash != map.StructureHash)
         {
             // Structure changed: clear breakpoints for this asset and notify.
-            // Full per-asset breakpoint filtering deferred to DBG-003; stub clears all.
-            _nodeBreakpoints.Clear();
+            var toRemove = _breakpoints.Values
+                .Where(bp => bp.AssetId == map.AssetId)
+                .Select(bp => bp.Id)
+                .ToList();
+            foreach (var id in toRemove)
+                ClearBreakpoint(id);
             OnBreakpointListChanged?.Invoke(map.AssetId);
             // Stale watch marking deferred to DBG-004.
         }
@@ -168,4 +276,42 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         add    => _onPinValueChangedEvent += value;
         remove => _onPinValueChangedEvent -= value;
     }
+
+    // ---- Private helpers ----------------------------------------------------
+
+    // Handles a breakpoint hit (or pseudo-breakpoint from step matching).
+    // Soft-pause per Patch 1: sets _isPaused, requests pause at next frame boundary,
+    // fires events, and returns immediately without blocking the thread.
+    private void HandleBreakpointHit(Entity self, Breakpoint bp, string nodeId)
+    {
+        _isPaused        = true;
+        _pausedAt        = bp;
+        _pausedOnEntity  = self;
+        _stepMode        = StepMode.None;
+        _stepFromEntity  = default;
+        _stepFromDepth   = 0;
+
+        // Increment hit count for real breakpoints (pseudo-BPs have Id.Value == 0).
+        if (bp.Id.Value != 0 && _breakpoints.ContainsKey(bp.Id))
+        {
+            var updated = bp with { HitCount = bp.HitCount + 1 };
+            _breakpoints[bp.Id]          = updated;
+            _bpByNodeString[bp.NodeId]   = updated;
+            _pausedAt                    = updated;
+
+            var assetId = updated.AssetId;
+            OnBreakpointListChanged?.Invoke(assetId);
+
+            _timeController.RequestPause();
+            OnBreakpointHit?.Invoke(new BreakpointHit(self, nodeId, assetId, _view.Time, _view.Tick));
+        }
+        else
+        {
+            _timeController.RequestPause();
+            OnBreakpointHit?.Invoke(new BreakpointHit(self, nodeId, bp.AssetId, _view.Time, _view.Tick));
+        }
+
+        OnSessionStateChanged?.Invoke();
+    }
 }
+

@@ -247,22 +247,21 @@ public sealed class DebugMapTests
     [Fact]
     public void ExecutionHistory_Record_ZeroAllocation()
     {
-        var hist  = new ExecutionHistoryTestAccessor(capacity: 256);
-        var entry = new NodeHistoryEntry("n1", 0u, 0f); // pre-allocate outside measurement
+        var hist = new ExecutionHistoryTestAccessor(capacity: 256);
 
-        // Warm-up: ensure JIT compiles the method.
-        RecordWarmup(hist, entry);
+        // Warm-up: ensure JIT compiles the method including struct construction.
+        RecordEntry(hist, "n1", 1u);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
-        RecordWarmup(hist, entry);
+        RecordEntry(hist, "n1", 2u);
         long after = GC.GetAllocatedBytesForCurrentThread();
 
         Assert.Equal(0L, after - before);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void RecordWarmup(ExecutionHistoryTestAccessor hist, NodeHistoryEntry entry)
-        => hist.Record(entry);
+    private static void RecordEntry(ExecutionHistoryTestAccessor hist, string nodeId, uint tick)
+        => hist.Record(new NodeHistoryEntry(nodeId, tick, 0f));
 
     // ---- SC4: GetNodeHistory entity isolation ----------------------------------
 

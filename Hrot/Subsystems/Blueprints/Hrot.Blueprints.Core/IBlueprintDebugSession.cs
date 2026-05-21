@@ -8,6 +8,8 @@ namespace Hrot.Blueprints.Core.Debug;
 public readonly record struct BreakpointId(int Value);
 public readonly record struct WatchId(int Value);
 
+public enum StepMode { None, Over, Into, Out }
+
 // ---- Event record types ----------------------------------------------------
 
 public sealed record BreakpointHit(
@@ -33,7 +35,7 @@ public sealed record PinValueChanged(
     Type ValueType,
     uint Tick);
 
-public sealed record NodeHistoryEntry(string NodeId, uint Tick, float SimTime);
+public readonly record struct NodeHistoryEntry(string NodeId, uint Tick, float SimTime);
 
 // ---- Stub support types (filled in by DBG-002 through DBG-004) ------------
 
