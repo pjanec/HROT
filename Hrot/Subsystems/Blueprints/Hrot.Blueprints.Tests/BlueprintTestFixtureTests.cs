@@ -3,7 +3,9 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Debug;
+using Hrot.Blueprints.Tests.Builders;
 using Hrot.Blueprints.Tests.Mocks;
+using FdpBlueprintDispatchKind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind;
 
 namespace Hrot.Blueprints.Tests;
 
@@ -95,13 +97,30 @@ public sealed class BlueprintTestFixtureTests
         Assert.Equal(BlackboardTier.B16384, BlueprintTestFixture.ChooseTier(3937));
     }
 
-    // SC6: AttachBlueprint requires Phase 3 compiler for registry lookup
-    [Fact(Skip = "Requires Phase 3 compiler")]
-    [Trait("Category", "RequiresCompiler")]
+    // SC6: AttachBlueprint with hand-crafted fake definition (no compiler needed)
+    [Fact]
     public void AttachBlueprint_RegisteredAsset_SetsHasSlot()
     {
-        // Phase 3 body: compileAndLoad, create entity, attachBlueprint, assert HasSlot
-        throw new NotImplementedException("Phase 3 compiler required.");
+        using var fixture = new BlueprintTestFixture();
+        var asset = BlueprintAssetBuilder.Instance("TestBp").Build();
+
+        // Register a hand-crafted fake definition (no compiler needed)
+        var staging = fixture.Registry.BeginStaging();
+        var def = new BlueprintDefinition
+        {
+            Name          = asset.Name,
+            Kind          = FdpBlueprintDispatchKind.Instance,
+            StructureHash = 0xDEADBEEFCAFEBABEUL,
+            StateSize     = 8,
+            InitDefault   = bytes => bytes.Clear(),
+        };
+        staging.Add(BlueprintIdHash.Compute(asset.AssetId), def);
+        fixture.Registry.CommitStaging(staging);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        Assert.True(fixture.HasSlot(asset, entity));
     }
 
     // Additional: Dispose with no ALCs loaded completes without exception

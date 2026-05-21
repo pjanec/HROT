@@ -21,8 +21,8 @@ public sealed record BlueprintDefinition
 
     // For inspector / debugger
     public Type? StateClrType { get; init; }
-    public IReadOnlyList<BlueprintFieldDescriptor> StateFields { get; init; }
-        = Array.Empty<BlueprintFieldDescriptor>();
+    public IReadOnlyDictionary<string, BlueprintFieldDescriptor> StateFields { get; init; }
+        = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal);
 
     // Backward-compatibility: asset GUID carried through for fixture/editor use.
     public Guid AssetId { get; init; }

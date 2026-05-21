@@ -16,6 +16,11 @@ public struct BlueprintSlotEntry
     public uint   InstanceVersion;  // 4 bytes -- bumped on hard reload
     public ushort PayloadOffset;    // 2 bytes -- byte offset from component start
     public ushort PayloadSize;      // 2 bytes -- length of payload in bytes
+    /// <summary>
+    /// Lower 32 bits of the Blueprint's 64-bit StructureHash.
+    /// Truncated from ulong to fit the 16-byte slot-entry budget.
+    /// Callers must compare with <c>(uint)def.StructureHash</c>.
+    /// </summary>
     public uint   StructureHash;    // 4 bytes -- lower 32 bits of the Blueprint's StructureHash
 }
 

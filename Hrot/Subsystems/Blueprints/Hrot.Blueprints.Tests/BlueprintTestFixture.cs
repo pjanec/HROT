@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Text;
 using Fdp.Core;
@@ -65,6 +66,7 @@ public sealed class BlueprintTestFixture : IDisposable
         Compiler = new BlueprintCompiler();
 
         MockTestComponents.Register(_repo);
+        _repo.RegisterComponent<BlueprintBlackboard1024>();
 
         DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
     }
@@ -204,45 +206,97 @@ public sealed class BlueprintTestFixture : IDisposable
 
     public bool HasSlot(BlueprintAsset asset, Entity entity)
     {
-        return TryGetSlotAcrossTiers(asset.AssetId, entity, out _, out _, out _);
+        return TryGetSlotAcrossTiers(asset.AssetId, entity, out _, out _);
     }
 
     public unsafe BlueprintStateView? GetBlueprintState(BlueprintAsset asset, Entity entity)
     {
         if (!Registry.TryGetById(BlueprintIdHash.Compute(asset.AssetId), out var def))
             return null;
-        if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out _, out var offset))
+        if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out var offset))
             return null;
 
-        // In Phase 1, BlueprintBlackboardPartitions.TryGetSlotOffset always returns false,
-        // so this returns null. Full implementation in Phase 2.
         return null;
     }
 
-    private bool TryGetSlotAcrossTiers(
+    private unsafe bool TryGetSlotAcrossTiers(
         Guid assetId, Entity entity,
-        out BlackboardTier tier, out int slotIndex, out int payloadOffset)
+        out BlackboardTier tier, out int payloadOffset)
     {
-        // Check each tier component
         int blueprintId = BlueprintIdHash.Compute(assetId);
-        if (_repo.HasComponent<BlueprintBlackboard1024>(entity) &&
-            BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
-            return true;
-        if (_repo.HasComponent<BlueprintBlackboard4096>(entity) &&
-            BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
-            return true;
-        if (_repo.HasComponent<BlueprintBlackboard16384>(entity) &&
-            BlueprintBlackboardPartitions.TryGetSlotOffset(
-                _repo, entity, blueprintId, out tier, out slotIndex, out payloadOffset))
-            return true;
+
+        if (_repo.HasComponent<BlueprintBlackboard1024>(entity))
+        {
+            GetTierMemoryAndMeta(entity, BlackboardTier.B1024, out byte* memory, out _, out _);
+            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
+            {
+                tier = BlackboardTier.B1024;
+                return true;
+            }
+        }
+        if (_repo.HasComponent<BlueprintBlackboard4096>(entity))
+        {
+            GetTierMemoryAndMeta(entity, BlackboardTier.B4096, out byte* memory, out _, out _);
+            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
+            {
+                tier = BlackboardTier.B4096;
+                return true;
+            }
+        }
+        if (_repo.HasComponent<BlueprintBlackboard16384>(entity))
+        {
+            GetTierMemoryAndMeta(entity, BlackboardTier.B16384, out byte* memory, out _, out _);
+            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
+            {
+                tier = BlackboardTier.B16384;
+                return true;
+            }
+        }
 
         tier = BlackboardTier.B1024;
-        slotIndex = -1;
         payloadOffset = -1;
         return false;
     }
+
+    private unsafe void GetTierMemoryAndMeta(
+        Entity entity, BlackboardTier tier,
+        out byte* memory, out int totalSize, out byte maxSlots)
+    {
+        switch (tier)
+        {
+            case BlackboardTier.B1024:
+            {
+                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
+                memory    = (byte*)Unsafe.AsPointer(ref memRef);
+                totalSize = BlueprintBlackboard1024.TotalSize;
+                maxSlots  = BlueprintBlackboard1024.MaxSlots;
+                return;
+            }
+            case BlackboardTier.B4096:
+            {
+                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                ref byte memRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb);
+                memory    = (byte*)Unsafe.AsPointer(ref memRef);
+                totalSize = BlueprintBlackboard4096.TotalSize;
+                maxSlots  = BlueprintBlackboard4096.MaxSlots;
+                return;
+            }
+            default:
+            {
+                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                ref byte memRef = ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb);
+                memory    = (byte*)Unsafe.AsPointer(ref memRef);
+                totalSize = BlueprintBlackboard16384.TotalSize;
+                maxSlots  = BlueprintBlackboard16384.MaxSlots;
+                return;
+            }
+        }
+    }
+
+    // ---- Entity convenience -------------------------------------------------
+
+    public Entity CreateEntity() => _repo.CreateEntity();
 
     // ---- Attach Blueprint ---------------------------------------------------
 
@@ -255,12 +309,20 @@ public sealed class BlueprintTestFixture : IDisposable
         var tier = ChooseTier(def!.StateSize);
         EnsureTierComponent(entity, tier);
 
-        if (!BlueprintBlackboardPartitions.TryAttach(_repo, entity, def, tier, out _))
+        GetTierMemoryAndMeta(entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
+        BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+
+        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
             throw new InvalidOperationException(
                 $"Failed to attach Blueprint '{asset.Name}' to entity {entity} (tier {tier}).");
 
-        // Initialize default state in the slot (no-op in Phase 1 stub)
-        // def.InitDefault(...);  -- leave this for Phase 2 when BlueprintBlackboardPartitions is real
+        if (def.InitDefault != null)
+        {
+            ref byte payloadRef = ref Unsafe.AsRef<byte>(memory + payloadOffset);
+            var initSpan = MemoryMarshal.CreateSpan(ref payloadRef, def.StateSize);
+            def.InitDefault(initSpan);
+        }
     }
 
     internal static BlackboardTier ChooseTier(int stateSize)

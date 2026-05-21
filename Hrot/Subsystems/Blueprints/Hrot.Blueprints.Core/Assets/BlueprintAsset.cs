@@ -25,6 +25,9 @@ public sealed class BlueprintAsset
     public AssetMetadata EditorMetadata { get; set; } = new();
 }
 
+/// <summary>
+/// Mirror of <c>Fdp.Toolkit.Blueprints.BlueprintDispatchKind</c>.
+/// </summary>
 public enum BlueprintDispatchKind { Library, AiPrimitive, Instance }
 
 public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384 }
