@@ -60,6 +60,9 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
 
+        /// <summary>Action ID for OpenDoor (Slice 1 Demo).</summary>
+        public const ushort ActionIdOpenDoor = 4;
+
         // ── Unmanaged event IDs (Behavior behavior range: 3100–3199) ─────────────
         /// <summary>EventId for <c>ClearBehaviorEvent</c>.</summary>
         public const int EventId_ClearBehavior = 3100;

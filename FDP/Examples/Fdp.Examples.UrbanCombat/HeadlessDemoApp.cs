@@ -351,7 +351,8 @@ namespace Fdp.Examples.UrbanCombat
             _simModuleSystems.Add(weaponSys);
 
             var interactSys = new InteractionDispatcherSystem();
-            interactSys.RegisterExecutor(3, new EjectPassengersExecutor());
+            interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
+            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new OpenDoorExecutor());
             _simModuleSystems.Add(interactSys);
 
             _simModuleSystems.Add(new LocomotionDispatcherSystem());

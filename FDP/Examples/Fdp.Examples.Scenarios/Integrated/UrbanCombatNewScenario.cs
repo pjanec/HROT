@@ -640,6 +640,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
+            interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new OpenDoorExecutor());
 
             var modSystems = new IEcsModuleSystem[]
             {
