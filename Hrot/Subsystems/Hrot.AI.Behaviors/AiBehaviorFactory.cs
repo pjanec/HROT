@@ -4,6 +4,7 @@ using Fbt.Runtime;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints.Attributes;
 using Fdp.Toolkit.Replication.Services;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
@@ -24,6 +25,7 @@ namespace Hrot.AI.Behaviors
     /// <c>BehaviorRegistry.Register</c> calls and is safe to invoke on the main thread.
     /// </para>
     /// </summary>
+    [BlueprintRegistrar]
     public static class AiBehaviorFactory
     {
         // Behavior integer IDs.  Mirror of CgfBehaviorIds in Hrot.CGF.
@@ -36,6 +38,23 @@ namespace Hrot.AI.Behaviors
         private const int FireAtTarget_BT       = 3012;
         private const int HullDownAttackRun_BT   = 3013;
         private const int PlatoonHillAttack_BT   = 3014;
+
+        /// <summary>
+        /// Entry point used by <c>AiHotReloadCoordinator</c> attribute-driven discovery.
+        /// Compiles all BTree/HSM interpreters and registers the resulting
+        /// <see cref="BehaviorDefinition"/>s directly into <paramref name="registry"/>.
+        /// </summary>
+        /// <param name="registry">Target behavior registry (staging copy on hot-reload path).</param>
+        /// <param name="geoTransform">Geographic transform; may be <c>null</c> in Cartesian contexts.</param>
+        /// <param name="entityMap">Network-entity map; may be <c>null</c> in offline contexts.</param>
+        public static unsafe void RegisterAll(
+            BehaviorRegistry registry,
+            IGeographicTransform? geoTransform,
+            NetworkEntityMap? entityMap)
+        {
+            // Delegate to the existing two-phase implementation to avoid code duplication.
+            BuildRegistrationAction(geoTransform, entityMap!)(registry);
+        }
 
         /// <summary>
         /// Compiles all BTree interpreters and wires all action delegates for this

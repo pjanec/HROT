@@ -365,7 +365,7 @@ namespace Hrot.Editor.Tests
 
     // ---- Stub registrar classes used by ScanForRegistrars tests ----
 
-    [Fhsm.Kernel.Attributes.HsmActionRegistrar]
+    [Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
     internal static class StubHsmRegistrar
     {
         public static void RegisterAll() { /* no-op for test */ }

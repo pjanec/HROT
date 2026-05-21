@@ -1435,6 +1435,7 @@ What is NOT included:
 - Private `LoadAndScan(string dllPath)` -- creates collectible `AssemblyLoadContext` with name `AiBehaviors_{timestamp}_{guid}`, calls `LoadAssemblyInto`, calls `ScanForRegistrars`, returns `PendingReload` (NO `OldAlc` field per Patch 1).
 - Private `ApplyReload(PendingReload pending)` -- §2 full sequence: (1) `HsmActionDispatcher.ClearAll()` static call, (2) `_blueprintRegistry.BeginStaging()`, (3) invoke registrars, (4) `CommitStaging`, (5) `var oldAlc = _currentAlc; _currentAlc = pending.NewAlc; oldAlc?.Unload()`.
 - Private `ScanForRegistrars(Assembly assembly)` -- reflects over all types with `[BlueprintRegistrar]` attribute, finds `Register` methods, builds `IReadOnlyList<ResolvedRegistrar>`.
+- Update `AiBehaviorFactory.cs` (the composition root for hand-written AI): decorate the class with `[BlueprintRegistrar]`, rename its entry point to `public static void RegisterAll(BehaviorRegistry registry)`, and ensure it continues to internally construct the `ActionRegistry` and compile BTree/HSM blobs.
 - `ResolvedRegistrar` record: `Type DeclaringType`, `MethodInfo RegisterMethod`, `IReadOnlyList<RegistrarParameter> Parameters`.
 - `RegistrarParameter` record: `string Name`, `Type ParameterType`, `int OrdinalIndex`.
 - Private `ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging staging)` -- dispatches: `BlueprintRegistryStaging` -> staging, `BehaviorRegistry` -> `_behaviorRegistry`, `BlueprintRegistry` -> throws `HotReloadRegistrarException` (Patch 4), `HsmActionDispatcher` -> throws `HotReloadRegistrarException` (Patch 2), anything else -> throws.
@@ -1459,6 +1460,7 @@ What is NOT included:
 - The `PendingReload` record MUST NOT have an `OldAlc` field.
 - `ApplyQuickReload` calls `ApplyReload` directly (same code path as `DrainPendingCallbacks`), NOT a separate impl.
 - FileSystemWatcher debounce: multiple events from the same file within `FileWatcherDebounce` time window are coalesced into one `LoadAndScan` call.
+- `ScanForRegistrars` MUST ONLY scan for `[BlueprintRegistrarAttribute]`. It must explicitly NOT scan for `[FbtRegistrarAttribute]` or `[HsmActionRegistrarAttribute]` to prevent invoking generated native registrars with missing parameters.
 
 ### Success Conditions
 
@@ -1532,6 +1534,8 @@ All test files from Hot Reload DD §10, including tests from the patches:
 - `HotReload/PdbLoading/PdbLoadTests.cs`: when `LoadPdbOnDeveloperMode = true`, loaded assembly has pdb symbols accessible.
 
 All tests use `BlueprintTestFixture.SimulateReload` and `SimulateQuickReload` from HR-002.
+
+- Note: Attribute discovery tests (from Hot Reload DD §10.2) must ONLY verify discovery of `[BlueprintRegistrar]`. Remove tests asserting discovery of `[FbtRegistrarAttribute]` or `[HsmActionRegistrarAttribute]`.
 
 **What is NOT included:**
 - Editor UI integration tests (Editor DD).

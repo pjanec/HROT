@@ -424,8 +424,7 @@ namespace Hrot.Editor
                     newAlc.Unload();
                     var ex = new InvalidOperationException(
                         $"No registrars found in '{dllPath}'. " +
-                        "Expected at least one class decorated with " +
-                        "[BlueprintRegistrar], [HsmActionRegistrar], or [FbtRegistrar].");
+                        "Expected at least one class decorated with [BlueprintRegistrar].");
                     EnqueueFailure(dllPath, ex);
                     return;
                 }
@@ -452,8 +451,6 @@ namespace Hrot.Editor
             var validAttributeNames = new[]
             {
                 "BlueprintRegistrarAttribute",
-                "HsmActionRegistrarAttribute",
-                "FbtRegistrarAttribute",
             };
 
             var registrars = new List<ResolvedRegistrar>();

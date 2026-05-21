@@ -643,3 +643,127 @@ The engine is now fully prepared to host the Blueprint subsystem. You are comple
 
 Dnes • 11:51
 
+
+
+
+
+when starting the hrot.editor, it crashes on System.NullReferenceException: 'Object reference not set to an instance of an object.'
+Hrot.AI.Behaviors!Hrot.AI.Behaviors.Generated.FbtActionRegistrar.RegisterAll(Fbt.Runtime.ActionRegistry<Fdp.Toolkit.Behavior.Components.BrainBlackboard, Fdp.Toolkit.Behavior.BTreeContext> registry) Line 19 C# [External Code] Hrot.Editor.dll!Hrot.Editor.AiHotReloadCoordinator.DrainPendingCallbacks() Line 236 C# Hrot.Editor.dll!Hrot.Editor.EditorSubsystem.Update(float deltaTime) Line 1128 C# Fdp.Toolkits.dll!Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(float dt) Line 196 C# Hrot.ClusterRunner.dll!Hrot.Runner.Program.Main(string[] args) Line 270 C#
+The System.NullReferenceException is caused by a parameter resolution failure in the newly implemented attribute-driven discovery logic from your HotReloadPrePhase4.md changes.
+Root Cause
+In recent hot reload change you were instructed to add "FbtRegistrarAttribute" to the validAttributes array inside the ScanForRegistrars method. As a result, the AiHotReloadCoordinator successfully discovers the generated FbtActionRegistrar and attempts to invoke its RegisterAll method.
+However, the generated FbtActionRegistrar.RegisterAll method requires a parameter of type ActionRegistry<BrainBlackboard, BTreeContext>. If you look at ResolveRegistrarParam in AiHotReloadCoordinator.cs, it only knows how to resolve specific types (BehaviorRegistry, BlueprintRegistryStaging, IGeographicTransform, and NetworkEntityMap). Because it doesn't know how to create an ActionRegistry, it returns null.
+The coordinator then calls FbtActionRegistrar.RegisterAll(null) via reflection, which immediately throws a NullReferenceException when it attempts to register the BTree actions.
+Architectural Issue
+By trying to invoke FbtActionRegistrar directly from the coordinator, you are also bypassing AiBehaviorFactory. AiBehaviorFactory is currently responsible not only for creating the ActionRegistry, but also for compiling all the BTree and HSM blobs and committing them to the BehaviorRegistry. If AiBehaviorFactory is skipped, your AI behaviors will never be loaded.
+How to Fix It
+To fix the crash and restore behavior compilation, you need to make AiBehaviorFactory the primary registrar that the coordinator discovers, rather than having the coordinator blindly invoke low-level generated registrars.
+1. Update AiHotReloadCoordinator.cs: Remove "FbtRegistrarAttribute" from the list of valid attributes so the coordinator stops trying to invoke it directly with null arguments.
+// In Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs
+var validAttributeNames = new[]
+{
+    "BlueprintRegistrarAttribute",
+    "HsmActionRegistrarAttribute"
+    // "FbtRegistrarAttribute" <-- Remove this line
+};
+2. Update AiBehaviorFactory.cs: Convert the factory into a compatible registrar. Decorate the class with an attribute the coordinator searches for (like [BlueprintRegistrar]), rename BuildRegistrationAction to RegisterAll, and change its signature to accept the BehaviorRegistry directly instead of returning an Action.
+// In Hrot/Subsystems/Hrot.AI.Behaviors/AiBehaviorFactory.cs
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors
+{
+    [BlueprintRegistrar] // Add this attribute so the coordinator finds it
+    public static class AiBehaviorFactory
+    {
+        // ... (constants remain the same)
+
+        // Change method to RegisterAll and add BehaviorRegistry parameter
+        public static unsafe void RegisterAll(
+            BehaviorRegistry registry,
+            IGeographicTransform? geoTransform,
+            NetworkEntityMap entityMap)
+        {
+            // The factory creates the ActionRegistry itself
+            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actionRegistry);
+
+            // Pre-compile BTree blobs...
+            var moveToBlob = FbtTreeCatalog.GetMoveToLocation();
+            // ... (keep existing compilation logic)
+
+            // Register behaviors directly instead of returning an Action
+            registry.Register(MoveTo_BT, "MoveToLocation", new BehaviorDefinition { ... });
+            // ... (keep existing registry.Register calls)
+        }
+    }
+}
+Because BehaviorRegistry, IGeographicTransform, and NetworkEntityMap are all explicitly supported by ResolveRegistrarParam, the coordinator will successfully invoke AiBehaviorFactory.RegisterAll(), compiling your BTrees and registering everything cleanly on the main thread.
+
+
+
+
+The `System.NullReferenceException` is caused by a parameter resolution failure in the newly implemented attribute-driven discovery logic from your `HotReloadPrePhase4.md` changes.
+
+### Root Cause
+In `HotReloadPrePhase4.md`, you were instructed to add `"FbtRegistrarAttribute"` to the `validAttributes` array inside the `ScanForRegistrars` method. As a result, the `AiHotReloadCoordinator` successfully discovers the generated `FbtActionRegistrar` and attempts to invoke its `RegisterAll` method.
+
+However, the generated `FbtActionRegistrar.RegisterAll` method requires a parameter of type `ActionRegistry<BrainBlackboard, BTreeContext>`. If you look at `ResolveRegistrarParam` in `AiHotReloadCoordinator.cs`, it only knows how to resolve specific types (`BehaviorRegistry`, `BlueprintRegistryStaging`, `IGeographicTransform`, and `NetworkEntityMap`). Because it doesn't know how to create an `ActionRegistry`, it returns `null`. 
+
+The coordinator then calls `FbtActionRegistrar.RegisterAll(null)` via reflection, which immediately throws a `NullReferenceException` when it attempts to register the BTree actions.
+
+### Architectural Issue
+By trying to invoke `FbtActionRegistrar` directly from the coordinator, you are also bypassing `AiBehaviorFactory`. `AiBehaviorFactory` is currently responsible not only for creating the `ActionRegistry`, but also for compiling all the BTree and HSM blobs and committing them to the `BehaviorRegistry`. If `AiBehaviorFactory` is skipped, your AI behaviors will never be loaded.
+
+### How to Fix It
+
+To fix the crash and restore behavior compilation, you need to make `AiBehaviorFactory` the primary registrar that the coordinator discovers, rather than having the coordinator blindly invoke low-level generated registrars.
+
+**1. Update `AiHotReloadCoordinator.cs`:**
+Remove `"FbtRegistrarAttribute"` from the list of valid attributes so the coordinator stops trying to invoke it directly with null arguments.
+```csharp
+// In Hrot/Subsystems/Hrot.Editor/AiHotReloadCoordinator.cs
+var validAttributeNames = new[]
+{
+    "BlueprintRegistrarAttribute",
+    "HsmActionRegistrarAttribute"
+    // "FbtRegistrarAttribute" <-- Remove this line
+};
+```
+
+**2. Update `AiBehaviorFactory.cs`:**
+Convert the factory into a compatible registrar. Decorate the class with an attribute the coordinator searches for (like `[BlueprintRegistrar]`), rename `BuildRegistrationAction` to `RegisterAll`, and change its signature to accept the `BehaviorRegistry` directly instead of returning an `Action`.
+
+```csharp
+// In Hrot/Subsystems/Hrot.AI.Behaviors/AiBehaviorFactory.cs
+using Fdp.Toolkit.Blueprints.Attributes;
+
+namespace Hrot.AI.Behaviors
+{
+    [BlueprintRegistrar] // Add this attribute so the coordinator finds it
+    public static class AiBehaviorFactory
+    {
+        // ... (constants remain the same)
+
+        // Change method to RegisterAll and add BehaviorRegistry parameter
+        public static unsafe void RegisterAll(
+            BehaviorRegistry registry,
+            IGeographicTransform? geoTransform,
+            NetworkEntityMap entityMap)
+        {
+            // The factory creates the ActionRegistry itself
+            var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actionRegistry);
+
+            // Pre-compile BTree blobs...
+            var moveToBlob = FbtTreeCatalog.GetMoveToLocation();
+            // ... (keep existing compilation logic)
+
+            // Register behaviors directly instead of returning an Action
+            registry.Register(MoveTo_BT, "MoveToLocation", new BehaviorDefinition { ... });
+            // ... (keep existing registry.Register calls)
+        }
+    }
+}
+```
+
+Because `BehaviorRegistry`, `IGeographicTransform`, and `NetworkEntityMap` are all explicitly supported by `ResolveRegistrarParam`, the coordinator will successfully invoke `AiBehaviorFactory.RegisterAll()`, compiling your BTrees and registering everything cleanly on the main thread.
