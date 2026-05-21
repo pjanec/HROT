@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Threading;
@@ -8,53 +10,102 @@ using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Replication.Services;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
 
 namespace Hrot.Editor
 {
+    // ---- Supporting types (Options, Events) ---------------------------------
+
+    /// <summary>
+    /// Configuration for <see cref="AiHotReloadCoordinator"/>.
+    /// </summary>
+    public record AiHotReloadCoordinatorOptions(
+        bool LoadPdbOnDeveloperMode = false,
+        TimeSpan? FileWatcherDebounce = null
+    );
+
+    /// <summary>
+    /// Discriminates the origin of a completed hot reload.
+    /// Subscribers use this to avoid disk-read race conditions on the
+    /// <c>.dbgmap.json</c> file.
+    /// </summary>
+    public enum ReloadSource
+    {
+        /// <summary>Reload was driven by the file-system watcher (MSBuild full rebuild).</summary>
+        FullRebuildViaFileWatcher,
+        /// <summary>Reload was injected in-memory by the Editor QuickReloadService.</summary>
+        QuickReloadViaApi,
+    }
+
+    /// <summary>
+    /// Payload delivered to <see cref="AiHotReloadCoordinator.OnReloadCompleted"/>
+    /// subscribers.
+    /// </summary>
+    public record ReloadCompletedInfo(
+        ReloadSource Source,
+        AssemblyLoadContext NewAlc,
+        string? DllPath);
+
+    // ---- Registrar discovery types ------------------------------------------
+
+    /// <summary>One parameter of a discovered registrar entry-point method.</summary>
+    public record RegistrarParameter(string Name, Type ParameterType, int OrdinalIndex);
+
+    /// <summary>
+    /// Metadata for a registrar class discovered by
+    /// <see cref="AiHotReloadCoordinator.ScanForRegistrars"/>.
+    /// </summary>
+    public record ResolvedRegistrar(
+        Type DeclaringType,
+        MethodInfo RegisterMethod,
+        IReadOnlyList<RegistrarParameter> Parameters);
+
+    // =========================================================================
+
     /// <summary>
     /// Unified hot-reload coordinator for the AI behavior assembly
     /// (<c>Hrot.AI.Behaviors.dll</c>).  Manages the ALC lifecycle for both BTree
-    /// and HSM behaviors, replacing the older <c>FbtAssemblyHotReloader</c> pattern.
+    /// and HSM behaviors.
     ///
     /// <para><b>Thread model:</b>
     /// <list type="bullet">
-    ///   <item>Background thread — <c>LoadAndReload</c>: loads the new DLL into a
-    ///     fresh collectible ALC, reflects the factory, builds staging data, enqueues
+    ///   <item>Background thread — <c>LoadAndScan</c>: loads the new DLL into a
+    ///     fresh collectible ALC, discovers registrar classes via attributes, enqueues
     ///     the result.</item>
     ///   <item>Main thread — <see cref="DrainPendingCallbacks"/>: dequeues each
-    ///     pending action (success or failure), and for success:
-    ///     clears the HSM action table, re-registers, applies behaviors, and
-    ///     hot-reloads existing HSM instances.</item>
+    ///     pending result, and for success: clears the HSM action table, invokes
+    ///     each registrar, applies staging, hot-reloads HSM instances, and swaps
+    ///     the ALC.</item>
     /// </list>
     /// The order inside <see cref="DrainPendingCallbacks"/> is mandated:
-    /// <c>ClearAll</c> BEFORE <c>RegisterAll</c>.</para>
+    /// <c>ClearAll</c> BEFORE registrar invocation.</para>
     /// </summary>
     internal sealed class AiHotReloadCoordinator : IDisposable
     {
         // ---- Payload produced on background thread, consumed on main thread ----
         private readonly struct PendingReload
         {
-            public readonly BehaviorRegistry    StagingRegistry;
-            public readonly AssemblyLoadContext NewAlc;
-            public readonly AssemblyLoadContext? OldAlc;
+            public readonly IReadOnlyList<ResolvedRegistrar> Registrars;
+            public readonly AssemblyLoadContext              NewAlc;
+            public readonly string                           DllPath;
 
             public PendingReload(
-                BehaviorRegistry stagingRegistry,
+                IReadOnlyList<ResolvedRegistrar> registrars,
                 AssemblyLoadContext newAlc,
-                AssemblyLoadContext? oldAlc)
+                string dllPath)
             {
-                StagingRegistry = stagingRegistry;
-                NewAlc          = newAlc;
-                OldAlc          = oldAlc;
+                Registrars = registrars;
+                NewAlc     = newAlc;
+                DllPath    = dllPath;
             }
         }
 
         // ---- Public events (fired on main thread from DrainPendingCallbacks) ----
-        public event Action<string>? OnReloadCompleted;
-        public event Action<string, Exception>? OnReloadFailed;
+        public event Action<ReloadCompletedInfo>? OnReloadCompleted;
+        public event Action<string, Exception>?   OnReloadFailed;
 
         // ---- ALC GC verification (tests only) ----
         /// <summary>
@@ -64,11 +115,13 @@ namespace Hrot.Editor
         internal WeakReference<AssemblyLoadContext>? PreviousAlcRef { get; private set; }
 
         // ---- Dependencies ----
-        private readonly EntityRepository      _world;
-        private readonly BehaviorRegistry      _liveRegistry;
-        private readonly IGeographicTransform? _geoTransform;
-        private readonly NetworkEntityMap?     _entityMap;
-        private readonly HotReloadManager      _hotReloadManager = new();
+        private readonly EntityRepository              _world;
+        private readonly BehaviorRegistry              _liveRegistry;
+        private readonly BlueprintRegistry             _blueprintRegistry;
+        private readonly AiHotReloadCoordinatorOptions _options;
+        private readonly IGeographicTransform?         _geoTransform;
+        private readonly NetworkEntityMap?             _entityMap;
+        private readonly HotReloadManager              _hotReloadManager = new();
 
         // ---- File-system watch / debounce ----
         private readonly FileSystemWatcher _watcher;
@@ -76,13 +129,12 @@ namespace Hrot.Editor
         private readonly Timer             _debounceTimer;
         private string?                    _pendingPath;
         private readonly object            _debounceLock = new();
-        private const int DebounceMs = 200;
 
-        // ---- ALC state ----
+        // ---- ALC state (main-thread-only after construction) ----
         private AssemblyLoadContext? _currentAlc;
 
         // ---- Queues for inter-thread communication ----
-        // Success reloads (contain staging data + ALCs).
+        // Success reloads (contain metadata + ALCs).
         private readonly ConcurrentQueue<PendingReload> _pendingReloads = new();
         // Failure callbacks (pre-built for main-thread invocation).
         private readonly ConcurrentQueue<Action> _pendingFailures = new();
@@ -96,21 +148,27 @@ namespace Hrot.Editor
         /// <param name="dllFilter">File filter, e.g. <c>"Hrot.AI.Behaviors.dll"</c>.</param>
         /// <param name="world">Live ECS world used for per-chunk HSM hot reload.</param>
         /// <param name="liveRegistry">Behavior registry updated on main thread.</param>
-        /// <param name="geoTransform">Geographic transform passed to behavior factory.</param>
-        /// <param name="entityMap">Entity map passed to behavior factory.</param>
+        /// <param name="blueprintRegistry">Blueprint registry for atomic staging commits.</param>
+        /// <param name="options">Coordinator configuration options.</param>
+        /// <param name="geoTransform">Geographic transform passed to behavior registrars.</param>
+        /// <param name="entityMap">Entity map passed to behavior registrars.</param>
         public AiHotReloadCoordinator(
             string watchDirectory,
             string dllFilter,
             EntityRepository world,
             BehaviorRegistry liveRegistry,
-            IGeographicTransform? geoTransform,
-            NetworkEntityMap? entityMap)
+            BlueprintRegistry blueprintRegistry,
+            AiHotReloadCoordinatorOptions options,
+            IGeographicTransform? geoTransform = null,
+            NetworkEntityMap? entityMap = null)
         {
-            _watchDirectory = watchDirectory;
-            _world          = world;
-            _liveRegistry   = liveRegistry;
-            _geoTransform   = geoTransform;
-            _entityMap      = entityMap;
+            _watchDirectory    = watchDirectory;
+            _world             = world;
+            _liveRegistry      = liveRegistry;
+            _blueprintRegistry = blueprintRegistry;
+            _options           = options;
+            _geoTransform      = geoTransform;
+            _entityMap         = entityMap;
 
             _debounceTimer = new Timer(OnDebounceElapsed, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -136,7 +194,7 @@ namespace Hrot.Editor
                 return;
             string path = Path.Combine(_watchDirectory, filter);
             if (File.Exists(path))
-                ThreadPool.QueueUserWorkItem(_ => LoadAndReload(path));
+                ThreadPool.QueueUserWorkItem(_ => LoadAndScan(path));
         }
 
         /// <summary>
@@ -144,10 +202,12 @@ namespace Hrot.Editor
         /// Applies any pending DLL reload in the mandated order:
         /// <list type="number">
         ///   <item><see cref="HsmActionDispatcher.ClearAll"/> — purge stale function pointers.</item>
-        ///   <item>Reflect <c>HsmActionRegistrar.RegisterAll</c> from new ALC and invoke.</item>
-        ///   <item>Apply staging registry to <see cref="_liveRegistry"/>.</item>
+        ///   <item>Invoke all discovered registrars with resolved staging parameters.</item>
+        ///   <item>Commit <see cref="BlueprintRegistry"/> staging atomically.</item>
+        ///   <item>Apply staging behavior registry to <see cref="_liveRegistry"/>.</item>
         ///   <item>Hot-reload live HSM instances via <see cref="HotReloadManager"/>.</item>
-        ///   <item>Release old ALC; store weak reference for GC verification.</item>
+        ///   <item>Swap <c>_currentAlc</c> and release old ALC (success path only).</item>
+        ///   <item>Fire <see cref="OnReloadCompleted"/> with <see cref="ReloadSource.FullRebuildViaFileWatcher"/>.</item>
         /// </list>
         /// </summary>
         public void DrainPendingCallbacks()
@@ -163,33 +223,38 @@ namespace Hrot.Editor
                     // Step 1: clear stale HSM function pointers FIRST.
                     HsmActionDispatcher.ClearAll();
 
-                    // Step 2: re-register HSM actions from the NEW assembly.
-                    var newAssembly = FindAssembly(pending.NewAlc, "Hrot.AI.Behaviors");
-                    if (newAssembly != null)
+                    // Step 2: invoke all discovered registrars with resolved staging params.
+                    var behaviorStaging  = new BehaviorRegistry();
+                    var blueprintStaging = _blueprintRegistry.BeginStaging();
+
+                    foreach (var registrar in pending.Registrars)
                     {
-                        var registrarType = newAssembly.GetType(
-                            "Hrot.AI.Behaviors.Generated.HsmActionRegistrar");
-                        registrarType?.GetMethod("RegisterAll",
-                            BindingFlags.Public | BindingFlags.Static)
-                            ?.Invoke(null, null);
+                        var args = registrar.Parameters
+                            .OrderBy(p => p.OrdinalIndex)
+                            .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
+                            .ToArray();
+                        registrar.RegisterMethod.Invoke(null, args);
                     }
 
-                    // Step 3: apply staging registry -> live registry.
-                    foreach (var name in pending.StagingRegistry.GetRegisteredNames())
+                    // Step 3: atomic commit of BlueprintRegistry.
+                    _blueprintRegistry.CommitStaging(blueprintStaging);
+
+                    // Step 4: apply staging behavior registry -> live registry.
+                    foreach (var name in behaviorStaging.GetRegisteredNames())
                     {
-                        if (pending.StagingRegistry.TryGetId(name, out int id) &&
-                            pending.StagingRegistry.TryGetDefinition(id, out var def))
+                        if (behaviorStaging.TryGetId(name, out int id) &&
+                            behaviorStaging.TryGetDefinition(id, out var def))
                         {
                             _liveRegistry.Register(id, name, def);
                         }
                     }
 
-                    // Step 4: hot-reload live HSM instances per-chunk.
-                    foreach (var name in pending.StagingRegistry.GetRegisteredNames())
+                    // Step 5: hot-reload live HSM instances per-chunk.
+                    foreach (var name in behaviorStaging.GetRegisteredNames())
                     {
-                        if (!pending.StagingRegistry.TryGetId(name, out int docId))
+                        if (!behaviorStaging.TryGetId(name, out int docId))
                             continue;
-                        if (!pending.StagingRegistry.TryGetDefinition(docId, out var def))
+                        if (!behaviorStaging.TryGetDefinition(docId, out var def))
                             continue;
                         if (def.BrainTier != BehaviorConstants.BrainTierHsm)
                             continue;
@@ -201,19 +266,100 @@ namespace Hrot.Editor
                         ReloadHsmChunks<BrainHsm128>(blob);
                     }
 
-                    // Step 5: release old ALC; record weak reference for test verification.
-                    if (pending.OldAlc != null)
+                    // Step 6: swap _currentAlc and release the old ALC.
+                    // This happens ONLY after all staging commits succeed,
+                    // so a failure above leaves _currentAlc (and running code) untouched.
+                    var oldAlc = _currentAlc;
+                    _currentAlc = pending.NewAlc;
+
+                    if (oldAlc != null)
                     {
-                        PreviousAlcRef = new WeakReference<AssemblyLoadContext>(pending.OldAlc);
-                        pending.OldAlc.Unload();
+                        PreviousAlcRef = new WeakReference<AssemblyLoadContext>(oldAlc);
+                        oldAlc.Unload();
                     }
 
-                    OnReloadCompleted?.Invoke("__ai_behaviors__");
+                    // Step 7: fire completion event.
+                    OnReloadCompleted?.Invoke(new ReloadCompletedInfo(
+                        ReloadSource.FullRebuildViaFileWatcher,
+                        pending.NewAlc,
+                        pending.DllPath));
                 }
                 catch (Exception ex)
                 {
-                    OnReloadFailed?.Invoke("__ai_behaviors__", ex);
+                    // _currentAlc is NOT updated; simulation keeps running with previous assembly.
+                    OnReloadFailed?.Invoke(pending.DllPath, ex);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Applies an in-memory Quick Reload.  Bypasses the file-watcher and background
+        /// reflection scan.  The Editor's <c>QuickReloadService</c> handles the reflection,
+        /// HSM clearing, and registrar invocation, then hands the populated staging
+        /// buffers here for the atomic swap.
+        /// </summary>
+        /// <remarks>
+        /// <b>Note:</b> The caller (<c>QuickReloadService</c>) must call
+        /// <see cref="HsmActionDispatcher.ClearAll"/> and invoke registrars <em>before</em>
+        /// calling this method.  This method only performs the staging commits, ALC swap,
+        /// and event notification.
+        /// </remarks>
+        public void ApplyQuickReload(
+            AssemblyLoadContext newAlc,
+            BehaviorRegistry behaviorStaging,
+            BlueprintRegistryStaging blueprintStaging)
+        {
+            try
+            {
+                // Step 1: atomic commit of BlueprintRegistry.
+                _blueprintRegistry.CommitStaging(blueprintStaging);
+
+                // Step 2: apply staging behavior registry into the live BehaviorRegistry.
+                foreach (var name in behaviorStaging.GetRegisteredNames())
+                {
+                    if (behaviorStaging.TryGetId(name, out int id) &&
+                        behaviorStaging.TryGetDefinition(id, out var def))
+                    {
+                        _liveRegistry.Register(id, name, def);
+                    }
+                }
+
+                // Step 3: hot-reload live HSM instances per-chunk (same as file-watcher path).
+                foreach (var name in behaviorStaging.GetRegisteredNames())
+                {
+                    if (!behaviorStaging.TryGetId(name, out int docId)) continue;
+                    if (!behaviorStaging.TryGetDefinition(docId, out var def)) continue;
+                    if (def.BrainTier != BehaviorConstants.BrainTierHsm) continue;
+                    if (def.HsmDefinition == null) continue;
+
+                    var blob = def.HsmDefinition;
+                    ReloadHsmChunks<BrainHsm64>(blob);
+                    ReloadHsmChunks<BrainHsm128>(blob);
+                }
+
+                // Step 4: swap ALC and release the old ALC (strictly main thread).
+                var oldAlc = _currentAlc;
+                _currentAlc = newAlc;
+
+                if (oldAlc != null)
+                {
+                    PreviousAlcRef = new WeakReference<AssemblyLoadContext>(oldAlc);
+                    oldAlc.Unload();
+                }
+
+                // Step 5: fire completion event tagged as a Quick Reload.
+                OnReloadCompleted?.Invoke(new ReloadCompletedInfo(
+                    ReloadSource.QuickReloadViaApi,
+                    newAlc,
+                    null));
+            }
+            catch (Exception ex)
+            {
+                // If the apply fails, unload the new patch ALC to prevent leaks,
+                // leave the previous _currentAlc intact, and propagate the failure.
+                newAlc.Unload();
+                OnReloadFailed?.Invoke("QuickReload", ex);
+                throw; // Re-throw so the Editor's QuickReloadService can show the error.
             }
         }
 
@@ -231,7 +377,8 @@ namespace Hrot.Editor
         private void OnFileChanged(object sender, FileSystemEventArgs e)
         {
             lock (_debounceLock) { _pendingPath = e.FullPath; }
-            _debounceTimer.Change(DebounceMs, Timeout.Infinite);
+            int debounceMs = (int)(_options.FileWatcherDebounce?.TotalMilliseconds ?? 200);
+            _debounceTimer.Change(debounceMs, Timeout.Infinite);
         }
 
         private void OnDebounceElapsed(object? state)
@@ -239,12 +386,12 @@ namespace Hrot.Editor
             string? path;
             lock (_debounceLock) { path = _pendingPath; }
             if (path != null)
-                ThreadPool.QueueUserWorkItem(_ => LoadAndReload(path));
+                ThreadPool.QueueUserWorkItem(_ => LoadAndScan(path));
         }
 
-        // ---- Private: background reload ----
+        // ---- Private: background scan ----
 
-        private void LoadAndReload(string dllPath)
+        private void LoadAndScan(string dllPath)
         {
             try
             {
@@ -269,45 +416,97 @@ namespace Hrot.Editor
                     }
                 }
 
-                // Locate AiBehaviorFactory in the newly-loaded assembly.
-                var factoryType = newAssembly.GetType("Hrot.AI.Behaviors.AiBehaviorFactory");
-                var buildMethod = factoryType?.GetMethod(
-                    "BuildRegistrationAction",
-                    BindingFlags.Public | BindingFlags.Static);
+                // SCAN: find all registrars in the new assembly via attributes.
+                var registrars = ScanForRegistrars(newAssembly);
 
-                if (buildMethod == null)
+                if (registrars.Count == 0)
                 {
                     newAlc.Unload();
                     var ex = new InvalidOperationException(
-                        $"'AiBehaviorFactory.BuildRegistrationAction' not found in '{dllPath}'.");
+                        $"No registrars found in '{dllPath}'. " +
+                        "Expected at least one class decorated with " +
+                        "[BlueprintRegistrar], [HsmActionRegistrar], or [FbtRegistrar].");
                     EnqueueFailure(dllPath, ex);
                     return;
                 }
 
-                // Invoke on this background thread; CPU-heavy BTree/HSM compilation happens here.
-                var applyAction = (Action<BehaviorRegistry>?)buildMethod.Invoke(
-                    null, new object?[] { _geoTransform, _entityMap });
-
-                if (applyAction == null)
-                {
-                    newAlc.Unload();
-                    var ex = new InvalidOperationException(
-                        $"'BuildRegistrationAction' returned null in '{dllPath}'.");
-                    EnqueueFailure(dllPath, ex);
-                    return;
-                }
-
-                var stagingRegistry = new BehaviorRegistry();
-                applyAction(stagingRegistry);
-
-                // Swap in new ALC; the previous one is passed to the drain for orderly release.
-                var oldAlc = Interlocked.Exchange(ref _currentAlc, newAlc);
-                _pendingReloads.Enqueue(new PendingReload(stagingRegistry, newAlc, oldAlc));
+                // Enqueue the new ALC and the discovered registrars for the main thread.
+                // DO NOT touch _currentAlc here.
+                _pendingReloads.Enqueue(new PendingReload(registrars, newAlc, dllPath));
             }
             catch (Exception ex)
             {
                 EnqueueFailure(dllPath, ex);
             }
+        }
+
+        // ---- Private: registrar discovery ----
+
+        /// <summary>
+        /// Scans <paramref name="assembly"/> for classes decorated with any of the
+        /// recognized registrar attributes and returns their resolved metadata,
+        /// sorted deterministically by declaring type full name.
+        /// </summary>
+        internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
+        {
+            var validAttributeNames = new[]
+            {
+                "BlueprintRegistrarAttribute",
+                "HsmActionRegistrarAttribute",
+                "FbtRegistrarAttribute",
+            };
+
+            var registrars = new List<ResolvedRegistrar>();
+            Type[] types;
+
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                // Gracefully handle partial assembly loads.
+                types = ex.Types.Where(t => t != null).ToArray()!;
+            }
+
+            foreach (var type in types)
+            {
+                bool isRegistrar = type.GetCustomAttributes().Any(attr =>
+                    Array.IndexOf(validAttributeNames, attr.GetType().Name) >= 0);
+
+                if (!isRegistrar) continue;
+
+                // Find the public static entry point (prefer "Register", fall back to "RegisterAll").
+                var method =
+                    type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
+                    type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
+
+                if (method == null) continue;
+
+                var parameters = method.GetParameters()
+                    .Select((p, i) => new RegistrarParameter(p.Name ?? string.Empty, p.ParameterType, i))
+                    .ToArray();
+
+                registrars.Add(new ResolvedRegistrar(type, method, parameters));
+            }
+
+            // Sort deterministically to ensure reproducible registration order.
+            return registrars.OrderBy(r => r.DeclaringType.FullName).ToList();
+        }
+
+        // ---- Private: parameter resolution ----
+
+        private object? ResolveRegistrarParam(
+            Type paramType,
+            BehaviorRegistry behaviorStaging,
+            BlueprintRegistryStaging blueprintStaging)
+        {
+            if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
+            if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
+            if (paramType == typeof(IGeographicTransform))     return _geoTransform;
+            if (typeof(IGeographicTransform).IsAssignableFrom(paramType)) return _geoTransform;
+            if (paramType == typeof(NetworkEntityMap))         return _entityMap;
+            return null;
         }
 
         // ---- Private: helpers ----

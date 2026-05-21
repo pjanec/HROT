@@ -11,6 +11,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
+    <!-- Expose coordinator internals to the Blueprint test harness -->
+    <InternalsVisibleTo Include="Hrot.Blueprints.Tests" />
   </ItemGroup>
 
   <ItemGroup>

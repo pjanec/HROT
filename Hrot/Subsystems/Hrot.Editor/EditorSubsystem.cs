@@ -25,6 +25,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Vis2D;
@@ -211,6 +212,7 @@ namespace Hrot.Editor
 
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
+        private BlueprintRegistry          _blueprintRegistry = new();
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -423,6 +425,8 @@ namespace Hrot.Editor
             _aiCoordinator = new AiHotReloadCoordinator(
                 aiAssemblyDir, "Hrot.AI.Behaviors.dll",
                 _world!, _behaviorRegistry!,
+                _blueprintRegistry,
+                new AiHotReloadCoordinatorOptions(LoadPdbOnDeveloperMode: true),
                 _geoTransform, _entityMap);
 
             _aiCoordinator.OnReloadCompleted += _ =>
@@ -435,7 +439,7 @@ namespace Hrot.Editor
             // Wire up after the coordinator is configured so that both the
             // behavior-swap callbacks and the log-source callbacks are registered.
             _hotReloadSource = new HotReloadMessageLogSource();
-            _aiCoordinator.OnReloadCompleted += _hotReloadSource.OnReloadCompleted;
+            _aiCoordinator.OnReloadCompleted += info => _hotReloadSource.OnReloadCompleted(info.DllPath ?? "__ai_behaviors__");
             _aiCoordinator.OnReloadFailed    += _hotReloadSource.OnReloadFailed;
 
             var clusterSlave     = new ClusterSlave(EditorNodeId, "Editor", _orchestrationBus);

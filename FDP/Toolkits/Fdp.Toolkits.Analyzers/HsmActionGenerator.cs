@@ -594,6 +594,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine();
             sb.AppendLine("namespace " + namespaceName);
             sb.AppendLine("{");
+            sb.AppendLine("    [global::Fhsm.Kernel.Attributes.HsmActionRegistrar]");
             sb.AppendLine("    public static unsafe class HsmActionRegistrar");
             sb.AppendLine("    {");
 
