@@ -18,6 +18,10 @@ public sealed class FakeLinkValidator : ILinkValidator
         if (fromPin is null || toPin is null)
             return new LinkValidationResult(LinkValidity.Invalid, "Pin not found.", false, null);
 
+        // Enforce directional flow: output -> input only.
+        if (fromPin.Direction == toPin.Direction)
+            return new LinkValidationResult(LinkValidity.Invalid, "Cannot connect pins of the same direction.", false, null);
+
         // Exec ↔ Exec always valid
         if (fromPin.Kind == PinKind.Exec && toPin.Kind == PinKind.Exec)
             return new LinkValidationResult(LinkValidity.Valid, null, false, null);

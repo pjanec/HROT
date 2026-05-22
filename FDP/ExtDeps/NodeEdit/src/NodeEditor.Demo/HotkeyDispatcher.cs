@@ -1,3 +1,4 @@
+using ImGuiNET;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
@@ -22,6 +23,9 @@ public sealed class HotkeyDispatcher
     /// <summary>Call once per frame before rendering.</summary>
     public void ProcessThisFrame()
     {
+        if (ImGui.GetIO().WantCaptureKeyboard)
+            return;
+
         var mods = _input.Modifiers;
 
         foreach (var desc in _commands.All)

@@ -42,4 +42,11 @@ public sealed class DefaultTheme : IEditorTheme
 
     private static Vector4 Rgb(byte r, byte g, byte b) =>
         new(r / 255f, g / 255f, b / 255f, 1f);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The default theme has no font pipeline. Returns <see cref="IntPtr.Zero"/>
+    /// so callers fall back to the active ImGui default font.
+    /// </remarks>
+    public nint GetFontForSize(float targetPixelSize) => 0;
 }

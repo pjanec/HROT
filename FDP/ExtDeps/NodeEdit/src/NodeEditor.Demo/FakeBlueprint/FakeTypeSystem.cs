@@ -9,6 +9,8 @@ namespace NodeEditor.Demo.FakeBlueprint;
 /// </summary>
 public sealed class FakeTypeSystem : ITypeSystem
 {
+    private readonly IPinDefaultValueEditorRegistry _editors;
+
     private static readonly Dictionary<string, (Vector4 Color, string Name)> _types = new()
     {
         ["System.Boolean"]          = (new Vector4(0.60f, 0.00f, 0.00f, 1f), "Boolean"),
@@ -20,6 +22,11 @@ public sealed class FakeTypeSystem : ITypeSystem
         ["System.Numerics.Vector4"] = (new Vector4(0.90f, 0.70f, 0.10f, 1f), "Vector4"),
         ["NodeEditor.Color"]        = (new Vector4(0.20f, 0.85f, 0.70f, 1f), "Color"),
     };
+
+    public FakeTypeSystem(IPinDefaultValueEditorRegistry editors)
+    {
+        _editors = editors;
+    }
 
     public bool TryGetTypeInfo(TypeKey key, out TypeDisplayInfo info)
     {
@@ -36,9 +43,15 @@ public sealed class FakeTypeSystem : ITypeSystem
         => _types.TryGetValue(key.Id, out var t) ? t.Color : new Vector4(0.8f, 0.8f, 0.8f, 1f);
 
     public PinShape GetPinShape(TypeKey key, ContainerKind container)
-        => container == ContainerKind.Array ? PinShape.Diamond : PinShape.Circle;
+        => container switch
+        {
+            ContainerKind.Array => PinShape.Diamond,
+            ContainerKind.Map   => PinShape.Square,
+            ContainerKind.Set   => PinShape.Pentagon,
+            _                   => PinShape.Circle,
+        };
 
-    public IPinDefaultValueEditor? GetDefaultEditor(TypeKey key) => null;
+    public IPinDefaultValueEditor? GetDefaultEditor(TypeKey key) => _editors.GetEditor(key);
 
     public bool AreCompatible(TypeKey from, TypeKey to) => from == to;
     public bool IsImplicitCast(TypeKey from, TypeKey to) => false;

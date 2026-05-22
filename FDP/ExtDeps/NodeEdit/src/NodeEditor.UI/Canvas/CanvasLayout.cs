@@ -1,4 +1,5 @@
 using System.Numerics;
+using ImGuiNET;
 using NodeEditor.Core;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.Spatial;
@@ -43,8 +44,10 @@ internal sealed class CanvasLayoutBuilder
     public const float PinRowHeightGu   = 22f;
     public const float PinTopPadGu      = 6f;
     public const float PinBottomPadGu   = 8f;
+    public const float EditorWidthGu    = 80f;
+    public const float EditorHorizPadGu = 4f;
 
-    public void Build(GraphView view, CanvasLayout layout, SpatialIndex spatialIndex)
+    public void Build(GraphView view, CanvasLayout layout, SpatialIndex spatialIndex, bool rebuildSpatial)
     {
         layout.Clear();
 
@@ -55,7 +58,10 @@ internal sealed class CanvasLayoutBuilder
         float headerHt = view.Host.Theme.NodeHeaderHeight;
         float zoom = view.Viewport.Zoom;
 
-        var entries = new List<(NodeId, RectF)>(view.Model.Nodes.Count);
+        // Only allocate the entries list when we actually need to rebuild the spatial index.
+        List<(NodeId, RectF)>? entries = rebuildSpatial
+            ? new List<(NodeId, RectF)>(view.Model.Nodes.Count)
+            : null;
 
         foreach (var node in view.Model.Nodes)
         {
@@ -63,44 +69,69 @@ internal sealed class CanvasLayoutBuilder
                 ? over
                 : node.Position;
 
-            // Separate input and output pins (visible ones).
-            var inputPins  = new List<IPinModel>();
+            var inputPins = new List<IPinModel>();
             var outputPins = new List<IPinModel>();
+            float maxInputWidthGu = 0f;
+            float maxOutputWidthGu = 0f;
+
             foreach (var p in node.Pins)
             {
                 if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
-                if (p.Direction == PinDirection.Input)  inputPins.Add(p);
-                else                                     outputPins.Add(p);
+
+                float labelWidthGu = string.IsNullOrEmpty(p.Label) ? 0f : ImGui.CalcTextSize(p.Label).X;
+                float pinWidthGu = 18f + labelWidthGu; // glyph + label spacing budget
+
+                if (p.Direction == PinDirection.Input)
+                {
+                    bool hasInlineEditor = p.Kind == PinKind.Data
+                                           && p.Default != null
+                                           && p.Type.HasValue
+                                           && !layout.ConnectedInputPins.Contains(p.Id)
+                                           && view.TypeSystem.GetDefaultEditor(p.Type.Value) != null;
+
+                    if (hasInlineEditor)
+                        pinWidthGu += EditorWidthGu + (EditorHorizPadGu * 2f);
+
+                    maxInputWidthGu = Math.Max(maxInputWidthGu, pinWidthGu);
+                    inputPins.Add(p);
+                }
+                else
+                {
+                    maxOutputWidthGu = Math.Max(maxOutputWidthGu, pinWidthGu);
+                    outputPins.Add(p);
+                }
             }
+
+            float titleWidthGu = ImGui.CalcTextSize(node.Title).X + 48f;
+            float requiredWidthGu = (NodeHorizPadGu * 2f) + maxInputWidthGu + maxOutputWidthGu + 24f;
+            float nodeWGu = node.SizeOverride?.X ?? Math.Max(NodeMinWidthGu, Math.Max(titleWidthGu, requiredWidthGu));
 
             int rowCount = Math.Max(inputPins.Count, outputPins.Count);
             float nodeHGu = headerHt + PinTopPadGu + rowCount * PinRowHeightGu + PinBottomPadGu;
-            float nodeWGu = node.SizeOverride?.X ?? NodeMinWidthGu;
 
             var screenPos = view.Viewport.GraphToScreen(graphPos);
             float sw = nodeWGu * zoom;
             float sh = nodeHGu * zoom;
             var rect = new RectF(screenPos, new Vector2(sw, sh));
             layout.NodeScreenRects[node.Id] = rect;
-            entries.Add((node.Id, new RectF(graphPos, new Vector2(nodeWGu, nodeHGu))));
+            entries?.Add((node.Id, new RectF(graphPos, new Vector2(nodeWGu, nodeHGu))));
 
-            // Input pin screen positions (left edge).
             for (int i = 0; i < inputPins.Count; i++)
             {
                 float offsetYGu = headerHt + PinTopPadGu + i * PinRowHeightGu + PinRowHeightGu * 0.5f;
-                var pinGraphPos = graphPos + new Vector2(0f, offsetYGu);
+                var pinGraphPos = graphPos + new Vector2(NodeHorizPadGu, offsetYGu);
                 layout.PinScreenPositions[inputPins[i].Id] = view.Viewport.GraphToScreen(pinGraphPos);
             }
 
-            // Output pin screen positions (right edge).
             for (int i = 0; i < outputPins.Count; i++)
             {
                 float offsetYGu = headerHt + PinTopPadGu + i * PinRowHeightGu + PinRowHeightGu * 0.5f;
-                var pinGraphPos = graphPos + new Vector2(nodeWGu, offsetYGu);
+                var pinGraphPos = graphPos + new Vector2(nodeWGu - NodeHorizPadGu, offsetYGu);
                 layout.PinScreenPositions[outputPins[i].Id] = view.Viewport.GraphToScreen(pinGraphPos);
             }
         }
 
-        spatialIndex.Rebuild(entries);
+        if (rebuildSpatial)
+            spatialIndex.Rebuild(entries!);
     }
 }

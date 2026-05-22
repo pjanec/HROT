@@ -82,6 +82,18 @@ public sealed class FakeNodeCatalog : INodeCatalog
             E("Util.SetVar",     "Set Variable",     "Utility",      [exec, F("Value","System.Single")], [execO]),
             E("Util.GetVar",     "Get Variable",     "Utility",      [], [F("Value","System.Single")], isPure: true),
             E("Util.Cast",       "Cast to Float",    "Utility",      [intA], [fltR], isPure: true),
+
+            // â”€â”€ Demo Shapes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            E("Demo.Shapes", "Container Shapes", "Demo",
+              [
+                  F("Single Item", "System.Single"),
+                  F("Float Array", "System.Single"),
+                  F("String Map", "System.String"),
+                  F("Entity Set", "System.String")
+              ],
+              [
+                  F("Output Array", "System.Single")
+              ], isPure: true),
         };
 
         All = entries;
@@ -96,6 +108,7 @@ public sealed class FakeNodeCatalog : INodeCatalog
             new("Math/Vector",  "Vector Math",   null),
             new("Logic",        "Logic",         null),
             new("Utility",      "Utility",       null),
+            new("Demo",         "Demo",          null),
         };
     }
 
@@ -112,7 +125,20 @@ public sealed class FakeNodeCatalog : INodeCatalog
     }
 
     public IReadOnlyList<NodeCatalogEntry> QueryForPinContext(PinContextQuery q)
-        => Query(new NodeSearchQuery(q.Text));
+    {
+        var baseResults = Query(new NodeSearchQuery(q.Text));
+        var targetDir = q.SourceDirection == PinDirection.Output
+            ? PinDirection.Input
+            : PinDirection.Output;
+
+        return baseResults.Where(entry =>
+        {
+            var targetPins = targetDir == PinDirection.Input ? entry.Inputs : entry.Outputs;
+            return targetPins.Any(p =>
+                p.Kind == q.SourceKind &&
+                (q.SourceKind == PinKind.Exec || p.Type == q.SourceType));
+        }).ToList();
+    }
 
     // Helpers
     private static NodeCatalogEntry E(string kindId, string name, string cat,

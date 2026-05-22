@@ -7,6 +7,12 @@ namespace NodeEditor.Demo.FakeBlueprint;
 /// <summary>Default Unreal-inspired dark theme.</summary>
 public sealed class FakeEditorTheme : IEditorTheme
 {
+    private readonly Dictionary<float, nint> _fonts;
+
+    public FakeEditorTheme() : this(new Dictionary<float, nint>()) { }
+
+    public FakeEditorTheme(Dictionary<float, nint> fonts) => _fonts = fonts;
+
     public Vector4 BackgroundColor        { get; } = new(0.10f, 0.10f, 0.10f, 1f);
     public Vector4 GridMinorColor         { get; } = new(0.20f, 0.20f, 0.20f, 1f);
     public Vector4 GridMajorColor         { get; } = new(0.25f, 0.25f, 0.25f, 1f);
@@ -34,4 +40,17 @@ public sealed class FakeEditorTheme : IEditorTheme
         NodeCategory.FlowControl => new Vector4(0.20f, 0.20f, 0.20f, 1f),
         _                     => new Vector4(0.15f, 0.15f, 0.15f, 1f),
     };
+
+    /// <inheritdoc/>
+    public nint GetFontForSize(float targetPixelSize)
+    {
+        if (_fonts.Count == 0) return 0;
+
+        // Prefer the smallest baked size that is still >= the target to avoid
+        // upscaling blur.  If every baked size is smaller, use the largest one.
+        float best = _fonts.Keys.OrderBy(k => k).FirstOrDefault(k => k >= targetPixelSize);
+        if (best == 0f) best = _fonts.Keys.Max();
+
+        return _fonts[best];
+    }
 }

@@ -23,10 +23,14 @@ internal static class CommentsRenderer
     /// <summary>
     /// Draw comment bodies (filled rects) for the back pass (behind nodes).
     /// </summary>
-    public static void RenderBackground(ImDrawListPtr dl, GraphView view)
+    public static void RenderBackground(ImDrawListPtr dl, GraphView view, RectF visibleGraphRect)
     {
         foreach (var comment in SortedComments(view))
         {
+            var commentRect = new RectF(comment.Position, comment.Size);
+            if (!commentRect.Intersects(visibleGraphRect))
+                continue;
+
             var (min, max) = CommentScreenRect(comment, view);
             var bodyColor  = comment.Color with { W = BodyAlpha };
             dl.AddRectFilled(min, max, ImGui.GetColorU32(bodyColor), 4f);
@@ -37,10 +41,14 @@ internal static class CommentsRenderer
     /// Draw comment headers, outlines, resize handles, and optional inline rename fields.
     /// Call after nodes have been rendered (foreground pass).
     /// </summary>
-    public static void RenderForeground(ImDrawListPtr dl, GraphView view)
+    public static void RenderForeground(ImDrawListPtr dl, GraphView view, RectF visibleGraphRect)
     {
         foreach (var comment in SortedComments(view))
         {
+            var commentRect = new RectF(comment.Position, comment.Size);
+            if (!commentRect.Intersects(visibleGraphRect))
+                continue;
+
             var (min, max)   = CommentScreenRect(comment, view);
             float headerH    = HeaderHeight * view.Viewport.Zoom;
             var headerMax    = new Vector2(max.X, min.Y + headerH);

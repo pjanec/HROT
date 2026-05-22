@@ -13,7 +13,7 @@ internal sealed class GridRenderer
 {
     private const float MinorGridGu = 16f;
     private const float MajorGridGu = 128f;
-    private const float MinZoomForMinor = 0.35f;
+    private const float MinZoomForMinor = 0.75f;
 
     /// <summary>Draw the grid into the provided draw list.</summary>
     public void Draw(GraphView view, ImDrawListPtr dl, Vector2 origin, Vector2 size)
@@ -59,7 +59,9 @@ internal sealed class GridRenderer
                 // Clip to canvas
                 if (screen.X < origin.X - dotRadius || screen.X > origin.X + size.X + dotRadius) continue;
                 if (screen.Y < origin.Y - dotRadius || screen.Y > origin.Y + size.Y + dotRadius) continue;
-                dl.AddCircleFilled(screen, dotRadius, color);
+                var rectMin = screen - new Vector2(dotRadius, dotRadius);
+                var rectMax = screen + new Vector2(dotRadius, dotRadius);
+                dl.AddRectFilled(rectMin, rectMax, color);
             }
         }
     }

@@ -17,21 +17,38 @@ internal sealed class WireRenderer
 {
     private const int BezierSegments = 0; // 0 = auto
 
-    /// <summary>Draw all links from <see cref="GraphView.Model"/>.</summary>
+    /// <summary>Draw all links whose endpoints or waypoints intersect <paramref name="visibleGraphRect"/>.</summary>
     public void DrawAll(
         GraphView view,
         ImDrawListPtr dl,
-        Dictionary<PinId, Vector2> pinPositions)
+        Dictionary<PinId, Vector2> pinPositions,
+        HashSet<NodeId> visibleNodes,
+        RectF visibleGraphRect)
     {
         var theme = view.Host.Theme;
         var selection = view.Selection;
+        bool alt = (view.Host.Input.Modifiers & KeyModifiers.Alt) != 0;
 
         foreach (var link in view.Model.Links)
         {
+            // Cull: skip the link unless at least one endpoint node is visible
+            // or a waypoint falls inside the visible rect.
+            var fromPin = view.Model.FindPin(link.FromPin);
+            var toPin   = view.Model.FindPin(link.ToPin);
+
+            bool endpointVisible =
+                (fromPin != null && visibleNodes.Contains(fromPin.OwnerNodeId)) ||
+                (toPin   != null && visibleNodes.Contains(toPin.OwnerNodeId));
+
+            if (!endpointVisible)
+            {
+                bool waypointVisible = link.Waypoints.Any(wp => visibleGraphRect.Contains(wp));
+                if (!waypointVisible) continue;
+            }
+
             if (!pinPositions.TryGetValue(link.FromPin, out var a)) continue;
             if (!pinPositions.TryGetValue(link.ToPin,   out var b)) continue;
 
-            var fromPin = view.Model.FindPin(link.FromPin);
             bool isExec = fromPin?.Kind == PinKind.Exec;
 
             var wireColor = isExec
@@ -42,18 +59,24 @@ internal sealed class WireRenderer
 
             bool selected = selection.Contains(SelectionEntry.OfLink(link.Id));
             bool hovered  = view.Interaction.Hover is { Kind: HoverKind.Link } h && h.Link == link.Id;
+            bool hoveredPinAttached = view.Interaction.Hover is { Kind: HoverKind.Pin } hp
+                                   && (hp.Pin == link.FromPin || hp.Pin == link.ToPin);
+            bool pendingDelete = alt && (hovered || hoveredPinAttached);
 
             float thickness = isExec ? theme.WireThicknessExec : theme.WireThicknessData;
             if (selected || hovered) thickness *= 1.6f;
 
             uint color = ImGui.GetColorU32(wireColor);
-            if (selected) color = ImGui.GetColorU32(theme.SelectionAccent);
+            if (pendingDelete)
+                color = ImGui.GetColorU32(new Vector4(1f, 0.1f, 0.1f, 1f));
+            else if (selected)
+                color = ImGui.GetColorU32(theme.SelectionAccent);
 
             DrawLinkSegments(dl, view, a, b, link, color, thickness, isExec);
         }
 
         // Reroute dots
-        DrawRerouteDots(view, dl, pinPositions);
+        DrawRerouteDots(view, dl, pinPositions, visibleNodes, visibleGraphRect);
     }
 
     // ── private ───────────────────────────────────────────────────────────────
@@ -98,13 +121,28 @@ internal sealed class WireRenderer
 
     private static void DrawRerouteDots(
         GraphView view, ImDrawListPtr dl,
-        Dictionary<PinId, Vector2> pinPositions)
+        Dictionary<PinId, Vector2> pinPositions,
+        HashSet<NodeId> visibleNodes,
+        RectF visibleGraphRect)
     {
         var theme = view.Host.Theme;
         const float DotRadius = 5f;
 
         foreach (var link in view.Model.Links)
         {
+            if (link.Waypoints.Count == 0) continue;
+
+            // Cull: skip reroute dots for links that are entirely off-screen.
+            {
+                var fromPin = view.Model.FindPin(link.FromPin);
+                var toPin   = view.Model.FindPin(link.ToPin);
+                bool endpointVisible =
+                    (fromPin != null && visibleNodes.Contains(fromPin.OwnerNodeId)) ||
+                    (toPin   != null && visibleNodes.Contains(toPin.OwnerNodeId));
+                if (!endpointVisible &&
+                    !link.Waypoints.Any(wp => visibleGraphRect.Contains(wp)))
+                    continue;
+            }
             for (int wi = 0; wi < link.Waypoints.Count; wi++)
             {
                 var pt = view.Viewport.GraphToScreen(link.Waypoints[wi]);

@@ -33,6 +33,7 @@ internal sealed class PickerState
     public string SelectedCategory = "";
 
     // ── Misc ─────────────────────────────────────────────────────────────────
+    public bool Confirmed;
     public bool FocusSearchNextFrame = true;
     public bool IsFirstFrame = true;
 
@@ -85,6 +86,7 @@ internal sealed class PickerState
         SelectedFilteredIndices = [];
         KeyboardFocusIndex      = 0;
         SelectedCategory        = "";
+        Confirmed               = false;
         FocusSearchNextFrame    = true;
         IsFirstFrame            = true;
     }

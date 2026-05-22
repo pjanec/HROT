@@ -25,17 +25,15 @@ internal sealed class CanvasInput
     /// Process one frame of input for the given view.
     /// Must be called after the canvas child window is active.
     /// </summary>
-    public void Handle(GraphView view)
+    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive)
     {
-        // Don't process canvas input when an ImGui widget has keyboard/mouse focus.
-        bool canvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.None)
-                          && !ImGui.IsAnyItemActive();
+        bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive);
 
         var input = view.Host.Input;
         var mode  = view.Interaction.Mode;
 
         // ── Zoom ────────────────────────────────────────────────────────────
-        if (canvasHovered && input.WheelDelta != 0f)
+        if (canProcess && input.WheelDelta != 0f)
         {
             float factor = 1f + input.WheelDelta * 0.1f;
             view.Viewport.ZoomAt(input.MousePosition, factor);
@@ -45,7 +43,7 @@ internal sealed class CanvasInput
         switch (mode)
         {
             case InteractionMode.Idle:
-                HandleIdle(view, canvasHovered, input);
+                HandleIdle(view, canProcess, input);
                 break;
 
             case InteractionMode.Panning:
@@ -78,7 +76,7 @@ internal sealed class CanvasInput
         }
 
         // ── Delete / Backspace ───────────────────────────────────────────────
-        if (mode == InteractionMode.Idle && canvasHovered
+        if (mode == InteractionMode.Idle && canProcess
             && (input.IsKeyPressed(EditorKey.Delete) || input.IsKeyPressed(EditorKey.Backspace)))
         {
             DeleteSelected(view);
@@ -92,11 +90,33 @@ internal sealed class CanvasInput
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
 
+        // Tab on canvas opens the generic node picker.
+        if (canvasHovered && input.IsKeyPressed(EditorKey.Tab))
+        {
+            view.Interaction.Mode = InteractionMode.PickerOpen;
+            var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
+            view.Host.Pickers.Open(
+                "nodes.all",
+                input.MousePosition,
+                pick =>
+                {
+                    if (pick is NodeCatalogEntry entry)
+                    {
+                        var newId = IdGenerator.NewNodeId();
+                        view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, graphPos, null));
+                    }
+                    view.Interaction.ResetToIdle();
+                },
+                () => view.Interaction.ResetToIdle());
+            return;
+        }
+
         // Right-mouse → pan
         if (canvasHovered && input.IsMousePressed(MouseButton.Right))
         {
             view.Interaction.Mode = InteractionMode.Panning;
             view.Interaction.DragStartScreen = input.MousePosition;
+            view.Interaction.DragThresholdCrossed = false;
             return;
         }
 
@@ -105,11 +125,45 @@ internal sealed class CanvasInput
         {
             bool ctrl  = (modifiers & KeyModifiers.Ctrl)  != 0;
             bool shift = (modifiers & KeyModifiers.Shift) != 0;
+            bool alt   = (modifiers & KeyModifiers.Alt)   != 0;
 
             switch (hover.Kind)
             {
                 case HoverKind.Pin:
+                    if (alt)
+                    {
+                        var linksToRemove = view.Model.Links
+                            .Where(l => l.FromPin == hover.Pin || l.ToPin == hover.Pin)
+                            .Select(l => l.Id)
+                            .ToList();
+
+                        if (linksToRemove.Count > 0)
+                            view.Commands.Apply(new GraphCommand.RemoveLinks(linksToRemove));
+                        return;
+                    }
+
+                    var pinModel = view.Model.FindPin(hover.Pin);
+                    if (ctrl && pinModel?.Direction == PinDirection.Input)
+                    {
+                        var existingLink = view.Model.Links.FirstOrDefault(l => l.ToPin == hover.Pin);
+                        if (existingLink != null)
+                        {
+                            view.Commands.Apply(new GraphCommand.RemoveLinks(new[] { existingLink.Id }));
+                            view.Interaction.DragStartScreen = input.MousePosition;
+                            view.Interaction.DragThresholdCrossed = false;
+                            view.Interaction.Mode = InteractionMode.PendingWire;
+                            view.Interaction.PendingWire = new PendingWire
+                            {
+                                SourcePin = existingLink.FromPin,
+                                CursorGraph = view.Viewport.ScreenToGraph(input.MousePosition),
+                            };
+                            return;
+                        }
+                    }
+
                     // Start wire drag from pin
+                    view.Interaction.DragStartScreen = input.MousePosition;
+                    view.Interaction.DragThresholdCrossed = false;
                     view.Interaction.Mode = InteractionMode.PendingWire;
                     view.Interaction.PendingWire = new PendingWire
                     {
@@ -148,6 +202,12 @@ internal sealed class CanvasInput
                     break;
 
                 case HoverKind.Link:
+                    if (alt)
+                    {
+                        view.Commands.Apply(new GraphCommand.RemoveLinks(new[] { hover.Link }));
+                        return;
+                    }
+
                     if (ctrl)
                     {
                         // Ctrl+click wire → insert reroute
@@ -192,11 +252,27 @@ internal sealed class CanvasInput
 
     private static void HandlePanning(GraphView view, IInputSource input)
     {
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+        if (!view.Interaction.DragThresholdCrossed
+            && delta.Length() > TimingConstants.DragThresholdPixels)
+        {
+            view.Interaction.DragThresholdCrossed = true;
+        }
+
         if (input.MouseDelta != Vector2.Zero)
-            view.Viewport.PanScreen(input.MouseDelta);
+            view.Viewport.PanScreen(-input.MouseDelta);
 
         if (input.IsMouseReleased(MouseButton.Right))
+        {
+            bool wasDrag = view.Interaction.DragThresholdCrossed;
+            var menuTarget = view.Interaction.Hover;
             view.Interaction.ResetToIdle();
+            if (!wasDrag)
+            {
+                view.Interaction.ContextMenuScreen = input.MousePosition;
+                view.Interaction.ContextMenuTarget = menuTarget;
+            }
+        }
     }
 
     // ── Dragging nodes ────────────────────────────────────────────────────────
@@ -335,6 +411,13 @@ internal sealed class CanvasInput
         var pw = view.Interaction.PendingWire;
         if (pw == null) { view.Interaction.ResetToIdle(); return; }
 
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+        if (!view.Interaction.DragThresholdCrossed
+            && delta.Length() > TimingConstants.DragThresholdPixels)
+        {
+            view.Interaction.DragThresholdCrossed = true;
+        }
+
         pw.CursorGraph = view.Viewport.ScreenToGraph(input.MousePosition);
 
         // Check for candidate pin under cursor
@@ -356,12 +439,95 @@ internal sealed class CanvasInput
 
         if (input.IsMouseReleased(MouseButton.Left))
         {
+            var dropHover = view.Interaction.Hover;
+
             if (pw.CandidateTarget.HasValue && pw.CandidateValid)
             {
                 var newId = LinkId.NewId();
                 view.Commands.Apply(new GraphCommand.AddLink(newId, pw.SourcePin, pw.CandidateTarget.Value));
+                view.Interaction.ResetToIdle();
             }
-            view.Interaction.ResetToIdle();
+            else if (dropHover.Kind == HoverKind.Pin)
+            {
+                // Dropped on an invalid pin (including source pin): silent abort.
+                view.Interaction.ResetToIdle();
+            }
+            else if (dropHover.Kind == HoverKind.Node)
+            {
+                var node = view.Model.FindNode(dropHover.Node);
+                if (node != null)
+                {
+                    var compatiblePin = node.Pins.FirstOrDefault(p =>
+                        p.Id != pw.SourcePin
+                        && view.Validator.Validate(pw.SourcePin, p.Id).Verdict != LinkValidity.Invalid);
+
+                    if (compatiblePin != null)
+                    {
+                        var linkId = LinkId.NewId();
+                        view.Commands.Apply(new GraphCommand.AddLink(linkId, pw.SourcePin, compatiblePin.Id));
+                    }
+                }
+
+                view.Interaction.ResetToIdle();
+            }
+            else if (dropHover.Kind == HoverKind.None && view.Interaction.DragThresholdCrossed)
+            {
+                // Dropped on empty canvas: suspend canvas input and open contextual picker.
+                view.Interaction.Mode = InteractionMode.PickerOpen;
+                var srcPin = view.Model.FindPin(pw.SourcePin);
+
+                var context = new Dictionary<string, object?>
+                {
+                    ["sourcePinId"] = pw.SourcePin,
+                    ["cursorGraph"] = pw.CursorGraph,
+                    ["sourceDirection"] = srcPin?.Direction,
+                    ["sourceKind"] = srcPin?.Kind,
+                    ["sourceType"] = srcPin?.Type
+                };
+
+                view.Host.Pickers.Open(
+                    "nodes.by-pin",
+                    input.MousePosition,
+                    pick =>
+                    {
+                        if (pick is NodeCatalogEntry entry)
+                        {
+                            var newId = IdGenerator.NewNodeId();
+                            view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, pw.CursorGraph, null));
+
+                            var newNode = view.Model.FindNode(newId);
+                            var srcPin = view.Model.FindPin(pw.SourcePin);
+
+                            if (newNode != null && srcPin != null)
+                            {
+                                var targetDir = srcPin.Direction == PinDirection.Output
+                                    ? PinDirection.Input
+                                    : PinDirection.Output;
+
+                                var compatiblePin = newNode.Pins.FirstOrDefault(p =>
+                                    p.Direction == targetDir &&
+                                    p.Kind == srcPin.Kind &&
+                                    (srcPin.Kind == PinKind.Exec || p.Type == srcPin.Type));
+
+                                if (compatiblePin != null)
+                                {
+                                    var linkId = LinkId.NewId();
+                                    var fromPin = srcPin.Direction == PinDirection.Output ? srcPin.Id : compatiblePin.Id;
+                                    var toPin = srcPin.Direction == PinDirection.Output ? compatiblePin.Id : srcPin.Id;
+                                    view.Commands.Apply(new GraphCommand.AddLink(linkId, fromPin, toPin));
+                                }
+                            }
+                        }
+                        view.Interaction.ResetToIdle();
+                    },
+                    () => view.Interaction.ResetToIdle(),
+                    context);
+            }
+            else
+            {
+                // Empty-canvas click without drag, or drop on wire/reroute/comment: silent abort.
+                view.Interaction.ResetToIdle();
+            }
         }
         else if (input.IsMouseReleased(MouseButton.Right))
         {

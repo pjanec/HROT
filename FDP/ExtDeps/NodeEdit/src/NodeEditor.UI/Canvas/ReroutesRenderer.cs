@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
@@ -20,7 +21,9 @@ internal static class ReroutesRenderer
         IGraphModel       model,
         SelectionState    selection,
         ViewportState     viewport,
-        ITypeSystem       typeSystem)
+        ITypeSystem       typeSystem,
+        HashSet<NodeId>   visibleNodes,
+        RectF             visibleGraphRect)
     {
         var dl = ImGui.GetWindowDrawList();
 
@@ -28,8 +31,17 @@ internal static class ReroutesRenderer
         {
             if (link.Waypoints.Count == 0) continue;
 
-            // Determine link color from source pin's type
             var fromPin  = model.FindPin(link.FromPin);
+            var toPin    = model.FindPin(link.ToPin);
+
+            bool endpointVisible =
+                (fromPin != null && visibleNodes.Contains(fromPin.OwnerNodeId)) ||
+                (toPin != null && visibleNodes.Contains(toPin.OwnerNodeId));
+
+            if (!endpointVisible && !link.Waypoints.Any(visibleGraphRect.Contains))
+                continue;
+
+            // Determine link color from source pin's type
             var linkColor = fromPin?.Type is not null
                 ? typeSystem.GetPinColor(fromPin.Type.Value)
                 : new Vector4(0.7f, 0.7f, 0.7f, 1f);

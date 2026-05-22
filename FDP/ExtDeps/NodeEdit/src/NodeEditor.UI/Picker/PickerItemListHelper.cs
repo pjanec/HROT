@@ -97,9 +97,15 @@ internal static class PickerItemListHelper
             ImGui.PushStyleColor(ImGuiCol.Header, ImGui.GetColorU32(ctx.Theme.SelectionAccent));
 
         bool clicked = ImGui.Selectable(re.Entry.Name, sel || focus,
-                          ImGuiSelectableFlags.SpanAllColumns, new Vector2(0f, RowHeight - 4f));
+                          ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick,
+                          new Vector2(0f, RowHeight - 4f));
 
         if (sel || focus) ImGui.PopStyleColor();
+
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            state.Confirmed = true;
+        }
 
         if (clicked)
         {

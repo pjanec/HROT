@@ -262,8 +262,17 @@ public sealed class MyBlueprintPanel
     {
         bool isSelected = _selectedItem?.ItemId == item.ItemId;
 
+        ImGui.PushID(item.ItemId);
         bool clicked = MyBlueprintItemRenderer.Render(
-            item, isSelected, _host.Icons, _host.Theme, matchPositions, out bool dblClicked);
+            item, isSelected, _host.Icons, _host.Theme, matchPositions, out bool dblClicked,
+            () =>
+            {
+                if (MyBlueprintDragSource.BeginSource(item.ItemId, item.SectionId, item.DisplayName))
+                    MyBlueprintDragSource.EndSource();
+
+                MyBlueprintContextMenu.Draw(item, _commands, _navigateToItem);
+            });
+        ImGui.PopID();
 
         if (clicked)
         {
@@ -275,12 +284,6 @@ public sealed class MyBlueprintPanel
         if (dblClicked)
             _navigateToItem(item.SectionId, item.ItemId);
 
-        // Drag source.
-        if (MyBlueprintDragSource.BeginSource(item.ItemId, item.SectionId, item.DisplayName))
-            MyBlueprintDragSource.EndSource();
-
-        // Context menu.
-        MyBlueprintContextMenu.Draw(item, _commands, _navigateToItem);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

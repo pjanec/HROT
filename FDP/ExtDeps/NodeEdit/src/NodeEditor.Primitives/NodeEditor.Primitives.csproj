@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <RootNamespace>NodeEditor.Primitives</RootNamespace>
     <AssemblyName>NodeEditor.Primitives</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Enum members and primitive ID structs do not need per-member XML docs -->
+    <NoWarn>1591</NoWarn>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

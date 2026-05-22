@@ -1,8 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>NodeEditor.UI.Tests</RootNamespace>
     <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Warnings are informational only in test projects -->
+    <NoWarn>$(NoWarn);1591;8600;8601;8602;8603;8604;8618;8625;8629</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\NodeEditor.UI\NodeEditor.UI.csproj" />

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Expression;
 
@@ -25,6 +26,9 @@ public static class DragFloatWithExpression
         public int PrevIntValue;
         public string? ErrorMsg;
         public float ErrorTimer;
+        public Vector2 ClickPos;
+        public double ClickTime;
+        public bool FocusPending;
     }
 
     /// <summary>Render a drag-float widget with expression-aware text editing.</summary>
@@ -47,6 +51,12 @@ public static class DragFloatWithExpression
         if (st.IsEditing)
         {
             bool escPressed = ImGui.IsKeyPressed(ImGuiKey.Escape);
+            if (st.FocusPending)
+            {
+                ImGui.SetKeyboardFocusHere();
+                st.FocusPending = false;
+            }
+
             bool entered = ImGui.InputText(label, ref st.TextBuffer, 256,
                 ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
             bool deactivated = ImGui.IsItemDeactivated();
@@ -68,13 +78,23 @@ public static class DragFloatWithExpression
             if (ImGui.DragFloat(label, ref value, speed, 0f, 0f, format))
                 changed = true;
 
-            // Double-click enters expression-edit mode.
-            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
-                st.IsEditing = true;
-                st.TextBuffer = value.ToString("G6", CultureInfo.InvariantCulture);
-                st.PrevFloatValue = value;
-                ImGui.SetKeyboardFocusHere(-1);
+                st.ClickPos = ImGui.GetMousePos();
+                st.ClickTime = ImGui.GetTime();
+            }
+
+            if (ImGui.IsItemDeactivated())
+            {
+                double timeDelta = ImGui.GetTime() - st.ClickTime;
+                float dragDist = (ImGui.GetMousePos() - st.ClickPos).Length();
+                if (timeDelta <= 0.15 && dragDist <= 3f)
+                {
+                    st.IsEditing = true;
+                    st.TextBuffer = value.ToString("G6", CultureInfo.InvariantCulture);
+                    st.PrevFloatValue = value;
+                    st.FocusPending = true;
+                }
             }
         }
 
@@ -96,6 +116,12 @@ public static class DragFloatWithExpression
         if (st.IsEditing)
         {
             bool escPressed = ImGui.IsKeyPressed(ImGuiKey.Escape);
+            if (st.FocusPending)
+            {
+                ImGui.SetKeyboardFocusHere();
+                st.FocusPending = false;
+            }
+
             bool entered = ImGui.InputText(label, ref st.TextBuffer, 256,
                 ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
             bool deactivated = ImGui.IsItemDeactivated();
@@ -117,12 +143,23 @@ public static class DragFloatWithExpression
             if (ImGui.DragInt(label, ref value, speed))
                 changed = true;
 
-            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
-                st.IsEditing = true;
-                st.TextBuffer = value.ToString(CultureInfo.InvariantCulture);
-                st.PrevIntValue = value;
-                ImGui.SetKeyboardFocusHere(-1);
+                st.ClickPos = ImGui.GetMousePos();
+                st.ClickTime = ImGui.GetTime();
+            }
+
+            if (ImGui.IsItemDeactivated())
+            {
+                double timeDelta = ImGui.GetTime() - st.ClickTime;
+                float dragDist = (ImGui.GetMousePos() - st.ClickPos).Length();
+                if (timeDelta <= 0.15 && dragDist <= 3f)
+                {
+                    st.IsEditing = true;
+                    st.TextBuffer = value.ToString(CultureInfo.InvariantCulture);
+                    st.PrevIntValue = value;
+                    st.FocusPending = true;
+                }
             }
         }
 

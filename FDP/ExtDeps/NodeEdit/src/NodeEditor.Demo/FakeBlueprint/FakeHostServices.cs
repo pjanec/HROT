@@ -1,6 +1,7 @@
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
+using NodeEditor.UI.MiniEditors;
 
 namespace NodeEditor.Demo.FakeBlueprint;
 
@@ -16,6 +17,7 @@ public sealed class FakeHostServices : IEditorHostServices
     public FakeInputSource    Input_        { get; }
     public PickerRegistry     PickerRegistry_ { get; }
     public ToastQueue         ToastQueue_   { get; } = new();
+    public IPinDefaultValueEditorRegistry EditorRegistry { get; }
 
     // IEditorHostServices
     public INodeCatalog        NodeCatalog { get; }
@@ -30,17 +32,21 @@ public sealed class FakeHostServices : IEditorHostServices
     public IInputSource        Input       { get; }
     public IEditorTheme        Theme       { get; }
 
-    public FakeHostServices(FakeGraphModel graph)
+    public FakeHostServices(FakeGraphModel graph, Dictionary<float, nint>? fonts = null)
     {
         Graph          = graph;
         NodeCatalog_   = new FakeNodeCatalog();
-        TypeSystem_    = new FakeTypeSystem();
-        CommandSink_   = new FakeCommandSink(graph, NodeCatalog_);
+        EditorRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        TypeSystem_    = new FakeTypeSystem(EditorRegistry);
+        CommandSink_   = new FakeCommandSink(graph, NodeCatalog_, TypeSystem_);
         Validator      = new FakeLinkValidator(graph);
         MyBlueprint    = new FakeMyBlueprintModel();
         Input_         = new FakeInputSource();
         PickerRegistry_ = new PickerRegistry();
         PickerRegistry_.SetServices(new FakeIconProvider(), new FakeEditorTheme());
+        var nodePicker = new FakeNodePickerSource(NodeCatalog_);
+        PickerRegistry_.Register("nodes.all", nodePicker);
+        PickerRegistry_.Register("nodes.by-pin", nodePicker);
 
         // Assign interface properties
         NodeCatalog  = NodeCatalog_;
@@ -51,7 +57,7 @@ public sealed class FakeHostServices : IEditorHostServices
         Icons        = new FakeIconProvider();
         Diagnostics  = new FakeDiagnosticsSink();
         Input        = Input_;
-        Theme        = new FakeEditorTheme();
+        Theme        = new FakeEditorTheme(fonts ?? new Dictionary<float, nint>());
     }
 
     /// <summary>Replace the My Blueprint model (used by multi-graph scenarios).</summary>

@@ -28,6 +28,12 @@ public sealed class CanvasRenderer
     private readonly WireRenderer        _wires         = new();
     private readonly NodeRenderer        _nodes         = new();
 
+    // Dirty tracking: rebuild the spatial index only when the graph model changes
+    // or drag-override positions change, not unconditionally every frame.
+    private IGraphModel? _subscribedModel;
+    private bool         _spatialDirty          = true;
+    private int          _lastDragOverrideCount = -1;
+
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
     /// (not inside an existing child window). The method opens and closes its own
@@ -83,53 +89,107 @@ public sealed class CanvasRenderer
         view.Viewport.CanvasScreenOrigin = origin;
         view.Viewport.CanvasScreenSize   = size;
 
-        // Claim the full canvas area as a dummy item (no interaction, just layout).
+        // Claim the full canvas area as a hit target to consume clicks and prevent window dragging.
         ImGui.SetCursorScreenPos(origin);
-        ImGui.Dummy(size);
+        ImGui.SetNextItemAllowOverlap();
+        ImGui.InvisibleButton("##canvas_bg", size);
+        bool isCanvasBgActive = ImGui.IsItemActive();
+        bool isCanvasHovered = ImGui.IsWindowHovered(
+            ImGuiHoveredFlags.AllowWhenBlockedByActiveItem
+            | ImGuiHoveredFlags.AllowWhenBlockedByPopup);
 
-        // 1. Build layout (screen rects, pin positions, spatial index).
-        _layoutBuilder.Build(view, _layout, _spatialIndex);
+        // Subscribe to model changes so we know when to rebuild the spatial index.
+        // Unsubscribe from the previous model if the view was switched.
+        if (_subscribedModel != view.Model)
+        {
+            if (_subscribedModel != null) _subscribedModel.Changed -= OnModelChanged;
+            _subscribedModel = view.Model;
+            _subscribedModel.Changed += OnModelChanged;
+            _spatialDirty = true;
+        }
 
-        // 2. Hit-test to update hover info.
+        // Drag-override position count changes also require a spatial index rebuild
+        // (nodes move in graph-space while dragging, before the command is committed).
+        int dragCount = view.Interaction.DragOverridePositions.Count;
+        if (dragCount != _lastDragOverrideCount)
+        {
+            _lastDragOverrideCount = dragCount;
+            _spatialDirty = true;
+        }
+
+        // 1. Build layout (screen rects, pin positions; spatial index only when dirty).
+        _layoutBuilder.Build(view, _layout, _spatialIndex, _spatialDirty);
+        _spatialDirty = false;
+
+        // 2. Compute the visible rectangle in graph-space and cull to visible nodes.
+        var graphTopLeft     = view.Viewport.ScreenToGraph(origin);
+        var graphBottomRight = view.Viewport.ScreenToGraph(origin + size);
+        var visibleGraphRect = RectF.FromMinMax(graphTopLeft, graphBottomRight);
+        var visibleNodeIds   = _spatialIndex.Query(visibleGraphRect).ToHashSet();
+
+        // 3. Hit-test to update hover info.
         _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions);
 
-        // 3. Process input.
-        _input.Handle(view);
 
         // ── Draw phases ───────────────────────────────────────────────────
 
-        // 4. Grid + background (also fills the solid background color).
+        // 5. Grid + background (also fills the solid background color).
         _grid.Draw(view, dl, origin, size);
 
-        // 5. Comment boxes — background layer (below nodes).
-        DrawComments(dl, view, foreground: false);
+        // 6. Comment boxes — background layer (below nodes).
+        DrawComments(dl, view, foreground: false, visibleGraphRect);
 
-        // 6. Wires.
-        _wires.DrawAll(view, dl, _layout.PinScreenPositions);
+        // 7. Wires — only those whose endpoints or waypoints are in the visible rect.
+        _wires.DrawAll(view, dl, _layout.PinScreenPositions, visibleNodeIds, visibleGraphRect);
 
-        // 7. Nodes + inline editors.
-        _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins);
+        // 8. Nodes + inline editors — only the culled visible subset.
+        _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
 
-        // 8. Comment boxes — foreground layer (header text on top of nodes).
-        DrawComments(dl, view, foreground: true);
+        // 4. Process input after widgets are submitted, using snapshotted hover.
+        _input.Handle(view, isCanvasHovered, isCanvasBgActive);
+        if ((view.Host.Input.Modifiers & KeyModifiers.Alt) != 0
+            && view.Interaction.Hover.Kind == HoverKind.Link)
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.NotAllowed);
+        }
 
-        // 9. Reroute waypoints.
-        ReroutesRenderer.Render(view.Model, view.Selection, view.Viewport, view.TypeSystem);
+        // 9. Comment boxes — foreground layer (header text on top of nodes).
+        DrawComments(dl, view, foreground: true, visibleGraphRect);
 
-        // 10. Pending wire being dragged.
+        // 10. Reroute waypoints.
+        ReroutesRenderer.Render(view.Model, view.Selection, view.Viewport, view.TypeSystem, visibleNodeIds, visibleGraphRect);
+
+        // 11. Pending wire being dragged.
         DrawPendingWire(view, dl);
 
-        // 11. Marquee selection rectangle.
+        // 12. Marquee selection rectangle.
         DrawMarquee(view, dl);
 
-        // 12. Find overlay (match highlights + dim pass).
+        // 13. Find overlay (match highlights + dim pass).
         if (findBar?.IsVisible == true && findBar.Results.Count > 0)
             DrawFindOverlay(view, dl, findBar);
+
+        // 14. Context menu popup request/dispatch.
+        if (view.Interaction.ContextMenuScreen.HasValue)
+        {
+            ImGui.SetNextWindowPos(view.Interaction.ContextMenuScreen.Value);
+            ImGui.OpenPopup("##canvas_ctx");
+            view.Interaction.ContextMenuScreen = null;
+        }
+
+        // Restore normal popup content spacing even when the canvas window uses zero padding.
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8f, 8f));
+        if (ImGui.BeginPopup("##canvas_ctx"))
+        {
+            DrawContextMenu(view);
+            ImGui.EndPopup();
+        }
+        ImGui.PopStyleVar();
     }
 
     // ── Comments ──────────────────────────────────────────────────────────────
 
-    private static void DrawComments(ImDrawListPtr dl, GraphView view, bool foreground)
+    private static void DrawComments(ImDrawListPtr dl, GraphView view, bool foreground, RectF visibleGraphRect)
     {
         var theme = view.Host.Theme;
         var comments = view.Model.Comments.ToList();
@@ -137,6 +197,10 @@ public sealed class CanvasRenderer
 
         foreach (var comment in comments)
         {
+            var commentRect = new RectF(comment.Position, comment.Size);
+            if (!commentRect.Intersects(visibleGraphRect))
+                continue;
+
             var min = view.Viewport.GraphToScreen(comment.Position);
             var max = view.Viewport.GraphToScreen(comment.Position + comment.Size);
             float headerH = 20f * view.Viewport.Zoom;
@@ -217,6 +281,87 @@ public sealed class CanvasRenderer
         dl.AddRect(min, max, ImGui.GetColorU32(theme.SelectionAccent), 0f, ImDrawFlags.None, 1.5f);
     }
 
+    private static void DrawContextMenu(GraphView view)
+    {
+        var target = view.Interaction.ContextMenuTarget;
+        switch (target.Kind)
+        {
+            case HoverKind.Pin:
+            {
+                var pinId = target.Pin;
+                if (ImGui.MenuItem("Break Link(s)"))
+                {
+                    var linksToRemove = view.Model.Links
+                        .Where(l => l.FromPin == pinId || l.ToPin == pinId)
+                        .Select(l => l.Id)
+                        .ToList();
+                    if (linksToRemove.Count > 0)
+                        view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(linksToRemove));
+                }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Promote to Variable..."))
+                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewVariable", false, null));
+                if (ImGui.MenuItem("Promote to Local Variable..."))
+                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewLocalVariable", true, null));
+
+                ImGui.BeginDisabled();
+                ImGui.MenuItem("Split Struct Pin");
+                ImGui.MenuItem("Recombine Struct Pin");
+                ImGui.MenuItem("Watch this Value");
+                ImGui.EndDisabled();
+
+                if (ImGui.MenuItem("Reset to Default"))
+                    view.Commands.Apply(new Core.Commands.GraphCommand.SetPinDefault(pinId, null));
+
+                ImGui.BeginDisabled();
+                ImGui.MenuItem("Convert to Reroute Node");
+                ImGui.EndDisabled();
+                break;
+            }
+
+            case HoverKind.Link:
+            {
+                var linkId = target.Link;
+                if (ImGui.MenuItem("Break Link"))
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(new[] { linkId }));
+
+                if (ImGui.MenuItem("Select Connected Nodes"))
+                {
+                    var link = view.Model.FindLink(linkId);
+                    if (link != null)
+                    {
+                        var fromNode = view.Model.FindPin(link.FromPin)?.OwnerNodeId;
+                        var toNode = view.Model.FindPin(link.ToPin)?.OwnerNodeId;
+                        var entries = new List<SelectionEntry>();
+                        if (fromNode.HasValue) entries.Add(SelectionEntry.OfNode(fromNode.Value));
+                        if (toNode.HasValue) entries.Add(SelectionEntry.OfNode(toNode.Value));
+                        view.Selection.ReplaceWith(entries);
+                    }
+                }
+
+                if (ImGui.MenuItem("Insert Reroute Node Here"))
+                {
+                    var graphPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+                    view.Commands.Apply(new Core.Commands.GraphCommand.InsertReroute(linkId, graphPos));
+                }
+
+                ImGui.BeginDisabled();
+                ImGui.MenuItem("Hide Wire");
+                ImGui.EndDisabled();
+                break;
+            }
+
+            case HoverKind.Node:
+                if (ImGui.MenuItem("Delete Node"))
+                {
+                    var nodeId = target.Node;
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(new[] { nodeId }));
+                }
+                break;
+        }
+    }
+
     // ── Find overlay ─────────────────────────────────────────────────────────
 
     private static void DrawFindOverlay(GraphView view, ImDrawListPtr dl, FindBar findBar)
@@ -256,4 +401,10 @@ public sealed class CanvasRenderer
             dl.AddRect(min, max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
     }
+
+    // ── Model change tracking ─────────────────────────────────────────────────
+
+    private void OnModelChanged(GraphChangeNotification _) => _spatialDirty = true;
 }
+
+

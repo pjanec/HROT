@@ -10,11 +10,13 @@ public sealed class FakeCommandSink : IGraphCommandSink
 {
     private readonly FakeGraphModel _graph;
     private readonly FakeNodeCatalog _catalog;
+    private readonly ITypeSystem _typeSystem;
 
-    public FakeCommandSink(FakeGraphModel graph, FakeNodeCatalog catalog)
+    public FakeCommandSink(FakeGraphModel graph, FakeNodeCatalog catalog, ITypeSystem typeSystem)
     {
         _graph   = graph;
         _catalog = catalog;
+        _typeSystem = typeSystem;
     }
 
     public GraphCommandResult Apply(GraphCommand command)
@@ -117,9 +119,26 @@ public sealed class FakeCommandSink : IGraphCommandSink
         if (entry is not null)
         {
             foreach (var sig in entry.Inputs)
-                node.AddPin(sig.Label, PinDirection.Input, sig.Kind, sig.Type);
+                node.AddPin(sig.Label, PinDirection.Input, sig.Kind, sig.Type, ResolveShape(sig));
             foreach (var sig in entry.Outputs)
-                node.AddPin(sig.Label, PinDirection.Output, sig.Kind, sig.Type);
+                node.AddPin(sig.Label, PinDirection.Output, sig.Kind, sig.Type, ResolveShape(sig));
         }
+    }
+
+    private PinShape ResolveShape(PinSignature sig)
+    {
+        if (sig.Kind != PinKind.Data || !sig.Type.HasValue)
+            return PinShape.Circle;
+
+        var container = InferContainerKind(sig.Label);
+        return _typeSystem.GetPinShape(sig.Type.Value, container);
+    }
+
+    private static ContainerKind InferContainerKind(string label)
+    {
+        if (label.Contains("Array", StringComparison.OrdinalIgnoreCase)) return ContainerKind.Array;
+        if (label.Contains("Map", StringComparison.OrdinalIgnoreCase))   return ContainerKind.Map;
+        if (label.Contains("Set", StringComparison.OrdinalIgnoreCase))   return ContainerKind.Set;
+        return ContainerKind.Single;
     }
 }

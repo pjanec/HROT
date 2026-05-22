@@ -1,3 +1,5 @@
+using System;
+
 namespace NodeEditor.Primitives;
 
 /// <summary>Direction of a pin relative to its owner node.</summary>

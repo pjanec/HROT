@@ -92,11 +92,16 @@ internal static class WideLayout
 
             ImGui.PushID(visibleIdx++);
             if (ImGui.Selectable(re.Entry.Name, selected || focused,
-                    ImGuiSelectableFlags.AllowOverlap, new Vector2(0f, 36f)))
+                    ImGuiSelectableFlags.AllowOverlap | ImGuiSelectableFlags.AllowDoubleClick, new Vector2(0f, 36f)))
             {
                 state.SelectedFilteredIndices.Clear();
                 state.SelectedFilteredIndices.Add(i);
                 state.KeyboardFocusIndex = i;
+            }
+
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                state.Confirmed = true;
             }
 
             // Second line: description in muted color.

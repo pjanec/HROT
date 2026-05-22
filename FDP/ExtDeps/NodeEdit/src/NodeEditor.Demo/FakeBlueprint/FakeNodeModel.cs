@@ -30,10 +30,15 @@ public sealed class FakeNodeModel : INodeModel
         Position = position;
     }
 
-    public FakePinModel AddPin(string label, PinDirection direction, PinKind kind, TypeKey? type = null)
+    public FakePinModel AddPin(
+        string label,
+        PinDirection direction,
+        PinKind kind,
+        TypeKey? type = null,
+        PinShape shape = PinShape.Circle)
     {
         var id  = IdGenerator.NewPinId();
-        var pin = new FakePinModel(id, Id, label, direction, kind, type);
+        var pin = new FakePinModel(id, Id, label, direction, kind, type) { Shape = shape };
         _pins.Add(pin);
         return pin;
     }

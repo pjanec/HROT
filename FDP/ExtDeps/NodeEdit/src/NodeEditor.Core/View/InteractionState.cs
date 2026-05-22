@@ -51,6 +51,8 @@ public sealed class InteractionState
 
     /// <summary>Screen position of the right-click that opened a context menu (if any).</summary>
     public Vector2? ContextMenuScreen { get; set; }
+    /// <summary>Snapshot of the hovered target captured when context menu was requested.</summary>
+    public HoverInfo ContextMenuTarget { get; set; } = HoverInfo.None;
 
     /// <summary>Optional active viewport tween (camera animation to a bookmark).</summary>
     public ViewportTween? ActiveTween { get; private set; }
@@ -75,6 +77,7 @@ public sealed class InteractionState
         MarqueeTouchMode = false;
         PendingWire = null;
         ContextMenuScreen = null;
+        ContextMenuTarget = HoverInfo.None;
     }
 }
 

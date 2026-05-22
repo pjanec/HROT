@@ -26,11 +26,10 @@ internal static class MyBlueprintItemRenderer
         IIconProvider icons,
         IEditorTheme theme,
         IReadOnlyList<int>? matchPositions,
-        out bool doubleClicked)
+        out bool doubleClicked,
+        System.Action? postSelectable)
     {
         doubleClicked = false;
-
-        ImGui.PushID(item.ItemId);
 
         var cursorStart = ImGui.GetCursorScreenPos();
 
@@ -40,6 +39,8 @@ internal static class MyBlueprintItemRenderer
 
         if (clicked && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
             doubleClicked = true;
+
+        postSelectable?.Invoke();
 
         // Draw the row contents on top of the selectable.
         float x = cursorStart.X + ImGui.GetTreeNodeToLabelSpacing();
@@ -79,7 +80,6 @@ internal static class MyBlueprintItemRenderer
         if (item.Tooltip is { Length: > 0 } tip && ImGui.IsItemHovered())
             ImGui.SetTooltip(tip);
 
-        ImGui.PopID();
         return clicked && !doubleClicked;
     }
 

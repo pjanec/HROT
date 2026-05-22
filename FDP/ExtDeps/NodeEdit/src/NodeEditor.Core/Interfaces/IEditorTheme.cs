@@ -23,4 +23,11 @@ public interface IEditorTheme
     float PinGlyphSize { get; }
     float WireThicknessExec { get; }
     float WireThicknessData { get; }
+
+    /// <summary>
+    /// Retrieve an opaque pointer to a host-managed ImGui font optimised for the
+    /// target pixel size.  Returns <see cref="IntPtr.Zero"/> to fall back to the
+    /// default ImGui font.
+    /// </summary>
+    nint GetFontForSize(float targetPixelSize);
 }
