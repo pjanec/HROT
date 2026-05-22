@@ -257,62 +257,183 @@ Slice 1 hot-reload failure policy: log + accept temporary HSM dysfunction until 
 
 ---
 
-## 5. Theme D — Debugging depth
+## 5. Theme D — Debugging depth (Universal Breakpoints)
 
-### D1. Conditional breakpoints **[HIGH | S]**
+> **Note:** this theme was substantially reshaped after a Slice 1 design conversation with the architect. The original entries listed conditional breakpoints (D1), pin-value evaluation (D6), and live state editing (D7) as three separate items sharing an expression-evaluator dependency. The architect's response collapsed these into one unified architecture — **Universal Breakpoints** — built on engine primitives that already exist (the replay-search predicate compiler, event scanner compiler, and `EntityRepository.SyncFrom` snapshot machinery). The new design also resolves the soft-pause one-tick-drift problem from Slice 1 via a forward-snapshot pattern with deferred mutation. This section is rewritten to reflect the unified design.
 
-Pause only when an expression evaluates true (e.g., `CurrentHealth < 10`). Slice 1 has unconditional breakpoints only. Slice 2 adds:
-- An expression parser for simple boolean predicates over Blueprint state.
-- Per-breakpoint condition field.
-- Evaluation in `OnNodeEnter` before the hit fires.
+### D1. Universal Breakpoints **[HIGH | M-L]**
 
-The `HitCount` field on `Breakpoint` (Debug Protocol DD §6) was Slice 1-mentioned as a Slice 2 predicate input ("pause every 10th hit").
+A single feature that subsumes D1, D6, D7, and parts of D10 from the original sketch. Built by wiring together five existing engine primitives plus one new orchestration system.
 
-### D2. Watch persistence **[MED | XS]**
+#### What it gives users
 
-Watches don't survive editor restart in Slice 1. Slice 2 persists to `watches.json` next to project. Same idea works for breakpoint persistence. Debug Protocol DD §6.9, §13.4.
+The Slice 2 debugger surface becomes:
 
-### D3. Step-into across peer calls — fully implemented **[MED | S]**
+- **Predicate breakpoints over any component data.** Pause when `CurrentHealth < 10` on any entity. Pause when `Locomotion.ActiveAction == MoveTo`. Predicates compile via `IPredicateCompiler` from `SearchPredicateDto` (the same JSON shape the Replay Browser already accepts).
+- **Event breakpoints over the transient event bus.** Pause when `HitEvent` fires with `Damage > 50`. Pause when `DamageAssessedEvent` is published for entity 42. Compiled via `EventScannerCompiler` into `EventScannerDelegate`.
+- **Blueprint node breakpoints (Slice 1's narrow case).** Pause when `BlueprintLatentCursor.NodeIdAtEntry == 'specific-node-guid'`. This is now just one specific predicate shape on top of the universal substrate — the Slice 1 Debug Protocol DD's surface (structure-hash safety check, breakpoint reconciliation, etc.) continues to apply but as a refinement, not a separate system.
+- **Genuine pre-execution pause via forward-snapshot rewind.** Click a node-level breakpoint, see the state from *before* the breakpoint tick — not Slice 1's "one tick later" drift. Click Step and time advances naturally with no resimulation.
+- **Live state editing with deferred mutation.** Edit a value while paused; the edit applies on the next tick via the standard `EntityCommandBuffer` write path. The breakpoint tick itself is never re-run.
 
-Slice 1 supports step-into in concept (Debug Protocol DD §7.5) but is bounded by the soft-pause mechanism. Slice 2 may add fuller mid-tick precision via the Option B re-entrant render pump from Debug Protocol DD Inline Patches Patch 1 — significantly more complex but higher debugging fidelity.
+#### The five engine primitives this reuses
 
-Trade-off may not justify implementation cost. Listed for completeness.
+| Primitive | Slice 2 use |
+|---|---|
+| `IPredicateCompiler` | Compiles `SearchPredicateDto` → `Func<EntityRepository, Entity, bool>` for component data breakpoints. Already built for Replay Browser; zero new compiler work. |
+| `EventScannerCompiler` | Compiles `TransientEventPredicateDto` → `EventScannerDelegate` for event breakpoints. Reads `FdpEventBus` double-buffers directly. |
+| `EntityRepository.QueryDelta` | Chunk-versioning-aware iteration that skips untouched chunks. Lets the breakpoint system check only entities whose components changed this tick, keeping evaluation within frame budget. |
+| `EntityRepository.SyncFrom` | Unmanaged memory copy for snapshot capture. ~2ms per full-world snapshot — invisible since engine halts on breakpoint anyway. |
+| `EntityCommandBuffer` (`SetComponentRaw` / `SetManagedComponentRaw`) | Carries deferred mutations from the inspector into the next tick. Standard ECB write path, no new mutation channel needed. |
 
-### D4. Multi-debugger multiplexing **[LOW | XS]**
+#### The triple-buffer pause architecture
 
-Slice 1 supports one `DebugProbe.Sink` at a time. Slice 2 adds `MultiplexingProbeSink` to fan out to multiple subscribers (e.g., editor session + external profiler). Trivial implementation. Debug Protocol DD §13.1.
+When a breakpoint predicate evaluates `true`:
 
-### D5. Stack-frame inspection during pause **[MED | S]**
+```
+Tick N (during PostSimulation phase):
+  ├─ DataBreakpointSystem.Execute via QueryDelta
+  │    ├─ Predicate fires on entity 42
+  │    │    ├─ _postTickSnapshot.SyncFrom(_liveRepo)   ← capture exact tick-N-end state
+  │    │    ├─ _liveRepo.SyncFrom(_preTickSnapshot)    ← rewind to tick-N-start state
+  │    │    ├─ timeController.RequestPause()
+  │    │    └─ Return — no thread block
+  └─ Frame N completes; engine halts at frame boundary
 
-Slice 1 callstack shows frames but pause-state is always the top. Slice 2 lets the user click a frame to see state from that frame's perspective. Editor DD §8.7. Requires the session to track per-frame state snapshots, not just top.
+Editor UI:
+  └─ Now inspecting _liveRepo (which is the pre-tick state)
+  └─ User sees genuine pre-execution state
+```
 
-### D6. Pin-value evaluation at pause without committing **[LOW | M]**
+Three repository states held during pause:
 
-Slice 1 inspection shows variables but not "what would this pin output if executed?" Slice 2 could add a mini-interpreter that evaluates a single node's outputs without side effects. Useful for "what would happen if I tweaked this input?" Deep work; speculative. Debug Protocol DD §8.8.
+| Repo | Contents | Role |
+|---|---|---|
+| `_preTickSnapshot` | World state at start of Tick N | Continuous snapshot maintained every tick by `DebugSnapshotProvider`. |
+| `_postTickSnapshot` | World state at end of Tick N (captured at breakpoint moment) | The "save point" for clean restoration. |
+| `_liveRepo` | Currently set to `_preTickSnapshot`'s contents | What the user inspects in the editor. |
 
-### D7. Live state editing **[LOW | M]**
+#### The clean step (observation-only path — 99% of debugging)
 
-Slice 1 read-only inspection. Slice 2 may let the user edit slot bytes from the watch panel ("set CurrentHealth = 100 right now"). Cheap implementation, careful semantics — replay-safety implications. Debug Protocol DD §8.6.
+User clicks Step or Continue after only observing (`IsDirty == false`):
 
-### D8. CLR-debugger sync for source-line breakpoints **[LOW | S]**
+1. `_liveRepo.SyncFrom(_postTickSnapshot)` — byte-for-byte restoration of the exact tick-N-end state.
+2. `timeController.RequestResume()` (or `RequestStepOneTick`) — engine advances normally.
+3. Done. Zero resimulation. Zero replay logic. Zero risk of determinism drift.
 
-Slice 1: VS/Rider source-line breakpoints and Blueprint node breakpoints are independent. Slice 2 could sync them ("set a Blueprint breakpoint → mirror to a VS breakpoint on the generated source line"). Debug Protocol DD §10.3.
+**This is the key insight.** Resimulating tick N would have been risky because components flagged `DataPolicy.NoRecord` or `DataPolicy.NoSnapshot` can't be perfectly restored from snapshot — the replay could diverge from the original frame that triggered the breakpoint. By forward-snapshotting the post-tick state, we don't need to know how to replay; we just need to remember what the outcome was.
 
-### D9. Pause on Blueprint exception **[LOW | XS]**
+#### The dirty step (mutation path — handled via deferred mutation, no resimulation)
 
-Slice 1 doesn't intercept exceptions in the probe wrapper. Slice 2 could add an opt-in "pause on Blueprint exception" mode with full state snapshot. Adds try/catch around every probe — non-trivial cost in Trace mode. Debug Protocol DD §13.3.
+User edits a value while paused (`IsDirty == true` from `StructEdit`):
 
-### D10. Conditional/data breakpoints on pin-value changes **[LOW | S]**
+1. The edit is captured as a pending mutation in a `_pendingDebugMutations` queue. It does **not** mutate `_liveRepo` (which is read-only-conceptually while inspecting the rewound state).
+2. User clicks Step or Continue.
+3. `_liveRepo.SyncFrom(_postTickSnapshot)` — same clean restoration as the observation path.
+4. The pending mutations are drained into the `EntityCommandBuffer` (or written directly to `_liveRepo` between ticks).
+5. `timeController.RequestStepOneTick()` — engine ticks forward.
+6. The mutations take effect at the boundary of tick N+1.
 
-Building on D1: pause when a specific pin value changes (rather than node entry). Requires the Trace-mode probe path to participate in breakpoint matching. Speculative.
+**Trade-off:** the user's edit doesn't apply *during* tick N retroactively; it applies at the start of tick N+1. For 99% of debugging cases ("give this entity 1000 health to see if it survives the next attack", "flip this flag to force a state transition") this 1-tick latency is unnoticeable and matches the intuitive mental model of "I'm setting this up for the next moment of simulation."
 
-### D11. "Step abandoned due to reload" notification **[LOW | XS]**
+**What we gain:** complete elimination of the resimulation path. No `EventAccumulator` event injection. No `DataPolicy` divergence risk. No physics rewind. The debugger becomes a pure observer plus a deferred-write surface.
 
-Slice 1 silently abandons step state if the user reloads during a step. Slice 2 could surface this in the UI. Debug Protocol DD §7.7. Minor quality-of-life.
+#### Why this is safe for the Flight Recorder
 
-### D12. Auto-rebind breakpoint on structure-compatible reload **[LOW | XS]**
+The `AsyncRecorder` and `RecorderTickSystem` need **no awareness** of the debugger. Why:
 
-Slice 1: structure-hash change → breakpoint marked stale, user manually rebinds. Slice 2: if the node-id + asset-id still match after reload (just unrelated fields changed), auto-rebind. Debug Protocol DD §5.3.
+- Tick N is naturally simulated and recorded once, before the breakpoint hits.
+- The pause halts time advancement but doesn't re-run any tick.
+- The clean step restores `_postTickSnapshot` (which equals what was already recorded) and continues. The recorder sees a linear chronology: tick N, then time stops, then tick N+1. From the recorder's perspective the developer's pause is invisible.
+- Deferred mutations appear as standard ECB writes at the boundary of tick N+1 — exactly as if any other system had requested them. The recorder captures them as a normal delta between tick N and tick N+1.
+
+No duplicate frames. No rollback of the write head. No suspension of the recorder. The `.fdp` files remain perfectly valid with zero extra logic. This is the architectural payoff of the forward-snapshot approach beyond debugging safety.
+
+#### The orchestration: DataBreakpointSystem + DebugSnapshotProvider
+
+Two new engine-level services:
+
+```csharp
+public sealed class DataBreakpointSystem : IEcsModuleSystem
+{
+    // Runs in SystemPhase.PostSimulation, AFTER all simulation systems write
+    public void Execute(EntityRepository repo, /* ... */)
+    {
+        if (_breakpoints.Count == 0) return;   // gate: zero cost when nothing's set
+
+        foreach (var bp in _breakpoints)
+        {
+            switch (bp)
+            {
+                case ComponentDataBreakpoint cdb:
+                    EvaluatePredicateBreakpoint(repo, cdb);  // uses QueryDelta
+                    break;
+                case EventBreakpoint eb:
+                    EvaluateEventBreakpoint(repo, eb);       // scans FdpEventBus
+                    break;
+            }
+        }
+    }
+}
+
+public sealed class DebugSnapshotProvider : IEcsModuleSystem
+{
+    // Runs at the very start of each tick (SystemPhase.PreSimulation, first)
+    public void Execute(EntityRepository repo, /* ... */)
+    {
+        if (!_anyBreakpointActive) return;   // gate: zero cost without breakpoints
+        _preTickSnapshot.SyncFrom(repo);
+    }
+}
+```
+
+The cost-gating matters: when no breakpoints are set, `DebugSnapshotProvider` skips the snapshot and `DataBreakpointSystem` skips evaluation. Production frame cost stays at zero. When any breakpoint is set across any subsystem, every tick pays ~2ms for the snapshot — but only sessions actively debugging incur this cost.
+
+#### The IBlueprintTimeController interface generalizes
+
+Slice 1's `IBlueprintTimeController` should be renamed to `IEngineDebugTimeController` (or similar) and gains rewind-aware methods:
+
+```csharp
+public interface IEngineDebugTimeController
+{
+    void RequestPause();
+    void RequestResume();
+    void RequestStepOneTick();
+
+    // New for Slice 2:
+    void BeginObservationalRewind();   // signals "we're now showing rewound state"
+    void EndObservationalRewind();     // signals "we've restored and are advancing"
+    bool IsInRewoundState { get; }
+}
+```
+
+The Blueprint subsystem becomes one of multiple subscribers — same as physics breakpoints, scenario-system breakpoints, or any other ECS subsystem.
+
+#### Compatibility with Slice 1
+
+The Slice 1 Debug Protocol DD's structure-hash safety check, breakpoint reconciliation across hot reload, debug map indexing, etc. — all of it stays. Blueprint node breakpoints become a specific predicate shape (`BlueprintLatentCursor.NodeIdAtEntry == specific-guid`) on top of the universal substrate, but the surface the editor presents is unchanged. The user's existing breakpoint list, callstack window, watch panel — all keep working. Universal Breakpoints adds capability rather than replacing.
+
+#### What's still in scope for Slice 2 within this theme
+
+These items from the original Theme D survive as smaller follow-ups to the universal breakpoint architecture:
+
+- **D2. Watch persistence [MED | XS]** — persist watches to `watches.json`. Independent of universal breakpoints; trivial.
+- **D4. Multi-debugger multiplexing [LOW | XS]** — `MultiplexingProbeSink` for multiple subscribers to `DebugProbe.Sink`. Still useful alongside the new system.
+- **D5. Stack-frame inspection during pause [MED | S]** — click a callstack frame to see state from that frame's perspective. Compatible with universal breakpoints (the predicate-driven pause carries a callstack snapshot just like Blueprint-node pause).
+- **D8. CLR-debugger sync [LOW | S]** — sync Blueprint breakpoints to Visual Studio source-line breakpoints. Independent of universal breakpoints.
+- **D9. Pause on Blueprint exception [LOW | XS]** — separate concern; predicate-style breakpoints don't cover exceptions directly. Still listed.
+- **D11. "Step abandoned due to reload" notification [LOW | XS]** — UX polish.
+- **D12. Auto-rebind breakpoint on structure-compatible reload [LOW | XS]** — UX polish.
+
+#### What's dropped from the original Theme D
+
+These items are subsumed by Universal Breakpoints (D1) and no longer need separate work:
+
+- ~~D6. Pin-value evaluation at pause without committing~~ — the predicate compiler can evaluate arbitrary expressions over current state without committing. Free with D1.
+- ~~D7. Live state editing~~ — deferred mutation via ECB is part of D1's design.
+- ~~D10. Conditional breakpoints on pin-value changes~~ — covered by component data predicates.
+- ~~D3. Step-into across peer calls (full mid-tick precision)~~ — the rewind-to-pre-tick pause gives genuine pre-execution inspection, removing the original motivation for the more dangerous Option B re-entrant render pump. Step-into semantics still apply at the tick-boundary granularity established in Slice 1, but inspection precision is now what users actually wanted.
+
+The collapse from "many separate items each needing an expression evaluator" to "one architecture reusing the predicate compiler" is the architectural advance.
 
 ---
 
@@ -511,7 +632,10 @@ These were the architecturally costly decisions that explicitly bought future fl
 The 50+ items above are far more than Slice 2 will ship. The Slice 2 architecture pass after Slice 1 ships will need to:
 
 1. **Look at Slice 1 implementation telemetry** — which "I bet this will be painful" predictions came true, which didn't.
-2. **Pick a coherent theme.** Slice 2 probably shouldn't be "do everything"; it should be 1-2 themes that compound. My pre-implementation guess (low confidence): the natural Slice 2 themes are **(A) cross-entity events + multi-Blueprint scale** plus **(F) attribute-driven catalogs**. They unlock the most user value per architectural cost.
+2. **Pick a coherent theme.** Slice 2 probably shouldn't be "do everything"; it should be 1-2 themes that compound. My pre-implementation guess (low confidence, updated after the Universal Breakpoints design conversation): three natural Slice 2 themes stand out:
+   - **(D) Universal Breakpoints** — the architectural advance is mostly already mapped (predicate compiler + event scanner + forward-snapshot pattern, all reusing engine primitives that exist). High impact, surprisingly tractable given the architect's insight that no resimulation is needed.
+   - **(A) Cross-entity events + multi-Blueprint scale** — the most-requested Slice 1 deferral.
+   - **(F) Attribute-driven catalogs** — quality-of-life for engine teams contributing new events/channels.
 3. **Defer aggressively.** Half the items above will turn out to be Slice 3+ once telemetry shows where users actually push.
 
 Slice 2 is not a list to ship. It's an option pool to draw from.
