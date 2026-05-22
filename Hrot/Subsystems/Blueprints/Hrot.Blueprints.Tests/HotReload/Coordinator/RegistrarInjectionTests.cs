@@ -16,6 +16,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// Patch 2 and Patch 4: verifies ResolveRegistrarArgument throws for forbidden types.
 /// Tests that 2-parameter registrar (BlueprintRegistryStaging, BehaviorRegistry) is invoked correctly.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class RegistrarInjectionTests
 {
     [Fact]

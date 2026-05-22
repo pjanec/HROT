@@ -9,6 +9,7 @@ using FdpBlueprintDispatchKind = Fdp.Toolkit.Blueprints.BlueprintDispatchKind;
 
 namespace Hrot.Blueprints.Tests;
 
+[Collection("DebugProbe")]
 public sealed class BlueprintTestFixtureTests
 {
     // SC1: Constructor initializes all properties

@@ -12,6 +12,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintTickSystem;
 /// SC5: World-singleton Blueprint is lazily attached and ticked each frame.
 /// Per Runtime DD §11.3.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class WorldSingletonTickTests
 {
     // SC5: Singleton is attached lazily on first tick -- slot count == 1 after tick.

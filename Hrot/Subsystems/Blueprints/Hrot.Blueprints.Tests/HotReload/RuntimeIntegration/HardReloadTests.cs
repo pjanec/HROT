@@ -9,6 +9,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Hard reload: StructureHash changed -> slot payload zeroed -> InstanceVersion bumped.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class HardReloadTests
 {
     [Fact]

@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Patch 1: verifies that a failed reload does not mutate _currentAlc.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class FailureRollbackTests
 {
     [Fact]

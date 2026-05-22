@@ -16,6 +16,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintTickSystem;
 /// SC1 / SC2: Basic per-frame tick dispatch to Blueprint slots.
 /// Per Runtime DD §11.3.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class SingleSlotTickTests
 {
     // SC1: Attach one Blueprint, tick once, TickCount == 1.

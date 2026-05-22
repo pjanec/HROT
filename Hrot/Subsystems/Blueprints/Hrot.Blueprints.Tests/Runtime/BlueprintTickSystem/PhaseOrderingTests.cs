@@ -15,6 +15,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintTickSystem;
 /// SC3: BlueprintTickSystem runs before LocomotionDispatcherSystem (phase ordering).
 /// Per Runtime DD §11.2.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class PhaseOrderingTests
 {
     // SC3: Blueprint Tick writes ActiveAction; MockLocomotionDispatcher (added as aux sim system)

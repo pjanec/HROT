@@ -13,6 +13,7 @@ namespace Hrot.Blueprints.Tests.Demos;
 /// Covers first-tick invocation, 3-reload ALC chain reclaim, single ALC reclaim,
 /// and generated-source snapshot.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class MoveToAndFireDemoTests
 {
     private static CompileOptions DefaultOptions() =>

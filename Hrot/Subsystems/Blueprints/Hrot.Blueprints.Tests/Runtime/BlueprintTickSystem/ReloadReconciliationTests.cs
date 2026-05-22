@@ -14,6 +14,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintTickSystem;
 /// SC4 / SC7: Reload reconciliation -- hard reset on structure-hash mismatch.
 /// Per Runtime DD §11.4.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class ReloadReconciliationTests
 {
     // SC4: Hard-reload changes structure hash -> payload is zeroed and InstanceVersion bumps.

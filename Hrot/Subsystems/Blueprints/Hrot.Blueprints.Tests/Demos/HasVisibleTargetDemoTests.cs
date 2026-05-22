@@ -10,6 +10,7 @@ namespace Hrot.Blueprints.Tests.Demos;
 /// Covers CompileAndLoad, BTree action invocation (condition graph EventEntry -> Return),
 /// and ALC GC reclaim.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class HasVisibleTargetDemoTests
 {
     // SC1: CompileAndLoad succeeds for HasVisibleTarget (AiPrimitive/Condition with a simple graph).

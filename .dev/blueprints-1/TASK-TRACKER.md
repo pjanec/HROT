@@ -63,9 +63,9 @@
 
 ## Phase 4 -- Hot Reload
 
-- [ ] **TASK-HR-001** AiHotReloadCoordinator Core -- [details](./TASK-DETAIL.md#task-hr-001----aihotreloadcoordinator-core)
-- [ ] **TASK-HR-002** SimulateReload Test Harness Integration -- [details](./TASK-DETAIL.md#task-hr-002----simulatereload-test-harness-integration)
-- [ ] **TASK-HR-003** Hot Reload Test Suite -- [details](./TASK-DETAIL.md#task-hr-003----hot-reload-test-suite)
+- [x] **TASK-HR-001** AiHotReloadCoordinator Core -- [details](./TASK-DETAIL.md#task-hr-001----aihotreloadcoordinator-core)
+- [x] **TASK-HR-002** SimulateReload Test Harness Integration -- [details](./TASK-DETAIL.md#task-hr-002----simulatereload-test-harness-integration)
+- [x] **TASK-HR-003** Hot Reload Test Suite -- [details](./TASK-DETAIL.md#task-hr-003----hot-reload-test-suite)
 
 ---
 

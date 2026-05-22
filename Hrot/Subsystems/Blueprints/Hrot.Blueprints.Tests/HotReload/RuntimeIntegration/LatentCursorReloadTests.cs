@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Latent cursor: soft reload resumes cleanly; hard reload resets cursor to ResumeAt=0.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class LatentCursorReloadTests
 {
     [Fact]

@@ -11,6 +11,7 @@ namespace Hrot.Blueprints.Tests;
 /// SC3: MockLocomotionDispatcher counts invocations when entity has ActiveAction != 0.
 /// SC4: NextStatus lambda controls the Status written back to the channel.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class MockDispatcherSystemTests
 {
     // SC1: fixture exposes BehaviorRegistry (non-null after construction).

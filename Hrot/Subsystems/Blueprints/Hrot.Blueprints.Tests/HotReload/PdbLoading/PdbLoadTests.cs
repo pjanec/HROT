@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// PDB loading: when LoadPdbOnDeveloperMode=true, assembly loads with PDB symbols accessible.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class PdbLoadTests
 {
     [Fact]

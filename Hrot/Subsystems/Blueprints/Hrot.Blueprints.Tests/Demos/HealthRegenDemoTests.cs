@@ -9,6 +9,7 @@ namespace Hrot.Blueprints.Tests.Demos;
 /// Covers CompileAndLoad, initial variable slot attachment, soft reload slot preservation,
 /// and ALC GC reclaim.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class HealthRegenDemoTests
 {
     // SC1: CompileAndLoad succeeds for HealthRegen (Instance blueprint with variables, no graphs).

@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintMaintenanceSystem;
 /// is detected (MaintenanceSystem runs in BeforeSync, same TickFrame call).
 /// Per Runtime DD §7.2.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class TwoFrameUpgradeTimingTests
 {
     // Frame N: both BB1024 + BB4096 present. After TickFrame completes: only BB4096 remains.

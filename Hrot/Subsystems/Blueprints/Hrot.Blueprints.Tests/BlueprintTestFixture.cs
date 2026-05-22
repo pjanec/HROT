@@ -667,6 +667,7 @@ public static class ThrowingRegistrar
 
     public void Dispose()
     {
+        DebugProbe.Sink = NullProbeSink.Instance;   // release reference to this session
         HsmActionDispatcher.ClearAll();  // clear stale function pointers before ALC unload
         _coordinator.Dispose();          // unloads coordinator's current ALC + clears BehaviorRegistry
         _persistedWorkingState.Clear();  // release boxed working-state objects from collectible assemblies

@@ -9,6 +9,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// AiPrimitive reload: working-state reset on hash change (inline hash check in BTreeTick thunk).
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class AiPrimitiveReloadTests
 {
     [Fact]

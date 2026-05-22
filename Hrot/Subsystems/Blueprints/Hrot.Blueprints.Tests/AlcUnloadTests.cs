@@ -3,6 +3,7 @@ using System.Runtime.Loader;
 
 namespace Hrot.Blueprints.Tests;
 
+[Collection("DebugProbe")]
 public sealed class AlcUnloadTests
 {
     // Use a small, non-test assembly so the xUnit runner's AppDomain.AssemblyLoad

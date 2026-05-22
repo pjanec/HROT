@@ -10,6 +10,7 @@ namespace Hrot.Blueprints.Tests.Debug;
 /// <summary>
 /// Contract tests for IBlueprintDebugSession / DebugProbe (TASK-DBG-001 SC1-SC5).
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class DebugSessionInterfaceTests
 {
     private static Entity E1 => new Entity(1, 0);

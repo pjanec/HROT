@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.Demos;
 /// DEMO-003: DoorActor + DoorSensor runtime integration demo tests.
 /// Covers loading both assets into a single ALC, ALC GC reclaim, and registry verification.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class DoorActorDoorSensorDemoTests
 {
     // SC1: CompileAndLoadMany loads DoorActor and DoorSensor into a single ALC assembly.

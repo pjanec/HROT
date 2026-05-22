@@ -7,6 +7,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Patch 3: Quick Reload goes through the coordinator.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class QuickReloadTests
 {
     [Fact]

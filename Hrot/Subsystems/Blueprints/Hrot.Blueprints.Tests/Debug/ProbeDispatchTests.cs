@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.Debug;
 /// Tests for TASK-DBG-006: DebugProbe dispatch -- null-sink no-op, non-null forwarding,
 /// and zero-allocation guarantee on the null-sink path (SC1-SC4).
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class ProbeDispatchTests : IDisposable
 {
     // Save and restore the static Sink so tests do not interfere with each other.

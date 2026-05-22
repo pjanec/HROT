@@ -14,6 +14,7 @@ namespace Hrot.Blueprints.Tests.Mocks;
 /// because BlueprintTestFixture (TH-003) is implemented in a later batch.
 /// Test 6 (TierUpgrade) is skipped until BlueprintMaintenanceSystem exists (BATCH-04).
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class MockContractTests
 {
     // 1. Entity alive before ECB playback, gone after.

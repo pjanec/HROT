@@ -8,6 +8,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Soft reload: StructureHash unchanged -> slot payload preserved -> tick resumes from saved state.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class SoftReloadTests
 {
     [Fact]

@@ -11,6 +11,7 @@ namespace Hrot.Blueprints.Tests.Demos;
 /// DEMO-001: LibraryMath runtime integration demo tests.
 /// Covers Blueprint-only compilation, ALC lifecycle, and generated-source snapshot.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class LibraryMathDemoTests
 {
     private static CompileOptions DefaultOptions() =>

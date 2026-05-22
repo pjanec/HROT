@@ -6,6 +6,7 @@ namespace Hrot.Blueprints.Tests.Runtime;
 /// <summary>
 /// §10.3: Per-frame Blueprint tick must not allocate managed memory on hot path.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class AllocationFreeTests
 {
     // 10.3: 100 warm-up frames + 100 measured frames on 10 entities -> 0 bytes allocated.

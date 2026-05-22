@@ -7,6 +7,7 @@ namespace Hrot.Blueprints.Tests.HotReload;
 /// <summary>
 /// Verifies ALC unload and GC reclaim behavior across reload sequences.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class AlcLifecycleTests
 {
     [Fact]

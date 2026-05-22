@@ -11,6 +11,7 @@ namespace Hrot.Blueprints.Tests.Runtime.BlueprintMaintenanceSystem;
 /// SC1/SC2/SC3/SC4: Tier upgrade from BB1024 to BB4096.
 /// Per Runtime DD §11.5.
 /// </summary>
+[Collection("DebugProbe")]
 public sealed class TierUpgrade_1024_to_4096_Tests
 {
     // SC1/SC2: Entity with both BB1024 and BB4096 present -> state migrated, BB1024 removed.
