@@ -167,7 +167,7 @@ public sealed class BlueprintTestFixture : IDisposable
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: Array.Empty<BlueprintSignature>());
 
-        var sb = new StringBuilder();
+        var generatedSources = new List<string>(assets.Count);
         foreach (var asset in assets)
         {
             var result = Compiler.Compile(asset, options);
@@ -175,15 +175,23 @@ public sealed class BlueprintTestFixture : IDisposable
                 throw new InvalidOperationException(
                     $"Blueprint '{asset.Name}' failed to compile: " +
                     string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-            sb.AppendLine(result.GeneratedSource);
+            generatedSources.Add(result.GeneratedSource!);
         }
+
+        // Merge all generated sources into a single valid C# compilation unit.
+        // Each source uses a file-scoped namespace; concatenating them raw would
+        // produce CS1529/CS8954. MergeGeneratedSources combines usings and wraps
+        // all type declarations under a single block-scoped namespace.
+        var mergedSource = generatedSources.Count == 1
+            ? generatedSources[0]
+            : MergeGeneratedSources(generatedSources);
 
         var assemblyName = $"Bp_{Guid.NewGuid():N}";
         var resolver = MetadataReferenceResolver.ForRuntimeAssemblies(
             AppDomain.CurrentDomain.GetAssemblies());
         var roslynCompiler = new InMemoryRoslynCompiler(resolver);
         var (assembly, alc) = roslynCompiler.CompileAndLoad(
-            sb.ToString(),
+            mergedSource,
             $"{assemblyName}.g.cs",
             assemblyName,
             sink);
@@ -196,6 +204,60 @@ public sealed class BlueprintTestFixture : IDisposable
     }
 
     // ---- Test-only ALC bypass -----------------------------------------------
+
+    /// <summary>
+    /// Merges multiple generated C# source files (each with file-scoped namespace) into a
+    /// single valid compilation unit. The generated sources each contain using directives,
+    /// a file-scoped namespace declaration, and type declarations. Concatenating them raw
+    /// would produce CS1529/CS8954. This method collects all unique usings, extracts the
+    /// common namespace, and wraps all type declarations in a single block-scoped namespace.
+    /// </summary>
+    private static string MergeGeneratedSources(IReadOnlyList<string> sources)
+    {
+        var allUsings = new SortedSet<string>(StringComparer.Ordinal);
+        string? namespaceName = null;
+        var typeCode = new StringBuilder();
+
+        foreach (var source in sources)
+        {
+            bool pastNamespace = false;
+            foreach (var rawLine in source.Split('\n'))
+            {
+                var line = rawLine.TrimEnd('\r');
+                if (!pastNamespace)
+                {
+                    if (line.StartsWith("namespace ", StringComparison.Ordinal) &&
+                        line.TrimEnd().EndsWith(";", StringComparison.Ordinal))
+                    {
+                        // File-scoped namespace declaration.
+                        namespaceName ??= line.Trim().TrimEnd(';').Substring("namespace ".Length);
+                        pastNamespace = true;
+                    }
+                    else if (line.StartsWith("using ", StringComparison.Ordinal))
+                    {
+                        allUsings.Add(line.Trim());
+                    }
+                    // Skip comment lines and blank lines before namespace.
+                }
+                else
+                {
+                    typeCode.AppendLine(line);
+                }
+            }
+        }
+
+        var sb = new StringBuilder();
+        foreach (var u in allUsings)
+        {
+            sb.AppendLine(u);
+        }
+        sb.AppendLine();
+        sb.AppendLine($"namespace {namespaceName ?? "Hrot.AI.Behaviors.Generated"}");
+        sb.AppendLine("{");
+        sb.Append(typeCode);
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
 
     /// <summary>
     /// Test-only ALC bypass: loads raw PE bytes into a new collectible ALC and
@@ -249,7 +311,7 @@ public sealed class BlueprintTestFixture : IDisposable
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: Array.Empty<BlueprintSignature>());
 
-        var sb = new StringBuilder();
+        var reloadSources = new List<string>(newVersions.Count);
         foreach (var asset in newVersions)
         {
             var result = Compiler.Compile(asset, options);
@@ -257,8 +319,12 @@ public sealed class BlueprintTestFixture : IDisposable
                 throw new InvalidOperationException(
                     $"Blueprint '{asset.Name}' failed to compile: " +
                     string.Join(", ", result.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
-            sb.AppendLine(result.GeneratedSource);
+            reloadSources.Add(result.GeneratedSource!);
         }
+
+        var reloadMergedSource = reloadSources.Count == 1
+            ? reloadSources[0]
+            : MergeGeneratedSources(reloadSources);
 
         // Compile to PE bytes via Roslyn.
         var assemblyName = $"Bp_{Guid.NewGuid():N}";
@@ -266,7 +332,7 @@ public sealed class BlueprintTestFixture : IDisposable
             AppDomain.CurrentDomain.GetAssemblies());
         var roslynCompiler = new InMemoryRoslynCompiler(resolver);
         var (assembly, alc) = roslynCompiler.CompileAndLoad(
-            sb.ToString(),
+            reloadMergedSource,
             $"{assemblyName}.g.cs",
             assemblyName,
             sink);
