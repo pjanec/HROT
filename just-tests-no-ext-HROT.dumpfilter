@@ -2,8 +2,6 @@
 ! Hrot/**/*.Tests*
 - **/docs
 - **/Docs
-- **/Debug
-- **/Release
 - **/.*
 - **/obj
 - **/bin

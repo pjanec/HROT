@@ -2,8 +2,6 @@
 + FDP
 - **/docs
 - **/Docs
-- **/Debug
-- **/Release
 - **/.*
 - **/obj
 - **/bin
