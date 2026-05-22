@@ -13,7 +13,7 @@ public sealed class S13_DebugVizMock : Scenario
 
     private FakeDebugSession? _session;
 
-    public FakeDebugSession? Session => _session;
+    public override FakeDebugSession? Session => _session;
 
     public override void Build(GraphView view, FakeGraphModel graph, FakeCommandSink sink, FakeNodeCatalog catalog)
     {

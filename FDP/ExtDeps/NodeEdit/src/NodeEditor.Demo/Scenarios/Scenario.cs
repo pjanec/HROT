@@ -15,6 +15,22 @@ public abstract class Scenario
     /// <summary>Populate the given graph view with initial state.</summary>
     public abstract void Build(GraphView view, FakeGraphModel graph, FakeCommandSink sink, FakeNodeCatalog catalog);
 
+    /// <summary>Optional pre-build configuration step for the fake host services.</summary>
+    public virtual void Setup(FakeMyBlueprintModel mbModel) { }
+
+    /// <summary>
+    /// Override to supply multi-graph setup. Returns null (single-graph) by default.
+    /// Only S25 and similar multi-tab scenarios need this.
+    /// </summary>
+    public virtual FakeGraphContainer? BuildMultiGraph(FakeNodeCatalog catalog, out FakeMyBlueprintModel myBlueprint)
+    {
+        myBlueprint = null!;
+        return null;
+    }
+
+    /// <summary>Optional debug session exposed by scenarios that set breakpoints.</summary>
+    public virtual FakeDebugSession? Session => null;
+
     // ── helpers ────────────────────────────────────────────────────────────────
 
     protected static NodeId AddNode(FakeGraphModel graph, FakeNodeCatalog catalog, string kindId, Vector2 pos)

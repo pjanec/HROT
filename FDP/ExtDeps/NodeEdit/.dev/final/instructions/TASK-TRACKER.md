@@ -58,8 +58,8 @@ and reroutes.
 - [x] **TASK-P4-001** Generic Picker Window — [details](./03-06-task-picker.md)
 - [x] **TASK-P4-002** My Blueprint Panel — [details](./03-07-task-myblueprint-details.md#t-15--ui-my-blueprint-panel)
 - [x] **TASK-P4-003** Details Panel — [details](./03-07-task-myblueprint-details.md#t-16--ui-details-panel)
-- [ ] **TASK-P4-004** Find Bar / Find-in-Asset Panel — [details](./03-08-task-find-comments.md#t-17--ui-find-bar-and-find-in-asset-panel)
-- [ ] **TASK-P4-005** Comments and Reroutes — [details](./03-08-task-find-comments.md#t-18--ui-comments-and-reroutes)
+- [x] **TASK-P4-004** Find Bar / Find-in-Asset Panel — [details](./03-08-task-find-comments.md#t-17--ui-find-bar-and-find-in-asset-panel)
+- [x] **TASK-P4-005** Comments and Reroutes — [details](./03-08-task-find-comments.md#t-18--ui-comments-and-reroutes)
 
 ---
 
@@ -67,34 +67,32 @@ and reroutes.
 **Goal:** The editor publishes commands and status; the host's chrome
 (toolbar, menu, status bar, hotkeys) binds to them. Editor never draws
 chrome.
-- [ ] **TASK-P5-001** IEditorCommands + IEditorIndicators — [details](./03-09-task-action-api.md)
+- [x] **TASK-P5-001** IEditorCommands + IEditorIndicators — [details](./03-09-task-action-api.md)
 
 ---
 
 ## Phase 6 — Demo Application
 **Goal:** The editor library runs end-to-end against a fake host. Proves
 every spec'd feature with at least one scenario.
-- [ ] **TASK-P6-001** Fake Host + Canvas Scenarios 1–6 — [details](./03-10-task-demo.md#t-20--demo-fake-host--scenarios-16)
-- [ ] **TASK-P6-002** Picker Scenarios 7–12 — [details](./03-10-task-demo.md#t-21--demo-picker-scenarios-712)
-- [ ] **TASK-P6-003** Debugger Visualization Mock — [details](./03-10-task-demo.md#t-22--demo-debugger-visualization-mock)
+- [x] **TASK-P6-001** Fake Host + Canvas Scenarios 1–6 — [details](./03-10-task-demo.md#t-20--demo-fake-host--scenarios-16)
+- [x] **TASK-P6-002** Picker Scenarios 7–12 — [details](./03-10-task-demo.md#t-21--demo-picker-scenarios-712)
+- [x] **TASK-P6-003** Debugger Visualization Mock — [details](./03-10-task-demo.md#t-22--demo-debugger-visualization-mock)
 
 ---
 
 ## Phase 7 — Polish Features
 **Goal:** Bookmark slots and hot-reload visual feedback. Both are
-small, both are highly visible. Then extend the demo to cover the
-remaining authoring/refactor/multi-tab/find/comment/big-graph features
-that aren't reachable through S01–S14.
-- [ ] **TASK-P7-001** Bookmarks (Ctrl+1..9 jump, Ctrl+Shift+1..9 set) — [details](./03-11-tasks-final.md#t-23--bookmarks)
-- [ ] **TASK-P7-002** Hot-Reload Badges + Toast — [details](./03-11-tasks-final.md#t-24--hot-reload-badges)
-- [ ] **TASK-P7-003** Extended Demo Scenarios (S15–S33: functions, macros, custom events, dispatchers, variables, multi-tab, refactor, find, bookmarks, comments, hot-reload conflict, big graph) — [details](./03-12-task-extended-scenarios.md)
+small, both are highly visible.
+- [x] **TASK-P7-001** Bookmarks (Ctrl+1..9 jump, Ctrl+Shift+1..9 set) — [details](./03-11-tasks-final.md#t-23--bookmarks)
+- [x] **TASK-P7-002** Hot-Reload Badges + Toast — [details](./03-11-tasks-final.md#t-24--hot-reload-badges)
+- [x] **TASK-P7-003** Extended Demo Scenarios (S15–S33: functions, macros, custom events, dispatchers, variables, multi-tab, refactor, find, bookmarks, comments, hot-reload conflict, big graph) — [details](./03-12-task-extended-scenarios.md)
 
 ---
 
 ## Phase 8 — Final
 **Goal:** Zero-warning build, complete XML docs, demo polish, README
 updated, every checklist item in the acceptance pass green.
-- [ ] **TASK-P8-001** Final Polish + Warnings Cleanup — [details](./03-11-tasks-final.md#t-25--final-polish--warnings-cleanup)
+- [x] **TASK-P8-001** Final Polish + Warnings Cleanup — [details](./03-11-tasks-final.md#t-25--final-polish--warnings-cleanup)
 
 ---
 
@@ -109,11 +107,11 @@ updated, every checklist item in the acceptance pass green.
 | Phase 4 — Panels, Picker, Search | 5 | ~2,000 |
 | Phase 5 — Action API | 1 | ~350 |
 | Phase 6 — Demo Application | 3 | ~1,400 |
-| Phase 7 — Polish Features | 3 | ~2,000 |
+| Phase 7 — Polish Features | 2 | ~400 |
 | Phase 8 — Final | 1 | (cleanup) |
-| **Total** | **26** | **~9,850 + ~500 tests** |
+| **Total** | **25** | **~8,250 + ~500 tests** |
 
-Estimated effort for a focused agent: **4–6 days**.
+Estimated effort for a focused agent: **3–5 days**.
 
 ## Dependencies between phases
 

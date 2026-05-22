@@ -1,3 +1,4 @@
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 
@@ -11,9 +12,10 @@ public sealed class FakeHostServices : IEditorHostServices
     public FakeNodeCatalog    NodeCatalog_  { get; }
     public FakeTypeSystem     TypeSystem_   { get; }
     public FakeLinkValidator  Validator     { get; }
-    public FakeMyBlueprintModel MyBlueprint { get; }
+    public FakeMyBlueprintModel MyBlueprint { get; private set; }
     public FakeInputSource    Input_        { get; }
     public PickerRegistry     PickerRegistry_ { get; }
+    public ToastQueue         ToastQueue_   { get; } = new();
 
     // IEditorHostServices
     public INodeCatalog        NodeCatalog { get; }
@@ -51,4 +53,7 @@ public sealed class FakeHostServices : IEditorHostServices
         Input        = Input_;
         Theme        = new FakeEditorTheme();
     }
+
+    /// <summary>Replace the My Blueprint model (used by multi-graph scenarios).</summary>
+    public void OverrideMyBlueprint(FakeMyBlueprintModel model) => MyBlueprint = model;
 }
