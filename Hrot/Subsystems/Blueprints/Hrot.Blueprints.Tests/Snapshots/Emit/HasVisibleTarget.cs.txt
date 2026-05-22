@@ -77,7 +77,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
 {
-    public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg)
     {
         staging.Add(HasVisibleTarget_96FB0E6E_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

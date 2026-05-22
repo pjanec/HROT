@@ -79,7 +79,7 @@ public static class MoveToAndFire_649F8F53_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_MoveToAndFire_649F8F53_Bp
 {
-    public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg)
     {
         staging.Add(MoveToAndFire_649F8F53_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

@@ -71,7 +71,7 @@ public static class DoorActor_FFB212F0_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_DoorActor_FFB212F0_Bp
 {
-    public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
     {
         staging.Add(DoorActor_FFB212F0_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

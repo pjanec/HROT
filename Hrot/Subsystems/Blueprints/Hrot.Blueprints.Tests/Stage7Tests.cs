@@ -64,7 +64,7 @@ public sealed class Stage7Tests
         Assert.Contains("BlueprintRegistrar_", src);
 
         // Register method uses BlueprintRegistryStaging (Patch C1)
-        Assert.Contains("public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)", src);
+        Assert.Contains("public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)", src);
 
         // Must NOT use old BlueprintRegistry signature
         Assert.DoesNotContain("BlueprintRegistry registry", src);
@@ -111,9 +111,40 @@ public sealed class Stage7Tests
         // Registrar has BehaviorRegistry (has BTreeAction hosting)
         Assert.Contains("BehaviorRegistry behReg", src);
 
-        // Phase 4 deferred: HSM runtime registration via HsmActionDispatcher is emitted in HR-001.
-        // Phase 3 only emits the HsmActivity thunk; registrar body adds only the BlueprintDefinition.
+        // No HsmActionDispatcher parameter in Register() -- it is a static class (Patch C1).
         Assert.DoesNotContain("HsmActionDispatcher hsmDispatcher", src);
+
+        // BTree registration is emitted for BTreeAction hosting (Patch C1 / TASK-CP-004)
+        Assert.Contains("behReg.RegisterAction(", src);
+
+        // HSM static registration is emitted for HsmAction hosting (Patch C1)
+        Assert.Contains("HsmActionDispatcher.RegisterAction(", src);
+    }
+
+    // ------------------------------------------------------------------
+    // SC2b: BTreeCondition hosting emits RegisterCondition in registrar
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Stage7_AiPrimitive_BTreeCondition_EmitsRegisterConditionInRegistrar()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("HasVisibleTarget")
+            .WithIntent(AiPrimitiveIntent.Condition)
+            .WithHostings(AiPrimitiveHosting.BTreeCondition)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var result = Compile(asset);
+
+        Assert.True(result.Succeeded,
+            $"Compile failed: {string.Join(", ", result.Diagnostics.Select(d => d.Code))}");
+
+        var src = result.GeneratedSource!;
+
+        Assert.Contains("BTreeEvaluate", src);
+        Assert.Contains("behReg.RegisterCondition(", src);
+        Assert.DoesNotContain("behReg.RegisterAction(", src);
     }
 
     // ------------------------------------------------------------------

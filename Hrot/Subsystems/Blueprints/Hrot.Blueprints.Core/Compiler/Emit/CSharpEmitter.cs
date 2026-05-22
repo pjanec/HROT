@@ -119,7 +119,7 @@ internal sealed class CSharpEmitter
             paramParts.Add("global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg");
         var paramSig = string.Join(", ", paramParts);
 
-        WriteLine($"public static void Register({paramSig})");
+        WriteLine($"public static unsafe void Register({paramSig})");
         WriteLine("{");
         Indent();
 
@@ -167,10 +167,18 @@ internal sealed class CSharpEmitter
         Outdent();
         WriteLine("});");
 
-        // TODO (Phase 4): Register BTree thunks with BehaviorRegistry once the Interpreter
-        // builder is in place.  The thunk methods (BTreeTick / BTreeEvaluate / HsmActivity /
-        // HsmGuard) are emitted above and callable via reflection; runtime wiring happens
-        // in HR-001 (AiHotReloadCoordinator).
+        // Register BTree thunks with BehaviorRegistry (Patch C1 / TASK-CP-004)
+        if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction))
+            WriteLine($"behReg.RegisterAction({className}.BlueprintId, \"{asset.Name}\", {className}.BTreeTick);");
+        if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
+            WriteLine($"behReg.RegisterCondition({className}.BlueprintId, \"{asset.Name}\", {className}.BTreeEvaluate);");
+
+        // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,
+        // not injectable; Patch C1). The unmanaged function pointers are cast to IntPtr.
+        if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction))
+            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{className}.HsmActivity);");
+        if (asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
+            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, bool>)&{className}.HsmGuard);");
     }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)

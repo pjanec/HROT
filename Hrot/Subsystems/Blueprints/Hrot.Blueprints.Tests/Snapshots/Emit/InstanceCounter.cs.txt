@@ -70,7 +70,7 @@ public static class InstanceCounter_D1201BF4_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_InstanceCounter_D1201BF4_Bp
 {
-    public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
     {
         staging.Add(InstanceCounter_D1201BF4_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

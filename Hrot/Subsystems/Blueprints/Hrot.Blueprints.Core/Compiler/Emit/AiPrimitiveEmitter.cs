@@ -138,7 +138,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static unsafe global::Hrot.Blueprints.Core.Assets.NodeStatus BTreeTick(");
+        e.WriteLine("public static unsafe global::Fbt.NodeStatus BTreeTick(");
         e.Indent();
         e.WriteLine("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,");
         e.WriteLine("ref global::Fbt.BehaviorTreeState state,");
@@ -166,7 +166,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
+        e.WriteLine("return (global::Fbt.NodeStatus)(int)TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -216,8 +216,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitHsmActivityThunk(CSharpEmitter e)
     {
-        e.WriteLine("[global::System.Runtime.InteropServices.UnmanagedCallersOnly]");
-        e.WriteLine("public static unsafe void HsmActivity(void* instance, void* context, void* writer)");
+        e.WriteLine("public static unsafe void HsmActivity(void* instance, void* context, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
@@ -245,7 +244,6 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitHsmGuardThunk(CSharpEmitter e)
     {
-        e.WriteLine("[global::System.Runtime.InteropServices.UnmanagedCallersOnly]");
         e.WriteLine("public static unsafe bool HsmGuard(void* instance, void* context, ushort eventId)");
         e.WriteLine("{");
         e.Indent();

@@ -74,7 +74,7 @@ public static class HealthRegen_9EC49CD9_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HealthRegen_9EC49CD9_Bp
 {
-    public static void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging)
     {
         staging.Add(HealthRegen_9EC49CD9_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

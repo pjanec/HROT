@@ -1,3 +1,5 @@
+using ImGuiNET;
+
 namespace Hrot.Blueprints.Editor;
 
 public sealed class PreferencesWindow : BlueprintEditorWindowBase
@@ -15,9 +17,27 @@ public sealed class PreferencesWindow : BlueprintEditorWindowBase
 
     public override void DrawUI()
     {
-        // ImGui form: AutoReloadOnSave checkbox, GraphEditorGridSnap slider, etc.
-        // "Save" button: _prefs.Save(_savePath).
-        // "Reset to Defaults" button: copy defaults into _prefs fields.
-        // Requires ImGui runtime. Stub for Slice 1.
+        bool autoReload = _prefs.AutoReloadOnSave;
+        if (ImGui.Checkbox("Auto Reload on Save", ref autoReload))
+            _prefs.AutoReloadOnSave = autoReload;
+
+        int logMax = _prefs.HotReloadLogMaxEntries;
+        if (ImGui.InputInt("Hot Reload Log Max Entries", ref logMax))
+            _prefs.HotReloadLogMaxEntries = System.Math.Max(1, logMax);
+
+        ImGui.Separator();
+
+        if (ImGui.Button("Save"))
+            _prefs.Save(_savePath);
+
+        ImGui.SameLine();
+
+        if (ImGui.Button("Reset to Defaults"))
+        {
+            var defaults = BlueprintEditorPreferences.Defaults;
+            _prefs.AutoReloadOnSave       = defaults.AutoReloadOnSave;
+            _prefs.HotReloadLogMaxEntries = defaults.HotReloadLogMaxEntries;
+        }
     }
 }
+
