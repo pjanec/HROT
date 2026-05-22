@@ -52,7 +52,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     // ---- IBlueprintDebugSession -- watches ----------------------------------
 
     public bool IsAnyWatchActive => false;
-    public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId) => throw new NotImplementedException();
+    public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType) => throw new NotImplementedException();
     public void RemoveWatch(WatchId id) => throw new NotImplementedException();
     public void ClearAllWatches() => throw new NotImplementedException();
     public IReadOnlyList<Watch> GetWatches() => throw new NotImplementedException();
@@ -62,6 +62,15 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public bool IsPaused => false;
     public Breakpoint? PausedAt => null;
     public Entity? PausedOnEntity => null;
+
+    // ---- IBlueprintDebugSession -- entity filter ----------------------------
+
+    public void SetEntityFilter(Entity? entity) { }
+    public Entity? GetEntityFilter() => null;
+
+    // ---- IBlueprintDebugSession -- active entity tracking ------------------
+
+    public IReadOnlyList<Entity> GetActiveEntities(Guid assetId) => Array.Empty<Entity>();
 
     // ---- IBlueprintDebugSession -- pause control ----------------------------
 
@@ -95,6 +104,15 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
 
     public void RegisterDebugMap(DebugMap map)   => _maps[map.AssetId] = map;
     public void UnregisterDebugMap(Guid assetId) => _maps.Remove(assetId);
+
+    // ---- IBlueprintDebugSession -- PDB locator ------------------------------
+
+    public void RegisterPdbLocator(Guid assetId, Func<string> pdbPathResolver) { }
+
+    // ---- IBlueprintDebugSession -- hot reload --------------------------------
+
+    public void OnHotReloadBegin() { }
+    public void OnHotReloadCompleted(Guid[] reloadedAssetIds) { }
 
     // ---- Inspection helpers -------------------------------------------------
 
