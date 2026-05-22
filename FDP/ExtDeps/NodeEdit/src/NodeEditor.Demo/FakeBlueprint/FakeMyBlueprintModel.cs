@@ -54,7 +54,7 @@ public sealed class FakeMyBlueprintModel : IMyBlueprintModel
         new("functions",   "Functions",   1, null, true,  true,  null),
         new("macros",      "Macros",      2, null, true,  true,  null),
         new("variables",   "Variables",   3, null, true,  true,  null),
-        new("events",      "Events",      4, null, true,  false, null),
+        new("events",      "Events",      4, null, true,  true,  null),
         new("dispatchers", "Dispatchers", 5, null, true,  true,  null),
     };
 
