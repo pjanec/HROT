@@ -46,6 +46,9 @@
     <!-- Blueprint source generator: emits C# from *.bp.json AdditionalFiles. -->
     <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Generators\Hrot.Blueprints.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- Blueprint generator dependency assembly (netstandard2.0, VS-safe analyzer load). -->
+    <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Blueprint asset files: picked up by the incremental generator. -->

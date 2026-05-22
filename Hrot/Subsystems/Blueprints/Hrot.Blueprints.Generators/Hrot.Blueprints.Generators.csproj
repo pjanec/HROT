@@ -17,20 +17,10 @@
     <PackageReference Include="System.Collections.Immutable" Version="8.0.0" PrivateAssets="all" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <AssetTargetFallback>$(AssetTargetFallback);net8.0</AssetTargetFallback>
-  </PropertyGroup>
-
   <ItemGroup>
-    <ProjectReference
-      Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj"
-      SkipGetTargetFrameworkProperties="true"
-      PrivateAssets="all"
-      ExcludeAssets="build;buildTransitive;analyzers" />
+    <ProjectReference Include="..\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj"
+                      PrivateAssets="all"
+                      ExcludeAssets="runtime" />
   </ItemGroup>
-
-  <!-- NOTE: SkipGetTargetFrameworkProperties="true" allows this netstandard2.0 generator
-       project to reference the net8.0 Core project. The generator output is consumed only
-       at build time, not deployed, so this is safe. -->
 
 </Project>

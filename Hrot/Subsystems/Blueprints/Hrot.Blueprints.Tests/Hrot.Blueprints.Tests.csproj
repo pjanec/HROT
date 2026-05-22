@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>xUnit2013;CS0649;CS0067</NoWarn>
+    <NoWarn>xUnit2029;xUnit2013;CS0649;CS0067</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
