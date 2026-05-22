@@ -8,6 +8,8 @@ using Fhsm.Kernel;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Roslyn;
 using Hrot.Blueprints.Core.Debug;
 
 namespace Hrot.Blueprints.Editor.Reload;
@@ -74,21 +76,38 @@ public sealed class QuickReloadService
                 foreach (var d in result.Diagnostics)
                     _outputConsole.LogError($"[{d.Code}] {d.Message}");
                 sw.Stop();
-                return Task.FromResult(new QuickReloadResult(false, "Compilation failed.", sw.ElapsedMilliseconds));
+                return Task.FromResult(new QuickReloadResult(false, "AST compilation failed.", sw.ElapsedMilliseconds));
+            }
+
+            // Step 2.5: Roslyn compile generated source to PE/PDB bytes.
+            var references = MetadataReferenceResolver.ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies());
+            var roslynCompiler = new InMemoryRoslynCompiler(references);
+            var roslynSink = new DiagnosticSink();
+
+            string assemblyName = $"BlueprintPatch_{result.BlueprintId:X8}_{Guid.NewGuid():N}";
+            string sourcePath = result.GeneratedFileName ?? "dynamic.cs";
+            var (peBytes, pdbBytes) = roslynCompiler.Compile(
+                result.GeneratedSource!,
+                sourcePath,
+                assemblyName,
+                roslynSink);
+
+            if (roslynSink.HasErrors)
+            {
+                foreach (var d in roslynSink.All)
+                    _outputConsole.LogError($"[Roslyn][{d.Code}] {d.Message}");
+                sw.Stop();
+                return Task.FromResult(new QuickReloadResult(false, "Roslyn compilation failed.", sw.ElapsedMilliseconds));
             }
 
             // Step 3: Load compiled PE + PDB into a new collectible ALC.
-            var alc = new AssemblyLoadContext(
-                $"BlueprintPatch_{result.BlueprintId:X8}_{Guid.NewGuid():N}",
-                isCollectible: true);
+            var alc = new AssemblyLoadContext(assemblyName, isCollectible: true);
 
             System.Reflection.Assembly assembly;
-            using (var peStream  = new MemoryStream(result.PortablePe!))
-            using (var pdbStream = new MemoryStream(result.PortablePdb ?? Array.Empty<byte>()))
+            using (var peStream  = new MemoryStream(peBytes))
+            using (var pdbStream = new MemoryStream(pdbBytes))
             {
-                assembly = result.PortablePdb != null
-                    ? alc.LoadFromStream(peStream, pdbStream)
-                    : alc.LoadFromStream(peStream);
+                assembly = alc.LoadFromStream(peStream, pdbStream);
             }
 
             // Step 4: Clear HSM action dispatcher BEFORE registrars run (Patch 3).
