@@ -367,18 +367,18 @@ public sealed class V_DispatchKindCompatibilityTests
     private sealed class SingleEntryChannelCommandCatalog : IChannelCommandCatalog
     {
         public IReadOnlyList<ChannelCommandCatalogEntry> GetEntries() =>
-            new[] { new ChannelCommandCatalogEntry("KnownAction", typeof(KnownChannel), 0, typeof(void)) };
+            new[] { new ChannelCommandCatalogEntry("KnownAction", typeof(KnownChannel).FullName!, 0, typeof(void).FullName!) };
     }
 
     private sealed class SingleEntryWaitPrimitiveCatalog : IWaitPrimitiveCatalog
     {
         public IReadOnlyList<WaitPrimitiveCatalogEntry> GetEntries() =>
-            new[] { new WaitPrimitiveCatalogEntry("Known", WaitKind.Channel, typeof(KnownWaitTarget)) };
+            new[] { new WaitPrimitiveCatalogEntry("Known", WaitKind.Channel, typeof(KnownWaitTarget).FullName!) };
     }
 
     private sealed class SingleEntryEngineEventCatalog : IEngineEventCatalog
     {
         public IReadOnlyList<EngineEventCatalogEntry> GetEntries() =>
-            new[] { new EngineEventCatalogEntry("Known", typeof(KnownEventType)) };
+            new[] { new EngineEventCatalogEntry("Known", typeof(KnownEventType).FullName!) };
     }
 }

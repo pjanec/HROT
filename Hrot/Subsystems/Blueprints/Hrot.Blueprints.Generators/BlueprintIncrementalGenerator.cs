@@ -7,7 +7,6 @@ using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Assets;
-using Fdp.Toolkit.Blueprints;
 using BpDiagnostic = Hrot.Blueprints.Core.Compiler.Diagnostics.Diagnostic;
 using BpCompiler = Hrot.Blueprints.Core.Compiler.BlueprintCompiler;
 

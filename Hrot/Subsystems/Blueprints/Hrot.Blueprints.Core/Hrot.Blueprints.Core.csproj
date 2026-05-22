@@ -12,6 +12,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="BlueprintJsonServices.cs" />
+    <Compile Include="..\Hrot.Blueprints.Compiler\Compiler\Roslyn\**\*.cs"
+             Link="Compiler\Roslyn\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Hrot.Blueprints.Compiler\Compiler\Stages\Stage8_RoslynFinalize.cs"
+             Link="Compiler\Stages\Stage8_RoslynFinalize.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>

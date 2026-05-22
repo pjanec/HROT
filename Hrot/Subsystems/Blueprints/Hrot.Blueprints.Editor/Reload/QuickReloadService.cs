@@ -59,7 +59,7 @@ public sealed class QuickReloadService
 
             // Step 2: Compile in memory with embedded PDB for debugger support.
             var options = new CompileOptions(
-                Mode:                      CompilerMode.Debug,
+                Mode:                      Hrot.Blueprints.Core.Compiler.CompilerMode.Debug,
                 NodeRegistry:              BuiltInNodeRegistry.Instance,
                 TypeRegistry:              StaticTypeRegistry.Instance,
                 EngineEvents:              BuiltInEngineEventCatalog.Instance,

@@ -39,7 +39,7 @@ public sealed record IrAsset
     public IReadOnlyList<IrCustomEvent> CustomEvents { get; init; } = Array.Empty<IrCustomEvent>();
     public IReadOnlyList<int> CallablePeerBlueprintIds { get; init; } = Array.Empty<int>();
     public bool IsWorldSingleton { get; init; }
-    public Fdp.Toolkit.Blueprints.BlackboardTier? SelectedTier { get; init; }
+    public Hrot.Blueprints.Core.Compiler.BlackboardTier? SelectedTier { get; init; }
 
     // All dispatch kinds
     public IReadOnlyList<IrGraph> Graphs { get; init; } = Array.Empty<IrGraph>();

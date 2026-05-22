@@ -2,7 +2,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Stages;
-using Fdp.Toolkit.Blueprints;
+
 
 namespace Hrot.Blueprints.Core.Compiler;
 

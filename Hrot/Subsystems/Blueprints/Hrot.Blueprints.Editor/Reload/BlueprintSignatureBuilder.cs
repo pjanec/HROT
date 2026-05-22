@@ -14,7 +14,7 @@ public static class BlueprintSignatureBuilder
 {
     public static BlueprintSignature FromInMemoryAsset(BlueprintAsset asset)
     {
-        int blueprintId  = BlueprintIdHash.Compute(asset.AssetId);
+        int blueprintId  = global::Fdp.Toolkit.Blueprints.BlueprintIdHash.Compute(asset.AssetId);
         string sanitized = Sanitizer.SanitizeName(asset.Name);
 
         return new BlueprintSignature(

@@ -1,4 +1,4 @@
-namespace Fdp.Toolkit.Blueprints;
+namespace Hrot.Blueprints.Core.Compiler;
 
 public static class BlueprintIdHash
 {

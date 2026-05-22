@@ -1,6 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
-using Fdp.Toolkit.Blueprints;
 
 namespace Hrot.Blueprints.Core.Compiler;
 

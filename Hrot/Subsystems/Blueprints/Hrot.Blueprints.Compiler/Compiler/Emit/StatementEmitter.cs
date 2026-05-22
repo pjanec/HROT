@@ -290,12 +290,12 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_DebugProbe_NodeEnter op:
-                if (e.Ctx.Mode != global::Fdp.Toolkit.Blueprints.CompilerMode.Release)
+                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
                     e.WriteLine($"// [DebugProbe] NodeEnter {op.NodeId} ({op.NodeKind})");
                 break;
 
             case IrOp_DebugProbe_PinValue op:
-                if (e.Ctx.Mode != global::Fdp.Toolkit.Blueprints.CompilerMode.Release)
+                if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
                     e.WriteLine($"// [DebugProbe] PinValue {op.PinId} = __t{op.Value.Index} ({op.PinName})");
                 break;
 
