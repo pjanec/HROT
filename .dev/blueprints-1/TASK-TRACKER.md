@@ -71,31 +71,31 @@
 
 ## Phase 5 -- Debug Protocol
 
-- [ ] **TASK-DBG-000** Blueprint Time Controller Adapter (Interface & MasterSyncController wrapper) -- [details](./TASK-DETAIL.md#task-dbg-000----blueprint-time-controller-adapter)
-- [ ] **TASK-DBG-001** Debug Session Interface and DebugProbe Dispatcher -- [details](./TASK-DETAIL.md#task-dbg-001----debug-session-interface-and-debugprobe-dispatcher)
-- [ ] **TASK-DBG-002** Debug Map Format and Node-ID Resolution -- [details](./TASK-DETAIL.md#task-dbg-002----debug-map-format-and-node-id-resolution)
-- [ ] **TASK-DBG-003** Breakpoints and Step Semantics -- [details](./TASK-DETAIL.md#task-dbg-003----breakpoints-and-step-semantics)
-- [ ] **TASK-DBG-004** Watch Expressions and Pin-Value Snapshotting -- [details](./TASK-DETAIL.md#task-dbg-004----watch-expressions-and-pin-value-snapshotting)
-- [ ] **TASK-DBG-005** Multi-Entity Debugging PDB Integration Hot Reload Interaction -- [details](./TASK-DETAIL.md#task-dbg-005----multi-entity-debugging-pdb-integration-hot-reload-interaction)
-- [ ] **TASK-DBG-006** Debug Protocol Test Suite -- [details](./TASK-DETAIL.md#task-dbg-006----debug-protocol-test-suite)
+- [x] **TASK-DBG-000** Blueprint Time Controller Adapter (Interface & MasterSyncController wrapper) -- [details](./TASK-DETAIL.md#task-dbg-000----blueprint-time-controller-adapter)
+- [x] **TASK-DBG-001** Debug Session Interface and DebugProbe Dispatcher -- [details](./TASK-DETAIL.md#task-dbg-001----debug-session-interface-and-debugprobe-dispatcher)
+- [x] **TASK-DBG-002** Debug Map Format and Node-ID Resolution -- [details](./TASK-DETAIL.md#task-dbg-002----debug-map-format-and-node-id-resolution)
+- [x] **TASK-DBG-003** Breakpoints and Step Semantics -- [details](./TASK-DETAIL.md#task-dbg-003----breakpoints-and-step-semantics)
+- [x] **TASK-DBG-004** Watch Expressions and Pin-Value Snapshotting -- [details](./TASK-DETAIL.md#task-dbg-004----watch-expressions-and-pin-value-snapshotting)
+- [x] **TASK-DBG-005** Multi-Entity Debugging, PDB Integration, Hot Reload Interaction -- [details](./TASK-DETAIL.md#task-dbg-005----multi-entity-debugging-pdb-integration-hot-reload-interaction)
+- [x] **TASK-DBG-006** Debug Protocol Test Suite -- [details](./TASK-DETAIL.md#task-dbg-006----debug-protocol-test-suite)
 
 ---
 
 ## Phase 6 -- Editor
 
-- [ ] **TASK-ED-001** Editor Infrastructure Window Lifecycle IWindowRegistrar Time-Controller Adapter -- [details](./TASK-DETAIL.md#task-ed-001----editor-infrastructure-window-lifecycle-iwindowregistrar-time-controller-adapter)
-- [ ] **TASK-ED-002** Asset Browser and Graph Editor Windows -- [details](./TASK-DETAIL.md#task-ed-002----asset-browser-and-graph-editor-windows)
-- [ ] **TASK-ED-003** Inspector Window and StructEdit Drawer Infrastructure -- [details](./TASK-DETAIL.md#task-ed-003----inspector-window-and-structedit-drawer-infrastructure)
-- [ ] **TASK-ED-004** Debug Panel Watch Panel Callstack Window Hot Reload Log -- [details](./TASK-DETAIL.md#task-ed-004----debug-panel-watch-panel-callstack-window-hot-reload-log)
-- [ ] **TASK-ED-005** Quick Reload Full Rebuild Debug Session Lifecycle -- [details](./TASK-DETAIL.md#task-ed-005----quick-reload-full-rebuild-debug-session-lifecycle)
-- [ ] **TASK-ED-006** Editor Preferences Configuration and Editor Test Suite -- [details](./TASK-DETAIL.md#task-ed-006----editor-preferences-configuration-and-editor-test-suite)
+- [x] **TASK-ED-001** Editor Infrastructure: Window Lifecycle, IWindowRegistrar, Time-Controller Adapter -- [details](./TASK-DETAIL.md#task-ed-001----editor-infrastructure-window-lifecycle-iwindowregistrar-time-controller-adapter)
+- [x] **TASK-ED-002** Asset Browser and Graph Editor Windows -- [details](./TASK-DETAIL.md#task-ed-002----asset-browser-and-graph-editor-windows)
+- [x] **TASK-ED-003** Inspector Window and StructEdit Drawer Infrastructure -- [details](./TASK-DETAIL.md#task-ed-003----inspector-window-and-structedit-drawer-infrastructure)
+- [x] **TASK-ED-004** Debug Panel Watch Panel Callstack Window Hot Reload Log -- [details](./TASK-DETAIL.md#task-ed-004----debug-panel-watch-panel-callstack-window-hot-reload-log)
+- [x] **TASK-ED-005** Quick Reload Full Rebuild Debug Session Lifecycle -- [details](./TASK-DETAIL.md#task-ed-005----quick-reload-full-rebuild-debug-session-lifecycle)
+- [x] **TASK-ED-006** Editor Preferences Configuration and Editor Test Suite -- [details](./TASK-DETAIL.md#task-ed-006----editor-preferences-configuration-and-editor-test-suite)
 
 ---
 
 ## Phase 7 -- Demos
 
-- [ ] **TASK-DEMO-001** Demo: MathUtilsLib Library Dispatch -- [details](./TASK-DETAIL.md#task-demo-001----demo-mathutilslib-library-dispatch)
-- [ ] **TASK-DEMO-002** Demo: HealthRegen Instance Dispatch -- [details](./TASK-DETAIL.md#task-demo-002----demo-healthregen-instance-dispatch)
-- [ ] **TASK-DEMO-003** Demo: DoorActor + DoorSensor Multi-Blueprint Peer Calls -- [details](./TASK-DETAIL.md#task-demo-003----demo-dooractor--doorsensor-multi-blueprint-peer-calls)
-- [ ] **TASK-DEMO-004** Demo: HasVisibleTarget AiPrimitive Multi-Hosting -- [details](./TASK-DETAIL.md#task-demo-004----demo-hasvisibletarget-aiprimitive-multi-hosting)
-- [ ] **TASK-DEMO-005** Demo: MoveToAndFire Headline AiPrimitive Action -- [details](./TASK-DETAIL.md#task-demo-005----demo-movetoandfire-headline-aiprimitive-action)
+- [x] **TASK-DEMO-001** Demo: MathUtilsLib Library Dispatch -- [details](./TASK-DETAIL.md#task-demo-001----demo-mathutilslib-library-dispatch)
+- [x] **TASK-DEMO-002** Demo: HealthRegen Instance Dispatch -- [details](./TASK-DETAIL.md#task-demo-002----demo-healthregen-instance-dispatch)
+- [x] **TASK-DEMO-003** Demo: DoorActor + DoorSensor Multi-Blueprint Peer Calls -- [details](./TASK-DETAIL.md#task-demo-003----demo-dooractor--doorsensor-multi-blueprint-peer-calls)
+- [x] **TASK-DEMO-004** Demo: HasVisibleTarget AiPrimitive Multi-Hosting -- [details](./TASK-DETAIL.md#task-demo-004----demo-hasvisibletarget-aiprimitive-multi-hosting)
+- [x] **TASK-DEMO-005** Demo: MoveToAndFire Headline AiPrimitive Action -- [details](./TASK-DETAIL.md#task-demo-005----demo-movetoandfire-headline-aiprimitive-action)
