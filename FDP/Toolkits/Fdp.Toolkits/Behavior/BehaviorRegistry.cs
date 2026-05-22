@@ -183,6 +183,26 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
+        /// Copies all registrations from <paramref name="source"/> into this registry.
+        /// Existing entries with the same key are overwritten.
+        /// Called by <see cref="AiHotReloadCoordinator.ApplyQuickReload"/> to commit
+        /// a staging registry into the live registry.
+        /// </summary>
+        public void MergeFrom(BehaviorRegistry source)
+        {
+            foreach (var (name, id) in source._nameToId)
+            {
+                _nameToId[name] = id;
+                if (source._definitions.TryGetValue(id, out var def))
+                    _definitions[id] = def;
+            }
+            foreach (var (id, entry) in source._bTreeActions)
+                _bTreeActions[id] = entry;
+            foreach (var (id, entry) in source._bTreeConditions)
+                _bTreeConditions[id] = entry;
+        }
+
+        /// <summary>
         /// Reverse-maps a stable integer behavior ID back to its registered name.
         /// Returns <c>false</c> when the ID has not been registered.
         /// Used by egress translators to emit the human-readable <c>BehaviorId</c>

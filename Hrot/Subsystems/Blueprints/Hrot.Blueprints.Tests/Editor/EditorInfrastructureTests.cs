@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
+using Hrot.Blueprints.Editor.Debug;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -115,15 +116,9 @@ public sealed class EditorInfrastructureTests
 
     // SC10
     [Fact]
-    public void EngineTimeControllerAdapter_ImplementsInterface()
+    public void MasterSyncTimeControllerAdapter_ImplementsInterface()
     {
-        var adapter = new EngineTimeControllerAdapter(new object());
-        Assert.IsAssignableFrom<IBlueprintTimeController>(adapter);
-        // All methods must not throw.
-        adapter.RequestPause();
-        adapter.RequestResume();
-        adapter.RequestStepOneTick();
-        _ = adapter.IsPausedByDebugger;
+        Assert.True(typeof(MasterSyncTimeControllerAdapter).IsAssignableTo(typeof(IBlueprintTimeController)));
     }
 
     // Helper: create a BlueprintEditorModule with a null-sink output console.

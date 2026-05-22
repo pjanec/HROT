@@ -1,0 +1,22 @@
++ FDP/ExtDeps/NodeEdit
+- **/Debug
+- **/Release
+- **/.*
+- **/obj
+- **/bin
+- **/tests
+- **/Tests
+- **/*.Tests*
+- **/*Benchmark*
+- **/*benchmark*
+- **/build
+- **/artifacts
+- **/Generated/*
+- **/*.png
+- **/*.dll
+- **/*.exe
+- **/*.md
+- **/*.fdp
+- *.txt
+- *.log
+

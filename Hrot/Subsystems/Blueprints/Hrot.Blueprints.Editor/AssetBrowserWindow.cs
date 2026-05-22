@@ -1,4 +1,7 @@
+using System.IO;
+using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
+using ImGuiNET;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -10,6 +13,7 @@ public sealed class AssetBrowserWindow : BlueprintEditorWindowBase
     private readonly EditorState _editorState;
 
     private List<AssetCatalogEntry> _catalogEntries = new();
+    private string _filterText = string.Empty;
 
     public override string Title => "Asset Browser";
 
@@ -32,7 +36,55 @@ public sealed class AssetBrowserWindow : BlueprintEditorWindowBase
 
     public override void DrawUI()
     {
-        // ImGui rendering -- requires editor runtime. Stub for Slice 1.
+        if (ImGui.Button("Refresh")) RefreshCatalog();
+        ImGui.SameLine();
+        ImGui.InputText("Filter", ref _filterText, 128);
+
+        if (ImGui.BeginTable("AssetsTable", 4,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        {
+            ImGui.TableSetupColumn("Name",     ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Dispatch", ImGuiTableColumnFlags.WidthFixed, 100f);
+            ImGui.TableSetupColumn("Hostings", ImGuiTableColumnFlags.WidthFixed, 150f);
+            ImGui.TableSetupColumn("Status",   ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableHeadersRow();
+
+            foreach (var entry in _catalogEntries)
+            {
+                if (!string.IsNullOrEmpty(_filterText) &&
+                    !entry.Path.Contains(_filterText, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+
+                bool isDirty  = _dirtyTracker.IsDirty(entry.AssetId);
+                string prefix = isDirty ? "* " : "";
+                bool isSelected = _selectionStore.SelectedAsset?.AssetId == entry.AssetId;
+
+                // Double-click opens the asset in the graph editor.
+                if (ImGui.Selectable(
+                        $"{prefix}{Path.GetFileNameWithoutExtension(entry.Path)}##{entry.AssetId}",
+                        isSelected,
+                        ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick))
+                {
+                    if (ImGui.IsMouseDoubleClicked(0))
+                    {
+                        var asset = _editorState.GetInMemoryAsset(entry.AssetId);
+                        if (asset != null) _selectionStore.SelectAsset(asset);
+                    }
+                }
+
+                ImGui.TableNextColumn();
+                ImGui.TextDisabled("---");
+                ImGui.TableNextColumn();
+                ImGui.TextDisabled("---");
+                ImGui.TableNextColumn();
+                if (isDirty) ImGui.TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), "Modified");
+            }
+
+            ImGui.EndTable();
+        }
     }
 
     public override void OnActivated()   => RefreshCatalog();

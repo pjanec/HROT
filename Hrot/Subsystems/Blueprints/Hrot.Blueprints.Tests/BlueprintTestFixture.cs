@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Attributes;
 using Fhsm.Kernel;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
@@ -199,7 +200,7 @@ public sealed class BlueprintTestFixture : IDisposable
         _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
 
         // Hand off to coordinator so _currentAlc is tracked.
-        _coordinator.ApplyQuickReload(alc, assembly);
+        ApplyQuickReloadFromAssembly(alc, assembly);
         return assembly;
     }
 
@@ -341,7 +342,7 @@ public sealed class BlueprintTestFixture : IDisposable
         _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
 
         // Hand off to coordinator (Patch 3) — coordinator owns ALC lifecycle.
-        _coordinator.ApplyQuickReload(alc, assembly);
+        ApplyQuickReloadFromAssembly(alc, assembly);
     }
 
     /// <summary>Single-asset convenience wrapper for SimulateReload.</summary>
@@ -383,7 +384,7 @@ public static class ThrowingRegistrar
             source, $"{assemblyName}.g.cs", assemblyName, sink);
 
         _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
-        _coordinator.ApplyQuickReload(alc, assembly);
+        ApplyQuickReloadFromAssembly(alc, assembly);
     }
 
     /// <summary>
@@ -394,7 +395,67 @@ public static class ThrowingRegistrar
     internal void SimulateReloadFromAlc(AssemblyLoadContext alc, Assembly assembly)
     {
         _alcWeakRefs.Add(new WeakReference<AssemblyLoadContext>(alc));
-        _coordinator.ApplyQuickReload(alc, assembly);
+        ApplyQuickReloadFromAssembly(alc, assembly);
+    }
+
+    // Scans registrars from the assembly, invokes them into staging buffers, then
+    // calls coordinator.ApplyQuickReload with the populated staging.  Mirrors the
+    // pipeline in QuickReloadService so test helpers stay consistent with production.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ApplyQuickReloadFromAssembly(AssemblyLoadContext alc, Assembly assembly)
+    {
+        HsmActionDispatcher.ClearAll();
+        var behaviorStaging  = new BehaviorRegistry();
+        var blueprintStaging = new BlueprintRegistryStaging();
+
+        try
+        {
+            foreach (var type in assembly.GetTypes())
+            {
+                if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
+                    continue;
+
+                var method = type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static)
+                          ?? type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
+                if (method == null) continue;
+
+                var paramInfos = method.GetParameters();
+                var args = new object[paramInfos.Length];
+                for (int i = 0; i < paramInfos.Length; i++)
+                {
+                    if (paramInfos[i].ParameterType == typeof(BlueprintRegistryStaging))
+                        args[i] = blueprintStaging;
+                    else if (paramInfos[i].ParameterType == typeof(BehaviorRegistry))
+                        args[i] = behaviorStaging;
+                    // Patch 4: BlueprintRegistry is forbidden — violates the RCU contract.
+                    else if (paramInfos[i].ParameterType == typeof(BlueprintRegistry))
+                        throw new HotReloadRegistrarException(
+                            "Registrar requests BlueprintRegistry as a parameter, but only " +
+                            "BlueprintRegistryStaging may be injected. Direct access to the live " +
+                            "registry would violate the atomic RCU contract. " +
+                            "Change the registrar's parameter to BlueprintRegistryStaging.");
+                    // Patch 2: HsmActionDispatcher is a static class — cannot be injected.
+                    else if (paramInfos[i].ParameterType == typeof(HsmActionDispatcher))
+                        throw new HotReloadRegistrarException(
+                            "Registrar requests HsmActionDispatcher as a parameter, but it is a " +
+                            "static class and cannot be injected. " +
+                            "Call HsmActionDispatcher.RegisterAction statically from inside Register.");
+                    else
+                        throw new HotReloadRegistrarException(
+                            $"Unknown registrar parameter type: {paramInfos[i].ParameterType.FullName}. " +
+                            "Supported: BlueprintRegistryStaging, BehaviorRegistry.");
+                }
+                method.Invoke(null, args);
+            }
+
+            _coordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging);
+        }
+        catch
+        {
+            // Coordinator takes ownership on success; on failure we must unload here.
+            try { alc.Unload(); } catch { /* best-effort */ }
+            throw;
+        }
     }
 
     // ---- Invoke helpers ----------------------------------------------------

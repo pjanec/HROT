@@ -160,29 +160,37 @@ public sealed class AiHotReloadCoordinator : IDisposable
 
     /// <summary>
     /// Apply an in-memory Quick Reload (Patch 3).
-    /// Scans registrars from the given assembly, then calls ApplyReload directly.
-    /// Throws on failure; caller should NOT unload newAlc on failure (coordinator does it).
+    /// The caller (<c>QuickReloadService</c>) handles <see cref="HsmActionDispatcher.ClearAll"/>
+    /// and registrar invocation into staging buffers; this method performs only the staging
+    /// commits, ALC swap, and event notification.
+    /// Throws on failure; coordinator unloads <paramref name="newAlc"/> on failure.
     /// </summary>
-    public void ApplyQuickReload(AssemblyLoadContext newAlc, Assembly newAssembly)
+    public void ApplyQuickReload(
+        AssemblyLoadContext newAlc,
+        BehaviorRegistry behaviorStaging,
+        BlueprintRegistryStaging blueprintStaging)
     {
-        var registrars = ScanForRegistrars(newAssembly);
-        var pending = new PendingReload
-        {
-            NewAlc      = newAlc,
-            NewAssembly = newAssembly,
-            Registrars  = registrars,
-        };
-
         try
         {
-            ApplyReload(pending);
+            // Step 1: atomic commit of BlueprintRegistry.
+            _blueprintRegistry.CommitStaging(blueprintStaging);
+
+            // Step 2: apply staging behavior registry -> live registry.
+            _behaviorRegistry.MergeFrom(behaviorStaging);
+
+            // Step 3: swap _currentAlc - ONLY after successful commits (Patch 1).
+            var oldAlc = _currentAlc;
+            _currentAlc = newAlc;
+            oldAlc?.Unload();
+
+            // Step 4: fire completion event.
             OnReloadCompleted?.Invoke();
         }
         catch (Exception ex)
         {
+            // Unload the new patch ALC on failure; old _currentAlc stays live.
+            try { newAlc.Unload(); } catch { /* best-effort */ }
             OnReloadFailed?.Invoke(ex);
-            try { pending.NewAlc.Unload(); }
-            catch { /* best-effort */ }
             throw;
         }
     }
