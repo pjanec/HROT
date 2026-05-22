@@ -1,0 +1,134 @@
+using ImGuiNET;
+using NodeEditor.Core.Interfaces;
+using System.Numerics;
+
+namespace NodeEditor.UI.Picker.Layouts;
+
+/// <summary>
+/// Tree layout: hierarchical expand/collapse list built from each entry's
+/// <see cref="PickerEntry.Category"/> path or from an explicit
+/// <see cref="CategoryNode"/> tree.
+/// Arrow ← / → collapse/expand nodes; ↑ / ↓ navigate.
+/// </summary>
+internal static class TreeLayout
+{
+    /// <summary>Render the tree view.</summary>
+    public static void Draw(PickerState state, IPickerRenderContext ctx,
+                            CategoryNode? explicitRoot = null)
+    {
+        float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
+        if (ImGui.BeginChild("##picker_tree", new Vector2(0f, height), ImGuiChildFlags.None))
+        {
+            if (explicitRoot is not null)
+                DrawExplicitTree(state, ctx, explicitRoot, 0);
+            else
+                DrawImplicitTree(state, ctx);
+        }
+        ImGui.EndChild();
+    }
+
+    // ── implicit tree (built from Category strings) ───────────────────────────
+
+    private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx)
+    {
+        // Group entries by top-level category segment.
+        var byRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
+        var uncategorized = new List<(int idx, RankedEntry re)>();
+
+        for (int i = 0; i < state.Filtered.Count; i++)
+        {
+            var re = state.Filtered[i];
+            if (re.Entry.Category is { Length: > 0 } cat)
+            {
+                string root = cat.Contains('/') ? cat[..cat.IndexOf('/')] : cat;
+                if (!byRoot.TryGetValue(root, out var list))
+                    byRoot[root] = list = [];
+                list.Add((i, re));
+            }
+            else
+            {
+                uncategorized.Add((i, re));
+            }
+        }
+
+        foreach (var (root, items) in byRoot)
+        {
+            if (ImGui.TreeNode(root))
+            {
+                DrawGroupedItems(state, ctx, root, items);
+                ImGui.TreePop();
+            }
+        }
+
+        foreach (var (idx, re) in uncategorized)
+            DrawLeafItem(state, ctx, idx, re);
+    }
+
+    private static void DrawGroupedItems(PickerState state, IPickerRenderContext ctx,
+                                         string parentCategory,
+                                         List<(int idx, RankedEntry re)> items)
+    {
+        foreach (var (idx, re) in items)
+        {
+            // Check if this item has a sub-category beyond the parent.
+            string? cat = re.Entry.Category;
+            if (cat is not null && cat.Length > parentCategory.Length + 1)
+            {
+                // There's a deeper segment; nest one more level.
+                string subCat = cat[(parentCategory.Length + 1)..];
+                string subRoot = subCat.Contains('/') ? subCat[..subCat.IndexOf('/')] : subCat;
+                if (ImGui.TreeNode(subRoot))
+                {
+                    DrawLeafItem(state, ctx, idx, re);
+                    ImGui.TreePop();
+                }
+            }
+            else
+            {
+                DrawLeafItem(state, ctx, idx, re);
+            }
+        }
+    }
+
+    // ── explicit tree ─────────────────────────────────────────────────────────
+
+    private static void DrawExplicitTree(PickerState state, IPickerRenderContext ctx,
+                                         CategoryNode node, int depth)
+    {
+        if (depth == 0)
+        {
+            // Root: render children directly (don't show the root node itself).
+            foreach (var child in node.Children)
+                DrawExplicitTree(state, ctx, child, 1);
+            return;
+        }
+
+        bool open = ImGui.TreeNode(node.Name);
+        if (open)
+        {
+            foreach (var child in node.Children)
+                DrawExplicitTree(state, ctx, child, depth + 1);
+            ImGui.TreePop();
+        }
+    }
+
+    // ── leaf item ─────────────────────────────────────────────────────────────
+
+    private static void DrawLeafItem(PickerState state, IPickerRenderContext ctx,
+                                     int filteredIdx, RankedEntry re)
+    {
+        bool sel    = state.SelectedFilteredIndices.Contains(filteredIdx);
+        bool focus  = state.KeyboardFocusIndex == filteredIdx;
+
+        ImGui.PushID(filteredIdx);
+
+        if (ImGui.Selectable(re.Entry.Name, sel || focus))
+        {
+            state.SelectedFilteredIndices.Clear();
+            state.SelectedFilteredIndices.Add(filteredIdx);
+            state.KeyboardFocusIndex = filteredIdx;
+        }
+
+        ImGui.PopID();
+    }
+}

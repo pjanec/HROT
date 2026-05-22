@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NodeEditor.Core</RootNamespace>
+    <AssemblyName>NodeEditor.Core</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
+  </ItemGroup>
+</Project>
