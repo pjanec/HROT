@@ -76,6 +76,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             _history[self] = hist = new ExecutionHistory();
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
 
+        // Fire OnNodeExecuted so subscribers (e.g., Callstack window) can update the trail.
+        _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
+
         // Check breakpoints: re-entrant guard prevents extra RequestPause when already paused.
         if (!_isPaused && _bpByNodeString.TryGetValue(nodeId, out var bp))
             HandleBreakpointHit(self, bp, nodeId);
@@ -163,7 +166,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
     public bool IsAttached => true;
-    public void Detach() => throw new NotImplementedException();
+
+    public void Detach()
+    {
+        if (_isPaused) Continue();
+        DebugProbe.Sink = NullProbeSink.Instance;
+        _breakpoints.Clear();
+        _bpByNodeString.Clear();
+        _watches.Clear();
+        _watchesByPinString.Clear();
+        _activeEntities.Clear();
+        _history.Clear();
+        _currentCallDepth.Clear();
+        _debugMaps.Clear();
+        _pdbLocators.Clear();
+        OnSessionStateChanged?.Invoke();
+    }
 
     // ---- IBlueprintDebugSession -- breakpoints ------------------------------
 
@@ -312,7 +330,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             : null;
 
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
-        => Array.Empty<NodeExecuted>();
+    {
+        var all = new List<NodeExecuted>();
+        foreach (var (entity, hist) in _history)
+        {
+            foreach (var entry in hist.GetRecent(maxCount))
+                all.Add(new NodeExecuted(entity, Guid.Empty, Guid.Empty, entry.NodeId, entry.SimTime, entry.Tick));
+        }
+        // Return the most recent maxCount entries across all entities.
+        if (all.Count > maxCount)
+            all.Sort((a, b) => b.Tick.CompareTo(a.Tick));
+        return all.Count <= maxCount ? all.AsReadOnly() : all.Take(maxCount).ToList().AsReadOnly();
+    }
 
     // Non-interface overload: returns per-entity execution history.
     // Per-entity view is the primary entry point; GetRecentNodeHistory (no entity) deferred to DBG-005.
@@ -477,4 +506,3 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         return bytes;
     }
 }
-

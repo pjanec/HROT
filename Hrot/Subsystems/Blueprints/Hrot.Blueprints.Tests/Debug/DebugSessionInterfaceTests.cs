@@ -118,6 +118,44 @@ public sealed class DebugSessionInterfaceTests
         Assert.Null(prop);
     }
 
+    // ---- T1: Detach() clears all state and resets probe ----------------------
+
+    [Fact]
+    public void Detach_ClearsAllStateAndNullsProbe()
+    {
+        var timeController = new MockTimeController();
+        var session = MakeSession(timeController);
+
+        DebugProbe.Sink = session;
+        session.SetBreakpoint(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        session.AddWatch(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "w1", typeof(int));
+
+        session.Detach();
+
+        Assert.Same(NullProbeSink.Instance, DebugProbe.Sink);
+        Assert.Equal(0, session.GetBreakpoints().Count);
+        Assert.Equal(0, session.GetWatches().Count);
+        Assert.False(session.IsPaused);
+    }
+
+    // ---- T2: Detach() calls Continue() first if already paused --------------
+
+    [Fact]
+    public void Detach_CallsContinue_WhenPaused()
+    {
+        var timeController = new MockTimeController();
+        var session = MakeSession(timeController);
+
+        session.Pause();
+        Assert.True(session.IsPaused);
+
+        int resumesBefore = timeController.ResumeCount;
+        session.Detach();
+
+        Assert.True(timeController.ResumeCount > resumesBefore);
+        Assert.False(session.IsPaused);
+    }
+
     // ---- Helpers ---------------------------------------------------------------
 
     // [NoInlining] to make the hot path a separate frame (mirrors AllocationFreeTests pattern).

@@ -139,4 +139,39 @@ public sealed class NodeHistoryTests
 
         Assert.Equal(10, history.Count);
     }
+
+    // ---- T3: OnNodeExecuted fires on node enter ------------------------------
+
+    [Fact]
+    public void OnNodeExecuted_FiredOnNodeEnter()
+    {
+        var session = MakeSession();
+        IBlueprintDebugSession iface = session;
+
+        NodeExecuted? captured = null;
+        iface.OnNodeExecuted += evt => captured = evt;
+
+        ((IBlueprintProbeSink)session).OnNodeEnter(E1, "node-1");
+
+        Assert.NotNull(captured);
+        Assert.Equal("node-1", captured!.NodeIdString);
+        Assert.Equal(E1, captured.Self);
+    }
+
+    // ---- T4: GetRecentNodeHistory aggregates across entities -----------------
+
+    [Fact]
+    public void GetRecentNodeHistory_ReturnsAggregatedHistory()
+    {
+        var session = MakeSession();
+
+        ((IBlueprintProbeSink)session).OnNodeEnter(E1, "a");
+        ((IBlueprintProbeSink)session).OnNodeEnter(E2, "b");
+        ((IBlueprintProbeSink)session).OnNodeEnter(E1, "c");
+
+        IBlueprintDebugSession iface = session;
+        var result = iface.GetRecentNodeHistory(100);
+
+        Assert.Equal(3, result.Count);
+    }
 }

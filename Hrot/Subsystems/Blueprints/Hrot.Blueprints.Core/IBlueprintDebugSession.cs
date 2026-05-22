@@ -69,7 +69,7 @@ public sealed class Watch
     public uint     LastUpdateTick    { get; private set; }
     public int      UpdateCount       { get; private set; }
     public bool     HasEverBeenWritten { get; private set; }
-    public bool     IsStale           { get; internal set; }
+    public bool     IsStale           { get; set; }
 
     public Watch(WatchId id, Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
@@ -84,13 +84,13 @@ public sealed class Watch
         _valueBuffer      = new byte[64];
     }
 
-    internal void WriteValue<T>(T value, Entity self, uint tick) where T : unmanaged
+    public void WriteValue<T>(T value, Entity self, uint tick) where T : unmanaged
     {
         int size = Unsafe.SizeOf<T>();
         if (size > 64)
             throw new InvalidOperationException(
                 $"Watch value type {typeof(T).Name} is {size} bytes; exceeds 64-byte buffer.");
-        Unsafe.WriteUnaligned(ref _valueBuffer[0], value);
+        Unsafe.WriteUnaligned(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(_valueBuffer), value);
         _lastBytesWritten  = size;
         LastUpdateEntity   = self;
         LastUpdateTick     = tick;

@@ -5,7 +5,7 @@ namespace Hrot.Blueprints.Core.Debug;
 /// Pre-allocated; Record() is zero-allocation on write.
 /// Entries are stored in insertion order; GetRecent returns chronological (oldest first) order.
 /// </summary>
-internal sealed class ExecutionHistory
+public sealed class ExecutionHistory
 {
     private readonly NodeHistoryEntry[] _buffer;
     private int _head;
