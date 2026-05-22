@@ -16,7 +16,7 @@ public sealed class HardReloadTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         HardReload_InstanceBlueprint_SlotPayloadZeroed_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();

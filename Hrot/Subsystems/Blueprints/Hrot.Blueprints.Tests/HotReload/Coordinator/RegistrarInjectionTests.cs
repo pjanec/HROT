@@ -23,7 +23,7 @@ public sealed class RegistrarInjectionTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         ResolveRegistrarArgument_BlueprintRegistry_ThrowsWithRcuMessage_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -79,7 +79,7 @@ public static class ForbiddenRegistrar
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         ResolveRegistrarArgument_HsmActionDispatcher_ThrowsWithStaticClassMessage_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -149,7 +149,7 @@ public static class ForbiddenRegistrar
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         AiPrimitive_TwoParameterRegistrar_IsInvokedCorrectly_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();

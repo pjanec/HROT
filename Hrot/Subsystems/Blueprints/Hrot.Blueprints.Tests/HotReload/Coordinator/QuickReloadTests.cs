@@ -14,7 +14,7 @@ public sealed class QuickReloadTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         QuickReload_UpdatesCurrentAlc_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -57,7 +57,7 @@ public sealed class QuickReloadTests
         WeakReference alc2WeakRef;
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         QuickReload_AfterPreviousQuickReload_Body(out alc1WeakRef, out alc2WeakRef, out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();

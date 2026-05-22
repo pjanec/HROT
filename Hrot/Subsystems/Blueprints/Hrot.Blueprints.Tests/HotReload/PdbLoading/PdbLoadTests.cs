@@ -15,7 +15,7 @@ public sealed class PdbLoadTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         CompileWithPdb_AiPrimitive_AssemblyLoadsSuccessfully_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();

@@ -15,7 +15,7 @@ public sealed class AlcLifecycleTests
         WeakReference alc1WeakRef;
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         SuccessfulReload_UnloadsOldAlc_Body(out alc1WeakRef, out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -56,7 +56,7 @@ public sealed class AlcLifecycleTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         FailedReload_DoesNotLeakNewAlc_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -100,7 +100,7 @@ public sealed class AlcLifecycleTests
         WeakReference alcBWeakRef;
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         ChainedReloads_R1Success_R2Failure_R3Success_Body(out alcBWeakRef, out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();

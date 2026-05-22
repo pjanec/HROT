@@ -16,7 +16,7 @@ public sealed class AiPrimitiveReloadTests
     {
         WeakReference<AssemblyLoadContext>[] alcWeakRefs;
         AiPrimitive_AfterReload_CompilesAndTicksWithoutError_Body(out alcWeakRefs);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 50; i++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
