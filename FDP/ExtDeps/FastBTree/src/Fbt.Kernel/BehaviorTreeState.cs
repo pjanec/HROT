@@ -60,6 +60,14 @@ namespace Fbt
         /// </summary>
         [FieldOffset(40)]
         public fixed ulong AsyncHandles[3];
+
+        /// <summary>
+        /// Per-instance control flags (e.g. Paused).
+        /// Overlays the third async handle slot (AsyncHandles[2] at offset 56),
+        /// which is reserved and never written in production code.
+        /// </summary>
+        [FieldOffset(56)]
+        public BehaviorInstanceFlags InstanceFlags;
         
         /// <summary>
         /// Convenience accessor for the first async handle, often used for Wait node timer storage.

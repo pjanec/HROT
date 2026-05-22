@@ -1,4 +1,5 @@
 using System;
+using Fhsm.Kernel.Data;
 
 namespace Fhsm.Kernel.Attributes
 {
@@ -13,5 +14,11 @@ namespace Fhsm.Kernel.Attributes
         /// Unique name for this action. If null, uses method name.
         /// </summary>
         public string? Name { get; set; }
+
+        /// <summary>
+        /// Output lane for AI command routing. <see cref="CommandLane.None"/> means
+        /// no explicit lane — the editor infers it from context.
+        /// </summary>
+        public CommandLane Lane { get; set; } = CommandLane.None;
     }
 }

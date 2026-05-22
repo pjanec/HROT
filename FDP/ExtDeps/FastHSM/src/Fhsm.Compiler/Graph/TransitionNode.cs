@@ -15,6 +15,12 @@ namespace Fhsm.Compiler.Graph
         
         public byte Priority { get; set; } = 128;  // Default normal
         public bool IsInternal { get; set; }  // Internal vs External
+
+        /// <summary>
+        /// Stable identity for editor/visualisation tooling.
+        /// Auto-generated when not explicitly supplied.
+        /// </summary>
+        public Guid VisualId { get; set; }
         
         public TransitionNode() { }
 

@@ -15,13 +15,35 @@ namespace Fhsm.Compiler
             _graph = new StateMachineGraph(machineName);
         }
         
-        public StateBuilder State(string name)
+        public StateBuilder State(string name, Guid stableId = default)
         {
-            var state = new StateNode(name);
+            var state = new StateNode(name, stableId == default ? null : (Guid?)stableId);
             _graph.AddState(state);
             _graph.RootState.AddChild(state);  // Top-level states are children of root
             
             return new StateBuilder(state, _graph);
+        }
+
+        /// <summary>
+        /// Adds a global transition that fires for any active state when <paramref name="eventName"/> is raised.
+        /// </summary>
+        public HsmBuilder GlobalTransition(string eventName, string targetStateName, Guid visualId = default)
+        {
+            if (!_graph.EventNameToId.TryGetValue(eventName, out ushort eventId))
+                throw new InvalidOperationException($"Event '{eventName}' not registered");
+
+            var target = _graph.FindState(targetStateName)
+                ?? throw new InvalidOperationException($"Target state '{targetStateName}' not found");
+
+            var t = new TransitionNode
+            {
+                Source = null,  // global transitions have no source state
+                Target = target,
+                EventId = eventId,
+                VisualId = visualId == default ? Guid.NewGuid() : visualId
+            };
+            _graph.GlobalTransitions.Add(t);
+            return this;
         }
         
         public HsmBuilder Event(string eventName, ushort eventId, int payloadSize = 0, bool isIndirect = false, bool isDeferred = false)
@@ -106,9 +128,9 @@ namespace Fhsm.Compiler
             return this;
         }
 
-        public StateBuilder Child(string childName, Action<StateBuilder> configure)
+        public StateBuilder Child(string childName, Action<StateBuilder> configure, Guid stableId = default)
         {
-            var child = new StateNode(childName);
+            var child = new StateNode(childName, stableId == default ? null : (Guid?)stableId);
             _state.AddChild(child);
             _graph.AddState(child);
             
@@ -151,19 +173,21 @@ namespace Fhsm.Compiler
             _transition = new TransitionNode(source, null!, eventId);
         }
         
-        public TransitionBuilder GoTo(string targetStateName)
+        public TransitionBuilder GoTo(string targetStateName, Guid visualId = default)
         {
             var target = _graph.FindState(targetStateName);
             if (target == null)
                 throw new InvalidOperationException($"Target state '{targetStateName}' not found");
             
+            _transition.VisualId = visualId == default ? Guid.NewGuid() : visualId;
             _transition.Target = target;
             _source.AddTransition(_transition);
             return this;
         }
 
-        public TransitionBuilder GoTo(StateBuilder target)
+        public TransitionBuilder GoTo(StateBuilder target, Guid visualId = default)
         {
+            _transition.VisualId = visualId == default ? Guid.NewGuid() : visualId;
             _transition.Target = target.State;
             _source.AddTransition(_transition);
             return this;

@@ -76,6 +76,7 @@ namespace Fhsm.Kernel
         {
             if (header->MachineId != definition.Header.StructureHash) return false;
             if ((header->Flags & InstanceFlags.Terminated) != 0) return false;
+            if ((header->Flags & InstanceFlags.Paused) != 0) return false;
             if (header->Phase > InstancePhase.Activity) return false;
             return true;
         }

@@ -41,6 +41,10 @@ namespace Fbt.Runtime
                 unchecked { state.TreeVersion++; }
             }
 
+            // === PAUSED CHECK ===
+            if ((state.InstanceFlags & BehaviorInstanceFlags.Paused) != 0)
+                return NodeStatus.Running;
+
             // === EXECUTE TREE ===
             if (_blob.Nodes.Length == 0) return NodeStatus.Success; // Empty tree safety
 
@@ -86,6 +90,16 @@ namespace Fbt.Runtime
                     return ExecuteForceSuccess(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.ForceFailure:
                     return ExecuteForceFailure(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                case NodeType.UntilSuccess:
+                    return ExecuteUntilSuccess(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                case NodeType.UntilFailure:
+                    return ExecuteUntilFailure(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                case NodeType.ObserverSelector:
+                    // ObserverSelector uses standard selector semantics in the interpreter.
+                    return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
+                case NodeType.Subtree:
+                    // Subtree execution requires external orchestration; return Failure as a safe stub.
+                    return NodeStatus.Failure;
                 default:
                     return NodeStatus.Failure; // Unknown/Unimplemented node type
             }
@@ -279,6 +293,42 @@ namespace Fbt.Runtime
                 return NodeStatus.Running;
                 
             return NodeStatus.Failure; // Force failure
+        }
+
+        private NodeStatus ExecuteUntilSuccess(
+            int nodeIndex,
+            ref NodeDefinition node,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            // Re-execute child each tick until it returns Success; propagate Running or Failure as Running.
+            int childIndex = nodeIndex + 1;
+            var result = ExecuteNode(childIndex, ref bb, ref state, ref ctx);
+
+            if (result == NodeStatus.Success)
+                return NodeStatus.Success;
+
+            // Failure means "try again next tick" -- treat as Running.
+            return NodeStatus.Running;
+        }
+
+        private NodeStatus ExecuteUntilFailure(
+            int nodeIndex,
+            ref NodeDefinition node,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            // Re-execute child each tick until it returns Failure; propagate Running or Success as Running.
+            int childIndex = nodeIndex + 1;
+            var result = ExecuteNode(childIndex, ref bb, ref state, ref ctx);
+
+            if (result == NodeStatus.Failure)
+                return NodeStatus.Success;
+
+            // Success means "try again next tick" -- treat as Running.
+            return NodeStatus.Running;
         }
 
         private NodeStatus ExecuteWait(

@@ -149,7 +149,70 @@ namespace Fbt.Compiler
             return AddDecoratorWithNode(node, $"Cooldown({durationStr}s)", child, visualId, sourceFile, lineNumber);
         }
 
-        // ---- Leaves ----
+        /// <summary>Adds a ForceSuccess decorator that always returns Success regardless of its child's result.</summary>
+        public BTreeBuilder<TBlackboard, TContext> ForceSuccess(
+            Action<BTreeBuilder<TBlackboard, TContext>> child,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            return AddDecorator(NodeType.ForceSuccess, "ForceSuccess", child, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>Adds a ForceFailure decorator that always returns Failure regardless of its child's result.</summary>
+        public BTreeBuilder<TBlackboard, TContext> ForceFailure(
+            Action<BTreeBuilder<TBlackboard, TContext>> child,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            return AddDecorator(NodeType.ForceFailure, "ForceFailure", child, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>Adds an UntilSuccess decorator that repeats its child until it returns Success.</summary>
+        public BTreeBuilder<TBlackboard, TContext> UntilSuccess(
+            Action<BTreeBuilder<TBlackboard, TContext>> child,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            return AddDecorator(NodeType.UntilSuccess, "UntilSuccess", child, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>Adds an UntilFailure decorator that repeats its child until it returns Failure.</summary>
+        public BTreeBuilder<TBlackboard, TContext> UntilFailure(
+            Action<BTreeBuilder<TBlackboard, TContext>> child,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            return AddDecorator(NodeType.UntilFailure, "UntilFailure", child, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>Adds an ObserverSelector composite node whose children are populated by <paramref name="children"/>.</summary>
+        public BTreeBuilder<TBlackboard, TContext> ObserverSelector(
+            Action<BTreeBuilder<TBlackboard, TContext>> children,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            return AddComposite(NodeType.ObserverSelector, "ObserverSelector", -1, children, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>Adds a Subtree leaf node that delegates execution to the named external tree.</summary>
+        public BTreeBuilder<TBlackboard, TContext> Subtree(
+            string treeName,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            var node = new BuilderNode { Type = NodeType.Subtree, MethodName = treeName };
+            var meta = BuildMeta($"Subtree({treeName})", sourceFile, lineNumber, visualId);
+            _entries.Add(new BuilderEntry(node, meta));
+            return this;
+        }
+
+
 
         /// <summary>Adds an Action leaf node backed by <paramref name="action"/>.</summary>
         public BTreeBuilder<TBlackboard, TContext> Action(

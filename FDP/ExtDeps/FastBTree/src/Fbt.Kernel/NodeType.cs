@@ -14,6 +14,8 @@ namespace Fbt
         Sequence = 2,
         /// <summary>Executes children in parallel.</summary>
         Parallel = 3,
+        /// <summary>Selector that aborts running children when a higher-priority child changes status.</summary>
+        ObserverSelector = 5,
         
         // Leaves
         /// <summary>Leaf node that performs an action.</summary>

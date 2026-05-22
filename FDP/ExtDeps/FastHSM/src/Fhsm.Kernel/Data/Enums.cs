@@ -94,7 +94,7 @@ namespace Fhsm.Kernel.Data
         Error = 1 << 5,                 // Unrecoverable error
         
         DebugTrace = 1 << 6,            // Enable tracing for this instance
-        Reserved7 = 1 << 7,
+        Paused = 1 << 7,               // Instance is paused; kernel skips it
     }
 
     /// <summary>
@@ -126,7 +126,9 @@ namespace Fhsm.Kernel.Data
         Audio = 4,
         VFX = 5,
         Message = 6,
-        Count = 7
+        Count = 7,
+        /// <summary>Sentinel: no lane specified / inferred by the editor.</summary>
+        None = 0xFF
     }
 }
 
