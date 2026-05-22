@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Blueprints.Core\Hrot.Blueprints.Core.csproj" />
+    <ProjectReference Include="..\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
   </ItemGroup>
 
