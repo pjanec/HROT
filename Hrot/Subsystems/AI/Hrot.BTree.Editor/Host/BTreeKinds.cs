@@ -1,3 +1,4 @@
+using Fbt;
 using NodeEditor.Primitives;
 
 namespace Hrot.BTree.Editor.Host;
@@ -41,4 +42,39 @@ internal static class BTreeKinds
                id == Wait      ||
                id == Subtree;
     }
+
+    /// <summary>Returns true when the given kind key identifies a decorator node.</summary>
+    public static bool IsDecorator(NodeKindKey key)
+    {
+        var id = key.Id;
+        return id == Inverter     ||
+               id == Repeater     ||
+               id == Cooldown     ||
+               id == ForceSuccess ||
+               id == ForceFailure ||
+               id == UntilSuccess ||
+               id == UntilFailure;
+    }
+
+    /// <summary>Maps a catalog kind-ID string to the corresponding kernel NodeType.</summary>
+    public static NodeType KindIdToNodeType(string kindId) => kindId switch
+    {
+        Root             => NodeType.Root,
+        Sequence         => NodeType.Sequence,
+        Selector         => NodeType.Selector,
+        ObserverSelector => NodeType.ObserverSelector,
+        Parallel         => NodeType.Parallel,
+        Action           => NodeType.Action,
+        Condition        => NodeType.Condition,
+        Wait             => NodeType.Wait,
+        Subtree          => NodeType.Subtree,
+        Inverter         => NodeType.Inverter,
+        Repeater         => NodeType.Repeater,
+        Cooldown         => NodeType.Cooldown,
+        ForceSuccess     => NodeType.ForceSuccess,
+        ForceFailure     => NodeType.ForceFailure,
+        UntilSuccess     => NodeType.UntilSuccess,
+        UntilFailure     => NodeType.UntilFailure,
+        _                => NodeType.Action,
+    };
 }
