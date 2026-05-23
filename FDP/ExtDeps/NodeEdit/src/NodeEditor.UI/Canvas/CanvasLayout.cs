@@ -29,6 +29,9 @@ internal sealed class CanvasLayout
     /// <summary>Screen-space bounding rects for each attachment, keyed by AttachmentId.</summary>
     public Dictionary<AttachmentId, RectF> AttachmentScreenRects { get; } = [];
 
+    /// <summary>Graph-unit sizes for all nodes, including containers after auto-resize.</summary>
+    public Dictionary<NodeId, Vector2> NodeGraphSizes { get; } = [];
+
     public void Clear()
     {
         NodeScreenRects.Clear();
@@ -36,6 +39,7 @@ internal sealed class CanvasLayout
         ConnectedInputPins.Clear();
         AttachmentLayouts.Clear();
         AttachmentScreenRects.Clear();
+        NodeGraphSizes.Clear();
     }
 }
 
@@ -73,9 +77,15 @@ internal sealed class CanvasLayoutBuilder
 
         foreach (var node in view.Model.Nodes)
         {
-            var graphPos = view.Interaction.DragOverridePositions.TryGetValue(node.Id, out var over)
-                ? over
-                : node.Position;
+            // Use canvas-absolute position: container children store Position as parent-local,
+            // so we resolve the full chain via NodeCanvasPosition.
+            Vector2 graphPos;
+            if (view.Interaction.DragOverridePositions.TryGetValue(node.Id, out var over))
+                graphPos = over;
+            else if (node.ParentContainerId == null)
+                graphPos = node.Position;
+            else
+                graphPos = view.NodeCanvasPosition(node.Id);
 
             var inputPins = new List<IPinModel>();
             var outputPins = new List<IPinModel>();
@@ -122,6 +132,7 @@ internal sealed class CanvasLayoutBuilder
             float sh = nodeHGu * zoom;
             var rect = new RectF(screenPos, new Vector2(sw, sh));
             layout.NodeScreenRects[node.Id] = rect;
+            layout.NodeGraphSizes[node.Id]  = new Vector2(nodeWGu, nodeHGu);
             entries?.Add((node.Id, new RectF(graphPos, new Vector2(nodeWGu, nodeHGu))));
 
             // Compute screen-space attachment layout for this node.
@@ -163,7 +174,61 @@ internal sealed class CanvasLayoutBuilder
             }
         }
 
+        // Second pass: compute container bounds recursively (innermost-first).
+        // We only visit root containers; the recursion handles nested ones first.
+        foreach (var node in view.Model.Nodes)
+        {
+            if (node.ParentContainerId == null && node.AsContainer() is { } rootContainer)
+                FillContainerBoundsRecursive(rootContainer, view, layout, headerHt, zoom);
+        }
+
+        // Third pass: update screen rects for all container nodes using the
+        // now-correct graph-unit sizes from the second pass.
+        foreach (var node in view.Model.Nodes)
+        {
+            if (node.AsContainer() is not { } container) continue;
+            if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
+            var canvasPos = view.NodeCanvasPosition(node.Id);
+            var screenPos = view.Viewport.GraphToScreen(canvasPos);
+            layout.NodeScreenRects[node.Id] = new RectF(screenPos, graphSize * zoom);
+        }
+
         if (rebuildSpatial)
+        {
             spatialIndex.Rebuild(entries!);
+            // Overwrite container entries with correct sizes computed in the second pass.
+            foreach (var node in view.Model.Nodes)
+            {
+                if (node.AsContainer() is not { } container) continue;
+                if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
+                var canvasPos = view.NodeCanvasPosition(node.Id);
+                spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
+            }
+        }
+    }
+
+    // Recursively computes container bounds, processing deepest nesting first.
+    private static void FillContainerBoundsRecursive(
+        IContainerNodeModel container,
+        GraphView view,
+        CanvasLayout layout,
+        float headerHt,
+        float zoom)
+    {
+        // Recurse into child containers before this one.
+        foreach (var childId in container.ChildNodeIds)
+        {
+            var child = view.Model.FindNode(childId);
+            if (child?.AsContainer() is { } childContainer)
+                FillContainerBoundsRecursive(childContainer, view, layout, headerHt, zoom);
+        }
+
+        var outerSize = ContainerBoundsComputer.ComputeOuterSize(
+            container,
+            view.Model,
+            id => layout.NodeGraphSizes.TryGetValue(id, out var s) ? s : (Vector2?)null,
+            headerHt);
+
+        layout.NodeGraphSizes[container.Id] = outerSize;
     }
 }
