@@ -91,6 +91,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
 
                 ref var btState    = ref repo.GetComponentRW<BrainBTreeState>(entity);
+
+                // Entity is held by the debugger. Skip ticking the interpreter
+                // to prevent trace log spam and state mutation.
+                if ((btState.State.InstanceFlags & Fbt.BehaviorInstanceFlags.Paused) != 0)
+                    continue;
+
                 ref var blackboard = ref repo.GetComponentRW<BrainBlackboard>(entity);
 
                 // Resolve the optional per-entity trace ring buffer. Skipped (and the

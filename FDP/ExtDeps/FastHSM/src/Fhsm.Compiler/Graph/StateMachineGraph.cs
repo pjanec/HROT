@@ -90,7 +90,9 @@ namespace Fhsm.Compiler.Graph
         {
             HsmNormalizer.Normalize(this);
             var flat = HsmFlattener.Flatten(this);
-            return HsmEmitter.Emit(flat);
+            var blob = HsmEmitter.Emit(flat);
+            blob.Metadata = HsmEmitter.BuildMachineMetadata(this);
+            return blob;
         }
     }
 }

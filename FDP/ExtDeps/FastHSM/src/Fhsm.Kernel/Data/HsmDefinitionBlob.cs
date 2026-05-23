@@ -9,6 +9,12 @@ namespace Fhsm.Kernel.Data
     public sealed class HsmDefinitionBlob
     {
         public HsmDefinitionHeader Header;
+
+        /// <summary>
+        /// Managed metadata sidecar populated by the compiler.
+        /// Used by the editor projection layer to recover authoring Guids from flat indices.
+        /// </summary>
+        public MachineMetadata? Metadata { get; set; }
         
         private readonly StateDef[] _states;
         private readonly TransitionDef[] _transitions;

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Fhsm.Kernel.Data
@@ -11,6 +12,8 @@ namespace Fhsm.Kernel.Data
         public Dictionary<ushort, string> StateNames { get; set; } = new();
         public Dictionary<ushort, string> EventNames { get; set; } = new();
         public Dictionary<ushort, string> ActionNames { get; set; } = new();
+        public Dictionary<ushort, Guid> StateStableIds { get; set; } = new();
+        public Dictionary<ushort, Guid> TransitionVisualIds { get; set; } = new();
         
         public string GetStateName(ushort id) => StateNames.TryGetValue(id, out var name) ? name : $"State_{id}";
         public string GetEventName(ushort id) => EventNames.TryGetValue(id, out var name) ? name : $"Event_{id}";

@@ -25,6 +25,7 @@ namespace Fhsm.Compiler
             {
                 if (state.FlatIndex == 0xFFFF) continue;
                 meta.StateNames[state.FlatIndex] = state.Name;
+                meta.StateStableIds[state.FlatIndex] = state.StableId;
             }
 
             foreach (var kvp in graph.EventNameToId)
@@ -41,6 +42,21 @@ namespace Fhsm.Compiler
             foreach (var actionName in graph.RegisteredActions.OrderBy(n => n, StringComparer.Ordinal))
             {
                 meta.ActionNames[actionIdx++] = actionName;
+            }
+
+            // Transition VisualIds: must match HsmFlattener order (states sorted by FlatIndex,
+            // then state transitions, then global transitions appended at the end).
+            ushort transIdx = 0;
+            foreach (var state in graph.States.Values.OrderBy(s => s.FlatIndex))
+            {
+                foreach (var t in state.Transitions)
+                {
+                    meta.TransitionVisualIds[transIdx++] = t.VisualId;
+                }
+            }
+            foreach (var gt in graph.GlobalTransitions)
+            {
+                meta.TransitionVisualIds[transIdx++] = gt.VisualId;
             }
 
             return meta;

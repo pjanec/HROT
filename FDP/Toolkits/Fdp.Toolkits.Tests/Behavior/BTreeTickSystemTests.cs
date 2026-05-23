@@ -373,5 +373,61 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+        // ── Test 4 ───────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void BTreeTick_DoesNotTick_WhenPausedFlagIsSet()
+        {
+            // Arrange: entity with a registered BTree behavior whose action counts ticks.
+            var world    = TestWorldFactory.Create();
+            var registry = new BehaviorRegistry();
+
+            int tickCount = 0;
+            var blob      = BuildSingleActionBlob("CountTickPaused");
+            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            actionReg.Register("CountTickPaused",
+                (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
+                {
+                    tickCount++;
+                    return NodeStatus.Running;
+                });
+            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+
+            const string behaviorName = "CountTickPaused";
+            const int   behaviorId   = 9010;
+            registry.Register(behaviorId, behaviorName, new BehaviorDefinition
+            {
+                Name             = behaviorName,
+                BrainTier        = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = interpreter,
+            });
+
+            var sys = new BTreeTickSystem(registry);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = behaviorId,
+                BrainTier          = BehaviorConstants.BrainTierBTree,
+            });
+            var btState = new BrainBTreeState();
+            btState.State.InstanceFlags = BehaviorInstanceFlags.Paused;
+            world.AddComponent(e, btState);
+            world.AddComponent(e, new BrainBlackboard());
+
+            // Act: tick while Paused -- action must not run.
+            sys.Execute(world, 0.016f);
+            Assert.Equal(0, tickCount);
+
+            // Resume: clear the Paused flag, tick again -- action must now run.
+            ref var stateRef = ref world.GetComponentRW<BrainBTreeState>(e);
+            stateRef.State.InstanceFlags &= ~BehaviorInstanceFlags.Paused;
+            sys.Execute(world, 0.016f);
+            Assert.Equal(1, tickCount);
+
+            world.Dispose();
+        }
+
+        // ── End of BTreeTickSystemTests ──────────────────────────────────────────
     }
 }

@@ -71,10 +71,16 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 if (nameArg.Value.Value is string customName && !string.IsNullOrEmpty(customName))
                     name = customName;
 
+                var laneArg = attr!.NamedArguments.FirstOrDefault(a => a.Key == "Lane");
+                string laneVal = "global::Fhsm.Kernel.Data.CommandLane.None";
+                if (laneArg.Key != null && laneArg.Value.Value != null)
+                    laneVal = $"(global::Fhsm.Kernel.Data.CommandLane){laneArg.Value.Value}";
+
                 return new MethodInfo
                 {
                     Name         = name,
                     FullName     = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
+                    Lane         = laneVal,
                     IsGuard      = isGuard,
                     IsStatic     = symbol.IsStatic,
                     WritesChannels = CollectWritesChannels(symbol),
@@ -721,6 +727,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static void EmitSharedAiActionThunk(StringBuilder sb, SharedAiEntry entry)
         {
             sb.AppendLine("        /// <summary>SharedAi action thunk for " + entry.MethodName + " operating on DTO field at byte offset " + entry.Offset + ".</summary>");
+            sb.AppendLine("        [global::Fhsm.Kernel.Attributes.HsmAction(Name = \"" + entry.MethodName + "\", Lane = " + entry.Lane + ")]");
             sb.AppendLine("        private static unsafe void Action_" + entry.MethodName + "_At" + entry.Offset + "(void* instancePtr, void* contextPtr, HsmCommandWriter* writer)");
             sb.AppendLine("        {");
             sb.AppendLine("            // CONSTRAINT: Do NOT add or remove ECS components from this thunk.");
@@ -805,6 +812,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         {
             public string Name      { get; set; } = "";
             public string FullName  { get; set; } = "";
+            public string Lane      { get; set; } = "global::Fhsm.Kernel.Data.CommandLane.None";
             public bool IsGuard     { get; set; }
             public bool IsStatic    { get; set; }
             public bool IsSharedAi  { get; set; }
@@ -823,6 +831,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             public string FieldTypeFqn { get; set; } = "";
             public int    Offset       { get; set; }
             public string CompoundKey  { get; set; } = "";
+            public string Lane         { get; set; } = "global::Fhsm.Kernel.Data.CommandLane.None";
             public bool   IsCondition  { get; set; }
             // Heavy-action fields (populated only when IsHeavy == true)
             public bool IsHeavy { get; set; }

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Xunit;
 using Fbt;
@@ -111,6 +112,34 @@ namespace Fbt.Tests.Unit
 
             Assert.NotNull(blob.DebugMetadata);
             Assert.Equal(blob.Nodes.Length, blob.DebugMetadata!.Length);
+        }
+
+        // ---- K-06: explicit visualId round-trips through NodeDebugMetadata ----
+
+        [Fact]
+        public void DebugMetadata_ExplicitVisualId_RoundTrips()
+        {
+            var id = Guid.NewGuid();
+            var blob = new BTreeBuilder<TestBlackboard, MockContext>()
+                .Action(AlwaysSuccess, visualId: id)
+                .Compile("VisualIdTest");
+
+            Assert.NotNull(blob.DebugMetadata);
+            Assert.Equal(id.ToString(), blob.DebugMetadata![0].VisualId);
+        }
+
+        // ---- K-06: default visualId is auto-generated (non-empty) ----
+
+        [Fact]
+        public void DebugMetadata_DefaultVisualId_IsNonEmpty()
+        {
+            var blob = new BTreeBuilder<TestBlackboard, MockContext>()
+                .Action(AlwaysSuccess)
+                .Compile("DefaultVisualId");
+
+            Assert.NotNull(blob.DebugMetadata);
+            Assert.False(string.IsNullOrEmpty(blob.DebugMetadata![0].VisualId),
+                "VisualId should be auto-generated and non-empty");
         }
 
         // ---- FBT-004: JSON-compiled blobs have null DebugMetadata ----
