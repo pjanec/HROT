@@ -15,6 +15,9 @@ public abstract class Scenario
     /// <summary>Populate the given graph view with initial state.</summary>
     public abstract void Build(GraphView view, FakeGraphModel graph, FakeCommandSink sink, FakeNodeCatalog catalog);
 
+    /// <summary>Optional per-scenario host configuration (e.g. registering custom renderers).</summary>
+    public virtual void SetupHost(FakeHostServices host) { }
+
     /// <summary>Optional pre-build configuration step for the fake host services.</summary>
     public virtual void Setup(FakeMyBlueprintModel mbModel) { }
 

@@ -63,7 +63,7 @@
 - [x] **TASK-NER-06** — `DetailsTarget` extension for custom elements → [details](./TASK-DETAIL.md#task-ner-06--details-panel-target-extension)
 - [x] **TASK-NER-07** — Custom-element context-menu provider → [details](./TASK-DETAIL.md#task-ner-07--custom-element-context-menu-provider)
 - [x] **TASK-NER-08** — Per-renderer perf accounting → [details](./TASK-DETAIL.md#task-ner-08--per-renderer-perf-accounting)
-- [ ] **TASK-NER-09** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-ner-09--theme-additions-and-demo-scenario)
+- [x] **TASK-NER-09** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-ner-09--theme-additions-and-demo-scenario)
 
 ## Phase 5 — BTree host: Slice 1 (authoring)
 - [ ] **TASK-BT-S1-01** — `BehaviorTreeAsset` editor model → [details](./TASK-DETAIL.md#task-bt-s1-01--behaviortreeasset-model)

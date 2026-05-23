@@ -87,4 +87,24 @@ public interface IEditorTheme
 
     /// <summary>Default minimum interior size in graph units. Default: (200, 100).</summary>
     System.Numerics.Vector2 ContainerDefaultMinimumInterior => new(200f, 100f);
+
+    // ---- Custom canvas renderer theme defaults ----
+
+    /// <summary>
+    /// Accent color used when drawing selected custom elements.
+    /// Default: same yellow as <see cref="SelectionAccent"/> (#FFD700).
+    /// </summary>
+    Vector4 CustomElementSelectionAccent => new(1f, 0.843f, 0f, 1f);
+
+    /// <summary>
+    /// Accent color used when hovering over a custom element.
+    /// Default: 70% white blended with 30% of the selection accent.
+    /// </summary>
+    Vector4 CustomElementHoverAccent => new(0.7f + 0.3f * 1f, 0.7f + 0.3f * 0.843f, 0.7f, 1f);
+
+    /// <summary>
+    /// Extra hit-area padding (screen pixels at zoom 1.0) added around
+    /// the custom element's declared hit bounds.  Default: 4 px.
+    /// </summary>
+    float CustomElementHitAreaPadding => 4f;
 }

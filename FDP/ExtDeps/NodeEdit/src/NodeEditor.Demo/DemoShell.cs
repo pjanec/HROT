@@ -89,6 +89,7 @@ public sealed class DemoShell
         _scenarios.Add(new S33_BigGraph());
         _scenarios.Add(new S34_NodeAttachments());
         _scenarios.Add(new S35_ContainerNodes());
+        _scenarios.Add(new S36_CustomRenderers());
 
         ApplyScenario(0);
     }
@@ -377,6 +378,7 @@ public sealed class DemoShell
         else
         {
             _graphContainer = null;
+            scenario.SetupHost(_host);
             scenario.Setup(_host.MyBlueprint);
             _view = CreateView();
             scenario.Build(_view, _graph, _host.CommandSink_, _host.NodeCatalog_);

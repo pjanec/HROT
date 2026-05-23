@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Picker;
 using NodeEditor.UI.MiniEditors;
@@ -62,4 +64,11 @@ public sealed class FakeHostServices : IEditorHostServices
 
     /// <summary>Replace the My Blueprint model (used by multi-graph scenarios).</summary>
     public void OverrideMyBlueprint(FakeMyBlueprintModel model) => MyBlueprint = model;
+
+    // ---- Custom canvas renderers (registered by scenarios that need them) ----
+
+    /// <summary>Mutable list populated by scenarios before the canvas view is created.</summary>
+    public List<ICustomCanvasRenderer> CustomRenderers { get; } = new();
+
+    IReadOnlyList<ICustomCanvasRenderer> IEditorHostServices.CustomCanvasRenderers => CustomRenderers;
 }
