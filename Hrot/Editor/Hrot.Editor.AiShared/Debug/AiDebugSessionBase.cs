@@ -114,4 +114,7 @@ public abstract class AiDebugSessionBase : IAiDebugSession
     protected abstract void OnStepIntoImpl();
     protected abstract void OnStepOutImpl();
     protected virtual void OnDetachImpl() { }
+
+    // Allows derived classes to raise the session-state-changed event.
+    protected void RaiseSessionStateChanged() => OnSessionStateChanged?.Invoke();
 }

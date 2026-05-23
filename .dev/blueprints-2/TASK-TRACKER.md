@@ -122,11 +122,11 @@
 - [x] **TASK-S7-06** — Refactor end-to-end integration test → [details](./TASK-DETAIL.md#task-s7-06--refactor-end-to-end-test)
 
 ## Phase 8 — BTree host: Slice 2 (runtime read-only)
-- [ ] **TASK-BT-S2-01** — `IBTreeDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-bt-s2-01--ibtreedebugsession--btreedebugsession)
-- [ ] **TASK-BT-S2-02** — `btree.runtime_overlay` renderer → [details](./TASK-DETAIL.md#task-bt-s2-02--btreeruntime_overlay-custom-renderer)
-- [ ] **TASK-BT-S2-03** — Live blackboard panel (read-only) → [details](./TASK-DETAIL.md#task-bt-s2-03--live-blackboard-panel-read-only-mode)
-- [ ] **TASK-BT-S2-04** — `BTreeRuntimeInspectorPane` → [details](./TASK-DETAIL.md#task-bt-s2-04--btreeruntimeinspectorpane)
-- [ ] **TASK-BT-S2-05** — `BTreeTraceLaneProvider` → [details](./TASK-DETAIL.md#task-bt-s2-05--btreetracelaneprovider)
+- [x] **TASK-BT-S2-01** — `IBTreeDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-bt-s2-01--ibtreedebugsession--btreedebugsession)
+- [x] **TASK-BT-S2-02** — `btree.runtime_overlay` renderer → [details](./TASK-DETAIL.md#task-bt-s2-02--btreeruntime_overlay-custom-renderer)
+- [x] **TASK-BT-S2-03** — Live blackboard panel (read-only) → [details](./TASK-DETAIL.md#task-bt-s2-03--live-blackboard-panel-read-only-mode)
+- [x] **TASK-BT-S2-04** — `BTreeRuntimeInspectorPane` → [details](./TASK-DETAIL.md#task-bt-s2-04--btreeruntimeinspectorpane)
+- [x] **TASK-BT-S2-05** — `BTreeTraceLaneProvider` → [details](./TASK-DETAIL.md#task-bt-s2-05--btreetracelaneprovider)
 
 ## Phase 9 — HSM host: Slice 2 (runtime read-only)
 - [ ] **TASK-HS-S2-01** — `IHsmDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-hs-s2-01--ihsmdebugsession--hsmdebugsession)
