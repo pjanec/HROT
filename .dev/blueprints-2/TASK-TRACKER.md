@@ -109,9 +109,9 @@
 - [x] **TASK-HS-S1-20** — HSM facet structs (5 facets) → [details](./TASK-DETAIL.md#task-hs-s1-20--hsm-facet-structs)
 - [x] **TASK-HS-S1-21** — Inspector dispatch + LCA computation → [details](./TASK-DETAIL.md#task-hs-s1-21--inspector-dispatch--lca-computation)
 - [x] **TASK-HS-S1-22** — HSM validation rules (14 diagnostics) → [details](./TASK-DETAIL.md#task-hs-s1-22--hsm-validation-rules)
-- [ ] **TASK-HS-S1-23** — `HsmAssetContributor` → [details](./TASK-DETAIL.md#task-hs-s1-23--hsmassetcontributor)
-- [ ] **TASK-HS-S1-24** — HSM host-services wiring + DI → [details](./TASK-DETAIL.md#task-hs-s1-24--host-services-wiring--di)
-- [ ] **TASK-HS-S1-25** — HSM Quick Reload classification → [details](./TASK-DETAIL.md#task-hs-s1-25--quick-reload-classification-hsm)
+- [x] **TASK-HS-S1-23** — `HsmAssetContributor` → [details](./TASK-DETAIL.md#task-hs-s1-23--hsmassetcontributor)
+- [x] **TASK-HS-S1-24** — HSM host-services wiring + DI → [details](./TASK-DETAIL.md#task-hs-s1-24--host-services-wiring--di)
+- [x] **TASK-HS-S1-25** — HSM Quick Reload classification → [details](./TASK-DETAIL.md#task-hs-s1-25--quick-reload-classification-hsm)
 
 ## Phase 7 — Shared infrastructure: refactor + find-references
 - [ ] **TASK-S7-01** — `IRefactorService` core (find/preview/apply) → [details](./TASK-DETAIL.md#task-s7-01--irefactorservice-core)
