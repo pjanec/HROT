@@ -130,7 +130,7 @@ public sealed class CanvasRenderer
         var visibleNodeIds   = _spatialIndex.Query(visibleGraphRect).ToHashSet();
 
         // 3. Hit-test to update hover info.
-        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects);
+        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects);
 
 
         // ── Draw phases ───────────────────────────────────────────────────

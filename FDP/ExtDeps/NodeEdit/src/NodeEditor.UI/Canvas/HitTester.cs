@@ -25,7 +25,8 @@ internal sealed class HitTester
         GraphView view,
         SpatialIndex spatialIndex,
         Dictionary<PinId, Vector2> pinPositions,
-        Dictionary<AttachmentId, RectF> attachmentScreenRects)
+        Dictionary<AttachmentId, RectF> attachmentScreenRects,
+        Dictionary<NodeId, RectF> nodeScreenRects)
     {
         var mouse = view.Host.Input.MousePosition;
         var mouseGraph = view.Viewport.ScreenToGraph(mouse);
@@ -92,6 +93,34 @@ internal sealed class HitTester
                 SubmitHit(new HoverInfo { Kind = HoverKind.Attachment, Attachment = attachId }, 2, attachIndex, 1);
         }
 
+        // 2c. Container headers and collapse arrows.
+        // zLayer=4 beats regular node bodies (2/3) and ties with comment headers (also 4).
+        // priority=0 (arrow) and priority=1 (header) beat comment resize/header (priority=1/2).
+        float containerHeaderHtPx = view.Host.Theme.NodeHeaderHeight * view.Viewport.Zoom;
+        float collapseArrowWidthPx = 18f * view.Viewport.Zoom;
+        int containerHeaderIndex = 0;
+        foreach (var node in view.Model.Nodes)
+        {
+            if (node.AsContainer() is not { } container) continue;
+            containerHeaderIndex++;
+            if (!nodeScreenRects.TryGetValue(node.Id, out var containerScreenRect)) continue;
+
+            var headerScreenRect = new RectF(
+                containerScreenRect.Min,
+                new Vector2(containerScreenRect.Size.X, containerHeaderHtPx));
+            if (!headerScreenRect.Contains(mouse)) continue;
+
+            var arrowScreenRect = new RectF(
+                containerScreenRect.Min,
+                new Vector2(collapseArrowWidthPx, containerHeaderHtPx));
+            if (arrowScreenRect.Contains(mouse))
+                SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.CollapseArrow },
+                    4, containerHeaderIndex, 0);
+            else
+                SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.Header },
+                    4, containerHeaderIndex, 1);
+        }
+
         // 3. Nodes and Pins (same sub-layer uses model draw order).
         int nodeIndex = 0;
         float pinHitRadius = MathF.Max(10f, 7.5f * view.Viewport.Zoom);
@@ -101,6 +130,9 @@ internal sealed class HitTester
             bool isForeground = view.Selection.Contains(SelectionEntry.OfNode(node.Id))
                              || view.Interaction.DragOverridePositions.ContainsKey(node.Id);
             int zLayer = isForeground ? 3 : 2;
+
+            // Skip containers — their header is handled by section 2c; interior by section 3b.
+            if (node.IsContainerNode()) continue;
 
             var bounds = spatialIndex.GetBounds(node.Id);
             if (bounds.HasValue && bounds.Value.Contains(mouseGraph))
@@ -135,6 +167,26 @@ internal sealed class HitTester
                         priority: 1);
                 }
             }
+        }
+
+        // 3b. Container interior (body area below the header).
+        // zLayer=1 ensures children (2/3) and wires (1, but higher subLayer) beat the interior.
+        // Beats comment bodies (zLayer=0).
+        int containerInteriorIndex = 0;
+        foreach (var node in view.Model.Nodes)
+        {
+            if (node.AsContainer() is not { } container) continue;
+            containerInteriorIndex++;
+            var bounds = spatialIndex.GetBounds(node.Id);
+            if (!bounds.HasValue) continue;
+            if (!bounds.Value.Contains(mouseGraph)) continue;
+
+            // Exclude the header zone so header hit (section 2c) is not double-submitted.
+            float headerHtGu = view.Host.Theme.NodeHeaderHeight;
+            if (mouseGraph.Y < bounds.Value.Min.Y + headerHtGu) continue;
+
+            SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.Interior },
+                1, containerInteriorIndex, 2);
         }
 
         view.Interaction.Hover = hasBestHit ? bestHit : HoverInfo.None;
