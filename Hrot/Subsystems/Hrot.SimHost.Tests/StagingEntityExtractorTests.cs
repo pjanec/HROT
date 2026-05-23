@@ -57,7 +57,7 @@ namespace Hrot.SimHost.Tests
             public bool CanTranslate(EntityRepository repo, Entity entity)
             {
                 int typeId = BehaviorApplicationComponentIds.ActiveMissionPlan;
-                return repo.GetHeader(entity.Index).ComponentMask.IsSet(typeId);
+                return repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(typeId);
             }
 
             public Dictionary<string, object> Extract(
@@ -506,7 +506,7 @@ namespace Hrot.SimHost.Tests
             public bool CanTranslate(EntityRepository repo, Entity entity)
             {
                 int typeId = GlobalComponentIds.SimTransform;
-                return repo.GetHeader(entity.Index).ComponentMask.IsSet(typeId);
+                return repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(typeId);
             }
 
             public Dictionary<string, object> Extract(
@@ -664,7 +664,7 @@ namespace Hrot.SimHost.Tests
             public bool CanTranslate(EntityRepository repo, Entity entity)
             {
                 int typeId = GlobalComponentIds.SimTransform;
-                return repo.GetHeader(entity.Index).ComponentMask.IsSet(typeId);
+                return repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(typeId);
             }
 
             public Dictionary<string, object> Extract(

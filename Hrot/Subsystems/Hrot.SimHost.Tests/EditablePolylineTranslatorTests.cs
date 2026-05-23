@@ -44,7 +44,7 @@ namespace Hrot.SimHost.Tests
             Entity loaded = Entity.Null;
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
             {
-                var candidate = new Entity(i, freshRepo.GetHeader(i).Generation);
+                var candidate = new Entity(i, freshRepo.GetEntityIndex().GetMetadata(i).Generation);
                 if (freshRepo.IsAlive(candidate))
                 {
                     loaded = candidate;

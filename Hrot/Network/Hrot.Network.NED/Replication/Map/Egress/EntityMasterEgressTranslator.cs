@@ -81,9 +81,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var tkb = ref view.GetComponentRO<TkbIdentity>(entity);
 
-                // Read DisType from entity header (written natively by NetworkSpawningSystem).
+                // Read DisType from entity cold metadata (written natively by NetworkSpawningSystem).
                 var dis = repo != null
-                    ? repo.GetHeader(entity.Index).DisType
+                    ? repo.GetEntityIndex().GetMetadata(entity.Index).DisType
                     : default;
 
                 _writer.Write(new EntityMaster

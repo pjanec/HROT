@@ -193,7 +193,7 @@ namespace Hrot.SimHost.Tests
             Entity freshEntity = default;
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, freshRepo.GetHeader(i).Generation);
+                var e = new Entity(i, freshRepo.GetEntityIndex().GetMetadata(i).Generation);
                 if (freshRepo.IsAlive(e)) { freshEntity = e; break; }
             }
             Assert.True(freshRepo.IsAlive(freshEntity));

@@ -204,9 +204,10 @@ namespace Hrot.CGF.Orchestration
                 var oldToNewMap = new Dictionary<long, long>();
                 for (int i = 0; i <= maxIdx; i++)
                 {
-                    ref var hdr = ref stagingRepo.GetHeader(i);
-                    if (!hdr.IsActive) continue;
-                    if (!hdr.ComponentMask.IsSet(GlobalComponentIds.NetworkIdentity)) continue;
+                    var maskP1 = stagingRepo.GetEntityIndex().GetComponentMask(i);
+                    ref readonly var metaP1 = ref stagingRepo.GetEntityIndex().GetMetadata(i);
+                    if (!metaP1.IsActive) continue;
+                    if (!maskP1.IsSet(GlobalComponentIds.NetworkIdentity)) continue;
 
                     var e = stagingRepo.GetEntityByIndex(i);
                     if (e == Entity.Null) continue;
@@ -237,26 +238,27 @@ namespace Hrot.CGF.Orchestration
 
                 for (int i = 0; i <= maxIdx; i++)
                 {
-                    ref var hdr = ref stagingRepo.GetHeader(i);
-                    if (!hdr.IsActive) continue;
+                    var mask = stagingRepo.GetEntityIndex().GetComponentMask(i);
+                    ref readonly var meta = ref stagingRepo.GetEntityIndex().GetMetadata(i);
+                    if (!meta.IsActive) continue;
 
                     var e = stagingRepo.GetEntityByIndex(i);
                     if (e == Entity.Null) continue;
 
-                    if (hdr.ComponentMask.IsSet(GlobalComponentIds.PartMetadata))
+                    if (mask.IsSet(GlobalComponentIds.PartMetadata))
                     {
                         // ── Child entity ───────────────────────────────────────────
                         var partMeta = stagingRepo.GetComponent<PartMetadata>(e);
 
                         long childPreAllocId = 0;
-                        if (hdr.ComponentMask.IsSet(GlobalComponentIds.NetworkIdentity))
+                        if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
                         {
                             long childOldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                             oldToNewMap.TryGetValue(childOldId, out childPreAllocId);
                         }
 
                         var childComps = ExtractEntityComponents(
-                            registeredTables, i, in hdr.ComponentMask, in childExclusionMask);
+                            registeredTables, i, in mask, in childExclusionMask);
 
                         if (!childBuffer.TryGetValue(partMeta.ParentEntity, out var childMap))
                             childBuffer[partMeta.ParentEntity] =
@@ -268,20 +270,20 @@ namespace Hrot.CGF.Orchestration
                     {
                         // ── Root entity ────────────────────────────────────────────
                         long tkbType = 0;
-                        if (hdr.ComponentMask.IsSet(GlobalComponentIds.TkbIdentity))
+                        if (mask.IsSet(GlobalComponentIds.TkbIdentity))
                             tkbType = stagingRepo.GetComponent<TkbIdentity>(e).TkbType;
 
-                        ulong disType = hdr.DisType.Value;
+                        ulong disType = meta.DisType.Value;
 
                         long preAllocId = 0;
-                        if (hdr.ComponentMask.IsSet(GlobalComponentIds.NetworkIdentity))
+                        if (mask.IsSet(GlobalComponentIds.NetworkIdentity))
                         {
                             long oldId = stagingRepo.GetComponent<NetworkIdentity>(e).Value;
                             oldToNewMap.TryGetValue(oldId, out preAllocId);
                         }
 
                         var comps = ExtractEntityComponents(
-                            registeredTables, i, in hdr.ComponentMask, in exclusionMask);
+                            registeredTables, i, in mask, in exclusionMask);
 
                         entityToRootIdx[e] = rootDataList.Count;
                         rootDataList.Add((e, tkbType, disType, comps, preAllocId));
@@ -450,7 +452,7 @@ namespace Hrot.CGF.Orchestration
         private static List<object> ExtractEntityComponents(
             IReadOnlyDictionary<Type, IComponentTable> tables,
             int entityIndex,
-            in BitMask256 componentMask,
+            in BitMask512 componentMask,
             in BitMask256 exclusionMask)
         {
             var result = new List<object>();

@@ -78,9 +78,9 @@ public class EntityMasterTranslatorTests
         Assert.Equal(-1, cmd.LastNetworkAuthority!.Value.PrimaryOwnerId);
         Assert.Equal(1, cmd.LastNetworkAuthority!.Value.LocalNodeId);
 
-        // DisType is now stored natively in EntityHeader — verify via repo.GetHeader.
+        // DisType is now stored natively in cold entity metadata — verify via GetEntityIndex().GetMetadata().
         Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity));
-        ulong disType = repo.GetHeader(entity.Index).DisType.Value;
+        ulong disType = repo.GetEntityIndex().GetMetadata(entity.Index).DisType.Value;
         Assert.Equal(TestDisType, disType);
     }
 
@@ -277,7 +277,7 @@ public class EntityMasterTranslatorTests
 
         Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity));
 
-        var stored = repo.GetHeader(entity.Index).DisType;
+        var stored = repo.GetEntityIndex().GetMetadata(entity.Index).DisType;
         Assert.Equal(1,   (int)stored.Kind);
         Assert.Equal(2,   (int)stored.Domain);
         Assert.Equal(225, (int)stored.Country);

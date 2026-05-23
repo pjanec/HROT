@@ -83,7 +83,7 @@ public sealed class ScenarioFileServiceTests : IDisposable
         var positions = new System.Collections.Generic.List<SaveablePosition>();
         for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
         {
-            var e = new Entity(i, freshRepo.GetHeader(i).Generation);
+            var e = new Entity(i, freshRepo.GetEntityIndex().GetMetadata(i).Generation);
             if (!freshRepo.IsAlive(e)) continue;
             if (freshRepo.HasComponent<SaveablePosition>(e))
                 positions.Add(freshRepo.GetComponent<SaveablePosition>(e));

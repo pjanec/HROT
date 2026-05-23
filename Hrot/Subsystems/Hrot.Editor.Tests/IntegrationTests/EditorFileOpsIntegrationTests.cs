@@ -189,7 +189,7 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         var actual = new System.Collections.Generic.List<TestVector3>();
         for (int i = 0; i <= loadRepo.MaxEntityIndex; i++)
         {
-            var e = new Entity(i, loadRepo.GetHeader(i).Generation);
+            var e = new Entity(i, loadRepo.GetEntityIndex().GetMetadata(i).Generation);
             if (!loadRepo.IsAlive(e)) continue;
             if (loadRepo.HasComponent<TestVector3>(e))
                 actual.Add(loadRepo.GetComponent<TestVector3>(e));

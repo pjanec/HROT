@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -481,7 +482,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
                 var repo = tempContext.SandboxRepo;
                 var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
-                var mask = repo.GetSnapshotableMask();
+                var mask512 = repo.GetSnapshotableMask();
+                // TODO(ecs-512): remove projection when SerializeEntity upgraded to BitMask512
+                BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
 
                 bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
                 {
