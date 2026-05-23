@@ -17,6 +17,9 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
 
     private readonly HsmAsset _asset;
 
+    // Counter exposed for tests to verify glyph output without ImGui.
+    internal int LastGlyphCount;
+
     public string Id => "hsm.history_glyphs";
     public CanvasRenderPass Pass => CanvasRenderPass.AfterNodes;
 
@@ -25,8 +28,23 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
         _asset = asset;
     }
 
+    // Counts (but does not draw) how many history/final glyphs would be rendered.
+    // Exposed for test use; mirrors the filtering logic in Render().
+    internal int CountGlyphs()
+    {
+        int count = 0;
+        foreach (var state in _asset.AllStates)
+        {
+            if (state == _asset.RootState) continue;
+            if (state.IsHistory || state.IsDeepHistory || state.IsFinal) count++;
+        }
+        return count;
+    }
+
     public void Render(ICanvasRenderContext ctx)
     {
+        LastGlyphCount = 0;
+
         foreach (var state in _asset.AllStates)
         {
             if (state == _asset.RootState) continue;
@@ -63,6 +81,8 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
                 var selColor = new Vector4(0.4f, 0.8f, 1.0f, 1.0f);
                 ctx.DrawList.AddCircle(center, radius, ImGui.GetColorU32(selColor), 16, 3f * ctx.Zoom);
             }
+
+            LastGlyphCount++;
         }
     }
 }

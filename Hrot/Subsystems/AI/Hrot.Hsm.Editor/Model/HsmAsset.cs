@@ -201,6 +201,11 @@ public sealed class StateNode : IContainerNodeModel
     public bool IsParallel;
     public bool IsFinal;
 
+    // True when this state is a pseudo-state (History, Deep-History, or Final).
+    // Pseudo-states are rendered exclusively via HsmHistoryGlyphsRenderer;
+    // the node body background is drawn transparent.
+    public bool IsPseudostate => IsHistory || IsDeepHistory || IsFinal;
+
     // Action names (resolved from MachineMetadata; null means no action)
     public string? OnEntryAction;
     public string? OnExitAction;

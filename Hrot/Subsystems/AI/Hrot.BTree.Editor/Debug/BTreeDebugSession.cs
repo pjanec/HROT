@@ -25,11 +25,18 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     private BehaviorTreeStateSnapshot? _currentSnapshot;
     private ushort _lastReadPos;
 
+    private enum StepMode { None, Over, Into, Out }
+    private StepMode _stepMode = StepMode.None;
+    private int  _stepFromStackDepth;
+    private bool _nodeProcessedSinceStep;
+
     public event Action<BTreeBreakpointHit>? OnBreakpointHit;
     public event Action<BTreeNodeExecuted>?  OnNodeExecuted;
     public event Action<BTreeAsyncEvent>?    OnAsyncIssued;
     public event Action<BTreeAsyncEvent>?    OnAsyncResolved;
     public event Action<BTreeAsyncEvent>?    OnAsyncAborted;
+
+    public BTreeDebugSession(AiTracerCoordinator? coordinator = null) : base(coordinator) { }
 
     // ---- IBTreeDebugSession ------------------------------------------------
 
@@ -117,6 +124,7 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             switch (rec->OpCode)
             {
                 case BTreeTraceOpCode.NodeEvaluated:
+                    _nodeProcessedSinceStep = true;
                     RecordNodeExecuted(new BTreeNodeExecuted(
                         entity, Guid.Empty, Guid.Empty,
                         rec->Status, 0f, rec->Timestamp));
@@ -136,6 +144,23 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
                            % BTreeTraceWorkingMemory1024.PayloadBytes);
         }
         _lastReadPos = trace.WritePos;
+
+        // Step-mode auto-pause evaluation
+        if (_stepMode != StepMode.None && _currentSnapshot is not null)
+        {
+            bool shouldPause = _stepMode switch
+            {
+                StepMode.Over => _currentSnapshot.StackPointer == _stepFromStackDepth,
+                StepMode.Into => _nodeProcessedSinceStep,
+                StepMode.Out  => _currentSnapshot.StackPointer < _stepFromStackDepth,
+                _             => false
+            };
+            if (shouldPause)
+            {
+                _stepMode = StepMode.None;
+                Coordinator.RequestPause();
+            }
+        }
     }
 
     // ---- Kernel adapter entry points (called by future kernel adapter) -----
@@ -178,21 +203,52 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
         RaiseSessionStateChanged();
     }
 
-    // ---- AiDebugSessionBase overrides (no-ops until kernel wiring) ---------
+    // ---- AiDebugSessionBase overrides -------------------------------------
 
-    protected override void OnContinueImpl()   { }
-    protected override void OnPauseImpl()      { }
-    protected override void OnStepOverImpl()   { }
-    protected override void OnStepIntoImpl()   { }
-    protected override void OnStepOutImpl()    { }
+    protected override void OnContinueImpl()
+    {
+        _stepMode = StepMode.None;
+        Coordinator.RequestContinue();
+    }
+
+    protected override void OnPauseImpl()
+    {
+        Coordinator.RequestPause();
+    }
+
+    protected override void OnStepOverImpl()
+    {
+        _stepFromStackDepth     = _currentSnapshot?.StackPointer ?? 0;
+        _stepMode               = StepMode.Over;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
+
+    protected override void OnStepIntoImpl()
+    {
+        _stepFromStackDepth     = _currentSnapshot?.StackPointer ?? 0;
+        _stepMode               = StepMode.Into;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
+
+    protected override void OnStepOutImpl()
+    {
+        _stepFromStackDepth     = _currentSnapshot?.StackPointer ?? 0;
+        _stepMode               = StepMode.Out;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
 
     protected override void OnDetachImpl()
     {
-        _currentSnapshot   = null;
-        _lastReadPos       = 0;
+        _stepMode               = StepMode.None;
+        _nodeProcessedSinceStep = false;
+        _currentSnapshot        = null;
+        _lastReadPos            = 0;
         _nodeHistory.Clear();
         _asyncHistory.Clear();
         _aggregateCounters.Clear();
-        _heatmapModeActive = false;
+        _heatmapModeActive      = false;
     }
 }

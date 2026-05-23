@@ -24,6 +24,11 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     private HsmInstanceSnapshot? _currentSnapshot;
     private ushort _lastReadPos;
 
+    private enum StepMode { None, Over, Into, Out }
+    private StepMode _stepMode = StepMode.None;
+    private byte _stepFromMicroStep;
+    private bool _nodeProcessedSinceStep;
+
     public event Action<HsmBreakpointHit>?  OnBreakpointHit;
     public event Action<HsmStateEntered>?   OnStateEntered;
     public event Action<HsmStateExited>?    OnStateExited;
@@ -32,6 +37,8 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     public event Action<HsmRegionConflict>? OnRegionConflict;
     public event Action<HsmGuardEvaluated>? OnGuardEvaluated;
     public event Action<HsmTimerEvent>?     OnTimerEvent;
+
+    public HsmDebugSession(AiTracerCoordinator? coordinator = null) : base(coordinator) { }
 
     // ---- IHsmDebugSession ------------------------------------------------
 
@@ -121,6 +128,7 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
             switch (hdr->OpCode)
             {
                 case TraceOpCode.StateEnter:
+                    _nodeProcessedSinceStep = true;
                     RecordTrace(new HsmStateEntered(
                         entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
                     break;
@@ -129,6 +137,7 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
                         entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
                     break;
                 case TraceOpCode.Transition:
+                    _nodeProcessedSinceStep = true;
                     var trans = (TraceTransition*)(bufBase + pos);
                     RecordTrace(new HsmTransitionFired(
                         entity, Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty,
@@ -139,6 +148,23 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
                            % HsmTraceWorkingMemory1024.PayloadBytes);
         }
         _lastReadPos = trace.WritePos;
+
+        // Step-mode auto-pause evaluation
+        if (_stepMode != StepMode.None && _currentSnapshot is not null)
+        {
+            bool shouldPause = _stepMode switch
+            {
+                StepMode.Over => _currentSnapshot.MicroStep != _stepFromMicroStep,
+                StepMode.Into => _nodeProcessedSinceStep,
+                StepMode.Out  => _currentSnapshot.MicroStep != _stepFromMicroStep,
+                _             => false
+            };
+            if (shouldPause)
+            {
+                _stepMode = StepMode.None;
+                Coordinator.RequestPause();
+            }
+        }
     }
 
     // ---- Kernel adapter entry points (called by future kernel adapter) ---
@@ -179,20 +205,51 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         RaiseSessionStateChanged();
     }
 
-    // ---- AiDebugSessionBase overrides (no-ops until kernel wiring) ------
+    // ---- AiDebugSessionBase overrides ------------------------------------
 
-    protected override void OnContinueImpl()   { }
-    protected override void OnPauseImpl()      { }
-    protected override void OnStepOverImpl()   { }
-    protected override void OnStepIntoImpl()   { }
-    protected override void OnStepOutImpl()    { }
+    protected override void OnContinueImpl()
+    {
+        _stepMode = StepMode.None;
+        Coordinator.RequestContinue();
+    }
+
+    protected override void OnPauseImpl()
+    {
+        Coordinator.RequestPause();
+    }
+
+    protected override void OnStepOverImpl()
+    {
+        _stepFromMicroStep      = _currentSnapshot?.MicroStep ?? 0;
+        _stepMode               = StepMode.Over;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
+
+    protected override void OnStepIntoImpl()
+    {
+        _stepFromMicroStep      = _currentSnapshot?.MicroStep ?? 0;
+        _stepMode               = StepMode.Into;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
+
+    protected override void OnStepOutImpl()
+    {
+        _stepFromMicroStep      = _currentSnapshot?.MicroStep ?? 0;
+        _stepMode               = StepMode.Out;
+        _nodeProcessedSinceStep = false;
+        Coordinator.RequestStepOneTick();
+    }
 
     protected override void OnDetachImpl()
     {
-        _currentSnapshot = null;
-        _lastReadPos     = 0;
+        _stepMode               = StepMode.None;
+        _nodeProcessedSinceStep = false;
+        _currentSnapshot        = null;
+        _lastReadPos            = 0;
         _history.Clear();
         _stateEntryCounts.Clear();
-        _heatmapModeActive = false;
+        _heatmapModeActive      = false;
     }
 }

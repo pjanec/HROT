@@ -59,4 +59,13 @@ public class AiTracerCoordinator
 
     /// <summary>Called when refcount reaches zero. Override to clear DebugState.Flags.</summary>
     protected virtual void EndObservingAssetImpl(Guid assetId) { }
+
+    /// <summary>Requests the simulation to execute exactly one tick, then pause.</summary>
+    public virtual void RequestStepOneTick() { }
+
+    /// <summary>Requests the simulation to pause at the next tick boundary.</summary>
+    public virtual void RequestPause() { }
+
+    /// <summary>Requests the simulation to resume continuous execution.</summary>
+    public virtual void RequestContinue() { }
 }
