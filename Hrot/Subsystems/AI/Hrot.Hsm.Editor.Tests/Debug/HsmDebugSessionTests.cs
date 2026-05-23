@@ -183,4 +183,53 @@ public sealed class HsmDebugSessionTests
 
         callCount.Should().Be(1);
     }
+
+    [Fact]
+    public void Pause_SetsPausedTrue()
+    {
+        var session = new HsmDebugSession();
+        session.Pause();
+        session.IsPaused.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Continue_ClearsPausedState()
+    {
+        var session = new HsmDebugSession();
+        session.Pause();
+        session.Continue();
+        session.IsPaused.Should().BeFalse();
+        session.PausedAt.Should().BeNull();
+        session.PausedOnEntity.Should().BeNull();
+    }
+
+    [Fact]
+    public void StepOver_FiresSessionStateChanged()
+    {
+        var session = new HsmDebugSession();
+        int count = 0;
+        session.OnSessionStateChanged += () => count++;
+        session.StepOver();
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public void StepInto_FiresSessionStateChanged()
+    {
+        var session = new HsmDebugSession();
+        int count = 0;
+        session.OnSessionStateChanged += () => count++;
+        session.StepInto();
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public void StepOut_FiresSessionStateChanged()
+    {
+        var session = new HsmDebugSession();
+        int count = 0;
+        session.OnSessionStateChanged += () => count++;
+        session.StepOut();
+        count.Should().Be(1);
+    }
 }

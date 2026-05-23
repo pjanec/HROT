@@ -225,4 +225,53 @@ public class BTreeDebugSessionTests
 
         eventFired.Should().BeTrue();
     }
+
+    [Fact]
+    public void Pause_SetsPausedTrue()
+    {
+        var sut = new BTreeDebugSession();
+        sut.Pause();
+        sut.IsPaused.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Continue_ClearsPausedState()
+    {
+        var sut = new BTreeDebugSession();
+        sut.Pause();
+        sut.Continue();
+        sut.IsPaused.Should().BeFalse();
+        sut.PausedAt.Should().BeNull();
+        sut.PausedOnEntity.Should().BeNull();
+    }
+
+    [Fact]
+    public void StepOver_FiresSessionStateChanged()
+    {
+        var sut = new BTreeDebugSession();
+        int count = 0;
+        sut.OnSessionStateChanged += () => count++;
+        sut.StepOver();
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public void StepInto_FiresSessionStateChanged()
+    {
+        var sut = new BTreeDebugSession();
+        int count = 0;
+        sut.OnSessionStateChanged += () => count++;
+        sut.StepInto();
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public void StepOut_FiresSessionStateChanged()
+    {
+        var sut = new BTreeDebugSession();
+        int count = 0;
+        sut.OnSessionStateChanged += () => count++;
+        sut.StepOut();
+        count.Should().Be(1);
+    }
 }
