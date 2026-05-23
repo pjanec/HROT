@@ -4,6 +4,7 @@ public sealed class DebugSessionRegistry : IDebugSessionRegistry
 {
     private readonly Dictionary<Type, Func<IAiDebugSession>> _factories = new();
     private readonly List<IAiTraceObserver> _observers = new();
+    private readonly object _lock = new();
 
     public IAiDebugSession? ActiveSession { get; private set; }
     public event Action? Changed;
@@ -22,31 +23,41 @@ public sealed class DebugSessionRegistry : IDebugSessionRegistry
     public bool TryAcquireSession<TSession>(out TSession? session)
         where TSession : class, IAiDebugSession
     {
-        if (ActiveSession is not null)
+        lock (_lock)
         {
-            session = null;
-            return false;
-        }
+            if (ActiveSession is not null)
+            {
+                session = null;
+                return false;
+            }
 
-        if (!_factories.TryGetValue(typeof(TSession), out var factory))
-        {
-            session = null;
-            return false;
-        }
+            if (!_factories.TryGetValue(typeof(TSession), out var factory))
+            {
+                session = null;
+                return false;
+            }
 
-        var created = factory();
-        ActiveSession = created;
-        session = (TSession)created;
+            var created = factory();
+            ActiveSession = created;
+            session = (TSession)created;
+        }
         Changed?.Invoke();
         return true;
     }
 
     public void ReleaseSession(IAiDebugSession session)
     {
-        if (ActiveSession != session) return;
-        ActiveSession = null;
-        session.Detach();
-        Changed?.Invoke();
+        bool released;
+        lock (_lock)
+        {
+            released = ActiveSession == session;
+            if (released) ActiveSession = null;
+        }
+        if (released)
+        {
+            session.Detach();
+            Changed?.Invoke();
+        }
     }
 
     public IDisposable RegisterObserver<TObserver>(TObserver observer)

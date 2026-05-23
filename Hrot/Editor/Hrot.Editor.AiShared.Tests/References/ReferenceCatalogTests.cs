@@ -101,18 +101,6 @@ public sealed class ReferenceCatalogTests
     }
 
     [Fact]
-    public void Changed_Fires_WhenCatalogChanges()
-    {
-        var fakeCatalog = new FakeAssetCatalog();
-        var catalog = new ReferenceCatalog(fakeCatalog);
-        int count = 0;
-        catalog.Changed += () => count++;
-
-        fakeCatalog.FireChanged();
-        Assert.Equal(1, count);
-    }
-
-    [Fact]
     public void Contribute_OverwritesElement_WhenKeyReused()
     {
         var catalog = new ReferenceCatalog();
@@ -125,13 +113,96 @@ public sealed class ReferenceCatalogTests
         Assert.Equal("Second", found?.DisplayName);
     }
 
+    [Fact]
+    public void Changed_Fires_WhenCatalogChanges()
+    {
+        var fakeCatalog = new FakeAssetCatalog();
+        var catalog = new ReferenceCatalog(fakeCatalog);
+        int count = 0;
+        catalog.Changed += () => count++;
+
+        fakeCatalog.FireChanged();
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void OnCatalogChanged_RebuildsFromContributors()
+    {
+        var fakeAsset = new FakeEditableAsset();
+        var fakeCatalog = new FakeAssetCatalog(fakeAsset);
+        var elem1 = new FakeElement { Key = "action://Foo", DisplayName = "Foo" };
+        var elem2 = new FakeElement { Key = "action://Bar", DisplayName = "Bar" };
+        var hostId = Guid.NewGuid();
+        var contributor = new FakeContributor(
+            new[] { elem1, elem2 },
+            new[] { MakeRef(hostId, "action://Foo") });
+
+        var catalog = new ReferenceCatalog(fakeCatalog, new[] { contributor });
+
+        fakeCatalog.FireChanged();
+
+        Assert.Equal(2, catalog.AllElements.Count);
+        Assert.Single(catalog.FindReferences("action://Foo"));
+    }
+
+    [Fact]
+    public void OnCatalogChanged_ClearsElements_WhenCatalogEmpty()
+    {
+        var fakeAsset = new FakeEditableAsset();
+        var fakeCatalog = new FakeAssetCatalog(fakeAsset);
+        var elem = new FakeElement { Key = "action://Foo" };
+        var contributor = new FakeContributor(new[] { elem }, Array.Empty<AssetReference>());
+
+        var catalog = new ReferenceCatalog(fakeCatalog, new[] { contributor });
+        fakeCatalog.FireChanged();
+        Assert.Single(catalog.AllElements);
+
+        // Remove all assets from catalog and fire again.
+        fakeCatalog.ClearAssets();
+        fakeCatalog.FireChanged();
+
+        Assert.Empty(catalog.AllElements);
+    }
+
+    private sealed class FakeEditableAsset : IEditableAsset
+    {
+        public Guid AssetId { get; } = Guid.NewGuid();
+        public string Name => "FakeAsset";
+        public AssetKind Kind => AssetKind.Blueprint;
+        public string SourceFilePath => string.Empty;
+        public bool IsDirty => false;
+        public bool IsEditorOwned => true;
+        public event Action? Changed;
+    }
+
+    private sealed class FakeContributor : IReferenceCatalogContributor
+    {
+        private readonly IReadOnlyList<IAssetSubElement> _elements;
+        private readonly IReadOnlyList<AssetReference> _refs;
+
+        public FakeContributor(IReadOnlyList<IAssetSubElement> elements, IReadOnlyList<AssetReference> refs)
+        {
+            _elements = elements;
+            _refs = refs;
+        }
+
+        public IReadOnlyList<IAssetSubElement> EnumerateElements(IEditableAsset asset) => _elements;
+        public IReadOnlyList<AssetReference> EnumerateReferences(IEditableAsset asset) => _refs;
+    }
+
     private sealed class FakeAssetCatalog : IAssetCatalog
     {
-        public IReadOnlyList<IEditableAsset> All => Array.Empty<IEditableAsset>();
+        private readonly List<IEditableAsset> _assets;
+
+        public FakeAssetCatalog(params IEditableAsset[] assets)
+            => _assets = new List<IEditableAsset>(assets);
+
+        public IReadOnlyList<IEditableAsset> All => _assets;
         public IEditableAsset? FindByAssetId(Guid assetId) => null;
         public IEditableAsset? FindByName(string name) => null;
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<IEditableAsset>();
         public event Action? Changed;
         public void FireChanged() => Changed?.Invoke();
+        public void ClearAssets() => _assets.Clear();
     }
 }

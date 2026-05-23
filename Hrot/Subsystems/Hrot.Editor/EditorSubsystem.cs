@@ -204,6 +204,8 @@ namespace Hrot.Editor
         private DefaultSelectionState? _selectionState;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
+        private Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore = new();
+        private Hrot.Editor.AiShared.Selection.CallbackSelectionBridge? _selectionBridge;
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
@@ -819,6 +821,23 @@ namespace Hrot.Editor
                     _fdpInspectorState.SelectedEntity = entity;
                 }
             };
+            // Wire the AI editor selection store so AI editor windows track the selected entity.
+            _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>
+            {
+                Action<Entity, System.Numerics.Vector3> handler = (entity, _) =>
+                {
+                    onEntitySelected(_world != null && entity != Entity.Null && _world.IsAlive(entity)
+                        ? entity
+                        : (Entity?)null);
+                };
+                _selectionSystem!.OnSelectionChanged += handler;
+                return new DelegateDisposable(() =>
+                {
+                    if (_selectionSystem != null)
+                        _selectionSystem.OnSelectionChanged -= handler;
+                });
+            });
+            _selectionBridge.Connect(_aiEditorSelectionStore);
             var gizmoGroup = new TogglablePostSimulationGroup("GizmoExecution",
                 _editorDataDrivenGizmoSystem,
                 _globalGizmoManager,
@@ -1467,6 +1486,8 @@ namespace Hrot.Editor
             _zoneEditorPanel  = null;
             _fdpRepoAdapter   = null;
             _selectionState   = null;
+            _selectionBridge?.Dispose();
+            _selectionBridge  = null;
             // (Phase 5: _interactionTool was here; removed)
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
@@ -1636,8 +1657,15 @@ namespace Hrot.Editor
         // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
         // they must be routed through a module.
-        private sealed class EditorSimulationModule : IEcsModule
+
+        private sealed class DelegateDisposable : IDisposable
         {
+            private Action? _action;
+            public DelegateDisposable(Action action) => _action = action;
+            public void Dispose() { _action?.Invoke(); _action = null; }
+        }
+
+        private sealed class EditorSimulationModule : IEcsModule        {
             private readonly TogglableSimulationGroup _simulationGroup;
 
             public string Name => "EditorSimulation";
