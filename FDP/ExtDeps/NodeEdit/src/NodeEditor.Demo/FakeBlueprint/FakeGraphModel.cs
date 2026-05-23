@@ -87,5 +87,5 @@ public sealed class FakeGraphModel : IGraphModel
     public void RemoveComment(CommentId id) => _comments.Remove(id);
 
     public void NotifyChanged(GraphChangeKind kind)
-        => Changed?.Invoke(new GraphChangeNotification(kind, null, null, null));
+        => Changed?.Invoke(new GraphChangeNotification(kind, null, null, null, null));
 }

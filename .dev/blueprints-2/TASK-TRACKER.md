@@ -28,14 +28,14 @@
 - [x] **TASK-S1-15** — `RuntimeInspectorWindow` + `TraceTimelineWindow` shells → [details](./TASK-DETAIL.md#task-s1-15--runtimeinspectorwindow-and-tracetimelinewindow-shells)
 
 ## Phase 2 — NodeEditor: NodeAttachments extension
-- [ ] **TASK-NEA-01** — `AttachmentId` and `IAttachmentModel` → [details](./TASK-DETAIL.md#task-nea-01--attachmentid-and-iattachmentmodel)
-- [ ] **TASK-NEA-02** — `IGraphModel` extension for attachments → [details](./TASK-DETAIL.md#task-nea-02--igraphmodel-extension-for-attachments)
-- [ ] **TASK-NEA-03** — `GraphChangeKind` + `GraphChangeNotification` extensions → [details](./TASK-DETAIL.md#task-nea-03--graphchangekind-and-graphchangenotification-extensions)
+- [x] **TASK-NEA-01** — `AttachmentId` and `IAttachmentModel` → [details](./TASK-DETAIL.md#task-nea-01--attachmentid-and-iattachmentmodel)
+- [x] **TASK-NEA-02** — `IGraphModel` extension for attachments → [details](./TASK-DETAIL.md#task-nea-02--igraphmodel-extension-for-attachments)
+- [x] **TASK-NEA-03** — `GraphChangeKind` + `GraphChangeNotification` extensions → [details](./TASK-DETAIL.md#task-nea-03--graphchangekind-and-graphchangenotification-extensions)
 - [ ] **TASK-NEA-04** — Attachment layout engine (wrap-and-stack) → [details](./TASK-DETAIL.md#task-nea-04--attachment-layout-engine)
 - [ ] **TASK-NEA-05** — Attachment rendering (pills, glyphs, states) → [details](./TASK-DETAIL.md#task-nea-05--attachment-rendering)
 - [ ] **TASK-NEA-06** — Hit-testing for attachments → [details](./TASK-DETAIL.md#task-nea-06--hit-testing-for-attachments)
 - [ ] **TASK-NEA-07** — Selection of attachments → [details](./TASK-DETAIL.md#task-nea-07--selection-of-attachments)
-- [ ] **TASK-NEA-08** — Attachment `GraphCommand` records + inverses → [details](./TASK-DETAIL.md#task-nea-08--attachment-commands)
+- [x] **TASK-NEA-08** — Attachment `GraphCommand` records + inverses → [details](./TASK-DETAIL.md#task-nea-08--attachment-commands)
 - [ ] **TASK-NEA-09** — Attachment context-menu provider → [details](./TASK-DETAIL.md#task-nea-09--context-menu-provider)
 - [ ] **TASK-NEA-10** — Low-zoom rendering for attachments → [details](./TASK-DETAIL.md#task-nea-10--low-zoom-rendering-for-attachments)
 - [ ] **TASK-NEA-11** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-nea-11--theme-additions-and-demo-scenario)

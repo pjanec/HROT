@@ -1,4 +1,5 @@
 using System.Numerics;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.Commands;
@@ -108,6 +109,38 @@ public abstract record GraphCommand
 
     /// <summary>Refactor: expand a function/macro call node, inlining its body.</summary>
     public sealed record ExpandNode(NodeId Node) : GraphCommand;
+
+    /// <summary>Add an attachment to a host node.</summary>
+    public sealed record AddAttachment(
+        AttachmentId NewId,
+        NodeId HostNodeId,
+        AttachmentCategory Category,
+        string? Glyph,
+        string? Label,
+        string? Tooltip,
+        int StackIndex,
+        IReadOnlyDictionary<string, object?>? HostProperties) : GraphCommand;
+
+    /// <summary>Remove one or more attachments by id.</summary>
+    public sealed record RemoveAttachments(
+        IReadOnlyList<AttachmentId> AttachmentIds) : GraphCommand;
+
+    /// <summary>Set a host-defined property on an attachment.</summary>
+    public sealed record SetAttachmentProperty(
+        AttachmentId Id,
+        string Key,
+        object? Value) : GraphCommand;
+
+    /// <summary>Reorder the attachments of a single host node.</summary>
+    public sealed record ReorderAttachments(
+        NodeId HostNodeId,
+        IReadOnlyList<AttachmentId> NewOrder) : GraphCommand;
+
+    /// <summary>Move an attachment to a different host node.</summary>
+    public sealed record MoveAttachment(
+        AttachmentId Id,
+        NodeId NewHostNodeId,
+        int NewStackIndex) : GraphCommand;
 
     /// <summary>Multi-step command. The host should treat the contents atomically.</summary>
     public sealed record Batch(string Label, IReadOnlyList<GraphCommand> Commands) : GraphCommand;

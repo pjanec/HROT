@@ -35,6 +35,20 @@ public interface IGraphModel
     /// <summary>Find a link by id, or null if not present.</summary>
     ILinkModel? FindLink(LinkId id);
 
+    /// <summary>All attachments currently in this graph.</summary>
+    IReadOnlyCollection<IAttachmentModel> Attachments
+        => Array.Empty<IAttachmentModel>();
+
+    /// <summary>Find an attachment by id, or null if not present.</summary>
+    IAttachmentModel? FindAttachment(AttachmentId id) => null;
+
+    /// <summary>
+    /// Returns all attachments whose host is the given node, ordered by StackIndex ascending.
+    /// Returns an empty list if the node has no attachments or does not exist.
+    /// </summary>
+    IReadOnlyList<IAttachmentModel> GetAttachmentsForNode(NodeId hostId)
+        => Array.Empty<IAttachmentModel>();
+
     /// <summary>
     /// Raised when graph data changes externally. The editor subscribes and
     /// updates view state (selection, viewport hold, badges, undo invalidation).
@@ -54,6 +68,7 @@ public sealed record GraphChangeNotification(
     GraphChangeKind Kind,
     IReadOnlySet<NodeId>? AffectedNodes,
     IReadOnlySet<LinkId>? AffectedLinks,
+    IReadOnlySet<AttachmentId>? AffectedAttachments,
     string? Reason);
 
 /// <summary>Coarse classification of a graph change.</summary>
@@ -66,5 +81,8 @@ public enum GraphChangeKind
     LinksAdded,
     LinksRemoved,
     VariablesChanged,
+    AttachmentsAdded,
+    AttachmentsRemoved,
+    AttachmentsModified,
     Wholesale,
 }
