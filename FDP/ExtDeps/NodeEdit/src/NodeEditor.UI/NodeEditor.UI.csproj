@@ -15,4 +15,9 @@
     <ProjectReference Include="..\NodeEditor.Core\NodeEditor.Core.csproj" />
     <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>NodeEditor.UI.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

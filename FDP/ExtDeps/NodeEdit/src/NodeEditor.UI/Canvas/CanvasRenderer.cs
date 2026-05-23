@@ -430,6 +430,24 @@ public sealed class CanvasRenderer
                     view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(new[] { nodeId }));
                 }
                 break;
+
+            case HoverKind.CustomElement:
+            {
+                var ceRef    = target.CustomElement;
+                var provider = view.Host.CustomElementContextMenu;
+                if (provider != null && provider.RendererId == ceRef.RendererId)
+                {
+                    var hit   = new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default);
+                    var items = provider.GetItemsFor(ceRef.ElementKey, hit);
+                    foreach (var item in items)
+                    {
+                        if (ImGui.MenuItem(item.Label, "", false, item.Enabled))
+                            item.Execute();
+                    }
+                }
+                // If no matching provider, context menu popup is empty -- intended fallback.
+                break;
+            }
         }
     }
 

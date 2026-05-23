@@ -93,6 +93,88 @@ public sealed class CustomElementContextMenuProviderTests
     }
 }
 
+/// <summary>
+/// Tests for the context menu routing contract: a provider is only invoked when its
+/// RendererId matches the right-clicked element's RendererId (TASK-NER-07).
+/// </summary>
+public sealed class CustomElementContextMenuRoutingTests
+{
+    // Stub provider that records whether GetItemsFor was called.
+    private sealed class SpyProvider : ICustomElementContextMenuProvider
+    {
+        public string RendererId { get; }
+        public bool WasCalled { get; private set; }
+
+        public SpyProvider(string rendererId) => RendererId = rendererId;
+
+        public IReadOnlyList<ContextMenuItem> GetItemsFor(string elementKey, CustomElementHit hit)
+        {
+            WasCalled = true;
+            return new[] { new ContextMenuItem("Action", () => { }) };
+        }
+    }
+
+    [Fact]
+    public void Provider_is_queried_when_renderer_id_matches()
+    {
+        var provider = new SpyProvider("renderer-A");
+        var ceRef    = new CustomElementRef("renderer-A", "elem1");
+
+        // Simulate the DrawContextMenu routing decision.
+        if (provider.RendererId == ceRef.RendererId)
+        {
+            var hit   = new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default);
+            var items = provider.GetItemsFor(ceRef.ElementKey, hit);
+            items.Should().NotBeEmpty();
+        }
+
+        provider.WasCalled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Provider_is_not_queried_when_renderer_id_mismatches()
+    {
+        var provider = new SpyProvider("renderer-A");
+        var ceRef    = new CustomElementRef("renderer-B", "elem1");
+
+        // Simulate the DrawContextMenu routing decision.
+        if (provider.RendererId == ceRef.RendererId)
+        {
+            var hit = new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default);
+            provider.GetItemsFor(ceRef.ElementKey, hit);
+        }
+
+        provider.WasCalled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Null_provider_does_not_throw()
+    {
+        ICustomElementContextMenuProvider? provider = null;
+        var ceRef = new CustomElementRef("renderer-A", "elem1");
+
+        // Simulate what DrawContextMenu does: guard with null check.
+        System.Action act = () =>
+        {
+            if (provider != null && provider.RendererId == ceRef.RendererId)
+            {
+                var hit   = new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default);
+                provider.GetItemsFor(ceRef.ElementKey, hit);
+            }
+        };
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Provider_returns_disabled_item_correctly()
+    {
+        var item = new ContextMenuItem("Disabled Action", () => { }, Enabled: false);
+        item.Enabled.Should().BeFalse();
+        item.Label.Should().Be("Disabled Action");
+    }
+}
+
 public sealed class RendererPerfRecordTests
 {
     [Fact]

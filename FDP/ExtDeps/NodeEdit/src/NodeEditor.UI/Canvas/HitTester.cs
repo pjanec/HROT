@@ -12,8 +12,9 @@ namespace NodeEditor.UI.Canvas;
 /// <summary>
 /// Performs per-frame hit-testing against the spatial index and pin positions
 /// and updates <see cref="InteractionState.Hover"/>.
-/// Priority (highest first): reroutes, pins, wires, comment headers,
-/// node bodies, comment bodies, empty canvas.
+/// Priority (highest first, 15-step hierarchy): reroutes, pins, wires, TopMost custom,
+/// attachments, AfterNodes custom, container chevrons, container headers, comment headers,
+/// AfterWires custom, node bodies, BeforeContent custom, container interiors, comment bodies.
 /// </summary>
 internal sealed class HitTester
 {
@@ -22,6 +23,23 @@ internal sealed class HitTester
     // Wire hit: samples along bezier curve.
     private const float WireHitDistancePx = 6f;
     private const int   WireSampleCount   = 24;
+
+    // Z-layer constants for the 15-step hit-test priority hierarchy (highest wins).
+    // Higher value = higher priority. Empty canvas is the implicit baseline (never submitted).
+    internal const int ZLayerCommentBody       = 2;
+    internal const int ZLayerContainerInterior = 3;
+    internal const int ZLayerBeforeContent     = 4;
+    internal const int ZLayerNodeBody          = 5;
+    internal const int ZLayerAfterWires        = 6;
+    internal const int ZLayerCommentHeader     = 7;
+    internal const int ZLayerContainerHeader   = 8;
+    internal const int ZLayerContainerChevron  = 9;
+    internal const int ZLayerAfterNodes        = 10;
+    internal const int ZLayerAttachment        = 11;
+    internal const int ZLayerTopMost           = 12;
+    internal const int ZLayerWire              = 13;
+    internal const int ZLayerPin               = 14;
+    internal const int ZLayerReroute           = 15;
 
     /// <summary>Run hit-testing and store the result into <see cref="InteractionState.Hover"/>.</summary>
     public void UpdateHover(
@@ -69,11 +87,11 @@ internal sealed class HitTester
                 new Vector2(12f, 12f));
 
             if (resizeRect.Contains(mouseGraph))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.ResizeHandle }, 4, subLayer, 1);
+                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.ResizeHandle }, ZLayerCommentHeader, subLayer, 1);
             else if (headerRect.Contains(mouseGraph))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.Header }, 4, subLayer, 2);
+                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.Header }, ZLayerCommentHeader, subLayer, 2);
             else if (bodyRect.Contains(mouseGraph))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.Body }, 0, subLayer, 1);
+                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.Body }, ZLayerCommentBody, subLayer, 1);
         }
 
         // 2. Wires
@@ -85,24 +103,24 @@ internal sealed class HitTester
             if (!pinPositions.TryGetValue(link.ToPin, out var b)) continue;
 
             if (HitsWire(mouse, a, b, link, view.Viewport))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, 1, wireIndex, 1);
+                SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, ZLayerWire, wireIndex, 1);
         }
 
-        // 2a. Custom AfterWires hit-testers (above wires; zLayer=1, high subLayer).
-        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterWires, mouseGraph, hitCtx, zLayer: 1, subLayerBase: 100000, SubmitHit);
+        // 2a. Custom AfterWires hit-testers: below wires per spec (ZLayerAfterWires < ZLayerWire).
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterWires, mouseGraph, hitCtx, zLayer: ZLayerAfterWires, subLayerBase: 0, SubmitHit);
 
-        // 2b. Attachment pills (below nodes in z-order when unobscured).
-        int attachIndex = 0;
+        // 2b. Attachment pills: above node bodies per spec; highest StackIndex wins when multiple overlap.
         foreach (var (attachId, screenRect) in attachmentScreenRects)
         {
-            attachIndex++;
             if (screenRect.Contains(mouse))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Attachment, Attachment = attachId }, 2, attachIndex, 1);
+            {
+                int stackIndex = view.Model.FindAttachment(attachId)?.StackIndex ?? 0;
+                SubmitHit(new HoverInfo { Kind = HoverKind.Attachment, Attachment = attachId }, ZLayerAttachment, stackIndex, 1);
+            }
         }
 
         // 2c. Container headers and collapse arrows.
-        // zLayer=4 beats regular node bodies (2/3) and ties with comment headers (also 4).
-        // priority=0 (arrow) and priority=1 (header) beat comment resize/header (priority=1/2).
+        // Chevrons (ZLayerContainerChevron=9) beat headers (ZLayerContainerHeader=8) per spec.
         float containerHeaderHtPx = view.Host.Theme.NodeHeaderHeight * view.Viewport.Zoom;
         float collapseArrowWidthPx = 18f * view.Viewport.Zoom;
         int containerHeaderIndex = 0;
@@ -122,14 +140,14 @@ internal sealed class HitTester
                 new Vector2(collapseArrowWidthPx, containerHeaderHtPx));
             if (arrowScreenRect.Contains(mouse))
                 SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.CollapseArrow },
-                    4, containerHeaderIndex, 0);
+                    ZLayerContainerChevron, containerHeaderIndex, 0);
             else
                 SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.Header },
-                    4, containerHeaderIndex, 1);
+                    ZLayerContainerHeader, containerHeaderIndex, 1);
         }
 
-        // 2d. Custom AfterNodes hit-testers (above container headers; zLayer=4, high subLayer).
-        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterNodes, mouseGraph, hitCtx, zLayer: 4, subLayerBase: 100000, SubmitHit);
+        // 2d. Custom AfterNodes hit-testers: above container headers per spec.
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterNodes, mouseGraph, hitCtx, zLayer: ZLayerAfterNodes, subLayerBase: 0, SubmitHit);
 
         // 3. Nodes and Pins (same sub-layer uses model draw order).
         int nodeIndex = 0;
@@ -139,20 +157,20 @@ internal sealed class HitTester
             nodeIndex++;
             bool isForeground = view.Selection.Contains(SelectionEntry.OfNode(node.Id))
                              || view.Interaction.DragOverridePositions.ContainsKey(node.Id);
-            int zLayer = isForeground ? 3 : 2;
+            int nodeSubLayer = isForeground ? nodeIndex + 100000 : nodeIndex;
 
             // Skip containers — their header is handled by section 2c; interior by section 3b.
             if (node.IsContainerNode()) continue;
 
             var bounds = spatialIndex.GetBounds(node.Id);
             if (bounds.HasValue && bounds.Value.Contains(mouseGraph))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Node, Node = node.Id }, zLayer, nodeIndex, 2);
+                SubmitHit(new HoverInfo { Kind = HoverKind.Node, Node = node.Id }, ZLayerNodeBody, nodeSubLayer, 2);
 
             foreach (var pin in node.Pins)
             {
                 if (!pinPositions.TryGetValue(pin.Id, out var screenPos)) continue;
                 if (Vector2.Distance(mouse, screenPos) <= pinHitRadius)
-                    SubmitHit(new HoverInfo { Kind = HoverKind.Pin, Pin = pin.Id }, zLayer, nodeIndex, 1);
+                    SubmitHit(new HoverInfo { Kind = HoverKind.Pin, Pin = pin.Id }, ZLayerPin, nodeSubLayer, 1);
             }
         }
 
@@ -172,20 +190,19 @@ internal sealed class HitTester
                             Kind = HoverKind.Reroute,
                             Reroute = new RerouteRef(link.Id, wi),
                         },
-                        zLayer: 5,
+                        zLayer: ZLayerReroute,
                         subLayer: rerouteIndex,
                         priority: 1);
                 }
             }
         }
 
-        // 4b. Custom TopMost hit-testers (above reroutes).
+        // 4b. Custom TopMost hit-testers: above wires/attachments/nodes but below pins and reroutes per spec.
         var customRenderers = view.Host.CustomCanvasRenderers;
-        SubmitCustomHits(customRenderers, CanvasRenderPass.TopMost, mouseGraph, hitCtx, zLayer: 6, subLayerBase: 0, SubmitHit);
+        SubmitCustomHits(customRenderers, CanvasRenderPass.TopMost, mouseGraph, hitCtx, zLayer: ZLayerTopMost, subLayerBase: 0, SubmitHit);
 
         // 3b. Container interior (body area below the header).
-        // zLayer=1 ensures children (2/3) and wires (1, but higher subLayer) beat the interior.
-        // Beats comment bodies (zLayer=0).
+        // ZLayerContainerInterior(3) is below all node/attachment/wire/comment-header layers per spec.
         int containerInteriorIndex = 0;
         foreach (var node in view.Model.Nodes)
         {
@@ -200,11 +217,11 @@ internal sealed class HitTester
             if (mouseGraph.Y < bounds.Value.Min.Y + headerHtGu) continue;
 
             SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.Interior },
-                1, containerInteriorIndex, 2);
+                ZLayerContainerInterior, containerInteriorIndex, 2);
         }
 
-        // 5. Custom BeforeContent hit-testers (lowest custom layer; zLayer=0, high subLayer).
-        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.BeforeContent, mouseGraph, hitCtx, zLayer: 0, subLayerBase: 100000, SubmitHit);
+        // 5. Custom BeforeContent hit-testers: lowest custom layer per spec.
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.BeforeContent, mouseGraph, hitCtx, zLayer: ZLayerBeforeContent, subLayerBase: 0, SubmitHit);
 
         view.Interaction.Hover = hasBestHit ? bestHit : HoverInfo.None;
     }
