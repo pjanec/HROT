@@ -67,7 +67,7 @@
 
 ## Phase 5 — BTree host: Slice 1 (authoring)
 - [x] **TASK-BT-S1-01** — `BehaviorTreeAsset` editor model → [details](./TASK-DETAIL.md#task-bt-s1-01--behaviortreeasset-model)
-- [ ] **TASK-BT-S1-02** — Projection from compiled assembly → [details](./TASK-DETAIL.md#task-bt-s1-02--projection-from-compiled-assembly)
+- [x] **TASK-BT-S1-02** — Projection from compiled assembly → [details](./TASK-DETAIL.md#task-bt-s1-02--projection-from-compiled-assembly)
 - [x] **TASK-BT-S1-03** — Identity bridges + lookup tables → [details](./TASK-DETAIL.md#task-bt-s1-03--identity-bridges-and-lookup-tables)
 - [x] **TASK-BT-S1-04** — Tidy-tree auto-layout → [details](./TASK-DETAIL.md#task-bt-s1-04--tidy-tree-auto-layout)
 - [x] **TASK-BT-S1-05** — `BTreeFluentEmitter` with round-trip test → [details](./TASK-DETAIL.md#task-bt-s1-05--btreefluentemitter)
@@ -82,9 +82,9 @@
 - [x] **TASK-BT-S1-14** — BTree facet structs → [details](./TASK-DETAIL.md#task-bt-s1-14--btree-facet-structs)
 - [ ] **TASK-BT-S1-15** — `BlackboardFieldPicker` StructEdit attribute → [details](./TASK-DETAIL.md#task-bt-s1-15--blackboardfieldpicker-structedit-attribute)
 - [x] **TASK-BT-S1-16** — BTree validation rules → [details](./TASK-DETAIL.md#task-bt-s1-16--btree-validation-rules)
-- [ ] **TASK-BT-S1-17** — `BTreeAssetContributor` → [details](./TASK-DETAIL.md#task-bt-s1-17--btreeassetcontributor)
-- [ ] **TASK-BT-S1-18** — BTree host-services wiring + DI → [details](./TASK-DETAIL.md#task-bt-s1-18--host-services-wiring--di)
-- [ ] **TASK-BT-S1-19** — BTree Quick Reload classification → [details](./TASK-DETAIL.md#task-bt-s1-19--quick-reload-classification-btree)
+- [x] **TASK-BT-S1-17** — `BTreeAssetContributor` → [details](./TASK-DETAIL.md#task-bt-s1-17--btreeassetcontributor)
+- [x] **TASK-BT-S1-18** — BTree host-services wiring + DI → [details](./TASK-DETAIL.md#task-bt-s1-18--host-services-wiring--di)
+- [x] **TASK-BT-S1-19** — BTree Quick Reload classification → [details](./TASK-DETAIL.md#task-bt-s1-19--quick-reload-classification-btree)
 
 ## Phase 6 — HSM host: Slice 1 (authoring)
 - [ ] **TASK-HS-S1-01** — `HsmAsset` editor model → [details](./TASK-DETAIL.md#task-hs-s1-01--hsmasset-model)
