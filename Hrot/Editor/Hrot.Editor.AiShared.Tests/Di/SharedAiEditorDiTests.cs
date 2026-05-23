@@ -92,4 +92,13 @@ public class SharedAiEditorDiTests
         var win = sp.GetService<FindResultsWindow>();
         Assert.NotNull(win);
     }
+
+    [Fact]
+    public void AddSharedAiEditor_Resolves_DiagnosticsWindow_WithNoValidators()
+    {
+        using var sp = BuildSp();
+        var win = sp.GetRequiredService<DiagnosticsWindow>();
+        Assert.NotNull(win);
+        Assert.Equal("ai_diagnostics", win.Id);
+    }
 }

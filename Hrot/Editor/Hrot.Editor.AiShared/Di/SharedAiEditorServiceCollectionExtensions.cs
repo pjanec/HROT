@@ -4,6 +4,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Validation;
 using Hrot.Editor.AiShared.Windows;
 using Fdp.Toolkit.Runner;
 
@@ -36,6 +37,10 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
         services.AddSingleton<FindResultsWindow>();
+        services.AddSingleton<DiagnosticsWindow>(sp =>
+            new DiagnosticsWindow(
+                sp.GetRequiredService<IAssetCatalog>(),
+                sp.GetServices<IAssetValidator>().ToList()));
 
         // Window registrar
         services.AddSingleton<IWindowRegistrar, SharedAiWindowRegistrar>();

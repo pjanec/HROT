@@ -61,4 +61,25 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
 
     // Allows attaching/detaching the debug session at runtime.
     public void SetDebugSession(IDebugSession? session) => _debug = session;
+
+    // ---- Viewport control ----
+
+    private bool _viewportResetPending;
+
+    /// <summary>
+    /// Signals that the canvas should reset its viewport to default (zoom=1, pan=0).
+    /// The canvas render loop must check ViewportResetPending and call viewport.Reset().
+    /// </summary>
+    public void RequestViewportReset() => _viewportResetPending = true;
+
+    /// <summary>True if a viewport reset has been requested but not yet consumed.</summary>
+    public bool ViewportResetPending => _viewportResetPending;
+
+    /// <summary>Consumes the reset request. Returns true if a reset was pending.</summary>
+    public bool ConsumeViewportReset()
+    {
+        if (!_viewportResetPending) return false;
+        _viewportResetPending = false;
+        return true;
+    }
 }
