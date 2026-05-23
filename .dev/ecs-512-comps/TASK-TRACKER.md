@@ -39,5 +39,5 @@ hot/cold accessors.
 
 **Goal:** Update the Flight Recorder to serialize and restore the two separate index streams.
 
-- [ ] **TASK-E008** RecorderSystem: Dual-Stream Entity Index [details](./TASK-DETAIL.md#task-e008--recordersystem-dual-stream-entity-index)
-- [ ] **TASK-E009** PlaybackSystem: Route Hot/Cold Streams [details](./TASK-DETAIL.md#task-e009--playbacksystem-route-hotcold-streams)
+- [x] **TASK-E008** RecorderSystem: Dual-Stream Entity Index [details](./TASK-DETAIL.md#task-e008--recordersystem-dual-stream-entity-index)
+- [x] **TASK-E009** PlaybackSystem: Route Hot/Cold Streams [details](./TASK-DETAIL.md#task-e009--playbacksystem-route-hotcold-streams)

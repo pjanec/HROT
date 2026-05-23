@@ -114,6 +114,12 @@ namespace Fdp.Core.FlightRecorder
             int indexTotalChunks = entityIndex.GetTotalChunks();
             int indexCapacity = entityIndex.GetChunkCapacity(); // 682 usually
             
+            // D004 (P2 open item): Cold chunks are only written when ChunkHasStructuralChanges
+            // returns true (which checks EntityMetadataCold.LastChangeTick). Cold-only field
+            // modifications that bypass LastChangeTick stamping (e.g., direct GetMetadata()
+            // ref access without going through SetLifecycleState/AddComponent) are not
+            // captured in delta frames. Proper fix: also check the cold NativeChunkTable
+            // per-chunk version separately. Tracked in DEBT-TRACKER D004.
             for (int c = 0; c < indexTotalChunks; c++)
             {
                if ((c + 1) * indexCapacity <= MinRecordableId) continue;

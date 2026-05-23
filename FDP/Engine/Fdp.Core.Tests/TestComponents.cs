@@ -16,6 +16,10 @@ namespace Fdp.Tests
     [ComponentId(246)]
     public struct FloatComponent { public float Value; }
 
+    /// <summary>Dedicated component for DataPolicy.NoRecord tests. Not used elsewhere.</summary>
+    [ComponentId(240)]
+    public struct NoRecordTestComponent { public int Value; }
+
     [ComponentId(166)]
     public struct Position
     {

@@ -534,13 +534,16 @@ namespace Fdp.Tests
         public void GetRecordableMask_ReturnsBitMask512_WithRegisteredBit()
         {
             using var repo = new EntityRepository();
-            // Comp350 has no [Recordable] attribute, so it should NOT appear.
-            // Use a type that is known recordable from existing registrations.
-            // Verify the return type is BitMask512 via assignment and that the call succeeds.
+
+            // Register IntComponent (ID 164) with the default policy, which is recordable.
+            repo.RegisterComponent<IntComponent>();
+
             var mask = repo.GetRecordableMask();
-            // The mask is BitMask512 — just verify it's usable (no exception) and has 512-bit capacity.
-            // A freshly-cleared repo has no recordable components, so mask should be empty.
-            Assert.True(mask.IsEmpty());
+
+            // Bit 164 must be set because IntComponent is recordable.
+            Assert.True(mask.IsSet(164), "Recordable component bit 164 must be set in the recordable mask");
+            // The mask is BitMask512 — also confirm it is not empty.
+            Assert.False(mask.IsEmpty());
         }
     }
 }

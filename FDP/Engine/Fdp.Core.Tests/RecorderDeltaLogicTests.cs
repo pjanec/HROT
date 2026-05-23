@@ -233,6 +233,62 @@ namespace Fdp.Tests
             Assert.True(chunkCount > 0, "Keyframe must contain chunks even if stable");
         }
 
+        /// <summary>
+        /// Known limitation (D004 / P2): Cold-only field modifications that bypass
+        /// LastChangeTick stamping are not captured in delta frames.
+        /// This test documents the current behavior -- NOT a correctness regression.
+        /// The proper fix (per-cold-chunk version tracking) is deferred as a P2 item in
+        /// DEBT-TRACKER D004.
+        /// </summary>
+        [Fact]
+        public void Delta_ColdOnlyDirectMutation_KnownLimitation_NotCaptured()
+        {
+            using var repo = new EntityRepository();
+            var recorder = new RecorderSystem();
+            using var kfStream = new MemoryStream();
+            using var kfWriter = new BinaryWriter(kfStream);
+
+            var e = repo.CreateEntity();
+            repo.Tick();
+            uint baselineTick = (uint)repo.GlobalVersion;
+
+            repo.Tick();
+
+            // Direct cold metadata modification without LastChangeTick update.
+            // In production code all lifecycle changes go through SetLifecycleState which
+            // does stamp LastChangeTick. This direct write simulates a P2 edge case.
+            ref var meta = ref repo.GetEntityIndex().GetMetadata(e.Index);
+            EntityLifecycle originalState = meta.LifecycleState;
+            meta.LifecycleState = EntityLifecycle.TearDown; // no LastChangeTick stamp
+
+            using var deltaStream = new MemoryStream();
+            using var deltaWriter = new BinaryWriter(deltaStream);
+            recorder.RecordDeltaFrame(repo, baselineTick, deltaWriter, 0L);
+
+            deltaStream.Position = 0;
+            using var deltaReader = new BinaryReader(deltaStream);
+            ReadFrameMetadata(deltaReader);
+
+            int chunkCount = deltaReader.ReadInt32();
+
+            // Known limitation: no entity index chunk should appear because LastChangeTick
+            // was NOT updated. The cold-only change is silently dropped.
+            bool foundEntityIndexChunk = false;
+            for (int i = 0; i < chunkCount; i++)
+            {
+                deltaReader.ReadInt32(); // chunkId
+                deltaReader.ReadInt32(); // typeCount
+                int typeId = deltaReader.ReadInt32();
+                int len = deltaReader.ReadInt32();
+                deltaReader.ReadBytes(len);
+                if (typeId == -1 || typeId == -2) foundEntityIndexChunk = true;
+            }
+
+            // This assertion documents the KNOWN LIMITATION: the change is not captured.
+            Assert.False(foundEntityIndexChunk,
+                "D004 known limitation: cold-only mutation without LastChangeTick stamp is not captured in delta frame");
+        }
+
         // Helper
         private void ReadFrameMetadata(BinaryReader reader)
         {
