@@ -149,39 +149,14 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         StringBuilder sb, BehaviorTreeAsset asset,
         BTreeEditorNode node, int depth, bool isLast)
     {
-        string pad = string.Concat(Enumerable.Repeat(Indent, depth));
-
-        // Get pills sorted innermost-to-outermost (index 0 = closest to node = innermost).
-        var pills = asset.Pills
-            .Where(p => p.HostNodeVisualId == node.VisualId)
-            .OrderBy(p => p.StackIndex)
-            .ToList();
-
-        // Emit pills outermost-first (= highest StackIndex first).
-        pills.Reverse();
-
-        // We build the node content recursively.
-        string nodeText = BuildNodeContent(sb, asset, node, depth, pills, isLast);
-        // (nodeText is built inline — EmitNode writes directly to sb)
+        BuildNodeContent(sb, asset, node, depth, isLast);
     }
 
-    private static string BuildNodeContent(
+    private static void BuildNodeContent(
         StringBuilder sb, BehaviorTreeAsset asset,
-        BTreeEditorNode node, int depth, List<BTreeEditorPill> pills, bool isLast)
+        BTreeEditorNode node, int depth, bool isLast)
     {
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
-
-        bool isComposite = !node.IsLeaf && !node.IsDecorator;
-        bool hasChildren  = node.ChildVisualIds.Count > 0;
-
-        // Pill open wrappers
-        foreach (var pill in pills)
-        {
-            string pillOpen = BuildPillOpen(pill, pad, depth);
-            sb.Append(pillOpen);
-            depth++;
-            pad = string.Concat(Enumerable.Repeat(Indent, depth));
-        }
 
         switch (node.KernelType)
         {
@@ -198,32 +173,15 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
                 EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast);
                 break;
             case NodeType.Action:
-                EmitAction(sb, node, pad, isLast);
-                break;
             case NodeType.Condition:
-                EmitCondition(sb, node, pad, isLast);
-                break;
             case NodeType.Wait:
-                EmitWait(sb, node, pad, isLast);
-                break;
             case NodeType.Subtree:
-                EmitSubtree(sb, node, pad, isLast);
+                EmitLeafWithPills(sb, asset, node, depth, isLast);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unsupported node type: {node.KernelType}");
                 break;
         }
-
-        return string.Empty; // content written inline
-    }
-
-    private static string BuildPillOpen(BTreeEditorPill pill, string pad, int depth)
-    {
-        // Pills are emitted as opening calls; they are closed on the lines that follow.
-        // This is a prefix; children follow on subsequent lines.
-        // e.g. ".Inverter(visualId: new Guid(\"...\"),"
-        // We build just the opening fragment here.
-        return string.Empty; // Currently unused; pills handled inline in composites.
     }
 
     private static void EmitComposite(
@@ -242,8 +200,7 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         var pillDepth = depth;
         foreach (var pill in pills)
         {
-            string pillCall = BuildDecoratorOpen(pill, innerPad);
-            sb.Append(pillCall);
+            sb.Append(BuildDecoratorOpen(pill, innerPad, pillDepth));
             pillDepth++;
             innerPad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
         }
@@ -278,10 +235,12 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
         // Close pill wrappers (innermost first when closing).
         var closingPills = pills.AsEnumerable().Reverse().ToList();
-        foreach (var pill in closingPills)
+        for (int i = 0; i < closingPills.Count; i++)
         {
-            string pillClose = BuildDecoratorClose(pill, innerPad, isLast && pill == closingPills.Last());
-            sb.Append(pillClose);
+            pillDepth--;
+            innerPad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
+            bool isThisLast = isLast && i == closingPills.Count - 1;
+            sb.Append(BuildDecoratorClose(closingPills[i], innerPad, isThisLast));
         }
     }
 
@@ -306,16 +265,10 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
                 EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast);
                 break;
             case NodeType.Action:
-                EmitAction(sb, node, pad, isLast);
-                break;
             case NodeType.Condition:
-                EmitCondition(sb, node, pad, isLast);
-                break;
             case NodeType.Wait:
-                EmitWait(sb, node, pad, isLast);
-                break;
             case NodeType.Subtree:
-                EmitSubtree(sb, node, pad, isLast);
+                EmitLeafWithPills(sb, asset, node, depth, isLast);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unknown node type: {node.KernelType}");
@@ -323,16 +276,75 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         }
     }
 
-    private static string BuildDecoratorOpen(BTreeEditorPill pill, string pad)
+    private static string BuildDecoratorOpen(BTreeEditorPill pill, string pad, int pillDepth)
     {
-        // Decorator wraps its child: the open is the start of the fluent call.
-        return string.Empty; // Simplified for Slice 1; decorators rendered inline with host.
+        string v = $"d{pillDepth}";
+        return pill.DecoratorType switch
+        {
+            NodeType.Inverter     => $"{pad}.Inverter({v} => {v}\n",
+            NodeType.Repeater     => $"{pad}.Repeater({pill.IntParam ?? 1}, {v} => {v}\n",
+            NodeType.Cooldown     => $"{pad}.Cooldown({FloatLiteral(pill.FloatParam ?? 0f)}, {v} => {v}\n",
+            NodeType.ForceSuccess => $"{pad}.ForceSuccess({v} => {v}\n",
+            NodeType.ForceFailure => $"{pad}.ForceFailure({v} => {v}\n",
+            NodeType.UntilSuccess => $"{pad}.UntilSuccess({v} => {v}\n",
+            NodeType.UntilFailure => $"{pad}.UntilFailure({v} => {v}\n",
+            _                     => string.Empty,
+        };
     }
 
     private static string BuildDecoratorClose(BTreeEditorPill pill, string pad, bool isLast)
     {
-        return string.Empty;
+        string term = isLast ? ";" : ",";
+        string visualId = $"visualId: new Guid(\"{pill.VisualId:D}\")"; 
+        return $"{pad}{Indent}{visualId}){term}\n";
     }
+
+    // Emits a leaf node wrapped with any decorator pills it owns.
+    private static void EmitLeafWithPills(
+        StringBuilder sb, BehaviorTreeAsset asset,
+        BTreeEditorNode node, int depth, bool isLast)
+    {
+        var pills = asset.Pills
+            .Where(p => p.HostNodeVisualId == node.VisualId)
+            .OrderByDescending(p => p.StackIndex)
+            .ToList();
+
+        string pad = string.Concat(Enumerable.Repeat(Indent, depth));
+        int pillDepth = depth;
+
+        foreach (var pill in pills)
+        {
+            sb.Append(BuildDecoratorOpen(pill, pad, pillDepth));
+            pillDepth++;
+            pad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
+        }
+
+        // When wrapped by pills, the leaf itself is never the final terminator.
+        bool innerIsLast = pills.Count == 0 && isLast;
+
+        switch (node.KernelType)
+        {
+            case NodeType.Action:    EmitAction(sb, node, pad, innerIsLast);    break;
+            case NodeType.Condition: EmitCondition(sb, node, pad, innerIsLast); break;
+            case NodeType.Wait:      EmitWait(sb, node, pad, innerIsLast);      break;
+            case NodeType.Subtree:   EmitSubtree(sb, node, pad, innerIsLast);   break;
+            default:
+                sb.AppendLine($"{pad}// Unknown leaf type: {node.KernelType}");
+                break;
+        }
+
+        var closingPills = pills.AsEnumerable().Reverse().ToList();
+        for (int i = 0; i < closingPills.Count; i++)
+        {
+            pillDepth--;
+            pad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
+            bool isThisLast = isLast && i == closingPills.Count - 1;
+            sb.Append(BuildDecoratorClose(closingPills[i], pad, isThisLast));
+        }
+    }
+
+    private static string FloatLiteral(float f) =>
+        f.ToString("R", CultureInfo.InvariantCulture) + "f";
 
     private static void EmitAction(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast)
     {
