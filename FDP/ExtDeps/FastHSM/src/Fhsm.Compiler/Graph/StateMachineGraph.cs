@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fhsm.Kernel.Data;
 
 namespace Fhsm.Compiler.Graph
 {
@@ -82,6 +83,14 @@ namespace Fhsm.Compiler.Graph
         public StateNode? FindState(string name)
         {
             return States.TryGetValue(name, out var state) ? state : null;
+        }
+
+        // Convenience: normalize, flatten, and emit in one call.
+        public HsmDefinitionBlob Compile()
+        {
+            HsmNormalizer.Normalize(this);
+            var flat = HsmFlattener.Flatten(this);
+            return HsmEmitter.Emit(flat);
         }
     }
 }

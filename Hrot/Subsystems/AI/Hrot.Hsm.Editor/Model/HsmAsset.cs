@@ -18,6 +18,7 @@ public sealed class HsmAsset : IEditableAsset
     public string SourceFilePath { get; }
     public bool IsDirty { get; internal set; }
     public bool IsEditorOwned { get; }
+    public string TargetNamespace { get; }
 
     // Kernel-side data (read-only after projection)
     public HsmDefinitionBlob Blob { get; }
@@ -52,6 +53,7 @@ public sealed class HsmAsset : IEditableAsset
         string name,
         string sourceFilePath,
         bool isEditorOwned,
+        string targetNamespace,
         HsmDefinitionBlob blob,
         MachineMetadata metadata,
         StateNode rootState,
@@ -65,6 +67,7 @@ public sealed class HsmAsset : IEditableAsset
         Name = name;
         SourceFilePath = sourceFilePath;
         IsEditorOwned = isEditorOwned;
+        TargetNamespace = targetNamespace;
         Blob = blob;
         Metadata = metadata;
         RootState = rootState;

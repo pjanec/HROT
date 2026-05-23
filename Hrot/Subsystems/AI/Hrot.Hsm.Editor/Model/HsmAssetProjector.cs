@@ -257,7 +257,7 @@ internal static class HsmAssetProjector
         // === Construct the asset ===
         var allStatesList = new List<StateNode>(stateNodes);
         var asset = new HsmAsset(
-            assetId, machineName, sourceFilePath, isEditorOwned,
+            assetId, machineName, sourceFilePath, isEditorOwned, assemblyNamespace,
             blob, metadata,
             rootState, allStatesList, transitionNodes,
             globalTransNodes, regionNodes, eventDefs);

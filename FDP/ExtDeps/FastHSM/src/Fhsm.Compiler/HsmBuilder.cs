@@ -122,6 +122,24 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        public StateBuilder Parallel()
+        {
+            _state.IsParallel = true;
+            return this;
+        }
+
+        public StateBuilder DeepHistory()
+        {
+            _state.IsDeepHistory = true;
+            return this;
+        }
+
+        public StateBuilder TimerAction(string actionName)
+        {
+            _state.TimerAction = actionName;
+            return this;
+        }
+
         public StateBuilder Final()
         {
             _state.IsFinal = true;
