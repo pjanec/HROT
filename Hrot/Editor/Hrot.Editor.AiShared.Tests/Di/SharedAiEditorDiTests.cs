@@ -3,6 +3,7 @@ using Hrot.Editor.AiShared.Di;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Debug;
+using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 using Fdp.Toolkit.Runner;
 
@@ -74,5 +75,21 @@ public class SharedAiEditorDiTests
         using var sp = BuildSp();
         var registrar = sp.GetRequiredService<IWindowRegistrar>();
         Assert.IsType<SharedAiWindowRegistrar>(registrar);
+    }
+
+    [Fact]
+    public void AddSharedAiEditor_Resolves_IRefactorService()
+    {
+        using var sp = BuildSp();
+        var svc = sp.GetRequiredService<IRefactorService>();
+        Assert.IsType<RefactorService>(svc);
+    }
+
+    [Fact]
+    public void AddSharedAiEditor_Resolves_FindResultsWindow()
+    {
+        using var sp = BuildSp();
+        var win = sp.GetService<FindResultsWindow>();
+        Assert.NotNull(win);
     }
 }

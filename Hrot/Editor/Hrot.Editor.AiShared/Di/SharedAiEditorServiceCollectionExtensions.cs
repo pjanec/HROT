@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Debug;
+using Hrot.Editor.AiShared.Refactor;
+using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
 using Fdp.Toolkit.Runner;
@@ -21,11 +23,17 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<IDebugSessionRegistry, DebugSessionRegistry>();
         services.AddSingleton<AiTracerCoordinator>();
 
+        // Refactor services
+        services.AddSingleton<IReferenceCatalog, ReferenceCatalog>();
+        services.AddSingleton<AtomicMultiFileWriter>();
+        services.AddSingleton<IRefactorService, RefactorService>();
+
         // Windows
         services.AddSingleton<AssetBrowserWindow>();
         services.AddSingleton<InspectorWindow>();
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
+        services.AddSingleton<FindResultsWindow>();
 
         // Window registrar
         services.AddSingleton<IWindowRegistrar, SharedAiWindowRegistrar>();

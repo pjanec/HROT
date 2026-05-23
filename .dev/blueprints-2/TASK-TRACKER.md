@@ -116,10 +116,10 @@
 ## Phase 7 — Shared infrastructure: refactor + find-references
 - [x] **TASK-S7-01** — `IRefactorService` core (find/preview/apply) → [details](./TASK-DETAIL.md#task-s7-01--irefactorservice-core)
 - [x] **TASK-S7-02** — `AtomicMultiFileWriter` → [details](./TASK-DETAIL.md#task-s7-02--atomicmultifilewriter)
-- [ ] **TASK-S7-03** — `FindResultsWindow` → [details](./TASK-DETAIL.md#task-s7-03--findresultswindow)
-- [ ] **TASK-S7-04** — Inspector right-click integration → [details](./TASK-DETAIL.md#task-s7-04--inspector-right-click-integration)
-- [ ] **TASK-S7-05** — Asset Browser refactor integration → [details](./TASK-DETAIL.md#task-s7-05--asset-browser-refactor-integration)
-- [ ] **TASK-S7-06** — Refactor end-to-end integration test → [details](./TASK-DETAIL.md#task-s7-06--refactor-end-to-end-test)
+- [x] **TASK-S7-03** — `FindResultsWindow` → [details](./TASK-DETAIL.md#task-s7-03--findresultswindow)
+- [x] **TASK-S7-04** — Inspector right-click integration → [details](./TASK-DETAIL.md#task-s7-04--inspector-right-click-integration)
+- [x] **TASK-S7-05** — Asset Browser refactor integration → [details](./TASK-DETAIL.md#task-s7-05--asset-browser-refactor-integration)
+- [x] **TASK-S7-06** — Refactor end-to-end integration test → [details](./TASK-DETAIL.md#task-s7-06--refactor-end-to-end-test)
 
 ## Phase 8 — BTree host: Slice 2 (runtime read-only)
 - [ ] **TASK-BT-S2-01** — `IBTreeDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-bt-s2-01--ibtreedebugsession--btreedebugsession)

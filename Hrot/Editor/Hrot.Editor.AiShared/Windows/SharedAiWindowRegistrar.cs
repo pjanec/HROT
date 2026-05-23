@@ -4,7 +4,7 @@ using Fdp.Toolkit.Runner;
 namespace Hrot.Editor.AiShared.Windows;
 
 /// <summary>
-/// Registers the four shared AI editor windows with the WindowManager.
+/// Registers the shared AI editor windows with the WindowManager.
 /// Implement IWindowRegistrar so the subsystem orchestrator can call RegisterWindows.
 /// </summary>
 public sealed class SharedAiWindowRegistrar : IWindowRegistrar
@@ -13,17 +13,20 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
     private readonly InspectorWindow _inspector;
     private readonly RuntimeInspectorWindow _runtimeInspector;
     private readonly TraceTimelineWindow _traceTimeline;
+    private readonly FindResultsWindow _findResults;
 
     public SharedAiWindowRegistrar(
         AssetBrowserWindow assetBrowser,
         InspectorWindow inspector,
         RuntimeInspectorWindow runtimeInspector,
-        TraceTimelineWindow traceTimeline)
+        TraceTimelineWindow traceTimeline,
+        FindResultsWindow findResults)
     {
         _assetBrowser = assetBrowser;
         _inspector = inspector;
         _runtimeInspector = runtimeInspector;
         _traceTimeline = traceTimeline;
+        _findResults = findResults;
     }
 
     public void RegisterWindows(WindowManager windowManager)
@@ -32,5 +35,6 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
         windowManager.RegisterWindow(_inspector);
         windowManager.RegisterWindow(_runtimeInspector);
         windowManager.RegisterWindow(_traceTimeline);
+        windowManager.RegisterWindow(_findResults);
     }
 }
