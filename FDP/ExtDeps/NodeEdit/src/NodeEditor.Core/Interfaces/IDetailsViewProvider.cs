@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.Interfaces;
@@ -59,4 +60,8 @@ public abstract record DetailsTarget
     public sealed record SingleAttachment(AttachmentId Id) : DetailsTarget;
     /// <summary>Multiple selected attachments.</summary>
     public sealed record MultipleAttachments(IReadOnlyList<AttachmentId> Ids) : DetailsTarget;
+    /// <summary>A single selected custom-drawn element.</summary>
+    public sealed record SingleCustomElement(CustomElementRef Element) : DetailsTarget;
+    /// <summary>Multiple selected custom-drawn elements.</summary>
+    public sealed record MultipleCustomElements(IReadOnlyList<CustomElementRef> Elements) : DetailsTarget;
 }

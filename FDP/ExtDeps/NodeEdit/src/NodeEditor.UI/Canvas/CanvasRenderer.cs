@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Find;
@@ -31,6 +34,9 @@ public sealed class CanvasRenderer
     private readonly ContainerRenderer       _containers     = new();
     private readonly AttachmentRenderer      _attachments    = new();
     private readonly CanvasRenderContextImpl _renderCtx      = new();
+
+    // Per-renderer perf accumulators (keyed by renderer Id).
+    private readonly Dictionary<string, MutablePerfRecord> _perfRecords = new();
 
     // Dirty tracking: rebuild the spatial index only when the graph model changes
     // or drag-override positions change, not unconditionally every frame.
@@ -219,10 +225,20 @@ public sealed class CanvasRenderer
         var renderers = view.Host.CustomCanvasRenderers;
         if (renderers.Count == 0) return;
         _renderCtx._pass = pass;
+        var sw = Stopwatch.StartNew();
         foreach (var renderer in renderers)
         {
-            if (renderer.Pass == pass && renderer.IsActive)
-                renderer.Render(_renderCtx);
+            if (renderer.Pass != pass || !renderer.IsActive) continue;
+            sw.Restart();
+            renderer.Render(_renderCtx);
+            sw.Stop();
+            float ms = (float)(sw.Elapsed.TotalMilliseconds);
+            if (!_perfRecords.TryGetValue(renderer.Id, out var rec))
+            {
+                rec = new MutablePerfRecord();
+                _perfRecords[renderer.Id] = rec;
+            }
+            rec.Record(ms);
         }
     }
 
@@ -460,6 +476,43 @@ public sealed class CanvasRenderer
     // ── Model change tracking ─────────────────────────────────────────────────
 
     private void OnModelChanged(GraphChangeNotification _) => _spatialDirty = true;
+
+    // ── Perf data ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a snapshot of per-renderer timing data collected during the last
+    /// Render call. Returns null when no custom renderers have been invoked yet.
+    /// </summary>
+    public IReadOnlyDictionary<string, RendererPerfRecord>? GetRendererPerf()
+    {
+        if (_perfRecords.Count == 0) return null;
+        var result = new Dictionary<string, RendererPerfRecord>(_perfRecords.Count);
+        foreach (var (id, rec) in _perfRecords)
+            result[id] = rec.ToSnapshot();
+        return result;
+    }
 }
 
+// Mutable accumulator used internally to track per-renderer timing.
+internal sealed class MutablePerfRecord
+{
+    private float _lastMs;
+    private double _sumMs;
+    private float _maxMs;
+    private int _calls;
+
+    public void Record(float ms)
+    {
+        _lastMs = ms;
+        _sumMs  += ms;
+        _calls++;
+        if (ms > _maxMs) _maxMs = ms;
+    }
+
+    public RendererPerfRecord ToSnapshot() =>
+        new(_lastMs,
+            _calls > 0 ? (float)(_sumMs / _calls) : 0f,
+            _maxMs,
+            _calls);
+}
 

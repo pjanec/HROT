@@ -49,6 +49,13 @@ public interface IEditorHostServices
     IAttachmentContextMenuProvider? AttachmentContextMenu => null;
 
     /// <summary>
+    /// Optional provider for custom-element right-click context menus.
+    /// Matched by RendererId to the renderer that owns the element.
+    /// Returns null when no provider is registered.
+    /// </summary>
+    ICustomElementContextMenuProvider? CustomElementContextMenu => null;
+
+    /// <summary>
     /// Custom canvas renderers registered by this host.
     /// Renderers are invoked at their declared render pass
     /// in registration order. Empty by default.
