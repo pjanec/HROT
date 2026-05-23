@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The HSM editor does not publish DDS topics; disable transitive codegen -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Hsm.Editor.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
+    <ProjectReference Include="..\..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+  </ItemGroup>
+
+</Project>
