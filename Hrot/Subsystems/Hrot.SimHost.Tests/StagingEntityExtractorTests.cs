@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Tests
             // They must survive extraction so the genesis pipeline can remap and apply them.
             public bool IsExtractionSafe => true;
 
-            public BitMask256 GetConsumedComponentsMask() => new BitMask256();
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
 
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
 
@@ -88,15 +88,15 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         private sealed class ConsumeOneBitTranslator : IEntityScenarioTranslator
         {
-            private readonly BitMask256 _consumed;
+            private readonly BitMask512 _consumed;
 
             public ConsumeOneBitTranslator(int componentTypeId)
             {
-                _consumed = new BitMask256();
+                _consumed = new BitMask512();
                 _consumed.SetBit(componentTypeId);
             }
 
-            public BitMask256 GetConsumedComponentsMask() => _consumed;
+            public BitMask512 GetConsumedComponentsMask() => _consumed;
 
             public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();
 
@@ -498,7 +498,7 @@ namespace Hrot.SimHost.Tests
             public StubPassengersIntentTranslator(long passengerNetId)
                 => _passengerNetId = passengerNetId;
 
-            public BitMask256 GetConsumedComponentsMask() => new BitMask256();
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
 
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
 
@@ -657,7 +657,7 @@ namespace Hrot.SimHost.Tests
             public StubUnitSubordinateIntentTranslator(long commanderNetId)
                 => _commanderNetId = commanderNetId;
 
-            public BitMask256 GetConsumedComponentsMask() => new BitMask256();
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
 
             public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
 
@@ -745,3 +745,4 @@ namespace Hrot.SimHost.Tests
         }
     }
 }
+

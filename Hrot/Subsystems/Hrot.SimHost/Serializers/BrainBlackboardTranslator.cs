@@ -35,9 +35,9 @@ namespace Hrot.SimHost.Serializers
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        public BitMask256 GetConsumedComponentsMask()
+        public BitMask512 GetConsumedComponentsMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             int id = ComponentTypeRegistry.GetId(typeof(BrainBlackboard));
             if (id >= 0) mask.SetBit(id);
             return mask;
@@ -88,3 +88,4 @@ namespace Hrot.SimHost.Serializers
         }
     }
 }
+

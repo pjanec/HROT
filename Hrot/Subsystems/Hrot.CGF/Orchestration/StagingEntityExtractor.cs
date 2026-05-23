@@ -43,11 +43,11 @@ namespace Hrot.CGF.Orchestration
         // OR-ing in any translator-consumed component masks from the provided
         // ScenarioSerializer (Decision 10).
 
-        private static readonly BitMask256 s_staticExclusionMask = BuildStaticMask();
+        private static readonly BitMask512 s_staticExclusionMask = BuildStaticMask();
 
-        private static BitMask256 BuildStaticMask()
+        private static BitMask512 BuildStaticMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(GlobalComponentIds.NetworkIdentity);       // 50
             mask.SetBit(GlobalComponentIds.NetworkAuthority);      // 51
             mask.SetBit(GlobalComponentIds.DescriptorOwnership);   // 59
@@ -453,7 +453,7 @@ namespace Hrot.CGF.Orchestration
             IReadOnlyDictionary<Type, IComponentTable> tables,
             int entityIndex,
             in BitMask512 componentMask,
-            in BitMask256 exclusionMask)
+            in BitMask512 exclusionMask)
         {
             var result = new List<object>();
             foreach (var kvp in tables)

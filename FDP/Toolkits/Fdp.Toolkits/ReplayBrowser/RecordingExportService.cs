@@ -214,7 +214,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                             }
                         }
 
-                        for (int bit = 0; bit < 256; bit++)
+                        for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
                         {
                             if (!compRES1.IsSet(bit)) continue;
 
@@ -544,7 +544,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                 }
             }
 
-            for (int bit = 0; bit < 256; bit++)
+            for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
             {
                 if (!compRES2.IsSet(bit)) continue;
 

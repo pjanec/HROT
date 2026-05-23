@@ -1,4 +1,4 @@
-ï»¿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -13,14 +13,14 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// </summary>
     public sealed class ScenarioSerializerTests : IDisposable
     {
-        // â”€â”€ Setup / Teardown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ Setup / Teardown ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         private readonly EntityRepository _repo;
 
         public ScenarioSerializerTests()
         {
             // Clear global static registry so each test starts from a predictable state.
-            // WARNING: ComponentTypeRegistry is a shared static â€” tests run sequentially
+            // WARNING: ComponentTypeRegistry is a shared static — tests run sequentially
             // within this class via xUnit's default serial ordering per class.
             ComponentTypeRegistry.Clear();
 
@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
 
-        // â”€â”€ Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ Helper ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         private static ScenarioSerializer BuildSerializer(
             string subsystemType = "TestSubsystem",
@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             return builder.Build();
         }
 
-        // â”€â”€ RoundTrip_1to1_PreservesAllFields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ RoundTrip_1to1_PreservesAllFields ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// No custom translators; <c>FdpAutoSerializer</c> round-trips 3 entities each
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // â”€â”€ NtoM_CustomTranslator_CompressesComponents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ NtoM_CustomTranslator_CompressesComponents ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// <c>MissileOrdnanceTranslator</c> compresses <c>TestBallisticProjectile</c> +
@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // â”€â”€ ConsumptionMask_PreventsDuplication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ ConsumptionMask_PreventsDuplication ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// After the translator's <c>Extract</c> runs, the consumed bits are cleared from
@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "Auto-serializer must not emit TestPhysicsCollider after translator consumed it.");
         }
 
-        // â”€â”€ EntityCrossReference_ResolvedViaIGuidResolver â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ EntityCrossReference_ResolvedViaIGuidResolver ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// <c>GuidedTarget.TargetId: Entity</c> is serialized as a GUID string and
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // â”€â”€ DataPolicyNoSave_ComponentExcluded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ DataPolicyNoSave_ComponentExcluded ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
@@ -250,7 +250,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "Saveable component must still appear in the DOM.");
         }
 
-        // â”€â”€ ScenarioIgnore_FieldExcluded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ ScenarioIgnore_FieldExcluded ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// <c>CachedSpeedComponent.MaxSpeed</c> (saved) appears in the DOM;
@@ -279,7 +279,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "CachedWheelAngle must be absent (annotated [ScenarioIgnore]).");
         }
 
-        // â”€â”€ ScenarioIgnoreTag_EntitySkipped â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ ScenarioIgnoreTag_EntitySkipped ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// An entity bearing <see cref="ScenarioIgnoreTag"/> must not appear in
@@ -302,7 +302,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Single(entitiesNode);
         }
 
-        // â”€â”€ EpisodeLoad_StampsEpisodeTag â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ EpisodeLoad_StampsEpisodeTag ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// Deserializing with <c>asEpisode: true</c> stamps <see cref="Fdp.Core.EpisodeTag"/> on every
@@ -337,7 +337,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // â”€â”€ SubsystemType_MismatchSkipsDeserialize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ SubsystemType_MismatchSkipsDeserialize ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// A DOM with a mismatched <c>SubsystemType</c> must not cause any entity
@@ -358,14 +358,14 @@ namespace Fdp.Toolkit.Scenario.Tests
             var dom = simhostSerializer.Serialize(sourceRepo, new ScenarioHeader("Hrot.SimHost"));
 
             Assert.Equal(0, _repo.EntityCount);
-            // Deserialize using a serializer configured for CGF â€” should be a no-op.
+            // Deserialize using a serializer configured for CGF — should be a no-op.
             cgfSerializer.Deserialize(_repo, dom);
             Assert.Equal(0, _repo.EntityCount);
 
             sourceRepo.Dispose();
         }
 
-        // â”€â”€ FdpAutoSerializer_NoReflectionOnHotPath â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ FdpAutoSerializer_NoReflectionOnHotPath ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
         /// After <c>Build()</c>, the <c>FdpAutoSerializer</c> operates through compiled
@@ -390,7 +390,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "FdpAutoSerializer must not use PropertyInfo.GetValue on the hot path.");
 
             // Behavior assertion: if compiled delegates execute correctly, a round-trip
-            // returns matching values â€” proving field access works without reflection.
+            // returns matching values — proving field access works without reflection.
             var entity = _repo.CreateEntity();
             _repo.SetComponent(entity, new DummyPosition { X = 42f, Y = 43f, Z = 44f });
 
@@ -423,7 +423,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "If non-zero, the Expression.Field optimization is broken.");
         }
 
-        // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ Utility ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         private static Entity GetSingleEntity(EntityRepository repo)
         {
@@ -435,10 +435,10 @@ namespace Fdp.Toolkit.Scenario.Tests
             throw new InvalidOperationException("No alive entity found in repository.");
         }
 
-        // â”€â”€ Fail-fast tests (CGF-1-BATCH-12 Part A.1 / A.7) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ¦¦ Fail-fast tests (CGF-1-BATCH-12 Part A.1 / A.7) ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
         /// <summary>
-        /// A DOM where <c>Entities</c> is absent must throw â€” not return silently â€” to
+        /// A DOM where <c>Entities</c> is absent must throw — not return silently — to
         /// expose corrupt or partially-written scenario files at the earliest possible point.
         /// </summary>
         [Fact]
@@ -505,7 +505,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         }
 
         /// <summary>
-        /// <c>asEpisode: true</c> with <c>episodeId: Guid.Empty</c> must throw fast â€” do not
+        /// <c>asEpisode: true</c> with <c>episodeId: Guid.Empty</c> must throw fast — do not
         /// stamp an empty episode identifier on loaded entities.
         /// </summary>
         [Fact]
@@ -526,7 +526,7 @@ namespace Fdp.Toolkit.Scenario.Tests
 
         /// <summary>
         /// A translator that returns an unsupported payload type (e.g. a raw <c>long</c>)
-        /// must cause <see cref="ScenarioSerializer.Serialize"/> to throw â€” not silently
+        /// must cause <see cref="ScenarioSerializer.Serialize"/> to throw — not silently
         /// stringify the value.
         /// </summary>
         [Fact]
@@ -544,14 +544,14 @@ namespace Fdp.Toolkit.Scenario.Tests
         }
     }
 
-    // â”€â”€ Helper translator for bad payload type test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ¦¦ Helper translator for bad payload type test ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
 
     /// <summary>
     /// Returns a <c>long</c> (not in the allowed set) so the switch default throws.
     /// </summary>
     internal sealed class BadPayloadTypeTranslator : IEntityScenarioTranslator
     {
-        public BitMask256 GetConsumedComponentsMask() => default;
+        public BitMask512 GetConsumedComponentsMask() => default;
 
         public bool CanTranslate(EntityRepository repo, Entity entity) => true;
 
@@ -564,3 +564,4 @@ namespace Fdp.Toolkit.Scenario.Tests
             Dictionary<string, object> data, IGuidResolver resolver) { }
     }
 }
+

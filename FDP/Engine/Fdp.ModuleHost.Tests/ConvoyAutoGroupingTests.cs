@@ -159,7 +159,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
             
-            var customProvider = new OnDemandProvider(_liveWorld, _eventAccum, new BitMask256());
+            var customProvider = new OnDemandProvider(_liveWorld, _eventAccum, new BitMask512());
             
             var module1 = new TestModule { Name = "M1", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
             var module2 = new TestModule { Name = "M2", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
@@ -180,3 +180,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

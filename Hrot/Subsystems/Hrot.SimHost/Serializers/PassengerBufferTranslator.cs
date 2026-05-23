@@ -26,9 +26,9 @@ namespace Hrot.SimHost.Serializers
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 
-        public BitMask256 GetConsumedComponentsMask()
+        public BitMask512 GetConsumedComponentsMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             int id = ComponentTypeRegistry.GetId(typeof(PassengerBuffer));
             if (id >= 0) mask.SetBit(id);
             return mask;
@@ -101,3 +101,4 @@ namespace Hrot.SimHost.Serializers
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();
     }
 }
+

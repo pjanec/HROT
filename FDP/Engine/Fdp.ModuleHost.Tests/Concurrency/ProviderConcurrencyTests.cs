@@ -25,7 +25,7 @@ namespace Fdp.ModuleHost.Tests.Concurrency
             }
             
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<Pos>.ID);
             
             var provider = new OnDemandProvider(live, acc, mask);
@@ -73,3 +73,4 @@ namespace Fdp.ModuleHost.Tests.Concurrency
         }
     }
 }
+

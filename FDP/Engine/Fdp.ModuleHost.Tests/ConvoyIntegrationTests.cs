@@ -195,7 +195,7 @@ namespace Fdp.ModuleHost.Tests
                 foreach(var m in modules) 
                 {
                     // Create individual SoD provider
-                    var p = new OnDemandProvider(live, accum, new BitMask256());
+                    var p = new OnDemandProvider(live, accum, new BitMask512());
                     kernel.RegisterModule(m, p);
                 }
             }
@@ -214,3 +214,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

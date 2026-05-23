@@ -29,7 +29,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             
             using var provider = new OnDemandProvider(live, acc, mask);
             
@@ -42,7 +42,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             using var provider = new OnDemandProvider(live, acc, mask);
             
             int initial = GetPoolCount(provider);
@@ -56,7 +56,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             // Create with small pool to test depletion
             using var provider = new OnDemandProvider(live, acc, mask, null, 2);
             
@@ -85,7 +85,7 @@ namespace Fdp.ModuleHost.Tests
 
             var acc = new EventAccumulator();
             // Mask only Pos
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<Pos>.ID);
 
             using var provider = new OnDemandProvider(live, acc, mask);
@@ -155,7 +155,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator(maxHistoryFrames: 10);
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             
             using var provider = new OnDemandProvider(live, acc, mask);
             
@@ -187,7 +187,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             using var provider = new OnDemandProvider(live, acc, mask);
             
             int initial = GetPoolCount(provider);
@@ -207,7 +207,7 @@ namespace Fdp.ModuleHost.Tests
             live.Tick();
             
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             using var provider = new OnDemandProvider(live, acc, mask);
             
             var view = provider.AcquireView(); // Gets snapshot with entity (if SyncFrom works)
@@ -244,7 +244,7 @@ namespace Fdp.ModuleHost.Tests
         {
             using var live = new EntityRepository();
             var acc = new EventAccumulator();
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             using var provider = new OnDemandProvider(live, acc, mask);
             
             var view1 = provider.AcquireView();
@@ -272,7 +272,7 @@ namespace Fdp.ModuleHost.Tests
             var acc = new EventAccumulator();
             
             // Create a mask that explicitly requests BOTH components
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<TransientPos>.ID);
             mask.SetBit(ComponentType<Pos>.ID);
             
@@ -292,3 +292,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

@@ -56,7 +56,7 @@ namespace Fdp.ModuleHost.Tests.Integration
             gdbProvider.ReleaseView(gdbView);
             
             // Test SoD Provider
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<Position>.ID);
             
             using var sodProvider = new OnDemandProvider(live, accumulator, mask, schemaSetup);
@@ -101,3 +101,4 @@ namespace Fdp.ModuleHost.Tests.Integration
         }
     }
 }
+

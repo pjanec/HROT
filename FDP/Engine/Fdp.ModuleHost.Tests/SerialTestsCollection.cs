@@ -22,3 +22,4 @@ namespace Fdp.ModuleHost.Tests
             => ThreadPool.SetMinThreads(32, 32);
     }
 }
+

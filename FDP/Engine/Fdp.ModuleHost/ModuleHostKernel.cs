@@ -275,9 +275,9 @@ namespace Fdp.ModuleHost
             _initialized = true;
         }
 
-        private BitMask256 CalculateUnionMask(List<ModuleEntry> modules)
+        private BitMask512 CalculateUnionMask(List<ModuleEntry> modules)
         {
-            var unionMask = new BitMask256();
+            var unionMask = new BitMask512();
             
             foreach (var entry in modules)
             {
@@ -331,7 +331,7 @@ namespace Fdp.ModuleHost
             }
         }
 
-        private BitMask256 GetComponentMask(IEcsModule module)
+        private BitMask512 GetComponentMask(IEcsModule module)
         {
             var requiredComponents = module.GetRequiredComponents();
             
@@ -342,11 +342,11 @@ namespace Fdp.ModuleHost
             }
             
             // Optimized: sync only required components
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             foreach (var componentType in requiredComponents)
             {
                 int typeId = ComponentTypeRegistry.GetId(componentType);
-                if (typeId >= 0 && typeId < 256)
+                if (typeId >= 0 && typeId < FdpConfig.MAX_COMPONENT_TYPES)
                 {
                     mask.SetBit(typeId);
                 }
@@ -363,10 +363,10 @@ namespace Fdp.ModuleHost
             return mask;
         }
         
-        private BitMask256 CreateFullMask()
+        private BitMask512 CreateFullMask()
         {
-            var mask = new BitMask256();
-            for (int i = 0; i < 256; i++)
+            var mask = new BitMask512();
+            for (int i = 0; i < FdpConfig.MAX_COMPONENT_TYPES; i++)
             {
                 mask.SetBit(i);
             }
@@ -1796,7 +1796,7 @@ namespace Fdp.ModuleHost
             public uint LastRunTick { get; set; }  // For reactive scheduling prep
             
             // Caching
-            public BitMask256 ComponentMask; 
+            public BitMask512 ComponentMask; 
             
             // NEW for BATCH-04: Resilience
             public ModuleCircuitBreaker? CircuitBreaker { get; set; }

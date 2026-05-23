@@ -107,9 +107,9 @@ namespace Fdp.Toolkit.Scenario.Tests
         private static readonly int _colliderId =
             ComponentTypeRegistry.GetOrRegisterManaged(typeof(TestPhysicsCollider));
 
-        public BitMask256 GetConsumedComponentsMask()
+        public BitMask512 GetConsumedComponentsMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(_ballisticId);
             mask.SetBit(_colliderId);
             return mask;
@@ -163,3 +163,4 @@ namespace Fdp.Toolkit.Scenario.Tests
             => new[] { "OrdnanceDef" };
     }
 }
+

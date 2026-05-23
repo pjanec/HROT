@@ -159,7 +159,7 @@ namespace Fdp.ModuleHost.Tests.Integration
             using var moduleHost = new ModuleHostKernel(liveWorld, accumulator);
             
             // Create a filtered provider for Position only
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<Position>.ID);
             var podProvider = new OnDemandProvider(liveWorld, accumulator, mask);
             
@@ -273,3 +273,4 @@ namespace Fdp.ModuleHost.Tests.Integration
         }
     }
 }
+

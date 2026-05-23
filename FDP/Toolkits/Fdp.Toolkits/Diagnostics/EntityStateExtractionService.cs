@@ -81,9 +81,7 @@ namespace Fdp.Toolkit.Diagnostics
                     // Unified path: route through the translator pipeline so custom
                     // translators (BrainBlackboardTranslator, Blackboard1024Translator)
                     // and FdpAutoSerializer emit readable DTO output.
-                    // TODO(ecs-512): remove projection when SerializeEntity upgraded to BitMask512
-                    BitMask256 snapshotable256 = Unsafe.As<BitMask512, BitMask256>(ref snapshotableMask);
-                    var componentsJson = _serializer.SerializeEntity(_repo, entity, resolver!, snapshotable256);
+                    var componentsJson = _serializer.SerializeEntity(_repo, entity, resolver!, snapshotableMask);
                     components = JsonSerializer.Deserialize<Dictionary<string, object>>(
                         componentsJson.ToJsonString(), FdpJsonOptionsRegistry.DefaultRelaxed)
                         ?? new Dictionary<string, object>();

@@ -79,7 +79,7 @@ namespace Fdp.Tests.Integration
              live.AddComponent(entity, new Position { X=10 });
              live.AddComponent(entity, new Velocity { X=5 });
              
-             var mask = new BitMask256();
+             var mask = new BitMask512();
              mask.SetBit(ComponentType<Position>.ID);
              
              snapshot.SyncFrom(live, mask);

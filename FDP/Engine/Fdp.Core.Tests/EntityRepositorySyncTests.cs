@@ -54,7 +54,7 @@ namespace Fdp.Tests
              source.AddComponent(e, new Vel { X=20 });
              
              // Create mask for Pos only
-             var mask = new BitMask256();
+             var mask = new BitMask512();
              mask.SetBit(ComponentType<Pos>.ID);
              
              dest.SyncFrom(source, mask);
@@ -180,7 +180,7 @@ namespace Fdp.Tests
              source.AddComponent(e, new TransientData { Val=1 });
              
              // Create mask matching TransientData
-             var mask = new BitMask256();
+             var mask = new BitMask512();
              mask.SetBit(ComponentType<TransientData>.ID);
              
              // 1. Sync with mask (Should Exclude by default safety rule)

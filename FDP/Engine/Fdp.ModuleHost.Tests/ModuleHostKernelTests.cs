@@ -154,3 +154,4 @@ namespace Fdp.ModuleHost.Tests
             => ExecutionOrderLog.Instance.Entries.Add("Export");
     }
 }
+

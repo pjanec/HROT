@@ -9,7 +9,7 @@ namespace Fdp.ModuleHost.Providers
     {
         private readonly EntityRepository _liveWorld;
         private readonly EventAccumulator _eventAccumulator;
-        private readonly BitMask256 _unionMask;  // NEW: Union of all module requirements
+        private readonly BitMask512 _unionMask;  // NEW: Union of all module requirements
         private readonly SnapshotPool _pool;      // NEW: Pool for reuse
         
         private EntityRepository? _currentSnapshot;
@@ -20,7 +20,7 @@ namespace Fdp.ModuleHost.Providers
         public SharedSnapshotProvider(
             EntityRepository liveWorld,
             EventAccumulator eventAccumulator,
-            BitMask256 unionMask,                // NEW parameter
+            BitMask512 unionMask,                // NEW parameter
             SnapshotPool pool)                   // NEW parameter
         {
             _liveWorld = liveWorld;
@@ -99,7 +99,7 @@ namespace Fdp.ModuleHost.Providers
         /// The union component mask used when capturing snapshots.
         /// Exposed for topology re-evaluation during dynamic module installation.
         /// </summary>
-        internal BitMask256 UnionMask => _unionMask;
+        internal BitMask512 UnionMask => _unionMask;
 
         /// <summary>
         /// Number of modules currently holding an active view (for drain detection).

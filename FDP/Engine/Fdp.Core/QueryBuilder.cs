@@ -56,12 +56,12 @@ namespace Fdp.Core
         /// <c>FDP.Toolkit.Physics</c>).
         /// </summary>
         /// <param name="componentId">
-        /// Raw component-type identifier in the range [0, 255].
+        /// Raw component-type identifier in the range [0, 511].
         /// Out-of-range values are silently ignored.
         /// </param>
         public QueryBuilder WithComponentId(int componentId)
         {
-            if (componentId >= 0 && componentId < 512)
+            if (componentId >= 0 && componentId < FdpConfig.MAX_COMPONENT_TYPES)
                 _includeMask.SetBit(componentId);
             return this;
         }

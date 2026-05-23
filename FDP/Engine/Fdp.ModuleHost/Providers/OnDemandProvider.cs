@@ -15,7 +15,7 @@ namespace Fdp.ModuleHost.Providers
     {
         private readonly EntityRepository _liveWorld;
         private readonly EventAccumulator _eventAccumulator;
-        private readonly BitMask256 _componentMask;
+        private readonly BitMask512 _componentMask;
         private readonly ConcurrentStack<EntityRepository> _pool;
         private uint _lastSeenTick;
         
@@ -24,7 +24,7 @@ namespace Fdp.ModuleHost.Providers
         public OnDemandProvider(
             EntityRepository liveWorld, 
             EventAccumulator eventAccumulator,
-            BitMask256 componentMask,
+            BitMask512 componentMask,
             Action<EntityRepository>? schemaSetup = null,
             int initialPoolSize = 5)
         {

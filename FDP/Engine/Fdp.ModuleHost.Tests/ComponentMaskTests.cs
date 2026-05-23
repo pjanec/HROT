@@ -148,7 +148,7 @@ namespace Fdp.ModuleHost.Tests
         }
         
         // Reflected access to internal module entry
-        private BitMask256 GetModuleMask(ModuleHostKernel kernel, IEcsModule module)
+        private BitMask512 GetModuleMask(ModuleHostKernel kernel, IEcsModule module)
         {
             // _modules is private List<ModuleEntry>
             var field = typeof(ModuleHostKernel)
@@ -168,7 +168,7 @@ namespace Fdp.ModuleHost.Tests
                 if (m == module)
                 {
                     var maskField = entryType.GetField("ComponentMask");
-                    return (BitMask256)maskField.GetValue(entryObj);
+                    return (BitMask512)maskField.GetValue(entryObj);
                 }
             }
             throw new Exception("Module not found");
@@ -198,3 +198,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

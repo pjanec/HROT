@@ -764,7 +764,7 @@ namespace Fdp.ModuleHost.Tests
     // Honest SoD / GDB test components
     //
     // Each component type carries a stable [ComponentId(...)] so that
-    // ComponentTypeRegistry can map it to a fixed bit position in BitMask256.
+    // ComponentTypeRegistry can map it to a fixed bit position in BitMask512.
     // IDs 239, 247, 249 are unused in this assembly.
     // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1121,3 +1121,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

@@ -48,7 +48,7 @@ namespace Fdp.ModuleHost.Benchmarks
                 else
                 {
                     // Manual individual assignment
-                     var p = new OnDemandProvider(_liveWorld, _accumulator, new BitMask256());
+                     var p = new OnDemandProvider(_liveWorld, _accumulator, new BitMask512());
                      _kernel.RegisterModule(m, p);
                 }
             }
@@ -81,3 +81,4 @@ namespace Fdp.ModuleHost.Benchmarks
         }
     }
 }
+

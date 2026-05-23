@@ -47,7 +47,7 @@ public static class InspectorJsonUtils
                 try
                 {
                     var resolver = new DiagnosticGuidResolver();
-                    var mask = new BitMask256();
+                    var mask = new BitMask512();
                     mask.SetBit(typeId);
 
                     // Routes through IEntityScenarioTranslator pipeline, restricted to this specific typeId

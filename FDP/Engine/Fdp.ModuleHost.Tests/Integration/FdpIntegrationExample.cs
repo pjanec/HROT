@@ -172,3 +172,4 @@ namespace Fdp.ModuleHost.Tests.Integration
     [ComponentId(92)]
     struct Velocity { public int X, Y; }
 }
+

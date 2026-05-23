@@ -29,3 +29,4 @@ namespace Fdp.ModuleHost.Tests.Extraction
         }
     }
 }
+

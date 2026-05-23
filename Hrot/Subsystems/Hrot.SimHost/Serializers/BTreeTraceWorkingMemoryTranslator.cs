@@ -32,9 +32,9 @@ namespace Hrot.SimHost.Serializers
 
         public bool IsExtractionSafe => true;
 
-        public BitMask256 GetConsumedComponentsMask()
+        public BitMask512 GetConsumedComponentsMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             int id = ComponentTypeRegistry.GetId(typeof(BTreeTraceWorkingMemory1024));
             if (id >= 0) mask.SetBit(id);
             return mask;
@@ -137,3 +137,4 @@ namespace Hrot.SimHost.Serializers
         }
     }
 }
+

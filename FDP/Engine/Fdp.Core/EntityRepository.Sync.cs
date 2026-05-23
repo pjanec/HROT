@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Fdp.Core.Internal;
 
 namespace Fdp.Core
@@ -21,16 +20,14 @@ namespace Fdp.Core
         /// <param name="mask">Optional mask to filter specific component types. If filtered, ignores includeTransient/excludeTypes options.</param>
         /// <param name="includeTransient">If true, includes transient components even if they are normally excluded. Ignored if mask is provided.</param>
         /// <param name="excludeTypes">Optional types to exclude. Ignored if mask is provided.</param>
-        public void SyncFrom(EntityRepository source, BitMask256? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
+        public void SyncFrom(EntityRepository source, BitMask512? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
             // 0. Determine Effective Mask
             BitMask512 effectiveMask;
             
             if (mask.HasValue)
             {
-                // Convert BitMask256 to BitMask512 (lower 256 bits only; upper bits zero)
-                effectiveMask = new BitMask512();
-                Unsafe.As<BitMask512, BitMask256>(ref effectiveMask) = mask.Value;
+                effectiveMask = mask.Value;
                 
                 // Enforce transient filtering on explicit mask (Safety Rule)
                 // Unless explicitly overridden by includeTransient=true

@@ -19,14 +19,14 @@ namespace Fdp.ModuleHost.Tests
 
         private EntityRepository _liveWorld;
         private EventAccumulator _eventAccum;
-        private BitMask256 _unionMask;
+        private BitMask512 _unionMask;
         private SnapshotPool _pool;
 
         public SharedSnapshotProviderTests()
         {
             _liveWorld = new EntityRepository();
             _eventAccum = new EventAccumulator();
-            _unionMask = new BitMask256();
+            _unionMask = new BitMask512();
             
             // Setup default mask with Position
             _liveWorld.RegisterComponent<Position>();
@@ -111,7 +111,7 @@ namespace Fdp.ModuleHost.Tests
         public void SharedSnapshotProvider_UnionMask_SyncsAllComponents()
         {
             // Setup: Create union mask with Position + Velocity
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(ComponentType<Position>.ID);
             mask.SetBit(ComponentType<Velocity>.ID);
             
@@ -164,3 +164,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

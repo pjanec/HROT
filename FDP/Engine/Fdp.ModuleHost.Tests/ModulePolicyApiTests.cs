@@ -111,3 +111,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+

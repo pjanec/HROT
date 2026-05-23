@@ -74,14 +74,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
         {
             var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
             var mask = sandboxRepo.GetSnapshotableMask();
-            // TODO(ecs-512): remove projection when SerializeEntity upgraded to BitMask512
-            BitMask256 mask256 = Unsafe.As<BitMask512, BitMask256>(ref mask);
 
             // Serialize before
             JsonObject? before = null;
             if (sandboxRepo.IsAlive(entity))
             {
-                before = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask256);
+                before = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask);
             }
 
             // Apply the step (exactly once)
@@ -91,7 +89,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
             JsonObject? after = null;
             if (sandboxRepo.IsAlive(entity))
             {
-                after = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask256);
+                after = serializer.SerializeEntity(sandboxRepo, entity, resolver, mask);
             }
 
             if (before == null && after == null)

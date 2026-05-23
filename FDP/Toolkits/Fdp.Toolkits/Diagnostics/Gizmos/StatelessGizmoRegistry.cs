@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     internal struct CompiledStatelessRule
     {
         public IStatelessGizmo Projector;
-        public BitMask256 RequiredMask;
+        public BitMask512 RequiredMask;
         public IGizmoVisibilityPolicy VisibilityPolicy;
         /// <summary>Position of this rule in the registry; indexes the per-frame
         /// global-visibility cache.</summary>
@@ -66,7 +66,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             if (projector == null) throw new ArgumentNullException(nameof(projector));
             if (requiredComponents == null) throw new ArgumentNullException(nameof(requiredComponents));
 
-            var mask = default(BitMask256);
+            var mask = default(BitMask512);
 
             foreach (var type in requiredComponents)
             {

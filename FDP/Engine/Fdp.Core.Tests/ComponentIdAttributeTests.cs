@@ -139,7 +139,7 @@ namespace Fdp.Tests
         }
 
         /// <summary>
-        /// GlobalComponentIds constants must be in range [0, 255] (BitMask256 limit)
+        /// GlobalComponentIds constants must be in range [0, MAX_COMPONENT_TYPES) (BitMask512 limit)
         /// and each constant name must match its expected ID block.
         /// SC: All GlobalComponentIds constants are within their declared block ranges.
         /// </summary>

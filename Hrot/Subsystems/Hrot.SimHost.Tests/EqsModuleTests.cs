@@ -452,9 +452,7 @@ namespace Hrot.SimHost.Tests
             var pool = new SnapshotPool(schemaSetup, warmupCount: 0);
             // Use the full snapshotable mask — same as CalculateUnionMask for the convoy.
             var unionMask512 = _world.GetSnapshotableMask();
-            // TODO(ecs-512): remove projection when SharedSnapshotProvider upgraded to BitMask512
-            BitMask256 unionMask = Unsafe.As<BitMask512, BitMask256>(ref unionMask512);
-            var provider = new SharedSnapshotProvider(_world, accumulator, unionMask, pool);
+            var provider = new SharedSnapshotProvider(_world, accumulator, unionMask512, pool);
 
             // --- Simulate convoy: NavigationSolverModule acquires the view FIRST ---
             // This is the race the old 11Hz hack worked around.
@@ -513,3 +511,5 @@ namespace Hrot.SimHost.Tests
         }
     }
 }
+
+

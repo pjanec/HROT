@@ -42,9 +42,9 @@ namespace Hrot.SimHost.Serializers
 
         // ── IEntityScenarioTranslator ─────────────────────────────────────────
 
-        public BitMask256 GetConsumedComponentsMask()
+        public BitMask512 GetConsumedComponentsMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
 
             int qId = ComponentTypeRegistry.GetId(typeof(MissionPlanQueue));
             if (qId >= 0) mask.SetBit(qId);
@@ -145,3 +145,4 @@ namespace Hrot.SimHost.Serializers
         }
     }
 }
+

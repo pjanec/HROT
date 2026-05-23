@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Scenario
         /// The serializer clears these bits from the per-entity mask after
         /// <see cref="Extract"/> runs so the auto-serializer fallback skips them entirely.
         /// </summary>
-        BitMask256 GetConsumedComponentsMask();
+        BitMask512 GetConsumedComponentsMask();
 
 
         /// <summary>

@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     internal struct CompiledGizmoRule
     {
         public IGizmoDefinition Definition;
-        public BitMask256 RequiredMask;
+        public BitMask512 RequiredMask;
         /// <summary>Position of this rule in the registry's Rules list; used to index into the
         /// per-frame global-visibility cache.</summary>
         public int RuleIndex;
@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             if (definition == null) throw new ArgumentNullException(nameof(definition));
 
-            var mask = default(BitMask256);
+            var mask = default(BitMask512);
 
             foreach (var type in definition.RequiredComponents)
             {

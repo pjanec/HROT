@@ -14,14 +14,14 @@ namespace Fdp.ModuleHost.Providers
         private readonly EntityRepository _liveWorld;
         private readonly EntityRepository _replica;
         private readonly EventAccumulator _eventAccumulator;
-        private readonly BitMask256? _mask;
+        private readonly BitMask512? _mask;
         private uint _lastSyncTick;
         
         // Constructor with Mask
         public DoubleBufferProvider(
             EntityRepository liveWorld, 
             EventAccumulator eventAccumulator, 
-            BitMask256 mask,
+            BitMask512 mask,
             Action<EntityRepository>? schemaSetup = null)
         {
             _liveWorld = liveWorld ?? throw new ArgumentNullException(nameof(liveWorld));
@@ -53,7 +53,7 @@ namespace Fdp.ModuleHost.Providers
         /// The union component mask, or null if this provider syncs all components (full sync).
         /// Exposed for topology re-evaluation during dynamic module installation.
         /// </summary>
-        internal BitMask256? UnionMask => _mask;
+        internal BitMask512? UnionMask => _mask;
 
         /// <summary>
         /// Updates replica to match live world.

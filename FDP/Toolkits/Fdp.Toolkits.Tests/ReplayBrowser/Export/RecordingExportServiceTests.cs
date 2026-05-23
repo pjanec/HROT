@@ -1095,9 +1095,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
 
         private sealed class FooHarnessBlackboardTranslator : IEntityScenarioTranslator
         {
-            public BitMask256 GetConsumedComponentsMask()
+            public BitMask512 GetConsumedComponentsMask()
             {
-                var mask = new BitMask256();
+                var mask = new BitMask512();
                 mask.SetBit(203); // HarnessVelocity component ID
                 return mask;
             }
@@ -1133,3 +1133,4 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
     [EventId(99004)]
     internal struct HarnessTestEventWithEntity { public Entity Target; }
 }
+

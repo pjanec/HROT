@@ -128,12 +128,9 @@ namespace Fdp.Toolkit.Scenario
                 var entityNode  = new JsonObject();
 
                 // Per-entity saveable mask = global saveable AND entity's own components.
-                // Project BitMask512 down to BitMask256: scenario serializer only handles bits 0-255.
-                // TODO(ecs-512): remove when SerializeEntity upgraded to BitMask512
                 var entityComponents512 = repo.GetComponentMask(entity.Index);
                 entityComponents512.BitwiseAnd(globalSaveable);
-                BitMask256 entityComponents = Unsafe.As<BitMask512, BitMask256>(ref entityComponents512);
-                var remainingMask = entityComponents; // mutable copy
+                var remainingMask = entityComponents512; // mutable copy
 
                 // Run custom translators first.
                 foreach (var translator in _translators)
@@ -168,7 +165,7 @@ namespace Fdp.Toolkit.Scenario
                 }
 
                 // Auto-serializer handles all remaining bits.
-                for (int bit = 0; bit < 256; bit++)
+                for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
                 {
                     if (!remainingMask.IsSet(bit)) continue;
 
@@ -218,7 +215,7 @@ namespace Fdp.Toolkit.Scenario
             EntityRepository repo,
             Entity entity,
             IGuidResolver resolver,
-            BitMask256 componentMask)
+            BitMask512 componentMask)
         {
             var entityNode    = new JsonObject();
             var remainingMask = componentMask; // mutable copy
@@ -260,7 +257,7 @@ namespace Fdp.Toolkit.Scenario
             }
 
             // Auto-serializer handles all remaining bits.
-            for (int bit = 0; bit < 256; bit++)
+            for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
             {
                 if (!remainingMask.IsSet(bit)) continue;
 
@@ -435,9 +432,9 @@ namespace Fdp.Toolkit.Scenario
             return result;
         }
 
-        private static void ClearConsumed(ref BitMask256 remaining, BitMask256 consumed)
+        private static void ClearConsumed(ref BitMask512 remaining, BitMask512 consumed)
         {
-            for (int bit = 0; bit < 256; bit++)
+            for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
             {
                 if (consumed.IsSet(bit))
                     remaining.ClearBit(bit);
@@ -454,10 +451,10 @@ namespace Fdp.Toolkit.Scenario
             return -1;
         }
 
-        private static List<string> BuildConsumedNames(BitMask256 consumedMask)
+        private static List<string> BuildConsumedNames(BitMask512 consumedMask)
         {
             var names = new List<string>();
-            for (int bit = 0; bit < 256; bit++)
+            for (int bit = 0; bit < FdpConfig.MAX_COMPONENT_TYPES; bit++)
             {
                 if (!consumedMask.IsSet(bit)) continue;
                 var t = ComponentTypeRegistry.GetType(bit);

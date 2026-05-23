@@ -483,8 +483,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 var repo = tempContext.SandboxRepo;
                 var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
                 var mask512 = repo.GetSnapshotableMask();
-                // TODO(ecs-512): remove projection when SerializeEntity upgraded to BitMask512
-                BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
 
                 bool IsActualIncludedDiff(JsonNode? before, JsonNode? after)
                 {
@@ -502,12 +500,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 {
                     tempContext.SeekToFrame(startFrame, suppressHistory: true);
                     JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask)
+                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
                         : null;
                     while (tempContext.StepForward(suppressHistory: true))
                     {
                         JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask)
+                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
                             : null;
 
                         if (IsActualIncludedDiff(baseline, current))
@@ -524,7 +522,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     tempContext.SeekToFrame(0, suppressHistory: true);
                     int? lastChangeFrame = null;
                     JsonNode? baseline = repo.IsAlive(target)
-                        ? serializer.SerializeEntity(repo, target, resolver, mask)
+                        ? serializer.SerializeEntity(repo, target, resolver, mask512)
                         : null;
 
                     if (IsActualIncludedDiff(null, baseline))
@@ -536,7 +534,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                             break;
 
                         JsonNode? current = repo.IsAlive(target)
-                            ? serializer.SerializeEntity(repo, target, resolver, mask)
+                            ? serializer.SerializeEntity(repo, target, resolver, mask512)
                             : null;
                         if (IsActualIncludedDiff(baseline, current))
                             lastChangeFrame = playback.CurrentFrame;

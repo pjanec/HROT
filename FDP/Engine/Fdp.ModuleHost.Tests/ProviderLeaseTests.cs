@@ -11,14 +11,14 @@ namespace Fdp.ModuleHost.Tests
     {
         private EntityRepository _liveWorld;
         private EventAccumulator _eventAccumulator;
-        private BitMask256 _mask;
+        private BitMask512 _mask;
         private SnapshotPool _pool;
 
         public ProviderLeaseTests()
         {
             _liveWorld = new EntityRepository();
             _eventAccumulator = new EventAccumulator();
-            _mask = new BitMask256();
+            _mask = new BitMask512();
             for(int i=0; i<256; i++) _mask.SetBit(i);
             _pool = new SnapshotPool(null);
         }
@@ -124,3 +124,4 @@ namespace Fdp.ModuleHost.Tests
         }
     }
 }
+
