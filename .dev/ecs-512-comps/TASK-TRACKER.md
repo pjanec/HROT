@@ -32,8 +32,8 @@ hot/cold tables; delete `EntityHeader`.
 **Goal:** Wire up the new hot-first traversal in queries and update the repository to use split
 hot/cold accessors.
 
-- [ ] **TASK-E006** EntityQuery and QueryBuilder: Hot-First Traversal [details](./TASK-DETAIL.md#task-e006--entityquery-and-querybuilder-hot-first-traversal)
-- [ ] **TASK-E007** EntityRepository: Split Header Access [details](./TASK-DETAIL.md#task-e007--entityrepository-split-header-access)
+- [x] **TASK-E006** EntityQuery and QueryBuilder: Hot-First Traversal [details](./TASK-DETAIL.md#task-e006--entityquery-and-querybuilder-hot-first-traversal)
+- [x] **TASK-E007** EntityRepository: Split Header Access [details](./TASK-DETAIL.md#task-e007--entityrepository-split-header-access)
 
 ## Phase 5: Flight Recorder
 

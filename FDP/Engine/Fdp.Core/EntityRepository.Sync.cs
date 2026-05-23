@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Fdp.Core.Internal;
 
 namespace Fdp.Core
@@ -23,11 +24,13 @@ namespace Fdp.Core
         public void SyncFrom(EntityRepository source, BitMask256? mask = null, bool? includeTransient = null, Type[]? excludeTypes = null)
         {
             // 0. Determine Effective Mask
-            BitMask256 effectiveMask;
+            BitMask512 effectiveMask;
             
             if (mask.HasValue)
             {
-                effectiveMask = mask.Value;
+                // Convert BitMask256 to BitMask512 (lower 256 bits only; upper bits zero)
+                effectiveMask = new BitMask512();
+                Unsafe.As<BitMask512, BitMask256>(ref effectiveMask) = mask.Value;
                 
                 // Enforce transient filtering on explicit mask (Safety Rule)
                 // Unless explicitly overridden by includeTransient=true
@@ -110,9 +113,9 @@ namespace Fdp.Core
         /// Used as default mask for SyncFrom when no explicit mask provided.
         /// </summary>
         /// <param name="includeTransient">If true, includes transient components in the mask</param>
-        public BitMask256 GetSnapshotableMask(bool includeTransient = false)
+        public BitMask512 GetSnapshotableMask(bool includeTransient = false)
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             
             if (includeTransient)
             {
@@ -134,9 +137,9 @@ namespace Fdp.Core
         /// Builds a component mask containing only recordable component types.
         /// Used by FlightRecorder to determine which components to serialize to .fdp files.
         /// </summary>
-        public BitMask256 GetRecordableMask()
+        public BitMask512 GetRecordableMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             var recordableIds = ComponentTypeRegistry.GetRecordableTypeIds();
             foreach (var id in recordableIds)
                 mask.SetBit(id);
@@ -147,9 +150,9 @@ namespace Fdp.Core
         /// Builds a component mask containing only saveable component types.
         /// Used by SaveGame/Checkpoint system to determine which components to persist.
         /// </summary>
-        public BitMask256 GetSaveableMask()
+        public BitMask512 GetSaveableMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             var saveableIds = ComponentTypeRegistry.GetSaveableTypeIds();
             foreach (var id in saveableIds)
                 mask.SetBit(id);

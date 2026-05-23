@@ -1465,7 +1465,7 @@ namespace Fdp.Core
                  
                  if (changed)
                  {
-                     if (query.Matches(i, in compMD, in metaD))
+                     if (query.Matches(in compMD, in metaD))
                      {
                          action(new Entity(i, metaD.Generation));
                      }
@@ -1503,7 +1503,7 @@ namespace Fdp.Core
                 // Verify entity matches
                 ref readonly var metaTS  = ref _entityIndex.GetMetadata(i);
                 ref var          compTS  = ref _entityIndex.GetComponentMask(i);
-                if (metaTS.IsActive && query.Matches(i, in compTS, in metaTS))
+                if (metaTS.IsActive && query.Matches(in compTS, in metaTS))
                 {
                     action(new Entity(i, metaTS.Generation));
                     processedCount++;

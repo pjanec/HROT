@@ -446,8 +446,10 @@ public class EntityInspectorPanel
         {
             var resolver = new DiagnosticGuidResolver();
             var mask512  = adapter.Repo.GetComponentMask(entity.Index);
+            var snapshotable512 = adapter.Repo.GetSnapshotableMask();
+            mask512.BitwiseAnd(snapshotable512);
+            // TODO(ecs-512): remove when SerializeEntity upgraded to BitMask512
             BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
-            mask.BitwiseAnd(adapter.Repo.GetSnapshotableMask());
             var node = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);
             var wrapper = new JsonObject
             {
@@ -482,8 +484,9 @@ public class EntityInspectorPanel
                 }
 
                 var mask512 = adapter.Repo.GetComponentMask(entity.Index);
+                mask512.BitwiseAnd(snapshotable);
+                // TODO(ecs-512): remove when SerializeEntity upgraded to BitMask512
                 BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
-                mask.BitwiseAnd(snapshotable);
 
                 var componentsNode = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);
                 var entityWrapper  = new JsonObject

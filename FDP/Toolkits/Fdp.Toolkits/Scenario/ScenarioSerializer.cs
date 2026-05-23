@@ -129,9 +129,10 @@ namespace Fdp.Toolkit.Scenario
 
                 // Per-entity saveable mask = global saveable AND entity's own components.
                 // Project BitMask512 down to BitMask256: scenario serializer only handles bits 0-255.
+                // TODO(ecs-512): remove when SerializeEntity upgraded to BitMask512
                 var entityComponents512 = repo.GetComponentMask(entity.Index);
+                entityComponents512.BitwiseAnd(globalSaveable);
                 BitMask256 entityComponents = Unsafe.As<BitMask512, BitMask256>(ref entityComponents512);
-                entityComponents.BitwiseAnd(globalSaveable);
                 var remainingMask = entityComponents; // mutable copy
 
                 // Run custom translators first.

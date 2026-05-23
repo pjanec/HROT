@@ -171,5 +171,22 @@ namespace Fdp.Tests
             Assert.True(index.GetComponentMask(e.Index).IsEmpty(),
                 "Hot component mask must be empty (all zeros) after destroy");
         }
+
+        // ---------------------------------------------------------------
+        // 8. Mask independence: setting a bit on entity A must not affect entity B
+        // ---------------------------------------------------------------
+        [Fact]
+        public void HotMasks_AreIndependentPerEntity()
+        {
+            using var index = new EntityIndex();
+            var a = index.CreateEntity();
+            var b = index.CreateEntity();
+
+            index.GetComponentMask(a.Index).SetBit(400);
+
+            Assert.True(index.GetComponentMask(a.Index).IsSet(400));
+            Assert.False(index.GetComponentMask(b.Index).IsSet(400),
+                "Setting bit 400 on entity A must not affect entity B's mask");
+        }
     }
 }

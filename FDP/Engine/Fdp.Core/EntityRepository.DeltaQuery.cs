@@ -171,7 +171,7 @@ namespace Fdp.Core
                     // Instead, yield all active, query-matching entities from a hot chunk
                     // and rely on the caller's fine filter (e.g. IntentId comparison) to
                     // reject unchanged entities cheaply.
-                    if (_query.Matches(_currentIndex, in compDQ, in metaDQ))
+                    if (_query.Matches(in compDQ, in metaDQ))
                         return true;
                 }
             }
