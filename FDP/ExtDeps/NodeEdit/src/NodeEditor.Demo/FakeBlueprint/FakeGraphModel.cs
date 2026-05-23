@@ -1,5 +1,7 @@
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 
 namespace NodeEditor.Demo.FakeBlueprint;
@@ -7,9 +9,10 @@ namespace NodeEditor.Demo.FakeBlueprint;
 /// <summary>Mutable in-memory graph model for the demo.</summary>
 public sealed class FakeGraphModel : IGraphModel
 {
-    private readonly Dictionary<NodeId,    FakeNodeModel>    _nodes    = new();
-    private readonly Dictionary<LinkId,    FakeLinkModel>    _links    = new();
-    private readonly Dictionary<CommentId, FakeCommentModel> _comments = new();
+    private readonly Dictionary<NodeId,        FakeNodeModel>        _nodes       = new();
+    private readonly Dictionary<LinkId,        FakeLinkModel>        _links       = new();
+    private readonly Dictionary<CommentId,     FakeCommentModel>     _comments    = new();
+    private readonly Dictionary<AttachmentId,  FakeAttachmentModel>  _attachments = new();
 
     public GraphId             Id          { get; }
     public string              DisplayName { get; }
@@ -40,6 +43,17 @@ public sealed class FakeGraphModel : IGraphModel
                 if (p.Id == id) return p;
         return null;
     }
+
+    // ── IGraphModel attachment members ────────────────────────────────────────
+
+    public IReadOnlyCollection<IAttachmentModel> Attachments =>
+        (IReadOnlyCollection<IAttachmentModel>)_attachments.Values;
+
+    public IAttachmentModel? FindAttachment(AttachmentId id) =>
+        _attachments.TryGetValue(id, out var v) ? v : null;
+
+    public IReadOnlyList<IAttachmentModel> GetAttachmentsForNode(NodeId nodeId) =>
+        _attachments.Values.Where(a => a.HostNodeId == nodeId).ToList();
 
     // ── mutable helpers (called by FakeCommandSink) ───────────────────────────
 
@@ -85,6 +99,21 @@ public sealed class FakeGraphModel : IGraphModel
     }
 
     public void RemoveComment(CommentId id) => _comments.Remove(id);
+
+    public FakeAttachmentModel AddAttachment(
+        NodeId hostNodeId,
+        AttachmentCategory category,
+        string? glyph,
+        string? label,
+        int stackIndex = 0)
+    {
+        var id = AttachmentId.NewId();
+        var a = new FakeAttachmentModel(id, hostNodeId, category, glyph, label, stackIndex);
+        _attachments[id] = a;
+        return a;
+    }
+
+    public void RemoveAttachment(AttachmentId id) => _attachments.Remove(id);
 
     public void NotifyChanged(GraphChangeKind kind)
         => Changed?.Invoke(new GraphChangeNotification(kind, null, null, null, null));

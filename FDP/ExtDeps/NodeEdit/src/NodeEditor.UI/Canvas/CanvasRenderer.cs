@@ -19,14 +19,15 @@ namespace NodeEditor.UI.Canvas;
 /// </summary>
 public sealed class CanvasRenderer
 {
-    private readonly CanvasLayoutBuilder _layoutBuilder = new();
-    private readonly CanvasLayout        _layout        = new();
-    private readonly SpatialIndex        _spatialIndex  = new();
-    private readonly HitTester           _hitTester     = new();
-    private readonly CanvasInput         _input         = new();
-    private readonly GridRenderer        _grid          = new();
-    private readonly WireRenderer        _wires         = new();
-    private readonly NodeRenderer        _nodes         = new();
+    private readonly CanvasLayoutBuilder _layoutBuilder  = new();
+    private readonly CanvasLayout        _layout         = new();
+    private readonly SpatialIndex        _spatialIndex   = new();
+    private readonly HitTester           _hitTester      = new();
+    private readonly CanvasInput         _input          = new();
+    private readonly GridRenderer        _grid           = new();
+    private readonly WireRenderer        _wires          = new();
+    private readonly NodeRenderer        _nodes          = new();
+    private readonly AttachmentRenderer  _attachments    = new();
 
     // Dirty tracking: rebuild the spatial index only when the graph model changes
     // or drag-override positions change, not unconditionally every frame.
@@ -128,7 +129,7 @@ public sealed class CanvasRenderer
         var visibleNodeIds   = _spatialIndex.Query(visibleGraphRect).ToHashSet();
 
         // 3. Hit-test to update hover info.
-        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions);
+        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects);
 
 
         // ── Draw phases ───────────────────────────────────────────────────
@@ -144,6 +145,9 @@ public sealed class CanvasRenderer
 
         // 8. Nodes + inline editors — only the culled visible subset.
         _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
+
+        // 8b. Attachment pills (or low-zoom bars) above host nodes.
+        _attachments.DrawAll(view, dl, _layout.AttachmentLayouts, _layout.NodeScreenRects);
 
         // 4. Process input after widgets are submitted, using snapshotted hover.
         _input.Handle(view, isCanvasHovered, isCanvasBgActive);

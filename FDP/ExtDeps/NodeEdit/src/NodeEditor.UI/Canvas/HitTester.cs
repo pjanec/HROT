@@ -24,7 +24,8 @@ internal sealed class HitTester
     public void UpdateHover(
         GraphView view,
         SpatialIndex spatialIndex,
-        Dictionary<PinId, Vector2> pinPositions)
+        Dictionary<PinId, Vector2> pinPositions,
+        Dictionary<AttachmentId, RectF> attachmentScreenRects)
     {
         var mouse = view.Host.Input.MousePosition;
         var mouseGraph = view.Viewport.ScreenToGraph(mouse);
@@ -80,6 +81,15 @@ internal sealed class HitTester
 
             if (HitsWire(mouse, a, b, link, view.Viewport))
                 SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, 1, wireIndex, 1);
+        }
+
+        // 2b. Attachment pills (below nodes in z-order when unobscured).
+        int attachIndex = 0;
+        foreach (var (attachId, screenRect) in attachmentScreenRects)
+        {
+            attachIndex++;
+            if (screenRect.Contains(mouse))
+                SubmitHit(new HoverInfo { Kind = HoverKind.Attachment, Attachment = attachId }, 2, attachIndex, 1);
         }
 
         // 3. Nodes and Pins (same sub-layer uses model draw order).

@@ -15,12 +15,13 @@ public readonly record struct HoverInfo
     public LinkId Link { get; init; }
     public CommentId Comment { get; init; }
     public RerouteRef Reroute { get; init; }
+    public AttachmentId Attachment { get; init; }
     /// <summary>For comments: whether the cursor is on the title bar (drag), the body, or a resize handle.</summary>
     public CommentHoverZone CommentZone { get; init; }
 
     public static HoverInfo None => default;
 }
 
-public enum HoverKind { None, Node, Pin, Link, Comment, Reroute }
+public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment }
 
 public enum CommentHoverZone { None, Header, Body, ResizeHandle }

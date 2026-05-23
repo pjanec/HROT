@@ -23,11 +23,19 @@ internal sealed class CanvasLayout
     /// <summary>Pre-computed set of input pins that have at least one wire connected.</summary>
     public HashSet<PinId> ConnectedInputPins { get; } = [];
 
+    /// <summary>Attachment layouts (screen-pixel coords) for nodes that have attachments.</summary>
+    public Dictionary<NodeId, AttachmentLayout> AttachmentLayouts { get; } = [];
+
+    /// <summary>Screen-space bounding rects for each attachment, keyed by AttachmentId.</summary>
+    public Dictionary<AttachmentId, RectF> AttachmentScreenRects { get; } = [];
+
     public void Clear()
     {
         NodeScreenRects.Clear();
         PinScreenPositions.Clear();
         ConnectedInputPins.Clear();
+        AttachmentLayouts.Clear();
+        AttachmentScreenRects.Clear();
     }
 }
 
@@ -115,6 +123,30 @@ internal sealed class CanvasLayoutBuilder
             var rect = new RectF(screenPos, new Vector2(sw, sh));
             layout.NodeScreenRects[node.Id] = rect;
             entries?.Add((node.Id, new RectF(graphPos, new Vector2(nodeWGu, nodeHGu))));
+
+            // Compute screen-space attachment layout for this node.
+            var nodeAttachments = view.Model.GetAttachmentsForNode(node.Id);
+            if (nodeAttachments.Count > 0)
+            {
+                var attachLayout = AttachmentLayoutEngine.Compute(
+                    nodeAttachments,
+                    sw,
+                    a =>
+                    {
+                        float w = 0f;
+                        if (!string.IsNullOrEmpty(a.Glyph))
+                            w += ImGui.CalcTextSize(a.Glyph).X;
+                        if (!string.IsNullOrEmpty(a.Label))
+                        {
+                            if (w > 0f) w += 4f;
+                            w += ImGui.CalcTextSize(a.Label).X;
+                        }
+                        return w;
+                    });
+                layout.AttachmentLayouts[node.Id] = attachLayout;
+                foreach (var (aId, placement) in attachLayout.Placements)
+                    layout.AttachmentScreenRects[aId] = new RectF(rect.Min + placement.TopLeft, placement.Size);
+            }
 
             for (int i = 0; i < inputPins.Count; i++)
             {
