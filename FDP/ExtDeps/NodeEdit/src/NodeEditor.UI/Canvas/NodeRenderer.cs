@@ -38,6 +38,7 @@ internal sealed class NodeRenderer
         foreach (var node in view.Model.Nodes)
         {
             if (!visibleNodes.Contains(node.Id)) continue;
+            if (node.IsContainerNode()) continue; // containers drawn by ContainerRenderer
 
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);
@@ -50,6 +51,7 @@ internal sealed class NodeRenderer
         foreach (var node in view.Model.Nodes)
         {
             if (!visibleNodes.Contains(node.Id)) continue;
+            if (node.IsContainerNode()) continue; // containers drawn by ContainerRenderer
 
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);

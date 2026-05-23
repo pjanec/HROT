@@ -27,6 +27,7 @@ public sealed class CanvasRenderer
     private readonly GridRenderer        _grid           = new();
     private readonly WireRenderer        _wires          = new();
     private readonly NodeRenderer        _nodes          = new();
+    private readonly ContainerRenderer   _containers     = new();
     private readonly AttachmentRenderer  _attachments    = new();
 
     // Dirty tracking: rebuild the spatial index only when the graph model changes
@@ -139,6 +140,10 @@ public sealed class CanvasRenderer
 
         // 6. Comment boxes — background layer (below nodes).
         DrawComments(dl, view, foreground: false, visibleGraphRect);
+
+        // 6b. Container fills, headers, and outlines — drawn before wires so wires
+        //     render on top of the container background but under child nodes.
+        _containers.DrawBackground(view, dl, _layout, visibleNodeIds);
 
         // 7. Wires — only those whose endpoints or waypoints are in the visible rect.
         _wires.DrawAll(view, dl, _layout.PinScreenPositions, visibleNodeIds, visibleGraphRect);
