@@ -142,6 +142,49 @@ public abstract record GraphCommand
         NodeId NewHostNodeId,
         int NewStackIndex) : GraphCommand;
 
+    // ── Container commands (TASK-NEC-07) ─────────────────────────────────────
+
+    /// <summary>Change the parent container of a single node, updating its local position.</summary>
+    public sealed record ChangeParent(
+        NodeId NodeId,
+        NodeId? NewParentContainerId,
+        int? NewRegionIndex,
+        Vector2 NewLocalPosition) : GraphCommand;
+
+    /// <summary>Change the parent container of multiple nodes in one atomic step.</summary>
+    public sealed record ChangeParentMultiple(
+        IReadOnlyList<ChangeParentMove> Moves) : GraphCommand;
+
+    /// <summary>Expand or collapse a container node.</summary>
+    public sealed record SetContainerCollapsed(
+        NodeId ContainerId,
+        bool IsCollapsed) : GraphCommand;
+
+    /// <summary>Add a new region to a parallel-region container at the given index.</summary>
+    public sealed record AddRegion(
+        NodeId ContainerId,
+        int InsertAtIndex,
+        string RegionName,
+        int Priority) : GraphCommand;
+
+    /// <summary>Remove a region from a parallel-region container, redistributing its children.</summary>
+    public sealed record RemoveRegion(
+        NodeId ContainerId,
+        int RegionIndex,
+        ChildRedistributionPolicy Policy) : GraphCommand;
+
+    /// <summary>Reorder the regions of a parallel-region container.</summary>
+    public sealed record ReorderRegions(
+        NodeId ContainerId,
+        IReadOnlyList<int> NewOrder) : GraphCommand;
+
+    /// <summary>Set a host-defined property on a region.</summary>
+    public sealed record SetRegionProperty(
+        NodeId ContainerId,
+        int RegionIndex,
+        string Key,
+        object? Value) : GraphCommand;
+
     /// <summary>Multi-step command. The host should treat the contents atomically.</summary>
     public sealed record Batch(string Label, IReadOnlyList<GraphCommand> Commands) : GraphCommand;
 }
@@ -157,4 +200,24 @@ public enum LinkEndpoint
 
     /// <summary>The "to" / input end.</summary>
     Target,
+}
+
+/// <summary>One node move inside a ChangeParentMultiple command.</summary>
+public sealed record ChangeParentMove(
+    NodeId NodeId,
+    NodeId? NewParentContainerId,
+    int? NewRegionIndex,
+    Vector2 NewLocalPosition);
+
+/// <summary>Determines what happens to a region's children when the region is removed.</summary>
+public enum ChildRedistributionPolicy
+{
+    /// <summary>Children of the removed region are deleted from the graph.</summary>
+    DeleteChildren,
+
+    /// <summary>Children are moved to region index 0 (or the container itself if no regions remain).</summary>
+    MoveToFirstRegion,
+
+    /// <summary>Children are promoted out to the container's own child list (no region).</summary>
+    MoveToParent,
 }
