@@ -52,12 +52,13 @@ namespace Fdp.Core
             
             for (int i = 0; i <= maxIndex; i++)
             {
-                ref var header = ref entityIndex.GetHeader(i);
+                ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                 
                 // Match Check
-                if (header.IsActive && Matches(i, header))
+                if (meta.IsActive && Matches(i, in compMask, in meta))
                 {
-                    action(new Entity(i, header.Generation));
+                    action(new Entity(i, meta.Generation));
                 }
             }
         }
@@ -121,7 +122,7 @@ namespace Fdp.Core
             public Entity Current
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => new Entity(_currentIndex, _entityIndex.GetHeaderUnsafe(_currentIndex).Generation);
+                get => new Entity(_currentIndex, _entityIndex.GetMetadataUnsafe(_currentIndex).Generation);
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -130,9 +131,10 @@ namespace Fdp.Core
                 // Tight loop with inlined checks
                 while (++_currentIndex <= _maxIndex)
                 {
-                    ref var header = ref _entityIndex.GetHeaderUnsafe(_currentIndex);
+                    ref readonly var meta     = ref _entityIndex.GetMetadataUnsafe(_currentIndex);
+                    ref var          compMask = ref _entityIndex.GetComponentMaskUnsafe(_currentIndex);
 
-                    if (!header.IsActive)
+                    if (!meta.IsActive)
                         continue;
 
                     // INLINED MATCH LOGIC (Critical for perf)
@@ -140,22 +142,22 @@ namespace Fdp.Core
                     // 0. Lifecycle Filter
                     if (_lifecycleFilter != EntityLifecycle.All)
                     {
-                        if (header.LifecycleState != _lifecycleFilter)
+                        if (meta.LifecycleState != _lifecycleFilter)
                             continue;
                     }
 
                     // 1. Component Mask
-                    if (!BitMask512.HasAll(header.ComponentMask, _includeMask)) continue;
-                    if (BitMask512.HasAny(header.ComponentMask, _excludeMask)) continue;
+                    if (!BitMask512.HasAll(compMask, _includeMask)) continue;
+                    if (BitMask512.HasAny(compMask, _excludeMask)) continue;
 
                     // 2. Authority Mask
-                    if (!BitMask512.HasAll(header.AuthorityMask, _authorityIncludeMask)) continue;
-                    if (BitMask512.HasAny(header.AuthorityMask, _authorityExcludeMask)) continue;
+                    if (!BitMask512.HasAll(meta.AuthorityMask, _authorityIncludeMask)) continue;
+                    if (BitMask512.HasAny(meta.AuthorityMask, _authorityExcludeMask)) continue;
 
                     // 3. DIS Filter (Single instruction check)
                     if (_hasDisFilter)
                     {
-                        if ((header.DisType.Value & _disFilterMask) != _disFilterValue)
+                        if ((meta.DisType.Value & _disFilterMask) != _disFilterValue)
                             continue;
                     }
 
@@ -178,9 +180,10 @@ namespace Fdp.Core
             
             for (int i = 0; i <= maxIndex; i++)
             {
-                ref var header = ref entityIndex.GetHeader(i);
+                ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                 
-                if (header.IsActive && Matches(i, header))
+                if (meta.IsActive && Matches(i, in compMask, in meta))
                 {
                      count++;
                 }
@@ -200,9 +203,10 @@ namespace Fdp.Core
             
             for (int i = 0; i <= maxIndex; i++)
             {
-                ref var header = ref entityIndex.GetHeader(i);
+                ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                 
-                if (header.IsActive && Matches(i, header))
+                if (meta.IsActive && Matches(i, in compMask, in meta))
                 {
                     return true;
                 }
@@ -222,11 +226,12 @@ namespace Fdp.Core
             
             for (int i = 0; i <= maxIndex; i++)
             {
-                ref var header = ref entityIndex.GetHeader(i);
+                ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                 
-                if (header.IsActive && Matches(i, header))
+                if (meta.IsActive && Matches(i, in compMask, in meta))
                 {
-                    return new Entity(i, header.Generation);
+                    return new Entity(i, meta.Generation);
                 }
             }
             
@@ -234,30 +239,30 @@ namespace Fdp.Core
         }
 
         /// <summary>
-        /// Checks if an entity's component mask matches this query.
+        /// Checks if an entity's component mask and metadata match this query.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Matches(int entityIndex, in EntityHeader header)
+        public bool Matches(int entityIndex, in BitMask512 componentMask, in EntityMetadataCold meta)
         {
             // Lifecycle Filter
             if (_lifecycleFilter != EntityLifecycle.All)
             {
-                if (header.LifecycleState != _lifecycleFilter)
+                if (meta.LifecycleState != _lifecycleFilter)
                     return false;
             }
 
             // Component Mask
-            if (!BitMask512.HasAll(header.ComponentMask, _includeMask)) return false;
-            if (BitMask512.HasAny(header.ComponentMask, _excludeMask)) return false;
+            if (!BitMask512.HasAll(componentMask, _includeMask)) return false;
+            if (BitMask512.HasAny(componentMask, _excludeMask)) return false;
 
             // Authority Mask
-            if (!BitMask512.HasAll(header.AuthorityMask, _authorityIncludeMask)) return false;
-            if (BitMask512.HasAny(header.AuthorityMask, _authorityExcludeMask)) return false;
+            if (!BitMask512.HasAll(meta.AuthorityMask, _authorityIncludeMask)) return false;
+            if (BitMask512.HasAny(meta.AuthorityMask, _authorityExcludeMask)) return false;
                 
-            // NEW: Single instruction check
+            // DIS Filter (Single instruction check)
             if (_hasDisFilter)
             {
-                if ((header.DisType.Value & _disFilterMask) != _disFilterValue)
+                if ((meta.DisType.Value & _disFilterMask) != _disFilterValue)
                     return false;
             }
             
@@ -295,15 +300,16 @@ namespace Fdp.Core
                 // Iterate through chunk
                 for (int i = startIndex; i < endIndex; i++)
                 {
-                    ref var header = ref entityIndex.GetHeader(i);
+                    ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                    ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                     
-                    if (!header.IsActive)
+                    if (!meta.IsActive)
                         continue;
                     
-                    if (!Matches(i, header))
+                    if (!Matches(i, in compMask, in meta))
                         continue;
                     
-                    var entity = new Entity(i, header.Generation);
+                    var entity = new Entity(i, meta.Generation);
                     action(entity);
                 }
             }
@@ -390,11 +396,12 @@ namespace Fdp.Core
                     // Tight inner loop with unsafe accessor for maximum performance
                     for (int i = range.Item1; i < range.Item2; i++)
                     {
-                        ref var header = ref entityIndex.GetHeaderUnsafe(i);
+                        ref readonly var meta     = ref entityIndex.GetMetadataUnsafe(i);
+                        ref var          compMask = ref entityIndex.GetComponentMaskUnsafe(i);
                         
-                        if (header.IsActive && Matches(i, header))
+                        if (meta.IsActive && Matches(i, in compMask, in meta))
                         {
-                            action(new Entity(i, header.Generation));
+                            action(new Entity(i, meta.Generation));
                         }
                     }
                 });

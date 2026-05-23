@@ -98,11 +98,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
 
                 for (int i = 0; i <= maxIndex; i++)
                 {
-                    ref var header = ref entityIndex.GetHeader(i);
-                    if (!header.IsActive) continue;
-                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask)) continue;
+                    ref readonly var metaSG = ref entityIndex.GetMetadata(i);
+                    if (!metaSG.IsActive) continue;
+                    ref var compSG = ref entityIndex.GetComponentMask(i);
+                    if (!BitMask512.HasAll(compSG, rule.RequiredMask)) continue;
 
-                    var entity = new Entity(i, header.Generation);
+                    var entity = new Entity(i, metaSG.Generation);
 
                     if (!alwaysDraw && !_isSelectedPredicate!(view, entity))
                         continue;

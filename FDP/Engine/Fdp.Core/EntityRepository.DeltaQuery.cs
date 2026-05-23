@@ -77,7 +77,7 @@ namespace Fdp.Core
             public Entity Current
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => new Entity(_currentIndex, _entityIndex.GetHeaderUnsafe(_currentIndex).Generation);
+                get => new Entity(_currentIndex, _entityIndex.GetMetadataUnsafe(_currentIndex).Generation);
             }
 
             public bool MoveNext()
@@ -154,12 +154,13 @@ namespace Fdp.Core
 
                     // -- Level 2: per-entity check within the candidate chunk. --
 
-                    ref var header = ref _entityIndex.GetHeaderUnsafe(_currentIndex);
+                    ref readonly var metaDQ  = ref _entityIndex.GetMetadataUnsafe(_currentIndex);
+                    ref var          compDQ  = ref _entityIndex.GetComponentMaskUnsafe(_currentIndex);
 
-                    if (!header.IsActive)
+                    if (!metaDQ.IsActive)
                         continue;
 
-                    // Level 1 already confirmed that this EntityHeader chunk has at least
+                    // Level 1 already confirmed that this chunk has at least
                     // one component change (component-table chunk version > sinceVersion).
                     // A per-entity component-version check would be redundant: component
                     // tables use chunk-level granularity, so every entity in the chunk
@@ -170,7 +171,7 @@ namespace Fdp.Core
                     // Instead, yield all active, query-matching entities from a hot chunk
                     // and rely on the caller's fine filter (e.g. IntentId comparison) to
                     // reject unchanged entities cheaply.
-                    if (_query.Matches(_currentIndex, in header))
+                    if (_query.Matches(_currentIndex, in compDQ, in metaDQ))
                         return true;
                 }
             }

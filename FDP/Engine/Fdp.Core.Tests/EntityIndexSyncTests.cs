@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Fdp.Core;
 using System;
 
@@ -33,10 +33,10 @@ namespace Fdp.Tests
              Assert.False(dest.IsAlive(e1)); // e1 has old generation
              
              // Check Generation copy
-             ref var srcHeader = ref source.GetHeader(e2.Index);
-             ref var dstHeader = ref dest.GetHeader(e2.Index);
-             Assert.Equal(srcHeader.Generation, dstHeader.Generation);
-             Assert.Equal(srcHeader.ComponentMask, dstHeader.ComponentMask);
+             ref readonly var srcMeta = ref source.GetMetadata(e2.Index);
+             ref readonly var dstMeta = ref dest.GetMetadata(e2.Index);
+             Assert.Equal(srcMeta.Generation, dstMeta.Generation);
+             Assert.Equal(source.GetComponentMask(e2.Index), dest.GetComponentMask(e2.Index));
         }
         
         [Fact]
@@ -74,7 +74,7 @@ namespace Fdp.Tests
              // Or just simple loop
              
              int count = 100_000;
-             var mask = new BitMask256();
+             var mask = new BitMask512();
              mask.SetBit(1);
              
              for(int i=0; i<count; i++)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Xunit;
 using Fdp.Core;
 
@@ -42,17 +42,18 @@ namespace Fdp.Tests
             using var index = new EntityIndex();
             
             // Force restore an entity at index 10
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             mask.SetBit(1);
             
             // Act: Restore as Alive
             index.ForceRestoreEntity(10, true, 5, mask);
             
             // Assert
-            var header = index.GetHeader(10);
-            Assert.True(header.IsActive);
-            Assert.Equal(5, header.Generation);
-            Assert.True(header.ComponentMask.IsSet(1));
+            ref readonly var metaLT1 = ref index.GetMetadata(10);
+            ref var compLT1 = ref index.GetComponentMask(10);
+            Assert.True(metaLT1.IsActive);
+            Assert.Equal(5, metaLT1.Generation);
+            Assert.True(compLT1.IsSet(1));
             
             Assert.Equal(1, index.ActiveCount);
             Assert.Equal(10, index.MaxIssuedIndex);
@@ -66,8 +67,8 @@ namespace Fdp.Tests
             
             // Assert
             Assert.Equal(0, index.ActiveCount);
-            header = index.GetHeader(10);
-            Assert.False(header.IsActive);
+            ref readonly var metaLT2 = ref index.GetMetadata(10);
+            Assert.False(metaLT2.IsActive);
             
             // Check IsAlive
             var eDead = new Entity(10, 6);
@@ -88,6 +89,7 @@ namespace Fdp.Tests
             int chunkIndex = 0;
             // NativeChunkTable requires full 64KB buffer
             byte[] processedBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+            byte[] coldBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
             // Note: We need the actual buffer size. EntityHeader is 96 bytes?
             // Let's rely on CopyChunkToBuffer return value or similar, or just allocate safely large.
             // EntityHeader size checked in existing test as 96 bytes.
@@ -96,12 +98,15 @@ namespace Fdp.Tests
             // NativeChunkTable<T> CopyChunkToBuffer copies raw structs.
             // So size = Capacity * sizeof(EntityHeader).
             
-            int bytesWritten = sourceIndex.CopyChunkToBuffer(chunkIndex, processedBuffer);
+            int bytesWritten = sourceIndex.CopyHotChunkToBuffer(chunkIndex, processedBuffer);
             Assert.True(bytesWritten > 0);
+            // Cold chunk index 0 covers the same entity range as hot chunk 0
+            sourceIndex.CopyColdChunkToBuffer(0, coldBuffer);
 
             // 3. Create fresh index and inject data
             using var destIndex = new EntityIndex();
-            destIndex.RestoreChunkFromBuffer(chunkIndex, processedBuffer);
+            destIndex.RestoreHotChunkFromBuffer(chunkIndex, processedBuffer);
+            destIndex.RestoreColdChunkFromBuffer(0, coldBuffer);
             
             // At this point, metadata is NOT rebuilt.
             // ActiveCount should be 0 (initial)

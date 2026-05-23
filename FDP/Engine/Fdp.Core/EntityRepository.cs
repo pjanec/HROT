@@ -213,9 +213,9 @@ namespace Fdp.Core
              _entityIndex.ForceRestoreEntity(id, true, generation, default);
              
              // 2. Set default metadata
-             ref var header = ref _entityIndex.GetHeader(id);
-             header.LifecycleState = EntityLifecycle.Active;
-             header.LastChangeTick = _globalVersion;
+             ref var meta = ref _entityIndex.GetMetadata(id);
+             meta.LifecycleState = EntityLifecycle.Active;
+             meta.LastChangeTick = _globalVersion;
              
              var entity = new Entity(id, (ushort)generation);
 
@@ -239,9 +239,9 @@ namespace Fdp.Core
         public Entity CreateEntity()
         {
             var entity = _entityIndex.CreateEntity();
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.LastChangeTick = _globalVersion;
-            header.LifecycleState = EntityLifecycle.Active; // Default to Active
+            ref var meta = ref _entityIndex.GetMetadata(entity.Index);
+            meta.LastChangeTick = _globalVersion;
+            meta.LifecycleState = EntityLifecycle.Active; // Default to Active
             
             // Emit Lifecycle Event
             if (_lifecycleStream != null)
@@ -249,7 +249,7 @@ namespace Fdp.Core
                 _lifecycleStream.Write(new EntityLifecycleEvent {
                     Entity = entity,
                     Type = LifecycleEventType.Created,
-                    Generation = (int)header.Generation
+                    Generation = (int)meta.Generation
                 });
             }
             
@@ -264,9 +264,9 @@ namespace Fdp.Core
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.LifecycleState = state;
-            header.LastChangeTick = _globalVersion;
+            ref var meta = ref _entityIndex.GetMetadata(entity.Index);
+            meta.LifecycleState = state;
+            meta.LastChangeTick = _globalVersion;
         }
 
         /// <summary>
@@ -275,7 +275,7 @@ namespace Fdp.Core
         public EntityLifecycle GetLifecycleState(Entity entity)
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
-            return _entityIndex.GetHeader(entity.Index).LifecycleState;
+            return _entityIndex.GetMetadata(entity.Index).LifecycleState;
         }
 
         /// <summary>
@@ -293,7 +293,7 @@ namespace Fdp.Core
         /// Restores an entity from serialized data.
         /// Internal use only by serializer.
         /// </summary>
-        internal void RestoreEntity(int index, bool isActive, int generation, BitMask256 componentMask, DISEntityType disType = default)
+        internal void RestoreEntity(int index, bool isActive, int generation, BitMask512 componentMask, DISEntityType disType = default)
         {
             // Note: Authority mask matches default (cleared) unless we serialize it later
             _entityIndex.ForceRestoreEntity(index, isActive, generation, componentMask, disType);
@@ -321,9 +321,9 @@ namespace Fdp.Core
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.DisType = type;
-            header.LastChangeTick = _globalVersion;
+            ref var meta = ref _entityIndex.GetMetadata(entity.Index);
+            meta.DisType = type;
+            meta.LastChangeTick = _globalVersion;
         }
 
         /// <summary>
@@ -334,7 +334,7 @@ namespace Fdp.Core
         public DISEntityType GetDisType(Entity entity)
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
-            return _entityIndex.GetHeader(entity.Index).DisType;
+            return _entityIndex.GetMetadata(entity.Index).DisType;
         }
 
         internal void Clear()
@@ -418,12 +418,12 @@ namespace Fdp.Core
             // Emit Lifecycle Event (BEFORE destruction logic so systems can read final state)
             if (_lifecycleStream != null)
             {
-                ref var header = ref _entityIndex.GetHeader(entity.Index);
+                ref readonly var metaForEvent = ref _entityIndex.GetMetadata(entity.Index);
                 _lifecycleStream.Write(new EntityLifecycleEvent {
                     Entity = entity,
                     Type = LifecycleEventType.Destroyed,
                      // Use current generation
-                    Generation = header.Generation
+                    Generation = metaForEvent.Generation
                 });
             }
             
@@ -452,10 +452,10 @@ namespace Fdp.Core
         {
             if (index < 0 || index > MaxEntityIndex) return Entity.Null;
             
-            ref var header = ref _entityIndex.GetHeader(index);
-            if (!header.IsActive) return Entity.Null;
+            ref readonly var meta = ref _entityIndex.GetMetadata(index);
+            if (!meta.IsActive) return Entity.Null;
             
-            return new Entity(index, header.Generation);
+            return new Entity(index, meta.Generation);
         }
 
         /// <summary>
@@ -493,8 +493,7 @@ namespace Fdp.Core
         public bool HasComponentByTypeId(Entity entity, int typeId)
         {
              if (!IsAlive(entity)) return false;
-             ref var header = ref _entityIndex.GetHeader(entity.Index);
-             return header.ComponentMask.IsSet(typeId);
+             return _entityIndex.GetComponentMask(entity.Index).IsSet(typeId);
         }
 
         /// <summary>
@@ -888,9 +887,9 @@ namespace Fdp.Core
             table.Set(entity.Index, component, _globalVersion);
             
             // Update component mask
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.SetBit(ComponentType<T>.ID);
-            header.LastChangeTick = _globalVersion;
+            ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
+            compMask.SetBit(ComponentType<T>.ID);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -908,9 +907,9 @@ namespace Fdp.Core
             #endif
             
             // Clear component mask bit
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.ClearBit(ComponentType<T>.ID);
-            header.LastChangeTick = _globalVersion;
+            ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
+            compMask.ClearBit(ComponentType<T>.ID);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
             
             // Note: Component data is not cleared for performance
             // It will be overwritten if component is re-added
@@ -925,8 +924,7 @@ namespace Fdp.Core
             if (!IsAlive(entity))
                 return false;
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            return header.ComponentMask.IsSet(ComponentType<T>.ID);
+            return _entityIndex.GetComponentMask(entity.Index).IsSet(ComponentType<T>.ID);
         }
         
         /// <summary>
@@ -1030,8 +1028,7 @@ namespace Fdp.Core
         public bool HasAuthority(Entity entity, int componentId)
         {
             if (!IsAlive(entity)) return false;
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            return header.AuthorityMask.IsSet(componentId);
+            return _entityIndex.GetMetadata(entity.Index).AuthorityMask.IsSet(componentId);
         }
 
         /// <summary>
@@ -1048,16 +1045,17 @@ namespace Fdp.Core
         {
             if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
 
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
+            ref var compMask = ref _entityIndex.GetComponentMask(entity.Index);
+            ref var metaS    = ref _entityIndex.GetMetadata(entity.Index);
 
-            if (!header.ComponentMask.IsSet(typeId))
+            if (!compMask.IsSet(typeId))
                 throw new InvalidOperationException(
                     $"Cannot set authority for component ID {typeId}: component is not present on entity {entity}.");
 
             if (hasAuthority)
-                header.AuthorityMask.SetBit(typeId);
+                metaS.AuthorityMask.SetBit(typeId);
             else
-                header.AuthorityMask.ClearBit(typeId);
+                metaS.AuthorityMask.ClearBit(typeId);
         }
 
         /// <summary>
@@ -1070,16 +1068,17 @@ namespace Fdp.Core
             // Verify component type is registered
             GetTable<T>(false);
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
+            ref var compMaskG = ref _entityIndex.GetComponentMask(entity.Index);
+            ref var metaG     = ref _entityIndex.GetMetadata(entity.Index);
             int typeId = ComponentType<T>.ID;
             
-            if (!header.ComponentMask.IsSet(typeId))
+            if (!compMaskG.IsSet(typeId))
                  throw new InvalidOperationException($"Cannot set authority for {typeof(T).Name}: Entity does not have component.");
 
             if (hasAuthority)
-                header.AuthorityMask.SetBit(typeId);
+                metaG.AuthorityMask.SetBit(typeId);
             else
-                header.AuthorityMask.ClearBit(typeId);
+                metaG.AuthorityMask.ClearBit(typeId);
         }
         
         /// <summary>
@@ -1093,9 +1092,8 @@ namespace Fdp.Core
             
             if (!IsAlive(entity)) return false;
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
             int typeId = ComponentType<T>.ID;
-            return header.AuthorityMask.IsSet(typeId);
+            return _entityIndex.GetMetadata(entity.Index).AuthorityMask.IsSet(typeId);
         }
         
         private void ValidateWriteAccess<T>(Entity entity) where T : unmanaged
@@ -1161,8 +1159,7 @@ namespace Fdp.Core
             if (!IsAlive(entity))
                 return false;
             
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            if (header.ComponentMask.IsSet(ManagedComponentType<T>.ID))
+            if (_entityIndex.GetComponentMask(entity.Index).IsSet(ManagedComponentType<T>.ID))
                 return true;
 
             return false;
@@ -1226,14 +1223,14 @@ namespace Fdp.Core
             table.Set(entity.Index, value, _globalVersion);
             
             // Update component mask
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
+            ref var compMaskM = ref _entityIndex.GetComponentMask(entity.Index);
             
             if (value != null)
-                header.ComponentMask.SetBit(ManagedComponentType<T>.ID);
+                compMaskM.SetBit(ManagedComponentType<T>.ID);
             else
-                header.ComponentMask.ClearBit(ManagedComponentType<T>.ID);
+                compMaskM.ClearBit(ManagedComponentType<T>.ID);
                 
-            header.LastChangeTick = _globalVersion;
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
 
         // ================================================
@@ -1272,9 +1269,9 @@ namespace Fdp.Core
             table.Set(entity.Index, null, _globalVersion);
             
             // Update component mask
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.ClearBit(ManagedComponentType<T>.ID);
-            header.LastChangeTick = _globalVersion;
+            ref var compMaskR = ref _entityIndex.GetComponentMask(entity.Index);
+            compMaskR.ClearBit(ManagedComponentType<T>.ID);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1376,12 +1373,22 @@ namespace Fdp.Core
         {
             return _componentTables.TryGetValue(type, out table!);
         }
-        /// WARNING: Direct header access bypasses safety checks!
+        /// WARNING: Direct access bypasses safety checks!
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ref EntityHeader GetHeader(int entityIndex)
+        public ref BitMask512 GetComponentMask(int entityIndex)
         {
-            return ref _entityIndex.GetHeader(entityIndex);
+            return ref _entityIndex.GetComponentMask(entityIndex);
+        }
+
+        /// <summary>
+        /// Gets the cold metadata (generation, authority, lifecycle, etc.) for a raw entity index.
+        /// WARNING: Direct access bypasses safety checks!
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref EntityMetadataCold GetMetadata(int entityIndex)
+        {
+            return ref _entityIndex.GetMetadata(entityIndex);
         }
         
         /// <summary>
@@ -1429,20 +1436,21 @@ namespace Fdp.Core
             // For now, linear scan with O(1) version checks is reasonably fast.
             for (int i = 0; i <= maxIndex; i++)
             {
-                 ref var header = ref _entityIndex.GetHeader(i);
-                 if (!header.IsActive) continue;
+                 ref readonly var metaD   = ref _entityIndex.GetMetadata(i);
+                 ref var          compMD  = ref _entityIndex.GetComponentMask(i);
+                 if (!metaD.IsActive) continue;
                  
                  bool changed = false;
                  
-                 // Check structural change (Header version)
-                 if (header.LastChangeTick > sinceVersion)
+                 // Check structural change (metadata version)
+                 if (metaD.LastChangeTick > sinceVersion)
                  {
                      changed = true;
                  }
                  else
                  {
                      // Check component value changes for tables in the query.
-                     // Using foreach on Dictionary<K,V> uses the value-type enumerator — no allocation.
+                     // Using foreach on Dictionary<K,V> uses the value-type enumerator -- no allocation.
                      foreach (var kvp in _componentTables)
                      {
                          int typeId = kvp.Value.ComponentTypeId;
@@ -1457,11 +1465,9 @@ namespace Fdp.Core
                  
                  if (changed)
                  {
-                     // Verify Query Match
-                     // Note: We create Entity struct to pass to logic, checking Generation implicitly matching header
-                     if (query.Matches(i, header))
+                     if (query.Matches(i, in compMD, in metaD))
                      {
-                         action(new Entity(i, header.Generation));
+                         action(new Entity(i, metaD.Generation));
                      }
                  }
             }
@@ -1495,10 +1501,11 @@ namespace Fdp.Core
             for (int i = state.NextEntityId; i <= maxIndex; i++)
             {
                 // Verify entity matches
-                ref var header = ref _entityIndex.GetHeader(i);
-                if (header.IsActive && query.Matches(i, header))
+                ref readonly var metaTS  = ref _entityIndex.GetMetadata(i);
+                ref var          compTS  = ref _entityIndex.GetComponentMask(i);
+                if (metaTS.IsActive && query.Matches(i, in compTS, in metaTS))
                 {
-                    action(new Entity(i, header.Generation));
+                    action(new Entity(i, metaTS.Generation));
                     processedCount++;
                 }
                 
@@ -1603,9 +1610,8 @@ namespace Fdp.Core
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
             // Update component mask
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.SetBit(typeId);
-            header.LastChangeTick = _globalVersion;
+            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1634,9 +1640,8 @@ namespace Fdp.Core
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
             // Update component mask
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.SetBit(typeId);
-            header.LastChangeTick = _globalVersion;
+            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
 
         /// <summary>
@@ -1665,9 +1670,8 @@ namespace Fdp.Core
             table.SetRaw(entity.Index, dataPtr, size, _globalVersion);
             
             // Update component mask (in case it wasn't set)
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.SetBit(typeId);
-            header.LastChangeTick = _globalVersion;
+            _entityIndex.GetComponentMask(entity.Index).SetBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1679,9 +1683,8 @@ namespace Fdp.Core
             if (!IsAlive(entity)) return;
             
             // Clear component mask bit
-            ref var header = ref _entityIndex.GetHeader(entity.Index);
-            header.ComponentMask.ClearBit(typeId);
-            header.LastChangeTick = _globalVersion;
+            _entityIndex.GetComponentMask(entity.Index).ClearBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1703,9 +1706,9 @@ namespace Fdp.Core
             table.SetRawObject(entity.Index, componentObj);
             
             // Update component mask
-            ref var header2 = ref _entityIndex.GetHeader(entity.Index);
-            header2.ComponentMask.SetBit(typeId);
-            header2.LastChangeTick = _globalVersion;
+            ref var header2 = ref _entityIndex.GetComponentMask(entity.Index);
+            header2.SetBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1727,9 +1730,9 @@ namespace Fdp.Core
             table.SetRawObject(entity.Index, componentObj);
             
             // Update component mask
-            ref var header2 = ref _entityIndex.GetHeader(entity.Index);
-            header2.ComponentMask.SetBit(typeId);
-            header2.LastChangeTick = _globalVersion;
+            ref var header2b = ref _entityIndex.GetComponentMask(entity.Index);
+            header2b.SetBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         /// <summary>
@@ -1751,9 +1754,9 @@ namespace Fdp.Core
             table.ClearRaw(entity.Index);
             
             // Clear component mask bit
-            ref var header2 = ref _entityIndex.GetHeader(entity.Index);
-            header2.ComponentMask.ClearBit(typeId);
-            header2.LastChangeTick = _globalVersion;
+            ref var header2c = ref _entityIndex.GetComponentMask(entity.Index);
+            header2c.ClearBit(typeId);
+            _entityIndex.GetMetadata(entity.Index).LastChangeTick = _globalVersion;
         }
         
         // =========================================================

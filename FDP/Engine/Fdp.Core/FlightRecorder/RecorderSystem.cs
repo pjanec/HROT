@@ -11,8 +11,10 @@ namespace Fdp.Core.FlightRecorder
     /// </summary>
     public class RecorderSystem
     {
-        // Special ID for EntityIndex headers
+        // Special ID for EntityIndex hot (component-mask) chunks
         private const int ENTITY_INDEX_TYPE_ID = -1;
+        // Special ID for EntityIndex cold (metadata) chunks
+        private const int ENTITY_INDEX_COLD_TYPE_ID = -2;
 
         // Reusable scratch buffer for chunk copying (64KB)
         private readonly byte[] _scratchBuffer = new byte[FdpConfig.CHUNK_SIZE_BYTES];
@@ -142,25 +144,49 @@ namespace Fdp.Core.FlightRecorder
                    FillLiveness(entityIndex, c * indexCapacity, indexCapacity, _livenessBuffer);
                    
                    // Safe sanitization: Copy first, then sanitize the copy
-                   int bytes = entityIndex.CopyChunkToBuffer(c, _scratchBuffer);
+                   int bytes = entityIndex.CopyHotChunkToBuffer(c, _scratchBuffer);
                    
                    if (bytes > 0)
                    {
-                       // 1. Zero out dead entities
-                       SanitizeScratchBuffer(_scratchBuffer, bytes, System.Runtime.CompilerServices.Unsafe.SizeOf<EntityHeader>(), new ReadOnlySpan<bool>(_livenessBuffer, 0, indexCapacity));
+                       // 1. Zero out dead entities in the hot chunk
+                       SanitizeScratchBuffer(_scratchBuffer, bytes, System.Runtime.CompilerServices.Unsafe.SizeOf<BitMask512>(), new ReadOnlySpan<bool>(_livenessBuffer, 0, indexCapacity));
                        
                        // 2. Filter Component Masks (Remove transient bits)
                        // 2. Filter Component Masks (Remove transient bits)
                        // Ideally we compute this once per frame
                        var recordableMask = GetRecordableMask();
-                       SanitizeHeadersMask(_scratchBuffer, bytes, recordableMask);
+                       SanitizeHotChunkMask(_scratchBuffer, bytes, recordableMask);
                        
                        actualChunkCount++;
                        writer.Write(c);
-                       writer.Write(1); // Count = 1 (Headers only)
+                       writer.Write(1); // Count = 1 (hot chunk only; cold follows immediately)
                        writer.Write(ENTITY_INDEX_TYPE_ID);
                        writer.Write(bytes);
                        writer.Write(_scratchBuffer, 0, bytes);
+                   }
+
+                   // Write cold chunk for the corresponding cold chunk indices
+                   int coldCapacity = entityIndex.GetColdChunkCapacity();
+                   int firstColdChunk = (c * indexCapacity) / coldCapacity;
+                   int lastColdChunk  = Math.Min(((c + 1) * indexCapacity - 1) / coldCapacity,
+                                                  entityIndex.GetColdTotalChunks() - 1);
+                   for (int cc = firstColdChunk; cc <= lastColdChunk; cc++)
+                   {
+                       int coldBytes = entityIndex.CopyColdChunkToBuffer(cc, _scratchBuffer);
+                       if (coldBytes > 0)
+                       {
+                           // Sanitize: zero out non-recordable entities in the cold chunk
+                           FillLiveness(entityIndex, cc * coldCapacity, coldCapacity, _livenessBuffer);
+                           SanitizeScratchBuffer(_scratchBuffer, coldBytes,
+                               System.Runtime.CompilerServices.Unsafe.SizeOf<EntityMetadataCold>(),
+                               new ReadOnlySpan<bool>(_livenessBuffer, 0, coldCapacity));
+                           actualChunkCount++;
+                           writer.Write(cc);
+                           writer.Write(1);
+                           writer.Write(ENTITY_INDEX_COLD_TYPE_ID);
+                           writer.Write(coldBytes);
+                           writer.Write(_scratchBuffer, 0, coldBytes);
+                       }
                    }
                }
             }
@@ -348,15 +374,15 @@ namespace Fdp.Core.FlightRecorder
 
                 FillLiveness(entityIndex, c * indexCapacity, indexCapacity, _livenessBuffer);
                 
-                int bytes = entityIndex.CopyChunkToBuffer(c, _scratchBuffer);
+                int bytes = entityIndex.CopyHotChunkToBuffer(c, _scratchBuffer);
                 
                 if (bytes > 0)
                 {
-                    SanitizeScratchBuffer(_scratchBuffer, bytes, System.Runtime.CompilerServices.Unsafe.SizeOf<EntityHeader>(), new ReadOnlySpan<bool>(_livenessBuffer, 0, indexCapacity));
+                    SanitizeScratchBuffer(_scratchBuffer, bytes, System.Runtime.CompilerServices.Unsafe.SizeOf<BitMask512>(), new ReadOnlySpan<bool>(_livenessBuffer, 0, indexCapacity));
                     
                     // Filter Component Masks
                     var recordableMask = GetRecordableMask();
-                    SanitizeHeadersMask(_scratchBuffer, bytes, recordableMask);
+                    SanitizeHotChunkMask(_scratchBuffer, bytes, recordableMask);
                     
                     actualChunkCount++;
                     writer.Write(c);
@@ -364,6 +390,30 @@ namespace Fdp.Core.FlightRecorder
                     writer.Write(ENTITY_INDEX_TYPE_ID);
                     writer.Write(bytes);
                     writer.Write(_scratchBuffer, 0, bytes);
+                }
+
+                // Write corresponding cold chunks
+                int coldCapKF = entityIndex.GetColdChunkCapacity();
+                int firstColdKF = (c * indexCapacity) / coldCapKF;
+                int lastColdKF  = Math.Min(((c + 1) * indexCapacity - 1) / coldCapKF,
+                                            entityIndex.GetColdTotalChunks() - 1);
+                for (int cc = firstColdKF; cc <= lastColdKF; cc++)
+                {
+                    int coldBytesKF = entityIndex.CopyColdChunkToBuffer(cc, _scratchBuffer);
+                    if (coldBytesKF > 0)
+                    {
+                        // Sanitize: zero out non-recordable entities in the cold chunk
+                        FillLiveness(entityIndex, cc * coldCapKF, coldCapKF, _livenessBuffer);
+                        SanitizeScratchBuffer(_scratchBuffer, coldBytesKF,
+                            System.Runtime.CompilerServices.Unsafe.SizeOf<EntityMetadataCold>(),
+                            new ReadOnlySpan<bool>(_livenessBuffer, 0, coldCapKF));
+                        actualChunkCount++;
+                        writer.Write(cc);
+                        writer.Write(1);
+                        writer.Write(ENTITY_INDEX_COLD_TYPE_ID);
+                        writer.Write(coldBytesKF);
+                        writer.Write(_scratchBuffer, 0, coldBytesKF);
+                    }
                 }
             }
             
@@ -443,8 +493,8 @@ namespace Fdp.Core.FlightRecorder
             for (int i = startId; i < endId && i <= max; i++)
             {
                 // Optimization: could skip blocks of stable entities if we had a hierarchy
-                ref var header = ref index.GetHeader(i);
-                if (header.LastChangeTick > sinceVersion) return true;
+            ref readonly var metaCS = ref index.GetMetadata(i);
+                if (metaCS.LastChangeTick > sinceVersion) return true;
                 
                 // Also check if it became inactive recently?
                 // IsActive change also updates LastChangeTick via DestroyEntity/CreateEntity
@@ -488,37 +538,36 @@ namespace Fdp.Core.FlightRecorder
                 bool alive = false;
                 if (i >= MinRecordableId && i <= max)
                 {
-                    ref var header = ref index.GetHeader(i);
-                    alive = header.IsActive;
-                    // Apply entity filter when set — uses full Entity handle (index + generation)
-                    // to allow callers to validate the generation and avoid filtering recycled slots.
+                    ref readonly var metaFL = ref index.GetMetadata(i);
+                    alive = metaFL.IsActive;
+                    // Apply entity filter when set
                     if (alive && EntityFilter != null)
-                        alive = EntityFilter(new Entity(i, header.Generation));
+                        alive = EntityFilter(new Entity(i, metaFL.Generation));
                 }
                 liveness[i - startId] = alive;
             }
         }
 
-        private BitMask256 GetRecordableMask()
+        private BitMask512 GetRecordableMask()
         {
-            var mask = new BitMask256();
+            var mask = new BitMask512();
             var ids = ComponentTypeRegistry.GetRecordableTypeIds();
             foreach (var id in ids) mask.SetBit(id);
             return mask;
         }
 
-        private unsafe void SanitizeHeadersMask(byte[] buffer, int bytesWritten, BitMask256 mask)
+        private unsafe void SanitizeHotChunkMask(byte[] buffer, int bytesWritten, BitMask512 mask)
         {
-            int headerSize = System.Runtime.CompilerServices.Unsafe.SizeOf<EntityHeader>();
-            int count = bytesWritten / headerSize;
+            int elementSize = System.Runtime.CompilerServices.Unsafe.SizeOf<BitMask512>();
+            int count = bytesWritten / elementSize;
             
             fixed (byte* ptr = buffer)
             {
-                EntityHeader* headers = (EntityHeader*)ptr;
+                BitMask512* masks = (BitMask512*)ptr;
                 for (int i = 0; i < count; i++)
                 {
-                    // Intersect existing mask with snapshotable mask
-                    headers[i].ComponentMask.BitwiseAnd(mask);
+                    // Intersect existing component mask with snapshotable mask
+                    masks[i].BitwiseAnd(mask);
                 }
             }
         }
@@ -570,8 +619,8 @@ namespace Fdp.Core.FlightRecorder
                     int entityId = startId + i;
                     if (entityId > maxEntities) break;
 
-                    ref var header = ref entityIndex.GetHeader(entityId);
-                    if (header.IsActive && header.ComponentMask.IsSet(table.ComponentTypeId))
+                    ref readonly var metaMT = ref entityIndex.GetMetadata(entityId);
+                    if (metaMT.IsActive && entityIndex.GetComponentMask(entityId).IsSet(table.ComponentTypeId))
                     {
                          chunkData[i] = table.GetRO(entityId);
                     }

@@ -202,7 +202,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             {
                 Entity entity = kvp.Key;
                 if (!view.IsAlive(entity)) continue;
-                ref var header = ref repo.GetHeader(entity.Index);
+                ref var compDD = ref repo.GetComponentMask(entity.Index);
                 var instances = kvp.Value;
                 for (int i = 0; i < instances.Count; i++)
                 {
@@ -210,7 +210,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     // Injected (on-demand) gizmos have RuleIndex == -1; skip them.
                     if (gi.RuleIndex < 0) continue;
                     var rule = _registry.Rules[gi.RuleIndex];
-                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
+                    if (!BitMask512.HasAll(compDD, rule.RequiredMask))
                         entitiesToTeardown.Add((entity, gi.RuleIndex));
                 }
             }
@@ -221,12 +221,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var constructions = view.ReadEvents<ConstructionOrder>();
             foreach (ref readonly var evt in constructions)
             {
-                ref var header = ref repo.GetHeader(evt.Entity.Index);
+                ref var compDD2 = ref repo.GetComponentMask(evt.Entity.Index);
                 var rules = _registry.Rules;
                 for (int r = 0; r < rules.Count; r++)
                 {
                     var rule = rules[r];
-                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
+                    if (!BitMask512.HasAll(compDD2, rule.RequiredMask))
                         continue;
 
                     // View and entity are passed at construction — no OnInitialize call needed.
@@ -253,12 +253,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             foreach (ref readonly var evt in activations)
             {
                 if (!view.IsAlive(evt.Entity)) continue;
-                ref var header = ref repo.GetHeader(evt.Entity.Index);
+                ref var compDD3 = ref repo.GetComponentMask(evt.Entity.Index);
                 var rules = _registry.Rules;
                 for (int r = 0; r < rules.Count; r++)
                 {
                     var rule = rules[r];
-                    if (!BitMask256.HasAll(header.ComponentMask, rule.RequiredMask))
+                    if (!BitMask512.HasAll(compDD3, rule.RequiredMask))
                         continue;
 
                     // Skip if a gizmo instance from this rule already exists for this entity.

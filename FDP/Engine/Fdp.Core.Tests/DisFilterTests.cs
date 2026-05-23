@@ -34,13 +34,13 @@ namespace Fdp.Tests
             
             _repo.SetDisType(entity, type);
             
-            ref var header = ref _repo.GetHeader(entity.Index);
-            Assert.Equal(type.Value, header.DisType.Value);
+            ref readonly var metaDis = ref _repo.GetMetadata(entity.Index);
+            Assert.Equal(type.Value, metaDis.DisType.Value);
             
             // Verify individual fields via struct mapping
-            Assert.Equal(1, header.DisType.Kind);
-            Assert.Equal(2, header.DisType.Domain);
-            Assert.Equal(225, header.DisType.Country);
+            Assert.Equal(1, metaDis.DisType.Kind);
+            Assert.Equal(2, metaDis.DisType.Domain);
+            Assert.Equal(225, metaDis.DisType.Country);
         }
 
         [Fact]

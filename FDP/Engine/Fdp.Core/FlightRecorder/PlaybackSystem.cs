@@ -161,22 +161,22 @@ namespace Fdp.Core.FlightRecorder
                     if (i > entityIndex.MaxIssuedIndex) break;
 
                     // Safe to bypass standard bounds check since we manually validated
-                    ref var header = ref entityIndex.GetHeaderUnsafe(i);
+                    ref readonly var metaRMCM = ref entityIndex.GetMetadataUnsafe(i);
 
-                    if (!header.IsActive) continue;
+                    if (!metaRMCM.IsActive) continue;
 
                     // Check if the managed table has non-null data for this entity
                     object rawObj = table.GetRawObject(i);
 
                     if (rawObj != null)
                     {
-                        // Data exists → ensure mask bit is set
-                        header.ComponentMask.SetBit(typeId);
+                        // Data exists -- ensure mask bit is set
+                        entityIndex.GetComponentMaskUnsafe(i).SetBit(typeId);
                     }
                     else
                     {
-                        // No data → ensure mask bit is clear
-                        header.ComponentMask.ClearBit(typeId);
+                        // No data -- ensure mask bit is clear
+                        entityIndex.GetComponentMaskUnsafe(i).ClearBit(typeId);
                     }
                 }
             }
@@ -290,10 +290,17 @@ namespace Fdp.Core.FlightRecorder
         private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
         {
             
-            // Case 0: Special Entity Index Chunk
+            // Case 0: Special Entity Index hot (component-mask) chunk
             if (typeId == -1)
             {
-                repo.GetEntityIndex().RestoreChunkFromBuffer(chunkIndex, data);
+                repo.GetEntityIndex().RestoreHotChunkFromBuffer(chunkIndex, data);
+                return;
+            }
+
+            // Case 0b: Special Entity Index cold (metadata) chunk
+            if (typeId == -2)
+            {
+                repo.GetEntityIndex().RestoreColdChunkFromBuffer(chunkIndex, data);
                 return;
             }
 
@@ -454,13 +461,14 @@ namespace Fdp.Core.FlightRecorder
             // Iterate all entities and check if they have components
             for (int i = 0; i <= maxIndex; i++)
             {
-                ref var header = ref entityIndex.GetHeader(i);
+                ref readonly var metaREI  = ref entityIndex.GetMetadata(i);
+                ref var          compREI  = ref entityIndex.GetComponentMask(i);
                 
                 // Check if this entity has any components
                 bool hasComponents = false;
                 foreach (var kvp in componentTables)
                 {
-                    if (header.ComponentMask.IsSet(kvp.Value.ComponentTypeId))
+                    if (compREI.IsSet(kvp.Value.ComponentTypeId))
                     {
                         hasComponents = true;
                         break;
@@ -468,12 +476,10 @@ namespace Fdp.Core.FlightRecorder
                 }
                 
                 // If entity has components but is marked dead, revive it
-                if (hasComponents && !header.IsActive)
+                if (hasComponents && !metaREI.IsActive)
                 {
                     // Force restore this entity
-                    // We need to determine the generation from the data
-                    // For now, use generation 1
-                    repo.RestoreEntity(i, true, header.Generation > 0 ? header.Generation : 1, header.ComponentMask);
+                    repo.RestoreEntity(i, true, metaREI.Generation > 0 ? metaREI.Generation : 1, compREI);
                 }
             }
         }

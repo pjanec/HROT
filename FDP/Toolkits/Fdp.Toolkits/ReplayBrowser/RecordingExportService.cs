@@ -188,7 +188,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                     {
                         if (!EntityPassesFilter(entity.Index, entity, options)) continue;
 
-                        ref EntityHeader header = ref sandboxRepo.GetHeader(entity.Index);
+                        ref var compRES1 = ref sandboxRepo.GetComponentMask(entity.Index);
                         writer.WriteStartObject();
 
                         // EntityId is an integer array [Index, Generation] (not a string)
@@ -216,7 +216,7 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                         for (int bit = 0; bit < 256; bit++)
                         {
-                            if (!header.ComponentMask.IsSet(bit)) continue;
+                            if (!compRES1.IsSet(bit)) continue;
 
                             string? compName = autoSerializer.GetComponentName(bit);
                             if (compName == null)
@@ -529,7 +529,7 @@ namespace Fdp.Toolkit.ReplayBrowser
             System.Collections.Generic.IReadOnlyList<IEntityScenarioTranslator>? translators = null)
         {
             var obj = new System.Text.Json.Nodes.JsonObject();
-            ref EntityHeader header = ref repo.GetHeader(entity.Index);
+            ref var compRES2 = ref repo.GetComponentMask(entity.Index);
 
             // Build a translator payload map for this entity.
             var translatorPayloads = new System.Collections.Generic.Dictionary<string, System.Text.Json.Nodes.JsonNode?>();
@@ -546,7 +546,7 @@ namespace Fdp.Toolkit.ReplayBrowser
 
             for (int bit = 0; bit < 256; bit++)
             {
-                if (!header.ComponentMask.IsSet(bit)) continue;
+                if (!compRES2.IsSet(bit)) continue;
 
                 Type? compType = ComponentTypeRegistry.GetType(bit);
                 string? compName = autoSerializer.GetComponentName(bit);

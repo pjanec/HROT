@@ -11,7 +11,7 @@ namespace Fdp.Core
     /// Used as the entity component-presence and authority mask for entities.
     /// Replaces BitMask256 as the component mask type to support up to 512 component types.
     /// </summary>
-    [StructLayout(LayoutKind.Explicit, Size = 64)]
+    [StructLayout(LayoutKind.Explicit, Size = 64, Pack = 64)]
     public struct BitMask512 : IEquatable<BitMask512>
     {
         [FieldOffset( 0)] private ulong _q0;
@@ -168,6 +168,39 @@ namespace Fdp.Core
             if (Avx.IsSupported)
                 return Avx2Matches(in target, in include, in exclude);
             return ScalarMatches(in target, in include, in exclude);
+        }
+
+        // ----------------------------------------------------------
+        // COMPATIBILITY: BitMask512 source against BitMask256 required.
+        // Used when entity component masks are BitMask512 but query rules
+        // were authored against the old BitMask256 component IDs (0-255).
+        // ----------------------------------------------------------
+
+        /// <summary>
+        /// Returns true if all bits in the 256-bit <paramref name="required"/> are present in the
+        /// 512-bit <paramref name="source"/>. Only the lower 256 bits of <paramref name="source"/>
+        /// are tested since BitMask256 cannot hold positions 256 and above.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool HasAll(in BitMask512 source, in BitMask256 required)
+        {
+            if (Avx.IsSupported)
+            {
+                ref BitMask512 mutableSource   = ref Unsafe.AsRef(in source);
+                ref BitMask256 mutableRequired = ref Unsafe.AsRef(in required);
+                Vector256<ulong> vSrc = Unsafe.As<BitMask512, Vector256<ulong>>(ref mutableSource);
+                Vector256<ulong> vReq = Unsafe.As<BitMask256, Vector256<ulong>>(ref mutableRequired);
+                return Avx.TestC(vSrc.AsByte(), vReq.AsByte());
+            }
+            ref byte rb = ref Unsafe.As<BitMask256, byte>(ref Unsafe.AsRef(in required));
+            ulong rq0 = Unsafe.ReadUnaligned<ulong>(ref rb);
+            ulong rq1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AddByteOffset(ref rb, (nint)8));
+            ulong rq2 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AddByteOffset(ref rb, (nint)16));
+            ulong rq3 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.AddByteOffset(ref rb, (nint)24));
+            return (source._q0 & rq0) == rq0
+                && (source._q1 & rq1) == rq1
+                && (source._q2 & rq2) == rq2
+                && (source._q3 & rq3) == rq3;
         }
 
         // ----------------------------------------------------------

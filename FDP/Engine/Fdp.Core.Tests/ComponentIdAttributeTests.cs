@@ -186,13 +186,15 @@ namespace Fdp.Tests
         {
             var fields = typeof(GlobalComponentIds)
                 .GetFields(BindingFlags.Public | BindingFlags.Static)
-                .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(byte))
+                .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(int))
                 .ToList();
 
-            var seen = new Dictionary<byte, string>();
+            Assert.NotEmpty(fields);
+
+            var seen = new Dictionary<int, string>();
             foreach (var field in fields)
             {
-                var value = (byte)field.GetRawConstantValue()!;
+                var value = (int)field.GetRawConstantValue()!;
                 if (seen.TryGetValue(value, out var existing))
                     Assert.Fail($"Duplicate GlobalComponentId value {value}: '{existing}' and '{field.Name}'");
                 seen[value] = field.Name;

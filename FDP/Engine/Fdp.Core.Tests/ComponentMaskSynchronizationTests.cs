@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
@@ -95,14 +95,14 @@ namespace Fdp.Tests
             Assert.Equal(1, replayRepo.EntityCount);
             
             // Verify ComponentMask is correct - this is the core of the bug
-            ref var header = ref replayRepo.GetHeader(0);
+            ref var compCMST = ref replayRepo.GetComponentMask(0);
             var managedTypeId = ManagedComponentType<TestManagedComponent>.ID;
             var unmanagedTable = replayRepo.GetComponentTable<TestUnmanagedComponent>();
             var unmanagedTypeId = unmanagedTable.ComponentTypeId;
             
-            Assert.True(header.ComponentMask.IsSet(unmanagedTypeId), 
+            Assert.True(compCMST.IsSet(unmanagedTypeId), 
                 "Unmanaged component mask bit should be set after replay");
-            Assert.True(header.ComponentMask.IsSet(managedTypeId), 
+            Assert.True(compCMST.IsSet(managedTypeId), 
                 "Managed component mask bit should be set after replay");
         }
         
@@ -148,11 +148,11 @@ namespace Fdp.Tests
             Assert.Equal(123, comp.Value);
             
             // The ComponentMask should reflect that the entity has the managed component
-            ref var header = ref replayRepo.GetHeader(0);
+            ref var compCMST = ref replayRepo.GetComponentMask(0);
             var managedTypeId = ManagedComponentType<TestManagedComponent>.ID;
             
             // This will FAIL with current bug - managed component mask not updated
-            Assert.True(header.ComponentMask.IsSet(managedTypeId), 
+            Assert.True(compCMST.IsSet(managedTypeId), 
                 "Managed component mask should be set after replay");
         }
         
@@ -208,14 +208,14 @@ namespace Fdp.Tests
             Assert.Equal(999, managedComp.Value);
             
             // ComponentMask should have both bits set
-            ref var header = ref replayRepo.GetHeader(0);
+            ref var compCMST = ref replayRepo.GetComponentMask(0);
             var managedTypeId = ManagedComponentType<TestManagedComponent>.ID;
             var unmanagedTable = replayRepo.GetComponentTable<TestUnmanagedComponent>();
             var unmanagedTypeId = unmanagedTable.ComponentTypeId;
             
-            Assert.True(header.ComponentMask.IsSet(unmanagedTypeId), 
+            Assert.True(compCMST.IsSet(unmanagedTypeId), 
                 "Unmanaged component mask should remain set");
-            Assert.True(header.ComponentMask.IsSet(managedTypeId), 
+            Assert.True(compCMST.IsSet(managedTypeId), 
                 "Managed component mask should be set after delta replay");
                 
             // Unmanaged query should work
@@ -263,10 +263,10 @@ namespace Fdp.Tests
             Assert.Equal(15, comp.Z);
             
             // ComponentMask should be correct
-            ref var header = ref replayRepo.GetHeader(0);
+            ref var compCMST = ref replayRepo.GetComponentMask(0);
             var unmanagedTable = replayRepo.GetComponentTable<TestUnmanagedComponent>();
             var typeId = unmanagedTable.ComponentTypeId;
-            Assert.True(header.ComponentMask.IsSet(typeId));
+            Assert.True(compCMST.IsSet(typeId));
             
             // Query should work
             var query = replayRepo.Query().With<TestUnmanagedComponent>().Build();
@@ -330,9 +330,9 @@ namespace Fdp.Tests
             Assert.Equal("Mixed", managedComp.Name);
             
             // ComponentMask should have managed bit set but currently doesn't (the bug)
-            ref var header = ref replayRepo.GetHeader(0);
+            ref var compCMST = ref replayRepo.GetComponentMask(0);
             var managedTypeId = ManagedComponentType<TestManagedComponent>.ID;
-            Assert.True(header.ComponentMask.IsSet(managedTypeId), 
+            Assert.True(compCMST.IsSet(managedTypeId), 
                 "Managed component mask should be set after replay - this will FAIL due to bug");
         }
     }

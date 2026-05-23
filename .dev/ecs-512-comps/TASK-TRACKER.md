@@ -25,7 +25,7 @@ with no changes to how existing code uses them yet.
 **Goal:** Replace the single `NativeChunkTable<EntityHeader>` in `EntityIndex` with the parallel
 hot/cold tables; delete `EntityHeader`.
 
-- [ ] **TASK-E005** EntityIndex Rewrite: Hot/Cold Parallel Tables [details](./TASK-DETAIL.md#task-e005--entityindex-rewrite-hotcold-parallel-tables)
+- [x] **TASK-E005** EntityIndex Rewrite: Hot/Cold Parallel Tables [details](./TASK-DETAIL.md#task-e005--entityindex-rewrite-hotcold-parallel-tables)
 
 ## Phase 4: Query and Repository Layer
 

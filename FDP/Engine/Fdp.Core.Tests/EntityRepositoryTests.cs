@@ -105,8 +105,8 @@ namespace Fdp.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new Position { X = 1, Y = 2, Z = 3 });
             
-            ref var header = ref repo.GetHeader(entity.Index);
-            Assert.True(header.ComponentMask.IsSet(ComponentType<Position>.ID));
+            ref var compERT1 = ref repo.GetComponentMask(entity.Index);
+            Assert.True(compERT1.IsSet(ComponentType<Position>.ID));
         }
         
         [Fact]
@@ -165,12 +165,12 @@ namespace Fdp.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new Position { X = 1, Y = 2, Z = 3 });
             
-            ref var header = ref repo.GetHeader(entity.Index);
-            Assert.True(header.ComponentMask.IsSet(ComponentType<Position>.ID));
+            ref var compERT2 = ref repo.GetComponentMask(entity.Index);
+            Assert.True(compERT2.IsSet(ComponentType<Position>.ID));
             
             repo.RemoveComponent<Position>(entity);
             
-            Assert.False(header.ComponentMask.IsSet(ComponentType<Position>.ID));
+            Assert.False(compERT2.IsSet(ComponentType<Position>.ID));
         }
         
         [Fact]

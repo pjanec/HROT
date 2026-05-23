@@ -347,8 +347,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             int maxIdx = repo.MaxEntityIndex;
             for (int i = 0; i <= maxIdx; i++)
             {
-                ref EntityHeader header = ref repo.GetHeader(i);
-                if (!header.IsActive) continue;
+                ref var compRSS = ref repo.GetComponentMask(i);
+                ref var metaRSS = ref repo.GetMetadata(i);
+                if (!metaRSS.IsActive) continue;
 
                 // Scan all active entities: version-based filtering is unreliable during
                 // playback because RestoreChunkFromBuffer does not update chunk versions.
@@ -358,7 +359,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 if (entity.IsNull) continue;
                 if (entityFilter != null && !entityFilter.Passes(repo, entity)) continue;
 
-                bool present = ComputeEffectivePresence(ref header, typeId, predicate.AuthorityRequirement);
+                bool present = ComputeEffectivePresence(ref compRSS, ref metaRSS, typeId, predicate.AuthorityRequirement);
                 bool was = hasComponent.Contains(entity);
 
                 if (present && !was)
@@ -385,17 +386,18 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
         // ── Authority helper ─────────────────────────────────────────────────
 
         private static bool ComputeEffectivePresence(
-            ref EntityHeader header,
+            ref BitMask512 componentMask,
+            ref EntityMetadataCold meta,
             int typeId,
             AuthorityRequirement req)
         {
             return req switch
             {
                 AuthorityRequirement.RequireAuthority =>
-                    header.ComponentMask.IsSet(typeId) && header.AuthorityMask.IsSet(typeId),
+                    componentMask.IsSet(typeId) && meta.AuthorityMask.IsSet(typeId),
                 AuthorityRequirement.RequireGhost =>
-                    header.ComponentMask.IsSet(typeId) && !header.AuthorityMask.IsSet(typeId),
-                _ => header.ComponentMask.IsSet(typeId)
+                    componentMask.IsSet(typeId) && !meta.AuthorityMask.IsSet(typeId),
+                _ => componentMask.IsSet(typeId)
             };
         }
 

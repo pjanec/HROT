@@ -661,8 +661,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 int typeId = ComponentTypeRegistry.GetId(typeof(HarnessVelocity));
 
                 // Set AuthorityMask for entity A
-                ref EntityHeader headerA = ref h.Repository.GetHeader(entityA.Index);
-                headerA.AuthorityMask.SetBit(typeId);
+                ref var metaRSST = ref h.Repository.GetMetadata(entityA.Index);
+                metaRSST.AuthorityMask.SetBit(typeId);
 
                 // Entity B: HarnessVelocity WITHOUT authority (ghost)
                 h.SpawnEntity().WithComponent(new HarnessVelocity { Vx = 2f });

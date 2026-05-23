@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -444,7 +445,8 @@ public class EntityInspectorPanel
         if (Serializer != null && session is RepositoryAdapter adapter)
         {
             var resolver = new DiagnosticGuidResolver();
-            var mask     = adapter.Repo.GetHeader(entity.Index).ComponentMask;
+            var mask512  = adapter.Repo.GetComponentMask(entity.Index);
+            BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
             mask.BitwiseAnd(adapter.Repo.GetSnapshotableMask());
             var node = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);
             var wrapper = new JsonObject
@@ -479,7 +481,8 @@ public class EntityInspectorPanel
                     continue;
                 }
 
-                var mask = adapter.Repo.GetHeader(entity.Index).ComponentMask;
+                var mask512 = adapter.Repo.GetComponentMask(entity.Index);
+                BitMask256 mask = Unsafe.As<BitMask512, BitMask256>(ref mask512);
                 mask.BitwiseAnd(snapshotable);
 
                 var componentsNode = Serializer.SerializeEntity(adapter.Repo, entity, resolver, mask);

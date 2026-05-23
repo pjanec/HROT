@@ -138,8 +138,9 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             {
                 // Locally spawned entities must start with authority bits enabled for
                 // every component currently present on the entity.
-                ref var header = ref world.GetHeader(entity.Index);
-                header.AuthorityMask = header.ComponentMask;
+                ref var compNS = ref world.GetComponentMask(entity.Index);
+                ref var metaNS = ref world.GetMetadata(entity.Index);
+                metaNS.AuthorityMask = compNS;
             }
             _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
@@ -318,7 +318,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             for (int i = 0; i <= repo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, repo.GetHeader(i).Generation);
+                var e = new Entity(i, repo.GetMetadata(i).Generation);
                 if (repo.IsAlive(e)) return e;
             }
             throw new InvalidOperationException("No alive entity found.");

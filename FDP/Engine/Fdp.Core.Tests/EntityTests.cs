@@ -40,81 +40,6 @@ namespace Fdp.Tests
         }
     }
     
-    public class EntityHeaderTests
-    {
-        [Fact]
-        public void EntityHeader_Size_Is96Bytes()
-        {
-            int size = System.Runtime.InteropServices.Marshal.SizeOf<EntityHeader>();
-            Assert.Equal(96, size);
-        }
-        
-        [Fact]
-        public void EntityHeader_DefaultIsInactive()
-        {
-            var header = new EntityHeader();
-            
-            Assert.False(header.IsActive);
-            Assert.Equal(0, header.Generation);
-        }
-        
-        [Fact]
-        public void EntityHeader_SetActive_Works()
-        {
-            var header = new EntityHeader();
-            
-            header.SetActive(true);
-            Assert.True(header.IsActive);
-            
-            header.SetActive(false);
-            Assert.False(header.IsActive);
-        }
-        
-        [Fact]
-        public void EntityHeader_ComponentMask_Works()
-        {
-            var header = new EntityHeader();
-            
-            header.ComponentMask.SetBit(5);
-            header.ComponentMask.SetBit(42);
-            
-            Assert.True(header.ComponentMask.IsSet(5));
-            Assert.True(header.ComponentMask.IsSet(42));
-            Assert.False(header.ComponentMask.IsSet(10));
-        }
-        
-        [Fact]
-        public void EntityHeader_AuthorityMask_Works()
-        {
-            var header = new EntityHeader();
-            
-            header.AuthorityMask.SetBit(1);
-            header.AuthorityMask.SetBit(2);
-            
-            Assert.True(header.AuthorityMask.IsSet(1));
-            Assert.True(header.AuthorityMask.IsSet(2));
-            Assert.False(header.AuthorityMask.IsSet(3));
-        }
-        
-        [Fact]
-        public void EntityHeader_Clear_ResetsAllFields()
-        {
-            var header = new EntityHeader();
-            
-            header.SetActive(true);
-            header.Generation = 10;
-            header.ComponentMask.SetBit(5);
-            header.AuthorityMask.SetBit(3);
-            
-            header.Clear();
-            
-            Assert.False(header.IsActive);
-            Assert.Equal(0, header.Generation);
-            Assert.False(header.ComponentMask.IsSet(5));
-            Assert.False(header.AuthorityMask.IsSet(3));
-        }
-    }
-    
     public class EntityIndexTests
     {
         [Fact]
@@ -257,31 +182,29 @@ namespace Fdp.Tests
         }
         
         [Fact]
-        public void GetHeader_ReturnsValidReference()
+        public void GetComponentMaskAndMetadata_ReturnValidReferences()
         {
             using var index = new EntityIndex();
             
             var entity = index.CreateEntity();
             
-            ref var header = ref index.GetHeader(entity.Index);
+            ref readonly var meta = ref index.GetMetadata(entity.Index);
             
-            Assert.True(header.IsActive);
-            Assert.Equal(1, header.Generation);
+            Assert.True(meta.IsActive);
+            Assert.Equal(1, meta.Generation);
         }
         
         [Fact]
-        public void GetHeader_CanModify()
+        public void GetComponentMask_CanModify()
         {
             using var index = new EntityIndex();
             
             var entity = index.CreateEntity();
             
-            ref var header = ref index.GetHeader(entity.Index);
-            header.ComponentMask.SetBit(10);
+            index.GetComponentMask(entity.Index).SetBit(10);
             
             // Verify modification persisted
-            ref var header2 = ref index.GetHeader(entity.Index);
-            Assert.True(header2.ComponentMask.IsSet(10));
+            Assert.True(index.GetComponentMask(entity.Index).IsSet(10));
         }
         
         [Fact]
@@ -396,13 +319,13 @@ namespace Fdp.Tests
         }
         
         [Fact]
-        public void GetHeader_InvalidIndex_Throws()
+        public void GetComponentMask_InvalidIndex_Throws()
         {
             using var index = new EntityIndex();
             
             Assert.Throws<IndexOutOfRangeException>(() =>
             {
-                ref var header = ref index.GetHeader(999999);
+                ref var comp = ref index.GetComponentMask(999999);
             });
         }
         #endif

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 
@@ -126,8 +127,10 @@ namespace Fdp.Toolkit.Scenario
                 var guidStr     = entityToGuid[entity].ToString();
                 var entityNode  = new JsonObject();
 
-                // Per-entity saveable mask = global saveable ∩ entity's own components.
-                var entityComponents = repo.GetHeader(entity.Index).ComponentMask;
+                // Per-entity saveable mask = global saveable AND entity's own components.
+                // Project BitMask512 down to BitMask256: scenario serializer only handles bits 0-255.
+                var entityComponents512 = repo.GetComponentMask(entity.Index);
+                BitMask256 entityComponents = Unsafe.As<BitMask512, BitMask256>(ref entityComponents512);
                 entityComponents.BitwiseAnd(globalSaveable);
                 var remainingMask = entityComponents; // mutable copy
 
@@ -418,11 +421,11 @@ namespace Fdp.Toolkit.Scenario
 
             for (int i = 0; i <= repo.MaxEntityIndex; i++)
             {
-                var entity = new Entity(i, repo.GetHeader(i).Generation);
+                var entity = new Entity(i, repo.GetMetadata(i).Generation);
                 if (!repo.IsAlive(entity)) continue;
 
                 // Skip entities tagged ScenarioIgnoreTag.
-                if (ignoreTagId >= 0 && repo.GetHeader(i).ComponentMask.IsSet(ignoreTagId))
+                if (ignoreTagId >= 0 && repo.GetComponentMask(i).IsSet(ignoreTagId))
                     continue;
 
                 result.Add(entity);

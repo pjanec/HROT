@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var positions = new System.Collections.Generic.List<DummyPosition>();
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, freshRepo.GetHeader(i).Generation);
+                var e = new Entity(i, freshRepo.GetMetadata(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
                 if (freshRepo.HasComponent<DummyPosition>(e))
                     positions.Add(freshRepo.GetComponent<DummyPosition>(e));
@@ -209,7 +209,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             Entity resolvedTracker = default;
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, freshRepo.GetHeader(i).Generation);
+                var e = new Entity(i, freshRepo.GetMetadata(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
                 if (freshRepo.HasComponent<GuidedTarget>(e)) { resolvedTracker = e; break; }
             }
@@ -325,7 +325,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Equal(2, freshRepo.EntityCount);
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, freshRepo.GetHeader(i).Generation);
+                var e = new Entity(i, freshRepo.GetMetadata(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
 
                 Assert.True(freshRepo.HasComponent<Fdp.Core.EpisodeTag>(e),
@@ -429,7 +429,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             for (int i = 0; i <= repo.MaxEntityIndex; i++)
             {
-                var e = new Entity(i, repo.GetHeader(i).Generation);
+                var e = new Entity(i, repo.GetMetadata(i).Generation);
                 if (repo.IsAlive(e)) return e;
             }
             throw new InvalidOperationException("No alive entity found in repository.");

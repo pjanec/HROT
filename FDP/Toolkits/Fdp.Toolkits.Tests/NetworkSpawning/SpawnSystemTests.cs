@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
@@ -380,7 +380,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Tests
             Assert.Equal(DefaultTkbType, tkbId.TkbType);
 
             // DisType is now stored natively in EntityHeader — verify via GetHeader.
-            var disType = repo.GetHeader(entity.Index).DisType.Value;
+            var disType = repo.GetMetadata(entity.Index).DisType.Value;
             Assert.Equal(123UL, disType);
         }
 

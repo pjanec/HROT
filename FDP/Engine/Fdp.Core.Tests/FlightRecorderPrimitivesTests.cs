@@ -1,4 +1,4 @@
-using Xunit;
+﻿using Xunit;
 using Fdp.Core;
 using System;
 
@@ -202,7 +202,7 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             int targetIndex = 42;
             int targetGeneration = 7;
-            var componentMask = new BitMask256();
+            var componentMask = new BitMask512();
             componentMask.SetBit(3);
             componentMask.SetBit(5);
             
@@ -213,11 +213,12 @@ namespace Fdp.Tests
             var entity = new Entity(targetIndex, (ushort)targetGeneration);
             Assert.True(entityIndex.IsAlive(entity));
             
-            ref var header = ref entityIndex.GetHeader(targetIndex);
-            Assert.True(header.IsActive);
-            Assert.Equal(targetGeneration, header.Generation);
-            Assert.True(header.ComponentMask.IsSet(3));
-            Assert.True(header.ComponentMask.IsSet(5));
+            ref readonly var metaFRP = ref entityIndex.GetMetadata(targetIndex);
+            ref var compFRP = ref entityIndex.GetComponentMask(targetIndex);
+            Assert.True(metaFRP.IsActive);
+            Assert.Equal(targetGeneration, metaFRP.Generation);
+            Assert.True(compFRP.IsSet(3));
+            Assert.True(compFRP.IsSet(5));
         }
         
         [Fact]
@@ -227,9 +228,9 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             
             // Act - Restore non-contiguous entities (simulating sparse snapshot)
-            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(10, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(100, isActive: true, 1, new BitMask256());
+            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(10, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(100, isActive: true, 1, new BitMask512());
             
             // Assert
             Assert.True(entityIndex.IsAlive(new Entity(0, 1)));
@@ -254,14 +255,14 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             
             // Act - Force restore an inactive (dead) entity
-            entityIndex.ForceRestoreEntity(5, isActive: false, 2, new BitMask256());
+            entityIndex.ForceRestoreEntity(5, isActive: false, 2, new BitMask512());
             
             // Assert
             Assert.False(entityIndex.IsAlive(new Entity(5, 2)));
             
-            ref var header = ref entityIndex.GetHeader(5);
-            Assert.False(header.IsActive);
-            Assert.Equal(2, header.Generation);
+            ref readonly var metaFRP2 = ref entityIndex.GetMetadata(5);
+            Assert.False(metaFRP2.IsActive);
+            Assert.Equal(2, metaFRP2.Generation);
         }
         
         #endregion
@@ -275,10 +276,10 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             
             // Simulate restoring 3 active entities and 1 inactive
-            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(1, isActive: false, 2, new BitMask256()); // Dead
-            entityIndex.ForceRestoreEntity(2, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(5, isActive: true, 1, new BitMask256());
+            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(1, isActive: false, 2, new BitMask512()); // Dead
+            entityIndex.ForceRestoreEntity(2, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(5, isActive: true, 1, new BitMask512());
             
             // Act
             entityIndex.RebuildMetadata();
@@ -300,14 +301,14 @@ namespace Fdp.Tests
             // Force restore 10 entities in chunk 0
             for (int i = 0; i < 10; i++)
             {
-                entityIndex.ForceRestoreEntity(i, isActive: true, 1, new BitMask256());
+                entityIndex.ForceRestoreEntity(i, isActive: true, 1, new BitMask512());
             }
             
             // Force restore 5 entities in chunk 1
             int chunk1Start = chunkCapacity;
             for (int i = 0; i < 5; i++)
             {
-                entityIndex.ForceRestoreEntity(chunk1Start + i, isActive: true, 1, new BitMask256());
+                entityIndex.ForceRestoreEntity(chunk1Start + i, isActive: true, 1, new BitMask512());
             }
             
             // Act
@@ -325,9 +326,9 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             
             // Create entities with large gaps (sparse snapshot)
-            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(1000, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(5000, isActive: true, 1, new BitMask256());
+            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(1000, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(5000, isActive: true, 1, new BitMask512());
             
             // Act
             entityIndex.RebuildMetadata();
@@ -349,9 +350,9 @@ namespace Fdp.Tests
             using var entityIndex = new EntityIndex();
             
             // Restore sparse entities with gaps
-            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(5, isActive: true, 1, new BitMask256());
-            entityIndex.ForceRestoreEntity(10, isActive: true, 1, new BitMask256());
+            entityIndex.ForceRestoreEntity(0, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(5, isActive: true, 1, new BitMask512());
+            entityIndex.ForceRestoreEntity(10, isActive: true, 1, new BitMask512());
             // Gaps: 1, 2, 3, 4, 6, 7, 8, 9
             
             // Act
@@ -407,14 +408,17 @@ namespace Fdp.Tests
             Span<bool> originalLiveness = stackalloc bool[chunkCapacity];
             entityIndex.GetChunkLiveness(0, originalLiveness);
             
-            // Save EntityHeader chunk
+            // Save hot and cold chunks (both needed: hot=component masks, cold=lifecycle state)
             byte[] savedHeaders = new byte[FdpConfig.CHUNK_SIZE_BYTES];
-            int bytesCopied = entityIndex.CopyChunkToBuffer(0, savedHeaders);
+            byte[] savedCold = new byte[FdpConfig.CHUNK_SIZE_BYTES];
+            int bytesCopied = entityIndex.CopyHotChunkToBuffer(0, savedHeaders);
             Assert.True(bytesCopied > 0);
+            entityIndex.CopyColdChunkToBuffer(0, savedCold);
             
             // Act - Simulate loading from disk
             entityIndex.Clear();
-            entityIndex.RestoreChunkFromBuffer(0, savedHeaders);
+            entityIndex.RestoreHotChunkFromBuffer(0, savedHeaders);
+            entityIndex.RestoreColdChunkFromBuffer(0, savedCold);
             entityIndex.RebuildMetadata();
             
             // Assert - Liveness should match perfectly

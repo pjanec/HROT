@@ -93,8 +93,8 @@ namespace Fdp.Toolkit.Replication.Systems
         {
             var tkbIdentity = _world!.GetComponent<TkbIdentity>(entity);
 
-            // Fetch entity header for O(1) bitmask checks.
-            ref var header = ref _world.GetHeader(entity.Index);
+            // Fetch component mask for O(1) bitmask checks.
+            ref var compGP = ref _world.GetComponentMask(entity.Index);
 
             // Read ghost age for soft-timeout evaluation.
             var tracker = _world.GetComponent<GhostStateTracker>(entity);
@@ -104,7 +104,7 @@ namespace Fdp.Toolkit.Replication.Systems
             {
                 foreach (var req in template.MandatoryComponents)
                 {
-                    bool hasComponent = header.ComponentMask.IsSet(req.ComponentTypeId);
+                    bool hasComponent = compGP.IsSet(req.ComponentTypeId);
 
                     if (!hasComponent)
                     {
