@@ -3,12 +3,12 @@
 > One line per task. Check the box when done. Each task links to its detailed description in `TASK-DETAIL.md`.
 
 ## Phase 0 — Kernel-side prerequisites
-- [ ] **TASK-K-01** — Add `Lane` property to `[HsmAction]` → [details](./TASK-DETAIL.md#task-k-01--add-lane-property-to-hsmaction)
-- [ ] **TASK-K-02** — Add `stableId` parameter to HSM builder state methods → [details](./TASK-DETAIL.md#task-k-02--add-stableid-parameter-to-hsmbuilderstate-and-statebuilderaddchild)
-- [ ] **TASK-K-03** — Add `visualId` parameter to HSM transition builder methods → [details](./TASK-DETAIL.md#task-k-03--add-visualid-parameter-to-transitionbuildergoto-and-hsmbuilderglobaltransition)
-- [ ] **TASK-K-04** — Add `Paused` flag to HSM `InstanceFlags` → [details](./TASK-DETAIL.md#task-k-04--add-paused-flag-to-hsm-instanceflags)
-- [ ] **TASK-K-05** — Add `Paused` flag to BTree instance flags → [details](./TASK-DETAIL.md#task-k-05--add-paused-flag-to-btree-instanceflags-or-equivalent)
-- [ ] **TASK-K-06** — Verify `visualId` parameter on all BTree fluent methods → [details](./TASK-DETAIL.md#task-k-06--visualid-parameter-on-btree-fluent-builder)
+- [x] **TASK-K-01** — Add `Lane` property to `[HsmAction]` → [details](./TASK-DETAIL.md#task-k-01--add-lane-property-to-hsmaction)
+- [x] **TASK-K-02** — Add `stableId` parameter to HSM builder state methods → [details](./TASK-DETAIL.md#task-k-02--add-stableid-parameter-to-hsmbuilderstate-and-statebuilderaddchild)
+- [x] **TASK-K-03** — Add `visualId` parameter to HSM transition builder methods → [details](./TASK-DETAIL.md#task-k-03--add-visualid-parameter-to-transitionbuildergoto-and-hsmbuilderglobaltransition)
+- [x] **TASK-K-04** — Add `Paused` flag to HSM `InstanceFlags` → [details](./TASK-DETAIL.md#task-k-04--add-paused-flag-to-hsm-instanceflags)
+- [x] **TASK-K-05** — Add `Paused` flag to BTree instance flags → [details](./TASK-DETAIL.md#task-k-05--add-paused-flag-to-btree-instanceflags-or-equivalent)
+- [x] **TASK-K-06** — Verify `visualId` parameter on all BTree fluent methods → [details](./TASK-DETAIL.md#task-k-06--visualid-parameter-on-btree-fluent-builder)
 
 ## Phase 1 — Shared infrastructure foundation
 - [ ] **TASK-S1-01** — `IEditableAsset` interface and `AssetKind` enum → [details](./TASK-DETAIL.md#task-s1-01--ieditableasset-and-assetkind-enum)
