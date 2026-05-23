@@ -17,7 +17,7 @@ namespace Fdp.Core
     ///
     /// <para>
     /// IDs are allocated in named blocks defined by <see cref="GlobalComponentIds"/>.
-    /// Component IDs are limited to the range [0, 255] by the <c>BitMask256</c> capacity.
+    /// Component IDs are limited to the range [0, 511] by the <c>BitMask512</c> capacity.
     /// </para>
     /// </summary>
     /// <example>
@@ -30,20 +30,20 @@ namespace Fdp.Core
     public sealed class ComponentIdAttribute : Attribute
     {
         /// <summary>
-        /// Stable, globally unique component type ID in the range [0, 255].
+        /// Stable, globally unique component type ID in the range [0, 511].
         /// Must match the corresponding constant in <see cref="GlobalComponentIds"/>.
         /// </summary>
-        public byte Id { get; }
+        public int Id { get; }
 
         /// <summary>
         /// Initialises the attribute with a stable component ID.
         /// </summary>
         /// <param name="id">
-        /// The globally unique component ID (0–255). Must not collide with any other
+        /// The globally unique component ID (0–511). Must not collide with any other
         /// component's ID anywhere in the codebase; a collision throws
         /// <see cref="InvalidOperationException"/> at runtime during registration.
         /// </param>
-        public ComponentIdAttribute(byte id)
+        public ComponentIdAttribute(int id)
         {
             Id = id;
         }

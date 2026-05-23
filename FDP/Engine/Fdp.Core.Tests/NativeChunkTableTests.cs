@@ -11,7 +11,7 @@ namespace Fdp.Tests
         {
             Assert.Equal(1_000_000, FdpConfig.MAX_ENTITIES);
             Assert.Equal(65536, FdpConfig.CHUNK_SIZE_BYTES);
-            Assert.Equal(256, FdpConfig.MAX_COMPONENT_TYPES);
+            Assert.Equal(512, FdpConfig.MAX_COMPONENT_TYPES);
         }
         
         [Fact]

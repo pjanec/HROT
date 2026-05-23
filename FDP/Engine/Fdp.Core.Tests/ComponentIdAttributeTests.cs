@@ -31,6 +31,16 @@ namespace Fdp.Tests
 
         private struct NoAttributeStruct { public int Data; }
 
+        // Test structs for E001 expansion tests (IDs 300-301 are in the reserved block)
+        [ComponentId(300)]
+        private struct IdH_300 { public int X; }
+
+        [ComponentId(301)]
+        private struct IdI_301 { public int Y; }
+
+        [ComponentId(300)] // intentional collision with IdH_300
+        private struct IdJ_300_Collision { public int Z; }
+
         // ── Tests ───────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -187,6 +197,41 @@ namespace Fdp.Tests
                     Assert.Fail($"Duplicate GlobalComponentId value {value}: '{existing}' and '{field.Name}'");
                 seen[value] = field.Name;
             }
+        }
+        /// <summary>
+        /// After E001 the Id property is int, so [ComponentId(300)] reads back as 300,
+        /// not as 44 (which is 300 % 256 from the old byte truncation).
+        /// SC: TASK-E001 reflection test.
+        /// </summary>
+        [Fact]
+        public void ComponentIdAttribute_Id300_ReflectsAsInt_NotTruncatedToByte()
+        {
+            var attr = typeof(IdH_300).GetCustomAttribute<ComponentIdAttribute>();
+            Assert.NotNull(attr);
+            Assert.Equal(300, attr!.Id);
+        }
+
+        /// <summary>
+        /// Registering two components with IDs 300 and 301 succeeds, then registering
+        /// a third with ID 300 throws InvalidOperationException (collision).
+        /// SC: TASK-E001 registry collision test for IDs > 255.
+        /// </summary>
+        [Fact]
+        public void ComponentTypeRegistry_CollisionAtId300_ThrowsInvalidOperationException()
+        {
+            ComponentTypeRegistry.Clear();
+
+            var id300 = ComponentTypeRegistry.GetOrRegisterManaged(typeof(IdH_300));
+            var id301 = ComponentTypeRegistry.GetOrRegisterManaged(typeof(IdI_301));
+
+            Assert.Equal(300, id300);
+            Assert.Equal(301, id301);
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => ComponentTypeRegistry.GetOrRegisterManaged(typeof(IdJ_300_Collision)));
+
+            Assert.Contains("collision", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("300", ex.Message);
         }
     }
 }

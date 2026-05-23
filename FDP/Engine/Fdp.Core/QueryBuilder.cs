@@ -9,10 +9,10 @@ namespace Fdp.Core
     public sealed class QueryBuilder
     {
         private readonly EntityRepository _repository;
-        private BitMask256 _includeMask;
-        private BitMask256 _excludeMask;
-        private BitMask256 _authorityIncludeMask;
-        private BitMask256 _authorityExcludeMask;
+        private BitMask512 _includeMask;
+        private BitMask512 _excludeMask;
+        private BitMask512 _authorityIncludeMask;
+        private BitMask512 _authorityExcludeMask;
         
         private bool _hasDisFilter;
         private ulong _disFilterValue;
@@ -21,10 +21,10 @@ namespace Fdp.Core
         internal QueryBuilder(EntityRepository repository)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-            _includeMask = new BitMask256();
-            _excludeMask = new BitMask256();
-            _authorityIncludeMask = new BitMask256();
-            _authorityExcludeMask = new BitMask256();
+            _includeMask = new BitMask512();
+            _excludeMask = new BitMask512();
+            _authorityIncludeMask = new BitMask512();
+            _authorityExcludeMask = new BitMask512();
         }
         
         /// <summary>
@@ -61,7 +61,7 @@ namespace Fdp.Core
         /// </param>
         public QueryBuilder WithComponentId(int componentId)
         {
-            if (componentId >= 0 && componentId < 256)
+            if (componentId >= 0 && componentId < 512)
                 _includeMask.SetBit(componentId);
             return this;
         }

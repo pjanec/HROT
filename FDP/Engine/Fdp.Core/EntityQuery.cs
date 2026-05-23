@@ -13,17 +13,17 @@ namespace Fdp.Core
     /// </summary>
     public sealed class EntityQuery
     {
-        private readonly BitMask256 _includeMask;
-        private readonly BitMask256 _excludeMask;
-        private readonly BitMask256 _authorityIncludeMask;
-        private readonly BitMask256 _authorityExcludeMask;
+        private readonly BitMask512 _includeMask;
+        private readonly BitMask512 _excludeMask;
+        private readonly BitMask512 _authorityIncludeMask;
+        private readonly BitMask512 _authorityExcludeMask;
         private readonly EntityRepository _repository;
         private readonly bool _hasDisFilter;
         private readonly ulong _disFilterValue; // The target ID
         private readonly ulong _disFilterMask;  // Which bytes to check
         private readonly EntityLifecycle _lifecycleFilter;
 
-        internal EntityQuery(EntityRepository repository, BitMask256 includeMask, BitMask256 excludeMask, BitMask256 authorityIncludeMask, BitMask256 authorityExcludeMask, bool hasDisFilter, ulong disFilterValue, ulong disFilterMask, EntityLifecycle lifecycleFilter)
+        internal EntityQuery(EntityRepository repository, BitMask512 includeMask, BitMask512 excludeMask, BitMask512 authorityIncludeMask, BitMask512 authorityExcludeMask, bool hasDisFilter, ulong disFilterValue, ulong disFilterMask, EntityLifecycle lifecycleFilter)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
             _includeMask = includeMask;
@@ -88,10 +88,10 @@ namespace Fdp.Core
         public ref struct EntityEnumerator
         {
             // Fields to cache for performance (avoid referencing EntityQuery object in loop)
-            private readonly BitMask256 _includeMask;
-            private readonly BitMask256 _excludeMask;
-            private readonly BitMask256 _authorityIncludeMask;
-            private readonly BitMask256 _authorityExcludeMask;
+            private readonly BitMask512 _includeMask;
+            private readonly BitMask512 _excludeMask;
+            private readonly BitMask512 _authorityIncludeMask;
+            private readonly BitMask512 _authorityExcludeMask;
             private readonly bool _hasDisFilter;
             private readonly ulong _disFilterValue;
             private readonly ulong _disFilterMask;
@@ -145,12 +145,12 @@ namespace Fdp.Core
                     }
 
                     // 1. Component Mask
-                    if (!BitMask256.HasAll(header.ComponentMask, _includeMask)) continue;
-                    if (BitMask256.HasAny(header.ComponentMask, _excludeMask)) continue;
+                    if (!BitMask512.HasAll(header.ComponentMask, _includeMask)) continue;
+                    if (BitMask512.HasAny(header.ComponentMask, _excludeMask)) continue;
 
                     // 2. Authority Mask
-                    if (!BitMask256.HasAll(header.AuthorityMask, _authorityIncludeMask)) continue;
-                    if (BitMask256.HasAny(header.AuthorityMask, _authorityExcludeMask)) continue;
+                    if (!BitMask512.HasAll(header.AuthorityMask, _authorityIncludeMask)) continue;
+                    if (BitMask512.HasAny(header.AuthorityMask, _authorityExcludeMask)) continue;
 
                     // 3. DIS Filter (Single instruction check)
                     if (_hasDisFilter)
@@ -247,12 +247,12 @@ namespace Fdp.Core
             }
 
             // Component Mask
-            if (!BitMask256.HasAll(header.ComponentMask, _includeMask)) return false;
-            if (BitMask256.HasAny(header.ComponentMask, _excludeMask)) return false;
+            if (!BitMask512.HasAll(header.ComponentMask, _includeMask)) return false;
+            if (BitMask512.HasAny(header.ComponentMask, _excludeMask)) return false;
 
             // Authority Mask
-            if (!BitMask256.HasAll(header.AuthorityMask, _authorityIncludeMask)) return false;
-            if (BitMask256.HasAny(header.AuthorityMask, _authorityExcludeMask)) return false;
+            if (!BitMask512.HasAll(header.AuthorityMask, _authorityIncludeMask)) return false;
+            if (BitMask512.HasAny(header.AuthorityMask, _authorityExcludeMask)) return false;
                 
             // NEW: Single instruction check
             if (_hasDisFilter)
@@ -475,11 +475,11 @@ namespace Fdp.Core
         /// <summary>
         /// Gets the include mask (for advanced usage).
         /// </summary>
-        public BitMask256 IncludeMask => _includeMask;
+        public BitMask512 IncludeMask => _includeMask;
         
         /// <summary>
         /// Gets the exclude mask (for advanced usage).
         /// </summary>
-        public BitMask256 ExcludeMask => _excludeMask;
+        public BitMask512 ExcludeMask => _excludeMask;
     }
 }

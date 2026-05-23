@@ -444,5 +444,60 @@ namespace Fdp.Tests
             Assert.Equal(2, queryVel.Count());
             Assert.Equal(1, queryBoth.Count());
         }
+
+        // ================================================
+        // E002 CONFIG AND WITHCOMPONENTID TESTS
+        // ================================================
+
+        /// <summary>MAX_COMPONENT_TYPES must be 512 after TASK-E002.</summary>
+        [Fact]
+        public void FdpConfig_MaxComponentTypes_Is512()
+        {
+            Assert.Equal(512, FdpConfig.MAX_COMPONENT_TYPES);
+        }
+
+        /// <summary>FORMAT_VERSION must be 5 after TASK-E002.</summary>
+        [Fact]
+        public void FdpConfig_FormatVersion_Is5()
+        {
+            Assert.Equal(5u, FdpConfig.FORMAT_VERSION);
+        }
+
+        /// <summary>
+        /// WithComponentId(255) sets bit 255 in the include mask (backward compatibility).
+        /// Bit 255 is within BitMask256 range so IsSet can be verified directly.
+        /// </summary>
+        [Fact]
+        public void WithComponentId_255_SetsIncludeMaskBit()
+        {
+            using var repo = new EntityRepository();
+            var query = repo.Query().WithComponentId(255).Build();
+            Assert.True(query.IncludeMask.IsSet(255));
+        }
+
+        /// <summary>
+        /// WithComponentId(400) passes the updated guard and sets bit 400 in the BitMask512
+        /// include mask. QueryBuilder and EntityQuery now use BitMask512 internally.
+        /// </summary>
+        [Fact]
+        public void WithComponentId_400_SetsIncludeMaskBit()
+        {
+            using var repo = new EntityRepository();
+            var query = repo.Query().WithComponentId(400).Build();
+            Assert.True(query.IncludeMask.IsSet(400));
+        }
+
+        /// <summary>
+        /// WithComponentId(512) is silently ignored — the upper bound guard (componentId &lt; 512)
+        /// keeps 512 out of the include mask.
+        /// </summary>
+        [Fact]
+        public void WithComponentId_512_IsSilentlyIgnored()
+        {
+            using var repo = new EntityRepository();
+            var query = repo.Query().WithComponentId(512).Build();
+            // Guard: 512 is NOT < 512, so SetBit is not called. Mask remains empty.
+            Assert.False(query.IncludeMask.IsSet(255)); // nothing was set
+        }
     }
 }

@@ -31,9 +31,9 @@ namespace Fdp.Core
         
         /// <summary>
         /// Maximum number of component types supported.
-        /// Limited by BitMask256 capacity.
+        /// Limited by `BitMask512` capacity.
         /// </summary>
-        public const int MAX_COMPONENT_TYPES = 256;
+        public const int MAX_COMPONENT_TYPES = 512;
         
         /// <summary>
         /// Flight Recorder format version.
@@ -43,7 +43,7 @@ namespace Fdp.Core
         /// - Event serialization format changes
         /// Recordings are NOT backwards compatible - version must match exactly.
         /// </summary>
-        public const uint FORMAT_VERSION = 4;
+        public const uint FORMAT_VERSION = 5;
         
         /// <summary>
         /// Calculate chunk capacity for a given element size.
