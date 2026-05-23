@@ -1,4 +1,8 @@
+using System;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using Hrot.Hsm.Editor.Model;
+using ImGuiNET;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 
@@ -19,10 +23,59 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
     public CanvasRenderPass Pass => CanvasRenderPass.AfterWires;
     public bool IsActive { get; set; } = true;
 
+    // Counters updated each Render() call; read by unit tests.
+    internal int LastInternalTransitionCount;
+    internal int LastLabelCount;
+
+    // Default state half-size used for internal-transition loop placement
+    // when a state has no explicit SizeOverride.
+    internal static readonly Vector2 DefaultStateSize = new(120f, 40f);
+
     public void Render(ICanvasRenderContext ctx)
     {
-        // TODO: draw Event[Guard]/Action label at each transition midpoint
-        // Runs in AfterWires pass; uses ctx.VisibleLinks + ctx.Graph
+        if (ctx.IsLowZoom) return;
+        LastInternalTransitionCount = 0;
+        LastLabelCount = 0;
+
+        var drawList = ctx.DrawList;
+        bool canDraw = Unsafe.As<ImDrawListPtr, nint>(ref drawList) != 0;
+
+        foreach (var linkId in ctx.VisibleLinks)
+        {
+            var t = _asset.FindTransitionByVisualId(linkId.Value);
+            if (t is null) continue;
+
+            string label = FormatLabel(t);
+            LastLabelCount++;
+
+            if (t.Kind == TransitionKind.Internal)
+            {
+                LastInternalTransitionCount++;
+                if (!canDraw) continue;
+
+                // Draw a small self-loop arc in the upper-right quadrant of the source state.
+                var stateSize = t.Source.SizeOverride ?? DefaultStateSize;
+                var stateMin = ctx.Viewport.GraphToScreen(t.Source.Position);
+                var stateMax = ctx.Viewport.GraphToScreen(t.Source.Position + stateSize);
+                var loopCenter = new Vector2(
+                    stateMin.X + (stateMax.X - stateMin.X) * 0.75f,
+                    stateMin.Y + (stateMax.Y - stateMin.Y) * 0.25f);
+                float loopRadius = Math.Min(10f * ctx.Zoom, (stateMax.Y - stateMin.Y) * 0.18f);
+                uint loopColor = ImGui.GetColorU32(new Vector4(0.8f, 0.8f, 0.2f, 0.9f));
+                drawList.AddCircle(loopCenter, loopRadius, loopColor, 16, 1.5f * ctx.Zoom);
+                drawList.AddText(loopCenter + new Vector2(loopRadius + 2f, -8f * ctx.Zoom), loopColor, label);
+            }
+            else
+            {
+                if (!canDraw) continue;
+
+                // Draw label at midpoint between source and target state positions.
+                var mid = ctx.Viewport.GraphToScreen(
+                    (t.Source.Position + t.Target.Position) * 0.5f);
+                uint textColor = ImGui.GetColorU32(new Vector4(0.9f, 0.9f, 0.9f, 1f));
+                drawList.AddText(mid, textColor, label);
+            }
+        }
     }
 
     // Formats the label string for a transition.

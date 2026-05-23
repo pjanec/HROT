@@ -172,7 +172,9 @@ public sealed class ReferenceCatalogTests
         public string SourceFilePath => string.Empty;
         public bool IsDirty => false;
         public bool IsEditorOwned => true;
+#pragma warning disable CS0067
         public event Action? Changed;
+#pragma warning restore CS0067
     }
 
     private sealed class FakeContributor : IReferenceCatalogContributor

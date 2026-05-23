@@ -76,4 +76,13 @@ public sealed class HsmGraphModel : IGraphModel
 
     public ILinkModel? FindLink(LinkId id) =>
         _linkCache.TryGetValue(id, out var link) ? link : null;
+
+    public IReadOnlyCollection<IAttachmentModel> Attachments =>
+        _asset.AllAttachments.ToList<IAttachmentModel>();
+
+    public IAttachmentModel? FindAttachment(AttachmentId id) =>
+        _asset.FindAttachmentById(id);
+
+    public IReadOnlyList<IAttachmentModel> GetAttachmentsForNode(NodeId hostId) =>
+        _asset.GetAttachmentsForNode(hostId).ToList<IAttachmentModel>();
 }

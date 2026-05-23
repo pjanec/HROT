@@ -23,7 +23,7 @@ internal sealed class HsmTransitionLink : ILinkModel
     public PinId ToPin   => new PinId(_transition.Target.HiddenInputPinId);
 
     public LinkStyle Style => _transition.Kind == TransitionKind.Internal
-        ? LinkStyle.Dashed
+        ? LinkStyle.Hidden
         : LinkStyle.Solid;
 
     public IReadOnlyList<Vector2> Waypoints => _transition.Waypoints;

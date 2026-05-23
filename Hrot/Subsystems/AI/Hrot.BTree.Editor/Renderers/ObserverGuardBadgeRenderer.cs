@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using ImGuiNET;
 using Hrot.BTree.Editor.Host;
 using NodeEditor.Core.Canvas;
@@ -21,9 +22,14 @@ public sealed class ObserverGuardBadgeRenderer : ICustomCanvasRenderer
     public string Id => "btree.observer_guard_badges";
     public CanvasRenderPass Pass => CanvasRenderPass.AfterWires;
 
+    // Number of badges drawn in the most recent Render() call.
+    // Used by unit tests that cannot inspect ImGui draw list calls directly.
+    internal int LastRenderBadgeCount;
+
     public void Render(ICanvasRenderContext ctx)
     {
         if (ctx.IsLowZoom) return;
+        LastRenderBadgeCount = 0;
 
         foreach (var linkId in ctx.VisibleLinks)
         {
@@ -43,6 +49,8 @@ public sealed class ObserverGuardBadgeRenderer : ICustomCanvasRenderer
             if (parentNode.Kind.Id != BTreeKinds.ObserverSelector) continue;
             if (childNode.Kind.Id  != BTreeKinds.Condition) continue;
 
+            LastRenderBadgeCount++;
+
             // Compute badge position: 30% along parent->child in graph space.
             var graphPos  = parentNode.Position + 0.3f * (childNode.Position - parentNode.Position);
             var screenPos = ctx.Viewport.GraphToScreen(graphPos);
@@ -56,6 +64,9 @@ public sealed class ObserverGuardBadgeRenderer : ICustomCanvasRenderer
         const string label = "OBSERVES";
         float fontSize = 10f * zoom;
         if (fontSize < 7f) return;   // too small to be legible
+
+        // Skip drawing when not running inside a live ImGui frame (e.g. unit tests).
+        if (Unsafe.As<ImDrawListPtr, nint>(ref dl) == 0) return;
 
         var textSize = ImGui.CalcTextSize(label);
         float padX   = 4f * zoom;

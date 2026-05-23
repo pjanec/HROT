@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Hrot.Hsm.Editor.Model;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
@@ -87,9 +89,109 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     private void ApplySetNodeProperty(GraphCommand.SetNodeProperty cmd) { /* TODO */ }
     private void ApplyChangeParent(GraphCommand.ChangeParent cmd)     { /* TODO */ }
     private void ApplySetContainerCollapsed(GraphCommand.SetContainerCollapsed cmd) { /* TODO */ }
-    private void ApplyAddRegion(GraphCommand.AddRegion cmd)           { /* TODO */ }
-    private void ApplyRemoveRegion(GraphCommand.RemoveRegion cmd)     { /* TODO */ }
-    private void ApplyReorderRegions(GraphCommand.ReorderRegions cmd) { /* TODO */ }
-    private void ApplyAddAttachment(GraphCommand.AddAttachment cmd)   { /* TODO */ }
-    private void ApplyRemoveAttachments(GraphCommand.RemoveAttachments cmd) { /* TODO */ }
+    private void ApplyAddRegion(GraphCommand.AddRegion cmd)
+    {
+        var state = _asset.FindStateByStableId(cmd.ContainerId.Value);
+        if (state is null) return;
+
+        var region = new RegionNode(cmd.RegionName) { Priority = (byte)cmd.Priority };
+        int insertAt = Math.Clamp(cmd.InsertAtIndex, 0, state.RegionNodes.Count);
+        state.RegionNodes.Insert(insertAt, region);
+
+        // Reindex all regions so RegionIndex stays contiguous.
+        for (int i = 0; i < state.RegionNodes.Count; i++)
+            state.RegionNodes[i].RegionIndex = (byte)i;
+
+        _asset.RegisterRegion(region);
+    }
+
+    private void ApplyRemoveRegion(GraphCommand.RemoveRegion cmd)
+    {
+        var state = _asset.FindStateByStableId(cmd.ContainerId.Value);
+        if (state is null) return;
+        if (cmd.RegionIndex < 0 || cmd.RegionIndex >= state.RegionNodes.Count) return;
+
+        var region = state.RegionNodes[cmd.RegionIndex];
+
+        // Redistribute children of the removed region.
+        switch (cmd.Policy)
+        {
+            case ChildRedistributionPolicy.MoveToFirstRegion:
+                // Move children to region 0 if it is different from the one being removed.
+                int targetRegion = cmd.RegionIndex == 0 ? 1 : 0;
+                if (targetRegion < state.RegionNodes.Count)
+                {
+                    foreach (var child in state.Children)
+                        if (child.RegionIndex == cmd.RegionIndex)
+                            child.RegionIndex = targetRegion;
+                }
+                else
+                {
+                    // No other region to move to; leave children with index 0.
+                    foreach (var child in state.Children)
+                        if (child.RegionIndex == cmd.RegionIndex)
+                            child.RegionIndex = 0;
+                }
+                break;
+
+            case ChildRedistributionPolicy.MoveToParent:
+                // Promote children to no-region (index 0, parent owns them).
+                foreach (var child in state.Children)
+                    if (child.RegionIndex == cmd.RegionIndex)
+                        child.RegionIndex = 0;
+                break;
+
+            case ChildRedistributionPolicy.DeleteChildren:
+                // Remove children from the state's child list.
+                state.Children.RemoveAll(c => c.RegionIndex == cmd.RegionIndex);
+                break;
+        }
+
+        state.RegionNodes.RemoveAt(cmd.RegionIndex);
+        _asset.UnregisterRegion(region);
+
+        // Reindex remaining regions.
+        for (int i = 0; i < state.RegionNodes.Count; i++)
+            state.RegionNodes[i].RegionIndex = (byte)i;
+    }
+
+    private void ApplyReorderRegions(GraphCommand.ReorderRegions cmd)
+    {
+        var state = _asset.FindStateByStableId(cmd.ContainerId.Value);
+        if (state is null) return;
+        if (cmd.NewOrder.Count != state.RegionNodes.Count) return;
+
+        var reordered = new List<RegionNode>(state.RegionNodes.Count);
+        foreach (var oldIndex in cmd.NewOrder)
+        {
+            if (oldIndex < 0 || oldIndex >= state.RegionNodes.Count) return;
+            reordered.Add(state.RegionNodes[oldIndex]);
+        }
+
+        state.RegionNodes.Clear();
+        state.RegionNodes.AddRange(reordered);
+
+        // Reindex so RegionIndex matches the new positions.
+        for (int i = 0; i < state.RegionNodes.Count; i++)
+            state.RegionNodes[i].RegionIndex = (byte)i;
+    }
+
+    private void ApplyAddAttachment(GraphCommand.AddAttachment cmd)
+    {
+        var att = new HsmAttachment(
+            cmd.NewId,
+            cmd.HostNodeId,
+            cmd.Category,
+            cmd.Glyph,
+            cmd.Label,
+            cmd.Tooltip,
+            cmd.StackIndex,
+            cmd.HostProperties);
+        _asset.AddAttachment(att);
+    }
+
+    private void ApplyRemoveAttachments(GraphCommand.RemoveAttachments cmd)
+    {
+        _asset.RemoveAttachments(cmd.AttachmentIds);
+    }
 }

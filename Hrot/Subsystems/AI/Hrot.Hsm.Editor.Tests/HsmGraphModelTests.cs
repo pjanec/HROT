@@ -207,11 +207,13 @@ public class HsmGraphModelTests
     }
 
     [Fact]
-    public void TransitionLink_internal_is_Dashed()
+    public void TransitionLink_internal_is_Hidden()
     {
         var (_, _, tn) = MakeTransition(TransitionKind.Internal);
         var link = new HsmTransitionLink(tn);
-        link.Style.Should().Be(LinkStyle.Dashed);
+        // Internal transitions use Hidden so the default wire renderer skips them;
+        // the custom canvas renderer draws the looping arrow inside the state bounds.
+        link.Style.Should().Be(LinkStyle.Hidden);
     }
 
     // ---- HsmGraphModel tests ----

@@ -50,6 +50,10 @@ public sealed class HsmAsset : IEditableAsset
     private readonly Dictionary<ushort, TransitionNode> _flatIndexToTransition;
     private readonly Dictionary<ushort, EventDefinition> _eventIdToEvent;
 
+    // Mutable backing lists for regions and attachments (mutated by HsmCommandSink).
+    private readonly List<RegionNode> _allRegionsList;
+    private readonly Dictionary<AttachmentId, HsmAttachment> _attachments = new();
+
     public event Action? Changed;
 
     internal HsmAsset(
@@ -80,6 +84,7 @@ public sealed class HsmAsset : IEditableAsset
         AllGlobalTransitions = allGlobalTransitions.AsReadOnly();
         AllRegions = allRegions.AsReadOnly();
         AllEvents = allEvents.AsReadOnly();
+        _allRegionsList = allRegions;
 
         _stableIdToState = new Dictionary<Guid, StateNode>(allStates.Count);
         _visualIdToTransition = new Dictionary<Guid, TransitionNode>(allTransitions.Count);
@@ -127,6 +132,50 @@ public sealed class HsmAsset : IEditableAsset
     {
         IsDirty = true;
         Changed?.Invoke();
+    }
+
+    // ---- Region mutation helpers (called by HsmCommandSink) ----
+
+    // Registers a new region in the asset-level lookup dictionary and backing list.
+    // The caller is responsible for inserting the region into the parent StateNode.RegionNodes.
+    internal void RegisterRegion(RegionNode region)
+    {
+        _allRegionsList.Add(region);
+        _stableIdToRegion[region.StableId] = region;
+    }
+
+    // Unregisters a region from the asset-level lookup dictionary and backing list.
+    // The caller is responsible for removing the region from the parent StateNode.RegionNodes.
+    internal void UnregisterRegion(RegionNode region)
+    {
+        _allRegionsList.Remove(region);
+        _stableIdToRegion.Remove(region.StableId);
+    }
+
+    // ---- Attachment mutation helpers (called by HsmCommandSink) ----
+
+    internal void AddAttachment(HsmAttachment attachment)
+    {
+        _attachments[attachment.Id] = attachment;
+    }
+
+    internal void RemoveAttachments(IReadOnlyList<AttachmentId> ids)
+    {
+        foreach (var id in ids)
+            _attachments.Remove(id);
+    }
+
+    internal HsmAttachment? FindAttachmentById(AttachmentId id) =>
+        _attachments.GetValueOrDefault(id);
+
+    internal IEnumerable<HsmAttachment> AllAttachments => _attachments.Values;
+
+    internal IReadOnlyList<HsmAttachment> GetAttachmentsForNode(NodeId hostId)
+    {
+        var result = new List<HsmAttachment>();
+        foreach (var att in _attachments.Values)
+            if (att.HostNodeId == hostId) result.Add(att);
+        return result;
     }
 }
 
