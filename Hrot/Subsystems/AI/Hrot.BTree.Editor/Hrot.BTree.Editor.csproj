@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The BTree editor does not publish DDS topics; disable transitive codegen -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
   </PropertyGroup>
 
   <ItemGroup>
