@@ -9,7 +9,7 @@ namespace NodeEditor.Demo.FakeBlueprint;
 /// <summary>Mutable in-memory graph model for the demo.</summary>
 public sealed class FakeGraphModel : IGraphModel
 {
-    private readonly Dictionary<NodeId,        FakeNodeModel>        _nodes       = new();
+    private readonly Dictionary<NodeId,        INodeModel>           _nodes       = new();
     private readonly Dictionary<LinkId,        FakeLinkModel>        _links       = new();
     private readonly Dictionary<CommentId,     FakeCommentModel>     _comments    = new();
     private readonly Dictionary<AttachmentId,  FakeAttachmentModel>  _attachments = new();
@@ -64,11 +64,18 @@ public sealed class FakeGraphModel : IGraphModel
         return node;
     }
 
+    public FakeContainerModel AddContainer(NodeId id, string title, Vector2 pos)
+    {
+        var c = new FakeContainerModel(id, title, pos);
+        _nodes[id] = c;
+        return c;
+    }
+
     public void RemoveNode(NodeId id) => _nodes.Remove(id);
 
     public void SetNodePosition(NodeId id, Vector2 pos)
     {
-        if (_nodes.TryGetValue(id, out var n)) n.SetPosition(pos);
+        if (_nodes.TryGetValue(id, out var n) && n is FakeNodeModel fn) fn.SetPosition(pos);
     }
 
     public FakeLinkModel AddLink(LinkId id, PinId from, PinId to)

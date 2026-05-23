@@ -58,4 +58,33 @@ public interface IEditorTheme
 
     /// <summary>Horizontal gap between adjacent pills. Default: 4.</summary>
     float AttachmentInterGap      => 4f;
+
+    // ---- Container geometry and appearance (defaults match spec NEC ss16) ----
+
+    /// <summary>Container node corner radius at zoom 1.0. Default: 6 px.</summary>
+    float ContainerCornerRadius       => 6f;
+
+    /// <summary>Container outline thickness at zoom 1.0. Default: 2 px.</summary>
+    float ContainerOutlineWidth       => 2f;
+
+    /// <summary>Container header height at zoom 1.0. Default: 24 px (matches regular node header).</summary>
+    float ContainerHeaderHeight       => 24f;
+
+    /// <summary>Alpha for the container's interior background fill. Default: 0.08.</summary>
+    float ContainerInteriorAlpha      => 0.08f;
+
+    /// <summary>Region header strip height in screen pixels. Default: 18 px.</summary>
+    float ContainerRegionHeaderHeight => 18f;
+
+    /// <summary>Region divider line width in screen pixels. Default: 1 px.</summary>
+    float ContainerRegionDividerWidth => 1f;
+
+    /// <summary>Dash pattern for region dividers: X = on length, Y = off length. Default: (4, 3).</summary>
+    System.Numerics.Vector2 ContainerRegionDividerDashLen => new(4f, 3f);
+
+    /// <summary>Default interior padding applied to containers that don't override it.</summary>
+    ContainerPadding ContainerDefaultPadding => ContainerPadding.Default;
+
+    /// <summary>Default minimum interior size in graph units. Default: (200, 100).</summary>
+    System.Numerics.Vector2 ContainerDefaultMinimumInterior => new(200f, 100f);
 }

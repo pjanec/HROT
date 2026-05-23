@@ -88,6 +88,7 @@ public sealed class DemoShell
         _scenarios.Add(new S32_HotReloadConflict());
         _scenarios.Add(new S33_BigGraph());
         _scenarios.Add(new S34_NodeAttachments());
+        _scenarios.Add(new S35_ContainerNodes());
 
         ApplyScenario(0);
     }

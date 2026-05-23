@@ -52,7 +52,7 @@
 - [x] **TASK-NEC-09** — Z-order and overlap rules → [details](./TASK-DETAIL.md#task-nec-09--z-order-and-overlap-rules)
 - [x] **TASK-NEC-10** — Serialization-order determinism → [details](./TASK-DETAIL.md#task-nec-10--serialization-order-determinism)
 - [x] **TASK-NEC-11** — Low-zoom container rendering → [details](./TASK-DETAIL.md#task-nec-11--low-zoom-container-rendering)
-- [ ] **TASK-NEC-12** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-nec-12--theme-additions-and-demo-scenario)
+- [x] **TASK-NEC-12** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-nec-12--theme-additions-and-demo-scenario)
 
 ## Phase 4 — NodeEditor: CustomCanvasRenderer extension
 - [ ] **TASK-NER-01** — `ICustomCanvasRenderer` interface + registration → [details](./TASK-DETAIL.md#task-ner-01--icustomcanvasrenderer-interface-and-registration)
