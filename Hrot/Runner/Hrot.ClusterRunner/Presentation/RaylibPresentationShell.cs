@@ -11,7 +11,7 @@ internal sealed class RaylibPresentationShell : IPresentationShell
 
     public void InitWindow(int width, int height, string title, int targetFps)
     {
-        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow | Raylib_cs.ConfigFlags.Msaa4xHint);
+        Raylib_cs.Raylib.SetConfigFlags(Raylib_cs.ConfigFlags.ResizableWindow);
         Raylib_cs.Raylib.InitWindow(width, height, title);
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(targetFps);
