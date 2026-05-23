@@ -1,7 +1,11 @@
 using Fdp.Core;
+using Fhsm.Kernel.Data;
+using FluentAssertions;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Hsm.Editor.Debug;
-using FluentAssertions;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Hrot.Hsm.Editor.Tests.Debug;
@@ -281,5 +285,92 @@ public sealed class HsmDebugSessionTests
         session.HeatmapModeActive = true;
         session.Detach();
         session.GetStateEntryCounts(Guid.NewGuid()).Should().BeNull();
+    }
+
+    // ---- ECS Update() tests -----------------------------------------------
+
+    private static EntityRepository CreateWorld()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<BrainHsm64>();
+        world.RegisterComponent<BrainHsm128>();
+        world.RegisterComponent<HsmTraceWorkingMemory1024>();
+        return world;
+    }
+
+    [Fact]
+    public void Update_WithNoBrainHsm_SnapshotRemainsNull()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var sut    = new HsmDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot().Should().BeNull();
+    }
+
+    [Fact]
+    public void Update_WithBrainHsm64_SnapshotIsNotNull()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Activity;
+        world.AddComponent(entity, brain);
+        var sut = new HsmDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Update_WithBrainHsm64_SnapshotHasCorrectPhase()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Activity;
+        world.AddComponent(entity, brain);
+        var sut = new HsmDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot()!.Phase.Should().Be(InstancePhase.Activity);
+    }
+
+    [Fact]
+    public unsafe void Update_WithHsmTraceBuffer_PopulatesTraceHistory()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Idle;
+        world.AddComponent(entity, brain);
+
+        var mem = new HsmTraceWorkingMemory1024();
+        mem.LastInstanceId = 1;
+        // Write 3 StateEnter headers manually into the ring buffer.
+        HsmTraceWorkingMemory1024* memPtr =
+            (HsmTraceWorkingMemory1024*)Unsafe.AsPointer(ref mem);
+        for (int i = 0; i < 3; i++)
+        {
+            var hdr = (TraceRecordHeader*)(memPtr->Buffer + mem.WritePos);
+            *hdr = default;
+            hdr->OpCode     = TraceOpCode.StateEnter;
+            hdr->Timestamp  = (ushort)(i + 1);
+            hdr->InstanceId = 1;
+            mem.WritePos = (ushort)((mem.WritePos + HsmTraceWorkingMemory1024.RecordStride)
+                                     % HsmTraceWorkingMemory1024.PayloadBytes);
+            if (mem.RecordCount < HsmTraceWorkingMemory1024.CapacityRecords)
+                mem.RecordCount++;
+        }
+        world.AddComponent(entity, mem);
+        var sut = new HsmDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetRecentTraceHistory(10).Should().HaveCount(3);
     }
 }

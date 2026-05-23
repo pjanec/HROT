@@ -1,4 +1,8 @@
+using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fhsm.Kernel.Data;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Hrot.Editor.AiShared.Debug;
 
 namespace Hrot.Hsm.Editor.Debug;
@@ -17,6 +21,9 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     private bool _heatmapModeActive;
     private readonly Dictionary<Guid, int> _stateEntryCounts = new();
 
+    private HsmInstanceSnapshot? _currentSnapshot;
+    private ushort _lastReadPos;
+
     public event Action<HsmBreakpointHit>?  OnBreakpointHit;
     public event Action<HsmStateEntered>?   OnStateEntered;
     public event Action<HsmStateExited>?    OnStateExited;
@@ -28,8 +35,7 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
 
     // ---- IHsmDebugSession ------------------------------------------------
 
-    // Returns null until the kernel snapshot adapter is implemented (Slice 3+).
-    public HsmInstanceSnapshot? GetCurrentStateSnapshot() => null;
+    public HsmInstanceSnapshot? GetCurrentStateSnapshot() => _currentSnapshot;
 
     public IReadOnlyList<HsmTraceRecord> GetRecentTraceHistory(int max = 100)
     {
@@ -51,6 +57,89 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     }
 
     public void ResetStateEntryCounts() => _stateEntryCounts.Clear();
+
+    // ---- ECS snapshot + trace polling (called once per frame) -------------
+
+    /// <summary>
+    /// Reads the current HSM instance snapshot from the entity and polls
+    /// any pending trace records from HsmTraceWorkingMemory1024.
+    /// </summary>
+    public unsafe void Update(EntityRepository repo, Entity entity)
+    {
+        // === Snapshot ===
+        HsmInstanceSnapshot? snap = null;
+
+        if (repo.HasComponent<BrainHsm64>(entity))
+        {
+            ref readonly var comp = ref repo.GetComponentRO<BrainHsm64>(entity);
+            snap = new HsmInstanceSnapshot(
+                entity, Guid.Empty,
+                Array.Empty<Guid>(),
+                Array.Empty<HsmEventQueueEntry>(),
+                Array.Empty<HsmTimerSlot>(),
+                Array.Empty<HsmHistorySlot>(),
+                comp.State.Header.Phase,
+                comp.State.Header.MicroStep,
+                0,
+                comp.State.Header.Flags,
+                comp.State.Header.RngState,
+                comp.State.Header.Generation);
+        }
+        else if (repo.HasComponent<BrainHsm128>(entity))
+        {
+            ref readonly var comp = ref repo.GetComponentRO<BrainHsm128>(entity);
+            snap = new HsmInstanceSnapshot(
+                entity, Guid.Empty,
+                Array.Empty<Guid>(),
+                Array.Empty<HsmEventQueueEntry>(),
+                Array.Empty<HsmTimerSlot>(),
+                Array.Empty<HsmHistorySlot>(),
+                comp.State.Header.Phase,
+                comp.State.Header.MicroStep,
+                0,
+                comp.State.Header.Flags,
+                comp.State.Header.RngState,
+                comp.State.Header.Generation);
+        }
+        _currentSnapshot = snap;
+
+        // === Trace polling ===
+        if (!repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
+            return;
+
+        ref readonly var trace = ref repo.GetComponentRO<HsmTraceWorkingMemory1024>(entity);
+        if (trace.WritePos == _lastReadPos)
+            return;
+
+        ref var traceMut = ref Unsafe.AsRef(in trace);
+        HsmTraceWorkingMemory1024* tracePtr = (HsmTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMut);
+        byte* bufBase = tracePtr->Buffer;
+        ushort pos = _lastReadPos;
+        while (pos != trace.WritePos)
+        {
+            var hdr = (TraceRecordHeader*)(bufBase + pos);
+            switch (hdr->OpCode)
+            {
+                case TraceOpCode.StateEnter:
+                    RecordTrace(new HsmStateEntered(
+                        entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
+                    break;
+                case TraceOpCode.StateExit:
+                    RecordTrace(new HsmStateExited(
+                        entity, Guid.Empty, Guid.Empty, (float)hdr->Timestamp));
+                    break;
+                case TraceOpCode.Transition:
+                    var trans = (TraceTransition*)(bufBase + pos);
+                    RecordTrace(new HsmTransitionFired(
+                        entity, Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty,
+                        trans->TriggerEventId, false, 0, (float)hdr->Timestamp));
+                    break;
+            }
+            pos = (ushort)((pos + HsmTraceWorkingMemory1024.RecordStride)
+                           % HsmTraceWorkingMemory1024.PayloadBytes);
+        }
+        _lastReadPos = trace.WritePos;
+    }
 
     // ---- Kernel adapter entry points (called by future kernel adapter) ---
 
@@ -100,6 +189,8 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
 
     protected override void OnDetachImpl()
     {
+        _currentSnapshot = null;
+        _lastReadPos     = 0;
         _history.Clear();
         _stateEntryCounts.Clear();
         _heatmapModeActive = false;

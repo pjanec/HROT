@@ -1,4 +1,8 @@
+using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fbt;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Hrot.Editor.AiShared.Debug;
 
 namespace Hrot.BTree.Editor.Debug;
@@ -18,6 +22,9 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     private bool _heatmapModeActive;
     private readonly Dictionary<Guid, int> _aggregateCounters = new();
 
+    private BehaviorTreeStateSnapshot? _currentSnapshot;
+    private ushort _lastReadPos;
+
     public event Action<BTreeBreakpointHit>? OnBreakpointHit;
     public event Action<BTreeNodeExecuted>?  OnNodeExecuted;
     public event Action<BTreeAsyncEvent>?    OnAsyncIssued;
@@ -26,8 +33,7 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
 
     // ---- IBTreeDebugSession ------------------------------------------------
 
-    // Returns null until the kernel snapshot adapter is implemented (Slice 3+).
-    public BehaviorTreeStateSnapshot? GetCurrentStateSnapshot() => null;
+    public BehaviorTreeStateSnapshot? GetCurrentStateSnapshot() => _currentSnapshot;
 
     public IReadOnlyList<BTreeNodeExecuted> GetRecentNodeHistory(int max = 100)
     {
@@ -55,6 +61,82 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     }
 
     public void ResetAggregateCounters() => _aggregateCounters.Clear();
+
+    // ---- ECS snapshot + trace polling (called once per frame) ---------------
+
+    /// <summary>
+    /// Reads the current BehaviorTreeState snapshot from the entity and polls
+    /// any pending trace records from BTreeTraceWorkingMemory1024.
+    /// </summary>
+    public unsafe void Update(EntityRepository repo, Entity entity)
+    {
+        // === Snapshot ===
+        if (!repo.HasComponent<BrainBTreeState>(entity))
+        {
+            _currentSnapshot = null;
+        }
+        else
+        {
+            ref readonly var comp = ref repo.GetComponentRO<BrainBTreeState>(entity);
+            ushort runningNodeIndex = comp.State.RunningNodeIndex;
+            ushort sp               = comp.State.StackPointer;
+            uint   treeVersion      = comp.State.TreeVersion;
+
+            int stackLen = Math.Min(8, (int)sp + 1);
+            var stack    = new int[stackLen];
+            var stackIds = new Guid?[stackLen];
+            var regs     = new int[4];
+            var handles  = new ulong[3];
+
+            ref var stateMut = ref Unsafe.AsRef(in comp.State);
+            BehaviorTreeState* statePtr = (BehaviorTreeState*)Unsafe.AsPointer(ref stateMut);
+            for (int i = 0; i < stackLen; i++) stack[i]   = statePtr->NodeIndexStack[i];
+            for (int i = 0; i < 4; i++)        regs[i]    = statePtr->LocalRegisters[i];
+            for (int i = 0; i < 3; i++)        handles[i] = statePtr->AsyncHandles[i];
+
+            _currentSnapshot = new BehaviorTreeStateSnapshot(
+                entity, Guid.Empty, runningNodeIndex, null,
+                sp, stack, stackIds, regs, handles, treeVersion);
+        }
+
+        // === Trace polling ===
+        if (!repo.HasComponent<BTreeTraceWorkingMemory1024>(entity))
+            return;
+
+        ref readonly var trace = ref repo.GetComponentRO<BTreeTraceWorkingMemory1024>(entity);
+        if (trace.WritePos == _lastReadPos)
+            return;
+
+        ref var traceMut = ref Unsafe.AsRef(in trace);
+        BTreeTraceWorkingMemory1024* tracePtr = (BTreeTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMut);
+        byte* bufBase = tracePtr->Buffer;
+        ushort pos = _lastReadPos;
+        while (pos != trace.WritePos)
+        {
+            var rec = (BTreeTraceRecord*)(bufBase + pos);
+            switch (rec->OpCode)
+            {
+                case BTreeTraceOpCode.NodeEvaluated:
+                    RecordNodeExecuted(new BTreeNodeExecuted(
+                        entity, Guid.Empty, Guid.Empty,
+                        rec->Status, 0f, rec->Timestamp));
+                    break;
+                case BTreeTraceOpCode.WaitStarted:
+                    RecordAsyncEvent(new BTreeAsyncEvent(
+                        entity, Guid.Empty, Guid.Empty,
+                        rec->NodeIndex, 0u, BTreeAsyncPhase.Issued, 0f));
+                    break;
+                case BTreeTraceOpCode.WaitCompleted:
+                    RecordAsyncEvent(new BTreeAsyncEvent(
+                        entity, Guid.Empty, Guid.Empty,
+                        rec->NodeIndex, 0u, BTreeAsyncPhase.Resolved, 0f));
+                    break;
+            }
+            pos = (ushort)((pos + BTreeTraceWorkingMemory1024.RecordStride)
+                           % BTreeTraceWorkingMemory1024.PayloadBytes);
+        }
+        _lastReadPos = trace.WritePos;
+    }
 
     // ---- Kernel adapter entry points (called by future kernel adapter) -----
 
@@ -106,6 +188,8 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
 
     protected override void OnDetachImpl()
     {
+        _currentSnapshot   = null;
+        _lastReadPos       = 0;
         _nodeHistory.Clear();
         _asyncHistory.Clear();
         _aggregateCounters.Clear();

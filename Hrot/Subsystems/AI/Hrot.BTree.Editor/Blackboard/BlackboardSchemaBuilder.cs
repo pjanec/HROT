@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Hrot.BTree.Editor.Blackboard;
 
@@ -14,10 +15,23 @@ public static class BlackboardSchemaBuilder
         var fields = new List<BlackboardField>();
         foreach (var fi in structType.GetFields(BindingFlags.Public | BindingFlags.Instance))
         {
-            var kind = ClassifyFieldType(fi.FieldType);
-            fields.Add(new BlackboardField(fi.Name, fi.FieldType, kind));
+            var kind   = ClassifyFieldType(fi.FieldType);
+            int offset = TryGetOffset(structType, fi.Name);
+            fields.Add(new BlackboardField(fi.Name, fi.FieldType, kind, offset));
         }
         return new BlackboardSchema(structType, fields.AsReadOnly());
+    }
+
+    private static int TryGetOffset(Type structType, string fieldName)
+    {
+        try
+        {
+            return (int)Marshal.OffsetOf(structType, fieldName);
+        }
+        catch
+        {
+            return -1;
+        }
     }
 
     private static BlackboardFieldKind ClassifyFieldType(Type t)

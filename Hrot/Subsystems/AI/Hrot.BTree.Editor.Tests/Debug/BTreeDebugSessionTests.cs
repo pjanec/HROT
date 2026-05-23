@@ -3,6 +3,8 @@ using Fbt;
 using FluentAssertions;
 using Hrot.BTree.Editor.Debug;
 using Hrot.Editor.AiShared.Debug;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Xunit;
 
 namespace Hrot.BTree.Editor.Tests.Debug;
@@ -331,5 +333,96 @@ public class BTreeDebugSessionTests
         // IsAttached starts true in AiDebugSessionBase; Detach() sets it false
         sut.Detach();
         sut.GetAggregateCounters(Guid.NewGuid()).Should().BeNull();
+    }
+
+    // ---- ECS Update() tests -----------------------------------------------
+
+    private static EntityRepository CreateWorld()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<BrainBTreeState>();
+        world.RegisterComponent<BTreeTraceWorkingMemory1024>();
+        return world;
+    }
+
+    [Fact]
+    public void Update_WithNoBrainBTreeState_SnapshotRemainsNull()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var sut    = new BTreeDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot().Should().BeNull();
+    }
+
+    [Fact]
+    public void Update_WithBrainBTreeState_SnapshotIsNotNull()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainBTreeState();
+        world.AddComponent(entity, brain);
+        var sut = new BTreeDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Update_WithBrainBTreeState_SnapshotHasCorrectRunningNodeIndex()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainBTreeState();
+        brain.State.RunningNodeIndex = 7;
+        world.AddComponent(entity, brain);
+        var sut = new BTreeDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetCurrentStateSnapshot()!.RunningNodeIndex.Should().Be(7);
+    }
+
+    [Fact]
+    public void Update_WithTraceBuffer_PopulatesNodeHistory()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainBTreeState();
+        brain.State.RunningNodeIndex = 1;
+        world.AddComponent(entity, brain);
+        var mem = new BTreeTraceWorkingMemory1024();
+        mem.LastInstanceId = 1;
+        mem.WriteNodeEvaluated(1, NodeStatus.Success, 1);
+        mem.WriteNodeEvaluated(2, NodeStatus.Running, 2);
+        mem.WriteNodeEvaluated(3, NodeStatus.Failure, 3);
+        world.AddComponent(entity, mem);
+        var sut = new BTreeDebugSession();
+
+        sut.Update(world, entity);
+
+        sut.GetRecentNodeHistory(10).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void Update_SecondCallWithNoNewRecords_DoesNotRepopulate()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        var brain  = new BrainBTreeState();
+        world.AddComponent(entity, brain);
+        var mem = new BTreeTraceWorkingMemory1024();
+        mem.LastInstanceId = 1;
+        mem.WriteNodeEvaluated(1, NodeStatus.Success, 1);
+        world.AddComponent(entity, mem);
+        var sut = new BTreeDebugSession();
+
+        sut.Update(world, entity);
+        sut.Update(world, entity);
+
+        sut.GetRecentNodeHistory(10).Should().HaveCount(1);
     }
 }
