@@ -39,4 +39,10 @@ public interface IEditorHostServices
 
     /// <summary>Theme (colors, fonts, sizes).</summary>
     IEditorTheme Theme { get; }
+
+    /// <summary>
+    /// Optional provider for attachment right-click context menus.
+    /// Returns null when no provider is registered.
+    /// </summary>
+    IAttachmentContextMenuProvider? AttachmentContextMenu => null;
 }

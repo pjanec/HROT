@@ -28,6 +28,9 @@ public sealed class SelectionState
     public IEnumerable<RerouteRef> Reroutes =>
         _items.Where(e => e.Kind == SelectionEntryKind.Reroute).Select(e => e.Reroute);
 
+    public IEnumerable<AttachmentId> Attachments =>
+        _items.Where(e => e.Kind == SelectionEntryKind.Attachment).Select(e => e.Attachment);
+
     /// <summary>Replace the selection with exactly one entry.</summary>
     public void ReplaceWith(SelectionEntry entry)
     {

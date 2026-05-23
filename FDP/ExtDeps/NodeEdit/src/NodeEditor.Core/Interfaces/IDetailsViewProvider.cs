@@ -55,4 +55,8 @@ public abstract record DetailsTarget
     public sealed record FunctionEntry(string FunctionId) : DetailsTarget;
     public sealed record Comment(CommentId Id) : DetailsTarget;
     public sealed record Asset : DetailsTarget;
+    /// <summary>A single selected attachment.</summary>
+    public sealed record SingleAttachment(AttachmentId Id) : DetailsTarget;
+    /// <summary>Multiple selected attachments.</summary>
+    public sealed record MultipleAttachments(IReadOnlyList<AttachmentId> Ids) : DetailsTarget;
 }

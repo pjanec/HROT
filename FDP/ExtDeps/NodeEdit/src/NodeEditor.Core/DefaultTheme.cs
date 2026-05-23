@@ -49,4 +49,16 @@ public sealed class DefaultTheme : IEditorTheme
     /// so callers fall back to the active ImGui default font.
     /// </remarks>
     public nint GetFontForSize(float targetPixelSize) => 0;
+
+    // ---- Attachment pill colors ----
+    public Vector4 AttachmentDecoratorColor { get; init; } = new(0x8E / 255f, 0x44 / 255f, 0xAD / 255f, 1f);
+    public Vector4 AttachmentFlagColor      { get; init; } = new(0x16 / 255f, 0xA0 / 255f, 0x85 / 255f, 1f);
+    public Vector4 AttachmentPureColor      { get; init; } = new(0x27 / 255f, 0xAE / 255f, 0x60 / 255f, 1f);
+    public Vector4 AttachmentCustomColor    { get; init; } = new(0x7F / 255f, 0x8C / 255f, 0x8D / 255f, 1f);
+
+    // ---- Attachment pill geometry ----
+    public float AttachmentHeight       { get; init; } = 20f;
+    public float AttachmentCornerRadius { get; init; } = 8f;
+    public float AttachmentGapAboveHost { get; init; } = 6f;
+    public float AttachmentInterGap     { get; init; } = 4f;
 }
