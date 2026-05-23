@@ -5,11 +5,6 @@
 - **/.*
 - **/obj
 - **/bin
-- **/tests
-- **/Tests
-- **/*.Tests*
-- **/*Benchmark*
-- **/*benchmark*
 - **/build
 - **/artifacts
 - **/Generated/*
@@ -19,13 +14,13 @@
 - **/*.md
 - **/*.fdp
 - FDP/Kernel/Fdp.Kernel.Examples 
-- FDP/ExtDeps
-+ FDP/ExtDeps/StructEdit
-+ FDP/ExtDeps/FastBTree/src 
-+ FDP/ExtDeps/FastHSM/src
-+ FDP/ExtDeps/GizmoMap
 - scripts
 - TestResults
 - *.txt
 - *.log
+- **/tests
+- **/Tests
+- **/*.Tests*
+- **/*Benchmark*
+- **/*benchmark*
 
