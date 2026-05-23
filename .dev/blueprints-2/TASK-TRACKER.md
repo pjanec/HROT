@@ -114,8 +114,8 @@
 - [x] **TASK-HS-S1-25** — HSM Quick Reload classification → [details](./TASK-DETAIL.md#task-hs-s1-25--quick-reload-classification-hsm)
 
 ## Phase 7 — Shared infrastructure: refactor + find-references
-- [ ] **TASK-S7-01** — `IRefactorService` core (find/preview/apply) → [details](./TASK-DETAIL.md#task-s7-01--irefactorservice-core)
-- [ ] **TASK-S7-02** — `AtomicMultiFileWriter` → [details](./TASK-DETAIL.md#task-s7-02--atomicmultifilewriter)
+- [x] **TASK-S7-01** — `IRefactorService` core (find/preview/apply) → [details](./TASK-DETAIL.md#task-s7-01--irefactorservice-core)
+- [x] **TASK-S7-02** — `AtomicMultiFileWriter` → [details](./TASK-DETAIL.md#task-s7-02--atomicmultifilewriter)
 - [ ] **TASK-S7-03** — `FindResultsWindow` → [details](./TASK-DETAIL.md#task-s7-03--findresultswindow)
 - [ ] **TASK-S7-04** — Inspector right-click integration → [details](./TASK-DETAIL.md#task-s7-04--inspector-right-click-integration)
 - [ ] **TASK-S7-05** — Asset Browser refactor integration → [details](./TASK-DETAIL.md#task-s7-05--asset-browser-refactor-integration)
