@@ -12,16 +12,16 @@ Status: not-fixed | fixed
 
 | Test | Status |
 |------|--------|
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_1_LineMidpoint_IsHit` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_2_BeyondEndpoint_IsMiss` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_3_SphereCenter_IsHit` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_4_ScreenPixels_ZoomScalesHitRadius` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_1_HitPickable_PushesProxyTool` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_2_OnEnter_PublishesStartedEventOnce` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_3_MissedClick_NoToolPushed` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_5_NullCanvas_FallbackPublishesEvent` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Gizmos.DebugGizmoLayerGizmoTests.SC_GZ013_1_Draw_WithInjectedRenderer_NoException` | not-fixed |
-| `Fdp.Toolkit.Vis2D.Tests.Gizmos.DebugGizmoLayerGizmoTests.SC_GZ013_2_HandleInput_HitPrimitive_ReturnsTrueAndPublishesEvent` | not-fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_1_LineMidpoint_IsHit` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_2_BeyondEndpoint_IsMiss` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_3_SphereCenter_IsHit` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_4_ScreenPixels_ZoomScalesHitRadius` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_1_HitPickable_PushesProxyTool` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_2_OnEnter_PublishesStartedEventOnce` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_3_MissedClick_NoToolPushed` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_5_NullCanvas_FallbackPublishesEvent` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Gizmos.DebugGizmoLayerGizmoTests.SC_GZ013_1_Draw_WithInjectedRenderer_NoException` | fixed |
+| `Fdp.Toolkit.Vis2D.Tests.Gizmos.DebugGizmoLayerGizmoTests.SC_GZ013_2_HandleInput_HitPrimitive_ReturnsTrueAndPublishesEvent` | fixed |
 
 ---
 

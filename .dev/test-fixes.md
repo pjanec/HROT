@@ -41,3 +41,36 @@ dotnet test FDP\FDP.sln --no-build --filter "FullyQualifiedName~DebugGizmoLayerH
 ```
 
 Result: **Failed: 0, Passed: 12, Skipped: 0**
+
+---
+
+## FDP-G03: ModuleHost SharedSnapshotProvider
+
+**Tests fixed:**
+- `ConvoyAutoGroupingTests` (3 tests) — legacy `ModuleTier.Slow` modules sharing one `SharedSnapshotProvider`
+- `ProviderAssignmentTests.ProviderAssignment_AsyncSoD_MultipleModules_Convoy` — explicit `SlowBackground` modules expecting convoy grouping
+- `ConvoyIntegrationTests` — 5 async SoD modules expected to share the same `SharedSnapshotProvider` instance
+- `HonestSodGdbTests.BatchInstall_SodModules_ActivatedAtomically` — dynamic batch install of 3 SoD modules expecting convoy
+- `HonestSodGdbTests.UnionMask_Expansion_NewSodModule_ExpandsSharedProvider` — sequential SoD installs expecting shared provider promotion
+- `ResilienceIntegrationTests.Resilience_MultipleModulesFailing_SystemDegrades` — circuit breaker opens for 3 bad async SoD modules
+
+**Root cause:** In `ModuleHostKernel.AssignProviderForDynamicInstall`, the `case DataStrategy.SoD:` block filtered potential convoy group members with two contradictory conditions:
+
+```csharp
+&& e.Module.Policy.Mode == policy.Mode            // require Mode matches (e.g. Asynchronous)
+&& e.Module.Policy.Mode != RunMode.Asynchronous   // exclude Asynchronous  <-- THE BUG
+```
+
+`SlowBackground(hz)` always produces `Mode = RunMode.Asynchronous`. The second condition directly negated the first, so `groupMembers` was always empty for async SoD modules. Each module was issued its own exclusive `OnDemandProvider` instead of sharing a `SharedSnapshotProvider` with its convoy mates.
+
+**Fix:** Removed the redundant/contradictory line `&& e.Module.Policy.Mode != RunMode.Asynchronous` from the `case DataStrategy.SoD:` LINQ filter in `AssignProviderForDynamicInstall`.
+
+**File changed:** `FDP/Engine/Fdp.ModuleHost/ModuleHostKernel.cs` (~line 1701)
+
+**Verification:**
+
+```
+dotnet test FDP\FDP.sln --no-build --filter "FullyQualifiedName~ConvoyAutoGroupingTests|FullyQualifiedName~ProviderAssignmentTests|FullyQualifiedName~HonestSodGdbTests|FullyQualifiedName~ConvoyIntegrationTests|FullyQualifiedName~ResilienceIntegrationTests"
+```
+
+Result: **Failed: 0, Passed: 26, Skipped: 0**

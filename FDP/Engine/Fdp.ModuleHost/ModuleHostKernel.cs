@@ -1698,7 +1698,6 @@ namespace Fdp.ModuleHost
                             && e.Module.Policy.Strategy == DataStrategy.SoD
                             && e.Module.Policy.Mode == policy.Mode
                             && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
-                            && e.Module.Policy.Mode != RunMode.Asynchronous
                             && !e.HasManualProvider)
                         .ToList();
 
