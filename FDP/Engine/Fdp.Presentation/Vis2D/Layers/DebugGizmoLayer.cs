@@ -25,6 +25,10 @@ namespace Fdp.Toolkit.Vis2D.Layers
         private readonly GizmoMap.Presentation.DebugGizmoLayer _innerTerminal;
         private readonly MapCamera? _mapCamera;
         private Camera2D _camera;
+        private RenderContext _lastCtx;
+        private bool _isInteractionActive;
+
+        private const float HitRadiusWorld = 5f;
 
         public DebugGizmoLayer(int layerBitIndex = 31)
         {
@@ -99,16 +103,47 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
             _renderer.SetLayerMask((ushort)ctx.VisibleLayersMask);
 
-            var mapCamera = ctx.Resources.Get<MapCamera>();
+            var mapCamera = ctx.Resources?.Get<MapCamera>();
             if (mapCamera != null)
                 _camera = mapCamera.InnerCamera;
 
             _innerTerminal.ExtractMetaPrimitives(primitives, _buffer.InternMap);
             _renderer.Render(primitives, ctx);
+            _lastCtx = ctx;
         }
 
-        // FDP Inputs are muted. Raw input is polled by the inner terminal.
-        public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed) => false;
+        public bool HandleInput(Vector2 worldPos, AbstractionMouseButton button, bool isPressed)
+        {
+            if (!isPressed) return false;
+            if (button != AbstractionMouseButton.Left) return false;
+            if (_buffer == null) return false;
+
+            var primitives = _buffer.GetFrame();
+            DebugPrimitive? best = null;
+
+            foreach (ref readonly var prim in primitives)
+            {
+                if (!prim.GetPickToken().IsValid) continue;
+                if (!HitTest(in prim, worldPos)) continue;
+                if (best == null || prim.DebugLayer > best.Value.DebugLayer)
+                    best = prim;
+            }
+
+            if (best.HasValue)
+            {
+                var token = best.Value.GetPickToken();
+                var worldPos3 = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
+                _eventBus?.Publish(new GizmoInteractionStartedEvent
+                {
+                    Token    = token,
+                    WorldPos = worldPos3,
+                });
+                _isInteractionActive = true;
+                return true;
+            }
+
+            return false;
+        }
         public void HandleHover(Vector2 mouseWorldPos) { }
         public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
         public bool HandleKeyInput(AbstractionKeyboardKey key) => false;
@@ -239,8 +274,49 @@ namespace Fdp.Toolkit.Vis2D.Layers
             };
         }
 
+        private bool HitTest(in DebugPrimitive prim, Vector2 testPos)
+        {
+            float zoom = _lastCtx.Zoom > 0f ? _lastCtx.Zoom : 1f;
+            float effectiveRadius = prim.SizeMode == SizeMode.ScreenPixels
+                ? HitRadiusWorld / zoom
+                : HitRadiusWorld;
+
+            switch (prim.Shape)
+            {
+                case DebugPrimitiveShape.Sphere:
+                {
+                    var center = new Vector2(prim.SphereCenter.X, prim.SphereCenter.Y);
+                    return Vector2.Distance(testPos, center) <= prim.SphereRadius + effectiveRadius;
+                }
+                case DebugPrimitiveShape.Line:
+                {
+                    var p0 = new Vector2(prim.LineStart.X, prim.LineStart.Y);
+                    var p1 = new Vector2(prim.LineEnd.X,   prim.LineEnd.Y);
+                    return PointToSegmentDistance(testPos, p0, p1) <= effectiveRadius;
+                }
+                case DebugPrimitiveShape.Arrow:
+                {
+                    var p0 = new Vector2(prim.LineStart.X, prim.LineStart.Y);
+                    var p1 = new Vector2(prim.LineEnd.X,   prim.LineEnd.Y);
+                    return PointToSegmentDistance(testPos, p0, p1) <= effectiveRadius;
+                }
+                default:
+                    return false;
+            }
+        }
+
+        private static float PointToSegmentDistance(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            float lenSq = ab.LengthSquared();
+            if (lenSq < float.Epsilon) return Vector2.Distance(p, a);
+            float t = MathF.Max(0f, MathF.Min(1f, Vector2.Dot(p - a, ab) / lenSq));
+            var closest = a + ab * t;
+            return Vector2.Distance(p, closest);
+        }
+
         // Test hooks preserved for existing test surface.
         internal bool TestHook_IsCaptureActive => false;
-        internal bool TestHook_IsInteractionActive => false;
+        internal bool TestHook_IsInteractionActive => _isInteractionActive;
     }
 }

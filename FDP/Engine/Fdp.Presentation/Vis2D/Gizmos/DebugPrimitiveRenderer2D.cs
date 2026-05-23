@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {
             var zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
-            var mapCamera = ctx.Resources.Get<MapCamera>();
+            var mapCamera = ctx.Resources?.Get<MapCamera>();
             Camera2D camera = mapCamera != null ? mapCamera.InnerCamera : default;
 
             foreach (ref readonly var prim in primitives)
@@ -33,7 +33,8 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
                 DispatchShape(in prim, ctx);
             }
 
-            _inner.Render(primitives, camera, zoom);
+            if (ctx.Resources != null)
+                _inner.Render(primitives, camera, zoom);
         }
 
         protected virtual void DispatchShape(in DebugPrimitive prim, RenderContext ctx)

@@ -1,0 +1,1256 @@
+﻿Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Tools\Fdp.Tools.RecordingDumper.Tests\bin\Debug\net8.0\Fdp.Tools.RecordingDumper.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\bin\Debug\net8.0\Fdp.ModuleHost.Tests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.CarKinem.Tests\bin\Debug\net9.0\Fdp.Examples.CarKinem.Tests.dll (.NETCoreApp,Version=v9.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core.Tests\bin\Debug\net8.0\Fdp.Core.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\bin\Debug\net8.0\Fdp.Presentation.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\bin\Debug\net8.0\Fdp.Examples.Scenarios.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.UrbanCombat.Tests\bin\Debug\net8.0\Fdp.Examples.UrbanCombat.Tests.dll (.NETCoreApp,Version=v8.0)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Network\Fdp.Network.Cyclone.Tests\bin\Debug\net8.0\Fdp.Network.Cyclone.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.2 (x64)
+
+VSTest version 18.0.2 (x64)
+Test run for D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\bin\Debug\net8.0\Fdp.Toolkits.Tests.dll (.NETCoreApp,Version=v8.0)
+VSTest version 18.0.2 (x64)
+
+
+VSTest version 18.0.2 (x64)
+VSTest version 18.0.2 (x64)
+VSTest version 18.0.2 (x64)
+
+
+
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+Starting test execution, please wait...
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+VSTest version 18.0.2 (x64)
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[MSTest][Discovery][D:\Work\IOS-IG-SimHost-FDP-2\FDP\Tools\Fdp.Tools.RecordingDumper.Tests\bin\Debug\net8.0\Fdp.Tools.RecordingDumper.Tests.dll] Failed to discover tests from assembly D:\Work\IOS-IG-SimHost-FDP-2\FDP\Tools\Fdp.Tools.RecordingDumper.Tests\bin\Debug\net8.0\Fdp.Tools.RecordingDumper.Tests.dll. Reason:Could not load file or assembly 'Microsoft.VisualStudio.TestPlatform.TestFramework.Extensions, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a'. The system cannot find the file specified.
+dotnet : [xUnit.net 00:00:00.34]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoL
+ayerHitTests.SC_GZ026_2_BeyondEndpoint_IsMiss [FAIL]
+At line:1 char:1
++ dotnet test FDP\FDP.sln --no-build 2>&1 | Out-File -FilePath "D:\Work ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([xUnit.net 00:0...t_IsMiss [FAIL] 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[xUnit.net 00:00:00.34]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTe
+sts.SC_GZ026_1_LineMidpoint_IsHit [FAIL]
+[xUnit.net 00:00:00.35]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTe
+sts.SC_GZ026_3_SphereCenter_IsHit [FAIL]
+[xUnit.net 00:00:00.35]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTe
+sts.SC_GZ026_4_ScreenPixels_ZoomScalesHitRadius [FAIL]
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_2_BeyondEndpoint_IsMiss [13 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.MakeLayer(DebugPrimitive prim, FdpEventBus& bus, Single zoom) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 29
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_2_BeyondEndpoint_IsMiss() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 70
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_1_LineMidpoint_IsHit [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.MakeLayer(DebugPrimitive prim, FdpEventBus& bus, Single zoom) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 29
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_1_LineMidpoint_IsHit() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 48
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_3_SphereCenter_IsHit [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.MakeLayer(DebugPrimitive prim, FdpEventBus& bus, Single zoom) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 29
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_3_SphereCenter_IsHit() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 92
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_4_ScreenPixels_ZoomScalesHitRadius [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.MakeLayer(DebugPrimitive prim, FdpEventBus& bus, Single zoom) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 29
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerHitTests.SC_GZ026_4_ScreenPixels_ZoomScalesHitRadius() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerHitTests.cs:line 118
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:01.13]     Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T32_
+CliIntegration_MatchesDirectServiceOutput [FAIL]
+[xUnit.net 00:00:00.53]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActiv
+ationTests.SC_GZ025_3_MissedClick_NoToolPushed [FAIL]
+[xUnit.net 00:00:00.54]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActiv
+ationTests.SC_GZ025_5_NullCanvas_FallbackPublishesEvent [FAIL]
+[xUnit.net 00:00:00.54]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActiv
+ationTests.SC_GZ025_1_HitPickable_PushesProxyTool [FAIL]
+[xUnit.net 00:00:00.54]     Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActiv
+ationTests.SC_GZ025_2_OnEnter_PublishesStartedEventOnce [FAIL]
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_3_MissedClick_NoToolPushed [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_3_MissedClick_NoToolPushed() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerActivationTests.cs:line 89
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_5_NullCanvas_FallbackPublishesEvent [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_5_NullCanvas_FallbackPublishesEvent() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerActivationTests.cs:line 109
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_1_HitPickable_PushesProxyTool [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_1_HitPickable_PushesProxyTool() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerActivationTests.cs:line 50
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_2_OnEnter_PublishesStartedEventOnce [< 1 ms]
+  Error Message:
+   System.NullReferenceException : Object reference not set to an instance of an object.
+  Stack Trace:
+     at Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer.Draw(RenderContext ctx) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation\Vis2D\Layers\DebugGizmoLayer.cs:line 102
+   at Fdp.Toolkit.Vis2D.Tests.Layers.DebugGizmoLayerActivationTests.SC_GZ025_2_OnEnter_PublishesStartedEventOnce() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Presentation.Tests\Vis2D\Layers\DebugGizmoLayerActivationTests.cs:line 69
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.66]     Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenario
+Tests.UrbanCombatNew_RunToCompletion_ExitsZero [FAIL]
+[xUnit.net 00:00:00.74]     Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenario
+Tests.UrbanCombatNew_Latch5_MissionResumes [FAIL]
+[xUnit.net 00:00:00.75]     Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenario
+Tests.UrbanCombatNew_Latch1_InsurgentFiresWithin100Ticks [FAIL]
+[xUnit.net 00:00:00.76]     Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenario
+Tests.UrbanCombatNew_Latch4_InsurgentDies [FAIL]
+[xUnit.net 00:00:00.78]     Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenario
+Tests.UrbanCombatNew_Latch2_ApcHaltsAfterAmbush [FAIL]
+  Failed Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T32_CliIntegration_MatchesDirectServiceOutput [789 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   3
+  Stack Trace:
+     at Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T32_CliIntegration_MatchesDirectServiceOutput() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Tools\Fdp.Tools.RecordingDumper.Tests\DumperTests.cs:line 131
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:01.43]     Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T30_
+AllSwitches_MappedToCorrectOptions [FAIL]
+[xUnit.net 00:00:00.92]     Fdp.ModuleHost.Tests.ConvoyAutoGroupingTests.AutoGr
+ouping_SameTierAndFreq_SharesProvider [FAIL]
+  Failed Fdp.ModuleHost.Tests.ConvoyAutoGroupingTests.AutoGrouping_SameTierAndFreq_SharesProvider [34 ms]
+  Error Message:
+   Assert.Same() Failure: Values are not the same instance
+Expected: OnDemandProvider { ProviderType = SoD }
+Actual:   OnDemandProvider { ProviderType = SoD }
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.ConvoyAutoGroupingTests.AutoGrouping_SameTierAndFreq_SharesProvider() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\ConvoyAutoGroupingTests.cs:line 75
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 599 ms - Fdp.Examples.CarKinem.Tests.dll (net9.0)
+  Failed Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T30_AllSwitches_MappedToCorrectOptions [297 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   3
+  Stack Trace:
+     at Fdp.Tools.RecordingDumper.Tests.DumperTests.EX_T30_AllSwitches_MappedToCorrectOptions() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Tools\Fdp.Tools.RecordingDumper.Tests\DumperTests.cs:line 55
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Failed!  - Failed:     2, Passed:     2, Skipped:     0, Total:     4, Duration: 1 s - Fdp.Tools.RecordingDumper.Tests.dll (net8.0)
+[xUnit.net 00:00:01.36]     Fdp.Examples.Scenarios.Tests.ComponentDamageScenari
+oTests.ComponentDamage_Phase2_HealthDecreases_AfterHit [FAIL]
+[xUnit.net 00:00:01.44]     Fdp.ModuleHost.Tests.ProviderAssignmentTests.Provid
+erAssignment_AsyncSoD_MultipleModules_Convoy [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_RunToCompletion_ExitsZero [432 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_RunToCompletion_ExitsZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1133
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch5_MissionResumes [82 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch5_MissionResumes() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1215
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch1_InsurgentFiresWithin100Ticks [8 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch1_InsurgentFiresWithin100Ticks() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1154
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch4_InsurgentDies [12 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch4_InsurgentDies() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1190
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch2_ApcHaltsAfterAmbush [12 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests.UrbanCombatNew_Latch2_ApcHaltsAfterAmbush() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1172
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase2_HealthDecreases_AfterHit [17 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not 1
+Actual:       1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase2_HealthDecreases_AfterHit() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 457
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:01.40]     Fdp.Examples.Scenarios.Tests.ComponentDamageScenari
+oTests.ComponentDamage_Phase3_MoveFlagStripped_AfterDamage [FAIL]
+[xUnit.net 00:00:01.41]     Fdp.Examples.Scenarios.Tests.ComponentDamageScenari
+oTests.ComponentDamage_Phase5_WeaponStillFires_AfterMobilityKill [FAIL]
+[xUnit.net 00:00:01.41]     Fdp.Examples.Scenarios.Tests.ComponentDamageScenari
+oTests.ComponentDamage_RunToCompletion_ExitsZero [FAIL]
+[xUnit.net 00:00:01.41]     Fdp.Examples.Scenarios.Tests.ComponentDamageScenari
+oTests.ComponentDamage_Phase4_LocomotionCleared_ByHSM [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase3_MoveFlagStripped_AfterDamage [6 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not 1
+Actual:       1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase3_MoveFlagStripped_AfterDamage() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 473
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase5_WeaponStillFires_AfterMobilityKill [6 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase5_WeaponStillFires_AfterMobilityKill() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 506
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_RunToCompletion_ExitsZero [9 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_RunToCompletion_ExitsZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 443
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase4_LocomotionCleared_ByHSM [3 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not 1
+Actual:       1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.ComponentDamageScenarioTests.ComponentDamage_Phase4_LocomotionCleared_ByHSM() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 490
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.ModuleHost.Tests.ProviderAssignmentTests.ProviderAssignment_AsyncSoD_MultipleModules_Convoy [4 ms]
+  Error Message:
+   Assert.IsType() Failure: Value is not the exact type
+Expected: typeof(Fdp.ModuleHost.Providers.SharedSnapshotProvider)
+Actual:   typeof(Fdp.ModuleHost.Providers.OnDemandProvider)
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.ProviderAssignmentTests.ProviderAssignment_AsyncSoD_MultipleModules_Convoy() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\ProviderAssignmentTests.cs:line 101
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Passed!  - Failed:     0, Passed:    25, Skipped:     0, Total:    25, Duration: 1 s - Fdp.Examples.UrbanCombat.Tests.dll (net8.0)
+[xUnit.net 00:00:01.49]     Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenar
+ioTests.BallisticsAndHit_Phase3_TargetTakesDamage_NoBulletSwimthrough [FAIL]
+[xUnit.net 00:00:01.49]     Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenar
+ioTests.BallisticsAndHit_Phase1_BulletSpawnedWithCorrectVelocity [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase3_TargetTakesDamage_NoBulletSwimthrough [6 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase3_TargetTakesDamage_NoBulletSwimthrough() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 555
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase1_BulletSpawnedWithCorrectVelocity [4 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase1_BulletSpawnedWithCorrectVelocity() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 537
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:01.49]     Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenar
+ioTests.BallisticsAndHit_Phase4_BulletDestroyedAfterImpact [FAIL]
+[xUnit.net 00:00:01.50]     Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenar
+ioTests.BallisticsAndHit_RunToCompletion_ExitsZero [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase4_BulletDestroyedAfterImpact [4 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_Phase4_BulletDestroyedAfterImpact() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 573
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_RunToCompletion_ExitsZero [4 ms]
+  Error Message:
+   System.InvalidOperationException : Event type 2030 not registered via RegisterEvent<T>(). Cannot playback command.
+  Stack Trace:
+     at Fdp.Core.FdpEventBus.PublishRaw(Int32 typeId, Void* data) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\FdpEventBus.cs:line 167
+   at Fdp.Core.EntityCommandBuffer.Playback(EntityRepository repo) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityCommandBuffer.cs:line 452
+   at Fdp.ModuleHost.ModuleHostKernel.UpdateInternal(Single deltaTime, GlobalTime globalTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 530
+   at Fdp.ModuleHost.ModuleHostKernel.Update() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost\ModuleHostKernel.cs:line 442
+   at Fdp.Examples.Common.ScenarioSubsystem.Update(Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Common\ScenarioSubsystem.cs:line 156
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Update(Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 196
+   at Fdp.Toolkit.Runner.SubsystemOrchestrator.Run() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Runner\SubsystemOrchestrator.cs:line 109
+   at Fdp.Examples.Scenarios.Tests.ScenarioTestHarness.Run(IScenario scenario, Int32 maxTicks, Single dt) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTestHarness.cs:line 41
+   at Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests.BallisticsAndHit_RunToCompletion_ExitsZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 523
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.63]     Fdp.Toolkit.Diagnostics.Gizmos.Tests.GizmoSettingsP
+ersistenceTests.Float32_Roundtrip_Via_Persistence [FAIL]
+[xUnit.net 00:00:02.66]     Fdp.Tests.EventBusTests.Benchmark_PublishThroughput [SKIP]
+  Skipped Fdp.Tests.EventBusTests.Benchmark_PublishThroughput [1 ms]
+
+Passed!  - Failed:     0, Passed:    40, Skipped:     0, Total:    40, Duration: 2 s - Fdp.Network.Cyclone.Tests.dll (net8.0)
+  Failed Fdp.Toolkit.Diagnostics.Gizmos.Tests.GizmoSettingsPersistenceTests.Float32_Roundtrip_Via_Persistence [10 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 2,5
+Actual:   0
+  Stack Trace:
+     at Fdp.Toolkit.Diagnostics.Gizmos.Tests.GizmoSettingsPersistenceTests.Float32_Roundtrip_Via_Persistence() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Diagnostics\Gizmos\GizmosSettingsTests.cs:line 277
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:03.41]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_Phase2_MuscleNodeMovesOnCommand [FAIL]
+[xUnit.net 00:00:03.53]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_PhaseB_BrainHullReachesActive_AtTick5 [FAIL]
+[xUnit.net 00:00:03.64]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_Phase2_LocoMsgConsumedViaDds [FAIL]
+[xUnit.net 00:00:03.73]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_Phase3_BrainTurretTracksHull_AtTick40 [FAIL]
+[xUnit.net 00:00:03.81]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_PhaseA_RunToTick10_ExitsZero [FAIL]
+[xUnit.net 00:00:04.04]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_PhaseB_MuscleHasGhostForBrainHull [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase2_MuscleNodeMovesOnCommand [106 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase2_MuscleNodeMovesOnCommand() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1049
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseB_BrainHullReachesActive_AtTick5 [111 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseB_BrainHullReachesActive_AtTick5() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 998
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase2_LocoMsgConsumedViaDds [112 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase2_LocoMsgConsumedViaDds() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1067
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase3_BrainTurretTracksHull_AtTick40 [87 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase3_BrainTurretTracksHull_AtTick40() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1086
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseA_RunToTick10_ExitsZero [81 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseA_RunToTick10_ExitsZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 968
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseB_MuscleHasGhostForBrainHull [117 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_PhaseB_MuscleHasGhostForBrainHull() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1029
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:04.14]     Fdp.Examples.Scenarios.Tests.DistributedTankScenari
+oPhaseATests.DistributedTank_Phase4_SplitAuthorityBothChannelsActive [FAIL]
+[xUnit.net 00:00:04.15]     Fdp.Examples.Scenarios.Tests.SensorGridScenarioTest
+s.SensorGrid_Phase1_TargetDetectedInOpenField [FAIL]
+[xUnit.net 00:00:04.16]     Fdp.Examples.Scenarios.Tests.SensorGridScenarioTest
+s.SensorGrid_Phase3_TargetReacquiredAfterWall [FAIL]
+[xUnit.net 00:00:04.16]     Fdp.Examples.Scenarios.Tests.SensorGridScenarioTest
+s.SensorGrid_Phase2_TargetOccludedByWall [FAIL]
+[xUnit.net 00:00:04.16]     Fdp.Examples.Scenarios.Tests.SensorGridScenarioTest
+s.SensorGrid_RunToCompletion_ExitsZero [FAIL]
+  Failed Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase4_SplitAuthorityBothChannelsActive [97 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.DistributedTankScenarioPhaseATests.DistributedTank_Phase4_SplitAuthorityBothChannelsActive() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 1105
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase1_TargetDetectedInOpenField [12 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not 1
+Actual:       1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase1_TargetDetectedInOpenField() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 679
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase3_TargetReacquiredAfterWall [3 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase3_TargetReacquiredAfterWall() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 716
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase2_TargetOccludedByWall [2 ms]
+  Error Message:
+   Assert.NotEqual() Failure: Values are equal
+Expected: Not 1
+Actual:       1
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_Phase2_TargetOccludedByWall() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 697
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_RunToCompletion_ExitsZero [2 ms]
+  Error Message:
+   Exit code 1. Phase1=False, Phase2=False
+  Stack Trace:
+     at Fdp.Examples.Scenarios.Tests.SensorGridScenarioTests.SensorGrid_RunToCompletion_ExitsZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Examples\Fdp.Examples.Scenarios.Tests\ScenarioTests.cs:line 661
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:04.38]     Fdp.Tests.EventBusTests.Benchmark_MultiThreadedPublish [SKIP]
+  Skipped Fdp.Tests.EventBusTests.Benchmark_MultiThreadedPublish [1 ms]
+
+Failed!  - Failed:    25, Passed:    43, Skipped:     0, Total:    68, Duration: 4 s - Fdp.Examples.Scenarios.Tests.dll (net8.0)
+[xUnit.net 00:00:02.94]     Fdp.Toolkit.ReplayBrowser.Export.JsonExportOptionsT
+ests.Defaults_MatchDesignSpec [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Export.JsonExportOptionsTests.Defaults_MatchDesignSpec [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: AbsoluteState
+Actual:   Incremental
+  Stack Trace:
+     at Fdp.Toolkit.ReplayBrowser.Export.JsonExportOptionsTests.Defaults_MatchDesignSpec() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\JsonExportOptionsTests.cs:line 17
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:03.75]     Fdp.Toolkit.Navigation.Tests.NavigationIntentBridge
+SystemTests.NoneIntent_IsSkipped_NavStateUnchanged [FAIL]
+[xUnit.net 00:00:05.43]     Fdp.ModuleHost.Tests.HonestSodGdbTests.UnionMask_Ex
+pansion_NewSodModule_ExpandsSharedProvider [FAIL]
+  Failed Fdp.Toolkit.Navigation.Tests.NavigationIntentBridgeSystemTests.NoneIntent_IsSkipped_NavStateUnchanged [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: Direct
+Actual:   None
+  Stack Trace:
+     at Fdp.Toolkit.Navigation.Tests.NavigationIntentBridgeSystemTests.NoneIntent_IsSkipped_NavStateUnchanged() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Navigation\NavigationIntentBridgeSystemTests.cs:line 105
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:05.47]     Fdp.Tests.Benchmarks.FastPathBenchmarks.Benchmark_H
+otPathOptimization [FAIL]
+[xUnit.net 00:00:05.46]     Fdp.ModuleHost.Tests.HonestSodGdbTests.BatchInstall
+_SodModules_ActivatedAtomically [FAIL]
+  Failed Fdp.Tests.Benchmarks.FastPathBenchmarks.Benchmark_HotPathOptimization [603 ms]
+  Error Message:
+   Expected significant speedup, got 1,45x
+  Stack Trace:
+     at Fdp.Tests.Benchmarks.FastPathBenchmarks.Benchmark_HotPathOptimization() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core.Tests\Benchmarks\FastPathBenchmarks.cs:line 61
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Standard Output Messages:
+ Standard: 52,275 ms
+ Hoisted:  35,979 ms
+ Speedup:  1,45x
+
+
+[xUnit.net 00:00:03.93]     Fdp.Toolkit.Replication.Tests.IdAllocationTests.Mon
+itorSystem_ProcessesResponse_AndAddsBlock [FAIL]
+  Failed Fdp.Toolkit.Replication.Tests.IdAllocationTests.MonitorSystem_ProcessesResponse_AndAddsBlock [2 ms]
+  Error Message:
+   System.ArgumentOutOfRangeException : Index was out of range. Must be non-negative and less than the size of the collection. (Parameter 'index')
+  Stack Trace:
+     at System.SZArrayHelper.get_Item[T](Int32 index)
+   at Fdp.Toolkit.Replication.Tests.IdAllocationTests.MonitorSystem_ProcessesResponse_AndAddsBlock() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Replication\IdAllocationTests.cs:line 65
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:03.93]     Fdp.Toolkit.Replication.Tests.IdAllocationTests.Mon
+itorSystem_PublishesRequest_WhenLowWaterMarkTriggers [FAIL]
+  Failed Fdp.Toolkit.Replication.Tests.IdAllocationTests.MonitorSystem_PublishesRequest_WhenLowWaterMarkTriggers [1 ms]
+  Error Message:
+   Assert.NotEmpty() Failure: Collection was empty
+  Stack Trace:
+     at Fdp.Toolkit.Replication.Tests.IdAllocationTests.MonitorSystem_PublishesRequest_WhenLowWaterMarkTriggers() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Replication\IdAllocationTests.cs:line 42
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.ModuleHost.Tests.HonestSodGdbTests.UnionMask_Expansion_NewSodModule_ExpandsSharedProvider [49 ms]
+  Error Message:
+   Assert.IsType() Failure: Value is not the exact type
+Expected: typeof(Fdp.ModuleHost.Providers.SharedSnapshotProvider)
+Actual:   typeof(Fdp.ModuleHost.Providers.OnDemandProvider)
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.HonestSodGdbTests.UnionMask_Expansion_NewSodModule_ExpandsSharedProvider() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\DynamicModuleTests.cs:line 1035
+--- End of stack trace from previous location ---
+  Failed Fdp.ModuleHost.Tests.HonestSodGdbTests.BatchInstall_SodModules_ActivatedAtomically [33 ms]
+  Error Message:
+   Assert.IsType() Failure: Value is not the exact type
+Expected: typeof(Fdp.ModuleHost.Providers.SharedSnapshotProvider)
+Actual:   typeof(Fdp.ModuleHost.Providers.OnDemandProvider)
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.HonestSodGdbTests.BatchInstall_SodModules_ActivatedAtomically() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\DynamicModuleTests.cs:line 983
+--- End of stack trace from previous location ---
+[xUnit.net 00:00:05.58]     Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.Ai
+mAndFire_DoesNotFire_WhenCooldownActive [FAIL]
+[xUnit.net 00:00:05.59]     Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.Ai
+mAndFire_DrainsCooldown_ByDt_UntilCanFire [FAIL]
+  Failed Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.AimAndFire_DoesNotFire_WhenCooldownActive [2 ms]
+  Error Message:
+   Assert.True() Failure
+Expected: True
+Actual:   False
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.AimAndFire_DoesNotFire_WhenCooldownActive() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\AimAndFireExecutorTests.cs:line 185
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.AimAndFire_DrainsCooldown_ByDt_UntilCanFire [1 ms]
+  Error Message:
+   Assert.True() Failure
+Expected: True
+Actual:   False
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.AimAndFireExecutorTests.AimAndFire_DrainsCooldown_ByDt_UntilCanFire() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\AimAndFireExecutorTests.cs:line 284
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:07.40]     Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.B
+enchmark_SetRawObject_Performance [FAIL]
+[xUnit.net 00:00:05.74]     Fdp.Toolkit.Scenario.Tests.FdpAutoSerializerFixedBu
+fferTests.RoundTrip_MissionPlanQueue_PreservesPhaseData [FAIL]
+[xUnit.net 00:00:07.45]     Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.B
+enchmark_CommandBuffer_Playback [FAIL]
+  Failed Fdp.Toolkit.Scenario.Tests.FdpAutoSerializerFixedBufferTests.RoundTrip_MissionPlanQueue_PreservesPhaseData [17 ms]
+  Error Message:
+   System.InvalidOperationException : Entity Entity(0, v1) missing MissionPlanQueue
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.Tests.FdpAutoSerializerFixedBufferTests.RoundTrip_MissionPlanQueue_PreservesPhaseData() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Scenario\FdpAutoSerializerFixedBufferTests.cs:line 301
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_SetRawObject_Performance [2 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: NoRecordTestComponent and TestComponent both declare [ComponentId(240)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.ComponentTable`1..ctor() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentTable.cs:line 18
+   at Fdp.Core.EntityRepository.GetTable[T](Boolean allowCreate) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1338
+   at Fdp.Core.EntityRepository.RegisterUnmanagedComponent[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 376
+   at Fdp.Core.EntityRepository.RegisterComponent[T](Nullable`1 policyOverride) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 550
+   at Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_SetRawObject_Performance() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core.Tests\Benchmarks\ComponentOperationBenchmarks.cs:line 23
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_CommandBuffer_Playback [< 1 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: NoRecordTestComponent and TestComponent both declare [ComponentId(240)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.ComponentTable`1..ctor() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentTable.cs:line 18
+   at Fdp.Core.EntityRepository.GetTable[T](Boolean allowCreate) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1338
+   at Fdp.Core.EntityRepository.RegisterUnmanagedComponent[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 376
+   at Fdp.Core.EntityRepository.RegisterComponent[T](Nullable`1 policyOverride) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 550
+   at Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_CommandBuffer_Playback() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core.Tests\Benchmarks\ComponentOperationBenchmarks.cs:line 87
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:06.02]     Fdp.Toolkit.Combat.Tests.CombatComponentTests.Weapo
+nFireIntent_IsUnmanaged_AndHasCorrectSize [FAIL]
+[xUnit.net 00:00:06.02]     Fdp.Toolkit.Combat.Tests.CombatComponentTests.Deton
+ationNotification_IsUnmanaged_AndHasCorrectSize [FAIL]
+  Failed Fdp.Toolkit.Combat.Tests.CombatComponentTests.WeaponFireIntent_IsUnmanaged_AndHasCorrectSize [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 20
+Actual:   24
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.CombatComponentTests.WeaponFireIntent_IsUnmanaged_AndHasCorrectSize() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\CombatComponentTests.cs:line 103
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Combat.Tests.CombatComponentTests.DetonationNotification_IsUnmanaged_AndHasCorrectSize [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 28
+Actual:   32
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.CombatComponentTests.DetonationNotification_IsUnmanaged_AndHasCorrectSize() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\CombatComponentTests.cs:line 143
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:06.03]     Fdp.Toolkit.Combat.Tests.CombatComponentTests.Damag
+eAssessedEvent_IsUnmanaged_AndHasCorrectSize [FAIL]
+[xUnit.net 00:00:06.03]     Fdp.Toolkit.Combat.Tests.CombatComponentTests.Weapo
+nFireNotification_IsUnmanaged_AndHasCorrectSize [FAIL]
+  Failed Fdp.Toolkit.Combat.Tests.CombatComponentTests.DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 12
+Actual:   16
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.CombatComponentTests.DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\CombatComponentTests.cs:line 156
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Combat.Tests.CombatComponentTests.WeaponFireNotification_IsUnmanaged_AndHasCorrectSize [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 20
+Actual:   24
+  Stack Trace:
+     at Fdp.Toolkit.Combat.Tests.CombatComponentTests.WeaponFireNotification_IsUnmanaged_AndHasCorrectSize() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Combat\CombatComponentTests.cs:line 116
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:06.30]     Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchSer
+viceTests.SR_T03_GreaterThan_FindsMultipleFrames [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchServiceTests.SR_T03_GreaterThan_FindsMultipleFrames [30 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 3
+Actual:   1
+  Stack Trace:
+     at Fdp.Toolkit.ReplayBrowser.Search.RecordingSearchServiceTests.SR_T03_GreaterThan_FindsMultipleFrames() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Search\RecordingSearchServiceTests.cs:line 85
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:06.91]     CarKinem.Tests.Systems.CarKinematicsSystemTests.Sys
+tem_FollowsTrajectory [FAIL]
+[xUnit.net 00:00:06.91]     CarKinem.Tests.Systems.CarKinematicsSystemTests.Sys
+tem_AvoidanceMovesVehicle [FAIL]
+[xUnit.net 00:00:06.92]     CarKinem.Tests.Systems.CarKinematicsSystemTests.Sys
+tem_UpdatesVehiclePosition [FAIL]
+[xUnit.net 00:00:06.93]     Fdp.Toolkit.Orchestration.Tests.ReferenceHandlerTes
+ts.LocalDiskStorageProvider_EnsureStagingDirectory_CreatesDir [FAIL]
+  Failed CarKinem.Tests.Systems.CarKinematicsSystemTests.System_FollowsTrajectory [2 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: AuditCompB and ZoneEnvironmentData both declare [ComponentId(201)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.EntityRepository.HasSingletonUnmanaged[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1858
+   at Fdp.Core.EntityRepository.HasSingleton[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1958
+   at CarKinem.Systems.CarKinematicsSystem.Execute(ISimulationView view, Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\CarKinem\Systems\CarKinematicsSystem.cs:line 59
+   at CarKinem.Tests.Systems.CarKinematicsSystemTests.System_FollowsTrajectory() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\CarKinem\Systems\CarKinematicsSystemTests.cs:line 205
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed CarKinem.Tests.Systems.CarKinematicsSystemTests.System_AvoidanceMovesVehicle [3 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: AuditCompB and ZoneEnvironmentData both declare [ComponentId(201)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.EntityRepository.HasSingletonUnmanaged[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1858
+   at Fdp.Core.EntityRepository.HasSingleton[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1958
+   at CarKinem.Systems.CarKinematicsSystem.Execute(ISimulationView view, Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\CarKinem\Systems\CarKinematicsSystem.cs:line 59
+   at CarKinem.Tests.Systems.CarKinematicsSystemTests.System_AvoidanceMovesVehicle() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\CarKinem\Systems\CarKinematicsSystemTests.cs:line 153
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed CarKinem.Tests.Systems.CarKinematicsSystemTests.System_UpdatesVehiclePosition [2 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: AuditCompB and ZoneEnvironmentData both declare [ComponentId(201)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.EntityRepository.HasSingletonUnmanaged[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1858
+   at Fdp.Core.EntityRepository.HasSingleton[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1958
+   at CarKinem.Systems.CarKinematicsSystem.Execute(ISimulationView view, Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\CarKinem\Systems\CarKinematicsSystem.cs:line 59
+   at CarKinem.Tests.Systems.CarKinematicsSystemTests.System_UpdatesVehiclePosition() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\CarKinem\Systems\CarKinematicsSystemTests.cs:line 80
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Orchestration.Tests.ReferenceHandlerTests.LocalDiskStorageProvider_EnsureStagingDirectory_CreatesDir [6 ms]
+  Error Message:
+   Assert.Equal() Failure: Strings differ
+                                                  Ôćô (pos 93)
+Expected: ┬Ě┬Ě┬Ě"e4ecec46e99b362947014a8acd\\scenario-alpha"
+Actual:   ┬Ě┬Ě┬Ě"9b362947014a8acd\\scenarios\\scenario-alpha"
+                                        ÔćĹ (pos 93)
+  Stack Trace:
+     at Fdp.Toolkit.Orchestration.Tests.ReferenceHandlerTests.LocalDiskStorageProvider_EnsureStagingDirectory_CreatesDir() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Orchestration\ReferenceHandlerTests.cs:line 33
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:06.95]     Fdp.Toolkit.CarKinem.Tests.VehicleStateRefactorTest
+s.CarKinematicsSystem_WritesSimTransform_AfterUpdate [FAIL]
+  Failed Fdp.Toolkit.CarKinem.Tests.VehicleStateRefactorTests.CarKinematicsSystem_WritesSimTransform_AfterUpdate [7 ms]
+  Error Message:
+   System.InvalidOperationException : Component ID collision: AuditCompB and ZoneEnvironmentData both declare [ComponentId(201)]
+  Stack Trace:
+     at Fdp.Core.ComponentTypeRegistry.GetOrRegisterManaged(Type type) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 132
+   at Fdp.Core.ComponentTypeRegistry.GetOrRegister[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\ComponentType.cs:line 100
+   at Fdp.Core.EntityRepository.HasSingletonUnmanaged[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1858
+   at Fdp.Core.EntityRepository.HasSingleton[T]() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.Core\EntityRepository.cs:line 1958
+   at CarKinem.Systems.CarKinematicsSystem.Execute(ISimulationView view, Single deltaTime) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\CarKinem\Systems\CarKinematicsSystem.cs:line 59
+   at Fdp.Toolkit.CarKinem.Tests.VehicleStateRefactorTests.CarKinematicsSystem_WritesSimTransform_AfterUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\CarKinem\VehicleStateRefactorTests.cs:line 61
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:07.01]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T13_ByTime_WindowsCorrectly [FAIL]
+[xUnit.net 00:00:07.05]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T23_ManagedEvents_EmittedWithIsManagedTrue [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T13_ByTime_WindowsCorrectly [45 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T13_ByTime_WindowsCorrectly() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 367
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T23_ManagedEvents_EmittedWithIsManagedTrue [32 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T23_ManagedEvents_EmittedWithIsManagedTrue() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 660
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:07.09]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T04_DeltaFrame_DestroyedEntities_PopulatedCorrectly [FAIL]
+[xUnit.net 00:00:07.14]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T21_EntityFieldsInEvents_AreFormattedAsStrings [FAIL]
+[xUnit.net 00:00:07.19]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T27_ChangelogMode_EmitsExactlyThreeEntries_AtMutatedFrames [FAIL]
+[xUnit.net 00:00:07.24]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T12_ByFrame_WindowsCorrectly [FAIL]
+[xUnit.net 00:00:07.30]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T17_IncludeEventsFalse_OmitsEventsBlock [FAIL]
+[xUnit.net 00:00:07.48]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T25_LargeRecording_NoBigHeapAllocation [FAIL]
+[xUnit.net 00:00:07.54]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T05_ComponentEntries_HaveCorrectSchema [FAIL]
+[xUnit.net 00:00:07.59]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T15_FilterByEntityIndex_RestrictsEntitiesAndDestroyedEntities [FAI
+L]
+[xUnit.net 00:00:07.65]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T10_FileFrameOrdinal_IsDense [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T04_DeltaFrame_DestroyedEntities_PopulatedCorrectly [44 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T04_DeltaFrame_DestroyedEntities_PopulatedCorrectly() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 88
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T21_EntityFieldsInEvents_AreFormattedAsStrings [41 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T21_EntityFieldsInEvents_AreFormattedAsStrings() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 588
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T27_ChangelogMode_EmitsExactlyThreeEntries_AtMutatedFrames [47 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T27_ChangelogMode_EmitsExactlyThreeEntries_AtMutatedFrames() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 789
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T12_ByFrame_WindowsCorrectly [52 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T12_ByFrame_WindowsCorrectly() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 343
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T17_IncludeEventsFalse_OmitsEventsBlock [62 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T17_IncludeEventsFalse_OmitsEventsBlock() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 482
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T25_LargeRecording_NoBigHeapAllocation [173 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T25_LargeRecording_NoBigHeapAllocation() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 727
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T05_ComponentEntries_HaveCorrectSchema [58 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T05_ComponentEntries_HaveCorrectSchema() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 116
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T15_FilterByEntityIndex_RestrictsEntitiesAndDestroyedEntities [51 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T15_FilterByEntityIndex_RestrictsEntitiesAndDestroyedEntities() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 423
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T10_FileFrameOrdinal_IsDense [52 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T10_FileFrameOrdinal_IsDense() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 290
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:07.71]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T09_SimFrameNumber_MatchesGlobalTimeFrameNumber [FAIL]
+[xUnit.net 00:00:07.75]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T11_Tick_MatchesFrameMetadataTick [FAIL]
+[xUnit.net 00:00:07.78]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T20_NumericArrayPayloads_AreFlattenedToSingleLine [FAIL]
+[xUnit.net 00:00:07.82]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T02_BasicRoundTrip_HeaderAndFrameCount [FAIL]
+[xUnit.net 00:00:07.86]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T22_CustomTranslator_IsHonored_PayloadReflectsStubDto [FAIL]
+[xUnit.net 00:00:07.90]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T29_ChangelogMode_EntityDestruction_NoEntriesAfterDeath [FAIL]
+[xUnit.net 00:00:07.92]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T18_IncludeEntitiesFalse_OmitsEntitiesBlock [FAIL]
+[xUnit.net 00:00:07.95]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T26_Export_DoesNotMutateParallelContext [FAIL]
+[xUnit.net 00:00:07.98]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T08_SimTimeSec_MatchesGlobalTimeTotalTime [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T09_SimFrameNumber_MatchesGlobalTimeFrameNumber [60 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T09_SimFrameNumber_MatchesGlobalTimeFrameNumber() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 256
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T11_Tick_MatchesFrameMetadataTick [36 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T11_Tick_MatchesFrameMetadataTick() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 311
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T20_NumericArrayPayloads_AreFlattenedToSingleLine [35 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T20_NumericArrayPayloads_AreFlattenedToSingleLine() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 546
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T02_BasicRoundTrip_HeaderAndFrameCount [34 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T02_BasicRoundTrip_HeaderAndFrameCount() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 47
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T22_CustomTranslator_IsHonored_PayloadReflectsStubDto [44 ms]
+  Error Message:
+   System.InvalidOperationException : The node must be of type 'JsonObject'.
+  Stack Trace:
+     at System.Text.Json.ThrowHelper.ThrowInvalidOperationException_NodeWrongType(String typeName)
+   at System.Text.Json.Nodes.JsonNode.AsObject()
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T22_CustomTranslator_IsHonored_PayloadReflectsStubDto() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 630
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T29_ChangelogMode_EntityDestruction_NoEntriesAfterDeath [33 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T29_ChangelogMode_EntityDestruction_NoEntriesAfterDeath() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 855
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T18_IncludeEntitiesFalse_OmitsEntitiesBlock [24 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T18_IncludeEntitiesFalse_OmitsEntitiesBlock() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 500
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T26_Export_DoesNotMutateParallelContext [29 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T26_Export_DoesNotMutateParallelContext() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 760
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T08_SimTimeSec_MatchesGlobalTimeTotalTime [24 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T08_SimTimeSec_MatchesGlobalTimeTotalTime() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 221
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:08.03]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T03_FirstFrame_IsKeyframe_EmptyDestroyedEntities [FAIL]
+[xUnit.net 00:00:08.07]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T06_HasAuthority_ReflectsComponentAuthorityMask [FAIL]
+[xUnit.net 00:00:08.11]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T07_RelativeWallTimeSec_ZeroOnFirstFrame_MonotoneAfter [FAIL]
+[xUnit.net 00:00:08.16]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T19_Minified_ProducesNoNewlines [FAIL]
+[xUnit.net 00:00:08.21]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T16_FilterBySelection_EmitsOnlyTargetEntities [FAIL]
+[xUnit.net 00:00:08.26]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T14_ByTime_PastEof_EmitsEmptyFrames [FAIL]
+[xUnit.net 00:00:09.96]     Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyI
+ntegration_5Modules_ShareSnapshot [FAIL]
+[xUnit.net 00:00:08.32]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T28_ChangelogMode_Epsilon_SuppressesSubEpsilonChanges [FAIL]
+[xUnit.net 00:00:08.37]     Fdp.Toolkit.ReplayBrowser.Export.RecordingExportSer
+viceTests.EX_T24_UnmanagedEvents_EmittedWithIsManagedFalse [FAIL]
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T03_FirstFrame_IsKeyframe_EmptyDestroyedEntities [49 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T03_FirstFrame_IsKeyframe_EmptyDestroyedEntities() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 67
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T06_HasAuthority_ReflectsComponentAuthorityMask [35 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T06_HasAuthority_ReflectsComponentAuthorityMask() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 149
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T07_RelativeWallTimeSec_ZeroOnFirstFrame_MonotoneAfter [37 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T07_RelativeWallTimeSec_ZeroOnFirstFrame_MonotoneAfter() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 188
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T19_Minified_ProducesNoNewlines [50 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T19_Minified_ProducesNoNewlines() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 523
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T16_FilterBySelection_EmitsOnlyTargetEntities [53 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T16_FilterBySelection_EmitsOnlyTargetEntities() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 458
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T14_ByTime_PastEof_EmitsEmptyFrames [46 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T14_ByTime_PastEof_EmitsEmptyFrames() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 400
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T28_ChangelogMode_Epsilon_SuppressesSubEpsilonChanges [52 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T28_ChangelogMode_Epsilon_SuppressesSubEpsilonChanges() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 827
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T24_UnmanagedEvents_EmittedWithIsManagedFalse [48 ms]
+  Error Message:
+   System.InvalidOperationException : Component 'EntityInlineComp' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.
+  Stack Trace:
+     at Fdp.Toolkit.Scenario.FdpAutoSerializer.Build() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\Scenario\FdpAutoSerializer.cs:line 108
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportChangelogToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 311
+   at Fdp.Toolkit.ReplayBrowser.RecordingExportService.ExportToJson(String inputFdpPath, String outputJsonPath, JsonExportOptions options) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits\ReplayBrowser\RecordingExportService.cs:line 40
+   at Fdp.Toolkit.ReplayBrowser.Export.RecordingExportServiceTests.EX_T24_UnmanagedEvents_EmittedWithIsManagedFalse() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Export\RecordingExportServiceTests.cs:line 690
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:08.60]     Fdp.Toolkit.Replay.Tests.ReplayModuleTests.ReplayMo
+dule_SeekToFrameAsync_IsOffMainThread [FAIL]
+[xUnit.net 00:00:10.34]     Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyI
+ntegration_MemoryUsage_Reduced [FAIL]
+  Failed Fdp.Toolkit.Replay.Tests.ReplayModuleTests.ReplayModule_SeekToFrameAsync_IsOffMainThread [38 ms]
+  Error Message:
+   SeekToFrameAsync completed synchronously; it must run on a background thread.
+  Stack Trace:
+     at Fdp.Toolkit.Replay.Tests.ReplayModuleTests.ReplayModule_SeekToFrameAsync_IsOffMainThread() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Replay\ReplayModuleTests.cs:line 188
+--- End of stack trace from previous location ---
+  Failed Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyIntegration_5Modules_ShareSnapshot [5 ms]
+  Error Message:
+   Assert.IsType() Failure: Value is not the exact type
+Expected: typeof(Fdp.ModuleHost.Providers.SharedSnapshotProvider)
+Actual:   typeof(Fdp.ModuleHost.Providers.OnDemandProvider)
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyIntegration_5Modules_ShareSnapshot() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\ConvoyIntegrationTests.cs:line 98
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyIntegration_MemoryUsage_Reduced [384 ms]
+  Error Message:
+   Convoy: 472852056, Individual: 472860320
+  Stack Trace:
+     at Fdp.ModuleHost.Tests.ConvoyIntegrationTests.ConvoyIntegration_MemoryUsage_Reduced() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Engine\Fdp.ModuleHost.Tests\ConvoyIntegrationTests.cs:line 159
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Failed!  - Failed:     6, Passed:   183, Skipped:     0, Total:   189, Duration: 10 s - Fdp.ModuleHost.Tests.dll (net8.0)
+[xUnit.net 00:00:10.23]     Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizm
+oSystemRoutingTests.SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo [FAIL]
+[xUnit.net 00:00:10.23]     Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizm
+oSystemRoutingTests.SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only [FAIL]
+[xUnit.net 00:00:10.23]     CarKinem.Tests.Algorithms.BicycleModelTests.Bicycle
+Model_NegativeSpeed_ClampsToZero [FAIL]
+  Failed Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizmoSystemRoutingTests.SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo [2 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 1
+Actual:   0
+  Stack Trace:
+     at Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizmoSystemRoutingTests.SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Diagnostics\Gizmos\GizmosSystemTests.cs:line 952
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizmoSystemRoutingTests.SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only [1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 1
+Actual:   0
+  Stack Trace:
+     at Fdp.Toolkit.Diagnostics.Gizmos.Tests.DataDrivenGizmoSystemRoutingTests.SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Diagnostics\Gizmos\GizmosSystemTests.cs:line 972
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed CarKinem.Tests.Algorithms.BicycleModelTests.BicycleModel_NegativeSpeed_ClampsToZero [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: 0
+Actual:   -5
+  Stack Trace:
+     at CarKinem.Tests.Algorithms.BicycleModelTests.BicycleModel_NegativeSpeed_ClampsToZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\CarKinem\Algorithms\BicycleModelTests.cs:line 88
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:10.23]     Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSyst
+emTests.RotationToPitchRollDeg_Combined_PitchAndRollIndependent [FAIL]
+[xUnit.net 00:00:10.24]     Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSyst
+emTests.RotationToHeadingDeg_DegenerateRotation_Returns0 [FAIL]
+  Failed Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_Combined_PitchAndRollIndependent [1 ms]
+  Error Message:
+   Assert.InRange() Failure: Value not in range
+Range:  (18 - 22)
+Actual: -20,0000038
+  Stack Trace:
+     at Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_Combined_PitchAndRollIndependent() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Geographic\SimTransformBridgeSystemTests.cs:line 207
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToHeadingDeg_DegenerateRotation_Returns0 [< 1 ms]
+  Error Message:
+   Assert.Equal() Failure: Values are not within 1 decimal place
+Expected: 0 (rounded from 0)
+Actual:   90 (rounded from 90)
+  Stack Trace:
+     at Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToHeadingDeg_DegenerateRotation_Returns0() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Geographic\SimTransformBridgeSystemTests.cs:line 58
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:10.24]     Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSyst
+emTests.RotationToPitchRollDeg_PitchedRotation_PitchDegNonZero [FAIL]
+[xUnit.net 00:00:10.24]     Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSyst
+emTests.RotationToPitchRollDeg_NoseDown30_ReturnsPitchNegative30 [FAIL]
+[xUnit.net 00:00:10.24]     Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSyst
+emTests.RotationToPitchRollDeg_NoseUp30_ReturnsPitchPositive30 [FAIL]
+  Failed Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_PitchedRotation_PitchDegNonZero [< 1 ms]
+  Error Message:
+   Assert.InRange() Failure: Value not in range
+Range:  (18 - 22)
+Actual: -20
+  Stack Trace:
+     at Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_PitchedRotation_PitchDegNonZero() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Geographic\SimTransformBridgeSystemTests.cs:line 224
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_NoseDown30_ReturnsPitchNegative30 [< 1 ms]
+  Error Message:
+   Assert.InRange() Failure: Value not in range
+Range:  (-32 - -28)
+Actual: 30
+  Stack Trace:
+     at Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_NoseDown30_ReturnsPitchNegative30() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Geographic\SimTransformBridgeSystemTests.cs:line 172
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Failed Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_NoseUp30_ReturnsPitchPositive30 [< 1 ms]
+  Error Message:
+   Assert.InRange() Failure: Value not in range
+Range:  (28 - 32)
+Actual: -30
+  Stack Trace:
+     at Fdp.Toolkit.Geographic.Tests.SimTransformBridgeSystemTests.RotationToPitchRollDeg_NoseUp30_ReturnsPitchPositive30() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Toolkits\Fdp.Toolkits.Tests\Geographic\SimTransformBridgeSystemTests.cs:line 157
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+
+Failed!  - Failed:    55, Passed:  1149, Skipped:     0, Total:  1204, Duration: 11 s - Fdp.Toolkits.Tests.dll (net8.0)
+
+Failed!  - Failed:     3, Passed:   780, Skipped:     2, Total:   785, Duration: 20 s - Fdp.Core.Tests.dll (net8.0)
+The active test run was aborted. Reason: Test host process crashed
+
+Failed!  - Failed:     8, Passed:    67, Skipped:     0, Total:    75, Duration: 303 ms - Fdp.Presentation.Tests.dll (net8.0)
+Test Run Aborted.
