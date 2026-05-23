@@ -124,7 +124,7 @@ internal static class HsmAssetProjector
                 var entry = layout.States[key];
                 stateNodes[i].StableId = key;
                 stateNodes[i].Position = entry.Position;
-                if (entry.SizeOverride.HasValue) stateNodes[i].Size = entry.SizeOverride.Value;
+                if (entry.SizeOverride.HasValue) stateNodes[i].SizeOverride = entry.SizeOverride.Value;
                 stateNodes[i].Comment = entry.Comment;
                 stateNodes[i].IsCollapsed = entry.Collapsed;
                 stateNodes[i].ColorOverride = entry.Color;
@@ -192,7 +192,7 @@ internal static class HsmAssetProjector
             };
 
             if (def.ParentStateIndex < stateNodes.Length)
-                stateNodes[def.ParentStateIndex].Regions.Add(rn);
+                stateNodes[def.ParentStateIndex].RegionNodes.Add(rn);
             if (def.InitialStateIndex < stateNodes.Length)
                 rn.InitialChild = stateNodes[def.InitialStateIndex];
 

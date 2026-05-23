@@ -336,8 +336,8 @@ public sealed class HsmFluentEmitter : IFluentCSharpEmitter<HsmAsset>
             string pos     = $"new Vector2({FormatFloat(s.Position.X)}, {FormatFloat(s.Position.Y)})";
 
             sb.Append($"{Indent}{Indent}.State({guidStr}, {pos}");
-            if (s.Size.HasValue)
-                sb.Append($", sizeOverride: new Vector2({FormatFloat(s.Size.Value.X)}, {FormatFloat(s.Size.Value.Y)})");
+            if (s.SizeOverride.HasValue)
+                sb.Append($", sizeOverride: new Vector2({FormatFloat(s.SizeOverride.Value.X)}, {FormatFloat(s.SizeOverride.Value.Y)})");
             if (!string.IsNullOrEmpty(s.Comment))
                 sb.Append($", comment: {QuoteStr(s.Comment)}");
             if (s.IsCollapsed)

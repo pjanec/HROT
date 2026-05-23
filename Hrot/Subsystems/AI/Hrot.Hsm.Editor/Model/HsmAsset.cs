@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared;
+using Hrot.Hsm.Editor.Host;
+using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Hsm.Editor.Model;
 
@@ -128,7 +132,7 @@ public sealed class HsmAsset : IEditableAsset
 
 // Editor-side representation of a single state.
 // Augments the kernel-side StateDef with editor-only fields (layout, comments, etc.).
-public sealed class StateNode
+public sealed class StateNode : IContainerNodeModel
 {
     // Primary editor identity (stable across hot reloads if layout method is present)
     public Guid StableId;
@@ -139,7 +143,7 @@ public sealed class StateNode
     public StateNode? Parent;
     public List<StateNode> Children { get; } = new();
     public List<TransitionNode> OutgoingTransitions { get; } = new();
-    public List<RegionNode> Regions { get; } = new();
+    public List<RegionNode> RegionNodes { get; } = new();
 
     // State configuration (from StateDef.Flags)
     public bool IsInitial;
@@ -161,11 +165,15 @@ public sealed class StateNode
     // in a later task; empty for now)
     public List<ushort> DeferredEventIds { get; } = new();
 
+    // Zero-based index of the orthogonal region this state belongs to within its parent parallel composite.
+    // 0 for states that are not children of a parallel state.
+    public int RegionIndex;
+
     // Editor-only (persisted in layout method)
-    public Vector2 Position;
-    public Vector2? Size;
+    public Vector2 Position { get; set; }
+    public Vector2? SizeOverride { get; set; }
     public string? Comment;
-    public bool IsCollapsed;
+    public bool IsCollapsed { get; set; }
     public string? ColorOverride;
 
     // Editor-only ephemeral (not persisted)
@@ -201,6 +209,83 @@ public sealed class StateNode
         bytes[15] = (byte)(bytes[15] ^ 0x02);
         return new Guid(bytes);
     }
+
+    // ---- INodeModel ----
+
+    public NodeId Id => new NodeId(StableId);
+
+    // Resolve the catalog kind key from state flags.
+    public NodeKindKey Kind
+    {
+        get
+        {
+            if (IsFinal)       return new NodeKindKey(HsmKinds.Final);
+            if (IsDeepHistory) return new NodeKindKey(HsmKinds.DeepHistory);
+            if (IsHistory)     return new NodeKindKey(HsmKinds.History);
+            if (IsParallel)    return new NodeKindKey(HsmKinds.Parallel);
+            if (Children.Count > 0) return new NodeKindKey(HsmKinds.Composite);
+            return new NodeKindKey(HsmKinds.Simple);
+        }
+    }
+
+    public string Title => Name;
+    public string? Subtitle => null;
+    public NodeCategory Category => NodeCategory.Custom;
+    public NodeState State => IsBreakpoint ? NodeState.Warning : NodeState.Normal;
+    public string? StatusTooltip => null;
+    public bool ShowAdvancedPins => false;
+
+    // Two hidden pins: output (source of transitions FROM this state) and input (target TO this state).
+    // Lazy-initialized to avoid allocation on non-pinned code paths.
+    private IReadOnlyList<IPinModel>? _pins;
+    public IReadOnlyList<IPinModel> Pins => _pins ??= BuildPins();
+
+    private IReadOnlyList<IPinModel> BuildPins()
+    {
+        return new IPinModel[]
+        {
+            new HsmPinModel(new PinId(HiddenOutputPinId), new NodeId(StableId), PinDirection.Output),
+            new HsmPinModel(new PinId(HiddenInputPinId),  new NodeId(StableId), PinDirection.Input),
+        };
+    }
+
+    // ParentContainerId is null for top-level states (Parent is RootState which has no parent).
+    public NodeId? ParentContainerId =>
+        Parent?.Parent != null ? new NodeId(Parent!.StableId) : (NodeId?)null;
+
+    // ---- IContainerNodeModel ----
+
+    public bool IsContainer => Children.Count > 0 || IsParallel;
+
+    public IReadOnlyList<NodeId> ChildNodeIds =>
+        Children.Select(c => new NodeId(c.StableId)).ToList();
+
+    // For parallel composites, expose region descriptors.
+    // For non-parallel composites, return empty.
+    public IReadOnlyList<RegionDescriptor> Regions
+    {
+        get
+        {
+            if (!IsParallel || RegionNodes.Count == 0)
+                return Array.Empty<RegionDescriptor>();
+            return RegionNodes
+                .Select(r => new RegionDescriptor(r.RegionIndex, r.Name, r.Priority, null))
+                .ToList();
+        }
+    }
+
+    public int GetRegionIndexForChild(NodeId childId)
+    {
+        // Find the child StateNode with matching StableId
+        var child = Children.FirstOrDefault(c => c.StableId == childId.Value);
+        if (child == null) return -1;
+        return child.RegionIndex;
+    }
+
+    public ContainerPadding Padding => ContainerPadding.Default;
+
+    public Vector2 MinimumInteriorSize =>
+        IsParallel ? new Vector2(280f, 120f) : new Vector2(200f, 80f);
 }
 
 // Editor-side representation of a transition between two states.

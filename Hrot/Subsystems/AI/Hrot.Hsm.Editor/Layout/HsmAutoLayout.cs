@@ -32,7 +32,7 @@ public static class HsmAutoLayout
             state.Position = new Vector2(x, TopLevelY);
             if (state.Children.Count > 0 || state.IsParallel)
             {
-                state.Size = new Vector2(CompositeWidth, CompositeHeight);
+                state.SizeOverride = new Vector2(CompositeWidth, CompositeHeight);
                 LayoutChildren(state, x, TopLevelY);
                 x += CompositeWidth + TopLevelSpacingX;
             }
@@ -65,7 +65,7 @@ public static class HsmAutoLayout
             }
             if (child.Children.Count > 0 || child.IsParallel)
             {
-                child.Size = new Vector2(CompositeWidth, CompositeHeight);
+                child.SizeOverride = new Vector2(CompositeWidth, CompositeHeight);
                 LayoutChildren(child, child.Position.X, child.Position.Y);
             }
         }
