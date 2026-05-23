@@ -1,6 +1,7 @@
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 
@@ -87,6 +88,27 @@ internal sealed class ContainerRenderer
 
         var catColor = view.Host.Theme.GetCategoryHeaderColor(container.Category);
 
+        // ── Low-zoom (below 0.5): simplified solid rectangle + brighter header strip ──
+        if (view.Viewport.IsLowZoom)
+        {
+            // Solid interior fill in category color at slightly higher alpha.
+            dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.25f)), corner);
+            // Brighter header strip.
+            var brightColor = new Vector4(
+                MathF.Min(catColor.X * 1.3f, 1f),
+                MathF.Min(catColor.Y * 1.3f, 1f),
+                MathF.Min(catColor.Z * 1.3f, 1f),
+                catColor.W);
+            dl.AddRectFilled(pMin, new Vector2(pMax.X, pMin.Y + headerHt), ImGui.GetColorU32(brightColor), corner, ImDrawFlags.RoundCornersTop);
+            // Outline.
+            var outlineColorLZ = new Vector4(catColor.X * 0.5f, catColor.Y * 0.5f, catColor.Z * 0.5f, catColor.W);
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(outlineColorLZ), corner, ImDrawFlags.None, OutlinePx);
+            DrawSelectionOutline(view, dl, container, pMin, pMax, corner);
+            return;
+        }
+
+        // ── Normal zoom ──────────────────────────────────────────────────────
+
         // Interior background: category color at 8% alpha.
         var fillColor = new Vector4(catColor.X, catColor.Y, catColor.Z, 0.08f);
         dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(fillColor), corner);
@@ -106,15 +128,74 @@ internal sealed class ContainerRenderer
         var outlineColor = new Vector4(catColor.X * 0.5f, catColor.Y * 0.5f, catColor.Z * 0.5f, catColor.W);
         dl.AddRect(pMin, pMax, ImGui.GetColorU32(outlineColor), corner, ImDrawFlags.None, OutlinePx);
 
-        // Title and collapse indicator (skip at low zoom to avoid sub-pixel text).
-        if (!view.Viewport.IsLowZoom)
-        {
-            DrawCollapseIndicator(dl, container, pMin, headerHt, zoom);
-            DrawTitle(dl, container, pMin, pMax, headerHt, view.Host.Theme, zoom);
-        }
+        // Region dividers and headers (only when container has multiple regions).
+        if (container.Regions.Count > 0)
+            DrawRegions(dl, container, rect, catColor, headerHt, zoom);
+
+        // Title and collapse indicator.
+        DrawCollapseIndicator(dl, container, pMin, headerHt, zoom);
+        DrawTitle(dl, container, pMin, pMax, headerHt, view.Host.Theme, zoom);
 
         // Selection outline (drawn over the body outline).
         DrawSelectionOutline(view, dl, container, pMin, pMax, corner);
+    }
+
+    // Draws dashed region dividers and region header bands.
+    private static void DrawRegions(
+        ImDrawListPtr dl,
+        IContainerNodeModel container,
+        RectF rect,
+        Vector4 catColor,
+        float headerHt,
+        float zoom)
+    {
+        var strips = RegionLayoutComputer.Compute(
+            container,
+            new RectF(rect.Min, rect.Size),
+            headerHt,
+            OutlinePx,
+            paddingScale: zoom);
+
+        uint dividerColor  = ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.5f));
+        uint regionBgColor = ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.25f));
+        uint textColor     = ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.7f));
+        const float regionHeaderH = 18f; // screen pixels
+
+        for (int i = 0; i < strips.Count; i++)
+        {
+            var strip = strips[i];
+            var sMin  = strip.Min;
+            var sMax  = strip.Min + strip.Size;
+
+            // Region header band at top of each strip.
+            var hBandMax = new Vector2(sMax.X, MathF.Min(sMin.Y + regionHeaderH, sMax.Y));
+            dl.AddRectFilled(sMin, hBandMax, regionBgColor);
+            // Region name label.
+            dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + (regionHeaderH - ImGui.GetTextLineHeight()) * 0.5f),
+                textColor, strip.Descriptor.Name ?? string.Empty);
+
+            // Dashed divider above this strip (not for the very first strip).
+            if (i > 0)
+                DrawDashedHorizontalLine(dl, sMin.Y, sMin.X, sMax.X, dividerColor);
+        }
+    }
+
+    // Draws a dashed horizontal line: 4 px on, 3 px off.
+    private static void DrawDashedHorizontalLine(
+        ImDrawListPtr dl, float y, float x0, float x1, uint color)
+    {
+        const float DashOn  = 4f;
+        const float DashOff = 3f;
+        float x = x0;
+        bool on = true;
+        while (x < x1)
+        {
+            float next = x + (on ? DashOn : DashOff);
+            if (next > x1) next = x1;
+            if (on) dl.AddLine(new Vector2(x, y), new Vector2(next, y), color, 1f);
+            x = next;
+            on = !on;
+        }
     }
 
     private static void DrawTitle(

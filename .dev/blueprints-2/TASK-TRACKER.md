@@ -48,10 +48,10 @@
 - [x] **TASK-NEC-05** — Container hit-testing → [details](./TASK-DETAIL.md#task-nec-05--container-hit-testing)
 - [x] **TASK-NEC-06** — Drag-and-drop into containers → [details](./TASK-DETAIL.md#task-nec-06--drag-and-drop-into-containers)
 - [x] **TASK-NEC-07** — Container `GraphCommand` records + inverses → [details](./TASK-DETAIL.md#task-nec-07--container-commands)
-- [ ] **TASK-NEC-08** — Region rendering + interactions → [details](./TASK-DETAIL.md#task-nec-08--region-rendering-and-interactions)
-- [ ] **TASK-NEC-09** — Z-order and overlap rules → [details](./TASK-DETAIL.md#task-nec-09--z-order-and-overlap-rules)
-- [ ] **TASK-NEC-10** — Serialization-order determinism → [details](./TASK-DETAIL.md#task-nec-10--serialization-order-determinism)
-- [ ] **TASK-NEC-11** — Low-zoom container rendering → [details](./TASK-DETAIL.md#task-nec-11--low-zoom-container-rendering)
+- [x] **TASK-NEC-08** — Region rendering + interactions → [details](./TASK-DETAIL.md#task-nec-08--region-rendering-and-interactions)
+- [x] **TASK-NEC-09** — Z-order and overlap rules → [details](./TASK-DETAIL.md#task-nec-09--z-order-and-overlap-rules)
+- [x] **TASK-NEC-10** — Serialization-order determinism → [details](./TASK-DETAIL.md#task-nec-10--serialization-order-determinism)
+- [x] **TASK-NEC-11** — Low-zoom container rendering → [details](./TASK-DETAIL.md#task-nec-11--low-zoom-container-rendering)
 - [ ] **TASK-NEC-12** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-nec-12--theme-additions-and-demo-scenario)
 
 ## Phase 4 — NodeEditor: CustomCanvasRenderer extension
