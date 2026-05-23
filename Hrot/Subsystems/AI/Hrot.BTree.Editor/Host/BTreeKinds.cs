@@ -8,27 +8,29 @@ namespace Hrot.BTree.Editor.Host;
 /// </summary>
 internal static class BTreeKinds
 {
+    // Root
+    public const string Root             = "bt.composite.root";
+
     // Composites
-    public const string Root             = "bt.root";
-    public const string Sequence         = "bt.sequence";
-    public const string Selector         = "bt.selector";
-    public const string Parallel         = "bt.parallel";
-    public const string ObserverSelector = "bt.observer_selector";
+    public const string Sequence         = "bt.composite.sequence";
+    public const string Selector         = "bt.composite.selector";
+    public const string Parallel         = "bt.composite.parallel";
+    public const string ObserverSelector = "bt.composite.observerSelector";
 
     // Leaves
-    public const string Action           = "bt.action";
-    public const string Condition        = "bt.condition";
-    public const string Wait             = "bt.wait";
-    public const string Subtree          = "bt.subtree";
+    public const string Action           = "bt.leaf.action";
+    public const string Condition        = "bt.leaf.condition";
+    public const string Wait             = "bt.leaf.wait";
+    public const string Subtree          = "bt.leaf.subtree";
 
     // Decorators (collapsed to pills; should not appear as standalone nodes)
-    public const string Inverter         = "bt.inverter";
-    public const string Repeater         = "bt.repeater";
-    public const string Cooldown         = "bt.cooldown";
-    public const string ForceSuccess     = "bt.force_success";
-    public const string ForceFailure     = "bt.force_failure";
-    public const string UntilSuccess     = "bt.until_success";
-    public const string UntilFailure     = "bt.until_failure";
+    public const string Inverter         = "bt.decorator.inverter";
+    public const string Repeater         = "bt.decorator.repeater";
+    public const string Cooldown         = "bt.decorator.cooldown";
+    public const string ForceSuccess     = "bt.decorator.forceSuccess";
+    public const string ForceFailure     = "bt.decorator.forceFailure";
+    public const string UntilSuccess     = "bt.decorator.untilSuccess";
+    public const string UntilFailure     = "bt.decorator.untilFailure";
 
     /// <summary>Returns true when the given kind key identifies a leaf node.</summary>
     public static bool IsLeaf(NodeKindKey key)

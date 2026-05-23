@@ -155,6 +155,10 @@ public sealed class BehaviorTreeAsset : IEditableAsset
     // ---- Kernel data ----
     public string BlackboardTypeName { get; }
     public string ContextTypeName    { get; }
+    /// <summary>
+    /// Target C# namespace for the emitted file, e.g. "Hrot.AI.Behaviors.Trees".
+    /// </summary>
+    public string TargetNamespace    { get; set; }
     public BehaviorTreeBlob Blob { get; private set; }
 
     // ---- Editor collections (read-only views) ----
@@ -172,7 +176,8 @@ public sealed class BehaviorTreeAsset : IEditableAsset
         bool isEditorOwned,
         string blackboardTypeName,
         string contextTypeName,
-        BehaviorTreeBlob blob)
+        BehaviorTreeBlob blob,
+        string targetNamespace = "")
     {
         AssetId              = assetId;
         Name                 = name;
@@ -181,6 +186,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset
         BlackboardTypeName   = blackboardTypeName;
         ContextTypeName      = contextTypeName;
         Blob                 = blob;
+        TargetNamespace      = targetNamespace;
     }
 
     // ---- Mutation helpers ----
