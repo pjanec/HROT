@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
+using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
@@ -26,7 +29,8 @@ internal sealed class HitTester
         SpatialIndex spatialIndex,
         Dictionary<PinId, Vector2> pinPositions,
         Dictionary<AttachmentId, RectF> attachmentScreenRects,
-        Dictionary<NodeId, RectF> nodeScreenRects)
+        Dictionary<NodeId, RectF> nodeScreenRects,
+        IHitTestContext hitCtx)
     {
         var mouse = view.Host.Input.MousePosition;
         var mouseGraph = view.Viewport.ScreenToGraph(mouse);
@@ -84,6 +88,9 @@ internal sealed class HitTester
                 SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, 1, wireIndex, 1);
         }
 
+        // 2a. Custom AfterWires hit-testers (above wires; zLayer=1, high subLayer).
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterWires, mouseGraph, hitCtx, zLayer: 1, subLayerBase: 100000, SubmitHit);
+
         // 2b. Attachment pills (below nodes in z-order when unobscured).
         int attachIndex = 0;
         foreach (var (attachId, screenRect) in attachmentScreenRects)
@@ -120,6 +127,9 @@ internal sealed class HitTester
                 SubmitHit(new HoverInfo { Kind = HoverKind.Container, Node = node.Id, ContainerZone = ContainerHoverZone.Header },
                     4, containerHeaderIndex, 1);
         }
+
+        // 2d. Custom AfterNodes hit-testers (above container headers; zLayer=4, high subLayer).
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.AfterNodes, mouseGraph, hitCtx, zLayer: 4, subLayerBase: 100000, SubmitHit);
 
         // 3. Nodes and Pins (same sub-layer uses model draw order).
         int nodeIndex = 0;
@@ -169,6 +179,10 @@ internal sealed class HitTester
             }
         }
 
+        // 4b. Custom TopMost hit-testers (above reroutes).
+        var customRenderers = view.Host.CustomCanvasRenderers;
+        SubmitCustomHits(customRenderers, CanvasRenderPass.TopMost, mouseGraph, hitCtx, zLayer: 6, subLayerBase: 0, SubmitHit);
+
         // 3b. Container interior (body area below the header).
         // zLayer=1 ensures children (2/3) and wires (1, but higher subLayer) beat the interior.
         // Beats comment bodies (zLayer=0).
@@ -189,10 +203,40 @@ internal sealed class HitTester
                 1, containerInteriorIndex, 2);
         }
 
+        // 5. Custom BeforeContent hit-testers (lowest custom layer; zLayer=0, high subLayer).
+        SubmitCustomHits(view.Host.CustomCanvasRenderers, CanvasRenderPass.BeforeContent, mouseGraph, hitCtx, zLayer: 0, subLayerBase: 100000, SubmitHit);
+
         view.Interaction.Hover = hasBestHit ? bestHit : HoverInfo.None;
     }
 
-    // ── wire hit ─────────────────────────────────────────────────────────────
+    // Runs ICustomCanvasHitTester.HitTest for renderers that implement it, in reverse
+    // registration order (later-registered renderer wins).
+    private static void SubmitCustomHits(
+        IReadOnlyList<ICustomCanvasRenderer> renderers,
+        CanvasRenderPass pass,
+        Vector2 mouseGraph,
+        IHitTestContext hitCtx,
+        int zLayer,
+        int subLayerBase,
+        System.Action<HoverInfo, int, int, int> submitHit)
+    {
+        int count = renderers.Count;
+        for (int i = count - 1; i >= 0; i--)
+        {
+            var renderer = renderers[i];
+            if (renderer.Pass != pass || !renderer.IsActive) continue;
+            if (renderer is not ICustomCanvasHitTester hitTester) continue;
+            var result = hitTester.HitTest(mouseGraph, hitCtx);
+            if (result is not null)
+            {
+                // Reverse index: last-registered gets highest subLayer and wins.
+                int subLayer = subLayerBase + (count - 1 - i);
+                submitHit(
+                    new HoverInfo { Kind = HoverKind.CustomElement, CustomElement = new CustomElementRef(renderer.Id, result.Value.ElementKey) },
+                    zLayer, subLayer, 1);
+            }
+        }
+    }
 
     private static bool HitsWire(Vector2 mouse, Vector2 a, Vector2 b,
         ILinkModel link, ViewportState viewport)

@@ -1,3 +1,4 @@
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.View;
@@ -16,6 +17,8 @@ public readonly record struct HoverInfo
     public CommentId Comment { get; init; }
     public RerouteRef Reroute { get; init; }
     public AttachmentId Attachment { get; init; }
+    /// <summary>For custom elements: the renderer and element key that was hit.</summary>
+    public CustomElementRef CustomElement { get; init; }
     /// <summary>For comments: whether the cursor is on the title bar (drag), the body, or a resize handle.</summary>
     public CommentHoverZone CommentZone { get; init; }
     /// <summary>For containers: which zone of the container the cursor is over.</summary>
@@ -24,7 +27,7 @@ public readonly record struct HoverInfo
     public static HoverInfo None => default;
 }
 
-public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container }
+public enum HoverKind { None, Node, Pin, Link, Comment, Reroute, Attachment, Container, CustomElement }
 
 public enum CommentHoverZone { None, Header, Body, ResizeHandle }
 

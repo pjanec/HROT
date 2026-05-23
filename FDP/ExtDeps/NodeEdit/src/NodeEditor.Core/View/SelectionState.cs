@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.View;
@@ -30,6 +31,9 @@ public sealed class SelectionState
 
     public IEnumerable<AttachmentId> Attachments =>
         _items.Where(e => e.Kind == SelectionEntryKind.Attachment).Select(e => e.Attachment);
+
+    public IEnumerable<CustomElementRef> CustomElements =>
+        _items.Where(e => e.Kind == SelectionEntryKind.CustomElement).Select(e => e.CustomElement);
 
     /// <summary>Replace the selection with exactly one entry.</summary>
     public void ReplaceWith(SelectionEntry entry)

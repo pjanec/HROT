@@ -55,9 +55,9 @@
 - [x] **TASK-NEC-12** — Theme additions + demo scenario → [details](./TASK-DETAIL.md#task-nec-12--theme-additions-and-demo-scenario)
 
 ## Phase 4 — NodeEditor: CustomCanvasRenderer extension
-- [ ] **TASK-NER-01** — `ICustomCanvasRenderer` interface + registration → [details](./TASK-DETAIL.md#task-ner-01--icustomcanvasrenderer-interface-and-registration)
-- [ ] **TASK-NER-02** — `ICanvasRenderContext` + per-pass invocation → [details](./TASK-DETAIL.md#task-ner-02--icanvasrendercontext-and-per-pass-invocation)
-- [ ] **TASK-NER-03** — Coordinate-space helpers on the context → [details](./TASK-DETAIL.md#task-ner-03--coordinate-space-helpers)
+- [x] **TASK-NER-01** — `ICustomCanvasRenderer` interface + registration → [details](./TASK-DETAIL.md#task-ner-01--icustomcanvasrenderer-interface-and-registration)
+- [x] **TASK-NER-02** — `ICanvasRenderContext` + per-pass invocation → [details](./TASK-DETAIL.md#task-ner-02--icanvasrendercontext-and-per-pass-invocation)
+- [x] **TASK-NER-03** — Coordinate-space helpers on the context → [details](./TASK-DETAIL.md#task-ner-03--coordinate-space-helpers)
 - [ ] **TASK-NER-04** — `ICustomCanvasHitTester` + hit-test integration → [details](./TASK-DETAIL.md#task-ner-04--icustomcanvashittester-and-hit-test-integration)
 - [ ] **TASK-NER-05** — `ICustomCanvasSelectable` + selection extension → [details](./TASK-DETAIL.md#task-ner-05--icustomcanvasselectable-and-selection-extension)
 - [ ] **TASK-NER-06** — `DetailsTarget` extension for custom elements → [details](./TASK-DETAIL.md#task-ner-06--details-panel-target-extension)

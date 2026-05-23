@@ -12,7 +12,7 @@ namespace NodeEditor.UI.Canvas;
 /// Concrete per-frame implementation of <see cref="ICanvasRenderContext"/>.
 /// Constructed once and updated each frame before invoking custom renderers.
 /// </summary>
-internal sealed class CanvasRenderContextImpl : ICanvasRenderContext
+internal sealed class CanvasRenderContextImpl : ICanvasRenderContext, IHitTestContext
 {
     private readonly Dictionary<string, object?> _frameScratch = new();
 

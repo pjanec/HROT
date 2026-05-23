@@ -237,6 +237,31 @@ internal sealed class CanvasInput
                     }
                     break;
 
+                case HoverKind.CustomElement:
+                {
+                    var ceRef = hover.CustomElement;
+                    var entry = SelectionEntry.OfCustomElement(ceRef);
+                    if (!ctrl && !shift)
+                        view.Selection.ReplaceWith(entry);
+                    else if (ctrl)
+                        view.Selection.Toggle(entry);
+                    else if (shift)
+                        view.Selection.Add(entry);
+                    // Notify the renderer if it implements ICustomCanvasSelectable.
+                    foreach (var renderer in view.Host.CustomCanvasRenderers)
+                    {
+                        if (renderer.Id == ceRef.RendererId && renderer is ICustomCanvasSelectable sel)
+                        {
+                            // Re-run hit test to get the full CustomElementHit for the callback.
+                            // (We only stored the ref in HoverInfo; the full hit is not cached.)
+                            // Since the click-to-select already happened, notify with a minimal hit.
+                            sel.OnElementSelected(ceRef.ElementKey, new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default));
+                            break;
+                        }
+                    }
+                    break;
+                }
+
                 case HoverKind.None:
                     // Click on empty canvas → clear selection, start marquee
                     if (!ctrl && !shift)

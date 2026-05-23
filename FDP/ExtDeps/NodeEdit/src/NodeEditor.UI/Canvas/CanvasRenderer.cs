@@ -133,10 +133,10 @@ public sealed class CanvasRenderer
         var visibleLinkIds   = ComputeVisibleLinks(view, visibleNodeIds);
 
         // 3. Hit-test to update hover info.
-        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects);
-
-        // Prepare the custom-renderer context (reused across all passes this frame).
+        // Prepare the custom-renderer context before hit-testing so hit-testers
+        // have access to the current viewport and visible sets.
         _renderCtx.BeginFrame(view, dl, visibleNodeIds, visibleLinkIds);
+        _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects, _renderCtx);
 
         // ── Draw phases ───────────────────────────────────────────────────
 
