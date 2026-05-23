@@ -129,11 +129,11 @@
 - [x] **TASK-BT-S2-05** — `BTreeTraceLaneProvider` → [details](./TASK-DETAIL.md#task-bt-s2-05--btreetracelaneprovider)
 
 ## Phase 9 — HSM host: Slice 2 (runtime read-only)
-- [ ] **TASK-HS-S2-01** — `IHsmDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-hs-s2-01--ihsmdebugsession--hsmdebugsession)
-- [ ] **TASK-HS-S2-02** — `hsm.runtime_overlay` renderer → [details](./TASK-DETAIL.md#task-hs-s2-02--hsmruntime_overlay-custom-renderer)
-- [ ] **TASK-HS-S2-03** — LCA highlight in initial-state-arrows renderer → [details](./TASK-DETAIL.md#task-hs-s2-03--lca-highlight-in-initial-state-arrows-renderer)
-- [ ] **TASK-HS-S2-04** — `HsmRuntimeInspectorPane` → [details](./TASK-DETAIL.md#task-hs-s2-04--hsmruntimeinspectorpane)
-- [ ] **TASK-HS-S2-05** — `HsmTraceLaneProvider` → [details](./TASK-DETAIL.md#task-hs-s2-05--hsmtracelaneprovider)
+- [x] **TASK-HS-S2-01** — `IHsmDebugSession` + production implementation → [details](./TASK-DETAIL.md#task-hs-s2-01--ihsmdebugsession--hsmdebugsession)
+- [x] **TASK-HS-S2-02** — `hsm.runtime_overlay` renderer → [details](./TASK-DETAIL.md#task-hs-s2-02--hsmruntime_overlay-custom-renderer)
+- [x] **TASK-HS-S2-03** — LCA highlight in initial-state-arrows renderer → [details](./TASK-DETAIL.md#task-hs-s2-03--lca-highlight-in-initial-state-arrows-renderer)
+- [x] **TASK-HS-S2-04** — `HsmRuntimeInspectorPane` → [details](./TASK-DETAIL.md#task-hs-s2-04--hsmruntimeinspectorpane)
+- [x] **TASK-HS-S2-05** — `HsmTraceLaneProvider` → [details](./TASK-DETAIL.md#task-hs-s2-05--hsmtracelaneprovider)
 
 ## Phase 10 — Both hosts: Slice 3 (stepping + breakpoints)
 - [ ] **TASK-BT-S3-01** — BTree breakpoint registry + UI gutter → [details](./TASK-DETAIL.md#task-bt-s3-01--breakpoint-registry--ui-gutter-btree)

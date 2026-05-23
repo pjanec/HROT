@@ -16,7 +16,7 @@ public class BTreeDebugSessionTests
         new(SomeEntity, SomeAssetId, Guid.NewGuid(), NodeStatus.Success, 1.0f, tick);
 
     private static BTreeAsyncEvent MakeAsyncEvent(BTreeAsyncPhase phase = BTreeAsyncPhase.Issued) =>
-        new(SomeEntity, SomeAssetId, Guid.NewGuid(), requestId: 1, treeVersion: 1, phase, SimulationTime: 1.0f);
+        new(SomeEntity, SomeAssetId, Guid.NewGuid(), RequestId: 1, TreeVersion: 1, phase, SimulationTime: 1.0f);
 
     [Fact]
     public void Session_IsAttached_OnConstruction()
