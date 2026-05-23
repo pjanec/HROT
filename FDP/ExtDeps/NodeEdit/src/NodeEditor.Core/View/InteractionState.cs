@@ -54,6 +54,15 @@ public sealed class InteractionState
     /// <summary>Snapshot of the hovered target captured when context menu was requested.</summary>
     public HoverInfo ContextMenuTarget { get; set; } = HoverInfo.None;
 
+    /// <summary>
+    /// During a node drag: the container the dragged node(s) would be dropped into, or null for root.
+    /// Cleared on drag end.
+    /// </summary>
+    public NodeId? DropTargetContainerId { get; set; }
+
+    /// <summary>True when the current drop target would create a cycle and the drop is therefore invalid.</summary>
+    public bool DropTargetCycleDetected { get; set; }
+
     /// <summary>Optional active viewport tween (camera animation to a bookmark).</summary>
     public ViewportTween? ActiveTween { get; private set; }
 
@@ -64,7 +73,7 @@ public sealed class InteractionState
     /// <summary>Clear the active tween (called by renderer once the tween completes or is interrupted).</summary>
     public void ClearTween() => ActiveTween = null;
 
-    /// <summary>Reset to Idle: clears mode, drag overrides, marquee, pending wire.</summary>
+    /// <summary>Reset to Idle: clears mode, drag overrides, marquee, pending wire, drop target.</summary>
     public void ResetToIdle()
     {
         Mode = InteractionMode.Idle;
@@ -78,6 +87,8 @@ public sealed class InteractionState
         PendingWire = null;
         ContextMenuScreen = null;
         ContextMenuTarget = HoverInfo.None;
+        DropTargetContainerId = null;
+        DropTargetCycleDetected = false;
     }
 }
 

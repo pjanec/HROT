@@ -161,7 +161,36 @@ internal sealed class ContainerRenderer
         IContainerNodeModel container,
         Vector2 pMin, Vector2 pMax, float corner)
     {
-        if (!view.Selection.Contains(SelectionEntry.OfNode(container.Id))) return;
+        bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(container.Id));
+        bool isDropTarget = view.Interaction.DropTargetContainerId == container.Id;
+        bool isCycleTarget = view.Interaction.DropTargetCycleDetected
+                          && (view.Interaction.DropTargetContainerId == null || view.Interaction.DropTargetContainerId == container.Id);
+
+        if (isDropTarget)
+        {
+            // Drop target: faint accent-color outline to show where the node will land.
+            var dropColor = view.Host.Theme.SelectionAccent;
+            dl.AddRect(
+                pMin - new Vector2(3f, 3f),
+                pMax + new Vector2(3f, 3f),
+                ImGui.GetColorU32(dropColor),
+                corner + 3f,
+                ImDrawFlags.None,
+                2f);
+        }
+        else if (isCycleTarget)
+        {
+            // Invalid drop (cycle): red outline.
+            dl.AddRect(
+                pMin - new Vector2(3f, 3f),
+                pMax + new Vector2(3f, 3f),
+                ImGui.GetColorU32(new Vector4(1f, 0.2f, 0.2f, 0.9f)),
+                corner + 3f,
+                ImDrawFlags.None,
+                2f);
+        }
+
+        if (!isSelected) return;
 
         float border = view.Host.Theme.NodeBorderThickness * view.Viewport.Zoom;
         uint selColor = view.Selection.Items.Count == 1

@@ -46,7 +46,7 @@
 - [x] **TASK-NEC-03** — Container bounds + auto-resize → [details](./TASK-DETAIL.md#task-nec-03--container-bounds-computation-and-auto-resize)
 - [x] **TASK-NEC-04** — Container rendering passes → [details](./TASK-DETAIL.md#task-nec-04--container-rendering-passes)
 - [x] **TASK-NEC-05** — Container hit-testing → [details](./TASK-DETAIL.md#task-nec-05--container-hit-testing)
-- [ ] **TASK-NEC-06** — Drag-and-drop into containers → [details](./TASK-DETAIL.md#task-nec-06--drag-and-drop-into-containers)
+- [x] **TASK-NEC-06** — Drag-and-drop into containers → [details](./TASK-DETAIL.md#task-nec-06--drag-and-drop-into-containers)
 - [x] **TASK-NEC-07** — Container `GraphCommand` records + inverses → [details](./TASK-DETAIL.md#task-nec-07--container-commands)
 - [ ] **TASK-NEC-08** — Region rendering + interactions → [details](./TASK-DETAIL.md#task-nec-08--region-rendering-and-interactions)
 - [ ] **TASK-NEC-09** — Z-order and overlap rules → [details](./TASK-DETAIL.md#task-nec-09--z-order-and-overlap-rules)

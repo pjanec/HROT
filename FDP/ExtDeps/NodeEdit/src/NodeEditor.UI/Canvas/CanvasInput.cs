@@ -1,8 +1,10 @@
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 
@@ -25,7 +27,7 @@ internal sealed class CanvasInput
     /// Process one frame of input for the given view.
     /// Must be called after the canvas child window is active.
     /// </summary>
-    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive)
+    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, SpatialIndex spatialIndex)
     {
         bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive);
 
@@ -51,7 +53,7 @@ internal sealed class CanvasInput
                 break;
 
             case InteractionMode.DraggingNodes:
-                HandleDraggingNodes(view, input);
+                HandleDraggingNodes(view, input, spatialIndex);
                 break;
 
             case InteractionMode.DraggingReroutes:
@@ -277,7 +279,7 @@ internal sealed class CanvasInput
 
     // ── Dragging nodes ────────────────────────────────────────────────────────
 
-    private static void HandleDraggingNodes(GraphView view, IInputSource input)
+    private static void HandleDraggingNodes(GraphView view, IInputSource input, SpatialIndex spatialIndex)
     {
         var delta = input.MousePosition - view.Interaction.DragStartScreen;
 
@@ -294,20 +296,123 @@ internal sealed class CanvasInput
             {
                 var n = view.Model.FindNode(nid);
                 if (n == null) continue;
-                view.Interaction.DragOverridePositions[nid] = n.Position + deltaGraph;
+                // Use canvas-absolute position as the override so the renderer can
+                // place dragged container-children correctly regardless of parent.
+                var canvasPos = view.NodeCanvasPosition(nid);
+                view.Interaction.DragOverridePositions[nid] = canvasPos + deltaGraph;
             }
+
+            // Compute which container the cursor is over (drop target for reparenting).
+            UpdateContainerDropTarget(view, input, spatialIndex);
         }
 
         if (input.IsMouseReleased(MouseButton.Left))
         {
             if (view.Interaction.DragThresholdCrossed && view.Interaction.DragOverridePositions.Count > 0)
-            {
-                var moves = view.Interaction.DragOverridePositions
-                    .Select(kv => new NodeMove(kv.Key, kv.Value))
-                    .ToList();
-                view.Commands.Apply(new GraphCommand.MoveNodes(moves));
-            }
+                CommitNodeDrop(view, input);
             view.Interaction.ResetToIdle();
+        }
+    }
+
+    // Determines the container drop target and stores it in InteractionState.
+    private static void UpdateContainerDropTarget(GraphView view, IInputSource input, SpatialIndex spatialIndex)
+    {
+        var mouseGraph = view.Viewport.ScreenToGraph(input.MousePosition);
+        var draggedSet = view.Selection.Nodes.ToHashSet();
+
+        // Find the smallest-area (innermost) container that contains the mouse
+        // and is not being dragged itself.
+        NodeId? best = null;
+        float  bestArea = float.MaxValue;
+        foreach (var node in view.Model.Nodes)
+        {
+            if (node.AsContainer() is null) continue;
+            if (draggedSet.Contains(node.Id)) continue;
+
+            var bounds = spatialIndex.GetBounds(node.Id);
+            if (!bounds.HasValue) continue;
+            if (!bounds.Value.Contains(mouseGraph)) continue;
+            // Exclude clicks on the header zone (dropping onto the header selects the container, not its interior).
+            if (mouseGraph.Y < bounds.Value.Min.Y + view.Host.Theme.NodeHeaderHeight) continue;
+
+            float area = bounds.Value.Size.X * bounds.Value.Size.Y;
+            if (area < bestArea)
+            {
+                bestArea = area;
+                best = node.Id;
+            }
+        }
+
+        // Cycle check: reject if any dragged node is an ancestor of the target.
+        bool cycleDetected = best.HasValue
+            && ContainerCycleDetector.WouldCreateCycleAny(draggedSet, best.Value, view.Model);
+
+        view.Interaction.DropTargetContainerId  = cycleDetected ? null : best;
+        view.Interaction.DropTargetCycleDetected = cycleDetected;
+    }
+
+    // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
+    private static void CommitNodeDrop(GraphView view, IInputSource input)
+    {
+        var newParentId = view.Interaction.DropTargetContainerId;
+
+        foreach (var nid in view.Selection.Nodes)
+        {
+            var n = view.Model.FindNode(nid);
+            if (n == null) continue;
+
+            bool reparenting = n.ParentContainerId != newParentId;
+            var  canvasPos   = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
+                ? ovr
+                : view.NodeCanvasPosition(nid);
+
+            if (reparenting)
+            {
+                // Compute position relative to the new parent's interior origin.
+                Vector2 newLocalPos;
+                if (newParentId.HasValue)
+                {
+                    var container = view.Model.FindNode(newParentId.Value)?.AsContainer();
+                    if (container != null)
+                    {
+                        var containerCanvas = view.NodeCanvasPosition(newParentId.Value);
+                        var interiorOrigin  = containerCanvas + new Vector2(
+                            container.Padding.Left,
+                            view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
+                        newLocalPos = canvasPos - interiorOrigin;
+                    }
+                    else
+                    {
+                        newLocalPos = canvasPos;
+                    }
+                }
+                else
+                {
+                    newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
+                }
+                view.Commands.Apply(new GraphCommand.ChangeParent(nid, newParentId, null, newLocalPos));
+            }
+            else if (n.ParentContainerId == null)
+            {
+                // Root-level node staying at root: regular move.
+                view.Commands.Apply(new GraphCommand.MoveNodes(
+                    new List<NodeMove> { new NodeMove(nid, canvasPos) }));
+            }
+            else
+            {
+                // Container child staying in same parent: move within parent.
+                // Compute parent-local position from canvas-absolute override.
+                var container = view.Model.FindNode(n.ParentContainerId.Value)?.AsContainer();
+                if (container != null)
+                {
+                    var containerCanvas = view.NodeCanvasPosition(n.ParentContainerId.Value);
+                    var interiorOrigin  = containerCanvas + new Vector2(
+                        container.Padding.Left,
+                        view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
+                    var localPos = canvasPos - interiorOrigin;
+                    view.Commands.Apply(new GraphCommand.ChangeParent(nid, n.ParentContainerId, null, localPos));
+                }
+            }
         }
     }
 

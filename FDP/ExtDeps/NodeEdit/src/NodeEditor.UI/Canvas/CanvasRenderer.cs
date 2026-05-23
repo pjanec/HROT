@@ -155,7 +155,7 @@ public sealed class CanvasRenderer
         _attachments.DrawAll(view, dl, _layout.AttachmentLayouts, _layout.NodeScreenRects);
 
         // 4. Process input after widgets are submitted, using snapshotted hover.
-        _input.Handle(view, isCanvasHovered, isCanvasBgActive);
+        _input.Handle(view, isCanvasHovered, isCanvasBgActive, _spatialIndex);
         if ((view.Host.Input.Modifiers & KeyModifiers.Alt) != 0
             && view.Interaction.Hover.Kind == HoverKind.Link)
         {
