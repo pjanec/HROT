@@ -1,25 +1,25 @@
 These tasks that are fixing specs violations in the current code. Read the FIX1-TASK-DETAIL.md first where the details of the fixing tasks.
 
-- [ ] **TASK-K-01**: Add `Lane` property to `[HsmAction]` attribute and ensure the source generator preserves it in the compiled metadata.
-- [ ] **TASK-K-02, TASK-K-03**: Add `Guid stableId = default` and `Guid visualId = default` parameters to HSM fluent builder methods and stamp them into the emitted definition blob.
-- [ ] **TASK-K-05**: Add a `Paused` flag to the BTree execution state and evaluate it inside `BTreeTickSystem.Execute` to accurately halt progression on breakpoints.
-- [ ] **TASK-K-06**: Add `Guid visualId = default` parameter to all BTree fluent builder methods to map UI nodes to emitted kernels.
-- [ ] **TASK-S1-03**: Refactor `EditorSelectionStore` to use a `Dictionary<Guid, IAssetSubSelection>` for sub-selections to ensure per-asset isolation across multiple windows.
-- [ ] **TASK-S1-05**: Subscribe `ReferenceCatalog` to `IAssetCatalog.Changed` and trigger an automatic multi-index rebuild.
-- [ ] **TASK-S1-08**: Wire `IGSelectionBridge` to read `SelectionChangedEvent` off the `FdpEventBus` and synchronize the editor's selected active entity.
-- [ ] **TASK-S1-11, TASK-S1-12**: Enforce debug session exclusivity inside `TryAcquireSession`, ensuring only one active control session can exist while defaulting others to observer mode.
-- [ ] **TASK-NEA-03**: Expand the `GraphChangeNotification` record to include `IReadOnlySet<AttachmentId>? AffectedAttachments` so the UI invalidates layout correctly on attachment changes.
-- [ ] **TASK-NEA-06, TASK-NEC-05, TASK-NER-04**: Rewrite Z-Layer priorities in `HitTester.cs` to strictly adhere to the 15-step hierarchy demanded by the custom canvas renderer extensions.
-- [ ] **TASK-NEC-06**: Update `CanvasInput.cs` drag-and-drop to evaluate drop coordinates against the spatial index for container node reparenting, emitting `GraphCommand.ChangeParent`.
-- [ ] **TASK-NER-07**: Hook `HoverKind.CustomElement` in the canvas right-click handler to query `ICustomElementContextMenuProvider` and display host-provided menus for custom renderers.
-- [ ] **TASK-BT-S1-11**: Implement the custom canvas renderer to draw "👁 OBSERVES" badges on wires connecting BTree observer selectors to their guard children.
-- [ ] **TASK-HS-S1-08, TASK-HS-S1-10**: Replace `/* TODO */` stubs in `HsmCommandSink.cs` for parallel regions and attachments with logic that actually mutates the `HsmAsset` collections and marks the asset dirty.
-- [ ] **TASK-HS-S1-14**: Update the transition renderer to intercept `TransitionKind.Internal` and draw dashed loops entirely inside the source state bounding box.
-- [ ] **TASK-BT-S2-01, TASK-HS-S2-01**: Inject the `EntityRepository` into the debug sessions and implement `GetCurrentStateSnapshot()` to extract live ECS state into `BehaviorTreeStateSnapshot` and `HsmInstanceSnapshot`.
-- [ ] **TASK-BT-S2-03**: Update `LiveBlackboardPanel.Draw()` to safely extract ECS parameter bytes and decode them to display actual runtime values.
-- [ ] **TASK-BT-S2-05, TASK-HS-S2-05**: Implement per-frame unmanaged trace buffer polling in the debug sessions to populate timeline history records.
-- [ ] **TASK-HS-S3-01**: Map transition breakpoints in `HsmBreakpointGutterRenderer` to render red affordance dots directly onto the transition labels.
-- [ ] **TASK-BT-S3-02, TASK-HS-S3-02**: Implement step control state machines (`OnStepOverImpl`, `OnStepIntoImpl`, etc.) inside the debug sessions to command `RequestStepOneTick` and `RequestPause`.
-- [ ] **TASK-BT-S3-03**: Implement `SubtreeBoundaryRenderer` to compute the combined AABB of all currently executing nodes within the active BTree stack and draw a dashed boundary box.
-- [ ] **TASK-HS-S3-03**: Implement `ICustomCanvasHitTester` on `HsmRegionConflictsRenderer` to make conflict overlays clickable and wire the warning glyph to a suppression popup.
-- [ ] **TASK-HS-S3-04**: Map HSM history and final states to a transparent theme category so standard node bodies are bypassed, allowing only the custom circular glyphs to render.
+- [x] **TASK-K-01**: Add `Lane` property to `[HsmAction]` attribute and ensure the source generator preserves it in the compiled metadata.
+- [x] **TASK-K-02, TASK-K-03**: Add `Guid stableId = default` and `Guid visualId = default` parameters to HSM fluent builder methods and stamp them into the emitted definition blob.
+- [x] **TASK-K-05**: Add a `Paused` flag to the BTree execution state and evaluate it inside `BTreeTickSystem.Execute` to accurately halt progression on breakpoints.
+- [x] **TASK-K-06**: Add `Guid visualId = default` parameter to all BTree fluent builder methods to map UI nodes to emitted kernels.
+- [x] **TASK-S1-03**: Refactor `EditorSelectionStore` to use a `Dictionary<Guid, IAssetSubSelection>` for sub-selections to ensure per-asset isolation across multiple windows.
+- [x] **TASK-S1-05**: Subscribe `ReferenceCatalog` to `IAssetCatalog.Changed` and trigger an automatic multi-index rebuild.
+- [x] **TASK-S1-08**: Wire `IGSelectionBridge` to read `SelectionChangedEvent` off the `FdpEventBus` and synchronize the editor's selected active entity.
+- [x] **TASK-S1-11, TASK-S1-12**: Enforce debug session exclusivity inside `TryAcquireSession`, ensuring only one active control session can exist while defaulting others to observer mode.
+- [x] **TASK-NEA-03**: Expand the `GraphChangeNotification` record to include `IReadOnlySet<AttachmentId>? AffectedAttachments` so the UI invalidates layout correctly on attachment changes.
+- [x] **TASK-NEA-06, TASK-NEC-05, TASK-NER-04**: Rewrite Z-Layer priorities in `HitTester.cs` to strictly adhere to the 15-step hierarchy demanded by the custom canvas renderer extensions.
+- [x] **TASK-NEC-06**: Update `CanvasInput.cs` drag-and-drop to evaluate drop coordinates against the spatial index for container node reparenting, emitting `GraphCommand.ChangeParent`.
+- [x] **TASK-NER-07**: Hook `HoverKind.CustomElement` in the canvas right-click handler to query `ICustomElementContextMenuProvider` and display host-provided menus for custom renderers.
+- [x] **TASK-BT-S1-11**: Implement the custom canvas renderer to draw "👁 OBSERVES" badges on wires connecting BTree observer selectors to their guard children.
+- [x] **TASK-HS-S1-08, TASK-HS-S1-10**: Replace `/* TODO */` stubs in `HsmCommandSink.cs` for parallel regions and attachments with logic that actually mutates the `HsmAsset` collections and marks the asset dirty.
+- [x] **TASK-HS-S1-14**: Update the transition renderer to intercept `TransitionKind.Internal` and draw dashed loops entirely inside the source state bounding box.
+- [x] **TASK-BT-S2-01, TASK-HS-S2-01**: Inject the `EntityRepository` into the debug sessions and implement `GetCurrentStateSnapshot()` to extract live ECS state into `BehaviorTreeStateSnapshot` and `HsmInstanceSnapshot`.
+- [x] **TASK-BT-S2-03**: Update `LiveBlackboardPanel.Draw()` to safely extract ECS parameter bytes and decode them to display actual runtime values.
+- [x] **TASK-BT-S2-05, TASK-HS-S2-05**: Implement per-frame unmanaged trace buffer polling in the debug sessions to populate timeline history records.
+- [x] **TASK-HS-S3-01**: Map transition breakpoints in `HsmBreakpointGutterRenderer` to render red affordance dots directly onto the transition labels.
+- [x] **TASK-BT-S3-02, TASK-HS-S3-02**: Implement step control state machines (`OnStepOverImpl`, `OnStepIntoImpl`, etc.) inside the debug sessions to command `RequestStepOneTick` and `RequestPause`.
+- [x] **TASK-BT-S3-03**: Implement `SubtreeBoundaryRenderer` to compute the combined AABB of all currently executing nodes within the active BTree stack and draw a dashed boundary box.
+- [x] **TASK-HS-S3-03**: Implement `ICustomCanvasHitTester` on `HsmRegionConflictsRenderer` to make conflict overlays clickable and wire the warning glyph to a suppression popup.
+- [x] **TASK-HS-S3-04**: Map HSM history and final states to a transparent theme category so standard node bodies are bypassed, allowing only the custom circular glyphs to render.

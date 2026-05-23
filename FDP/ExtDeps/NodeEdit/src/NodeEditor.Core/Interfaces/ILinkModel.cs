@@ -30,4 +30,6 @@ public enum LinkStyle
 {
     Solid,
     Dashed,
+    /// <summary>Wire is not drawn. Custom renderers handle the visual representation.</summary>
+    Hidden,
 }

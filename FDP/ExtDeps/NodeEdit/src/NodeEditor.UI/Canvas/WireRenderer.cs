@@ -49,6 +49,9 @@ internal sealed class WireRenderer
             if (!pinPositions.TryGetValue(link.FromPin, out var a)) continue;
             if (!pinPositions.TryGetValue(link.ToPin,   out var b)) continue;
 
+            // Skip hidden links; they are drawn by custom renderers (e.g. HSM internal transitions).
+            if (link.Style == LinkStyle.Hidden) continue;
+
             bool isExec = fromPin?.Kind == PinKind.Exec;
 
             var wireColor = isExec
