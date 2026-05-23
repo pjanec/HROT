@@ -18,6 +18,21 @@ public interface IHsmDebugSession : IAiDebugSession
     /// <summary>Returns the last <paramref name="max"/> trace records (most recent last).</summary>
     IReadOnlyList<HsmTraceRecord> GetRecentTraceHistory(int max = 100);
 
+    /// <summary>
+    /// When true, RecordTrace(HsmStateEntered) increments per-StableId entry counters.
+    /// False by default; set to true before activating heatmap view.
+    /// </summary>
+    bool HeatmapModeActive { get; set; }
+
+    /// <summary>
+    /// Returns a snapshot of per-StableId state-entry counts for the given asset,
+    /// or null if not attached or heatmap mode is inactive.
+    /// </summary>
+    IReadOnlyDictionary<Guid, int>? GetStateEntryCounts(Guid assetId);
+
+    /// <summary>Resets all state-entry counters to zero.</summary>
+    void ResetStateEntryCounts();
+
     event Action<HsmBreakpointHit>? OnBreakpointHit;
     event Action<HsmStateEntered>? OnStateEntered;
     event Action<HsmStateExited>? OnStateExited;

@@ -15,6 +15,8 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
 
     private readonly List<BTreeNodeExecuted> _nodeHistory = new();
     private readonly List<BTreeAsyncEvent>   _asyncHistory = new();
+    private bool _heatmapModeActive;
+    private readonly Dictionary<Guid, int> _aggregateCounters = new();
 
     public event Action<BTreeBreakpointHit>? OnBreakpointHit;
     public event Action<BTreeNodeExecuted>?  OnNodeExecuted;
@@ -39,6 +41,21 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
         return _asyncHistory.GetRange(start, _asyncHistory.Count - start);
     }
 
+    public bool HeatmapModeActive
+    {
+        get => _heatmapModeActive;
+        set => _heatmapModeActive = value;
+    }
+
+    public IReadOnlyDictionary<Guid, int>? GetAggregateCounters(Guid assetId)
+    {
+        if (!IsAttached || !HeatmapModeActive)
+            return null;
+        return _aggregateCounters;
+    }
+
+    public void ResetAggregateCounters() => _aggregateCounters.Clear();
+
     // ---- Kernel adapter entry points (called by future kernel adapter) -----
 
     /// <summary>Records a node-execution event from the kernel tracer.</summary>
@@ -47,6 +64,11 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
         if (_nodeHistory.Count >= MaxHistory)
             _nodeHistory.RemoveAt(0);
         _nodeHistory.Add(record);
+        if (_heatmapModeActive)
+        {
+            _aggregateCounters.TryGetValue(record.NodeVisualId, out var prev);
+            _aggregateCounters[record.NodeVisualId] = prev + 1;
+        }
         OnNodeExecuted?.Invoke(record);
     }
 
@@ -86,5 +108,7 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     {
         _nodeHistory.Clear();
         _asyncHistory.Clear();
+        _aggregateCounters.Clear();
+        _heatmapModeActive = false;
     }
 }

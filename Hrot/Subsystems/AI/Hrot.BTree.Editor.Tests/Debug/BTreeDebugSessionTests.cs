@@ -274,4 +274,62 @@ public class BTreeDebugSessionTests
         sut.StepOut();
         count.Should().Be(1);
     }
+
+    [Fact]
+    public void HeatmapMode_Off_RecordNodeExecuted_DoesNotIncrementCounters()
+    {
+        var sut = new BTreeDebugSession();
+        var record = new BTreeNodeExecuted(
+            new Entity(1, 1),
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            NodeStatus.Running,
+            0f, 1u);
+        sut.RecordNodeExecuted(record);
+        sut.GetAggregateCounters(record.AssetId).Should().BeNull();
+    }
+
+    [Fact]
+    public void HeatmapMode_On_RecordNodeExecuted_IncrementsCounter()
+    {
+        var sut = new BTreeDebugSession();
+        var visualId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var record = new BTreeNodeExecuted(
+            new Entity(1, 1), assetId, visualId,
+            NodeStatus.Running, 0f, 1u);
+        sut.HeatmapModeActive = true;
+        sut.RecordNodeExecuted(record);
+        sut.RecordNodeExecuted(record);
+        var counters = sut.GetAggregateCounters(assetId);
+        counters.Should().NotBeNull();
+        counters![visualId].Should().Be(2);
+    }
+
+    [Fact]
+    public void ResetAggregateCounters_ClearsAll()
+    {
+        var sut = new BTreeDebugSession();
+        var visualId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var record = new BTreeNodeExecuted(
+            new Entity(1, 1), assetId, visualId,
+            NodeStatus.Running, 0f, 1u);
+        sut.HeatmapModeActive = true;
+        sut.RecordNodeExecuted(record);
+        sut.ResetAggregateCounters();
+        var counters = sut.GetAggregateCounters(assetId);
+        counters.Should().NotBeNull();
+        counters!.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GetAggregateCounters_NotAttached_ReturnsNull()
+    {
+        var sut = new BTreeDebugSession();
+        sut.HeatmapModeActive = true;
+        // IsAttached starts true in AiDebugSessionBase; Detach() sets it false
+        sut.Detach();
+        sut.GetAggregateCounters(Guid.NewGuid()).Should().BeNull();
+    }
 }

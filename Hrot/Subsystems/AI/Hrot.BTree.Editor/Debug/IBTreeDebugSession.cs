@@ -21,6 +21,21 @@ public interface IBTreeDebugSession : IAiDebugSession
     /// <summary>Returns the last <paramref name="max"/> async token events (most recent last).</summary>
     IReadOnlyList<BTreeAsyncEvent> GetRecentAsyncHistory(int max = 100);
 
+    /// <summary>
+    /// When true, RecordNodeExecuted increments per-node aggregate entry counters.
+    /// False by default; set to true before activating heatmap view.
+    /// </summary>
+    bool HeatmapModeActive { get; set; }
+
+    /// <summary>
+    /// Returns a snapshot of per-VisualId aggregate entry counts for the given asset,
+    /// or null if not attached or heatmap mode is inactive.
+    /// </summary>
+    IReadOnlyDictionary<Guid, int>? GetAggregateCounters(Guid assetId);
+
+    /// <summary>Resets all aggregate counters to zero.</summary>
+    void ResetAggregateCounters();
+
     event Action<BTreeBreakpointHit>? OnBreakpointHit;
     event Action<BTreeNodeExecuted>? OnNodeExecuted;
     event Action<BTreeAsyncEvent>? OnAsyncIssued;

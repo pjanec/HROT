@@ -1,5 +1,6 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 
@@ -15,6 +16,7 @@ public sealed class AssetBrowserWindow : ManagedWindow
     private readonly IAssetCatalog _catalog;
     private readonly IRefactorService _refactorService;
     private readonly FindResultsWindow _findResults;
+    private readonly ILiveSessionProvider _liveProvider;
 
     private IEditableAsset? _pendingRenameAsset;
     private readonly byte[] _browserRenameBuf = new byte[512];
@@ -24,13 +26,15 @@ public sealed class AssetBrowserWindow : ManagedWindow
         EditorSelectionStore store,
         IAssetCatalog catalog,
         IRefactorService refactorService,
-        FindResultsWindow findResults)
+        FindResultsWindow findResults,
+        ILiveSessionProvider liveProvider)
         : base("ai_asset_browser", "Asset Browser", "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _catalog = catalog;
         _refactorService = refactorService;
         _findResults = findResults;
+        _liveProvider = liveProvider;
     }
 
     protected override void DrawClientArea()
@@ -43,7 +47,11 @@ public sealed class AssetBrowserWindow : ManagedWindow
 
         foreach (var asset in _catalog.All)
         {
-            ImGuiNET.ImGui.Selectable(asset.Name);
+            var liveCount = _liveProvider.GetActiveEntityCount(asset.AssetId);
+            var label = liveCount > 0
+                ? $"{asset.Name}  [{liveCount} live]"
+                : asset.Name;
+            ImGuiNET.ImGui.Selectable(label);
             var popupId = $"##bctx_{asset.AssetId}";
             if (ImGuiNET.ImGui.BeginPopupContextItem(popupId))
             {

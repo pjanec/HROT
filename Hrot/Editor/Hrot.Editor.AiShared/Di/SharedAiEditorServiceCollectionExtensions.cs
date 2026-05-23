@@ -21,6 +21,8 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<EditorSelectionStore>();
         services.AddSingleton<IAssetCatalog, AssetCatalog>();
         services.AddSingleton<IDebugSessionRegistry, DebugSessionRegistry>();
+        services.AddSingleton<LiveSessionRegistry>();
+        services.AddSingleton<ILiveSessionProvider>(sp => sp.GetRequiredService<LiveSessionRegistry>());
         services.AddSingleton<AiTracerCoordinator>();
 
         // Refactor services

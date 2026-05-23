@@ -14,6 +14,8 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     private const int MaxHistory = 200;
 
     private readonly List<HsmTraceRecord> _history = new();
+    private bool _heatmapModeActive;
+    private readonly Dictionary<Guid, int> _stateEntryCounts = new();
 
     public event Action<HsmBreakpointHit>?  OnBreakpointHit;
     public event Action<HsmStateEntered>?   OnStateEntered;
@@ -35,6 +37,21 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         return _history.GetRange(start, _history.Count - start);
     }
 
+    public bool HeatmapModeActive
+    {
+        get => _heatmapModeActive;
+        set => _heatmapModeActive = value;
+    }
+
+    public IReadOnlyDictionary<Guid, int>? GetStateEntryCounts(Guid assetId)
+    {
+        if (!IsAttached || !HeatmapModeActive)
+            return null;
+        return _stateEntryCounts;
+    }
+
+    public void ResetStateEntryCounts() => _stateEntryCounts.Clear();
+
     // ---- Kernel adapter entry points (called by future kernel adapter) ---
 
     /// <summary>Records a kernel trace event and fires the appropriate typed event.</summary>
@@ -46,7 +63,14 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
 
         switch (record)
         {
-            case HsmStateEntered    e: OnStateEntered?.Invoke(e);    break;
+            case HsmStateEntered    e:
+                if (_heatmapModeActive)
+                {
+                    _stateEntryCounts.TryGetValue(e.StateStableId, out var prev);
+                    _stateEntryCounts[e.StateStableId] = prev + 1;
+                }
+                OnStateEntered?.Invoke(e);
+                break;
             case HsmStateExited     e: OnStateExited?.Invoke(e);     break;
             case HsmTransitionFired e: OnTransitionFired?.Invoke(e); break;
             case HsmEventQueued     e: OnEventQueued?.Invoke(e);     break;
@@ -74,5 +98,10 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     protected override void OnStepIntoImpl()   { }
     protected override void OnStepOutImpl()    { }
 
-    protected override void OnDetachImpl() => _history.Clear();
+    protected override void OnDetachImpl()
+    {
+        _history.Clear();
+        _stateEntryCounts.Clear();
+        _heatmapModeActive = false;
+    }
 }

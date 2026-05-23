@@ -1,5 +1,6 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
@@ -25,6 +26,11 @@ file sealed class StubRefactorService : IRefactorService
         Task.FromResult(ApplyRename(preview));
 }
 
+file sealed class StubLiveSessionProvider : ILiveSessionProvider
+{
+    public int GetActiveEntityCount(Guid assetId) => 0;
+}
+
 public class AssetBrowserWindowTests
 {
     private static AssetBrowserWindow CreateWindow() =>
@@ -32,7 +38,8 @@ public class AssetBrowserWindowTests
             new EditorSelectionStore(),
             new AssetCatalog(),
             new StubRefactorService(),
-            new FindResultsWindow());
+            new FindResultsWindow(),
+            new StubLiveSessionProvider());
 
     [Fact]
     public void Constructor_SetsId()

@@ -232,4 +232,54 @@ public sealed class HsmDebugSessionTests
         session.StepOut();
         count.Should().Be(1);
     }
+
+    [Fact]
+    public void HeatmapMode_Off_RecordTrace_DoesNotIncrementCounters()
+    {
+        var session = new HsmDebugSession();
+        var assetId = Guid.NewGuid();
+        var record = new HsmStateEntered(
+            new Entity(1, 1), assetId, Guid.NewGuid(), 0f);
+        session.RecordTrace(record);
+        session.GetStateEntryCounts(assetId).Should().BeNull();
+    }
+
+    [Fact]
+    public void HeatmapMode_On_RecordTrace_StateEntered_IncrementsCounter()
+    {
+        var session = new HsmDebugSession();
+        var stableId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var record = new HsmStateEntered(
+            new Entity(1, 1), assetId, stableId, 0f);
+        session.HeatmapModeActive = true;
+        session.RecordTrace(record);
+        session.RecordTrace(record);
+        var counts = session.GetStateEntryCounts(assetId);
+        counts.Should().NotBeNull();
+        counts![stableId].Should().Be(2);
+    }
+
+    [Fact]
+    public void ResetStateEntryCounts_ClearsAll()
+    {
+        var session = new HsmDebugSession();
+        var stableId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var record = new HsmStateEntered(
+            new Entity(1, 1), assetId, stableId, 0f);
+        session.HeatmapModeActive = true;
+        session.RecordTrace(record);
+        session.ResetStateEntryCounts();
+        session.GetStateEntryCounts(assetId)!.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void GetStateEntryCounts_NotAttached_ReturnsNull()
+    {
+        var session = new HsmDebugSession();
+        session.HeatmapModeActive = true;
+        session.Detach();
+        session.GetStateEntryCounts(Guid.NewGuid()).Should().BeNull();
+    }
 }
