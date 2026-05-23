@@ -1,5 +1,7 @@
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
+using System.Numerics;
 
 namespace NodeEditor.Core.View;
 
@@ -76,4 +78,46 @@ public sealed class GraphView
 
     /// <summary>Redo the most recently undone operation (if any).</summary>
     public void RedoLast() => Undo.Redo();
+
+    // ── Container transform helpers (TASK-NEC-02) ─────────────────────────────
+
+    /// <summary>
+    /// Returns the position of the node's top-left corner in canvas-absolute coordinates.
+    /// For root-level nodes (ParentContainerId == null) this equals INodeModel.Position.
+    /// For children of containers, walks the ancestor chain accumulating offsets.
+    /// Returns Vector2.Zero if the node is not found.
+    /// </summary>
+    public Vector2 NodeCanvasPosition(NodeId id)
+    {
+        var node = Model.FindNode(id);
+        if (node == null) return Vector2.Zero;
+
+        if (node.ParentContainerId == null)
+            return node.Position;
+
+        var parent = Model.FindNode(node.ParentContainerId.Value);
+        if (parent?.AsContainer() is not { } container)
+            return node.Position; // parent not an active container; treat as root
+
+        var parentCanvas = NodeCanvasPosition(parent.Id);
+        var interiorOrigin = parentCanvas + new Vector2(
+            container.Padding.Left,
+            Host.Theme.NodeHeaderHeight + container.Padding.Top);
+        return interiorOrigin + node.Position;
+    }
+
+    /// <summary>
+    /// Returns the node's local position (INodeModel.Position).
+    /// For root nodes this is canvas-absolute; for container children it is parent-local.
+    /// Returns Vector2.Zero if the node is not found.
+    /// </summary>
+    public Vector2 NodeLocalPosition(NodeId id) =>
+        Model.FindNode(id)?.Position ?? Vector2.Zero;
+
+    /// <summary>
+    /// Returns the parent container ID for the node, or null if the node is at root level.
+    /// Returns null if the node is not found.
+    /// </summary>
+    public NodeId? GetParentContainer(NodeId id) =>
+        Model.FindNode(id)?.ParentContainerId;
 }

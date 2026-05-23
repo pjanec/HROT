@@ -43,4 +43,12 @@ public interface INodeModel
 
     /// <summary>The node's pins in declaration order.</summary>
     IReadOnlyList<IPinModel> Pins { get; }
+
+    /// <summary>
+    /// Parent container id, or null if this node is at the root level.
+    /// Nodes inside a container store Position in the container's interior coordinate space.
+    /// Nodes at root level store Position in canvas-absolute coordinates.
+    /// Default: null (root level). Override only when the node is a container child.
+    /// </summary>
+    NodeId? ParentContainerId => null;
 }

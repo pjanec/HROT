@@ -9,17 +9,18 @@ public sealed class FakeNodeModel : INodeModel
 {
     private readonly List<IPinModel> _pins = new();
 
-    public NodeId        Id           { get; }
-    public NodeKindKey   Kind         { get; }
-    public string        Title        { get; set; }
-    public string?       Subtitle     { get; set; }
-    public NodeCategory  Category     { get; set; } = NodeCategory.Function;
-    public Vector2       Position     { get; set; }
-    public Vector2?      SizeOverride { get; set; }
-    public NodeState     State        { get; set; } = NodeState.Normal;
-    public string?       StatusTooltip { get; set; }
-    public bool          IsCollapsed  { get; set; }
+    public NodeId        Id               { get; }
+    public NodeKindKey   Kind             { get; }
+    public string        Title            { get; set; }
+    public string?       Subtitle         { get; set; }
+    public NodeCategory  Category         { get; set; } = NodeCategory.Function;
+    public Vector2       Position         { get; set; }
+    public Vector2?      SizeOverride     { get; set; }
+    public NodeState     State            { get; set; } = NodeState.Normal;
+    public string?       StatusTooltip    { get; set; }
+    public bool          IsCollapsed      { get; set; }
     public bool          ShowAdvancedPins { get; set; }
+    public NodeId?       ParentContainerId { get; set; }
     public IReadOnlyList<IPinModel> Pins => _pins;
 
     public FakeNodeModel(NodeId id, NodeKindKey kind, string title, Vector2 position)
