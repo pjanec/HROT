@@ -41,7 +41,7 @@ namespace Fdp.Core
             #if FDP_PARANOID_MODE
             if (sizeBytes <= 0)
                 throw new ArgumentException("Size must be positive", nameof(sizeBytes));
-            if (sizeBytes > int.MaxValue * 4L) // Sanity check
+            if (sizeBytes > int.MaxValue * 8L) // Sanity check (accomodates 16KB component)
                 throw new ArgumentException("Size too large", nameof(sizeBytes));
             #endif
             
