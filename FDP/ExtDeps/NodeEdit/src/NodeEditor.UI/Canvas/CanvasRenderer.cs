@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Find;
 using NodeEditor.UI.Util;
@@ -19,16 +20,17 @@ namespace NodeEditor.UI.Canvas;
 /// </summary>
 public sealed class CanvasRenderer
 {
-    private readonly CanvasLayoutBuilder _layoutBuilder  = new();
-    private readonly CanvasLayout        _layout         = new();
-    private readonly SpatialIndex        _spatialIndex   = new();
-    private readonly HitTester           _hitTester      = new();
-    private readonly CanvasInput         _input          = new();
-    private readonly GridRenderer        _grid           = new();
-    private readonly WireRenderer        _wires          = new();
-    private readonly NodeRenderer        _nodes          = new();
-    private readonly ContainerRenderer   _containers     = new();
-    private readonly AttachmentRenderer  _attachments    = new();
+    private readonly CanvasLayoutBuilder     _layoutBuilder  = new();
+    private readonly CanvasLayout            _layout         = new();
+    private readonly SpatialIndex            _spatialIndex   = new();
+    private readonly HitTester               _hitTester      = new();
+    private readonly CanvasInput             _input          = new();
+    private readonly GridRenderer            _grid           = new();
+    private readonly WireRenderer            _wires          = new();
+    private readonly NodeRenderer            _nodes          = new();
+    private readonly ContainerRenderer       _containers     = new();
+    private readonly AttachmentRenderer      _attachments    = new();
+    private readonly CanvasRenderContextImpl _renderCtx      = new();
 
     // Dirty tracking: rebuild the spatial index only when the graph model changes
     // or drag-override positions change, not unconditionally every frame.
@@ -128,17 +130,23 @@ public sealed class CanvasRenderer
         var graphBottomRight = view.Viewport.ScreenToGraph(origin + size);
         var visibleGraphRect = RectF.FromMinMax(graphTopLeft, graphBottomRight);
         var visibleNodeIds   = _spatialIndex.Query(visibleGraphRect).ToHashSet();
+        var visibleLinkIds   = ComputeVisibleLinks(view, visibleNodeIds);
 
         // 3. Hit-test to update hover info.
         _hitTester.UpdateHover(view, _spatialIndex, _layout.PinScreenPositions, _layout.AttachmentScreenRects, _layout.NodeScreenRects);
 
+        // Prepare the custom-renderer context (reused across all passes this frame).
+        _renderCtx.BeginFrame(view, dl, visibleNodeIds, visibleLinkIds);
 
         // ── Draw phases ───────────────────────────────────────────────────
 
         // 5. Grid + background (also fills the solid background color).
         _grid.Draw(view, dl, origin, size);
 
-        // 6. Comment boxes — background layer (below nodes).
+        // 6. Custom: BeforeContent pass — after grid, before comments and containers.
+        InvokeCustomRenderers(view, CanvasRenderPass.BeforeContent);
+
+        // 6a. Comment boxes — background layer (below nodes).
         DrawComments(dl, view, foreground: false, visibleGraphRect);
 
         // 6b. Container fills, headers, and outlines — drawn before wires so wires
@@ -147,6 +155,9 @@ public sealed class CanvasRenderer
 
         // 7. Wires — only those whose endpoints or waypoints are in the visible rect.
         _wires.DrawAll(view, dl, _layout.PinScreenPositions, visibleNodeIds, visibleGraphRect);
+
+        // 7b. Custom: AfterWires pass — after wires, before regular/child nodes.
+        InvokeCustomRenderers(view, CanvasRenderPass.AfterWires);
 
         // 8. Nodes + inline editors — only the culled visible subset.
         _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
@@ -168,11 +179,17 @@ public sealed class CanvasRenderer
         // 10. Reroute waypoints.
         ReroutesRenderer.Render(view.Model, view.Selection, view.Viewport, view.TypeSystem, visibleNodeIds, visibleGraphRect);
 
+        // 10b. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
+        InvokeCustomRenderers(view, CanvasRenderPass.AfterNodes);
+
         // 11. Pending wire being dragged.
         DrawPendingWire(view, dl);
 
         // 12. Marquee selection rectangle.
         DrawMarquee(view, dl);
+
+        // 12b. Custom: TopMost pass — above selection outlines, hover effects, drag preview.
+        InvokeCustomRenderers(view, CanvasRenderPass.TopMost);
 
         // 13. Find overlay (match highlights + dim pass).
         if (findBar?.IsVisible == true && findBar.Results.Count > 0)
@@ -194,6 +211,35 @@ public sealed class CanvasRenderer
             ImGui.EndPopup();
         }
         ImGui.PopStyleVar();
+    }
+
+    // Invokes active custom renderers for the given pass, in registration order.
+    private void InvokeCustomRenderers(GraphView view, CanvasRenderPass pass)
+    {
+        var renderers = view.Host.CustomCanvasRenderers;
+        if (renderers.Count == 0) return;
+        _renderCtx._pass = pass;
+        foreach (var renderer in renderers)
+        {
+            if (renderer.Pass == pass && renderer.IsActive)
+                renderer.Render(_renderCtx);
+        }
+    }
+
+    // Returns the set of link IDs whose endpoints are in or near the visible nodes set.
+    private static HashSet<LinkId> ComputeVisibleLinks(GraphView view, HashSet<NodeId> visibleNodeIds)
+    {
+        var result = new HashSet<LinkId>();
+        if (visibleNodeIds.Count == 0) return result;
+        foreach (var link in view.Model.Links)
+        {
+            var fromPin = view.Model.FindPin(link.FromPin);
+            var toPin   = view.Model.FindPin(link.ToPin);
+            if ((fromPin != null && visibleNodeIds.Contains(fromPin.OwnerNodeId)) ||
+                (toPin   != null && visibleNodeIds.Contains(toPin.OwnerNodeId)))
+                result.Add(link.Id);
+        }
+        return result;
     }
 
     // ── Comments ──────────────────────────────────────────────────────────────

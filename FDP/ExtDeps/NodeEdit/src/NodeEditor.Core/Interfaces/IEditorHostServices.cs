@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace NodeEditor.Core.Interfaces;
 
 /// <summary>
@@ -45,4 +47,12 @@ public interface IEditorHostServices
     /// Returns null when no provider is registered.
     /// </summary>
     IAttachmentContextMenuProvider? AttachmentContextMenu => null;
+
+    /// <summary>
+    /// Custom canvas renderers registered by this host.
+    /// Renderers are invoked at their declared render pass
+    /// in registration order. Empty by default.
+    /// </summary>
+    IReadOnlyList<ICustomCanvasRenderer> CustomCanvasRenderers =>
+        System.Array.Empty<ICustomCanvasRenderer>();
 }
