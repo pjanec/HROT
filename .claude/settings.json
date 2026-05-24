@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "mcp__codebase-memory-mcp__list_projects"
     ]
   }
 }
