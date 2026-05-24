@@ -291,3 +291,167 @@ To prove this works flawlessly in isolation before touching Roslyn or the engine
 *   **Assert:** Ensure zero garbage collection allocations occurred (`GC.CollectionCount`) and that execution time remains equivalent to the `FastBTree` baseline. This proves the delta-tracking overhead is negligible for the 99% of nodes that do not own resources.
 
 By implementing and passing these three isolated tests in `Fbt.Tests`, we scientifically validate the Option 4 lifecycle hook. Once verified, we can confidently move on to integrating it with `Hrot.AI.Behaviors` and writing the Roslyn generators.
+
+
+
+
+
+
+
+To integrate the hybrid lifecycle hook into the engine's compilation pipeline, we must extend our existing Roslyn source generator, `BTreeActionGenerator`, located in the `Fdp.Toolkits.Analyzers` project. This generator is already responsible for incrementally scanning the syntax tree for AI delegates and emitting the centralized `FbtActionRegistrar.g.cs`.
+
+Here is the exact modification plan for the Roslyn integration.
+
+### 1. Define the Attribute in `Fbt.Kernel`
+
+First, define the annotation in the `Fbt.Kernel` assembly so it is available to domain code without introducing downward dependencies.
+
+```
+namespace Fbt
+{
+    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+    public sealed class BTreeDeactivatorAttribute : Attribute
+    {
+        public string TargetAction { get; set; } = string.Empty;
+    }
+}
+```
+
+### 2. Extend `BTreeActionGenerator` Extraction
+
+In `BTreeActionGenerator.cs`, the `GetMethodInfo` method currently checks for `[BTreeAction]`, `[BTreeCondition]`, and the `[SharedAi...]` attribute family. We must extend this semantic extraction to detect the new deactivator attribute.
+
+Update the `BTreeMethodInfo` struct (or create a secondary `DeactivatorInfo` struct) to capture the target action name:
+
+```
+public class BTreeMethodInfo
+{
+    // Existing fields...
+    public bool IsDeactivator { get; set; }
+    public string TargetAction { get; set; } = string.Empty;
+}
+```
+
+Inside `GetMethodInfo`, extract the named argument:
+
+```
+var deactivatorAttr = symbol.GetAttributes()
+    .FirstOrDefault(a => a.AttributeClass?.Name == "BTreeDeactivatorAttribute");
+
+if (deactivatorAttr != null)
+{
+    string targetAction = deactivatorAttr.NamedArguments
+        .FirstOrDefault(kvp => kvp.Key == "TargetAction").Value.Value?.ToString() ?? string.Empty;
+
+    return new BTreeMethodInfo
+    {
+        MethodName = symbol.Name,
+        FullQualifiedMethodName = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
+        TBlackboardType = tbType,
+        TContextType = tcType4,
+        IsDeactivator = true,
+        TargetAction = targetAction
+    };
+}
+```
+
+### 3. Update the `GenerateRegistrar` Emission
+
+The generator groups methods by their `TBlackboard` and `TContext` signatures to emit strongly-typed `RegisterAll` overloads. We will modify `GenerateRegistrar` to emit the registration calls for the deactivators into the same centralized `FbtActionRegistrar` class.
+
+Inside the emission loop for a specific group, append the deactivator emission:
+
+```
+foreach (var m in group.Deactivators)
+{
+    sb.AppendLine($"            registry.RegisterDeactivator(\"{m.TargetAction}\", global::{m.FullQualifiedMethodName});");
+}
+```
+
+### 4. How It Connects at Runtime
+
+Because we are injecting this seamlessly into the existing `FbtActionRegistrar.RegisterAll` signature, the runtime integration requires absolutely no changes to your application startup or hot-reload coordinator.
+
+When the engine boots or when `AiHotReloadCoordinator` loads a new patch ALC, it invokes `AiBehaviorFactory.BuildRegistrationAction` on a background thread. This factory allocates the empty `ActionRegistry<BrainBlackboard, BTreeContext>` and calls our source-generated `FbtActionRegistrar.RegisterAll(actionRegistry)`.
+
+The populated registry is then passed directly into the `Interpreter` constructor. Because your `FastBTree` library modification already looks inside the registry for deactivators and flags the bytecode, the EQS `EqsSensor` cleanup logic is now fully wired, memory-safe, and capable of surviving seamless hot-reloads.
+
+
+
+
+
+how could we demonstrate this all works in the hrot.editor? can we use the deactivator concept in some existing behavior, maybe in place of the current solution where the deactivator solution is more elegant?
+
+
+
+
+
+We can brilliantly demonstrate the power of the `[BTreeDeactivator]` concept in the `Hrot.Editor` by fixing a subtle bug that currently exists in the `UrbanCombatNewScenario`.
+
+Right now, the engine relies on the `ChannelArbitrationSystem` to clean up stale actuator channels (like the `WeaponChannel`), but this system only arbitrates when a full behavior switch occurs (i.e., when `BehaviorInstanceId` changes). It is completely blind to intra-behavior branch shifts.
+
+If you look at the Insurgent's `Ambush_BT` behavior, it uses a Selector that evaluates `Condition_HasTarget` and, if successful, runs `Action_AimAndFire`. This action writes `CombatConstants.ActionIdAimAndFire` directly into the entity's `WeaponChannel` and returns `NodeStatus.Running`.
+
+If the target suddenly dies or breaks line of sight, `Condition_HasTarget` will return `Failure` on the next tick, causing the Selector to abort `Action_AimAndFire` and shift the active execution path to `Action_HoldPosition`. Because FastBTree action nodes are completely stateless, `Action_AimAndFire` never receives a callback to clear the channel. Consequently, the Insurgent will be stuck perpetually firing at nothing because the `WeaponChannel.ActiveAction` remains set.
+
+Here is exactly how we can use the `Hrot.Editor` to demonstrate the `[BTreeDeactivator]` elegantly solving this problem live:
+
+### 1. The Code Implementation
+
+Instead of relying on the engine to magically clean up the channel, or polluting `Action_HoldPosition` with manual cleanup logic, you will add the new deactivator directly to `InsurgentNodes.cs`:
+
+```
+[BTreeDeactivator(TargetAction = "Action_AimAndFire")]
+public static void Deactivate_AimAndFire(
+    ref BrainBlackboard bb,
+    ref BehaviorTreeState state,
+    ref BTreeContext ctx,
+    int paramIndex)
+{
+    if (ctx.World.HasComponent<WeaponChannel>(ctx.Self))
+    {
+        ref var channel = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+        if (channel.ActiveAction == CombatConstants.ActionIdAimAndFire)
+        {
+            channel.ActiveAction = 0;
+            unchecked { channel.ActionInstanceId++; }
+        }
+    }
+}
+```
+
+### 2. The Editor Demonstration Workflow
+
+Because the `Hrot.Editor` is fully wired for deterministic previewing and AI hot-reloading, you can prove the fix seamlessly without restarting the tool:
+
+1. **Observe the Bug in Preview Mode:** Launch the `Hrot.Editor` and load the `UrbanCombatNewScenario`. Open the `EntityWatchPanel` (via the "Inspect..." context menu) and pin it to the Insurgent entity to monitor its `WeaponChannel`. Click the "Preview" button. The `EditorPreviewAdapter` will take an in-memory ECS snapshot and start the simulation. Once the Insurgent engages the APC, manually delete the APC entity via the map context menu. You will see the Insurgent's BTree branch shift to `Action_HoldPosition`, but the `WeaponChannel` inspector will show it is still actively firing.
+2. **Hot-Reload the Fix:** Exit Preview Mode. The editor will automatically rewind the ECS repository back to the pristine snapshot. Leaving the editor open, paste the `Deactivate_AimAndFire` method into your IDE and compile `Hrot.AI.Behaviors.dll`.
+3. **Atomic ALC Swap:** The editor's `AiHotReloadCoordinator` file-watcher will detect the newly built DLL in the background, load it into a fresh `AssemblyLoadContext`, invoke your Roslyn-generated registrars to stage the new deactivator delegate, and atomically swap the pointers on the main thread.
+4. **Verify the Deactivator:** Enter Preview Mode again and repeat the test. This time, when the APC is deleted and the BTree framework evaluates the active-path delta, it will detect that the execution pointer has left `Action_AimAndFire`. The interpreter will instantly invoke your `Deactivate_AimAndFire` hook, and you will watch the `WeaponChannel` safely reset to `0` in the inspector.
+
+This proves end-to-end that the new lifecycle hook successfully replaces manual channel cleanup, runs perfectly inside the FastBTree delta-tracking pipeline, and survives our ALC hot-reload architecture.
+
+
+
+
+
+what about the hill attack behavior, are there opportunities for using the deactivator?
+
+
+
+
+
+The `HullDownAttackRun` subordinate tank behavior is an excellent candidate for the `[BTreeDeactivator]`.
+
+Currently, inside `HillAttackTankNodes.cs`, the `Action_CreepToAndBeyondSlot` method must manually clear the `LocomotionChannel` by setting `ActiveAction = 0` when the tank overshoots its firing slot. The source code explicitly notes that this manual channel cleanup is forced upon the developer because our Roslyn source generator currently only emits automatic `[WritesChannel]` cleanup thunks for 4-parameter delegates, not the 3-parameter form used in these nodes.
+
+Similarly, the `Action_AimAndFireSpecific` node manually zeroes out the locomotion channel upon entry and relies on a manual `ClearWeaponActionIfActive` call when the tank exhausts its `MaxRounds` quota.
+
+By applying the `[BTreeDeactivator]` attribute to these actions, you can strip all of this manual channel-reset boilerplate out of your core logic. If the tank overshoots and the BTree framework shifts the execution path to the `Action_AbortEngagement` or `Action_ReverseToBaseline` branches, the active-path delta tracker will automatically invoke your deactivator hook to sweep the actuators safely.
+
+Furthermore, there is an opportunity in the commander's `PlatoonHillAttack` behavior. The `Action_RequestAreaQuery` node submits an asynchronous area query and caches the resulting `CachedEqsRequestId` into the `Blackboard1024` heavy state component. If a higher-level mission switch forcefully clears the commander's behavior while this query is still in flight, that ID is orphaned. You could attach a deactivator to this node to guarantee `CachedEqsRequestId` is safely reset to `-1` the moment the branch is aborted.
+
+
+
+
+
