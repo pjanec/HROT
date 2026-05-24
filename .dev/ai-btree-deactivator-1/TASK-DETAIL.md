@@ -70,15 +70,30 @@
 
 ### TASK-EQL-003 — Interpreter deactivator array and delta tracking
 
-**Design reference:** DESIGN.md §1.4
+**Design reference:** DESIGN.md §1.4, §3.5
 
 **Scope**
 
 - Add `_deactivatorDelegates` array to `Interpreter<TBlackboard, TContext>`.
 - Populate it in the constructor by iterating `blob.MethodNames` and calling `registry.TryGetDeactivator`.
-- Snapshot `oldRunningNodeIndex` before `ExecuteNode` in `Tick`.
-- After `ExecuteNode`, if the running node changed away from a non-zero node and the old node was an Action/Condition with a deactivator, invoke it.
-- Handle the tree-completion case (result != Running, `state.RunningNodeIndex` is reset to 0 by existing code).
+- Snapshot the full active path into `Span<ushort> oldPath = stackalloc ushort[9]` before
+  any structural bounds-check and before `ExecuteNode` in `Tick`.
+- After `ExecuteNode`, build `newPath` the same way; sweep `oldPath` for entries not present
+  in `newPath`; for each exited node call `InvokeDeactivatorIfRegistered`.
+- `InvokeDeactivatorIfRegistered` must guard on `node.Type is NodeType.Action or NodeType.Condition`
+  before using `node.PayloadIndex` to index into `_deactivatorDelegates`.
+- When a `NodeType.Parallel` node exits the active path, for each child whose completion bit
+  in `LocalRegisters` is NOT set, sweep the child's **entire definition block**: iterate every
+  node index in `[childIndex, childIndex + childNode.SubtreeOffset)` and call
+  `InvokeDeactivatorIfRegistered` on each. This range sweep is required because
+  `ExecuteParallel` overwrites `RunningNodeIndex` with its own index, erasing any inner leaf
+  from the `NodeIndexStack`.
+- Handle the hot-reload structural bounds-check case using a `pathWasReset` flag: if
+  `RunningNodeIndex >= blob.NodeCount` after snapshotting `oldPath`, sweep `oldPath`
+  deactivators immediately (do NOT return early), reset `RunningNodeIndex` and
+  `StackPointer`, then continue to `ExecuteNode` on the same frame. Set `pathWasReset =
+  true` and skip the post-tick path sweep to avoid double-firing deactivators.
+- Handle the tree-completion case (result != Running, path clears to all-zero).
 
 **Not in scope**
 
@@ -90,24 +105,46 @@
 
 - `_deactivatorDelegates` length must equal `blob.MethodNames.Length` (same as `_actionDelegates`).
 - Null entries are valid (no deactivator registered for that index); must not throw.
-- The deactivator is invoked AFTER the tick completes, never during.
-- The deactivator receives the same `ref TBlackboard blackboard`, `ref BehaviorTreeState state`, `ref TContext context` references as the preceding tick call, plus the payload index of the old node.
-- If `blob.MethodNames` is null or empty (empty tree), `_deactivatorDelegates` must be `Array.Empty<...>()` — same as `_actionDelegates`.
-- The deactivator must NOT be invoked if `oldRunningNodeIndex == 0` (tree was idle before the tick).
-- The deactivator must NOT be invoked if the running node did not change (`oldRunningNodeIndex == state.RunningNodeIndex`).
-- The delta check must not allocate heap memory. No `stackalloc` required; only a local `ushort`.
+- The deactivator is invoked AFTER the tick completes for the normal path. In the hot-reload
+  path it is invoked BEFORE the structural reset, and the post-tick sweep is then skipped via
+  `pathWasReset` to prevent double-firing (see §3.5 ordering).
+- The deactivator receives the same `ref TBlackboard blackboard`, `ref BehaviorTreeState state`,
+  `ref TContext context` references as the preceding tick call, plus the payload index of the node.
+- If `blob.MethodNames` is null or empty (empty tree), `_deactivatorDelegates` must be
+  `Array.Empty<...>()` — same as `_actionDelegates`.
+- The delta check must not allocate heap memory. Both `oldPath` and `newPath` must be
+  `stackalloc ushort[9]` (call-stack only). No `List<T>` or array allocation.
+- `InvokeDeactivatorIfRegistered` MUST check `node.Type is NodeType.Action or NodeType.Condition`
+  before indexing `_deactivatorDelegates` with `node.PayloadIndex`. Composite and decorator nodes
+  use `PayloadIndex` for a different payload table; skipping this guard causes incorrect array
+  access.
+- Entries with value 0 in `oldPath` must never trigger deactivator calls (idle slots).
 
 **Success conditions**
 
 Setup: in all tests, register the target action + its deactivator via `ActionRegistry`.
 
 - T1 (natural completion): Sequence with one resource-owning Action returning Success on Tick 1. `deactivationCount == 1` after Tick 1.
-- T2 (branch switch): ObserverSelector (Selector semantics), two children. Child 0 = Condition, returns Failure Tick 1 / Success Tick 2. Child 1 = resource-owning Action returning Running. After Tick 1: deactivation count == 0. After Tick 2: deactivation count == 1.
+- T2 (branch switch — leaf in RunningNodeIndex): ObserverSelector, two children. Child 0 = Condition, returns Failure Tick 1 / Success Tick 2. Child 1 = resource-owning Action returning Running. After Tick 1: deactivation count == 0. After Tick 2: deactivation count == 1.
 - T3 (tree failure): Sequence with one resource-owning Action returning Failure. After Tick 1: deactivation count == 1.
 - T4 (no deactivator registered): Tick 1000 times with a running action that has no deactivator. No exception; no GC collections.
-- T5 (two resource-owning nodes, only one exits): Selector, child A (resource-owning, Running Tick 1), child B (resource-owning, Running if reached). After Tick 1, child A is running. Force tree reset (RunningNodeIndex = 0). After Tick 2, child B is reached. Assert deactivator-A fired once; deactivator-B has not fired.
-- T6 (already-idle tree): RunningNodeIndex == 0 before tick. Tick returns Success immediately (empty tree). Deactivation count == 0; no exception.
+- T5 (two resource-owning nodes, only one exits): Selector, child A (resource-owning, Running Tick 1), child B (resource-owning, Running if reached). After Tick 1, child A is running. Force path reset (clear `RunningNodeIndex` and `NodeIndexStack`). After Tick 2, child B is reached. Assert deactivator-A fired once; deactivator-B has not fired.
+- T6 (already-idle tree): All path entries zero before tick. Tick returns Success immediately (empty tree). Deactivation count == 0; no exception.
 - T7 (deactivator exception propagates): If the deactivator throws, the exception propagates out of `Tick` without being swallowed.
+- T8 (subtree abort before leaf sets RunningNodeIndex): ObserverSelector whose low-priority child
+  is a Sequence with a resource-owning Action. After Tick 1 the Action is Running and present in
+  `oldPath`. On Tick 2 the high-priority condition succeeds and aborts the Sequence. Assert
+  deactivator fires exactly once on Tick 2.
+- T9 (Parallel child abort — subtree sweep): `Parallel` node with two children, each a
+  `Sequence` containing a resource-owning `Action` with a distinct deactivator. On Tick 1
+  both leaf Actions are Running (only the `Parallel` appears in `NodeIndexStack`). On Tick 2
+  the `Parallel` exits the active path. Assert both deactivators fired exactly once, proving
+  the range sweep reaches leaf Actions nested inside `Sequence` children.
+- T10 (hot-reload bounds-check — no frame skip): Resource-owning Action is Running. Replace blob
+  with a shorter one where old `RunningNodeIndex` is out of bounds. Assert: (a) deactivator
+  fires BEFORE `RunningNodeIndex` is reset; (b) `RunningNodeIndex` is 0 after; (c) `Tick`
+  continues to call `ExecuteNode` on the same invocation (no early return); (d) deactivators
+  are NOT fired a second time by the post-tick sweep (`pathWasReset` flag prevents it).
 
 ---
 

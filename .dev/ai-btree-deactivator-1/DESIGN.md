@@ -119,36 +119,81 @@ store the result (null if no deactivator registered for that method).
 
 **Active-path delta tracking in `Tick`:**
 
-Before calling `ExecuteNode(0, ...)`:
-```
-ushort oldRunningNode = state.RunningNodeIndex;
+The delta tracker must capture the **full execution stack** — not just `RunningNodeIndex`
+— because an `ObserverSelector` may abort a branch and reset the stack before any leaf ever
+sets `RunningNodeIndex`. Tracking only the leaf misses those cases entirely.
+
+Before calling `ExecuteNode(0, ...)`, snapshot the full active path into a stack-allocated
+buffer (fixed size 9: 8 `NodeIndexStack` entries plus `RunningNodeIndex`):
+
+```csharp
+// 8 NodeIndexStack slots + RunningNodeIndex = 9 entries total.
+Span<ushort> oldPath = stackalloc ushort[9];
+MemoryMarshal.CreateSpan(ref state.NodeIndexStack[0], 8).CopyTo(oldPath);
+oldPath[8] = state.RunningNodeIndex;
 ```
 
-After the execution returns:
+**Ordering requirement:** The path snapshot must be taken *before* any structural
+hot-reload bounds-check that may reset `RunningNodeIndex` to 0. See §3.5 for the full
+ordering constraint.
+
+After `ExecuteNode` returns, build the new path and sweep for exited nodes:
+
 ```csharp
-if (oldRunningNode != 0 && oldRunningNode != state.RunningNodeIndex)
+Span<ushort> newPath = stackalloc ushort[9];
+MemoryMarshal.CreateSpan(ref state.NodeIndexStack[0], 8).CopyTo(newPath);
+newPath[8] = state.RunningNodeIndex;
+
+for (int i = 0; i < 9; i++)
 {
-    ref var oldNode = ref _blob.Nodes[oldRunningNode];
-    if (oldNode.Type is NodeType.Action or NodeType.Condition)
-    {
-        int pi = oldNode.PayloadIndex;
-        if (pi >= 0 && pi < _deactivatorDelegates.Length)
-        {
-            var deactivator = _deactivatorDelegates[pi];
-            if (deactivator != null)
-                deactivator(ref blackboard, ref state, ref context, pi);
-        }
-    }
+    ushort old = oldPath[i];
+    if (old == 0) continue;
+    if (newPath.Contains(old)) continue;
+    InvokeDeactivatorIfRegistered(old, ref blackboard, ref state, ref context);
 }
 ```
 
-The delta-tracking cost for trees with no resource-owning nodes is: one `ushort` copy before
-the tick plus one comparison after. For trees with deactivators it adds one array bounds check
-and one null check, both predicted correctly by the JIT in the common case.
+`InvokeDeactivatorIfRegistered` applies a mandatory node-type guard before using
+`PayloadIndex`. Non-Action/Condition nodes (Selector, Sequence, Parallel, decorators) use
+`PayloadIndex` for `FloatParams`/`IntParams` rather than `MethodNames`, so indexing
+`_deactivatorDelegates` with their `PayloadIndex` would be incorrect:
 
-**Tree completion cleanup:** When `Tick` returns `Success` or `Failure` (the tree is done),
-`state.RunningNodeIndex` is reset to `0`. The delta check above fires the deactivator
-correctly in this case because `oldRunningNode != 0` and `oldRunningNode != 0 (new)`.
+```csharp
+private void InvokeDeactivatorIfRegistered(ushort nodeIndex,
+    ref TBlackboard blackboard, ref BehaviorTreeState state, ref TContext context)
+{
+    ref var node = ref _blob.Nodes[nodeIndex];
+    if (node.Type is not (NodeType.Action or NodeType.Condition)) return;
+    int pi = node.PayloadIndex;
+    if ((uint)pi >= (uint)_deactivatorDelegates.Length) return;
+    var deactivator = _deactivatorDelegates[pi];
+    if (deactivator != null)
+        deactivator(ref blackboard, ref state, ref context, pi);
+}
+```
+
+**`Parallel` node handling:** `ExecuteParallel` overwrites `RunningNodeIndex` with its own
+node index at each tick (`state.RunningNodeIndex = (ushort)nodeIndex`), erasing the active
+leaf inside each child branch from the `NodeIndexStack`. If a Parallel child is itself a
+composite (e.g., a `Sequence` containing the resource-owning `Action`), checking only the
+immediate child node silently misses the leaf deep inside that subtree.
+
+When the path sweep detects that a `NodeType.Parallel` node exited the active path (present
+in `oldPath`, absent from `newPath`), for each child whose completion bit in `LocalRegisters`
+is NOT set (still running), sweep the child's **entire definition block**: iterate every
+node index in the range `[childIndex, childIndex + childNode.SubtreeOffset)` and call
+`InvokeDeactivatorIfRegistered` on each one. Because all deactivators guard against a
+cleared or absent channel before acting, this blanket range sweep is idempotent and safe.
+It guarantees no orphaned resources regardless of how deeply nested the resource-owning
+leaf is within the Parallel branch.
+
+**Tree completion cleanup:** When `Tick` returns `Success` or `Failure`, `RunningNodeIndex`
+resets to 0 and the stack clears. The path sweep fires deactivators correctly because every
+non-zero `oldPath` entry is absent from `newPath`.
+
+**Delta-tracking cost for trees with no resource-owning nodes:** two 9-element
+`stackalloc` copies (18 `ushort` writes on the call stack) plus one 9-element linear scan.
+No heap allocation.
 
 ### 1.5 Fbt.Tests — proof-of-concept tests
 
@@ -179,6 +224,29 @@ Assert no exception and `GC.CollectionCount(0)` unchanged.
 Construct a Selector with two resource-owning Actions, each with distinct deactivators.
 Let Action A run for one tick, then force a branch switch to Action B on Tick 2.
 Assert deactivator-A fires once; deactivator-B has not fired.
+
+**Test L-06 — Subtree abort before leaf: deactivator swept from full path.**
+Construct an ObserverSelector whose low-priority child is a Sequence containing a
+resource-owning Action. On Tick 1 the action is Running and appears in both
+`NodeIndexStack` (as the Sequence path entry) and `RunningNodeIndex`. On Tick 2 the
+high-priority condition succeeds; the interpreter aborts the Sequence branch. The full-path
+sweep must detect the action left the path and fire its deactivator.
+Assert deactivator fires exactly once on Tick 2.
+
+**Test L-07 — Parallel child abort fires per-child deactivators (subtree sweep).**
+Construct a `Parallel` node with two children, each of which is a `Sequence` containing
+a resource-owning `Action` with a distinct deactivator. On Tick 1 both leaf Actions are
+Running but only the `Parallel` node appears in `NodeIndexStack` (the inner Sequences and
+Actions are tracked via `LocalRegisters`, not the stack). On Tick 2 an external abort
+causes the `Parallel` node to exit the active path. Assert both deactivators were each
+fired exactly once, confirming the range sweep traverses the `Sequence` subtrees rather
+than stopping at the immediate child node.
+
+**Test L-08 — Hot-reload bounds-check does not orphan resources.**
+Construct a tree whose resource-owning Action is Running. Simulate a structural hot-reload
+by replacing the interpreter's blob with a shorter one in which the old `RunningNodeIndex`
+is out of bounds. Assert the deactivator fires before `RunningNodeIndex` is reset to 0,
+and that `RunningNodeIndex` is 0 after the call returns.
 
 ---
 
@@ -324,7 +392,39 @@ The deactivators are registered by the Roslyn-generated `FbtActionRegistrar.Regi
 When `AiHotReloadCoordinator` performs an ALC swap, the new ALC's `FbtActionRegistrar`
 registers all deactivators into the new `ActionRegistry`. The `Interpreter` is reconstructed
 with the new registry and blob, so `_deactivatorDelegates` is always consistent with the
-currently loaded ALC. No additional hot-reload plumbing is required.
+currently loaded ALC.
+
+**Ordering constraint:** `Interpreter.Tick` contains a structural safety-net that resets
+`RunningNodeIndex` to 0 if the hot-reloaded tree is smaller and leaves the index
+out-of-bounds. If the delta sweep runs *after* this reset, the old execution path is already
+erased and any resources held by the previous ALC's actions (active `WeaponChannel`
+reservations, in-flight EQS request IDs) are permanently orphaned on the entity.
+
+The implementation must handle this case in the following order inside `Tick`:
+
+1. Snapshot `oldPath` (9-element `stackalloc` as described in §1.4).
+2. **Structural bounds-check** with `pathWasReset` flag:
+   ```csharp
+   bool pathWasReset = false;
+   if (state.RunningNodeIndex > 0 && state.RunningNodeIndex >= _blob.Nodes.Length)
+   {
+       Span<ushort> emptyPath = stackalloc ushort[9]; // zero-initialised
+       SweepPath(oldPath, emptyPath);                 // fire all deactivators now
+       state.RunningNodeIndex = 0;
+       state.StackPointer = 0;
+       unchecked { state.TreeVersion++; }
+       pathWasReset = true;
+       // Do NOT return — continue to ExecuteNode so the tree evaluates this frame.
+   }
+   ```
+3. Call `ExecuteNode(0, ...)`.
+4. If `!pathWasReset`: snapshot `newPath` and sweep `oldPath` vs `newPath`. Skip when
+   `pathWasReset` is true — the abandoned path was already swept in step 2, so repeating
+   it would double-fire deactivators on the same path.
+
+Not returning early preserves `FastBTree`'s seamless hot-reload contract: the tree
+evaluates from the root on the very same frame the structural reset is detected, with no
+1-frame brain-dead gap.
 
 ---
 
@@ -357,8 +457,10 @@ to the EQS system once that system is implemented.
 
 ## Architectural constraints
 
-1. **No per-frame overhead for non-resource-owning nodes.** The delta check is one ushort copy
-   and one comparison. No iteration over the tree.
+1. **No per-frame overhead for non-resource-owning nodes.** The delta check is two 9-element
+   `stackalloc` copies and one 9-element linear scan — all on the call stack with no heap
+   allocation. For trees with no resource-owning nodes all nine deactivator slot checks are
+   null and exit immediately.
 
 2. **Zero-allocation.** Deactivator delegates are stored in a pre-allocated array. No closures,
    no heap allocation during tick.
