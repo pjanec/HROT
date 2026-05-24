@@ -128,6 +128,11 @@ namespace Hrot.SimHost.Tests
                 var pool = world.GetSingleton<EqsTargetPool>();
                 if (pool.Targets.IsCreated) pool.Targets.Dispose();
             }
+            if (world.HasSingleton<EqsResultPool>())
+            {
+                var rp = world.GetSingleton<EqsResultPool>();
+                if (rp.Results.IsCreated) rp.Results.Dispose();
+            }
         }
     }
 }

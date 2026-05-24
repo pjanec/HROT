@@ -92,6 +92,11 @@ namespace Hrot.SimHost.Tests
                 var p = repo.GetSingleton<EqsTargetPool>();
                 if (p.Targets.IsCreated) p.Targets.Dispose();
             }
+            if (repo.HasSingleton<EqsResultPool>())
+            {
+                var r = repo.GetSingleton<EqsResultPool>();
+                if (r.Results.IsCreated) r.Results.Dispose();
+            }
         }
 
         private Entity CreateAreaEntity(IList<Vector2> polygon)

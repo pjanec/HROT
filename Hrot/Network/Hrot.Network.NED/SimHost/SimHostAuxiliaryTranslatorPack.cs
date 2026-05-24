@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common;
+using Hrot.Network.NED.CGF;
 
 namespace Hrot.Network.NED.SimHost;
 
@@ -62,6 +63,9 @@ public static class SimHostAuxiliaryTranslatorPack
             // EQS area-query pipeline (Brain side).
             translators.Add(new AreaQueryBrainEgressTranslator(participant, entityMap, localNodeId));
             translators.Add(new AreaQueryBrainIngressTranslator(participant, entityMap, localNodeId));
+            // EQS pipeline — Brain side.
+            translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap));
+            translators.Add(new EqsResultIngressTranslator(participant, entityMap));
         }
 
         // ── Combat egress — Brain / AllInOne emits WeaponFireIntent → DDS ──
@@ -84,6 +88,9 @@ public static class SimHostAuxiliaryTranslatorPack
             // EQS area-query pipeline (Muscle side).
             translators.Add(new AreaQueryMuscleIngressTranslator(participant, entityMap));
             translators.Add(new AreaQueryMuscleEgressTranslator(participant, entityMap));
+            // EQS pipeline — Muscle side.
+            translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap));
+            translators.Add(new EqsResultEventEgressTranslator(participant, entityMap));
         }
 
         return translators;

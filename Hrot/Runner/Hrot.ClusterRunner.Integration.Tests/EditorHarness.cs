@@ -115,7 +115,7 @@ public sealed class EditorHarness : IDisposable
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    public EditorHarness()
+    public EditorHarness(IEcsModuleSystem[]? extraGlobalSystems = null)
     {
         Repo   = new EntityRepository();
         Bus    = Repo.Bus;
@@ -186,6 +186,7 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
+        Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
 
         // ── Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
@@ -203,6 +204,12 @@ public sealed class EditorHarness : IDisposable
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
         Kernel.RegisterModule(new EditorSystemsModule(zoneService));
+
+        // Register caller-injected global systems (e.g. mock physics solvers in unit tests).
+        // Must happen BEFORE Kernel.Initialize().
+        if (extraGlobalSystems != null)
+            foreach (var sys in extraGlobalSystems)
+                Kernel.RegisterGlobalSystem(sys);
 
         Kernel.Initialize();
 

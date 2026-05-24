@@ -276,6 +276,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
 
         context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
         context.Kernel.RegisterModule(CoreLogicPack!);
+        context.Kernel.RegisterModule(new EqsModule());
         context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
 
         PerceptionModule = new CognitiveSpatialModule(

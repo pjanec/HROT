@@ -56,6 +56,11 @@ namespace Hrot.SimHost.Tests
                 var p = world.GetSingleton<EqsTargetPool>();
                 if (p.Targets.IsCreated) p.Targets.Dispose();
             }
+            if (world.HasSingleton<EqsResultPool>())
+            {
+                var r = world.GetSingleton<EqsResultPool>();
+                if (r.Results.IsCreated) r.Results.Dispose();
+            }
         }
 
         private static EntityRepository CreateMuscleWorld(out SpatialHashGrid grid)

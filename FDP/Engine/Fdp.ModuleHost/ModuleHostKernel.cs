@@ -486,7 +486,6 @@ namespace Fdp.ModuleHost
                 _liveWorld.SetSimulationTime((float)globalTime.TotalTime); // Update repository time
                 _liveWorld.SetSingletonUnmanaged(globalTime); // Update GlobalTime singleton for components
             }
-            
             CurrentTime = globalTime;
             _currentFrame = (uint)globalTime.FrameNumber;
             

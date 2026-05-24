@@ -386,7 +386,30 @@
         /// <summary><c>BlueprintBlackboard16384</c> - 16384-byte tier component for Blueprint Instance state.</summary>
         public const int BlueprintBlackboard16384 = 206;
 
-        // IDs 207â€“255 are reserved for future toolkit/zone components.
+        /// <summary><c>EqsSensor</c> — standing query configuration replicated from Brain to Muscle (EQS v1.3).</summary>
+        public const int EqsSensor = 207;
+
+        /// <summary><c>EqsCognitiveBuffer</c> — Brain-side Top-K result cache written by <c>EqsResultUpdateSystem</c> (EQS v1.3).</summary>
+        public const int EqsCognitiveBuffer = 208;
+
+        /// <summary><c>EqsResultPool</c> — Muscle-side native ring-buffer pool for packed EQS results (EQS v1.3).</summary>
+        public const int EqsResultPool = 209;
+
+        /// <summary><c>IEqsTemplateRegistry</c> — managed singleton registry for compiled EQS query templates (EQS v1.3).</summary>
+        public const int IEqsTemplateRegistry = 210;
+
+        /// <summary><c>ICoverProvider</c> — managed singleton cover database for EQS positional queries (EQS v1.3).</summary>
+        public const int ICoverProvider = 211;
+
+        /// <summary><c>INavmeshProvider</c> — managed singleton for navmesh queries (EQS v1.3).</summary>
+        public const int INavmeshProvider = 212;
+
+        /// <summary>Per-sensor cross-tick evaluation state (EQS v1.3 Phase 5).</summary>
+        public const int SensorEvalState = 213;
+        /// <summary>Global EQS solver budget singleton (EQS v1.3 Phase 5).</summary>
+        public const int EqsSolverGlobalState = 214;
+
+        // IDs 215–255 are reserved for future toolkit/zone components.
         // ID block 256-511: Reserved for expansion
     }
 }

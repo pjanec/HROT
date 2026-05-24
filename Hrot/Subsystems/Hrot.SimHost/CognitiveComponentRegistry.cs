@@ -3,6 +3,9 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Spatial.Eqs;
+using Hrot.SimHost.Systems;
 
 namespace Hrot.SimHost
 {
@@ -62,6 +65,21 @@ namespace Hrot.SimHost
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();
+
+            // EQS Brain-tier components and update event.
+            world.RegisterComponent<EqsSensor>();
+            world.RegisterComponent<EqsCognitiveBuffer>();
+            world.RegisterManagedEvent<EqsResultUpdateEvent>();
+
+            // EQS Phase 5: per-sensor cross-tick evaluation state.
+            world.RegisterComponent<SensorEvalState>();
+
+            // EQS Phase 5: EqsSolverSystem submits RaycastRequestEvents via command buffer
+            // playback.  RaycastSolverSystem (Combat/Input) resolves them and publishes
+            // RaycastResultEvents.  Both must be registered in every world that hosts these
+            // systems so that FdpEventBus.PublishRaw does not throw during harvest/flush.
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
         }
     }
 }

@@ -100,9 +100,47 @@ namespace Fdp.Core
                 myTable.SyncFrom(srcTable);
             }
             
-            // 3. Sync global version
+            // 3. Sync specific singleton tables required by SoD background solvers.
+            // Only the EQS solver (EqsSolverSystem) reads singletons from a SoD snapshot:
+            //   - GlobalComponentIds.SpatialGridData (47): spatial hash grid for neighbour queries.
+            //   - GlobalComponentIds.EqsResultPool (209): pre-allocated ring-buffer shared between
+            //     the background solver (writes results) and EqsResultUpdateSystem (reads results).
+            //     Both sides must reference the same table object so that the handle published in
+            //     EqsResultEvent is valid when the main-thread consumer reads from it.
+            //   - GlobalComponentIds.IEqsTemplateRegistry (210): query template lookup.
+            //   - GlobalComponentIds.ICoverProvider (211): cover database for positional EQS queries.
+            // Syncing all singletons would expose live-world state to unrelated SoD modules and
+            // could alter their behaviour (e.g. slow code paths) causing unrelated tests to fail.
+            // Background readers treat these as immutable for the duration of the task; the SoD
+            // contract ensures the main thread does not structurally mutate them mid-frame.
+            SyncSingletonById(source, GlobalComponentIds.SpatialGridData);
+            SyncSingletonById(source, GlobalComponentIds.EqsResultPool);
+            SyncSingletonById(source, GlobalComponentIds.IEqsTemplateRegistry);
+            SyncSingletonById(source, GlobalComponentIds.ICoverProvider);
+            SyncSingletonById(source, GlobalComponentIds.INavmeshProvider); // NavmeshSamplesGenerator / NavmeshReachableTest
+            SyncSingletonById(source, GlobalComponentIds.RaycastBatchData); // AccurateLineOfSightTest ring-buffer reads
+            SyncSingletonById(source, GlobalComponentIds.EqsSolverGlobalState); // per-tick accurate-LOS ray budget
+
+            // 4. Sync global version
             // This ensures subsequent operations use the correct tick/version reference
             _globalVersion = source._globalVersion;
+        }
+
+        /// <summary>
+        /// Copies a single singleton table slot from <paramref name="source"/> into this repository
+        /// by sharing the table reference.  Only used for SoD singleton sync where the background
+        /// thread reads the singleton as immutable data and the main thread does not structurally
+        /// replace the table object mid-frame.
+        /// </summary>
+        private void SyncSingletonById(EntityRepository source, int typeId)
+        {
+            if (source._singletons == null || typeId >= source._singletons.Length)
+                return;
+            var srcTable = source._singletons[typeId];
+            if (srcTable == null)
+                return;
+            EnsureSingletonCapacity(typeId);
+            _singletons[typeId] = srcTable;
         }
 
         /// <summary>

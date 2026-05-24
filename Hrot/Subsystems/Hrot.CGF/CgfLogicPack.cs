@@ -18,6 +18,7 @@ using Hrot.CGF.Systems;
 using Hrot.CGF.Systems.Routing;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
+using Hrot.SimHost.Systems;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 
@@ -159,6 +160,9 @@ namespace Hrot.CGF
             foreach (var s in _actionDispatchModule.SimulationSystems)   simList.Add(s);
             simList.Add(_routeContextSystem);
             simList.Add(_unitHierarchySystem);
+            // EQS pipeline: Brain side receives DDS results via EqsResultUpdateEvent
+            // published by EqsResultIngressTranslator and consumes them here.
+            simList.Add(new EqsResultUpdateSystem());
 
             InputSystems       = inputList;
             SimulationSystems  = simList;

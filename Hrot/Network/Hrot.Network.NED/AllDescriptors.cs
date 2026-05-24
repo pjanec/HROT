@@ -41,6 +41,9 @@ namespace Hrot.NED.Descriptors
         // EQS area-query pipeline (Brain <-> Muscle)
         dtAreaQueryRequestBatch  = 93,
         dtAreaQueryResponseBatch = 94,
+        // EQS v1.3 sensor config and result topics
+        dtEqsSensorConfig        = 95,
+        dtEqsResult              = 96,
         // etc., all known descriptor types here
     }
 

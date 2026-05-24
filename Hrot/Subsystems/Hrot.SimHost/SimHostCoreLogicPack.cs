@@ -9,6 +9,7 @@ using Fdp.Toolkit.Navigation.Systems;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Systems;
 using Hrot.SimHost.Modules;
+using Hrot.SimHost.Systems;
 using Hrot.SimHost.Systems.Routing;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost;
@@ -134,6 +135,7 @@ namespace Hrot.SimHost
             simList.Add(_routeTrajSync);
             foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
             simList.Add(_unitHierarchySystem);
+            simList.Add(new EqsResultUpdateSystem());
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
             foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);

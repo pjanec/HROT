@@ -35,5 +35,14 @@ public static class NavigationSolverComponentRegistry
 
         world.RegisterEvent<AreaQueryRequestEvent>();
         world.RegisterEvent<AreaQueryResultEvent>();
+
+        // EQS v1.3 result pool: pre-allocated ring buffer for ranked candidate data.
+        world.SetSingleton(new EqsResultPool
+        {
+            Results = new NativeArray<EqsResult>(EqsResultPool.PoolCapacity, Allocator.Persistent),
+        });
+
+        // EqsResultEvent: unmanaged event published by EqsSolverSystem (offline path).
+        world.RegisterEvent<EqsResultEvent>();
     }
 }
