@@ -34,6 +34,9 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>Zero-based index of the weapon slot being fired (POC: always 0).</summary>
         public int WeaponIndex;
+
+        /// <summary>True when this event was synthesised from an incoming DDS message; egress translators skip remote events to prevent feedback loops.</summary>
+        public bool IsRemote;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────
@@ -60,5 +63,8 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;
+
+        /// <summary>True when this event was synthesised from an incoming DDS message; egress translators skip remote events to prevent feedback loops.</summary>
+        public bool IsRemote;
     }
 }

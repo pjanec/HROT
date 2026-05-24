@@ -37,5 +37,8 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>World-space Z coordinate of the hit position.</summary>
         public float HitZ;
+
+        /// <summary>True when this event was synthesised from an incoming DDS message; egress translators skip remote events to prevent feedback loops.</summary>
+        public bool IsRemote;
     }
 }

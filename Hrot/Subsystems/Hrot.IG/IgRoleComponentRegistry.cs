@@ -1,7 +1,9 @@
 using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Modules.Geographic.Components;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Vis2D.Components;
@@ -51,6 +53,11 @@ public static class IgRoleComponentRegistry
 
         RouteComponentRegistry.RegisterAll(world);
         ZoneComponentRegistry.RegisterAll(world);
+
+        world.RegisterComponent<NavigationIntent>();
+        world.RegisterComponent<BrainBlackboard>();
+        world.RegisterComponent<BehaviorState>();
+        world.RegisterComponent<BallisticProjectile>();
 
         world.RegisterComponent<GroundClampingConfig>();
         world.RegisterComponent<GroundClampingState>();

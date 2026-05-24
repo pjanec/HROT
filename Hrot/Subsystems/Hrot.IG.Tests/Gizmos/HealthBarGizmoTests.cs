@@ -135,6 +135,13 @@ namespace Hrot.IG.Tests.Gizmos
             tempRepo.RegisterComponent<VisualEffectState>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             tempRepo.RegisterComponent<MapOverlayStyle>();
+            // Components required by gizmos added after BATCH-21.
+            tempRepo.RegisterComponent<SelectionState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            tempRepo.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
 
             var registry          = new GizmoRegistry();
             var statelessRegistry = new StatelessGizmoRegistry();

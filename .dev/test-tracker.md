@@ -390,21 +390,21 @@ Status: not-fixed | fixed
 
 | Test | Status |
 |------|--------|
-| `Hrot.IG.Tests.Gizmos.HillAttackGizmoTests.SC_GZ021_HA_6_GizmoRegistrar_RegistersShowSlotsSetting` | not-fixed |
-| `Hrot.IG.Tests.Gizmos.HealthBarGizmoTests.SC_GZ021_HB_5_GizmoRegistrar_RegistersSettingsForBothKeys` | not-fixed |
-| `Hrot.IG.Tests.Gizmos.EntityRotationGizmoTests.SC_GZ021_ROT_4_GizmoRegistrar_RegistersEntityRotationArrowLengthSetting` | not-fixed |
-| `Hrot.IG.Tests.Gizmos.GizmoRendererWiringTests.SC_GZ020_3_RegisterHealthBarGizmo_DoesNotThrow` | not-fixed |
-| `Hrot.IG.Tests.AreaAuthoringTests.AreaTool_AfterCommit_ToolIsPopped` | not-fixed |
-| `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_Overlay_PointsAreRelativeOffsets_FromCentroid` | not-fixed |
-| `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_EntityMaster_TkbType_IsArea` | not-fixed |
-| `Hrot.IG.Tests.ContinuousDragTests.ContinuousDragOff_RepeatMoves_NoGatewayCalls` | not-fixed |
-| `Hrot.IG.Tests.ContinuousDragTests.DragEnd_AlwaysSendsExactlyOneUpdate` | not-fixed |
-| `Hrot.IG.Tests.IgApplicationTests.ExecuteLocalContextAction_IgDeleteEntity_PublishesDestroyCommand` | not-fixed |
-| `Hrot.IG.Tests.IgApplicationTests.CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently` | not-fixed |
-| `Hrot.IG.Tests.ShiftRightClickTests.PlainRightClick_DoesNotEmitWaypointEvent` | not-fixed |
-| `Hrot.IG.Tests.RouteAuthoringTests.AfterFinish_PointSequenceToolIsNoLongerActive` | not-fixed |
-| `Hrot.IG.Tests.RouteAuthoringTests.FinishCallback_1Point_DoesNotEmitRequest` | not-fixed |
-| `Hrot.IG.Tests.CommandHandling.DrawPersonalRouteCommandTests.ValidPoints_GatewayCalledWithCorrectDescriptors` | not-fixed |
+| `Hrot.IG.Tests.Gizmos.HillAttackGizmoTests.SC_GZ021_HA_6_GizmoRegistrar_RegistersShowSlotsSetting` | fixed |
+| `Hrot.IG.Tests.Gizmos.HealthBarGizmoTests.SC_GZ021_HB_5_GizmoRegistrar_RegistersSettingsForBothKeys` | fixed |
+| `Hrot.IG.Tests.Gizmos.EntityRotationGizmoTests.SC_GZ021_ROT_4_GizmoRegistrar_RegistersEntityRotationArrowLengthSetting` | fixed |
+| `Hrot.IG.Tests.Gizmos.GizmoRendererWiringTests.SC_GZ020_3_RegisterHealthBarGizmo_DoesNotThrow` | fixed |
+| `Hrot.IG.Tests.AreaAuthoringTests.AreaTool_AfterCommit_ToolIsPopped` | fixed |
+| `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_Overlay_PointsAreRelativeOffsets_FromCentroid` | fixed |
+| `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_EntityMaster_TkbType_IsArea` | fixed |
+| `Hrot.IG.Tests.ContinuousDragTests.ContinuousDragOff_RepeatMoves_NoGatewayCalls` | fixed |
+| `Hrot.IG.Tests.ContinuousDragTests.DragEnd_AlwaysSendsExactlyOneUpdate` | fixed |
+| `Hrot.IG.Tests.IgApplicationTests.ExecuteLocalContextAction_IgDeleteEntity_PublishesDestroyCommand` | fixed |
+| `Hrot.IG.Tests.IgApplicationTests.CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently` | fixed |
+| `Hrot.IG.Tests.ShiftRightClickTests.PlainRightClick_DoesNotEmitWaypointEvent` | fixed |
+| `Hrot.IG.Tests.RouteAuthoringTests.AfterFinish_PointSequenceToolIsNoLongerActive` | fixed |
+| `Hrot.IG.Tests.RouteAuthoringTests.FinishCallback_1Point_DoesNotEmitRequest` | fixed |
+| `Hrot.IG.Tests.CommandHandling.DrawPersonalRouteCommandTests.ValidPoints_GatewayCalledWithCorrectDescriptors` | fixed |
 
 ---
 

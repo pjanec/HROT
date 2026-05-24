@@ -172,6 +172,106 @@ DamageSystem strips CanMove from APC
 
 ## FDP-G13+G14: Combat component sizes and cooldown logic
 
+---
+
+## HROT-G07: NavigationIntent not registered in Hrot.IG tests
+
+**Tests fixed:** 15  
+**Status:** All 15 PASS
+
+### Failing tests addressed
+
+- `Hrot.IG.Tests.Gizmos.HillAttackGizmoTests.SC_GZ021_HA_6_GizmoRegistrar_RegistersShowSlotsSetting`
+- `Hrot.IG.Tests.Gizmos.HealthBarGizmoTests.SC_GZ021_HB_5_GizmoRegistrar_RegistersSettingsForBothKeys`
+- `Hrot.IG.Tests.Gizmos.EntityRotationGizmoTests.SC_GZ021_ROT_4_GizmoRegistrar_RegistersEntityRotationArrowLengthSetting`
+- `Hrot.IG.Tests.Gizmos.GizmoRendererWiringTests.SC_GZ020_3_RegisterHealthBarGizmo_DoesNotThrow`
+- `Hrot.IG.Tests.AreaAuthoringTests.AreaTool_AfterCommit_ToolIsPopped`
+- `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_Overlay_PointsAreRelativeOffsets_FromCentroid`
+- `Hrot.IG.Tests.AreaAuthoringTests.AreaRequest_EntityMaster_TkbType_IsArea`
+- `Hrot.IG.Tests.ContinuousDragTests.ContinuousDragOff_RepeatMoves_NoGatewayCalls`
+- `Hrot.IG.Tests.ContinuousDragTests.DragEnd_AlwaysSendsExactlyOneUpdate`
+- `Hrot.IG.Tests.IgApplicationTests.ExecuteLocalContextAction_IgDeleteEntity_PublishesDestroyCommand`
+- `Hrot.IG.Tests.IgApplicationTests.CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently`
+- `Hrot.IG.Tests.ShiftRightClickTests.PlainRightClick_DoesNotEmitWaypointEvent`
+- `Hrot.IG.Tests.RouteAuthoringTests.AfterFinish_PointSequenceToolIsNoLongerActive`
+- `Hrot.IG.Tests.RouteAuthoringTests.FinishCallback_1Point_DoesNotEmitRequest`
+- `Hrot.IG.Tests.CommandHandling.DrawPersonalRouteCommandTests.ValidPoints_GatewayCalledWithCorrectDescriptors`
+
+### Root Cause
+
+`StatelessGizmoRegistry.Register()` validates that all component types declared by a
+`[GizmoProjector]` attribute are registered in the global `ComponentTypeRegistry` before
+it accepts the gizmo registration. When this validation was introduced (batch-10), the
+`IgRoleComponentRegistry` (which is called by the IG bootstrapper in Phase 2) and the
+test `tempRepo` setups in the three registrar-wiring tests did not include all components
+required by subsequently-added gizmos.
+
+Three specific gaps were identified:
+
+1. **`NavigationIntent`** - required by `NavigationTargetGizmo` added in commit `bdfeb5cd`
+   (`feat: vehicle navigation target gizmo`). Never added to `IgRoleComponentRegistry`.
+
+2. **`BrainBlackboard` / `BehaviorState`** - required by `HillAttackGizmo` (in
+   `Hrot.AI.Behaviors.Gizmos`). These are registered in `CognitiveComponentRegistry`
+   (SimHost side) but `IgRoleComponentRegistry` (IG bootstrapper) never included them.
+   The gap was caused by `IgRoleComponentRegistry` being created after batch-10 without
+   backfilling the components that batch-10's `HillAttackGizmo` migration required.
+
+3. **`BallisticProjectile`** - required by `ProjectilePresentationGizmo` (local IG gizmo
+   added in commit `24ebd0e6`). Only registered in `CombatComponentRegistry` (SimHost).
+   Never added to `IgRoleComponentRegistry`.
+
+Tests in classes `AreaAuthoringTests`, `ContinuousDragTests`, `IgApplicationTests`,
+`ShiftRightClickTests`, `RouteAuthoringTests`, and `DrawPersonalRouteCommandTests` all
+use `IgApplication.InitializeEmbedded()`, which runs the full bootstrapper including
+`IgRoleComponentRegistry.RegisterAll()` followed by `GizmoRegistrar.Register()`.
+The bootstrapper failing at `GizmoRegistrar.Register()` (Phase 6d) with
+`InvalidOperationException` caused constructor failure, meaning every test in those
+classes threw before the test body even ran.
+
+### Fix
+
+Two categories of changes:
+
+**Production bootstrapper fix** (`IgRoleComponentRegistry.cs`):
+- Added `using Fdp.Toolkit.Behavior.Components;`
+- Added `world.RegisterComponent<NavigationIntent>();` (was already done in a prior step)
+- Added `world.RegisterComponent<BrainBlackboard>();`
+- Added `world.RegisterComponent<BehaviorState>();`
+- Added `world.RegisterComponent<BallisticProjectile>();`
+
+**Test `tempRepo` fixes** (three test files that call `GizmoRegistrar.Register()` with
+a locally-constructed `EntityRepository`):
+
+- `HillAttackGizmoTests.SC_GZ021_HA_6`: added `SelectionState`, `TargetMemory`,
+  `NavigationIntent`, `BallisticProjectile`
+- `HealthBarGizmoTests.SC_GZ021_HB_5`: added `SelectionState`, `TargetMemory`,
+  `NavigationIntent`, `BrainBlackboard`, `BehaviorState`, `BallisticProjectile`
+- `EntityRotationGizmoTests` registrar test: added `SelectionState`, `TargetMemory`,
+  `NavigationIntent`, `BrainBlackboard`, `BehaviorState`, `BallisticProjectile`
+
+Additionally, a pre-existing build error was fixed in `WeaponFireEvents.cs` where the
+`IsRemote` field had been removed from `WeaponFireIntent` and `WeaponFireNotification`
+structs during an earlier refactoring (PACK-P003), causing compile failures.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `Hrot/Subsystems/Hrot.IG/IgRoleComponentRegistry.cs` | Added `using Fdp.Toolkit.Behavior.Components;`; added `RegisterComponent` calls for `NavigationIntent`, `BrainBlackboard`, `BehaviorState`, `BallisticProjectile` |
+| `Hrot/Subsystems/Hrot.IG.Tests/Gizmos/HealthBarGizmoTests.cs` | Added 6 missing `tempRepo.RegisterComponent<>()` calls in `SC_GZ021_HB_5` |
+| `Hrot/Subsystems/Hrot.IG.Tests/Gizmos/HillAttackGizmoTests.cs` | Added 4 missing `tempRepo.RegisterComponent<>()` calls in `SC_GZ021_HA_6` |
+| `Hrot/Subsystems/Hrot.IG.Tests/Gizmos/EntityRotationGizmoTests.cs` | Added 6 missing `tempRepo.RegisterComponent<>()` calls in the registrar wiring test |
+| `FDP/Toolkits/Fdp.Toolkits/Combat/Events/WeaponFireEvents.cs` | Restored `public bool IsRemote;` to `WeaponFireIntent` and `WeaponFireNotification` |
+
+### Verification
+
+```
+dotnet test Hrot\Subsystems\Hrot.IG.Tests\Hrot.IG.Tests.csproj --no-build --filter "SC_GZ021_HA_6_GizmoRegistrar|SC_GZ021_HB_5_GizmoRegistrar|SC_GZ021_ROT_4_GizmoRegistrar|SC_GZ020_3_RegisterHealthBarGizmo|AreaTool_AfterCommit|AreaRequest_Overlay|AreaRequest_EntityMaster|ContinuousDragOff_RepeatMoves|DragEnd_AlwaysSendsExactlyOneUpdate|ExecuteLocalContextAction_IgDeleteEntity|CommitHandler_EntityDestroyedBeforeCommit|PlainRightClick_DoesNotEmitWaypointEvent|AfterFinish_PointSequenceToolIsNoLongerActive|FinishCallback_1Point_DoesNotEmitRequest|ValidPoints_GatewayCalledWithCorrectDescriptors"
+```
+
+Result: **Failed: 0, Passed: 15, Skipped: 0**
+
 **Tests fixed:**
 - WeaponFireIntent_IsUnmanaged_AndHasCorrectSize
 - WeaponFireNotification_IsUnmanaged_AndHasCorrectSize
