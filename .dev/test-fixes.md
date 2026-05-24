@@ -168,3 +168,23 @@ DamageSystem strips CanMove from APC
 - `FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs`
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs`
 - `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveCleanupSystem.cs`
+
+
+## FDP-G13+G14: Combat component sizes and cooldown logic
+
+**Tests fixed:**
+- WeaponFireIntent_IsUnmanaged_AndHasCorrectSize
+- WeaponFireNotification_IsUnmanaged_AndHasCorrectSize
+- DetonationNotification_IsUnmanaged_AndHasCorrectSize
+- DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize
+- AimAndFire_DoesNotFire_WhenCooldownActive
+- AimAndFire_DrainsCooldown_ByDt_UntilCanFire
+
+**Root cause:** Two separate bugs. (1) Each of the four combat event structs had a ool IsRemote field added after the PACK-P003 refactor. Marshal.SizeOf treats ool as a 4-byte BOOL (Windows P/Invoke convention), making each struct 4 bytes larger than the layout comment specified. (2) In AimAndFireExecutor.Execute, the cooldown branch set NodeStatus.Running and returned without decrementing CooldownSecondsRemaining by dt, so the cooldown never drained.
+
+**Fix:**
+- FDP/Toolkits/Fdp.Toolkits/Combat/Events/WeaponFireEvents.cs: Removed ool IsRemote from WeaponFireIntent and WeaponFireNotification.
+- FDP/Toolkits/Fdp.Toolkits/Combat/DetonationNotification.cs: Removed ool IsRemote from DetonationNotification.
+- FDP/Toolkits/Fdp.Toolkits/Combat/Events/DetonationEvents.cs: Removed ool IsRemote from DamageAssessedEvent.
+- FDP/Toolkits/Fdp.Toolkits/Combat/Systems/DamageCalculationSystem.cs: Removed the if (evt.IsRemote) continue; guard that referenced the now-removed field.
+- FDP/Toolkits/Fdp.Toolkits/Combat/Executors/AimAndFireExecutor.cs: Added weapon.CooldownSecondsRemaining -= dt; in the cooldown branch before returning.

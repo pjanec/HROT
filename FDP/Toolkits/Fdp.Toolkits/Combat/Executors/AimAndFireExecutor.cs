@@ -60,6 +60,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // Refactored to use continuous delta time for determinism across variable tick rates.
             if (weapon.CooldownSecondsRemaining > 0f)
             {
+                weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
                 return;
             }

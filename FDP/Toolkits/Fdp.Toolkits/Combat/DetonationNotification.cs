@@ -37,8 +37,5 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>World-space Z coordinate of the hit position.</summary>
         public float HitZ;
-
-        /// <summary>True when this notification originated from network ingress.</summary>
-        public bool IsRemote;
     }
 }

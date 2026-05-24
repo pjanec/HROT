@@ -34,9 +34,6 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>Zero-based index of the weapon slot being fired (POC: always 0).</summary>
         public int WeaponIndex;
-
-        /// <summary>True when this event originated from network ingress.</summary>
-        public bool IsRemote;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────
@@ -63,8 +60,5 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;
-
-        /// <summary>True when this event originated from network ingress.</summary>
-        public bool IsRemote;
     }
 }

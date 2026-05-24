@@ -46,7 +46,6 @@ namespace Fdp.Toolkit.Combat.Systems
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
-                if (evt.IsRemote) continue;
 
                 // PACK-P003: evt.Target is already a local ECS Entity handle.
                 // Skip if the entity is not alive on this node.
