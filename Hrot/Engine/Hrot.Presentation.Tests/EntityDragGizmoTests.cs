@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Replication.Components;
@@ -37,7 +38,7 @@ public class EntityDragGizmoTests
         var gizmo   = new EntityDragGizmo(_repo, _entity);
         var buffer  = new DebugPrimitiveBuffer(capacity: 16);
 
-        gizmo.UpdateAndDraw(0f, buffer);
+        gizmo.UpdateAndDraw(new EntityRepository(), 0f, buffer);
 
         var frame = buffer.GetFrame();
         Assert.True(frame.Length >= 1);

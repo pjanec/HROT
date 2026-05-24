@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Editing;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using StructEdit.Core;
 using Xunit;
 
@@ -83,6 +84,14 @@ file sealed class FakeInspectableSession : IInspectableSession
     }
     public IEnumerable<Type> GetAllComponentTypes() => Array.Empty<Type>();
     public bool HasAuthority(Entity e, Type t) => false;
+}
+
+file sealed class MockMutationInterceptor : IMutationInterceptor
+{
+    public bool IsPaused { get; set; }
+    public List<(Entity Entity, Type ComponentType, object Value)> Staged { get; } = new();
+    public void StageMutation(Entity entity, Type componentType, object componentValue)
+        => Staged.Add((entity, componentType, componentValue));
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +300,60 @@ public class ComponentEditWindowTests
 
         Assert.False(inspectable.SetComponentWasCalled,
             "SetComponent must NOT be called when the entity is dead at commit time.");
+        Assert.False(win.IsOpen);
+    }
+
+    // ── T-CE08h ──────────────────────────────────────────────────────────────
+    // Interceptor present and paused -- routes to StageMutation, not SetComponent.
+    [Fact]
+    public void T_CE08h_WhilePaused_RoutesToStageMutation()
+    {
+        var interceptor = new MockMutationInterceptor { IsPaused = true };
+        var committed   = new object();
+        var session     = new FakeEditSession { CommitResult = committed };
+        var inspectable = new FakeInspectableSession(isAlive: true);
+        var entity      = new Entity(11, 1);
+
+        var win = new ComponentEditWindow(
+            "id_h", "Title", "Perspective",
+            session, entity, typeof(object),
+            () => inspectable,
+            interceptor: interceptor);
+
+        win.ExecuteOkLogic();
+
+        Assert.Equal(1, interceptor.Staged.Count);
+        Assert.Equal(entity, interceptor.Staged[0].Entity);
+        Assert.Same(committed, interceptor.Staged[0].Value);
+        Assert.False(inspectable.SetComponentWasCalled,
+            "Direct repo write must not occur when interceptor is paused.");
+        Assert.False(win.IsOpen,
+            "Window must close after staging.");
+    }
+
+    // ── T-CE08i ──────────────────────────────────────────────────────────────
+    // Interceptor present but NOT paused -- falls through to direct write.
+    [Fact]
+    public void T_CE08i_WhileRunning_StillWritesDirect()
+    {
+        var interceptor = new MockMutationInterceptor { IsPaused = false };
+        var committed   = new object();
+        var session     = new FakeEditSession { CommitResult = committed };
+        var inspectable = new FakeInspectableSession(isAlive: true);
+        var entity      = new Entity(12, 1);
+
+        var win = new ComponentEditWindow(
+            "id_i", "Title", "Perspective",
+            session, entity, typeof(object),
+            () => inspectable,
+            interceptor: interceptor);
+
+        win.ExecuteOkLogic();
+
+        Assert.True(interceptor.Staged.Count == 0,
+            "StageMutation must not be called when running.");
+        Assert.True(inspectable.SetComponentWasCalled,
+            "Direct repo write must occur when interceptor is not paused.");
         Assert.False(win.IsOpen);
     }
 }

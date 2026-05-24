@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder) { }
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder drawBuilder) { }
         public void Dispose() { }
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }
         public void OnDragUpdate(Vector3 worldPos) { }

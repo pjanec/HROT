@@ -1,4 +1,6 @@
 ﻿using System.Numerics;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Hrot.ScenarioEditor.Gizmos;
 using Hrot.IG.Tests.Gizmos;
@@ -176,7 +178,7 @@ public class MeasureToolTests
 
         gizmo.OnDragUpdate(new Vector3(50f, 50f, 0f));
 
-        var ex = Record.Exception(() => gizmo.UpdateAndDraw(0f, spy));
+        var ex = Record.Exception(() => gizmo.UpdateAndDraw(new EntityRepository(), 0f, spy));
         Assert.Null(ex);
     }
 
@@ -191,7 +193,7 @@ public class MeasureToolTests
         var gizmo = new MeasureGizmo();
         gizmo.OnDragUpdate(new Vector3(100f, 100f, 0f));
 
-        gizmo.UpdateAndDraw(0f, spy);
+        gizmo.UpdateAndDraw(new EntityRepository(), 0f, spy);
 
         Assert.Equal(4, spy.LineCalls.Count);
         Assert.Equal(1, spy.SphereCalls.Count);

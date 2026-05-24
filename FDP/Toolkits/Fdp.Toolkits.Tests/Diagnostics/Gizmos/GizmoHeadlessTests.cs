@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public int  DisposeCount    { get; private set; }
 
         public void SetFocus(bool f) { IsFocused = f; }
-        public void UpdateAndDraw(float dt, IDebugDrawBuilder b) { }
+        public void UpdateAndDraw(ISimulationView view, float dt, IDebugDrawBuilder b) { }
         public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
         public void OnDragUpdate(Vector3 w)                            { }
         public void OnCommit(Vector3 w)                                { }
@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool Disposed { get; private set; }
 
         public void SetFocus(bool f) { IsFocused = f; }
-        public void UpdateAndDraw(float dt, IDebugDrawBuilder b) { }
+        public void UpdateAndDraw(ISimulationView view, float dt, IDebugDrawBuilder b) { }
         public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
         public void OnDragUpdate(Vector3 w)                            { }
         public void OnCommit(Vector3 w)                                { }
@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool Disposed       { get; private set; }
 
         public void SetFocus(bool f) { IsFocused = f; }
-        public void UpdateAndDraw(float dt, IDebugDrawBuilder b) { }
+        public void UpdateAndDraw(ISimulationView view, float dt, IDebugDrawBuilder b) { }
         public void OnInteractionStarted(GizmoPickToken t, Vector3 w) { }
         public void OnDragUpdate(Vector3 w)                            { }
         public void OnCommit(Vector3 w)                                { }

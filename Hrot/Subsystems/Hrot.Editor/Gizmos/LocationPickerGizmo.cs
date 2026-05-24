@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Modules.Geographic;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Hrot.Core.Mission;
@@ -61,7 +62,7 @@ namespace Hrot.Editor.Gizmos
 
         /// <inheritdoc/>
         /// <remarks>Draws a sky-blue crosshair at the current cursor world position.</remarks>
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             var drawColor = new Rgba32(102, 191, 255, 255);
             var pos = _cursorWorld;

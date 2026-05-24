@@ -85,7 +85,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             }
         }
 
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             if (!_active || _points.Count == 0) return;
 

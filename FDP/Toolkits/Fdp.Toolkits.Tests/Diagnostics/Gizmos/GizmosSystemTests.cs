@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder drawBuilder)
         {
             UpdateAndDrawCount++;
         }
@@ -839,7 +839,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool IsFocused { get; private set; }
         public void SetFocus(bool v) => IsFocused = v;
 
-        public void UpdateAndDraw(float dt, IDebugDrawBuilder db) { }
+        public void UpdateAndDraw(ISimulationView view, float dt, IDebugDrawBuilder db) { }
         public void Dispose() { }
 
         public void OnInteractionStarted(GizmoPickToken token, System.Numerics.Vector3 worldPos)

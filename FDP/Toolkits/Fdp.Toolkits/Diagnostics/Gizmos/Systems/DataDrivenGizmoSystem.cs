@@ -51,6 +51,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Dictionary<Entity, List<CompiledGizmoInstance>> _activeGizmos;
         private readonly bool[] _globalVisibilityCache;
         private readonly GizmoUndoStack? _undoStack;
+        private readonly IActiveViewProvider? _breakpointManager;
 
         /// <summary>Max wall-clock budget in ms for step 4. 0 = unlimited.</summary>
         public float MaxGizmoFrameMs { get; set; } = 0f;
@@ -162,7 +163,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             IDebugDrawBuilder drawBuilder,
             Func<ISimulationView, Entity, bool>? isSelectedPredicate = null,
             GizmoUndoStack? undoStack = null,
-            FdpEventBus? interactionBus = null)
+            FdpEventBus? interactionBus = null,
+            IActiveViewProvider? breakpointManager = null)
         {
             _registry             = registry    ?? throw new ArgumentNullException(nameof(registry));
             _drawBuilder          = drawBuilder ?? throw new ArgumentNullException(nameof(drawBuilder));
@@ -171,6 +173,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             _globalVisibilityCache = new bool[registry.Rules.Count];
             _undoStack            = undoStack;
             _interactionBus       = interactionBus;
+            _breakpointManager    = breakpointManager;
         }
 
         // ---- IEcsModuleSystem -----------------------------------------------------
@@ -181,6 +184,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 throw new InvalidOperationException(
                     $"{nameof(DataDrivenGizmoSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
+
+            ISimulationView activeView = _breakpointManager?.ActiveView ?? view;
 
             // Note: _drawBuilder.EndFrame(deltaTime) is now the responsibility of the
             // application shell (EditorSubsystem.Update, IgApplication.Update,
@@ -320,7 +325,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         int mark = buf.Count;
-                        gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                         buf.StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (gi.Instance == _focusedGizmo &&
@@ -363,7 +368,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (gi.RuleIndex < cacheSize && !_globalVisibilityCache[gi.RuleIndex]) continue;
                         if (!gi.Definition.VisibilityPolicy.IsEntityVisible(view, entity)) continue;
                         int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
-                        gi.Instance.UpdateAndDraw(deltaTime, _drawBuilder);
+                        gi.Instance.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                         ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, gi.Definition.GizmoTypeId);
                         // Emit InputCaptureBinding for the exclusive-focus holder.
                         if (gi.Instance == _focusedGizmo &&
@@ -395,7 +400,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 {
                     uint injTypeId = Fnv1a32(kvp.Value.GetType().FullName ?? string.Empty);
                     int mark = ((DebugPrimitiveBuffer)_drawBuilder).Count;
-                    kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                    kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                     ((DebugPrimitiveBuffer)_drawBuilder).StampGizmoTypeId(mark, injTypeId);
                     // Emit InputCaptureBinding for the exclusive-focus holder.
                     if (kvp.Value == _focusedGizmo &&

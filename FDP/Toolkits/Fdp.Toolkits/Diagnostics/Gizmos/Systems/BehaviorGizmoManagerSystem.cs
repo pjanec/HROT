@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         private readonly Dictionary<Entity, IEntityStatefulGizmo> _activeBehaviorGizmos;
+        private readonly IActiveViewProvider? _breakpointManager;
 
         // ---- Construction ----------------------------------------------------------
 
@@ -46,12 +47,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public BehaviorGizmoManagerSystem(
             BehaviorGizmoRegistry behaviorRegistry,
             IDebugDrawBuilder drawBuilder,
-            Func<ISimulationView, Entity, bool>? isSelectedPredicate = null)
+            Func<ISimulationView, Entity, bool>? isSelectedPredicate = null,
+            IActiveViewProvider? breakpointManager = null)
         {
             _behaviorRegistry     = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             _drawBuilder          = drawBuilder      ?? throw new ArgumentNullException(nameof(drawBuilder));
             _isSelectedPredicate  = isSelectedPredicate;
             _activeBehaviorGizmos = new Dictionary<Entity, IEntityStatefulGizmo>();
+            _breakpointManager    = breakpointManager;
         }
 
         // ---- IEcsModuleSystem -----------------------------------------------------
@@ -86,6 +89,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             // 4. Drive active behavior gizmos.
             // UpdateAndDraw is called regardless of focus state.
             bool alwaysDraw = _isSelectedPredicate == null;
+            ISimulationView activeView = _breakpointManager?.ActiveView ?? view;
             foreach (var kvp in _activeBehaviorGizmos)
             {
                 Entity entity = kvp.Key;
@@ -96,7 +100,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (!selected)
                     continue;
 
-                kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
             }
         }
 

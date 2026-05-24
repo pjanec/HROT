@@ -40,6 +40,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     [JsonDerivedType(typeof(SpatialBoundingPredicateDto),    "SpatialBounding")]
     [JsonDerivedType(typeof(StructuralPredicateDto),         "Structural")]
     [JsonDerivedType(typeof(BehaviorParamPredicateDto),      "BehaviorParam")]
+    [JsonDerivedType(typeof(TraceBufferScanPredicateDto),    "TraceBufferScan")]
+    [JsonDerivedType(typeof(BlueprintVariablePredicateDto),  "BlueprintVariable")]
+    [JsonDerivedType(typeof(ExternalHitTagPredicateDto),     "ExternalHitTag")]
     public abstract class SearchPredicateDto { }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -52,6 +55,12 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     {
         public LogicalOperator Operator { get; set; } = LogicalOperator.And;
         public List<SearchPredicateDto> Conditions { get; set; } = new();
+        /// <summary>
+        /// Zero-based indices of children that the editor should render as read-only.
+        /// Auto-synthesised breakpoints mark the structural trace-buffer branch
+        /// [EditReadOnly] so the operator cannot drift it away from the visual node.
+        /// </summary>
+        public List<int> ReadOnlyChildIndices { get; set; } = new();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -218,7 +227,100 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Result types
+    // Trace buffer scan
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Predicate that scans a BTree or HSM trace ring buffer for any record that
+    /// matches the specified opcode and optional field constraints.
+    /// Zero allocation on the hot evaluation path -- uses pointer arithmetic over
+    /// the component's raw 16-byte-stride buffer.
+    /// </summary>
+    public sealed class TraceBufferScanPredicateDto : SearchPredicateDto
+    {
+        /// <summary>
+        /// Component type to scan.
+        /// Must be <c>BTreeTraceWorkingMemory1024</c> or <c>HsmTraceWorkingMemory1024</c>.
+        /// </summary>
+        [JsonConverter(typeof(TypeNameJsonConverter))]
+        public Type ComponentType { get; set; } = null!;
+
+        /// <summary>
+        /// Opcode byte to match (cast from <c>BTreeTraceOpCode</c> or <c>TraceOpCode</c>).
+        /// Always checked -- there is no "match-any-opcode" mode.
+        /// </summary>
+        public byte OpCode { get; set; }
+
+        /// <summary>
+        /// Value to match at byte offset 8-9 of each record.
+        /// BTree: NodeIndex (for NodeEvaluated / Wait*) or StackDepth (for Scope*).
+        /// HSM: StateIndex (StateEnter/Exit), EventId (EventHandled), FromState (Transition), etc.
+        /// Only checked when <see cref="MatchIndexField"/> is true.
+        /// </summary>
+        public ushort IndexField { get; set; }
+
+        /// <summary>Whether to check <see cref="IndexField"/>.</summary>
+        public bool MatchIndexField { get; set; }
+
+        /// <summary>
+        /// Value to match at byte offset 10 of each record (the <em>status/result</em> byte).
+        /// BTree: <c>NodeStatus</c> byte for NodeEvaluated.
+        /// HSM: <c>GuardResult</c> byte (0=false, 1=true) for GuardEvaluated.
+        /// Only checked when <see cref="MatchStatusField"/> is true.
+        /// </summary>
+        public byte StatusField { get; set; }
+
+        /// <summary>Whether to check <see cref="StatusField"/>.</summary>
+        public bool MatchStatusField { get; set; }
+
+        /// <summary>
+        /// Value to match at byte offset 12-13 of each record.
+        /// HSM: <c>TriggerEventId</c> for Transition records.
+        /// BTree: low 16-bits of <c>Duration</c> for Wait* records (rarely useful).
+        /// Only checked when <see cref="MatchTriggerEventId"/> is true.
+        /// </summary>
+        public ushort TriggerEventId { get; set; }
+
+        /// <summary>Whether to check <see cref="TriggerEventId"/>.</summary>
+        public bool MatchTriggerEventId { get; set; }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────    // Blueprint variable breakpoints
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Predicate that navigates the multi-tier BlueprintBlackboard partition
+    /// allocator, finds the slot for <see cref="TargetBlueprintAssetId"/>,
+    /// reads <see cref="VariableName"/> at the baked field offset, and evaluates
+    /// <see cref="Predicate"/> against the value.
+    /// The delegate re-runs the slot scan on every evaluation, so tier upgrades
+    /// never invalidate a compiled delegate (see DESIGN §6.5).
+    /// </summary>
+    public sealed class BlueprintVariablePredicateDto : SearchPredicateDto
+    {
+        /// <summary>
+        /// Asset GUID of the target Blueprint.
+        /// Converted to a 32-bit int at compile time via
+        /// <c>BlueprintIdHash.Compute(TargetBlueprintAssetId)</c>.
+        /// </summary>
+        public Guid TargetBlueprintAssetId { get; set; }
+
+        /// <summary>
+        /// Variable name as declared in <c>BlueprintDefinition.StateFields</c>.
+        /// Resolved to a byte offset at compile time.
+        /// </summary>
+        public string VariableName { get; set; } = string.Empty;
+
+        public SearchOperator Operator { get; set; } = SearchOperator.Equals;
+
+        /// <summary>
+        /// Value sub-predicate: <see cref="NumericPredicateDto"/> or
+        /// <see cref="StringPredicateDto"/> (same as <see cref="PropertyMatchDto.Predicate"/>).
+        /// </summary>
+        public SearchPredicateDto Predicate { get; set; } = null!;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────    // Result types
     // ──────────────────────────────────────────────────────────────────────────
 
     public sealed record SearchResultDto(
@@ -252,4 +354,27 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
     [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public sealed class BehaviorHashPickerAttribute : Attribute { }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // External-hit tag predicate
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Synthetic predicate used as a "fire from external probe" marker.
+    /// The component-predicate compiler always returns <c>static (_, _) =&gt; false</c> for
+    /// this type; it is never evaluated through <see cref="DataBreakpointSystem"/>.
+    /// Instead, <see cref="IDataBreakpointManager.OnExternalHit"/> scans breakpoints
+    /// whose <see cref="SearchPredicateDto"/> tree contains this DTO and fires them
+    /// when the tag matches.
+    /// </summary>
+    public sealed class ExternalHitTagPredicateDto : SearchPredicateDto
+    {
+        /// <summary>
+        /// Opaque string tag that must match the first argument of
+        /// <see cref="IDataBreakpointManager.OnExternalHit"/>.
+        /// Convention: Blueprint node probes use the raw <c>nodeId</c> string;
+        /// future Slice 1 surfaces may use other prefixes.
+        /// </summary>
+        public string Tag { get; set; } = string.Empty;
+    }
 }

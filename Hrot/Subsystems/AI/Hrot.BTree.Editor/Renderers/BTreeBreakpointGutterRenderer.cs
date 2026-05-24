@@ -2,6 +2,7 @@ using System.Numerics;
 using ImGuiNET;
 using Hrot.BTree.Editor.Debug;
 using Hrot.BTree.Editor.Model;
+using Hrot.Diagnostics.Breakpoints;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
 
@@ -15,6 +16,7 @@ public sealed class BTreeBreakpointGutterRenderer : ICustomCanvasRenderer
 {
     private readonly BehaviorTreeAsset _asset;
     private IBTreeDebugSession? _session;
+    private IDataBreakpointManager? _manager;
 
     public string Id => "btree.breakpoint_gutter";
     public CanvasRenderPass Pass => CanvasRenderPass.AfterNodes;
@@ -26,25 +28,63 @@ public sealed class BTreeBreakpointGutterRenderer : ICustomCanvasRenderer
 
     public void SetSession(IBTreeDebugSession? session) => _session = session;
 
-    public void Render(ICanvasRenderContext ctx)
-    {
-        if (_session is null) return;
+    public void SetManager(IDataBreakpointManager? manager) => _manager = manager;
 
-        var breakpoints = _session.GetBreakpoints();
-        foreach (var bp in breakpoints)
+    // Counts (without drawing) how many manager breakpoints have a SourceElementId
+    // that maps to a node in this asset. Used by tests.
+    internal int CountManagerBreakpoints()
+    {
+        if (_manager is null) return 0;
+        int count = 0;
+        foreach (var bp in _manager.AllBreakpoints)
         {
             if (!bp.Enabled) continue;
-            if (bp.AssetId != _asset.AssetId) continue;
+            if (bp.SourceElementId is null) continue;
+            if (_asset.FindNode(bp.SourceElementId.Value) is not null)
+                count++;
+        }
+        return count;
+    }
 
-            var node = _asset.FindNode(bp.ElementId);
-            if (node is null) continue;
+    public void Render(ICanvasRenderContext ctx)
+    {
+        if (_session is not null)
+        {
+            var breakpoints = _session.GetBreakpoints();
+            foreach (var bp in breakpoints)
+            {
+                if (!bp.Enabled) continue;
+                if (bp.AssetId != _asset.AssetId) continue;
 
-            var screenPos = ctx.Viewport.GraphToScreen(node.Position);
-            var center = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
-            float radius = 5f * ctx.Zoom;
-            var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
+                var node = _asset.FindNode(bp.ElementId);
+                if (node is null) continue;
 
-            ctx.DrawList.AddCircleFilled(center, radius, ImGui.GetColorU32(color));
+                var screenPos = ctx.Viewport.GraphToScreen(node.Position);
+                var center = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                float radius = 5f * ctx.Zoom;
+                var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
+
+                ctx.DrawList.AddCircleFilled(center, radius, ImGui.GetColorU32(color));
+            }
+        }
+
+        if (_manager is not null)
+        {
+            foreach (var bp in _manager.AllBreakpoints)
+            {
+                if (!bp.Enabled) continue;
+                if (bp.SourceElementId is null) continue;
+
+                var node = _asset.FindNode(bp.SourceElementId.Value);
+                if (node is null) continue;
+
+                var screenPos = ctx.Viewport.GraphToScreen(node.Position);
+                var center = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                float radius = 5f * ctx.Zoom;
+                var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
+
+                ctx.DrawList.AddCircleFilled(center, radius, ImGui.GetColorU32(color));
+            }
         }
     }
 }

@@ -188,5 +188,35 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Assert.Equal(AuthorityRequirement.RequireAuthority, back!.AuthorityRequirement);
             Assert.Equal(StructuralModification.Removed, back.ModificationType);
         }
+
+        // ── P6T1: BlueprintVariablePredicateDto round-trip ─────────────────
+
+        /// <summary>
+        /// P6T1 success condition: BlueprintVariablePredicateDto survives a JSON round-trip
+        /// preserving all fields including the nested NumericPredicateDto.
+        /// </summary>
+        [Fact]
+        public void BlueprintVariablePredicate_SerializesRoundTrip()
+        {
+            var assetId = Guid.Parse("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+            var dto = new BlueprintVariablePredicateDto
+            {
+                TargetBlueprintAssetId = assetId,
+                VariableName           = "AmmoCount",
+                Operator               = SearchOperator.Equals,
+                Predicate              = new NumericPredicateDto { MinValue = 0.0, MaxValue = 0.0 },
+            };
+
+            string json = JsonSerializer.Serialize<SearchPredicateDto>(dto, _options);
+            var back = JsonSerializer.Deserialize<SearchPredicateDto>(json, _options) as BlueprintVariablePredicateDto;
+
+            Assert.NotNull(back);
+            Assert.Equal(assetId, back.TargetBlueprintAssetId);
+            Assert.Equal("AmmoCount", back.VariableName);
+            Assert.Equal(SearchOperator.Equals, back.Operator);
+            var numPred = Assert.IsType<NumericPredicateDto>(back.Predicate);
+            Assert.Equal(0.0, numPred.MinValue);
+            Assert.Equal(0.0, numPred.MaxValue);
+        }
     }
 }

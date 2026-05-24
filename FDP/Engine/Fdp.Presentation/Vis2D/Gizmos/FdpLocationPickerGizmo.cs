@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
@@ -57,7 +58,7 @@ public sealed class FdpLocationPickerGizmo : IEntityStatefulGizmo
 
     /// <inheritdoc/>
     /// <remarks>Draws a sky-blue crosshair at the current cursor world position.</remarks>
-    public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+    public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
         // Sky-blue crosshair (Raylib Color.SkyBlue = R:102, G:191, B:255).
         var drawColor = new Rgba32(102, 191, 255, 255);

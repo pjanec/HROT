@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
@@ -49,7 +50,7 @@ namespace Hrot.Editor.Gizmos
         // IEntityStatefulGizmo -- draw
 
         /// <inheritdoc/>
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw) { }
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw) { }
 
         // IEntityStatefulGizmo -- interaction
 

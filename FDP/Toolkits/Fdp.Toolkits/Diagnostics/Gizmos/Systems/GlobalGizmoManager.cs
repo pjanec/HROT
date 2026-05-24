@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Dictionary<long, IEntityStatefulGizmo> _activeGizmos = new();
         private IEntityStatefulGizmo? _focusedGizmo;
         private readonly FdpEventBus? _interactionBus;
+        private readonly IActiveViewProvider? _breakpointManager;
 
         /// <summary>Number of currently registered gizmos. Used for testing.</summary>
         public int ActiveCount => _activeGizmos.Count;
@@ -39,10 +40,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// Optional isolated interaction bus. When non-null, interaction events are read from
         /// this bus instead of the world bus so that UI noise is quarantined.
         /// </param>
-        public GlobalGizmoManager(IDebugDrawBuilder drawBuilder, FdpEventBus? interactionBus = null)
+        public GlobalGizmoManager(IDebugDrawBuilder drawBuilder, FdpEventBus? interactionBus = null,
+            IActiveViewProvider? breakpointManager = null)
         {
-            _drawBuilder    = drawBuilder;
-            _interactionBus = interactionBus;
+            _drawBuilder       = drawBuilder;
+            _interactionBus    = interactionBus;
+            _breakpointManager = breakpointManager;
         }
 
         /// <summary>Generates a unique stable id for use with <see cref="Register"/>.</summary>
@@ -121,11 +124,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         {
             // Step 1: UpdateAndDraw each gizmo; emit InputCaptureBinding for focus holder.
             var buf = (DebugPrimitiveBuffer)_drawBuilder;
+            ISimulationView activeView = _breakpointManager?.ActiveView ?? view;
             foreach (var kvp in _activeGizmos)
             {
                 uint typeId = Fnv1a32(kvp.Value.GetType().FullName ?? string.Empty);
                 int mark = buf.Count;
-                kvp.Value.UpdateAndDraw(deltaTime, _drawBuilder);
+                kvp.Value.UpdateAndDraw(activeView, deltaTime, _drawBuilder);
                 buf.StampGizmoTypeId(mark, typeId);
 
                 if (kvp.Value == _focusedGizmo &&

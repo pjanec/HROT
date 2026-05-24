@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.BTree.Editor.Tests" />
+    <InternalsVisibleTo Include="Hrot.Diagnostics.Breakpoints.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,7 +20,9 @@
     <ProjectReference Include="..\..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
   </ItemGroup>
 
 </Project>

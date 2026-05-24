@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Model;
 using NodeEditor.Core.Canvas;
@@ -15,6 +16,7 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
 {
     private readonly HsmAsset _asset;
     private IHsmDebugSession? _session;
+    private IDataBreakpointManager? _manager;
 
     // Counters exposed for tests to verify render output without ImGui.
     internal int LastStateDotCount;
@@ -30,23 +32,43 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
 
     public void SetSession(IHsmDebugSession? session) => _session = session;
 
+    public void SetManager(IDataBreakpointManager? manager) => _manager = manager;
+
     // Counts (but does not draw) breakpoints for this asset.
     // Exposed for test use; mirrors the categorisation logic in Render().
+    // Includes both session breakpoints and manager breakpoints with SourceElementId.
     internal (int StateDots, int TransitionDots) CountBreakpoints()
     {
         int stateDots = 0, transDots = 0;
-        if (_session is null) return (0, 0);
 
-        foreach (var bp in _session.GetBreakpoints())
+        if (_session is not null)
         {
-            if (!bp.Enabled) continue;
-            if (bp.AssetId != _asset.AssetId) continue;
+            foreach (var bp in _session.GetBreakpoints())
+            {
+                if (!bp.Enabled) continue;
+                if (bp.AssetId != _asset.AssetId) continue;
 
-            if (_asset.FindStateByStableId(bp.ElementId) is not null)
-                stateDots++;
-            else if (_asset.FindTransitionByVisualId(bp.ElementId) is not null)
-                transDots++;
+                if (_asset.FindStateByStableId(bp.ElementId) is not null)
+                    stateDots++;
+                else if (_asset.FindTransitionByVisualId(bp.ElementId) is not null)
+                    transDots++;
+            }
         }
+
+        if (_manager is not null)
+        {
+            foreach (var bp in _manager.AllBreakpoints)
+            {
+                if (!bp.Enabled) continue;
+                if (bp.SourceElementId is null) continue;
+
+                if (_asset.FindStateByStableId(bp.SourceElementId.Value) is not null)
+                    stateDots++;
+                else if (_asset.FindTransitionByVisualId(bp.SourceElementId.Value) is not null)
+                    transDots++;
+            }
+        }
+
         return (stateDots, transDots);
     }
 
@@ -55,36 +77,69 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
         LastStateDotCount      = 0;
         LastTransitionDotCount = 0;
 
-        if (_session is null) return;
-
-        var breakpoints = _session.GetBreakpoints();
-        foreach (var bp in breakpoints)
+        if (_session is not null)
         {
-            if (!bp.Enabled) continue;
-            if (bp.AssetId != _asset.AssetId) continue;
-
-            var state = _asset.FindStateByStableId(bp.ElementId);
-            if (state is null)
+            var breakpoints = _session.GetBreakpoints();
+            foreach (var bp in breakpoints)
             {
-                var trans = _asset.FindTransitionByVisualId(bp.ElementId);
-                if (trans is null) continue;
+                if (!bp.Enabled) continue;
+                if (bp.AssetId != _asset.AssetId) continue;
 
-                var midGraph = (trans.Source.Position + trans.Target.Position) * 0.5f;
-                var center = ctx.Viewport.GraphToScreen(midGraph) + new Vector2(-8f, 8f) * ctx.Zoom;
-                float radius = 5f * ctx.Zoom;
-                ctx.DrawList.AddCircleFilled(center, radius,
-                    ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
-                LastTransitionDotCount++;
-                continue;
+                var state = _asset.FindStateByStableId(bp.ElementId);
+                if (state is null)
+                {
+                    var trans = _asset.FindTransitionByVisualId(bp.ElementId);
+                    if (trans is null) continue;
+
+                    var midGraph = (trans.Source.Position + trans.Target.Position) * 0.5f;
+                    var center = ctx.Viewport.GraphToScreen(midGraph) + new Vector2(-8f, 8f) * ctx.Zoom;
+                    float radius = 5f * ctx.Zoom;
+                    ctx.DrawList.AddCircleFilled(center, radius,
+                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
+                    LastTransitionDotCount++;
+                    continue;
+                }
+
+                var screenPos = ctx.Viewport.GraphToScreen(state.Position);
+                var stateCenter = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                float stateRadius = 5f * ctx.Zoom;
+                var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
+
+                ctx.DrawList.AddCircleFilled(stateCenter, stateRadius, ImGui.GetColorU32(color));
+                LastStateDotCount++;
             }
+        }
 
-            var screenPos = ctx.Viewport.GraphToScreen(state.Position);
-            var stateCenter = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
-            float stateRadius = 5f * ctx.Zoom;
-            var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
+        if (_manager is not null)
+        {
+            foreach (var bp in _manager.AllBreakpoints)
+            {
+                if (!bp.Enabled) continue;
+                if (bp.SourceElementId is null) continue;
 
-            ctx.DrawList.AddCircleFilled(stateCenter, stateRadius, ImGui.GetColorU32(color));
-            LastStateDotCount++;
+                var state = _asset.FindStateByStableId(bp.SourceElementId.Value);
+                if (state is not null)
+                {
+                    var screenPos = ctx.Viewport.GraphToScreen(state.Position);
+                    var stateCenter = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                    float stateRadius = 5f * ctx.Zoom;
+                    ctx.DrawList.AddCircleFilled(stateCenter, stateRadius,
+                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
+                    LastStateDotCount++;
+                    continue;
+                }
+
+                var trans = _asset.FindTransitionByVisualId(bp.SourceElementId.Value);
+                if (trans is not null)
+                {
+                    var midGraph = (trans.Source.Position + trans.Target.Position) * 0.5f;
+                    var center = ctx.Viewport.GraphToScreen(midGraph) + new Vector2(-8f, 8f) * ctx.Zoom;
+                    float radius = 5f * ctx.Zoom;
+                    ctx.DrawList.AddCircleFilled(center, radius,
+                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
+                    LastTransitionDotCount++;
+                }
+            }
         }
     }
 }

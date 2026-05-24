@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
@@ -53,7 +54,7 @@ namespace Hrot.Editor.Gizmos
 
         /// <inheritdoc/>
         /// <remarks>Draws a red sphere at the current cursor world position with <see cref="_radius"/>.</remarks>
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             draw.DrawSphere(_cursorWorld, _radius, Rgba32.Red);
         }

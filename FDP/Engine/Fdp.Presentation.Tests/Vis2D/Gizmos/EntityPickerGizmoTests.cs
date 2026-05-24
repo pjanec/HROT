@@ -1,4 +1,5 @@
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis2D.Gizmos;
@@ -34,7 +35,7 @@ public class EntityPickerGizmoTests
         var gizmo = CreateGizmo(hoveredValid: false);
         var draw  = new Mock<IDebugDrawBuilder>();
 
-        gizmo.UpdateAndDraw(0f, draw.Object);
+        gizmo.UpdateAndDraw(new Moq.Mock<ISimulationView>().Object, 0f, draw.Object);
 
         Assert.NotNull(gizmo.TestHook_LastDrawColor);
         var color = gizmo.TestHook_LastDrawColor!.Value;
@@ -52,7 +53,7 @@ public class EntityPickerGizmoTests
         gizmo.TestHook_ForceHoveredValid = true;
 
         var draw = new Mock<IDebugDrawBuilder>();
-        gizmo.UpdateAndDraw(0f, draw.Object);
+        gizmo.UpdateAndDraw(new Moq.Mock<ISimulationView>().Object, 0f, draw.Object);
 
         Assert.NotNull(gizmo.TestHook_LastDrawColor);
         var color = gizmo.TestHook_LastDrawColor!.Value;

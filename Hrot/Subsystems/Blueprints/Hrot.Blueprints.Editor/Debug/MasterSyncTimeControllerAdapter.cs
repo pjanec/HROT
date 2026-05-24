@@ -9,7 +9,9 @@ namespace Hrot.Blueprints.Editor.Debug;
 /// <summary>
 /// Adapts the engine's native MasterSyncController to the Blueprint debug protocol.
 /// </summary>
-public sealed class MasterSyncTimeControllerAdapter : IBlueprintTimeController
+#pragma warning disable CS0618 // IBlueprintTimeController is obsolete; retained for one-batch backward compatibility
+public sealed class MasterSyncTimeControllerAdapter : IEngineDebugTimeController, IBlueprintTimeController
+#pragma warning restore CS0618
 {
     private readonly MasterSyncController _masterSync;
 

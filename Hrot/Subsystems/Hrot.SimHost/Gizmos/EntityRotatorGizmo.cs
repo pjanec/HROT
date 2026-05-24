@@ -52,7 +52,7 @@ namespace Hrot.SimHost.Gizmos
 
         // Draws a yellow heading arrow from the entity center in the current yaw direction.
         // Called every frame regardless of focus state.
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             if (!_active) return;
             draw.DrawLine(_entityPos, _currentCursorPos, Rgba32.Yellow, thickness: 2f, sizeMode: SizeMode.ScreenPixels);

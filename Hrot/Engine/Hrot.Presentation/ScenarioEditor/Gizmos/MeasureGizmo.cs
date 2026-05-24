@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Hrot.ScenarioEditor.Tools;
@@ -70,7 +71,7 @@ public sealed class MeasureGizmo : IEntityStatefulGizmo
     // -- IEntityStatefulGizmo --
 
     /// <inheritdoc/>
-    public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+    public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
         if (!_startPoint.HasValue)
         {

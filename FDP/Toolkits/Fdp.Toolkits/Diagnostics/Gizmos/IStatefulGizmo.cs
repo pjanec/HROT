@@ -25,9 +25,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>
         /// Called once per frame for every active gizmo, regardless of focus state.
         /// The gizmo emits visual primitives via <paramref name="drawBuilder"/>.
-        /// The view and entity were stored at construction time.
+        /// The <paramref name="view"/> is the manager's active view: the pre-tick snapshot
+        /// when a Data Breakpoint is paused, or the live repository when running.
         /// </summary>
-        void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder);
+        void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder drawBuilder);
 
         /// <summary>
         /// Returns an undo record for the most recent committed interaction, or

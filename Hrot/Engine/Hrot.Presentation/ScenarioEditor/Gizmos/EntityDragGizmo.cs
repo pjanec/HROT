@@ -66,17 +66,17 @@ public sealed class EntityDragGizmo : IEntityStatefulGizmo
 
     // -- UpdateAndDraw ---------------------------------------------------------
 
-    public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+    public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
-        if (!_view.IsAlive(_entity)) return;
-        if (!_view.HasComponent<SimTransform>(_entity)) return;
+        if (!view.IsAlive(_entity)) return;
+        if (!view.HasComponent<SimTransform>(_entity)) return;
 
-        ref readonly var tf = ref _view.GetComponentRO<SimTransform>(_entity);
+        ref readonly var tf = ref view.GetComponentRO<SimTransform>(_entity);
         var worldPos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
 
         long networkId = 0;
-        if (_view.HasComponent<NetworkIdentity>(_entity))
-            networkId = _view.GetComponentRO<NetworkIdentity>(_entity).Value;
+        if (view.HasComponent<NetworkIdentity>(_entity))
+            networkId = view.GetComponentRO<NetworkIdentity>(_entity).Value;
 
         // Emit transparent Box2D so DebugGizmoLayer can hit-test this entity.
         var pickBox = default(DebugPrimitive);

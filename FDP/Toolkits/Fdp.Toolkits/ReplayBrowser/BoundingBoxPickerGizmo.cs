@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
@@ -55,7 +56,7 @@ namespace Fdp.Toolkit.ReplayBrowser
         // ── IEntityStatefulGizmo -- draw ──────────────────────────────────────
 
         /// <inheritdoc/>
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             if (!_isDragging)
             {

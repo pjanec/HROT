@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 
@@ -91,7 +92,7 @@ public sealed class EntityPickerGizmo : IEntityStatefulGizmo
     /// </list>
     /// All draw calls are allocation-free.
     /// </remarks>
-    public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+    public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
     {
         // Amber = waiting for pick; Red = valid target under cursor.
         Rgba32 drawColor = _hoveredValid

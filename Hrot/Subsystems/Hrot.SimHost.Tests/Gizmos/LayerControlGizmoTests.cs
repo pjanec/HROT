@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using GizmoMap.Network;
@@ -50,13 +51,13 @@ namespace Hrot.SimHost.Tests.Gizmos
 
             // First UpdateAndDraw: editing is active, expect one Publish call.
             var draw1 = new DebugPrimitiveBuffer();
-            gizmo.UpdateAndDraw(0f, draw1);
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, draw1);
             Assert.Equal(1, publisher.Published.Count);
 
             // Second UpdateAndDraw: same DTO state, no event — StructInspectorProjector suppresses echo.
             bus.SwapBuffers(); // drain (no new events)
             var draw2 = new DebugPrimitiveBuffer();
-            gizmo.UpdateAndDraw(0f, draw2);
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, draw2);
             Assert.Equal(1, publisher.Published.Count);
         }
     }

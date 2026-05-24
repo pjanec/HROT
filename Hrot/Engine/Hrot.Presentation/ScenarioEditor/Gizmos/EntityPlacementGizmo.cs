@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -122,7 +123,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// Draws a semi-transparent ghost circle at the current cursor world position,
         /// with the TKB type code as a label below it.
         /// </remarks>
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             var ghostColor = GetAffiliationColor(_affiliationForDisplay);
             ghostColor.A = GhostAlpha;

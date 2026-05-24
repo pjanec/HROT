@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.WindowManager;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using ImGuiNET;
 using StructEdit.Core;
 
@@ -23,6 +24,7 @@ internal sealed class ComponentEditWindow : ManagedWindow
     private readonly Type _componentType;
     private readonly Func<IInspectableSession?> _sessionGetter;
     private readonly ComponentEditDrawer _drawer;
+    private readonly IMutationInterceptor? _interceptor;
     private string? _errorMessage;
 
     internal ComponentEditWindow(
@@ -34,13 +36,15 @@ internal sealed class ComponentEditWindow : ManagedWindow
         Type componentType,
         Func<IInspectableSession?> sessionGetter,
         IComponentPickerContext? pickerCtx = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,
+        IMutationInterceptor? interceptor = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _session       = session;
         _targetEntity  = targetEntity;
         _componentType = componentType;
         _sessionGetter = sessionGetter;
+        _interceptor   = interceptor;
         _drawer        = new ComponentEditDrawer(session, pickerCtx, customDrawers);
 
         IsVolatile = true;
@@ -83,6 +87,14 @@ internal sealed class ComponentEditWindow : ManagedWindow
         try
         {
             object newState = _session.Commit();
+
+            if (_interceptor != null && _interceptor.IsPaused)
+            {
+                _interceptor.StageMutation(_targetEntity, _componentType, newState);
+                CloseAndCleanup();
+                return;
+            }
+
             var ls = _sessionGetter();
             if (ls != null && ls.IsAlive(_targetEntity))
                 ls.SetComponent(_targetEntity, _componentType, newState);

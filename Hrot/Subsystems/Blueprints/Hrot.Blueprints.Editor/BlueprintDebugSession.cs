@@ -14,7 +14,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 {
     private readonly BlueprintRegistry _registry;
     private readonly ISimulationView _view;
-    private readonly IBlueprintTimeController _timeController;
+    private readonly IEngineDebugTimeController _timeController;
 
     // Breakpoint storage: indexed by BreakpointId for management, by node-id string for fast probe lookup.
     private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints    = new();
@@ -54,10 +54,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // Entity filter: when set, only events from this entity are processed.
     private Entity? _entityFilter;
 
+    // Optional data-breakpoint manager. When set, external hits from Blueprint probes
+    // are routed through it (triggers triple-buffer rewind + OnBreakpointHit) instead
+    // of requesting a raw pause via _timeController.
+    private Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? _dataBreakpointManager;
+
     public BlueprintDebugSession(
         BlueprintRegistry registry,
         ISimulationView view,
-        IBlueprintTimeController timeController)
+        IEngineDebugTimeController timeController)
     {
         _registry        = registry        ?? throw new ArgumentNullException(nameof(registry));
         _view            = view            ?? throw new ArgumentNullException(nameof(view));
@@ -250,6 +255,13 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void SetEntityFilter(Entity? entity) => _entityFilter = entity;
     public Entity? GetEntityFilter() => _entityFilter;
+
+    /// <summary>
+    /// Wires in the data-breakpoint manager so that Blueprint probe hits are routed
+    /// through the triple-buffer rewind path instead of the raw time-controller pause.
+    /// </summary>
+    public void SetDataBreakpointManager(Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? manager)
+        => _dataBreakpointManager = manager;
 
     // ---- IBlueprintDebugSession -- active entity tracking ------------------
 
@@ -455,7 +467,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
             var assetId = updated.AssetId;
 
-            _timeController.RequestPause();
+            if (_dataBreakpointManager != null)
+                _dataBreakpointManager.OnExternalHit(nodeId, self);
+            else
+                _timeController.RequestPause();
             OnBreakpointHit?.Invoke(new BreakpointHit(
                 self, nodeId, assetId, _view.Time, _view.Tick,
                 ResolveSourceFilePath(assetId, nodeId),
@@ -463,7 +478,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         }
         else
         {
-            _timeController.RequestPause();
+            if (_dataBreakpointManager != null)
+                _dataBreakpointManager.OnExternalHit(nodeId, self);
+            else
+                _timeController.RequestPause();
             OnBreakpointHit?.Invoke(new BreakpointHit(
                 self, nodeId, bp.AssetId, _view.Time, _view.Tick,
                 ResolveSourceFilePath(bp.AssetId, nodeId),

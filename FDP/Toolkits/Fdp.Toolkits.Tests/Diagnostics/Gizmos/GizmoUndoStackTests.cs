@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
 
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder drawBuilder) { }
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder drawBuilder) { }
         public void Dispose() { }
 
         // IGizmoInteractionHandler stubs

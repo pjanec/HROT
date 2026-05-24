@@ -94,7 +94,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         }
 
         // Called once per frame by GlobalGizmoManager regardless of focus state.
-        public void UpdateAndDraw(float deltaTime, IDebugDrawBuilder draw)
+        public void UpdateAndDraw(ISimulationView view, float deltaTime, IDebugDrawBuilder draw)
         {
             // Drain OpenLayerEditorEvent to toggle the inspector panel.
             foreach (ref readonly var _ in _interactionBus.Read<OpenLayerEditorEvent>())

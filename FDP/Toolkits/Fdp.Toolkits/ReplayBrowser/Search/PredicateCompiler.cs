@@ -7,6 +7,10 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using StructEdit.Core;
 
 namespace Fdp.Toolkit.ReplayBrowser.Search
@@ -18,11 +22,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
     {
         private readonly IComponentEditService _editService;
         private readonly BehaviorRegistry _behaviorRegistry;
+        private readonly BlueprintRegistry? _blueprintRegistry;
 
-        public PredicateCompiler(IComponentEditService editService, BehaviorRegistry? behaviorRegistry = null)
+        public PredicateCompiler(IComponentEditService editService, BehaviorRegistry? behaviorRegistry = null, BlueprintRegistry? blueprintRegistry = null)
         {
             _editService = editService ?? throw new ArgumentNullException(nameof(editService));
             _behaviorRegistry = behaviorRegistry ?? new BehaviorRegistry();
+            _blueprintRegistry = blueprintRegistry;
         }
 
         /// <inheritdoc/>
@@ -52,6 +58,17 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 
                 case BehaviorParamPredicateDto behaviorParam:
                     return CompileBehaviorParamMatch(behaviorParam);
+
+                case ExternalHitTagPredicateDto _:
+                    // ExternalHitTag predicates are never evaluated via the component-data path.
+                    // DataBreakpointManager.OnExternalHit handles them directly.
+                    return static (_, _) => false;
+
+                case TraceBufferScanPredicateDto traceScan:
+                    return CompileTraceBufferScan(traceScan);
+
+                case BlueprintVariablePredicateDto blueprintVar:
+                    return CompileBlueprintVariablePredicate(blueprintVar);
 
                 // Specialized loop predicates: pass-through; handled by the service.
                 case StructuralPredicateDto _:
@@ -157,6 +174,131 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                 T comp = ((ISimulationView)repo).GetManagedComponentRO<T>(entity);
                 if (comp == null) return false;
                 return matcher(comp);
+            };
+        }
+
+        private Func<EntityRepository, Entity, bool> CompileTraceBufferScan(TraceBufferScanPredicateDto scan)
+        {
+            if (scan.ComponentType == null) return static (_, _) => false;
+
+            var buildMethod = typeof(PredicateCompiler)
+                .GetMethod(nameof(BuildTraceBufferScanMatcher), BindingFlags.NonPublic | BindingFlags.Static)!;
+            return (Func<EntityRepository, Entity, bool>)buildMethod
+                .MakeGenericMethod(scan.ComponentType)
+                .Invoke(null, new object[] { scan })!;
+        }
+
+        private static unsafe Func<EntityRepository, Entity, bool> BuildTraceBufferScanMatcher<T>(
+            TraceBufferScanPredicateDto scan)
+            where T : unmanaged
+        {
+            int    typeId       = ComponentTypeRegistry.GetId(typeof(T));
+            byte   opCode       = scan.OpCode;
+            ushort indexField   = scan.IndexField;
+            bool   matchIndex   = scan.MatchIndexField;
+            byte   statusField  = scan.StatusField;
+            bool   matchStatus  = scan.MatchStatusField;
+            ushort triggerEvtId = scan.TriggerEventId;
+            bool   matchTrigger = scan.MatchTriggerEventId;
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, typeId)) return false;
+
+                ref readonly T comp = ref repo.GetComponentRO<T>(entity);
+                unsafe
+                {
+                    // Both BTreeTraceWorkingMemory1024 and HsmTraceWorkingMemory1024 share
+                    // identical 8-byte headers:
+                    //   offset 0: WritePos     (ushort)
+                    //   offset 2: RecordCount  (ushort)
+                    //   offset 4: LastInstanceId (uint)
+                    //   offset 8: Buffer start (16-byte stride records)
+                    byte*  ptr         = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in comp));
+                    ushort recordCount = *(ushort*)(ptr + 2);
+                    byte*  buf         = ptr + 8;
+
+                    for (int i = 0; i < recordCount; i++)
+                    {
+                        byte* rec = buf + i * 16;
+                        if (rec[0] != opCode)                                    continue;
+                        if (matchIndex  && *(ushort*)(rec + 8)  != indexField)   continue;
+                        if (matchStatus && rec[10]               != statusField)  continue;
+                        if (matchTrigger && *(ushort*)(rec + 12) != triggerEvtId) continue;
+                        return true;
+                    }
+                    return false;
+                }
+            };
+        }
+
+        private Func<EntityRepository, Entity, bool> CompileBlueprintVariablePredicate(BlueprintVariablePredicateDto dto)
+        {
+            if (string.IsNullOrEmpty(dto.VariableName) || _blueprintRegistry == null)
+                return static (_, _) => false;
+
+            int blueprintId = BlueprintIdHash.Compute(dto.TargetBlueprintAssetId);
+
+            if (!_blueprintRegistry.TryGetById(blueprintId, out var def) || def == null)
+                return static (_, _) => false;
+
+            if (!def.StateFields.TryGetValue(dto.VariableName, out var fieldDesc) || fieldDesc == null)
+                return static (_, _) => false;
+
+            var method = typeof(PredicateCompiler)
+                .GetMethod(nameof(BuildBlueprintVariableMatcher), BindingFlags.NonPublic | BindingFlags.Static)!;
+            return (Func<EntityRepository, Entity, bool>)method
+                .MakeGenericMethod(fieldDesc.ClrType)
+                .Invoke(null, new object[] { blueprintId, fieldDesc.OffsetBytes, dto })!;
+        }
+
+        private static unsafe Func<EntityRepository, Entity, bool> BuildBlueprintVariableMatcher<TField>(
+            int blueprintId,
+            int fieldOffset,
+            BlueprintVariablePredicateDto dto)
+            where TField : unmanaged
+        {
+            // Build a compiled comparison expression for the field type.
+            var param = Expression.Parameter(typeof(TField).MakeByRefType(), "field");
+            Expression condition = BuildConditionExpression(param, dto.Operator, dto.Predicate);
+            var matcher = Expression.Lambda<ComponentMatcherDelegate<TField>>(condition, param).Compile();
+
+            // Bake tier component type IDs at compile time.
+            // GetId returns -1 for unregistered types (BB16384 in test repos) -> HasComponentByTypeId returns false.
+            int typeId1024  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard1024));
+            int typeId4096  = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard4096));
+            int typeId16384 = ComponentTypeRegistry.GetId(typeof(BlueprintBlackboard16384));
+
+            return (repo, entity) =>
+            {
+                unsafe
+                {
+                    byte* memory = null;
+
+                    if (repo.HasComponentByTypeId(entity, typeId1024))
+                    {
+                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard1024>(entity);
+                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+                    }
+                    else if (repo.HasComponentByTypeId(entity, typeId4096))
+                    {
+                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard4096>(entity);
+                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+                    }
+                    else if (repo.HasComponentByTypeId(entity, typeId16384))
+                    {
+                        ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard16384>(entity);
+                        memory = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+                    }
+
+                    if (memory == null) return false;
+
+                    if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
+                        return false;
+
+                    ref TField fieldRef = ref Unsafe.AsRef<TField>(memory + payloadOffset + fieldOffset);
+                    return matcher(ref fieldRef);
+                }
             };
         }
 
@@ -343,6 +485,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     : typeof(BrainBlackboard);
                 if (!result.Contains(targetComponentType))
                     result.Add(targetComponentType);
+            }
+            else if (dto is TraceBufferScanPredicateDto traceScan)
+            {
+                if (traceScan.ComponentType != null && !result.Contains(traceScan.ComponentType))
+                    result.Add(traceScan.ComponentType);
             }
         }
     }

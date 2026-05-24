@@ -1,6 +1,7 @@
 // SC-B29-1 through SC-B29-5: GlobalGizmoManager lifecycle and event routing.
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public bool LastMousePressed         { get; private set; }
 
         public void SetFocus(bool f)  { IsFocused = f; if (f) FocusGranted = true; else FocusRevoked = true; }
-        public void UpdateAndDraw(float dt, IDebugDrawBuilder b) { }
+        public void UpdateAndDraw(ISimulationView view, float dt, IDebugDrawBuilder b) { }
         public void OnDragUpdate(Vector3 pos)                              { DragCount++; }
         public void OnMouseEvent(MapMouseButton btn, bool p, Vector3 w)   { MouseCount++; LastMouseButton = btn; LastMousePressed = p; }
         public void OnKeyEvent(MapKeyboardKey k, bool p)                  { }

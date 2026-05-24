@@ -10,7 +10,10 @@ using Fdp.Core.Serialization;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.Renderers;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Serialization;
+using FixedString32 = Fdp.Core.FixedString32;
+using FixedString64 = Fdp.Core.FixedString64;
 using ImGuiNET;
 using StructEdit.Core;
 using StructEdit.Core.UnionSupport;
@@ -55,6 +58,11 @@ public class ComponentReflector
 
     /// <summary>Optional picker context for map/entity picking inside the editor.</summary>
     public IComponentPickerContext? EditPickerContext { get; set; }
+
+    /// <summary>
+    /// Optional interceptor; when set and IsPaused, commits route to StageMutation.
+    /// </summary>
+    public IMutationInterceptor? MutationInterceptor { get; set; }
 
     /// <summary>Perspective name passed to <see cref="ComponentEditWindow"/> on creation.</summary>
     public string EditOwningPerspective { get; set; } = string.Empty;
@@ -356,7 +364,8 @@ public class ComponentReflector
             string title = $"Edit {type.Name} [{e.Index}]";
             EditWindowManager.RegisterWindow(new ComponentEditWindow(
                 winId, title, EditOwningPerspective, editSession,
-                e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers));
+                e, type, EditSessionGetter!, EditPickerContext, _fieldDrawers,
+                interceptor: MutationInterceptor));
         }
     }
 
