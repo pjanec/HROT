@@ -175,8 +175,8 @@ namespace Fbt.Tests.Unit
                  Nodes = new[]
                  {
                      new NodeDefinition { Type = NodeType.Sequence, ChildCount = 2, SubtreeOffset = 3 },
-                     new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // AlwaysSuccess (index 1)
-                     new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // ReturnRunningOnce (index 2)
+                     new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // AlwaysSuccess (index 1)
+                     new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // ReturnRunningOnce (index 2)
                  },
                  MethodNames = new[] { "AlwaysSuccess", "ReturnRunningOnce" }
             };
@@ -202,7 +202,7 @@ namespace Fbt.Tests.Unit
         {
             var blob = new BehaviorTreeBlob
             {
-                 Nodes = new[] { new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } },
+                 Nodes = new[] { new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } },
                  MethodNames = new[] { "ReturnRunning" }
             };
             
@@ -224,7 +224,7 @@ namespace Fbt.Tests.Unit
         {
             var blob = new BehaviorTreeBlob
             {
-                 Nodes = new[] { new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } },
+                 Nodes = new[] { new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } },
                  MethodNames = new[] { "ReturnRunning" }
             };
             
@@ -262,7 +262,7 @@ namespace Fbt.Tests.Unit
         {
             var blob = new BehaviorTreeBlob
             {
-                Nodes = new[] { new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } },
+                Nodes = new[] { new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } },
                 MethodNames = new[] { "MissingAction" }
             };
             
@@ -340,9 +340,9 @@ namespace Fbt.Tests.Unit
             var blob = new BehaviorTreeBlob
             {
                 Nodes = new[] { 
-                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Success
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }  // Success
+                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Success
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }  // Success
                 },
                 MethodNames = new[] { "AlwaysSuccess" },
                 IntParams = new[] { 0 } // RequireAll
@@ -364,9 +364,9 @@ namespace Fbt.Tests.Unit
             var blob = new BehaviorTreeBlob
             {
                 Nodes = new[] { 
-                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Success
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // Failure
+                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Success
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // Failure
                 },
                 MethodNames = new[] { "AlwaysSuccess", "AlwaysFailure" },
                 IntParams = new[] { 0 } // RequireAll
@@ -394,9 +394,9 @@ namespace Fbt.Tests.Unit
              var blob = new BehaviorTreeBlob
             {
                 Nodes = new[] { 
-                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Failure
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // Success
+                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Failure
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // Success
                 },
                 MethodNames = new[] { "AlwaysFailure", "AlwaysSuccess" },
                 IntParams = new[] { 1 } // RequireOne
@@ -421,9 +421,9 @@ namespace Fbt.Tests.Unit
              var blob = new BehaviorTreeBlob
             {
                 Nodes = new[] { 
-                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Success
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // Running (Custom)
+                    new NodeDefinition { Type = NodeType.Parallel, ChildCount = 2, SubtreeOffset = 3, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Success
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // Running (Custom)
                 },
                 MethodNames = new[] { "AlwaysSuccess", "RunOnceThenSuccess" },
                 IntParams = new[] { 0 } // RequireAll
@@ -460,8 +460,8 @@ namespace Fbt.Tests.Unit
             var blob = new BehaviorTreeBlob
             {
                 Nodes = new[] { 
-                    new NodeDefinition { Type = NodeType.Cooldown, ChildCount = 1, SubtreeOffset = 2, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Cooldown, ChildCount = 1, SubtreeOffset = 2, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "AlwaysSuccess" },
                 FloatParams = new[] { 1.0f } // 1s Cooldown
@@ -494,7 +494,7 @@ namespace Fbt.Tests.Unit
             {
                 Nodes = new[] { 
                     new NodeDefinition { Type = NodeType.ForceSuccess, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } // Fails
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } // Fails
                 },
                 MethodNames = new[] { "AlwaysFailure" }
             };
@@ -514,7 +514,7 @@ namespace Fbt.Tests.Unit
             {
                 Nodes = new[] { 
                     new NodeDefinition { Type = NodeType.ForceFailure, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } // Succeeds
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } // Succeeds
                 },
                 MethodNames = new[] { "AlwaysSuccess" }
             };
@@ -545,8 +545,8 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 2, SubtreeOffset = 3 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 },
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "AlwaysSuccess" }
             };
@@ -559,8 +559,8 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 2, SubtreeOffset = 3 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Fail
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // Success
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Fail
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // Success
                 },
                 MethodNames = new[] { "AlwaysFailure", "AlwaysSuccess" }
             };
@@ -573,8 +573,8 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Selector, ChildCount = 2, SubtreeOffset = 3 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Success
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 1, SubtreeOffset = 1 }  // Fail
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Success
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 1, SubtreeOffset = 1 }  // Fail
                 },
                 MethodNames = new[] { "AlwaysSuccess", "AlwaysFailure" }
             };
@@ -587,8 +587,8 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Selector, ChildCount = 2, SubtreeOffset = 3 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }, // Fail
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }  // Fail
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }, // Fail
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }  // Fail
                 },
                 MethodNames = new[] { "AlwaysFailure" }
             };
@@ -601,7 +601,7 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Inverter, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { childSucceeds ? "AlwaysSuccess" : "AlwaysFailure" }
             };
@@ -614,7 +614,7 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Inverter, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "ReturnRunningOnce" }
             };
@@ -627,7 +627,7 @@ namespace Fbt.Tests.Unit
                 Nodes = new[]
                 {
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "ReturnRunningOnce" }
             };

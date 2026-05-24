@@ -81,15 +81,16 @@ namespace Hrot.AI.Behaviors
             // Action delegates for all BTree nodes in this assembly version.
             var actionRegistry = new ActionRegistry<BrainBlackboard, BTreeContext>();
             FbtActionRegistrar.RegisterAll(actionRegistry);
+            Func<string, bool> isResourceOwning = name => actionRegistry.TryGetDeactivator(name, out _);
 
             // Pre-compile BTree blobs on the calling thread (CPU-bound work).
-            var moveToBlob        = FbtTreeCatalog.GetMoveToLocation();
-            var followRouteBlob   = FbtTreeCatalog.GetFollowRoute();
-            var joinFormationBlob = FbtTreeCatalog.GetJoinFormation();
-            var wanderBlob        = FbtTreeCatalog.GetWanderMilitary();
-            var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget();
-            var hullDownBlob      = FbtTreeCatalog.GetHullDownAttackRun();
-            var platoonHillBlob   = FbtTreeCatalog.GetPlatoonHillAttack();
+            var moveToBlob        = FbtTreeCatalog.GetMoveToLocation(isResourceOwning);
+            var followRouteBlob   = FbtTreeCatalog.GetFollowRoute(isResourceOwning);
+            var joinFormationBlob = FbtTreeCatalog.GetJoinFormation(isResourceOwning);
+            var wanderBlob        = FbtTreeCatalog.GetWanderMilitary(isResourceOwning);
+            var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget(isResourceOwning);
+            var hullDownBlob      = FbtTreeCatalog.GetHullDownAttackRun(isResourceOwning);
+            var platoonHillBlob   = FbtTreeCatalog.GetPlatoonHillAttack(isResourceOwning);
 
             // Pre-compile HSM blob for Idle_HSM: a single "Idle" state with no transitions.
             var idleHsmBuilder = new HsmBuilder("Idle_HSM");

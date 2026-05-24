@@ -23,6 +23,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
     private static readonly Vector4 ColorGreen  = new Vector4(0.2f, 0.9f, 0.2f, 1.0f);
     private static readonly Vector4 ColorYellow = new Vector4(0.9f, 0.9f, 0.2f, 1.0f);
     private static readonly Vector4 ColorGray   = new Vector4(0.5f, 0.5f, 0.5f, 1.0f);
+    private static readonly Vector4 ColorPurple = new Vector4(0.8f, 0.4f, 0.8f, 1.0f);
 
     /// <summary>Set at startup; required for blob lookup.</summary>
     public static BehaviorRegistry? BehaviorRegistryAccessor { get; set; }
@@ -128,6 +129,17 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
             : ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
 
         bool open = ImGui.TreeNodeEx($"##n{nodeIndex}", flags, $"{nodeIndex} {label}");
+
+        // [R] indicator for resource-owning nodes
+        if (node.IsResourceOwning)
+        {
+            ImGui.SameLine();
+            ImGui.PushStyleColor(ImGuiCol.Text, ColorPurple);
+            ImGui.Text("[R]");
+            ImGui.PopStyleColor();
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Resource Owning Node: Manages standing ECS resources via OnDeactivate.");
+        }
 
         if (popColors > 0) ImGui.PopStyleColor(popColors);
 

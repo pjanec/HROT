@@ -15,6 +15,7 @@ namespace Fbt.Serialization
         public float CooldownTime { get; set; }
         public int RepeatCount { get; set; }
         public int Policy { get; set; }
+        public bool IsResourceOwning { get; set; }
         public List<BuilderNode> Children { get; } = new List<BuilderNode>();
 
         /// <summary>

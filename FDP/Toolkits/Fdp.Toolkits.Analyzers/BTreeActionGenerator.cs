@@ -15,6 +15,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor BHU001_TypeMismatch  = SharedBhuDiagnostics.BHU001_TypeMismatch;
         private static readonly DiagnosticDescriptor BHU002_NonStatic     = SharedBhuDiagnostics.BHU002_NonStatic;
         private static readonly DiagnosticDescriptor BHU003_UnknownField  = SharedBhuDiagnostics.BHU003_UnknownField;
+        private static readonly DiagnosticDescriptor BHU016_DeactivatorMissingTarget = SharedBhuDiagnostics.BHU016_DeactivatorMissingTarget;
+        private static readonly DiagnosticDescriptor BHU017_DeactivatorUnknownTarget = SharedBhuDiagnostics.BHU017_DeactivatorUnknownTarget;
 
         // ---- Channel kind -> component type (BHU-014) --------------------------
         private const string LocomotionChannelType  = "global::Fdp.Toolkit.Behavior.Components.LocomotionChannel";
@@ -46,6 +48,28 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             var symbol = context.SemanticModel.GetDeclaredSymbol(method) as IMethodSymbol;
 
             if (symbol == null) return null;
+
+            // Detect [BTreeDeactivatorAttribute] before the general attribute checks.
+            var deactivatorAttr = symbol.GetAttributes()
+                .FirstOrDefault(a => a.AttributeClass?.Name == "BTreeDeactivatorAttribute");
+            if (deactivatorAttr != null)
+            {
+                string target = deactivatorAttr.ConstructorArguments.Length > 0
+                    ? deactivatorAttr.ConstructorArguments[0].Value?.ToString() ?? string.Empty
+                    : string.Empty;
+                if (symbol.Parameters.Length != 4) return null;
+                string tbType = symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                string tcType = symbol.Parameters[2].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                return new BTreeMethodInfo
+                {
+                    MethodName = symbol.Name,
+                    FullQualifiedMethodName = symbol.ContainingType.ToDisplayString() + "." + symbol.Name,
+                    TBlackboardType = tbType,
+                    TContextType = tcType,
+                    IsDeactivator = true,
+                    TargetAction = target,
+                };
+            }
 
             bool hasActionAttr    = symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "BTreeActionAttribute");
             bool hasConditionAttr = symbol.GetAttributes().Any(a => a.AttributeClass?.Name == "BTreeConditionAttribute");
@@ -143,10 +167,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             var registrable    = new List<BTreeMethodInfo>();
             var reusable       = new List<BTreeMethodInfo>();
             var sharedAiMethods = new List<BTreeMethodInfo>();
+            var deactivators   = new List<BTreeMethodInfo>();
 
             foreach (var m in methods)
             {
                 if (m == null) continue;
+                if (m.IsDeactivator) { deactivators.Add(m); continue; }
                 if (m.IsSharedAi) sharedAiMethods.Add(m);
                 else if (m.IsReusable) reusable.Add(m);
                 else registrable.Add(m);
@@ -181,6 +207,32 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             }
 
             if (mergedGroups.Count == 0) return;
+
+            // Validate deactivators and assign to matching groups.
+            foreach (var d in deactivators)
+            {
+                if (string.IsNullOrEmpty(d.TargetAction))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        BHU016_DeactivatorMissingTarget, null, d.MethodName));
+                    continue;
+                }
+
+                var group = mergedGroups.FirstOrDefault(
+                    g => g.TBlackboardType == d.TBlackboardType && g.TContextType == d.TContextType);
+                if (group == null) continue;
+
+                bool knownAction = group.Direct.Any(a => a.FullQualifiedMethodName == d.TargetAction)
+                    || group.Bridges.Any(b => b.FullQualifiedMethodName + "@0" == d.TargetAction);
+                if (!knownAction)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        BHU017_DeactivatorUnknownTarget, null, d.MethodName, d.TargetAction));
+                    continue;
+                }
+
+                group.Deactivators.Add(d);
+            }
 
             context.AddSource("FbtActionRegistrar.g.cs", GenerateRegistrar(mergedGroups, namespaceName));
         }
@@ -601,6 +653,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 foreach (var entry in group.SharedAiEntries)
                     EmitSharedAiAdapter(sb, entry, tb, tc);
 
+                foreach (var m in group.Deactivators)
+                    sb.AppendLine("            registry.RegisterDeactivator(\"" + m.TargetAction + "\", global::" + m.FullQualifiedMethodName + ");");
+
                 sb.AppendLine("        }");
             }
 
@@ -741,7 +796,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public bool IsActionKind { get; set; }
         public bool IsSharedAi { get; set; }
         public bool IsSharedCondition { get; set; }
-        public bool IsSharedHeavy { get; set; }        public bool IsSharedHeavyCondition { get; set; }        public IMethodSymbol? Symbol { get; set; }
+        public bool IsSharedHeavy { get; set; }        public bool IsSharedHeavyCondition { get; set; }        public bool IsDeactivator { get; set; }
+        public string TargetAction { get; set; } = string.Empty;
+        public IMethodSymbol? Symbol { get; set; }
         public List<int> WritesChannels { get; set; } = new List<int>();
     }
 
@@ -769,6 +826,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public List<BTreeMethodInfo> Direct { get; }
         public List<BTreeMethodInfo> Bridges { get; }
         public List<SharedAiEntry> SharedAiEntries { get; } = new List<SharedAiEntry>();
+        public List<BTreeMethodInfo> Deactivators { get; } = new List<BTreeMethodInfo>();
 
         public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct, List<BTreeMethodInfo> bridges)
         {

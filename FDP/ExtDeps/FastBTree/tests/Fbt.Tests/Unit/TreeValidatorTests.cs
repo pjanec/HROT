@@ -12,7 +12,7 @@ namespace Fbt.Tests.Unit
             {
                 Nodes = new[] 
                 { 
-                    new NodeDefinition { Type = NodeType.Action, SubtreeOffset = 1, PayloadIndex = 0 } 
+                    new NodeDefinition { Type = NodeType.Action, SubtreeOffset = 1, RawPayloadIndex = 0 } 
                 },
                 MethodNames = new[] { "A" }
             };
@@ -60,7 +60,7 @@ namespace Fbt.Tests.Unit
             {
                 Nodes = new[] 
                 { 
-                    new NodeDefinition { Type = NodeType.Action, SubtreeOffset = 1, PayloadIndex = 99 } // No methods
+                    new NodeDefinition { Type = NodeType.Action, SubtreeOffset = 1, RawPayloadIndex = 99 } // No methods
                 },
                 MethodNames = new string[0]
             };
@@ -84,10 +84,10 @@ namespace Fbt.Tests.Unit
                 TreeName = "NestedParallel",
                 Nodes = new[]
                 {
-                    new NodeDefinition { Type = NodeType.Parallel,  ChildCount = 1, SubtreeOffset = 4, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Sequence,  ChildCount = 1, SubtreeOffset = 3, PayloadIndex = -1 },
-                    new NodeDefinition { Type = NodeType.Parallel,  ChildCount = 1, SubtreeOffset = 2, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action,    ChildCount = 0, SubtreeOffset = 1, PayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Parallel,  ChildCount = 1, SubtreeOffset = 4, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Sequence,  ChildCount = 1, SubtreeOffset = 3, RawPayloadIndex = -1 },
+                    new NodeDefinition { Type = NodeType.Parallel,  ChildCount = 1, SubtreeOffset = 2, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action,    ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 },
                 },
                 IntParams = new[] { 0 },
                 MethodNames = new[] { "A" }
@@ -114,10 +114,10 @@ namespace Fbt.Tests.Unit
                 TreeName = "NestedRepeater",
                 Nodes = new[]
                 {
-                    new NodeDefinition { Type = NodeType.Repeater, ChildCount = 1, SubtreeOffset = 4, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Sequence, ChildCount = 1, SubtreeOffset = 3, PayloadIndex = -1 },
-                    new NodeDefinition { Type = NodeType.Repeater, ChildCount = 1, SubtreeOffset = 2, PayloadIndex = 0 },
-                    new NodeDefinition { Type = NodeType.Action,   ChildCount = 0, SubtreeOffset = 1, PayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Repeater, ChildCount = 1, SubtreeOffset = 4, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Sequence, ChildCount = 1, SubtreeOffset = 3, RawPayloadIndex = -1 },
+                    new NodeDefinition { Type = NodeType.Repeater, ChildCount = 1, SubtreeOffset = 2, RawPayloadIndex = 0 },
+                    new NodeDefinition { Type = NodeType.Action,   ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 },
                 },
                 IntParams = new[] { 2 },
                 MethodNames = new[] { "A" }

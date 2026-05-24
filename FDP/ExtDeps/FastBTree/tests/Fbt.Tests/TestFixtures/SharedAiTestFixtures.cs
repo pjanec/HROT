@@ -15,7 +15,7 @@ namespace Fbt.Tests.TestFixtures
 
     // ---- BHU-012 test context: must have Self and World so the generator
     //      assigns SharedAi entries to the (SharedAiTestBlackboard, SharedAiTestContext) group.
-    public struct SharedAiTestContext : IAIContext
+    public struct SharedAiTestContext : IAIContext, ITreeTracer
     {
         public int Self;    // Required: generator checks for this member
         public int World;   // Required: SharedAi thunks call Method(ref field, ctx.Self, ctx.World)
@@ -29,6 +29,13 @@ namespace Fbt.Tests.TestFixtures
         public PathResult GetPathResult(int rid) => default;
         public float GetFloatParam(int index) => 0f;
         public int   GetIntParam(int index) => 0;
+
+        // ITreeTracer (no-op).
+        public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
+        public void TraceScopePushed(ushort newStackDepth) { }
+        public void TraceScopePopped(ushort newStackDepth) { }
+        public void TraceWaitStarted(int nodeIndex, float duration) { }
+        public void TraceWaitCompleted(int nodeIndex, float duration) { }
     }
 
     // ---- BHU-012 sequential-layout DTO struct (offset = 0 for A, 4 for B) ----

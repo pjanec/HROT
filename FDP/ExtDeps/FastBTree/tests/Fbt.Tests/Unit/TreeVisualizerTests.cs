@@ -14,7 +14,7 @@ namespace Fbt.Tests.Unit
                 TreeName = "TestTree",
                 Nodes = new[] { 
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "MyAction" }
             };
@@ -36,7 +36,7 @@ namespace Fbt.Tests.Unit
                 Nodes = new[] { 
                     new NodeDefinition { Type = NodeType.Selector, ChildCount = 1, SubtreeOffset = 3 },
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 1, SubtreeOffset = 2 },
-                    new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 MethodNames = new[] { "A" }
             };
@@ -61,9 +61,9 @@ namespace Fbt.Tests.Unit
                 TreeName = "ParamsTest",
                 Nodes = new[] { 
                     new NodeDefinition { Type = NodeType.Sequence, ChildCount = 3, SubtreeOffset = 4 },
-                    new NodeDefinition { Type = NodeType.Wait, PayloadIndex = 0, SubtreeOffset = 1 },
-                    new NodeDefinition { Type = NodeType.Repeater, PayloadIndex = 0, SubtreeOffset = 1 },
-                    new NodeDefinition { Type = NodeType.Cooldown, PayloadIndex = 0, SubtreeOffset = 1 }
+                    new NodeDefinition { Type = NodeType.Wait, RawPayloadIndex = 0, SubtreeOffset = 1 },
+                    new NodeDefinition { Type = NodeType.Repeater, RawPayloadIndex = 0, SubtreeOffset = 1 },
+                    new NodeDefinition { Type = NodeType.Cooldown, RawPayloadIndex = 0, SubtreeOffset = 1 }
                 },
                 FloatParams = new[] { 1.5f }, // Wait=1.5
                 IntParams = new[] { 5 } // Repeat=5

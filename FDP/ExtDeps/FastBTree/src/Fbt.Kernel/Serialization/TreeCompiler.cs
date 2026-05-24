@@ -66,15 +66,21 @@ namespace Fbt.Serialization
         /// Throws <see cref="BehaviorTreeBuildException"/> if validation fails or if
         /// illegal nesting (nested Parallel or nested Repeater) is detected.
         /// </summary>
-        public static BehaviorTreeBlob FlattenToBlob(BuilderNode root, string treeName)
+        public static BehaviorTreeBlob FlattenToBlob(
+            BuilderNode root,
+            string treeName,
+            Func<string, bool>? isResourceOwning = null)
         {
             if (root == null) throw new ArgumentNullException(nameof(root));
             if (string.IsNullOrEmpty(treeName)) throw new ArgumentException("treeName cannot be empty", nameof(treeName));
 
             // 1. Flatten the node tree
-            var blob = FlattenToBlobCore(root, treeName);
+            var blob = FlattenToBlobCore(root, treeName, isResourceOwning);
 
-            // 2. Calculate hashes
+            // 2. Stamp version
+            blob.Version = 2;
+
+            // 3. Calculate hashes
             blob.StructureHash = CalculateStructureHash(blob.Nodes);
             blob.ParamHash = CalculateParamHash(blob.FloatParams, blob.IntParams);
 
@@ -100,14 +106,17 @@ namespace Fbt.Serialization
             return blob;
         }
         
-        private static BehaviorTreeBlob FlattenToBlobCore(BuilderNode root, string treeName)
+        private static BehaviorTreeBlob FlattenToBlobCore(
+            BuilderNode root,
+            string treeName,
+            Func<string, bool>? isResourceOwning)
         {
             var nodes = new List<NodeDefinition>();
             var methodNames = new List<string>();
             var floatParams = new List<float>();
             var intParams = new List<int>();
-            
-            FlattenRecursive(root, nodes, methodNames, floatParams, intParams);
+
+            FlattenRecursive(root, nodes, methodNames, floatParams, intParams, isResourceOwning);
             
             return new BehaviorTreeBlob
             {
@@ -124,7 +133,8 @@ namespace Fbt.Serialization
             List<NodeDefinition> nodes,
             List<string> methodNames,
             List<float> floatParams,
-            List<int> intParams)
+            List<int> intParams,
+            Func<string, bool>? isResourceOwning)
         {
             int currentIndex = nodes.Count;
             
@@ -136,7 +146,7 @@ namespace Fbt.Serialization
             int subtreeSize = node.CalculateSubtreeSize();
             
             // Determine payload index
-            int payloadIndex = -1;
+            int payloadIndex = 0;
             if (node.Type == NodeType.Action || node.Type == NodeType.Condition)
             {
                 payloadIndex = GetOrAddMethodName(methodNames, node.MethodName);
@@ -159,18 +169,24 @@ namespace Fbt.Serialization
             }
             
             // Add this node
-            nodes.Add(new NodeDefinition
+            var nodeDef = new NodeDefinition
             {
                 Type = node.Type,
                 ChildCount = (byte)node.Children.Count,
                 SubtreeOffset = (ushort)subtreeSize, // This is critical!
-                PayloadIndex = payloadIndex
-            });
-            
+                RawPayloadIndex = payloadIndex
+            };
+            if ((node.Type == NodeType.Action || node.Type == NodeType.Condition)
+                && (node.IsResourceOwning || (isResourceOwning?.Invoke(node.MethodName) ?? false)))
+            {
+                nodeDef.SetResourceOwning();
+            }
+            nodes.Add(nodeDef);
+
             // Recursively flatten children
             foreach (var child in node.Children)
             {
-                FlattenRecursive(child, nodes, methodNames, floatParams, intParams);
+                FlattenRecursive(child, nodes, methodNames, floatParams, intParams, isResourceOwning);
             }
         }
         

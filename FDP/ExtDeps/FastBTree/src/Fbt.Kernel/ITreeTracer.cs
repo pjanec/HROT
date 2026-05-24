@@ -1,8 +1,9 @@
 namespace Fbt
 {
     /// <summary>
-    /// Contract through which the FastBTree kernel emits structural trace
-    /// events without depending on the concrete buffer/component implementation.
+    /// Optional context callback interface for BTree execution tracing.
+    /// Implement on the TContext struct to receive trace events from the Interpreter.
+    /// The JIT devirtualizes all calls because TContext is a struct constraint.
     /// </summary>
     public interface ITreeTracer
     {

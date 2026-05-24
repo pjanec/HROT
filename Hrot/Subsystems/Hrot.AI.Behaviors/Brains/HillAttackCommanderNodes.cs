@@ -514,6 +514,27 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        // ── Deactivators ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Deactivator for <see cref="Action_RequestAreaQuery"/>. Resets
+        /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when
+        /// the BTree execution pointer leaves the node via a mission-level abort, preventing
+        /// the in-flight EQS query slot from being orphaned indefinitely.
+        /// </summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0")]
+        public static void Deactivate_RequestAreaQuery(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            if (!ctx.World.HasComponent<Blackboard1024>(ctx.Self)) return;
+            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
+            s.CachedEqsRequestId = -1;
+        }
+
         // ── BTree definition ──────────────────────────────────────────────────────
 
         /// <summary>

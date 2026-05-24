@@ -29,5 +29,21 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             category: "BTreeActionGenerator",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        internal static readonly DiagnosticDescriptor BHU016_DeactivatorMissingTarget = new DiagnosticDescriptor(
+            id: "BHU_016",
+            title: "BTreeDeactivator missing or empty TargetAction",
+            messageFormat: "Deactivator method ''{0}'' has an empty or missing TargetAction; skipping emission",
+            category: "BTreeActionGenerator",
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
+        internal static readonly DiagnosticDescriptor BHU017_DeactivatorUnknownTarget = new DiagnosticDescriptor(
+            id: "BHU_017",
+            title: "BTreeDeactivator TargetAction not found",
+            messageFormat: "Deactivator method ''{0}'': TargetAction ''{1}'' does not match any [BTreeAction] or [BTreeCondition] method in this compilation",
+            category: "BTreeActionGenerator",
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
     }
 }

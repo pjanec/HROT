@@ -9,7 +9,7 @@ namespace Fbt.Serialization
     public static class BinaryTreeSerializer
     {
         private static readonly byte[] MagicBytes = { (byte)'F', (byte)'B', (byte)'T', 0 };
-        private const int CurrentVersion = 1;
+        private const int CurrentVersion = 2;
         
         public static void Save(BehaviorTreeBlob blob, string filePath)
         {
@@ -38,7 +38,7 @@ namespace Fbt.Serialization
                 writer.Write((byte)node.Type);
                 writer.Write(node.ChildCount);
                 writer.Write(node.SubtreeOffset);
-                writer.Write(node.PayloadIndex);
+                writer.Write(node.RawPayloadIndex);
             }
             
             // Method names
@@ -76,7 +76,7 @@ namespace Fbt.Serialization
                 throw new InvalidDataException("Invalid magic bytes");
             
             var version = reader.ReadInt32();
-            if (version != CurrentVersion)
+            if (version < 1 || version > 2)
                 throw new InvalidDataException($"Unsupported version: {version}");
             
             var blob = new BehaviorTreeBlob
@@ -97,7 +97,7 @@ namespace Fbt.Serialization
                     Type = (NodeType)reader.ReadByte(),
                     ChildCount = reader.ReadByte(),
                     SubtreeOffset = reader.ReadUInt16(),
-                    PayloadIndex = reader.ReadInt32()
+                    RawPayloadIndex = reader.ReadInt32()
                 };
             }
             

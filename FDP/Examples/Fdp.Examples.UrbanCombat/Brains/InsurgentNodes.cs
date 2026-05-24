@@ -104,6 +104,26 @@ namespace Fdp.Examples.UrbanCombat.Brains
         }
 
         /// <summary>
+        /// Deactivator for <see cref="Action_AimAndFire"/>. Clears
+        /// <see cref="WeaponChannel.ActiveAction"/> when the BTree execution pointer
+        /// leaves the AimAndFire node, preventing the weapon from firing indefinitely
+        /// after the target is lost.
+        /// </summary>
+        [BTreeDeactivator("Fdp.Examples.UrbanCombat.Brains.InsurgentNodes.Action_AimAndFire")]
+        public static void Deactivate_AimAndFire(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self)) return;
+            ref var channel = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            if (channel.ActiveAction != CombatConstants.ActionIdAimAndFire) return;
+            channel.ActiveAction = 0;
+            unchecked { channel.ActionInstanceId++; }
+        }
+
+        /// <summary>
         /// Action node: hold position — does nothing except signal <see cref="NodeStatus.Running"/>.
         /// Used as the fallback branch in the Ambush Selector when no target is present.
         /// </summary>

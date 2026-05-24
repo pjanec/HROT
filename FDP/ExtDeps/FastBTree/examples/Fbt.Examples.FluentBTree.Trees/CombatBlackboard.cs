@@ -28,7 +28,7 @@ namespace Fbt.Examples.FluentBTree
         public float GetFloatParam(int index) => 0f;
         public int GetIntParam(int index) => 0;
 
-        // ITreeTracer (no-op — examples do not record traces).
+        // ITreeTracer (no-op).
         public void TraceNodeEvaluated(int nodeIndex, NodeStatus status) { }
         public void TraceScopePushed(ushort newStackDepth) { }
         public void TraceScopePopped(ushort newStackDepth) { }

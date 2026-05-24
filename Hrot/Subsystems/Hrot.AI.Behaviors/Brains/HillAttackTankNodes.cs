@@ -547,6 +547,48 @@ namespace Hrot.AI.Behaviors.Brains
             System.Runtime.CompilerServices.Unsafe.Write(ptr, default(HullDownAttackParams));
         }
 
+        // ── Deactivators ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Deactivator for <see cref="Action_CreepToAndBeyondSlot"/>. Clears
+        /// <see cref="LocomotionChannel.ActiveAction"/> when the BTree execution pointer
+        /// leaves the node via an abort or branch switch (the Failure path already clears
+        /// the channel explicitly; this covers the abort path).
+        /// </summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0")]
+        public static void Deactivate_CreepToAndBeyondSlot(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self)) return;
+            ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
+            loco.ActiveAction = 0;
+            unchecked { loco.ActionInstanceId++; }
+        }
+
+        /// <summary>
+        /// Deactivator for <see cref="Action_AimAndFireSpecific"/>. Clears
+        /// <see cref="WeaponChannel.ActiveAction"/> when the BTree execution pointer leaves
+        /// the node via a branch abort (the MaxRounds path calls
+        /// <c>ClearWeaponActionIfActive</c> explicitly; this covers the abort path only).
+        /// </summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0")]
+        public static void Deactivate_AimAndFireSpecific(
+            ref BrainBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx,
+            int paramIndex)
+        {
+            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self)) return;
+            ref var weapon = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            if (weapon.ActiveAction != CombatConstants.ActionIdAimAndFire) return;
+            weapon.ActiveAction = 0;
+            unchecked { weapon.ActionInstanceId++; }
+        }
+
         // ── BTree definition ──────────────────────────────────────────────────────
 
         /// <summary>

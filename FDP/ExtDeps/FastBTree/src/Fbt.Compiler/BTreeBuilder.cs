@@ -149,6 +149,8 @@ namespace Fbt.Compiler
             return AddDecoratorWithNode(node, $"Cooldown({durationStr}s)", child, visualId, sourceFile, lineNumber);
         }
 
+        // ---- Additional decorators ----
+
         /// <summary>Adds a ForceSuccess decorator that always returns Success regardless of its child's result.</summary>
         public BTreeBuilder<TBlackboard, TContext> ForceSuccess(
             Action<BTreeBuilder<TBlackboard, TContext>> child,
@@ -212,7 +214,7 @@ namespace Fbt.Compiler
             return this;
         }
 
-
+        // ---- Leaves ----
 
         /// <summary>Adds an Action leaf node backed by <paramref name="action"/>.</summary>
         public BTreeBuilder<TBlackboard, TContext> Action(
@@ -332,7 +334,39 @@ namespace Fbt.Compiler
                     "The builder has multiple root nodes. A behavior tree must have exactly one root.");
 
             var root = _entries[0];
-            var blob = TreeCompiler.FlattenToBlob(root.Node, treeName);
+            var blob = TreeCompiler.FlattenToBlob(
+                root.Node,
+                treeName,
+                methodName => _registry.TryGetDeactivator(methodName, out _));
+
+            // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
+            var metaList = new List<NodeDebugMetadata>();
+            FlattenMetadata(root, metaList);
+            blob.DebugMetadata = metaList.ToArray();
+
+            return blob;
+        }
+
+        /// <summary>
+        /// Compiles the tree into a <see cref="BehaviorTreeBlob"/> using an external
+        /// <paramref name="isResourceOwning"/> delegate to determine which action nodes
+        /// carry the <c>IsResourceOwning</c> bit.
+        /// When <paramref name="isResourceOwning"/> is <c>null</c> the builder falls
+        /// back to its own internal registry (same behaviour as <see cref="Compile(string)"/>).
+        /// Throws <see cref="BehaviorTreeBuildException"/> if validation fails.
+        /// </summary>
+        public BehaviorTreeBlob Compile(string treeName, Func<string, bool>? isResourceOwning)
+        {
+            if (_entries.Count == 0)
+                throw new InvalidOperationException("The builder has no root node.");
+            if (_entries.Count > 1)
+                throw new InvalidOperationException(
+                    "The builder has multiple root nodes. A behavior tree must have exactly one root.");
+
+            var root = _entries[0];
+            var owningDelegate = isResourceOwning
+                ?? (methodName => _registry.TryGetDeactivator(methodName, out _));
+            var blob = TreeCompiler.FlattenToBlob(root.Node, treeName, owningDelegate);
 
             // Populate DebugMetadata in depth-first order (mirrors FlattenToBlob ordering)
             var metaList = new List<NodeDebugMetadata>();

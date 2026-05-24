@@ -11,6 +11,7 @@ namespace Fbt.Runtime
     {
         private readonly BehaviorTreeBlob _blob;
         private readonly NodeLogicDelegate<TBlackboard, TContext>[] _actionDelegates;
+        private readonly ActionRegistry<TBlackboard, TContext> _registry;
         // Used for diagnostics/debugging -- not currently used in tick but available for hot reload introspection.
         private readonly int _blobStructureHash;
 
@@ -23,7 +24,25 @@ namespace Fbt.Runtime
             if (registry == null) throw new ArgumentNullException(nameof(registry));
             
             _actionDelegates = BindActions(blob, registry);
+            _registry = registry;
             _blobStructureHash = blob.StructureHash;
+
+            // V1 blob legacy fallback: blobs produced by CompileFromJson (Version == 1)
+            // do not have the IsResourceOwning bit baked in at compile time.
+            // Patch in-memory to set the bit for any Action/Condition node whose method name
+            // has a registered deactivator. V2 blobs (from BTreeBuilder.Compile) skip this.
+            if (_blob.Version < 2)
+            {
+                for (int i = 0; i < _blob.Nodes.Length; i++)
+                {
+                    ref var node = ref _blob.Nodes[i];
+                    if (node.Type is not (NodeType.Action or NodeType.Condition)) continue;
+                    int pi = node.PayloadIndex;
+                    if ((uint)pi >= (uint)_blob.MethodNames.Length) continue;
+                    if (_registry.TryGetDeactivator(_blob.MethodNames[pi], out _))
+                        node.SetResourceOwning();
+                }
+            }
         }
 
         public NodeStatus Tick(
@@ -31,14 +50,30 @@ namespace Fbt.Runtime
             ref BehaviorTreeState state,
             ref TContext context)
         {
-            // === HOT RELOAD CHECK ===
+            // === STEP 1: Snapshot oldPath BEFORE any structural bounds-check. ===
+            // 8 NodeIndexStack slots + RunningNodeIndex = 9 entries total.
+            Span<ushort> oldPath = stackalloc ushort[9];
+            unsafe
+            {
+                for (int i = 0; i < 8; i++)
+                    oldPath[i] = state.NodeIndexStack[i];
+            }
+            oldPath[8] = state.RunningNodeIndex;
+
+            // === STEP 2: HOT RELOAD CHECK with pathWasReset flag. ===
             // Safety net: if the running node index is out of bounds for the current blob,
-            // reset state to prevent out-of-bounds access after a structural hot reload.
+            // fire deactivators for the old path first, then reset state to prevent
+            // out-of-bounds access after a structural hot reload.
+            bool pathWasReset = false;
             if (state.RunningNodeIndex > 0 && (int)state.RunningNodeIndex >= _blob.Nodes.Length)
             {
+                Span<ushort> emptyPath = stackalloc ushort[9]; // zero-initialized
+                SweepExitedNodes(oldPath, emptyPath, ref blackboard, ref state, ref context);
                 state.RunningNodeIndex = 0;
                 state.StackPointer = 0;
                 unchecked { state.TreeVersion++; }
+                pathWasReset = true;
+                // Do NOT return -- continue to ExecuteNode on the same frame.
             }
 
             // === PAUSED CHECK ===
@@ -55,8 +90,102 @@ namespace Fbt.Runtime
             {
                 state.RunningNodeIndex = 0;
             }
+
+            // === STEP 4: Post-tick delta sweep. ===
+            // Skipped when pathWasReset to avoid double-firing deactivators.
+            if (!pathWasReset)
+            {
+                Span<ushort> newPath = stackalloc ushort[9];
+                unsafe
+                {
+                    for (int i = 0; i < 8; i++)
+                        newPath[i] = state.NodeIndexStack[i];
+                }
+                newPath[8] = state.RunningNodeIndex;
+                SweepExitedNodes(oldPath, newPath, ref blackboard, ref state, ref context);
+            }
             
             return result;
+        }
+
+        // Sweeps oldPath for entries not present in newPath and invokes deactivators for each.
+        private void SweepExitedNodes(
+            Span<ushort> oldPath,
+            Span<ushort> newPath,
+            ref TBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref TContext context)
+        {
+            for (int i = 0; i < 9; i++)
+            {
+                ushort old = oldPath[i];
+                if (old == 0) continue;
+                if (newPath.Contains(old)) continue;
+                SweepExitedNode(old, ref blackboard, ref state, ref context);
+            }
+        }
+
+        // Invokes the deactivator for nodeIndex if it is resource-owning, and handles
+        // Parallel subtree sweeping. Replaces InvokeDeactivatorIfRegistered.
+        private void SweepExitedNode(
+            ushort nodeIndex,
+            ref TBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref TContext context)
+        {
+            if ((uint)nodeIndex >= (uint)_blob.Nodes.Length) return;
+            ref var node = ref _blob.Nodes[nodeIndex];
+            if (node.IsResourceOwning)
+            {
+                int pi = node.PayloadIndex;
+                if ((uint)pi < (uint)_blob.MethodNames.Length)
+                {
+                    if (_registry.TryGetDeactivator(_blob.MethodNames[pi], out var deactivator))
+                        deactivator.Invoke(ref blackboard, ref state, ref context, pi);
+                }
+            }
+            if (node.Type == NodeType.Parallel)
+                SweepParallelChildren(nodeIndex, ref blackboard, ref state, ref context);
+        }
+
+        // For a Parallel node that exited the active path: sweeps children whose
+        // completion bit in LocalRegisters is NOT set (still running).
+        // Iterates every node index in [childIndex, childIndex + childNode.SubtreeOffset)
+        // and calls InvokeDeactivatorIfRegistered on each, so deeply-nested action leaves
+        // get their deactivators called even when Parallel overwrote RunningNodeIndex.
+        private void SweepParallelChildren(
+            ushort parallelNodeIndex,
+            ref TBlackboard blackboard,
+            ref BehaviorTreeState state,
+            ref TContext context)
+        {
+            ref var parallelNode = ref _blob.Nodes[parallelNodeIndex];
+            int childCount = parallelNode.ChildCount;
+            if (childCount > 16) childCount = 16;
+
+            // LocalRegisters[3] stores the child-state bitfield used by ExecuteParallel.
+            int childStatesBits;
+            unsafe { childStatesBits = state.LocalRegisters[3]; }
+
+            int childIndex = parallelNodeIndex + 1;
+            for (int i = 0; i < childCount; i++)
+            {
+                if (childIndex >= _blob.Nodes.Length) break;
+                int finishedBit = 1 << (i + 16);
+                ref var childNode = ref _blob.Nodes[childIndex];
+
+                if ((childStatesBits & finishedBit) == 0)
+                {
+                    // Child was still running; sweep its entire definition block.
+                    int end = childIndex + childNode.SubtreeOffset;
+                    for (int j = childIndex; j < end && j < _blob.Nodes.Length; j++)
+                    {
+                        SweepExitedNode((ushort)j, ref blackboard, ref state, ref context);
+                    }
+                }
+
+                childIndex += childNode.SubtreeOffset;
+            }
         }
 
         private NodeStatus ExecuteNode(

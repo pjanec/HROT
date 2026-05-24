@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             return new BehaviorTreeBlob
             {
                 TreeName    = "Test",
-                Nodes       = new[] { new NodeDefinition { Type = NodeType.Action, PayloadIndex = 0, SubtreeOffset = 1 } },
+                Nodes       = new[] { new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } },
                 MethodNames = new[] { actionName },
                 FloatParams = Array.Empty<float>(),
                 IntParams   = Array.Empty<int>(),

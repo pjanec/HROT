@@ -6,10 +6,10 @@ namespace Fbt.Tests.Unit
     public class BehaviorTreeBlobTests
     {
         [Fact]
-        public void BehaviorTreeBlob_DefaultVersion_Is1()
+        public void BehaviorTreeBlob_DefaultVersion_Is2()
         {
             var blob = new BehaviorTreeBlob();
-            Assert.Equal(1, blob.Version);
+            Assert.Equal(2, blob.Version);
         }
 
         [Fact]

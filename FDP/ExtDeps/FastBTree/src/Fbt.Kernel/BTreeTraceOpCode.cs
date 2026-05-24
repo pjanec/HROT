@@ -1,5 +1,6 @@
 namespace Fbt
 {
+    /// <summary>Op-codes emitted by the Interpreter to ITreeTracer implementations.</summary>
     public enum BTreeTraceOpCode : byte
     {
         None           = 0x00,

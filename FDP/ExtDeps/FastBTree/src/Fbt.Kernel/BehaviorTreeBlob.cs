@@ -15,7 +15,7 @@ namespace Fbt
         public string TreeName = string.Empty;
         
         /// <summary>Version number for compatibility checking.</summary>
-        public int Version = 1;
+        public int Version = 2;
         
         /// <summary>
         /// Hash of node structure (types + hierarchy).

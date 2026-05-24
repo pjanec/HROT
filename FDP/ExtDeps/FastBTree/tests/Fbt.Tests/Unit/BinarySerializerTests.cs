@@ -12,12 +12,12 @@ namespace Fbt.Tests.Unit
             var blob = new BehaviorTreeBlob
             {
                 TreeName = "TestTree",
-                Version = 1,
+                Version = 2,
                 StructureHash = 123,
                 ParamHash = 456,
                 Nodes = new[] 
                 { 
-                    new NodeDefinition { Type = NodeType.Action, ChildCount = 0, SubtreeOffset = 1, PayloadIndex = 0 } 
+                    new NodeDefinition { Type = NodeType.Action, ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 } 
                 },
                 MethodNames = new[] { "TestAction" },
                 FloatParams = new[] { 1.5f },

@@ -315,6 +315,7 @@ namespace Fdp.Examples.UrbanCombat
             ambushReg.Register("Condition_HasTarget", InsurgentNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   InsurgentNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", InsurgentNodes.Action_HoldPosition);
+            ambushReg.RegisterDeactivator("Fdp.Examples.UrbanCombat.Brains.InsurgentNodes.Action_AimAndFire", InsurgentNodes.Deactivate_AimAndFire);
             var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
             _behaviorRegistry.Register(BehaviorIds.Ambush, "Ambush",
                 new BehaviorDefinition

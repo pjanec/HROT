@@ -1,6 +1,7 @@
 using System.Reflection;
 using Xunit;
 using Fbt;
+using Fbt.Tests.TestFixtures;
 
 namespace Fbt.Tests.Unit
 {
@@ -52,6 +53,39 @@ namespace Fbt.Tests.Unit
         {
             var attr = typeof(AnnotatedRegistrar).GetCustomAttribute<FbtRegistrarAttribute>();
             Assert.NotNull(attr);
+        }
+
+        // ---- TASK-EQL-001 contract tests (T1-T4) ----
+
+        /// <summary>T1: NodeDeactivatorDelegate lives in the Fbt namespace.</summary>
+        [Fact]
+        public void T1_NodeDeactivatorDelegate_IsInFbtNamespace()
+        {
+            Assert.Equal("Fbt", typeof(NodeDeactivatorDelegate<,>).Namespace);
+        }
+
+        /// <summary>T2: BTreeDeactivatorAttribute lives in the Fbt namespace.</summary>
+        [Fact]
+        public void T2_BTreeDeactivatorAttribute_IsInFbtNamespace()
+        {
+            Assert.Equal("Fbt", typeof(BTreeDeactivatorAttribute).Namespace);
+        }
+
+        /// <summary>T3: BTreeDeactivatorAttribute constructor arg is accessible via TargetAction.</summary>
+        [Fact]
+        public void T3_BTreeDeactivatorAttribute_ExposesTargetAction()
+        {
+            var attr = new BTreeDeactivatorAttribute("Foo.Bar");
+            Assert.Equal("Foo.Bar", attr.TargetAction);
+        }
+
+        /// <summary>T4: A matching lambda can be assigned to NodeDeactivatorDelegate without a cast.</summary>
+        [Fact]
+        public void T4_NodeDeactivatorDelegate_AcceptsLambdaWithoutCast()
+        {
+            NodeDeactivatorDelegate<TestBlackboard, MockContext> d =
+                (ref TestBlackboard bb, ref BehaviorTreeState st, ref MockContext ctx, int p) => { };
+            Assert.NotNull(d);
         }
     }
 }

@@ -17,7 +17,7 @@ public sealed class BehaviorTreeAssetProjectionTests
     // ---- Helpers ------------------------------------------------------------
 
     private static NodeDefinition N(NodeType type, byte childCount, ushort subtreeOffset, int payloadIndex = 0) =>
-        new NodeDefinition { Type = type, ChildCount = childCount, SubtreeOffset = subtreeOffset, PayloadIndex = payloadIndex };
+        new NodeDefinition { Type = type, ChildCount = childCount, SubtreeOffset = subtreeOffset, RawPayloadIndex = payloadIndex };
 
     private static BehaviorTreeBlob SimpleBlob(
         NodeDefinition[] nodes,

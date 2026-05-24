@@ -14,6 +14,9 @@ namespace Fbt.Runtime
         private readonly Dictionary<string, NodeLogicDelegate<TBlackboard, TContext>> _actions 
             = new Dictionary<string, NodeLogicDelegate<TBlackboard, TContext>>();
 
+        private readonly Dictionary<string, NodeDeactivatorDelegate<TBlackboard, TContext>> _deactivators
+            = new Dictionary<string, NodeDeactivatorDelegate<TBlackboard, TContext>>();
+
         /// <summary>
         /// Register an action delegate with a name.
         /// </summary>
@@ -60,5 +63,35 @@ namespace Fbt.Runtime
         /// </summary>
         public bool TryGetCondition(string key, [MaybeNullWhen(false)] out NodeLogicDelegate<TBlackboard, TContext> condition)
             => TryGetAction(key, out condition);
+
+        // ---- Deactivator support -------------------------------------------------
+
+        /// <summary>
+        /// Register a deactivator delegate paired with the given action key.
+        /// Last-write-wins on duplicate key. Throws <see cref="ArgumentNullException"/>
+        /// for null key or null delegate.
+        /// </summary>
+        public void RegisterDeactivator(string key, NodeDeactivatorDelegate<TBlackboard, TContext> deactivator)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentNullException(nameof(key));
+            if (deactivator == null)
+                throw new ArgumentNullException(nameof(deactivator));
+            _deactivators[key] = deactivator;
+        }
+
+        /// <summary>
+        /// Try to retrieve a deactivator delegate by action key.
+        /// Returns <c>false</c> and a null output when no deactivator is registered for the key.
+        /// </summary>
+        public bool TryGetDeactivator(string key, [MaybeNullWhen(false)] out NodeDeactivatorDelegate<TBlackboard, TContext> deactivator)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                deactivator = null;
+                return false;
+            }
+            return _deactivators.TryGetValue(key, out deactivator);
+        }
     }
 }

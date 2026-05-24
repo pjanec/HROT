@@ -22,7 +22,7 @@ namespace Fbt.Examples.Console
         public float DeltaTime { get; set; }
         public float Time { get; set; }
         public int FrameCount { get; set; }
-
+        
         // Minimal implementation (stubbed)
         public int RequestRaycast(Vector3 origin, Vector3 direction, float maxDistance) => 0;
         public RaycastResult GetRaycastResult(int requestId) => new RaycastResult { IsReady = true };

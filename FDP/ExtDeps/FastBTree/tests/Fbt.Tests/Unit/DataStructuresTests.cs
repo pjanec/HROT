@@ -21,7 +21,7 @@ namespace Fbt.Tests.Unit
                 Type = NodeType.Action,
                 ChildCount = 2,
                 SubtreeOffset = 5,
-                PayloadIndex = 10
+                RawPayloadIndex = 10
             };
             
             Assert.Equal(NodeType.Action, def.Type);
