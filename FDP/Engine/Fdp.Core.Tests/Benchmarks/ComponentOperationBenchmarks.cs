@@ -7,7 +7,7 @@ namespace Fdp.Tests.Benchmarks
 {
     public class ComponentOperationBenchmarks
     {
-        [ComponentId(240)]
+        [ComponentId(253)]
         private struct TestComponent
         {
             public int Value;

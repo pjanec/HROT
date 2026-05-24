@@ -197,13 +197,13 @@ DamageSystem strips CanMove from APC
 
 Three separate bugs, all masked by bug #1 so they appeared as one group of failures.
 
-**Bug 1 — EntityInlineComp not excluded from FdpAutoSerializer.Build()**
+**Bug 1 ï¿½ EntityInlineComp not excluded from FdpAutoSerializer.Build()**
 FdpAutoSerializerFixedBufferTests defines EntityInlineComp (ComponentId 228), a component with an [InlineArray] field of element type Entity. FdpAutoSerializer.Build() throws InvalidOperationException for any snapshotable component that has an Entity-typed inline array field without [ScenarioIgnore]. EntityInlineComp lacked [ScenarioIgnore], causing all 28 tests to fail at the AutoRegisterAllComponentTypes / Build() step.
 
-**Bug 2 — JsonExportOptions.FormatMode defaulted to Incremental instead of AbsoluteState**
-ExportToJson routes Incremental (and Changelog) mode to ExportChangelogToJson, which writes a JSON array root. Tests called LoadJson which calls JsonNode.Parse(text)!.AsObject() — this throws InvalidOperationException: The node must be of type 'JsonObject' for an array root. The CLI tool always sets FormatMode explicitly, so production was unaffected.
+**Bug 2 ï¿½ JsonExportOptions.FormatMode defaulted to Incremental instead of AbsoluteState**
+ExportToJson routes Incremental (and Changelog) mode to ExportChangelogToJson, which writes a JSON array root. Tests called LoadJson which calls JsonNode.Parse(text)!.AsObject() ï¿½ this throws InvalidOperationException: The node must be of type 'JsonObject' for an array root. The CLI tool always sets FormatMode explicitly, so production was unaffected.
 
-**Bug 3 — ExportChangelogToJson emitted spurious entries on first observation and entity destruction**
+**Bug 3 ï¿½ ExportChangelogToJson emitted spurious entries on first observation and entity destruction**
 In ExportChangelogToJson, the per-entity baseline was initialized to 
 ull. When first observing an entity (aseline == null, current != null), the code computed a diff against null, emitting a frame-0 entry instead of silently establishing the baseline. When an entity was destroyed (aseline != null, current == null), a diff was also computed and emitted at the destruction frame. Tests expected: (a) first observation sets baseline with no entry; (b) entity destruction resets baseline with no entry.
 
@@ -221,3 +221,21 @@ ull. When first observing an entity (aseline == null, current != null), the cod
   if (baseline == null || current == null) { baselines[target] = current; continue; }
   `
   When either side is null, the baseline is updated silently and no diff entry is emitted. Diffs are only computed when both sides are non-null (entity was alive in consecutive frames).
+
+## FDP-G16+G17: ComponentId collisions
+
+**Tests fixed:**
+- `Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_SetRawObject_Performance`
+- `Fdp.Tests.Benchmarks.ComponentOperationBenchmarks.Benchmark_CommandBuffer_Playback`
+- `CarKinem.Tests.Systems.CarKinematicsSystemTests.System_FollowsTrajectory`
+- `CarKinem.Tests.Systems.CarKinematicsSystemTests.System_AvoidanceMovesVehicle`
+- `CarKinem.Tests.Systems.CarKinematicsSystemTests.System_UpdatesVehiclePosition`
+- `Fdp.Toolkit.CarKinem.Tests.VehicleStateRefactorTests.CarKinematicsSystem_WritesSimTransform_AfterUpdate`
+
+**Root cause:** Two pairs of components declared the same ComponentId.
+- `TestComponent` (private, `ComponentOperationBenchmarks.cs`) and `NoRecordTestComponent` (`TestComponents.cs`) both used `[ComponentId(240)]`. The runtime collision check fired when the benchmark tests ran alongside other tests that had already registered `NoRecordTestComponent`.
+- `AuditCompB` (`RegistryAuditTests.cs`, namespace-level `internal struct`) and the production `ZoneEnvironmentData` (via `GlobalComponentIds.ZoneEnvironmentData = 201`) both used `[ComponentId(201)]`. The collision fired when CarKinem tests loaded both assemblies.
+
+**Fix:**
+- `FDP\Engine\Fdp.Core.Tests\Benchmarks\ComponentOperationBenchmarks.cs`: changed `TestComponent` from `[ComponentId(240)]` to `[ComponentId(253)]` (253 was confirmed unused).
+- `FDP\Toolkits\Fdp.Toolkits.Tests\ReplayBrowser\Audit\RegistryAuditTests.cs`: changed `AuditCompB` from `[ComponentId(201)]` to `[ComponentId(223)]` (223 was confirmed unused); updated the file-level reservation comment from "200-201" to "200 and 223".
