@@ -152,13 +152,15 @@ namespace Fdp.Toolkit.Scenario.Tests
         /// <summary>
         /// S301-SC3 / S302-SC3: Build() must throw InvalidOperationException if an
         /// [InlineArray] field has element type Entity.
+        /// Uses EntityInlineCompBad (ComponentId 229) registered with DataPolicy.Default
+        /// override so it is snapshotable for this test only.
         /// </summary>
         [Fact]
         public void Build_ComponentWithEntityInInlineArray_Throws()
         {
             ComponentTypeRegistry.Clear();
             var tempRepo = new EntityRepository();
-            tempRepo.RegisterComponent<EntityInlineComp>();
+            tempRepo.RegisterComponent<EntityInlineCompBad>(DataPolicy.Default);
             var autoSerializer = new FdpAutoSerializer();
             Assert.Throws<InvalidOperationException>(() => autoSerializer.Build());
             tempRepo.Dispose();
@@ -340,14 +342,29 @@ namespace Fdp.Toolkit.Scenario.Tests
     }
 
     /// <summary>
-    /// Component with an [InlineArray] field of Entity elements.
-    /// <see cref="FdpAutoSerializer.Build"/> must throw for this type.
+    /// Component with an [InlineArray] field of Entity elements excluded via [ScenarioIgnore].
+    /// Safe for <see cref="FdpAutoSerializer.Build"/> because the field is excluded.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(228)]
     public struct EntityInlineComp
     {
-        /// <summary>Inline array of entity refs — intentionally invalid for serialization.</summary>
+        /// <summary>Inline array of entity refs - excluded from scenario serialization.</summary>
+        [ScenarioIgnore]
+        public EntityBuffer2 Refs;
+    }
+
+    /// <summary>
+    /// Component with an [InlineArray] field of Entity elements, without [ScenarioIgnore].
+    /// Marked [DataPolicy(DataPolicy.NoSnapshot)] so auto-scan does not add it to the
+    /// snapshotable set. Use with DataPolicy.Default override in tests to verify that
+    /// Build() throws for unignored entity-typed inline arrays.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(229)]
+    [DataPolicy(DataPolicy.NoSnapshot)]
+    public struct EntityInlineCompBad
+    {
         public EntityBuffer2 Refs;
     }
 }

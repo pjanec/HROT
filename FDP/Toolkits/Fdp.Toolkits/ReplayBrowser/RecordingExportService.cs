@@ -422,8 +422,11 @@ namespace Fdp.Toolkit.ReplayBrowser
                         baseline = null;
                     }
 
-                    if (baseline == null && current == null)
+                    if (baseline == null || current == null)
+                    {
+                        baselines[target] = current;
                         continue;
+                    }
 
                     System.Collections.Generic.IReadOnlyList<Diff.DiffNode> diffs =
                         _diffService.ComputeTreeDiff(baseline, current, options.EpsilonTolerance);

@@ -188,3 +188,36 @@ DamageSystem strips CanMove from APC
 - FDP/Toolkits/Fdp.Toolkits/Combat/Events/DetonationEvents.cs: Removed ool IsRemote from DamageAssessedEvent.
 - FDP/Toolkits/Fdp.Toolkits/Combat/Systems/DamageCalculationSystem.cs: Removed the if (evt.IsRemote) continue; guard that referenced the now-removed field.
 - FDP/Toolkits/Fdp.Toolkits/Combat/Executors/AimAndFireExecutor.cs: Added weapon.CooldownSecondsRemaining -= dt; in the cooldown branch before returning.
+
+## FDP-G15: RecordingExportServiceTests (EX_T02 - EX_T29)
+
+**Tests fixed**: 28/29 (all previously failing; EX_T01 was already passing)
+
+### Root Causes
+
+Three separate bugs, all masked by bug #1 so they appeared as one group of failures.
+
+**Bug 1 — EntityInlineComp not excluded from FdpAutoSerializer.Build()**
+FdpAutoSerializerFixedBufferTests defines EntityInlineComp (ComponentId 228), a component with an [InlineArray] field of element type Entity. FdpAutoSerializer.Build() throws InvalidOperationException for any snapshotable component that has an Entity-typed inline array field without [ScenarioIgnore]. EntityInlineComp lacked [ScenarioIgnore], causing all 28 tests to fail at the AutoRegisterAllComponentTypes / Build() step.
+
+**Bug 2 — JsonExportOptions.FormatMode defaulted to Incremental instead of AbsoluteState**
+ExportToJson routes Incremental (and Changelog) mode to ExportChangelogToJson, which writes a JSON array root. Tests called LoadJson which calls JsonNode.Parse(text)!.AsObject() — this throws InvalidOperationException: The node must be of type 'JsonObject' for an array root. The CLI tool always sets FormatMode explicitly, so production was unaffected.
+
+**Bug 3 — ExportChangelogToJson emitted spurious entries on first observation and entity destruction**
+In ExportChangelogToJson, the per-entity baseline was initialized to 
+ull. When first observing an entity (aseline == null, current != null), the code computed a diff against null, emitting a frame-0 entry instead of silently establishing the baseline. When an entity was destroyed (aseline != null, current == null), a diff was also computed and emitted at the destruction frame. Tests expected: (a) first observation sets baseline with no entry; (b) entity destruction resets baseline with no entry.
+
+### Fixes
+
+- **FDP/Toolkits/Fdp.Toolkits.Tests/Scenario/FdpAutoSerializerFixedBufferTests.cs**  
+  Added [ScenarioIgnore] to the Refs field of EntityInlineComp. Updated field summary comment accordingly. Build() now skips the [ScenarioIgnore]-annotated field and no longer throws.
+
+- **FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/JsonExportOptions.cs**  
+  Changed public ExportFormatMode FormatMode = ExportFormatMode.Incremental; to ExportFormatMode.AbsoluteState. This matches the CLI's default behavior (which always set AbsoluteState explicitly) and allows LoadJson to succeed.
+
+- **FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/RecordingExportService.cs** (ExportChangelogToJson)  
+  Replaced if (baseline == null && current == null) continue; with:
+  `
+  if (baseline == null || current == null) { baselines[target] = current; continue; }
+  `
+  When either side is null, the baseline is updated silently and no diff entry is emitted. Diffs are only computed when both sides are non-null (entity was alive in consecutive frames).
