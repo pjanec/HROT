@@ -67,7 +67,11 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 if (repo.GetLifecycleState(entity) == EntityLifecycle.TearDown)
                 {
-                    repo.DestroyEntity(entity);
+                    // Defer destruction via the command buffer so DamageSystem (which runs
+                    // later in the same Tick()) can still read BallisticProjectile.Damage
+                    // from this entity before it is removed.  PlaybackCommands at the end
+                    // of Tick() executes the actual destroy.
+                    cmd.DestroyEntity(entity);
                     continue;
                 }
 

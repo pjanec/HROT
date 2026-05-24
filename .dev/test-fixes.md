@@ -74,3 +74,97 @@ dotnet test FDP\FDP.sln --no-build --filter "FullyQualifiedName~ConvoyAutoGroupi
 ```
 
 Result: **Failed: 0, Passed: 26, Skipped: 0**
+
+---
+
+## FDP-G04: Ballistics and UrbanCombat Scenario Tests
+
+**Tests fixed:** 9
+**Status:** All 9 PASS
+
+### Failing tests addressed
+
+**`Fdp.Examples.Scenarios.Tests.BallisticsAndHitScenarioTests`** (4 tests):
+- `BallisticsAndHit_RunToCompletion_ExitsZero`
+- `BallisticsAndHit_Phase1_BulletSpawnedWithCorrectVelocity`
+- `BallisticsAndHit_Phase3_TargetTakesDamage_NoBulletSwimthrough`
+- `BallisticsAndHit_Phase4_BulletDestroyedAfterImpact`
+
+**`Fdp.Examples.Scenarios.Tests.UrbanCombatNewScenarioTests`** (5 tests):
+- `UrbanCombatNew_RunToCompletion_ExitsZero`
+- `UrbanCombatNew_Latch1_InsurgentFiresWithin100Ticks`
+- `UrbanCombatNew_Latch2_ApcHaltsAfterAmbush`
+- `UrbanCombatNew_Latch4_InsurgentDies`
+- `UrbanCombatNew_Latch5_MissionResumes`
+
+### Issue 1 -- Missing event registrations in both scenario files
+
+**Root cause:** `EntityCommandBuffer.Playback()` calls `FdpEventBus.PublishRaw(typeId, data)` which
+requires the event type to be pre-registered via `world.RegisterEvent<T>()`. Missing registrations
+caused `InvalidOperationException: Event type N not registered via RegisterEvent<T>()` during
+`PlaybackCommands`, aborting the kernel update mid-tick.
+
+**Events missing (both files):**
+- `RaycastRequestEvent` (EventId 2030) -- submitted by `BallisticsSystem` via cmd buffer
+- `RaycastResultEvent` (EventId 2031) -- submitted by `RaycastSolverSystem` via cmd buffer
+- `WeaponFireNotification` (EventId 5004) -- published directly by `FireProcessingSystem`
+- `DetonationNotification` -- published directly by `HitResolutionSystem`
+
+**Fix:** Added `world.RegisterEvent<T>()` calls for all four events in both:
+- `FDP/Examples/Fdp.Examples.Scenarios/Physics/BallisticsAndHitScenario.cs`
+- `FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs`
+
+### Issue 2 -- BallisticsSystem immediate bullet destruction breaks DamageSystem
+
+**Root cause:** `BallisticsSystem` called `repo.DestroyEntity(entity)` directly (synchronous) for
+bullets in `TearDown` lifecycle state. `DamageSystem` runs after `BallisticsSystem` in the same
+tick and needs to read `BallisticProjectile.Damage` from the TearDown bullet to apply hit damage.
+Direct `repo.DestroyEntity` removes the entity immediately, so the bullet was gone by the time
+`DamageSystem` executed and the hit was silently ignored.
+
+**Fix:** Changed the TearDown path in `BallisticsSystem` to `cmd.DestroyEntity(entity)` (deferred
+via the command buffer). `PlaybackCommands` runs after `Tick()` completes, so `DamageSystem` can
+still read the bullet's components in the same tick.
+
+**File:** `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/BallisticsSystem.cs`
+
+### Issue 3 -- BallisticsAndHit scenario checked hit result one tick too early
+
+**Root cause:** Phase 3/4 validation checked `tick == 4`, but the bullet->raycast->hit->damage
+pipeline needs 6 frames to complete with the double-buffered event bus. Checking at tick 4 found
+the target at full health because `DamageSystem` had not yet consumed the `HitEvent`.
+
+**Fix:** Changed Phase 3/4 check to `if (tick == 6)`.
+
+**File:** `FDP/Examples/Fdp.Examples.Scenarios/Physics/BallisticsAndHitScenario.cs`
+
+### Issue 4 -- UrbanCombat: CognitiveInterruptSystem missing from module pipeline
+
+**Root cause:** The UrbanCombat damage-to-HSM chain requires:
+```
+DamageSystem strips CanMove from APC
+  -> CognitiveInterruptSystem detects CanMove edge (prev set, curr cleared)
+     -> sets BrainBlackboard.Interrupt_MobilityLost = 1
+  -> HsmTickSystem reads Interrupt_MobilityLost
+     -> injects MobilityLost event into APC BrainHsm128
+  -> APC HSM: Cruising -> Disabled
+  -> OnEnter_Disabled: clears LocomotionChannel, sets InteractionChannel=EjectPassengers
+  -> InteractionDispatcherSystem runs EjectPassengersExecutor
+  -> Soldiers: CanShoot restored, IsEmbarkedTag removed
+  -> Soldiers BTree fires Action_AimAndFire -> insurgent takes damage
+```
+`CognitiveInterruptSystem` and `CognitiveCleanupSystem` were not in `BuildSystems()`, so
+`Interrupt_MobilityLost` was never set, `MobilityLost` never injected, soldiers never ejected.
+
+**Fix (three parts):**
+1. Added `CognitiveInterruptSystem` to `modSystems` after `ChannelArbitrationSystem` and before
+   `BTreeTickSystem` (matching `CognitiveRuntimeModule` ordering).
+2. Added `CognitiveCleanupSystem` to `modSystems` after `HsmTickSystem<BrainHsm128>`.
+3. Added `world.RegisterEvent<CognitiveInterruptEvent>()` and `using Fdp.Toolkit.Behavior.Events`.
+4. Changed `CognitiveInterruptSystem` and `CognitiveCleanupSystem` from `internal sealed` to
+   `public sealed` so they can be instantiated from the scenarios assembly.
+
+**Files changed:**
+- `FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs`
+- `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs`
+- `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveCleanupSystem.cs`

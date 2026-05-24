@@ -104,7 +104,8 @@ namespace Fdp.Toolkit.Physics.Systems
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
                     // query drops it (preventing further raycasts), while its component memory
                     // remains valid for DamageSystem to read BallisticProjectile.Damage on the
-                    // next frame.  DamageSystem is responsible for the final DestroyEntity call.
+                    // next frame.  BallisticsSystem queues the final DestroyEntity via cmd,
+                    // which executes after DamageSystem has consumed the bullet's data.
                     if (repo.IsAlive(bulletEntity))
                     {
                         var cmd = view.GetCommandBuffer();

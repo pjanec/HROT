@@ -22,6 +22,7 @@ using Fhsm.Kernel.Attributes;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.CarKinem.Systems;
@@ -407,7 +408,12 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // Events
             world.RegisterEvent<WeaponFireIntent>();
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
             world.RegisterEvent<HitEvent>();
+            world.RegisterEvent<WeaponFireNotification>();
+            world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<CognitiveInterruptEvent>();
         }
 
         // ── Private helpers — TKB templates ──────────────────────────────────
@@ -653,8 +659,10 @@ namespace Fdp.Examples.Scenarios.Integrated
                 // -- Simulation --------
                 new MissionDirectorSystem(),
                 new ChannelArbitrationSystem(),
+                new CognitiveInterruptSystem(),   // BHU-008: before BTree/HSM ticks
                 new BTreeTickSystem(_behaviorRegistry),
                 new HsmTickSystem<BrainHsm128>(_behaviorRegistry),
+                new CognitiveCleanupSystem(),     // BHU-015: clears interrupt bytes after all brain ticks
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),

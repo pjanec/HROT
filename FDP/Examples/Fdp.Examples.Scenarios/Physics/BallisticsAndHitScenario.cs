@@ -44,7 +44,7 @@ namespace Fdp.Examples.Scenarios.Physics
     /// <list type="table">
     ///   <item><term>Phase 1 (tick 2)</term><description>Bullet alive, <c>SimVelocity.Linear.X == MuzzleVelocity</c></description></item>
     ///   <item><term>Phase 2 (tick 3)</term><description>Bullet position X &gt; target X — bullet already past target in raw space (CCD caught the crossing)</description></item>
-    ///   <item><term>Phase 3+4 (tick 4)</term><description>Target health &lt; 100, bullet entity destroyed → scenario succeeds</description></item>
+    ///   <item><term>Phase 3+4 (tick 6)</term><description>Target health &lt; 100, bullet entity destroyed → scenario succeeds</description></item>
     /// </list>
     ///
     /// <para><b>Deviation note:</b> MuzzleVelocity is set to <c>2000 m/s</c> (not the
@@ -119,7 +119,11 @@ namespace Fdp.Examples.Scenarios.Physics
 
             // ── Event registration ─────────────────────────────────────────────
             world.RegisterEvent<WeaponFireIntent>();
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
             world.RegisterEvent<HitEvent>();
+            world.RegisterEvent<WeaponFireNotification>();
+            world.RegisterEvent<DetonationNotification>();
 
             // ── Physics singleton (RaycastBatchData with persistent NativeArrays) ──
             // Module retains ownership; Dispose() is called via OnShutdown() at scenario teardown.
@@ -229,8 +233,8 @@ namespace Fdp.Examples.Scenarios.Physics
                         $"expected > {TargetX} (bullet should have tunneled past target without CCD)");
             }
 
-            // ── Phase 3+4 (tick 4): CCD hit applied, bullet destroyed ──────────
-            if (tick == 4)
+            // ── Phase 3+4 (tick 6): CCD hit applied, bullet destroyed ──────────
+            if (tick == 6)
             {
                 // Phase 3: target health reduced (DamageSystem applied the CCD hit).
                 var health = world.GetComponent<Health>(_target);

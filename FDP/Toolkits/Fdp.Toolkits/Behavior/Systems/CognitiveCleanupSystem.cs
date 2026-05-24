@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    internal sealed class CognitiveCleanupSystem : IEcsModuleSystem
+    public sealed class CognitiveCleanupSystem : IEcsModuleSystem
     {
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {

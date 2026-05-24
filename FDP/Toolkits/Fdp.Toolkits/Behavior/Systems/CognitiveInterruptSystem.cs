@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    internal sealed class CognitiveInterruptSystem : IEcsModuleSystem
+    public sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
