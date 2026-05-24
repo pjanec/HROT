@@ -455,6 +455,135 @@ to the EQS system once that system is implemented.
 
 ---
 
+## Phase 5: AOT Bit-Flag Optimization (post Phase 3)
+
+**Goal:** Replace the temporary parallel-delegate-array from Phase 1 with a true AOT explicit
+bit-flag baked into the `BehaviorTreeBlob` at compile time by `TreeCompiler`. At runtime the
+delta tracker performs a single bitwise check on data already in the L1 cache from the node's
+execution — no secondary array fetch, no conditional `NodeType` guard.
+
+**Prerequisites:** All tasks in Phases 1–3 are complete and green.
+
+### Why the investment is warranted
+
+The `_deactivatorDelegates` array used in Phase 1 carries three persistent costs:
+
+- **Cache miss:** the array is a secondary memory location separate from the `NodeDefinition`
+  structs already loaded by the tick loop, adding an unnecessary cache-line fetch.
+- **Type guard branch:** `PayloadIndex` is semantically overloaded across node types, so the
+  delta tracker must inject a `NodeType` guard before each array access to avoid out-of-bounds
+  errors. A bit embedded in the struct itself removes this branch entirely.
+- **Runtime initialization cost:** the array is rebuilt from dictionary lookups on every
+  `Interpreter` construction and every hot-reload ALC swap.
+
+### 5.1 NodeDefinition bytecode layout (`Fbt.Kernel`)
+
+Rename `public int PayloadIndex` to `RawPayloadIndex` and expose inline computed properties:
+
+```csharp
+public int RawPayloadIndex; // Bit 31 = IsResourceOwning. Bits 0-30 = payload index.
+
+public readonly int PayloadIndex
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    get => RawPayloadIndex & 0x7FFFFFFF;
+}
+
+public readonly bool IsResourceOwning
+{
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    get => (RawPayloadIndex & unchecked((int)0x80000000)) != 0;
+}
+
+[MethodImpl(MethodImplOptions.AggressiveInlining)]
+public void SetResourceOwning() => RawPayloadIndex |= unchecked((int)0x80000000);
+```
+
+All call sites that previously wrote `node.PayloadIndex = x` must write `node.RawPayloadIndex = x`
+(affects `TreeCompiler`, `BinaryTreeSerializer`, and related tests).
+
+**Temporary in-memory patching bridge:** Until Phase 5.2 bakes the bit at compile time, the
+`Interpreter` constructor patches the loaded blob: for each `Action`/`Condition` node whose
+method name is in the deactivator registry, call `node.SetResourceOwning()`. Mark the loop
+`// TODO: Remove in Phase 5.2`. This makes all existing L-01 through L-08 tests pass without
+modification.
+
+**Updated delta tracker — `SweepExitedNode`:** Replace `InvokeDeactivatorIfRegistered` with:
+
+```csharp
+[MethodImpl(MethodImplOptions.AggressiveInlining)]
+private void SweepExitedNode(int nodeIndex,
+    ref TBlackboard bb, ref BehaviorTreeState state, ref TContext ctx)
+{
+    ref var node = ref _blob.Nodes[nodeIndex];
+    if (node.IsResourceOwning)
+    {
+        var deactivator = _deactivatorDelegates[node.PayloadIndex];
+        deactivator?.Invoke(ref bb, ref state, ref ctx, node.PayloadIndex);
+    }
+    if (node.Type == NodeType.Parallel)
+        SweepParallelSubtree(nodeIndex, ref node, ref bb, ref state, ref ctx);
+}
+```
+
+The `NodeType.Action or NodeType.Condition` guard is gone; the bit flag is safe for all node
+types because non-Action/Condition nodes never have `SetResourceOwning()` called on them.
+
+### 5.2 AOT compilation pipeline (`Fbt.Compiler` / `Fbt.Serialization`)
+
+Move responsibility for setting the bit from runtime `Interpreter` to compile-time
+`TreeCompiler` and `BTreeBuilder`.
+
+**`BuilderNode`:** Add `public bool IsResourceOwning { get; set; }` to the intermediate node
+class (`Fbt.Kernel/Serialization/BuilderNode.cs`).
+
+**`TreeCompiler.FlattenToBlob` / `FlattenToBlobCore`:** Accept
+`Func<string, bool>? isResourceOwning = null`. In `FlattenRecursive`, for each
+`Action`/`Condition` node evaluate `node.IsResourceOwning || (isResourceOwning?.Invoke(node.MethodName) ?? false)`
+and call `nodeDef.SetResourceOwning()` if true.
+
+**`BTreeBuilder.Compile`:** Pass
+`methodName => _registry.TryGetDeactivator(methodName, out _)` as the `isResourceOwning`
+delegate. Accept an optional external fallback for tools that build trees without a typed
+registry.
+
+**`Interpreter` constructor cleanup:** Delete the `// TODO: Remove in Phase 5.2` loop. V2
+blobs carry the bit natively; no runtime patching is needed.
+
+### 5.3 Binary serialization and versioning (`Fbt.Serialization`)
+
+Bit 31 changes the semantic meaning of the stored integer, breaking binary compatibility.
+Bump `BinaryTreeSerializer.CurrentVersion` from `1` to `2`. Update `Save`/`Load` to use
+`node.RawPayloadIndex`.
+
+**V1 legacy fallback in `Interpreter`:** Re-introduce the patch loop behind
+`if (_blob.Version < 2)`. V2 blobs skip it entirely, paying zero initialization penalty.
+
+**`BehaviorTreeBlob` default version:** Change to `public int Version = 2`. Stamp
+`blob.Version = 2` inside `TreeCompiler.FlattenToBlob` after construction.
+
+### 5.4 Cleanup and editor integration
+
+**Strip `_deactivatorDelegates` from `Interpreter`:** Delete the pre-built array. Store
+`private readonly ActionRegistry<TBlackboard, TContext> _registry` instead.
+`SweepExitedNode` performs `_registry.TryGetDeactivator(methodName, out var d)` only when
+`node.IsResourceOwning` is true. Resource-owning exits are rare (branch switches, not every
+tick), so the dictionary hash cost is negligible.
+
+**Roslyn — `BTreeDefinitionGenerator`:** Generated `FbtTreeCatalog.Get*` methods must accept
+`Func<string, bool>? isResourceOwning = null` and forward it to
+`builder.Compile(treeName, isResourceOwning)`.
+
+**`AiBehaviorFactory` hot-reload wiring:** After `FbtActionRegistrar.RegisterAll`, construct
+`Func<string, bool> isResourceOwning = name => actionRegistry.TryGetDeactivator(name, out _);`
+and pass it to every `FbtTreeCatalog.Get*` call so hot-reloaded blobs natively carry the bit.
+
+**`BTreeVisualizerRenderer` indicator:** In `DrawNode`, after the label, if
+`node.IsResourceOwning` is true display `[R]` in purple (`Vector4(0.8f, 0.4f, 0.8f, 1.0f)`)
+with hover tooltip: `"Resource Owning Node: Manages standing ECS resources via OnDeactivate."`.
+
+---
+
 ## Architectural constraints
 
 1. **No per-frame overhead for non-resource-owning nodes.** The delta check is two 9-element

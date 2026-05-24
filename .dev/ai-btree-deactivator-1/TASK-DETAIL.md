@@ -324,3 +324,225 @@ Setup: in all tests, register the target action + its deactivator via `ActionReg
   Invoke deactivator. Assert `CachedEqsRequestId == -1`.
 - T2: Entity without `Blackboard1024`. No exception.
 - T3: Entity with `CachedEqsRequestId == -1` already. Assert no exception and value remains -1.
+
+---
+
+## Phase 5 — AOT Bit-Flag Optimization
+
+---
+
+### TASK-EQL-009 — NodeDefinition bit-flag layout and temporary Interpreter patching
+
+**Design reference:** DESIGN.md §5.1
+
+**Scope**
+
+- Rename `public int PayloadIndex` to `RawPayloadIndex` in `NodeDefinition`.
+- Add `PayloadIndex` (get-only, masks bit 31), `IsResourceOwning` (tests bit 31), and
+  `SetResourceOwning()` to `NodeDefinition`.
+- Fix all compilation errors caused by the rename: update `TreeCompiler`, `BinaryTreeSerializer`,
+  and any other direct field writers to use `RawPayloadIndex`.
+- Add temporary in-memory patching loop to `Interpreter` constructor: iterate all nodes; for
+  each `Action`/`Condition` node whose method name is in the deactivator registry, call
+  `node.SetResourceOwning()`. Mark with `// TODO: Remove in Phase 5.2`.
+- Replace `InvokeDeactivatorIfRegistered` in `Interpreter` with `SweepExitedNode` that checks
+  `node.IsResourceOwning` instead of the `NodeType` guard.
+
+**Not in scope**
+
+- Changes to `TreeCompiler` compilation logic (AOT baking — Phase 5.2).
+- Changes to `BinaryTreeSerializer` version or read/write semantics (Phase 5.3).
+- Removing `_deactivatorDelegates` array (Phase 5.4).
+
+**Constraints**
+
+- `NodeDefinition` must remain exactly 8 bytes (`StructLayout(Sequential, Pack = 1)` unchanged).
+- `PayloadIndex` must return bits 0–30 of `RawPayloadIndex` (bit 31 stripped).
+- `IsResourceOwning` must test bit 31 only, with no branching.
+- `SetResourceOwning()` must be a pure bitwise OR with no conditional.
+- The patching loop must only call `SetResourceOwning()` on `Action`/`Condition` nodes; it must
+  never set the bit on composite or decorator nodes.
+- The `NodeType` guard (`node.Type is NodeType.Action or NodeType.Condition`) is removed from
+  `SweepExitedNode`; the bit flag provides equivalent safety for all node types.
+
+**Success conditions**
+
+- T1: `new NodeDefinition { RawPayloadIndex = 5 }.PayloadIndex == 5`.
+- T2: `new NodeDefinition { RawPayloadIndex = 5 }.IsResourceOwning == false`.
+- T3: After `d.SetResourceOwning()`, `d.PayloadIndex == 5` (bits 0–30 unchanged).
+- T4: After `d.SetResourceOwning()`, `d.IsResourceOwning == true`.
+- T5: `new NodeDefinition { RawPayloadIndex = unchecked((int)0x80000005) }.PayloadIndex == 5`
+  (MSB masked out by the property).
+- T6: `sizeof(NodeDefinition) == 8`.
+- T7 (patching correct): Construct an `Interpreter` with a registered deactivator for action A.
+  Assert `blob.Nodes[actionANodeIndex].IsResourceOwning == true` immediately after construction.
+- T8 (no contamination): Action B has no deactivator. Assert
+  `blob.Nodes[actionBNodeIndex].IsResourceOwning == false` after construction.
+- T9 (no contamination on composites): A `Sequence` node whose `PayloadIndex` happens to
+  collide with a deactivator method index must NOT have `IsResourceOwning == true` after
+  construction (the patch loop is type-gated).
+- T10 (regression): All L-01 through L-08 tests in `HybridLifecycleTests` pass without
+  modification.
+- T11: `Fbt.Kernel` and `Fbt.Tests` build without errors or warnings.
+
+---
+
+### TASK-EQL-010 — AOT compilation pipeline
+
+**Design reference:** DESIGN.md §5.2
+
+**Scope**
+
+- Add `public bool IsResourceOwning { get; set; }` to `BuilderNode`.
+- Update `TreeCompiler.FlattenToBlob` and `FlattenToBlobCore` to accept
+  `Func<string, bool>? isResourceOwning = null`.
+- In `FlattenRecursive`, evaluate and set the bit for `Action`/`Condition` nodes.
+- Update `BTreeBuilder.Compile` to pass
+  `methodName => _registry.TryGetDeactivator(methodName, out _)` as the delegate.
+- Delete the `// TODO: Remove in Phase 5.2` patching loop from `Interpreter` constructor.
+
+**Not in scope**
+
+- `BinaryTreeSerializer` version bump (Phase 5.3).
+- Removing `_deactivatorDelegates` array (Phase 5.4).
+
+**Constraints**
+
+- The `isResourceOwning` parameter is optional (default null) so existing callers of
+  `TreeCompiler.FlattenToBlob` that do not pass the delegate continue to compile without error.
+- The bit must be set when either `BuilderNode.IsResourceOwning == true` OR the delegate
+  returns `true` for the node's method name. Both conditions independently set the bit.
+- The bit must NOT be set for `Selector`, `Sequence`, `Parallel`, or decorator node types,
+  regardless of the delegate's return value for any incidentally matching string.
+- After this task, the `Interpreter` constructor must NOT contain the patching loop.
+
+**Success conditions**
+
+- T1: Compile a tree via `BTreeBuilder` with a deactivator registered for action A. Before
+  constructing an `Interpreter`, assert
+  `blob.Nodes[actionANodeIndex].IsResourceOwning == true`.
+- T2: Action B has no deactivator. Assert `blob.Nodes[actionBNodeIndex].IsResourceOwning == false`
+  on the raw blob.
+- T3: `BuilderNode { IsResourceOwning = true }` with no registry match: the compiled blob
+  still has the bit set (explicit `BuilderNode` flag is honored).
+- T4: A `Sequence` node in the same tree: `blob.Nodes[sequenceIndex].IsResourceOwning == false`.
+- T5: Call `TreeCompiler.FlattenToBlob(root, "test")` without the delegate parameter.
+  Assert it compiles without error and produces a blob with no `IsResourceOwning` bits set.
+- T6 (regression, no patch loop): All L-01 through L-08 tests pass. The `Interpreter`
+  constructor no longer contains the patch loop (verify by inspection or by asserting that
+  construction time does not scale with the number of `Action` nodes).
+- T7: `Fbt.Kernel`, `Fbt.Compiler`, and `Fbt.Tests` build without errors.
+
+---
+
+### TASK-EQL-011 — Binary serialization versioning and V1 legacy fallback
+
+**Design reference:** DESIGN.md §5.3
+
+**Scope**
+
+- Bump `BinaryTreeSerializer.CurrentVersion` from `1` to `2`.
+- Update `BinaryTreeSerializer.Save` to write `node.RawPayloadIndex`.
+- Update `BinaryTreeSerializer.Load` to read into `RawPayloadIndex`.
+- Change `BehaviorTreeBlob.Version` default to `2`.
+- Stamp `blob.Version = 2` inside `TreeCompiler.FlattenToBlob`.
+- Add V1 legacy fallback in `Interpreter` constructor: if `_blob.Version < 2`, apply the
+  patching loop (same logic as the Phase 5.1 temporary loop, now behind the version gate).
+
+**Not in scope**
+
+- Removing `_deactivatorDelegates` array (Phase 5.4).
+- Migrating any existing `.fbt` files on disk — the V1 path handles them at load time.
+
+**Constraints**
+
+- The `Load` method must accept both `Version == 1` and `Version == 2` blobs without throwing.
+  A version outside `[1, 2]` must throw `InvalidDataException`.
+- V1 blobs read from disk have their `RawPayloadIndex` stored without bit 31, so
+  `IsResourceOwning` will be false for all nodes until the V1 patch loop in `Interpreter` runs.
+- The V1 patch loop in `Interpreter` must be structurally identical to the Phase 5.1 temporary
+  loop: type-gated to `Action`/`Condition` nodes, driven by the deactivator registry.
+- V2 blobs must NOT trigger the patch loop.
+
+**Success conditions**
+
+- T1: A blob produced by `TreeCompiler.FlattenToBlob` has `blob.Version == 2`.
+- T2 (V2 round-trip): Compile a tree with a resource-owning action. Save via
+  `BinaryTreeSerializer.Save`. Load via `Load`. Assert: (a) loaded `blob.Version == 2`;
+  (b) `blob.Nodes[actionIndex].IsResourceOwning == true` before constructing an `Interpreter`
+  (bit survived the round-trip).
+- T3 (V1 round-trip): Manually construct a V1 blob (`Version = 1`, `RawPayloadIndex` without
+  bit 31 set for a resource-owning action). Load it. Assert `blob.Version == 1` and
+  `blob.Nodes[actionIndex].IsResourceOwning == false` before constructing an `Interpreter`.
+  Construct an `Interpreter` with the deactivator registry. Assert
+  `blob.Nodes[actionIndex].IsResourceOwning == true` (V1 patch applied by constructor).
+- T4 (V2 skips patch): Construct an `Interpreter` from a V2 blob. Verify the V1 patch loop
+  body did not execute (instrument with a counter initialized to 0; assert counter == 0
+  after construction).
+- T5 (regression): All L-01 through L-08 tests pass with blobs produced by `BTreeBuilder`
+  (which now stamps Version 2).
+- T6: Invalid version (e.g., `Version = 99`) in a loaded stream causes `InvalidDataException`.
+- T7: `Fbt.Kernel` and `Fbt.Tests` build without errors.
+
+---
+
+### TASK-EQL-012 — Interpreter cleanup and editor integration
+
+**Design reference:** DESIGN.md §5.4
+
+**Scope**
+
+- Delete `_deactivatorDelegates` field from `Interpreter`. Add
+  `private readonly ActionRegistry<TBlackboard, TContext> _registry`.
+- Update `Interpreter` constructor to store `_registry`.
+- Update `SweepExitedNode` to perform a targeted `_registry.TryGetDeactivator` lookup when
+  `node.IsResourceOwning` is true, replacing the array index.
+- Update `Interpreter.BindActions` or related initialization to no longer populate a
+  `_deactivatorDelegates` array (the array no longer exists).
+- Update `BTreeDefinitionGenerator` so generated `FbtTreeCatalog.Get*` methods accept
+  `Func<string, bool>? isResourceOwning = null` and forward it to `Compile`.
+- Update `AiBehaviorFactory.BuildRegistrationAction` to construct the `isResourceOwning`
+  delegate and pass it to all `FbtTreeCatalog.Get*` calls.
+- Add the `[R]` visual indicator to `BTreeVisualizerRenderer.DrawNode`.
+
+**Not in scope**
+
+- Changes to `ActionRegistry` itself.
+- Adding new deactivators beyond those in Phases 1–3.
+
+**Constraints**
+
+- `_deactivatorDelegates` must be completely absent from `Interpreter` after this task (no
+  nullable field, no fallback array). If the field is absent the constraint is met by definition.
+- `SweepExitedNode` must still invoke the correct deactivator delegate and pass the correct
+  `PayloadIndex` as the `paramIndex` argument.
+- The `isResourceOwning` parameter on generated `Get*` methods must default to `null` so that
+  existing call sites without the argument continue to compile.
+- The `[R]` tooltip text must exactly match:
+  `"Resource Owning Node: Manages standing ECS resources via OnDeactivate."`
+
+**Success conditions**
+
+- T1 (regression): All L-01 through L-08 tests pass with no `_deactivatorDelegates` array.
+- T2 (array absence): `typeof(Interpreter<,>).GetFields(BindingFlags.NonPublic | BindingFlags.Instance)`
+  contains no field of type `NodeDeactivatorDelegate<,>[]`.
+- T3 (no allocation on construction): Construct an `Interpreter` for a 500-node tree with
+  zero resource-owning nodes. Assert `GC.CollectionCount(0)` unchanged before and after
+  construction.
+- T4 (correct deactivator called): Construct an `Interpreter` for a tree with action A
+  resource-owning and action B not. Let action A run. Trigger a branch switch. Assert
+  deactivator-A fired exactly once and deactivator-B never fired.
+- T5 (generated catalog signature): In the generated `FbtTreeCatalog.g.cs`, every `Get*`
+  method has a parameter `global::System.Func<string, bool>? isResourceOwning = null`.
+- T6 (factory wiring): Load the `UrbanCombat` scenario. Verify that the `Insurgent` behavior
+  blob has `blob.Nodes[Action_AimAndFireIndex].IsResourceOwning == true` (the factory passed
+  the correct delegate at compile time).
+- T7 (hot-reload end-to-end): While the `UrbanCombat` scenario is running, trigger a
+  hot-reload. After the ALC swap, force a branch switch away from `Action_AimAndFire`. Assert
+  `WeaponChannel.ActiveAction == 0` on the affected entity (deactivator fired correctly through
+  the `_registry` dynamic lookup path, not an array).
+- T8 (editor indicator): Pin the BTree Visualizer to an Insurgent. The `Action_AimAndFire`
+  node displays `[R]` in purple. Hovering shows
+  `"Resource Owning Node: Manages standing ECS resources via OnDeactivate."`.
+- T9: `Fdp.Toolkits.Analyzers`, `Hrot.AI.Behaviors`, and `Hrot.BTree.Editor` build without
+  errors.

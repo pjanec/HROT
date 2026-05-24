@@ -33,3 +33,16 @@ the gaps where cleanup was previously absent.
 - [ ] **TASK-EQL-006** LocomotionChannel deactivator — HillAttackTankNodes.Action_CreepToAndBeyondSlot [details](./TASK-DETAIL.md#task-eql-006--locomotionchannel-deactivator-for-hillattacktanknodesaction_creeptoandbeyondslot)
 - [ ] **TASK-EQL-007** WeaponChannel deactivator — HillAttackTankNodes.Action_AimAndFireSpecific [details](./TASK-DETAIL.md#task-eql-007--weaponchannel-deactivator-for-hillattacktanknodesaction_aimandFirespecific)
 - [ ] **TASK-EQL-008** EqsRequestId deactivator — HillAttackCommanderNodes.Action_RequestAreaQuery [details](./TASK-DETAIL.md#task-eql-008--eqsrequestid-deactivator-for-hillattackcommandernodes-action_requestareaquery)
+
+---
+
+## Phase 5: AOT Bit-Flag Optimization (post Phase 3)
+
+**Goal:** Replace the temporary parallel-delegate-array with an AOT-compiled `IsResourceOwning`
+bit baked into the `BehaviorTreeBlob`, achieving L1 cache locality and eliminating the
+conditional `NodeType` guard from the hot path.
+
+- [ ] **TASK-EQL-009** NodeDefinition bit-flag layout + temporary Interpreter patching [details](./TASK-DETAIL.md#task-eql-009--nodedefinition-bit-flag-layout-and-temporary-interpreter-patching)
+- [ ] **TASK-EQL-010** AOT compilation pipeline — TreeCompiler + BTreeBuilder [details](./TASK-DETAIL.md#task-eql-010--aot-compilation-pipeline)
+- [ ] **TASK-EQL-011** Binary serialization versioning + V1 legacy fallback [details](./TASK-DETAIL.md#task-eql-011--binary-serialization-versioning-and-v1-legacy-fallback)
+- [ ] **TASK-EQL-012** Interpreter cleanup + editor integration [details](./TASK-DETAIL.md#task-eql-012--interpreter-cleanup-and-editor-integration)
