@@ -105,8 +105,57 @@
 
 ## Cross-phase / integration
 
-**Goal:** End-to-end validation against the design's 10 success conditions.
+**Goal:** End-to-end validation against the design's 10 success conditions. (Validated against the mocked test harness only — real-engine validation is re-run in Phase P12 after P10 wires the library into running subsystems.)
 
 - [x] **UBP-INT1** End-to-end Universal Breakpoint flow [details](./TASK-DETAIL.md#ubp-int1--end-to-end-universal-breakpoint-flow)
 - [x] **UBP-INT2** Performance budget integration [details](./TASK-DETAIL.md#ubp-int2--performance-budget-integration)
 - [x] **UBP-INT3** Flight Recorder invariance [details](./TASK-DETAIL.md#ubp-int3--flight-recorder-invariance)
+
+---
+
+## Phase P10 — Production integration
+
+**Goal:** Wire the library into real subsystem hosts so the feature is reachable from the running editor. Addresses gap-analysis items G1–G9.
+
+- [ ] **UBP-P10T1** Editor subsystem wiring [details](./TASK-DETAIL.md#ubp-p10t1--editor-subsystem-wiring)
+- [ ] **UBP-P10T2** CGF subsystem wiring [details](./TASK-DETAIL.md#ubp-p10t2--cgf-subsystem-wiring)
+- [ ] **UBP-P10T3** Register `DataBreakpointManagerWindow` per perspective [details](./TASK-DETAIL.md#ubp-p10t3--register-databreakpointmanagerwindow-per-perspective)
+- [ ] **UBP-P10T4** Inject `IActiveViewProvider` into gizmo systems [details](./TASK-DETAIL.md#ubp-p10t4--inject-iactiveviewprovider-into-gizmo-systems)
+- [ ] **UBP-P10T5** Inject `IMutationInterceptor` into `ComponentEditWindow` [details](./TASK-DETAIL.md#ubp-p10t5--inject-imutationinterceptor-into-componenteditwindow)
+- [ ] **UBP-P10T6** Wire `BlueprintDebugSession` ↔ manager bridge [details](./TASK-DETAIL.md#ubp-p10t6--wire-blueprintdebugsession--manager-bridge)
+- [ ] **UBP-P10T7** BTree canvas: invoke menu populator + wire gutter renderer [details](./TASK-DETAIL.md#ubp-p10t7--btree-canvas-invoke-menu-populator--wire-gutter-renderer)
+- [ ] **UBP-P10T8** HSM canvas: invoke menu populator + wire gutter renderer [details](./TASK-DETAIL.md#ubp-p10t8--hsm-canvas-invoke-menu-populator--wire-gutter-renderer)
+- [ ] **UBP-P10T9** Blueprint canvas: invoke menu populator [details](./TASK-DETAIL.md#ubp-p10t9--blueprint-canvas-invoke-menu-populator)
+- [ ] **UBP-P10T10** Subscribe manager to `AiHotReloadCoordinator` [details](./TASK-DETAIL.md#ubp-p10t10--subscribe-manager-to-aihotreloadcoordinator)
+- [ ] **UBP-P10T11** Watches save/load editor lifecycle integration [details](./TASK-DETAIL.md#ubp-p10t11--watches-saveload-editor-lifecycle-integration)
+
+---
+
+## Phase P11 — Hot-path & correctness hardening
+
+**Goal:** Fix the implementation deviations identified in gap analysis G10–G24. Brings the implementation in line with Success Conditions #1, #2, #5, #6.
+
+- [ ] **UBP-P11T1** Zero-allocation `DataBreakpointSystem.Execute` [details](./TASK-DETAIL.md#ubp-p11t1--zero-allocation-databreakpointsystemexecute)
+- [ ] **UBP-P11T2** Chunk-version-aware `QueryDelta` scanning [details](./TASK-DETAIL.md#ubp-p11t2--chunk-version-aware-querydelta-scanning)
+- [ ] **UBP-P11T3** Enforce `DataBreakpointSystem` ordering after `RecorderTickSystem` [details](./TASK-DETAIL.md#ubp-p11t3--enforce-databreakpointsystem-ordering-after-recordertricksystem)
+- [ ] **UBP-P11T4** `OnHit` re-entrancy guard [details](./TASK-DETAIL.md#ubp-p11t4--onhit-re-entrancy-guard)
+- [ ] **UBP-P11T5** `PausedTick` uses `GlobalTime.TotalWallTicks` [details](./TASK-DETAIL.md#ubp-p11t5--pausedtick-uses-globaltimetotalwallticks)
+- [ ] **UBP-P11T6** `OnExternalHit` fallback removal [details](./TASK-DETAIL.md#ubp-p11t6--onexternalhit-fallback-removal)
+- [ ] **UBP-P11T7** Predicate Builder respects `ReadOnlyChildIndices` [details](./TASK-DETAIL.md#ubp-p11t7--predicate-builder-respects-readonlychildindices)
+- [ ] **UBP-P11T8** `StageMutation` size resolution via ECS registry [details](./TASK-DETAIL.md#ubp-p11t8--stagemutation-size-resolution-via-ecs-registry)
+- [ ] **UBP-P11T9** Eliminate `Mounted*` accessor allocations [details](./TASK-DETAIL.md#ubp-p11t9--eliminate-mounted-accessor-allocations)
+- [ ] **UBP-P11T10** Reflection-free spatial position read [details](./TASK-DETAIL.md#ubp-p11t10--reflection-free-spatial-position-read)
+- [ ] **UBP-P11T11** Reusable hits buffer in `EvaluateStatefulBreakpoints` [details](./TASK-DETAIL.md#ubp-p11t11--reusable-hits-buffer-in-evaluatestatefulbreakpoints)
+- [ ] **UBP-P11T12** API / DESIGN alignment (`OccurrenceThreshold`, `OnPauseStateChanged`, `AddBreakpoint`) [details](./TASK-DETAIL.md#ubp-p11t12--api--design-alignment)
+- [ ] **UBP-P11T13** Lifecycle `NetworkId` resolution [details](./TASK-DETAIL.md#ubp-p11t13--lifecycle-networkid-resolution)
+
+---
+
+## Phase P12 — End-to-end revalidation in a wired subsystem
+
+**Goal:** Re-run the integration-flavoured success conditions against the actual editor (not the mocked harness used for UBP-INT1/INT2/INT3) once P10 and P11 land.
+
+- [ ] **UBP-P12T1** Wired end-to-end flow [details](./TASK-DETAIL.md#ubp-p12t1--wired-end-to-end-flow)
+- [ ] **UBP-P12T2** Wired performance budget [details](./TASK-DETAIL.md#ubp-p12t2--wired-performance-budget)
+- [ ] **UBP-P12T3** Wired Flight Recorder invariance [details](./TASK-DETAIL.md#ubp-p12t3--wired-flight-recorder-invariance)
+- [ ] **UBP-P12T4** Multi-subsystem isolation check [details](./TASK-DETAIL.md#ubp-p12t4--multi-subsystem-isolation-check)
