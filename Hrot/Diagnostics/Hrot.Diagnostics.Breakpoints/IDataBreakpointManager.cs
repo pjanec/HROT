@@ -33,8 +33,12 @@ public interface IDataBreakpointManager
     /// parameters. Equivalent to calling <see cref="Add"/> with a fully constructed
     /// <see cref="Breakpoint"/> record.
     /// </summary>
+    /// <param name="occurrenceThreshold">
+    /// Number of hits required before the breakpoint pauses execution.
+    /// Must be >= 1. Pass 1 (default) to pause on the very first hit.
+    /// </param>
     BreakpointId AddBreakpoint(SearchPredicateDto condition, Entity? filter = null,
-                               int occurrenceThreshold = 0, string displayName = "",
+                               int occurrenceThreshold = 1, string displayName = "",
                                Guid? sourceElementId = null);
 
     /// <summary>
@@ -151,7 +155,7 @@ public interface IDataBreakpointManager
     /// The engine tick at which the current pause was engaged. 0 when not paused.
     /// Used by the temporal status banner.
     /// </summary>
-    uint PausedTick { get; }
+    long PausedTick { get; }
 
     /// <summary>Number of pending deferred mutations queued since the last pause.</summary>
     int PendingMutationsCount { get; }

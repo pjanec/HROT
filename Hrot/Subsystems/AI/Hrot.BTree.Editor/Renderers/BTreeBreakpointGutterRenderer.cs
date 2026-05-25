@@ -34,7 +34,7 @@ public sealed class BTreeBreakpointGutterRenderer : ICustomCanvasRenderer
     // that maps to a node in this asset. Used by tests.
     internal int CountManagerBreakpoints()
     {
-        if (_manager is null) return 0;
+        if (_manager is null || _asset is null) return 0;
         int count = 0;
         foreach (var bp in _manager.AllBreakpoints)
         {
@@ -48,6 +48,8 @@ public sealed class BTreeBreakpointGutterRenderer : ICustomCanvasRenderer
 
     public void Render(ICanvasRenderContext ctx)
     {
+        if (_asset is null) return; // sentinel state: canvas not yet opened
+
         if (_session is not null)
         {
             var breakpoints = _session.GetBreakpoints();

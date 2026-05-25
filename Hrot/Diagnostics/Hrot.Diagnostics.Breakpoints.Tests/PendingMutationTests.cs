@@ -1,5 +1,5 @@
 using System.Linq;
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -30,7 +30,7 @@ public sealed class PendingMutationTests
         Assert.Equal(1, manager.PendingMutationsCount);
         var m = manager.PendingMutationsQueue.Peek();
         Assert.False(m.IsManaged);
-        Assert.Equal(Marshal.SizeOf<TestHealth>(), m.SizeBytes);
+        Assert.Equal(Unsafe.SizeOf<TestHealth>(), m.SizeBytes);
         Assert.Equal(ComponentTypeRegistry.GetId(typeof(TestHealth)), m.ComponentTypeId);
     }
 

@@ -370,4 +370,56 @@ public sealed class DataBreakpointSystemStatefulTests
         system.Execute(repo, 0f);
         Assert.Equal(1, hitCount);
     }
+
+    // -------------------------------------------------------------------------
+    // P11T11: _statefulHitsBuffer is reused across EvaluateStatefulBreakpoints calls
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// The reusable hits buffer introduced in P11T11 must not cause state corruption
+    /// across consecutive <c>EvaluateStatefulBreakpoints</c> calls. After two calls
+    /// (first produces a hit, second has nothing new) the manager must be paused
+    /// exactly once and the buffer must be clean for subsequent use.
+    /// </summary>
+    [Fact]
+    public void StatefulEvaluation_HitsBuffer_IsReusedAcrossCalls()
+    {
+        ComponentTypeRegistry.Clear();
+        var liveRepo    = new EntityRepository();
+        var preTick     = new EntityRepository();
+        var tc          = new MockDebugTimeController();
+        var provider    = new DebugSnapshotProvider(preTick);
+        var compiler    = new PredicateCompiler(new ComponentEditServiceBuilder().Build());
+        var manager     = new DataBreakpointManager(liveRepo, preTick, provider, tc, compiler);
+
+        liveRepo.RegisterComponent<WeaponState>();
+
+        manager.AddBreakpoint(new StructuralPredicateDto
+        {
+            ComponentType        = typeof(WeaponState),
+            ModificationType     = StructuralModification.Added,
+            AuthorityRequirement = AuthorityRequirement.AnyAuthority
+        });
+
+        // First call: entity with component present -> causes a hit.
+        var entity = liveRepo.CreateEntity();
+        liveRepo.AddComponent(entity, new WeaponState { Ammo = 5 });
+
+        manager.EvaluateStatefulBreakpoints(liveRepo);
+        Assert.True(manager.IsPaused);
+        Assert.Equal(1, tc.PauseRequestCount);
+
+        // Resume so the next call can potentially fire again.
+        manager.RequestContinue();
+        Assert.False(manager.IsPaused);
+
+        // Second call: no new structural changes -> must NOT fire again.
+        manager.EvaluateStatefulBreakpoints(liveRepo);
+        Assert.False(manager.IsPaused);
+
+        // Buffer reuse correctness: total pause requests stays at 1.
+        Assert.Equal(1, tc.PauseRequestCount);
+
+        // TODO: add BenchmarkDotNet zero-alloc test StatefulEvaluation_ZeroAllocations here
+    }
 }

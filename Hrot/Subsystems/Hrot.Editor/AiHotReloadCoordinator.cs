@@ -104,6 +104,8 @@ namespace Hrot.Editor
         }
 
         // ---- Public events (fired on main thread from DrainPendingCallbacks) ----
+        /// <summary>Fired just before the new assembly is swapped into _currentAlc.</summary>
+        public event Action? OnReloadBegin;
         public event Action<ReloadCompletedInfo>? OnReloadCompleted;
         public event Action<string, Exception>?   OnReloadFailed;
 
@@ -113,6 +115,9 @@ namespace Hrot.Editor
         /// Used in tests to verify the old ALC was collected after <c>GC.Collect()</c>.
         /// </summary>
         internal WeakReference<AssemblyLoadContext>? PreviousAlcRef { get; private set; }
+
+        /// <summary>Test seam: fires <see cref="OnReloadBegin"/> without performing an actual reload.</summary>
+        internal void RaiseReloadBeginForTest() => OnReloadBegin?.Invoke();
 
         // ---- Dependencies ----
         private readonly EntityRepository              _world;
@@ -266,6 +271,9 @@ namespace Hrot.Editor
                         ReloadHsmChunks<BrainHsm128>(blob);
                     }
 
+                    // Step 5.5: notify before the swap so pending mutations are flushed.
+                    OnReloadBegin?.Invoke();
+
                     // Step 6: swap _currentAlc and release the old ALC.
                     // This happens ONLY after all staging commits succeed,
                     // so a failure above leaves _currentAlc (and running code) untouched.
@@ -336,6 +344,9 @@ namespace Hrot.Editor
                     ReloadHsmChunks<BrainHsm64>(blob);
                     ReloadHsmChunks<BrainHsm128>(blob);
                 }
+
+                // Step 3.5: notify before the swap so pending mutations are flushed.
+                OnReloadBegin?.Invoke();
 
                 // Step 4: swap ALC and release the old ALC (strictly main thread).
                 var oldAlc = _currentAlc;

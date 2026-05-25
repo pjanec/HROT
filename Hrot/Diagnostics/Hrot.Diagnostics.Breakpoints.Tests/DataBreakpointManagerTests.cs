@@ -590,6 +590,47 @@ public sealed class TripleBufferPauseTests
         // After RequestContinue: liveRepo restored to post-tick (50).
         Assert.Equal(50, liveRepo.GetComponent<TestHealth>(entity).Current);
     }
+
+    // -------------------------------------------------------------------------
+    // P11T12 Work Item C: OccurrenceThreshold validation
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Passing <c>occurrenceThreshold: 0</c> must throw <see cref="ArgumentOutOfRangeException"/>
+    /// immediately; 0 is not a valid threshold (minimum is 1).
+    /// </summary>
+    [Fact]
+    public void AddBreakpoint_ThresholdZero_Throws()
+    {
+        ComponentTypeRegistry.Clear();
+        var (manager, _, _, _) = ManagerFactory.Create();
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            manager.AddBreakpoint(
+                new ExternalHitTagPredicateDto { Tag = "t" },
+                displayName: "threshold-test",
+                occurrenceThreshold: 0));
+    }
+
+    /// <summary>
+    /// The default <c>occurrenceThreshold</c> (1) must pause on the very first hit.
+    /// </summary>
+    [Fact]
+    public void AddBreakpoint_ThresholdOne_IsDefault_PausesOnFirstHit()
+    {
+        ComponentTypeRegistry.Clear();
+        var (manager, liveRepo, _, tc) = ManagerFactory.Create();
+
+        var bpId = manager.AddBreakpoint(
+            new ExternalHitTagPredicateDto { Tag = "fire" },
+            displayName: "threshold-one-test",
+            occurrenceThreshold: 1);
+
+        var bp = manager.AllBreakpoints.First(b => b.Id == bpId);
+        manager.OnHit(bp, Fdp.Core.Entity.Null);
+
+        Assert.True(manager.IsPaused);
+        Assert.Equal(1, tc.PauseRequestCount);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -794,12 +835,24 @@ public sealed class DataBreakpointSystemTests
             }
         });
 
+        // Tick 1: entity seen for the first time (LastScanVersion = 0 -> full scan).
         system.Execute(repo, 0f);
         Assert.False(manager.IsPaused);
 
+        // Advance version + re-touch the component so the chunk version moves past
+        // the LastScanVersion stored after tick 1.  In production this happens naturally
+        // because each simulation tick calls repo.Tick() and ECS systems call GetComponentRW.
+        repo.Tick();
+        repo.GetComponentRW<TestDamage>(entity);
+
+        // Tick 2: component chunk changed -> entity re-detected; HitCount = 2.
         system.Execute(repo, 0f);
         Assert.False(manager.IsPaused);
 
+        repo.Tick();
+        repo.GetComponentRW<TestDamage>(entity);
+
+        // Tick 3: entity re-detected; HitCount = 3 >= OccurrenceThreshold -> pause.
         system.Execute(repo, 0f);
         Assert.True(manager.IsPaused);
     }

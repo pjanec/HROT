@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replay;
 
 namespace Hrot.Diagnostics.Breakpoints;
 
@@ -11,15 +12,20 @@ namespace Hrot.Diagnostics.Breakpoints;
 ///
 /// Scheduled in <see cref="SystemPhase.PostSimulation"/> so it runs after all module
 /// ticks have completed for the frame, but before any rewind is applied.
+/// Scheduled after <see cref="RecorderTickSystem"/> (when both are in the same
+/// PostSimulation phase) to guarantee the flight recorder captures the natural tick-N
+/// state before any rewind is applied.
 ///
 /// Early-out path: if <see cref="IDataBreakpointManager.HasMountedDelegates"/> is false,
 /// Execute returns without touching the repository (zero allocation, zero work).
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
+[UpdateAfter(typeof(RecorderTickSystem))]
 public sealed class DataBreakpointSystem : IEcsModuleSystem
 {
     private readonly IDataBreakpointManager _manager;
     private readonly FdpEventBus? _bus;
+    private readonly List<Entity> _pendingHitsBuffer = new();
 
     /// <summary>
     /// Creates a <see cref="DataBreakpointSystem"/> with component-path support only.
@@ -67,8 +73,6 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
             var queryBuilder = repo.Query();
             foreach (var t in compiled.MandatoryComponents)
             {
-                // TODO: optimise by tracking the last-scanned version per breakpoint
-                //       and passing it here instead of 0 so unchanged entities are skipped.
                 int componentId = ComponentTypeRegistry.GetId(t);
                 if (componentId >= 0)
                     queryBuilder = queryBuilder.WithComponentId(componentId);
@@ -76,18 +80,19 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
             var query = queryBuilder.Build();
 
             // Collect matches first; OnHit modifies liveRepo (SyncFrom rewind) so it
-            // must NOT be called inside the QueryDelta callback.
-            var pendingHits = new List<Entity>();
+            // must NOT be called inside the QueryDelta iteration.
+            _pendingHitsBuffer.Clear();
 
-            // sinceVersion = 0 scans all entities every tick.
-            repo.QueryDelta(query, 0u, entity =>
+            // Uses per-predicate LastScanVersion so unchanged chunks are skipped (P11T2).
+            foreach (var entity in repo.QueryDelta(query, compiled.LastScanVersion))
             {
-                if (bp.FilterEntity is { } filterEntity && filterEntity != entity) return;
-                if (!compiled.Delegate(repo, entity)) return;
-                pendingHits.Add(entity);
-            });
+                if (bp.FilterEntity is { } filterEntity && filterEntity != entity) continue;
+                if (!compiled.Delegate(repo, entity)) continue;
+                _pendingHitsBuffer.Add(entity);
+            }
+            compiled.LastScanVersion = repo.GlobalVersion;   // advance to current version (P11T2)
 
-            foreach (var hitEntity in pendingHits)
+            foreach (var hitEntity in _pendingHitsBuffer)
                 _manager.OnHit(bp, hitEntity);
         }
 

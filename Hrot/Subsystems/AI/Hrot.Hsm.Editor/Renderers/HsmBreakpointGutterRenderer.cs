@@ -39,6 +39,8 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
     // Includes both session breakpoints and manager breakpoints with SourceElementId.
     internal (int StateDots, int TransitionDots) CountBreakpoints()
     {
+        if (_asset is null) return (0, 0);
+
         int stateDots = 0, transDots = 0;
 
         if (_session is not null)
@@ -76,6 +78,8 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
     {
         LastStateDotCount      = 0;
         LastTransitionDotCount = 0;
+
+        if (_asset is null) return; // sentinel state: canvas not yet opened
 
         if (_session is not null)
         {

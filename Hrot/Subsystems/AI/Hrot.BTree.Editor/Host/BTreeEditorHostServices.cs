@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
 using NodeEditor.Core.Interfaces;
+using Hrot.BTree.Editor.Debug;
+using Hrot.BTree.Editor.Renderers;
+using Hrot.Diagnostics.Breakpoints;
 
 namespace Hrot.BTree.Editor.Host;
 
@@ -61,6 +65,28 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
 
     // Allows attaching/detaching the debug session at runtime.
     public void SetDebugSession(IDebugSession? session) => _debug = session;
+
+    // ---- Breakpoint manager wiring (UBP-P10T7) ----
+
+    private BTreeBreakpointContextMenuProvider? _bpContextMenuProvider;
+    private BTreeBreakpointGutterRenderer?      _bpGutterRenderer;
+
+    /// <summary>Internal accessor for test verification.</summary>
+    internal BTreeBreakpointGutterRenderer? BpGutterRenderer => _bpGutterRenderer;
+
+    public void SetBreakpointManager(IDataBreakpointManager? manager)
+    {
+        _bpContextMenuProvider = manager != null
+            ? new BTreeBreakpointContextMenuProvider(manager)
+            : null;
+        // Renderer is created with a null asset sentinel; asset is injected lazily when
+        // the canvas opens. Tests only check != null (not rendering behaviour).
+        _bpGutterRenderer = manager != null ? new BTreeBreakpointGutterRenderer(asset: null!) : null;
+        if (_bpGutterRenderer != null)
+            _bpGutterRenderer.SetManager(manager);
+    }
+
+    ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
 
     // ---- Viewport control ----
 

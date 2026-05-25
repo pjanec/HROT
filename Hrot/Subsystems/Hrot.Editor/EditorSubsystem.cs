@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -96,6 +96,10 @@ using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
 using Hrot.Editor.Commands;
 using Hrot.Common.Events;
+using Hrot.Diagnostics.Breakpoints;
+using Hrot.Blueprints.Editor.Debug;
+using StructEdit.Reflection;
+using Fdp.Toolkit.ReplayBrowser.Search;
 
 namespace Hrot.Editor
 {
@@ -143,10 +147,17 @@ namespace Hrot.Editor
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
         private bool                    _headless;
-        // GZH-016: gate � false when another subsystem owns the map view.
+        // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
-        // ?? Adapters (canvas-dependent; null in headless) ?????????????????????
+        // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
+        private EntityRepository?       _bpPreTickSnapshot;
+        private DebugSnapshotProvider?  _bpSnapshotProvider;
+        private DataBreakpointManager?  _bpManager;
+        private DataBreakpointSystem?   _bpSystem;
+        private Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintDebugSession;
+
+        // ── Adapters (canvas-dependent; null in headless) ─────────────────────
 
         private EditorSpawnAdapter?             _spawnAdapter;
         private EditorMissionService?           _missionService;
@@ -316,6 +327,19 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: direct access to the preview controller.</summary>
         internal IPreviewController PreviewController =>
             _previewController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
+        internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
+
+        /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T1).</summary>
+        internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
+
+        /// <summary>Internal test hook: exposes the mutation interceptor wired to the entity inspector (UBP-P10T5).</summary>
+        internal Fdp.Toolkit.Diagnostics.Gizmos.IMutationInterceptor? BpMutationInterceptor
+            => _fdpEntityInspector.Reflector.MutationInterceptor;
+
+        /// <summary>Internal test hook: exposes the AI hot-reload coordinator (UBP-P10T10).</summary>
+        internal AiHotReloadCoordinator? AiCoordinator => _aiCoordinator;
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _camera?.GetCameraView();
@@ -610,6 +634,59 @@ namespace Hrot.Editor
             // ?? 4f. Visual effects module ? spawns and cleans up tracers / explosions ??
             _kernel.RegisterModule(new EventEffectModule());
 
+            // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
+            // Allocate the pre-tick snapshot repo and mirror all component registrations.
+            // Placed here (before gizmo systems) so _bpManager can be passed as
+            // breakpointManager: to the gizmo system constructors (UBP-P10T4).
+            _bpPreTickSnapshot = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+            CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.Map.Common.Components.ZoneMembership>();
+            _bpPreTickSnapshot.RegisterComponent<MapDisplayComponent>();
+            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.CullingState>();
+            _bpPreTickSnapshot.RegisterComponent<Hrot.IG.Components.ResolvedStyle>();
+            _bpPreTickSnapshot.RegisterManagedComponent<Hrot.IG.Components.IgSymbolOverride>();
+            _bpPreTickSnapshot.RegisterComponent<VisualEffectState>();
+            _bpPreTickSnapshot.RegisterComponent<TracerTarget>();
+
+            var bpTimeAdapter           = new MasterSyncTimeControllerAdapter(_timeController!);
+            var bpEditSvc               = new ComponentEditServiceBuilder().Build();
+            var bpPredicateCompiler     = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+            var bpEventScannerCompiler  = new EventScannerCompiler(bpEditSvc);
+            _bpSnapshotProvider         = new DebugSnapshotProvider(_bpPreTickSnapshot);
+            _bpManager                  = new DataBreakpointManager(
+                _world!, _bpPreTickSnapshot, _bpSnapshotProvider,
+                bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
+            _bpSystem                   = new DataBreakpointSystem(_bpManager, _world!.Bus);
+
+            _kernel.RegisterGlobalSystem(_bpSnapshotProvider);
+            _kernel.RegisterGlobalSystem(_bpSystem);
+
+            // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
+            var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
+                _blueprintRegistry, _world!, bpTimeAdapter);
+            bpBlueprintSession.SetDataBreakpointManager(_bpManager);
+            Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
+            _blueprintDebugSession = bpBlueprintSession;
+            // ─────────────────────────────────────────────────────────────────────────────────
+
+            // ── UBP-P10T10: forward reload events to breakpoint manager ─────────────────────
+            _aiCoordinator.OnReloadBegin     += () => _bpManager?.OnHotReloadBegin();
+            _aiCoordinator.OnReloadCompleted += _  => _bpManager?.OnHotReloadCompleted();
+            // ─────────────────────────────────────────────────────────────────────────────────
+
+            // ── UBP-P10T11: restore watches from previous session ───────────────────────────
+            var watchesFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "watches.json");
+            if (_bpManager != null && System.IO.File.Exists(watchesFilePath))
+            {
+                try { _bpManager.LoadWatches(watchesFilePath); }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UBP] Failed to load watches.json: {ex.Message}");
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────
+
             // ?? 4g. Gizmo subsystem ? local stateless gizmo rendering ?????????????????
             // The Editor has no DDS transport; primitives are produced locally and consumed
             // by a DebugGizmoLayer on the canvas.
@@ -653,8 +730,10 @@ namespace Hrot.Editor
                 isSelectedPredicate: static (view, entity) =>
                     view.HasComponent<SelectionState>(entity) &&
                     view.GetComponentRO<SelectionState>(entity).IsSelected,
-                interactionBus: interactionBus);
-            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus);
+                interactionBus: interactionBus,
+                breakpointManager: _bpManager);
+            _globalGizmoManager = new GlobalGizmoManager(_gizmoBuffer, interactionBus,
+                breakpointManager: _bpManager);
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
@@ -859,7 +938,7 @@ namespace Hrot.Editor
             // Register canvas menu update so CanvasContextMenuGizmo has state to project.
             _kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
-            // ?? 5. Kernel initialization ??????????????????????????????????????
+            // ── 5. Kernel initialization ─────────────────────────────────────────────
             _kernel.Initialize();
 
             // ?? 6. Editor application (IEditorLogic facade) ??????????????????
@@ -1339,6 +1418,22 @@ namespace Hrot.Editor
             if (_clusterDiagnosticsPanel != null)
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.DiagnosticsWindow(_clusterDiagnosticsPanel));
 
+            // ?? Data Breakpoint Manager window (UBP-P10T3) ??? registered unconditionally ???????????
+            // Registered before the headless guard so the window is available in headless mode (tests).
+            if (_bpManager != null)
+            {
+                var bpBannerState = new Hrot.Diagnostics.Breakpoints.TemporalStatusBannerState();
+                var bpPanel       = new Hrot.Presentation.Panels.Breakpoints.DataBreakpointManagerPanel(
+                    _bpManager, bpBannerState);
+                var bpWin         = new Hrot.Presentation.Windows.DataBreakpointManagerWindow(
+                    "editor_bp_manager", "Editor", bpPanel, EditorWindowColor.TitleBar);
+                windowManager.RegisterWindow(bpWin);
+            }
+
+            // ?? UBP-P10T5: wire MutationInterceptor early so it is set in headless mode too ??????????
+            if (_bpManager != null)
+                _fdpEntityInspector.Reflector.MutationInterceptor = _bpManager;
+
             if (_headless) return;
 
             // ?? Shared UI panels ??????????????????????????????????????????????
@@ -1457,6 +1552,23 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            // ── UBP-P10T6: clear blueprint debug session ──────────────────────────────────────────
+            Hrot.Blueprints.Core.Debug.DebugProbe.Sink = null;
+            _blueprintDebugSession = null;
+            // ── UBP-P10T11: persist watches for next session ─────────────────────────────────────
+            if (_bpManager != null)
+            {
+                try
+                {
+                    var watchesFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "watches.json");
+                    _bpManager.SaveWatches(watchesFilePath);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UBP] Failed to save watches.json: {ex.Message}");
+                }
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────
             _aiCoordinator?.Dispose();
             _aiCoordinator = null;
             _kernel?.Dispose();

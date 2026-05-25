@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -18,7 +20,17 @@ namespace Hrot.Diagnostics.Breakpoints;
 /// <param name="MandatoryComponents">Component types the entity must have (used for query filtering).</param>
 public sealed record CompiledComponentPredicate(
     Func<EntityRepository, Entity, bool> Delegate,
-    IReadOnlyList<Type> MandatoryComponents);
+    IReadOnlyList<Type> MandatoryComponents)
+{
+    /// <summary>
+    /// The last <see cref="EntityRepository.GlobalVersion"/> at which this predicate was evaluated.
+    /// Passed to <see cref="EntityRepository.QueryDelta"/> as <c>sinceVersion</c> to skip unchanged
+    /// entity chunks. Defaults to 0 (scan everything on first evaluation). Reset to 0 automatically
+    /// when the predicate is re-compiled (hot-reload) because <see cref="DataBreakpointManager.TryMountDelegate"/>
+    /// creates a new <see cref="CompiledComponentPredicate"/> instance.
+    /// </summary>
+    public uint LastScanVersion { get; set; } = 0u;
+}
 
 /// <summary>
 /// A compiled event scanner that checks a live bus for matching events each tick.
@@ -39,6 +51,9 @@ public sealed record CompiledEventScanner(EventScannerDelegate Delegate)
         return _buffer.Count > 0;
     }
 }
+
+/// <summary>Delegate type for compiled spatial-position accessors.</summary>
+internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : unmanaged;
 
 /// <summary>
 /// Concrete implementation of <see cref="IDataBreakpointManager"/>.
@@ -73,8 +88,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     private readonly Dictionary<BreakpointId, (Breakpoint bp, StructuralPredicateDto dto, HashSet<Entity> knownSet)>
         _structuralTrackers = new();
 
-    // Spatial trackers: BreakpointId -> (Breakpoint, dto, set of entities currently inside the bounds)
-    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet)>
+    // Spatial trackers: BreakpointId -> (Breakpoint, dto, set of entities currently inside the bounds, compiled position accessor)
+    private readonly Dictionary<BreakpointId, (Breakpoint bp, SpatialBoundingPredicateDto dto, HashSet<Entity> insideSet, Func<EntityRepository, Entity, Vector2>? posAccessor)>
         _spatialTrackers = new();
 
     // Lifecycle trackers: BreakpointId -> (Breakpoint, dto, set of known-alive entities)
@@ -86,11 +101,18 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     // The remaining delegate evaluates the non-ExternalHitTag children against the entity.
     private readonly Dictionary<string, List<(BreakpointId id, Func<EntityRepository, Entity, bool>? remainingDelegate)>>
         _externalHitPredicates = new(StringComparer.Ordinal);
+    private readonly List<(Breakpoint bp, Entity entity)> _statefulHitsBuffer = new();
+    private List<(Breakpoint Breakpoint, CompiledComponentPredicate Compiled)>? _cachedComponentPredicates;
+    private List<(Breakpoint Breakpoint, CompiledEventScanner Scanner)>? _cachedEventScanners;
     private int _nextId = 1;
     private int _activeBreakpointCount;
     private bool _isPaused;
-    private uint _pausedTick;
+    private long _pausedTick;
     private readonly Queue<PendingDebugMutation> _pendingMutations = new();
+
+    // Cache of component type -> CLR managed size (Unsafe.SizeOf<T>() via ComponentType<T>.Size).
+    // Avoids repeated reflection on the hot path.
+    private static readonly Dictionary<Type, int> _componentSizeCache = new();
 
     // ---- IDataBreakpointManager.IsPaused --------------------------------
 
@@ -101,7 +123,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     public ISimulationView ActiveView => _isPaused ? (ISimulationView)_preTickSnapshot : _liveRepo;
 
     /// <inheritdoc/>
-    public uint PausedTick => _pausedTick;
+    public long PausedTick => _pausedTick;
 
     /// <inheritdoc/>
     public int PendingMutationsCount => _pendingMutations.Count;
@@ -125,13 +147,14 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         get
         {
-            var list = new List<(Breakpoint, CompiledComponentPredicate)>(_componentPredicates.Count);
+            if (_cachedComponentPredicates != null) return _cachedComponentPredicates;
+            _cachedComponentPredicates = new List<(Breakpoint, CompiledComponentPredicate)>(_componentPredicates.Count);
             foreach (var (id, compiled) in _componentPredicates)
             {
                 if (_breakpoints.TryGetValue(id, out var bp))
-                    list.Add((bp, compiled));
+                    _cachedComponentPredicates.Add((bp, compiled));
             }
-            return list;
+            return _cachedComponentPredicates;
         }
     }
 
@@ -140,13 +163,14 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         get
         {
-            var list = new List<(Breakpoint, CompiledEventScanner)>(_eventScanners.Count);
+            if (_cachedEventScanners != null) return _cachedEventScanners;
+            _cachedEventScanners = new List<(Breakpoint, CompiledEventScanner)>(_eventScanners.Count);
             foreach (var (id, scanner) in _eventScanners)
             {
                 if (_breakpoints.TryGetValue(id, out var bp))
-                    list.Add((bp, scanner));
+                    _cachedEventScanners.Add((bp, scanner));
             }
-            return list;
+            return _cachedEventScanners;
         }
     }
 
@@ -251,7 +275,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
     /// <inheritdoc/>
     public BreakpointId AddBreakpoint(SearchPredicateDto condition, Entity? filter = null,
-                                      int occurrenceThreshold = 0, string displayName = "",
+                                      int occurrenceThreshold = 1, string displayName = "",
                                       Guid? sourceElementId = null)
     {
         var bp = new Breakpoint
@@ -259,7 +283,9 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
             Id                  = BreakpointId.Invalid,
             Condition           = condition,
             FilterEntity        = filter,
-            OccurrenceThreshold = occurrenceThreshold > 0 ? occurrenceThreshold : 1,
+            OccurrenceThreshold = occurrenceThreshold >= 1 ? occurrenceThreshold
+                : throw new ArgumentOutOfRangeException(nameof(occurrenceThreshold),
+                      "Occurrence threshold must be >= 1. Pass 1 to pause on first hit."),
             Enabled             = true,
             DisplayName         = displayName,
             SourceElementId     = sourceElementId,
@@ -419,6 +445,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// <param name="entity">The entity for which the predicate evaluated true.</param>
     public void OnHit(Breakpoint bp, Entity entity)
     {
+        if (_isPaused) return; // already paused: drop same-tick re-entrant hits
+
         if (bp == null) throw new ArgumentNullException(nameof(bp));
 
         // Increment hit count on the registered record.
@@ -441,7 +469,9 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         // Halt the clock.
         _timeController.RequestPause();
         _isPaused = true;
-        _pausedTick = _preTickSnapshot.GlobalVersion;
+        _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
+            ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
+            : (long)_preTickSnapshot.GlobalVersion; // fallback when GlobalTime not registered
 
         // Notify subscribers.
         OnBreakpointHit?.Invoke(updated, entity);
@@ -463,7 +493,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
         _timeController.RequestStepOneTick();
         _isPaused = false;
-        _pausedTick = 0;
+        _pausedTick = 0L;
         // _pendingMutations is empty after drain; no explicit clear needed.
 
         OnPauseStateChanged?.Invoke(false);
@@ -482,7 +512,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
         _timeController.RequestResume();
         _isPaused = false;
-        _pausedTick = 0;
+        _pausedTick = 0L;
         // _pendingMutations is empty after drain; no explicit clear needed.
 
         OnPauseStateChanged?.Invoke(false);
@@ -498,7 +528,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
 
         int typeId     = ComponentTypeRegistry.GetId(componentType);
         bool isManaged = !componentType.IsValueType;
-        int sizeBytes  = isManaged ? 0 : Marshal.SizeOf(componentType);
+        int sizeBytes  = isManaged ? 0 : GetEcsComponentSize(componentType);
 
         _pendingMutations.Enqueue(new PendingDebugMutation(
             entity, typeId, isManaged, componentValue, sizeBytes));
@@ -542,8 +572,6 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// <inheritdoc/>
     public void OnExternalHit(string tag, Entity entity)
     {
-        bool anyFired = false;
-
         if (_externalHitPredicates.TryGetValue(tag, out var registrations))
         {
             foreach (var (bpId, remainingDelegate) in registrations)
@@ -556,21 +584,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 if (shouldFire)
                 {
                     OnHit(bp, entity);
-                    anyFired = true;
-                }
-            }
-        }
-
-        // If no universal breakpoint fired, still perform the triple-buffer rewind
-        // so Slice 1 Blueprint probe-driven hits get pre-execution inspection.
-        if (!anyFired && !_isPaused)
-        {
-            _postTickSnapshot.SyncFrom(_liveRepo);
-            _liveRepo.SyncFrom(_preTickSnapshot);
-            _timeController.RequestPause();
-            _isPaused = true;
-            _pausedTick = _preTickSnapshot.GlobalVersion;
-            OnPauseStateChanged?.Invoke(true);
+                }            }
         }
     }
 
@@ -655,13 +669,16 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 break;
 
             case SpatialBoundingPredicateDto spatialDto:
-                _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>());
+                _spatialTrackers[id] = (bp, spatialDto, new HashSet<Entity>(),
+                    CompileSpatialPositionAccessor(spatialDto));
                 break;
 
             case LifecyclePredicateDto lifecycleDto:
                 _lifecycleTrackers[id] = (bp, lifecycleDto, new HashSet<Entity>());
                 break;
         }
+        _cachedComponentPredicates = null;
+        _cachedEventScanners = null;
     }
 
     private void UnmountDelegate(BreakpointId id)
@@ -671,6 +688,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         _structuralTrackers.Remove(id);
         _spatialTrackers.Remove(id);
         _lifecycleTrackers.Remove(id);
+        _cachedComponentPredicates = null;
+        _cachedEventScanners = null;
 
         // Remove from external-hit registrations
         foreach (var tagList in _externalHitPredicates.Values)
@@ -682,7 +701,8 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     /// <inheritdoc/>
     public void EvaluateStatefulBreakpoints(EntityRepository repo)
     {
-        var hits = new List<(Breakpoint bp, Entity entity)>();
+        _statefulHitsBuffer.Clear();
+        var hits = _statefulHitsBuffer;
 
         EvaluateStructuralTrackers(repo, hits);
         EvaluateSpatialTrackers(repo, hits);
@@ -745,7 +765,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     {
         if (_spatialTrackers.Count == 0) return;
 
-        foreach (var (bpId, (bp, dto, insideSet)) in _spatialTrackers)
+        foreach (var (bpId, (bp, dto, insideSet, posAccessor)) in _spatialTrackers)
         {
             if (!bp.Enabled) continue;
 
@@ -759,7 +779,9 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                 if (entity.IsNull) continue;
                 if (bp.FilterEntity is { } fe && fe != entity) continue;
 
-                Vector2 pos = ReadPosition2D(repo, entity, dto);
+                Vector2 pos = posAccessor != null
+                    ? posAccessor(repo, entity)
+                    : ReadPosition2D(repo, entity, dto);  // fallback for managed components
                 bool isInside  = IsInBounds(pos, dto.Bounds);
                 bool wasInside = insideSet.Contains(entity);
 
@@ -844,6 +866,86 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         pos.X >= bounds.Min.X && pos.X <= bounds.Max.X
      && pos.Y >= bounds.Min.Y && pos.Y <= bounds.Max.Y;
 
+    /// <summary>
+    /// Returns the CLR managed size of <paramref name="type"/> in bytes.
+    /// Uses <c>ComponentType&lt;T&gt;.Size</c> (= <c>Unsafe.SizeOf&lt;T&gt;()</c>) rather than
+    /// <c>Marshal.SizeOf</c>, which gives the interop layout size that may differ for
+    /// components containing <c>fixed</c> buffers or bool fields with <c>[MarshalAs(UnmanagedType.I1)]</c>.
+    /// </summary>
+    private static int GetEcsComponentSize(Type type)
+    {
+        lock (_componentSizeCache)
+        {
+            if (_componentSizeCache.TryGetValue(type, out int cached))
+                return cached;
+            // ComponentType<T>.Size = Unsafe.SizeOf<T>() -- matches the ECS chunk stride.
+            var genericType = typeof(ComponentType<>).MakeGenericType(type);
+            var prop        = genericType.GetProperty("Size",
+                BindingFlags.Public | BindingFlags.Static)!;
+            int size        = (int)prop.GetValue(null)!;
+            _componentSizeCache[type] = size;
+            return size;
+        }
+    }
+
+    /// <summary>
+    /// Builds a compiled position accessor for unmanaged component type <paramref name="dto"/>.PositionComponentType.
+    /// Returns null if the type is null, not a value type, or its field paths cannot be resolved.
+    /// </summary>
+    private static Func<EntityRepository, Entity, Vector2>? CompileSpatialPositionAccessor(
+        SpatialBoundingPredicateDto dto)
+    {
+        Type? compType = dto.PositionComponentType;
+        if (compType == null || !compType.IsValueType) return null;
+
+        int typeId = ComponentTypeRegistry.GetId(compType);
+        if (typeId < 0) return null;
+
+        try
+        {
+            var method = typeof(DataBreakpointManager)
+                .GetMethod(nameof(CompileSpatialPositionAccessorGeneric),
+                    BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(compType);
+            return (Func<EntityRepository, Entity, Vector2>)method.Invoke(null, new object[] { dto, typeId })!;
+        }
+        catch
+        {
+            return null; // Fall back to reflection-based ReadPosition2D if compilation fails.
+        }
+    }
+
+    private static Func<EntityRepository, Entity, Vector2>
+        CompileSpatialPositionAccessorGeneric<T>(SpatialBoundingPredicateDto dto, int typeId)
+        where T : unmanaged
+    {
+        // Build an expression tree: (ref T comp) => new Vector2(comp.XPath, comp.YPath)
+        var param = Expression.Parameter(typeof(T).MakeByRefType(), "comp");
+
+        Expression xExpr = param;
+        foreach (string seg in dto.PositionXPath.Split('.'))
+            xExpr = Expression.PropertyOrField(xExpr, seg);
+        if (xExpr.Type != typeof(float))
+            xExpr = Expression.Convert(xExpr, typeof(float));
+
+        Expression yExpr = param;
+        foreach (string seg in dto.PositionYPath.Split('.'))
+            yExpr = Expression.PropertyOrField(yExpr, seg);
+        if (yExpr.Type != typeof(float))
+            yExpr = Expression.Convert(yExpr, typeof(float));
+
+        var ctor     = typeof(Vector2).GetConstructor(new[] { typeof(float), typeof(float) })!;
+        var bodyExpr = Expression.New(ctor, xExpr, yExpr);
+        var accessor = Expression.Lambda<SpatialPositionDelegate<T>>(bodyExpr, param).Compile();
+
+        return (repo, entity) =>
+        {
+            if (!repo.HasComponentByTypeId(entity, typeId)) return Vector2.Zero;
+            ref readonly T comp = ref repo.GetComponentRO<T>(entity);
+            return accessor(ref Unsafe.AsRef(in comp));
+        };
+    }
+
     private static Vector2 ReadPosition2D(EntityRepository repo, Entity entity, SpatialBoundingPredicateDto dto)
     {
         Type compType = dto.PositionComponentType;
@@ -893,6 +995,10 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         return cur is float f ? f : (cur is double d ? (float)d : 0f);
     }
 
+    /// <exception cref="NotSupportedException">
+    /// Thrown when <paramref name="dto"/> uses <see cref="EntityIdentifierType.NetworkId"/>,
+    /// which requires an <c>INetworkEntityMap</c> that is not yet wired into this manager.
+    /// </exception>
     private static bool MatchesLifecycleCriteria(EntityRepository repo, Entity entity, LifecyclePredicateDto dto)
     {
         return dto.IdentifierType switch
@@ -907,7 +1013,13 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
                       n.Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase)
                     : entity.ToString().Contains(dto.TargetValue, StringComparison.OrdinalIgnoreCase),
 
-            // Network-id lookup not available without network module injection; skip.
+            // Network-id lookup requires INetworkEntityMap, which is not injected into this manager.
+            // To support this, pass an INetworkEntityMap to the DataBreakpointManager constructor
+            // and resolve the entity in this branch. Until then, using NetworkId as identifier will throw.
+            EntityIdentifierType.NetworkId => throw new NotSupportedException(
+                "LifecyclePredicateDto with EntityIdentifierType.NetworkId requires an INetworkEntityMap " +
+                "injected into DataBreakpointManager. Wire the network map via the constructor, " +
+                "or use EcsHandle or NameSubstring instead."),
             _ => false
         };
     }

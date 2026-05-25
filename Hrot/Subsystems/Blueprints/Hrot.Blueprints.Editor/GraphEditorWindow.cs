@@ -1,7 +1,9 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Reload;
+using Hrot.Diagnostics.Breakpoints;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -18,6 +20,10 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
     public BlueprintAsset? CurrentAsset { get; private set; }
     public SelectionState Selection { get; } = new();
     public CommandHistory Commands { get; } = new();
+
+    private IDataBreakpointManager? _bpManager;
+
+    public void SetBreakpointManager(IDataBreakpointManager? manager) => _bpManager = manager;
 
     public GraphEditorWindow(
         EditorSelectionStore selectionStore,

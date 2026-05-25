@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Hrot.Diagnostics.Breakpoints;
+using Hrot.Hsm.Editor.Renderers;
 using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Hsm.Editor.Host;
@@ -61,6 +63,28 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
 
     // Allows attaching/detaching the debug session at runtime.
     public void SetDebugSession(IDebugSession? session) => _debug = session;
+
+    // ---- Breakpoint manager wiring (UBP-P10T8) ----
+
+    private HsmBreakpointContextMenuProvider? _bpContextMenuProvider;
+    private HsmBreakpointGutterRenderer?      _bpGutterRenderer;
+
+    /// <summary>Internal accessor for test verification.</summary>
+    internal HsmBreakpointGutterRenderer? BpGutterRenderer => _bpGutterRenderer;
+
+    public void SetBreakpointManager(IDataBreakpointManager? manager)
+    {
+        _bpContextMenuProvider = manager != null
+            ? new HsmBreakpointContextMenuProvider(manager)
+            : null;
+        // Renderer is created with a null asset sentinel; asset is injected lazily when
+        // the canvas opens. Tests only check != null (not rendering behaviour).
+        _bpGutterRenderer = manager != null ? new HsmBreakpointGutterRenderer(asset: null!) : null;
+        if (_bpGutterRenderer != null)
+            _bpGutterRenderer.SetManager(manager);
+    }
+
+    ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
 
     // ---- Viewport control ----
 

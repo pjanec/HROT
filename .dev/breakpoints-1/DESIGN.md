@@ -209,7 +209,7 @@ public sealed record Breakpoint(
     SearchPredicateDto Condition,    // polymorphic payload
     Entity? FilterEntity,            // optional scope; null = global
     int HitCount,                    // incremented on each predicate-true
-    int OccurrenceThreshold,         // pause only on Nth+ hit; 0 = every hit
+    int OccurrenceThreshold,         // pause only on Nth+ hit; must be >= 1
     bool Enabled,
     string DisplayName);
 ```
@@ -445,7 +445,7 @@ public interface IDataBreakpointManager
 
     // Event hooks
     event Action<Breakpoint, Entity> OnBreakpointHit;
-    event Action OnPauseStateChanged;
+    event Action<bool> OnPauseStateChanged;
 }
 ```
 
@@ -618,7 +618,7 @@ The user can copy a synthesised B-Tree breakpoint's JSON (clipboard), create a n
 
 ### 13.5 Hit-count threshold
 
-`Breakpoint.OccurrenceThreshold` exposes "break on Nth hit" in the manager UI as a small integer field per row. The `DataBreakpointSystem` increments `HitCount` on every predicate-true; the manager pauses only when `HitCount >= OccurrenceThreshold`. Zero (default) = pause on every hit.
+`Breakpoint.OccurrenceThreshold` exposes "break on Nth hit" in the manager UI as a small integer field per row. The `DataBreakpointSystem` increments `HitCount` on every predicate-true; the manager pauses only when `HitCount >= OccurrenceThreshold`. Default 1 = pause on the first hit. Minimum value 1; passing 0 throws `ArgumentOutOfRangeException`.
 
 ---
 

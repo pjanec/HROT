@@ -181,17 +181,39 @@ public sealed class ExternalHitTagTests
     }
 
     // -------------------------------------------------------------------------
-    // 6. No matching tag registered: fallback pause still applies
+    // 6. No matching tag registered: no pause (fallback removed by P11T6)
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void ExternalHitTag_NoMatchingBreakpoint_StillPausesViaFallback()
+    public void OnExternalHit_NoTagMatch_DoesNotPause()
     {
         // No breakpoint registered at all.
+        int pauseChangedCount = 0;
+        _manager.OnPauseStateChanged += _ => pauseChangedCount++;
+
         var entity = _liveRepo.CreateEntity();
-        _manager.OnExternalHit("unknownTag", entity);
+        _manager.OnExternalHit("nonexistent-tag", entity);
+
+        Assert.False(_manager.IsPaused);
+        Assert.Equal(0, pauseChangedCount);
+    }
+
+    // -------------------------------------------------------------------------
+    // 6b. P11T6: Tag match still pauses and rewinds after fallback removal
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void OnExternalHit_TagMatch_StillPausesAndRewinds()
+    {
+        int pauseChangedCount = 0;
+        _manager.OnPauseStateChanged += fired => { if (fired) pauseChangedCount++; };
+
+        _manager.AddBreakpoint(new ExternalHitTagPredicateDto { Tag = "hit-me" });
+
+        _manager.OnExternalHit("hit-me", Fdp.Core.Entity.Null);
 
         Assert.True(_manager.IsPaused);
+        Assert.Equal(1, pauseChangedCount);
     }
 
     // -------------------------------------------------------------------------

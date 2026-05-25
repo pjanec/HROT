@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Diagnostics.Breakpoints;
@@ -41,6 +42,7 @@ public sealed class DataBreakpointManagerPanel
     {
         DrawToolbar();
         DrawGrid();
+        DrawPredicateEditor();
         DrawBanner();
     }
 
@@ -163,6 +165,41 @@ public sealed class DataBreakpointManagerPanel
         }
 
         ImGuiApi.EndTable();
+    }
+
+    /// <summary>
+    /// Renders the predicate condition tree for the selected breakpoint.
+    /// Compound children listed in <see cref="CompoundPredicateDto.ReadOnlyChildIndices"/>
+    /// are rendered inside <c>ImGui.BeginDisabled()</c> so the user cannot edit them.
+    /// </summary>
+    private void DrawPredicateEditor()
+    {
+        if (!_selectedId.IsValid) return;
+
+        var bp = _manager.AllBreakpoints.FirstOrDefault(b => b.Id == _selectedId);
+        if (bp == null) return;
+
+        if (bp.Condition is CompoundPredicateDto compound)
+        {
+            ImGuiApi.SeparatorText("Condition (Compound)");
+            ImGuiApi.TextUnformatted($"Operator: {compound.Operator}");
+
+            for (int i = 0; i < compound.Conditions.Count; i++)
+            {
+                bool readOnly = CompoundPredicateHelper.IsChildReadOnly(compound, i);
+                if (readOnly) ImGuiApi.BeginDisabled();
+
+                ImGuiApi.TextUnformatted(
+                    $"  [{i}]{(readOnly ? " (locked)" : "")} {BreakpointConditionSummarizer.Summarize(compound.Conditions[i])}");
+
+                if (readOnly) ImGuiApi.EndDisabled();
+            }
+        }
+        else if (bp.Condition != null)
+        {
+            ImGuiApi.SeparatorText("Condition");
+            ImGuiApi.TextUnformatted(BreakpointConditionSummarizer.Summarize(bp.Condition));
+        }
     }
 
     private void DrawBanner()

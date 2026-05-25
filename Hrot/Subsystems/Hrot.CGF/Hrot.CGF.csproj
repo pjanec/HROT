@@ -37,7 +37,10 @@
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <!-- FdpLog<T> + FdpEventBus -->
-    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
+    <!-- Universal breakpoints library (UBP-P10T2) -->
+    <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
+    <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit contracts -->
     <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->

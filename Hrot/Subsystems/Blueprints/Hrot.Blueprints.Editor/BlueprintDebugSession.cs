@@ -59,6 +59,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // of requesting a raw pause via _timeController.
     private Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? _dataBreakpointManager;
 
+    // Tracks the manager-side BreakpointId for each session-side BreakpointId so we
+    // can clean up ExternalHitTag registrations when a breakpoint is cleared.
+    private readonly Dictionary<BreakpointId, Hrot.Diagnostics.Breakpoints.BreakpointId> _mgrBpIds = new();
+
     public BlueprintDebugSession(
         BlueprintRegistry registry,
         ISimulationView view,
@@ -197,6 +201,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true);
         _breakpoints[id]          = bp;
         _bpByNodeString[nodeIdStr] = bp;
+
+        // Register a matching tag predicate in the data-breakpoint manager so that
+        // OnExternalHit(nodeIdStr, entity) finds a registered BP and triggers OnHit.
+        if (_dataBreakpointManager != null)
+        {
+            var mgrId = _dataBreakpointManager.AddBreakpoint(
+                new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = nodeIdStr },
+                displayName: $"Blueprint node {nodeIdStr}");
+            _mgrBpIds[id] = mgrId;
+        }
+
         return id;
     }
 
@@ -206,11 +221,23 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         {
             _breakpoints.Remove(id);
             _bpByNodeString.Remove(bp.NodeId);
+
+            if (_dataBreakpointManager != null && _mgrBpIds.TryGetValue(id, out var mgrId))
+            {
+                _dataBreakpointManager.Remove(mgrId);
+                _mgrBpIds.Remove(id);
+            }
         }
     }
 
     public void ClearAllBreakpoints()
     {
+        if (_dataBreakpointManager != null)
+        {
+            foreach (var mgrId in _mgrBpIds.Values)
+                _dataBreakpointManager.Remove(mgrId);
+        }
+        _mgrBpIds.Clear();
         _breakpoints.Clear();
         _bpByNodeString.Clear();
     }
@@ -259,9 +286,33 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// <summary>
     /// Wires in the data-breakpoint manager so that Blueprint probe hits are routed
     /// through the triple-buffer rewind path instead of the raw time-controller pause.
+    /// Any session breakpoints that were registered before this call are registered
+    /// retroactively so <c>OnExternalHit</c> can find them.
     /// </summary>
     public void SetDataBreakpointManager(Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? manager)
-        => _dataBreakpointManager = manager;
+    {
+        // Unregister old manager registrations.
+        if (_dataBreakpointManager != null)
+        {
+            foreach (var mgrId in _mgrBpIds.Values)
+                _dataBreakpointManager.Remove(mgrId);
+            _mgrBpIds.Clear();
+        }
+
+        _dataBreakpointManager = manager;
+
+        // Register existing session BPs with the new manager.
+        if (_dataBreakpointManager != null)
+        {
+            foreach (var bp in _breakpoints.Values)
+            {
+                var mgrId = _dataBreakpointManager.AddBreakpoint(
+                    new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = bp.NodeId },
+                    displayName: $"Blueprint node {bp.NodeId}");
+                _mgrBpIds[bp.Id] = mgrId;
+            }
+        }
+    }
 
     // ---- IBlueprintDebugSession -- active entity tracking ------------------
 

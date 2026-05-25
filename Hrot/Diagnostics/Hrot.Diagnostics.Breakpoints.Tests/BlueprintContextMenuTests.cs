@@ -40,6 +40,13 @@ file sealed class BlueprintRecordingContextMenuBuilder : IContextMenuBuilder
         }
         throw new InvalidOperationException($"No menu item with label '{label}' found.");
     }
+
+    public bool HasItem(string label)
+    {
+        foreach (var (l, _) in _items)
+            if (l == label) return true;
+        return false;
+    }
 }
 
 // ---- Minimal ISimulationView stub for Blueprint session tests ---------------
@@ -149,5 +156,23 @@ public sealed class BlueprintContextMenuTests
 
         Assert.Single(compound.ReadOnlyChildIndices);
         Assert.Equal(0, compound.ReadOnlyChildIndices[0]);
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. PopulateNodeMenu includes the conditional breakpoint item (UBP-P10T9)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Blueprint_ContextMenu_ShowsConditionalBreakpointItem()
+    {
+        var assetId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid().ToString("D");
+        var builder = new BlueprintRecordingContextMenuBuilder();
+
+        BlueprintBreakpointMenuPopulator.PopulateNodeMenu(nodeId, assetId, builder, _manager, null);
+
+        // The menu must contain the conditional breakpoint entry.
+        Assert.True(builder.HasItem("Add Conditional Data Breakpoint..."),
+            "Expected 'Add Conditional Data Breakpoint...' in the context menu.");
     }
 }

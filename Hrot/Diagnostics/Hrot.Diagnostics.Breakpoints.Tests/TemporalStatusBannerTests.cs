@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Hrot.Diagnostics.Breakpoints;
 
@@ -11,6 +12,7 @@ namespace Hrot.Diagnostics.Breakpoints.Tests;
 /// Tests for <see cref="TemporalStatusBannerState"/> and
 /// <see cref="TemporalStatusBannerPanel"/>.
 /// </summary>
+[Collection("ComponentRegistry")]
 public sealed class TemporalStatusBannerTests
 {
     /// <summary>
@@ -94,5 +96,76 @@ public sealed class TemporalStatusBannerTests
         panel.Draw(_ => callCount++);
 
         Assert.Equal(0, callCount);
+    }
+
+    // ---- P11T5 tests ---------------------------------------------------------
+
+    /// <summary>
+    /// When GlobalTime is registered in the live repo, PausedTick must reflect
+    /// GlobalTime.TotalWallTicks rather than the repo's GlobalVersion counter.
+    /// </summary>
+    [Fact]
+    public void PausedTick_ReflectsGlobalTimeTotalWallTicks()
+    {
+        ComponentTypeRegistry.Clear();
+        var (manager, liveRepo, _, _) = ManagerFactory.Create();
+
+        liveRepo.RegisterComponent<GlobalTime>();
+        liveRepo.SetSingletonUnmanaged(new GlobalTime { TotalWallTicks = 0xABCDEFL });
+
+        var bpId         = manager.Add(ManagerFactory.MakeBreakpoint(enabled: true));
+        var registeredBp = manager.AllBreakpoints.First(b => b.Id == bpId);
+        manager.OnHit(registeredBp, new Entity(1, 0));
+
+        Assert.Equal(0xABCDEFL, manager.PausedTick);
+    }
+
+    /// <summary>
+    /// The banner StatusText must include the wall-clock tick value (from GlobalTime),
+    /// not the repo's GlobalVersion counter.
+    /// </summary>
+    [Fact]
+    public void BannerShowsWallClockTickNotVersionCounter()
+    {
+        ComponentTypeRegistry.Clear();
+        var (manager, liveRepo, _, _) = ManagerFactory.Create();
+
+        liveRepo.RegisterComponent<GlobalTime>();
+        liveRepo.SetSingletonUnmanaged(new GlobalTime { TotalWallTicks = 12345L });
+
+        var bpId         = manager.Add(ManagerFactory.MakeBreakpoint(enabled: true));
+        var registeredBp = manager.AllBreakpoints.First(b => b.Id == bpId);
+        manager.OnHit(registeredBp, new Entity(1, 0));
+
+        var state = new TemporalStatusBannerState();
+        state.Refresh(manager);
+
+        Assert.True(state.ShouldRender);
+        Assert.Contains("Tick 12345", state.StatusText);
+    }
+
+    /// <summary>
+    /// When GlobalTime is NOT registered, PausedTick falls back to the repo's
+    /// GlobalVersion cast to long (must not throw).
+    /// </summary>
+    [Fact]
+    public void PausedTick_FallbackToRepoVersion_WhenGlobalTimeNotRegistered()
+    {
+        ComponentTypeRegistry.Clear();
+        var (manager, liveRepo, snapshotProvider, _) = ManagerFactory.Create();
+
+        // Do NOT register GlobalTime.
+
+        var bpId         = manager.Add(ManagerFactory.MakeBreakpoint(enabled: true));
+        var registeredBp = manager.AllBreakpoints.First(b => b.Id == bpId);
+
+        // Seed the snapshot provider so the pre-tick snapshot has some version.
+        snapshotProvider.SetEnabled(true);
+        snapshotProvider.Execute(liveRepo, 0f);
+
+        manager.OnHit(registeredBp, new Entity(1, 0));
+
+        // Fallback: must equal the pre-tick snapshot's GlobalVersion cast to long.
+        Assert.Equal((long)manager.PreTickSnapshot.GlobalVersion, manager.PausedTick);
     }
 }

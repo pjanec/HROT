@@ -49,6 +49,10 @@ using Hrot.UI.Common.Menus;
 using Hrot.UI.Common.Adapters;
 using Hrot.UI.Common.Panels;
 using Hrot.SimHost;
+using Hrot.Diagnostics.Breakpoints;
+using Hrot.Blueprints.Editor.Debug;
+using StructEdit.Reflection;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using ImGuiNET;
 using Raylib_cs;
 using System.Linq;
@@ -77,6 +81,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private TogglableSimulationGroup? _toggleSim;
     private Hrot.Core.Network.INetworkFactory? _networkFactory;
     private PhysicsToolkitModule? _physicsModule;
+
+    // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
+    private EntityRepository?       _bpPreTickSnapshot;
+    private DebugSnapshotProvider?  _bpSnapshotProvider;
+    private DataBreakpointManager?  _bpManager;
+    private DataBreakpointSystem?   _bpSystem;
 
     // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
     private ScenarioEntityCreationRequestSource? _scenarioSource;
@@ -134,6 +144,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
+
+    /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T2).</summary>
+    internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
+
+    /// <summary>Internal test hook: exposes the debug snapshot provider (UBP-P10T2).</summary>
+    internal DebugSnapshotProvider? BpSnapshotProvider => _bpSnapshotProvider;
 
     /// <summary>TestHook: exposes the CGF behavior registry so integration tests can register
     /// scenario-specific behaviors (e.g. UrbanCombat) before the cluster transitions to
@@ -500,6 +516,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Register canvas menu update so CanvasContextMenuGizmo has state to project.
         _context.Kernel.RegisterGlobalSystem(new Hrot.Presentation.Systems.CanvasMenuUpdateSystem());
 
+        // ── Universal breakpoints (UBP-P10T2) ────────────────────────────────────
+        // CGF uses a SlaveSyncController so we supply a no-op time adapter.
+        // The breakpoint manager still collects data; pause/step are no-ops for slave nodes.
+        _bpPreTickSnapshot = new EntityRepository();
+        CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+
+        var bpTimeAdapter          = new CgfNoOpTimeController();
+        var bpEditSvc              = new ComponentEditServiceBuilder().Build();
+        var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, _behaviorRegistry);
+        var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
+        _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);
+        _bpManager                 = new DataBreakpointManager(
+            _context.World, _bpPreTickSnapshot, _bpSnapshotProvider,
+            bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
+        _bpSystem                  = new DataBreakpointSystem(_bpManager, _context.World.Bus);
+
+        _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
+        _context.Kernel.RegisterGlobalSystem(_bpSystem);
+        // ─────────────────────────────────────────────────────────────────────────
+
         _context.Kernel.Initialize();
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
@@ -753,6 +789,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         public CgfSimulationModule(TogglableSimulationGroup group) => _group = group;
         public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(_group);
         public void Tick(ISimulationView view, float deltaTime) { }
+    }
+
+    // No-op IEngineDebugTimeController for CGF (slave node; pause/step are not applicable).
+    private sealed class CgfNoOpTimeController : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    {
+        public bool IsPausedByDebugger => false;
+        public void RequestPause() { }
+        public void RequestResume() { }
+        public void RequestStepOneTick() { }
     }
 }
 
