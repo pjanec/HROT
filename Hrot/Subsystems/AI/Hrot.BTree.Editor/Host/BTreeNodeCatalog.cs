@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hrot.Editor.AiShared;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -25,6 +26,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private const string CatComposite = "Composite";
     private const string CatLeaf      = "Leaf";
     private const string CatDecorator = "Decorator";
+    private static readonly string CatReactiveGuard = ReactiveGuardVocabulary.CategoryName;
 
     // ---- Static entries ----
     private readonly IReadOnlyList<NodeCatalogEntry> _all;
@@ -49,9 +51,9 @@ public sealed class BTreeNodeCatalog : INodeCatalog
             new[] { "selector", "or", "fallback" }, "bt/selector", false, false, false,
             inputs: new[] { ExecIn }, outputs: new[] { ExecOut }));
 
-        entries.Add(Make(BTreeKinds.ObserverSelector, "Observer Selector", CatComposite,
-            "Selector with reactive re-evaluation of observer children.",
-            new[] { "observer", "selector", "reactive" }, "bt/observer_selector", false, false, false,
+        entries.Add(Make(BTreeKinds.ObserverSelector, "Observer Selector", CatReactiveGuard,
+            ReactiveGuardVocabulary.BTreeObserverSelectorTooltip + "\n\n" + ReactiveGuardVocabulary.CrossSubsystemHintBTree,
+            new[] { "observer", "selector", "reactive", "guard" }, "bt/observer_selector", false, false, false,
             inputs: new[] { ExecIn }, outputs: new[] { ExecOut }));
 
         entries.Add(Make(BTreeKinds.Parallel, "Parallel", CatComposite,
@@ -126,6 +128,7 @@ public sealed class BTreeNodeCatalog : INodeCatalog
         new NodeCategoryDescriptor(CatComposite, "Composites", "bt/composite"),
         new NodeCategoryDescriptor(CatLeaf,      "Leaves",     "bt/leaf"),
         new NodeCategoryDescriptor(CatDecorator, "Decorators", "bt/decorator"),
+        new NodeCategoryDescriptor(CatReactiveGuard, ReactiveGuardVocabulary.CategoryName, null),
     };
 
     public IReadOnlyList<NodeCatalogEntry> Query(NodeSearchQuery q)

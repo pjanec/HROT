@@ -1,6 +1,9 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+#if NET8_0_OR_GREATER
+using Fdp.Toolkit.ReplayBrowser.Search;
+#endif
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -35,6 +38,9 @@ internal static class Stage2_Validate
         new V_PeerReferences(),
         new V_TypeReferences(),
         new V_DeterminismOrdering(),
+        new V_WhenNodeRules(),
+        new V_ReadEqsResultNodeRules(),
+        new V_SpawnEqsSensorNodeRules(),
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -642,6 +648,324 @@ internal sealed class V_DeterminismOrdering : IValidator
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
         // Slice 2 implementation.
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_WhenNodeRules (BP2001-BP2015)
+// ---------------------------------------------------------------------------
+
+internal sealed class V_WhenNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        var eventEntries = ctx.EngineEvents.GetEntries();
+
+        foreach (var graph in asset.Graphs)
+        {
+            // A Function graph in an Instance blueprint is "pure" if it contains no
+            // EventEntryNode (i.e., it is a user-defined pure helper function).
+            // WhenNode is forbidden in pure helper functions.
+            bool graphIsPureFunction = asset.Dispatch == BlueprintDispatchKind.Instance
+                && graph.Kind == GraphKind.Function
+                && !graph.Nodes.OfType<EventEntryNode>().Any();
+
+            foreach (var node in graph.Nodes.OfType<WhenNode>())
+            {
+                // BP2001 -- unsupported dispatch (Library, AiPrimitive, or Instance pure-function)
+                if (asset.Dispatch == BlueprintDispatchKind.Library
+                    || asset.Dispatch == BlueprintDispatchKind.AiPrimitive
+                    || graphIsPureFunction)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2001,
+                        $"WhenNode is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+
+                // BP2012 -- Edges set to None (check before mode-specific checks)
+                if (node.Edges == WhenEdge.None)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2012,
+                        "WhenNode has Edges set to None; at least one edge direction is required.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                // BP2002 -- missing required payload
+                bool missingPayload = node.Mode switch
+                {
+                    WhenMode.ValueChanged => node.ValueChanged == null,
+                    WhenMode.EventFired   => node.EventFired == null,
+                    WhenMode.ConditionMet => node.ConditionMet == null,
+                    WhenMode.EqsResult    => node.EqsResult == null,
+                    _                     => false,
+                };
+                if (missingPayload)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2002,
+                        $"WhenNode Mode={node.Mode} requires a matching payload object.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                // Mode-specific validation
+                if (node.Mode == WhenMode.ValueChanged && node.ValueChanged != null)
+                    ValidateValueChanged(asset, graph, node, node.ValueChanged, ctx);
+                else if (node.Mode == WhenMode.EventFired && node.EventFired != null)
+                    ValidateEventFired(asset, graph, node, node.EventFired, eventEntries, ctx);
+                else if (node.Mode == WhenMode.ConditionMet && node.ConditionMet != null)
+                    ValidateConditionMet(asset, graph, node, node.ConditionMet, ctx);
+                else if (node.Mode == WhenMode.EqsResult && node.EqsResult != null)
+                    ValidateEqsResult(asset, graph, node, node.EqsResult, ctx);
+
+                // TODO BP2015: WhenNode downstream of a Branch -- deferred.
+                // Exec pins are not materialized until Stage 3 (Normalize). When all
+                // nodes in the graph have empty Pins lists, branch-successor detection
+                // is not reliable. Implement after Stage 3 pin materialization.
+            }
+        }
+    }
+
+    private static void ValidateValueChanged(
+        BlueprintAsset asset, Graph graph, WhenNode node,
+        ValueChangedPayload vc, ValidationContext ctx)
+    {
+        // BP2003 -- invalid property path (not applicable for PeerBlueprintVariable source)
+        if (vc.Source != ValueChangedSource.PeerBlueprintVariable
+            && (string.IsNullOrEmpty(vc.ComponentTypeId) || string.IsNullOrEmpty(vc.PropertyPath)))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2003,
+                "WhenNode ValueChanged: ComponentTypeId and PropertyPath must not be empty.",
+                asset.AssetId, graph.Id, node.Id));
+
+        // BP2004 -- peer BP variable not declared
+        if (vc.Source == ValueChangedSource.PeerBlueprintVariable)
+        {
+            if (vc.PeerBlueprintAssetId == null)
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2004,
+                    "WhenNode ValueChanged Source=PeerBlueprintVariable: PeerBlueprintAssetId is null.",
+                    asset.AssetId, graph.Id, node.Id));
+            else if (!ctx.SiblingSignaturesById.ContainsKey(vc.PeerBlueprintAssetId.Value))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2004,
+                    $"WhenNode ValueChanged: peer blueprint {vc.PeerBlueprintAssetId} not in sibling signatures.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
+
+        // BP2014 -- epsilon on non-float field (warning, best-effort)
+        if (vc.Epsilon != 0)
+            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2014,
+                "WhenNode ValueChanged: Epsilon is non-zero. "
+                + "Ensure the observed property is a floating-point type.",
+                asset.AssetId, graph.Id, node.Id));
+    }
+
+    private static void ValidateEventFired(
+        BlueprintAsset asset, Graph graph, WhenNode node,
+        EventFiredPayload ef, IReadOnlyList<EngineEventCatalogEntry> catalogEntries,
+        ValidationContext ctx)
+    {
+        // BP2005 -- event type not in catalog
+        if (string.IsNullOrEmpty(ef.EventTypeId))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2005,
+                "WhenNode EventFired: EventTypeId must not be empty.",
+                asset.AssetId, graph.Id, node.Id));
+        }
+        else if (catalogEntries.Count > 0 && !catalogEntries.Any(e =>
+            e.EventTypeFqn == ef.EventTypeId
+            || Stage2Helpers.LastSegment(e.EventTypeFqn) == ef.EventTypeId))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2005,
+                $"WhenNode EventFired: event type '{ef.EventTypeId}' is not in the engine event catalog.",
+                asset.AssetId, graph.Id, node.Id));
+        }
+
+        // BP2006 -- Self filter without target field
+        if (ef.TargetFilter == EventTargetFilter.Self && string.IsNullOrEmpty(ef.TargetFieldName))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2006,
+                "WhenNode EventFired TargetFilter=Self requires TargetFieldName to be specified.",
+                asset.AssetId, graph.Id, node.Id));
+
+        // BP2007 -- payload condition invalid
+        if (ef.PayloadCheck != null
+            && (string.IsNullOrEmpty(ef.PayloadCheck.PropertyPath)
+                || string.IsNullOrEmpty(ef.PayloadCheck.TargetValueText)))
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2007,
+                "WhenNode EventFired PayloadCheck: PropertyPath and TargetValueText must not be empty.",
+                asset.AssetId, graph.Id, node.Id));
+        }
+
+        // BP2013 -- FallingEdge on EventFired (warning: events have no falling edge)
+        if ((node.Edges & WhenEdge.FallingEdge) != 0)
+            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2013,
+                "WhenNode EventFired with FallingEdge: events cannot have a falling edge; this edge will never fire.",
+                asset.AssetId, graph.Id, node.Id));
+    }
+
+    private static void ValidateConditionMet(
+        BlueprintAsset asset, Graph graph, WhenNode node,
+        ConditionMetPayload cm, ValidationContext ctx)
+    {
+        // BP2008 -- predicate tree null or empty
+        if (cm.Condition == null)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2008,
+                "WhenNode ConditionMet: Condition predicate must not be null.",
+                asset.AssetId, graph.Id, node.Id));
+            return;
+        }
+
+#if NET8_0_OR_GREATER
+        if (cm.Condition is CompoundPredicateDto compound && compound.Conditions.Count == 0)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2008,
+                "WhenNode ConditionMet: CompoundPredicateDto has no conditions.",
+                asset.AssetId, graph.Id, node.Id));
+        }
+
+        // BP2009 -- predicate DTO references unknown type
+        if (HasUnresolvableComponentType(cm.Condition))
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2009,
+                "WhenNode ConditionMet: predicate tree references a component type that could not be resolved.",
+                asset.AssetId, graph.Id, node.Id));
+#endif
+    }
+
+#if NET8_0_OR_GREATER
+    private static bool HasUnresolvableComponentType(SearchPredicateDto? predicate)
+    {
+        return predicate switch
+        {
+            null                    => false,
+            PropertyMatchDto p      => p.ComponentType == null,
+            CompoundPredicateDto c  => c.Conditions.Any(HasUnresolvableComponentType),
+            _                       => false,
+        };
+    }
+#endif
+
+    private static void ValidateEqsResult(
+        BlueprintAsset asset, Graph graph, WhenNode node,
+        EqsResultPayload er, ValidationContext ctx)
+    {
+        // BP2010 -- sensor variable not declared
+        bool sensorDeclared = asset.Variables.Any(v =>
+            v.Name == er.SensorVariableName
+            && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+        if (!sensorDeclared)
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2010,
+                $"WhenNode EqsResult: sensor variable '{er.SensorVariableName}' "
+                + "is not declared as EqsSensorHandle.",
+                asset.AssetId, graph.Id, node.Id));
+
+        // BP2011 -- trigger requires threshold/max-age
+        if (er.Trigger == EqsTrigger.ScoreCrossed && er.ScoreThreshold == 0)
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2011,
+                "WhenNode EqsResult Trigger=ScoreCrossed requires ScoreThreshold != 0.",
+                asset.AssetId, graph.Id, node.Id));
+
+        if (er.Trigger == EqsTrigger.BecomesStale && er.MaxAgeSeconds <= 0)
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2011,
+                "WhenNode EqsResult Trigger=BecomesStale requires MaxAgeSeconds > 0.",
+                asset.AssetId, graph.Id, node.Id));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_ReadEqsResultNodeRules (BP2020-BP2021)
+// ---------------------------------------------------------------------------
+
+internal sealed class V_ReadEqsResultNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+                || (graph.Kind == GraphKind.Function
+                    && !graph.Nodes.OfType<EventEntryNode>().Any());
+
+            foreach (var node in graph.Nodes.OfType<ReadEqsResultNode>())
+            {
+                // BP2020 -- unsupported dispatch
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2020,
+                        $"ReadEqsResultNode is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                // BP2021 -- sensor variable not declared
+                bool sensorDeclared = asset.Variables.Any(v =>
+                    v.Name == node.SensorVariableName
+                    && v.Type.TypeId == "FDP.Eqs.EqsSensorHandle");
+                if (!sensorDeclared)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2021,
+                        $"ReadEqsResultNode: sensor variable '{node.SensorVariableName}' "
+                        + "is not declared as EqsSensorHandle.",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_SpawnEqsSensorNodeRules (BP2030-BP2031)
+// ---------------------------------------------------------------------------
+
+internal sealed class V_SpawnEqsSensorNodeRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        // BP2030 / BP2031 -- per-node checks (per graph)
+        foreach (var graph in asset.Graphs)
+        {
+            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+                || (graph.Kind == GraphKind.Function
+                    && !graph.Nodes.OfType<EventEntryNode>().Any());
+
+            foreach (var node in graph.Nodes.OfType<SpawnEqsSensorNode>())
+            {
+                // BP2030 -- unsupported dispatch
+                if (isUnsupported)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2030,
+                        $"SpawnEqsSensorNode is not permitted in dispatch context '{asset.Dispatch}'.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                // BP2031 -- template not found
+                if (node.TemplateAssetId == Guid.Empty)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2031,
+                        "SpawnEqsSensorNode: TemplateAssetId must not be empty.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+                else if (ctx.EqsTemplates != null
+                    && !ctx.EqsTemplates.Contains(node.TemplateAssetId))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2031,
+                        $"SpawnEqsSensorNode: template '{node.TemplateAssetId}' is not in the EQS template catalog.",
+                        asset.AssetId, graph.Id, node.Id));
+                }
+                // When ctx.EqsTemplates == null, no catalog is configured; BP2031 is suppressed.
+            }
+        }
+
+        // BP2032: InstanceId collision between two SpawnEqsSensorNode instances in the same asset.
+        // Runs once per asset (cross-graph) because InstanceId uniqueness must hold asset-wide.
+        // An InstanceId collision means two sensors would share the same DDS replication key.
+        var graphById = asset.Graphs.ToDictionary(g => g.Id);
+        var allSpawnNodes = asset.Graphs
+            .SelectMany(g => g.Nodes.OfType<SpawnEqsSensorNode>().Select(n => (Graph: g, Node: n)))
+            .ToList();
+
+        if (allSpawnNodes.Count > 1)
+        {
+            var instanceIdGroups = allSpawnNodes
+                .GroupBy(x => x.Node.Id.GetHashCode())
+                .Where(g => g.Count() > 1);
+
+            foreach (var collision in instanceIdGroups)
+            {
+                foreach (var (graph, collider) in collision)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2032,
+                        $"SpawnEqsSensorNode has InstanceId collision (hash {collision.Key}) with another SpawnEqsSensorNode in this asset. Use distinct node IDs.",
+                        asset.AssetId, graph.Id, collider.Id));
+                }
+            }
+        }
     }
 }
 

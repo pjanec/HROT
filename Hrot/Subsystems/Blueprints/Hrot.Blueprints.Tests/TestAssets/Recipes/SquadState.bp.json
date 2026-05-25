@@ -1,0 +1,93 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000000-aaaa-0001-0000-000000000005",
+  "Name": "SquadState",
+  "Dispatch": 2,
+  "TierHint": 0,
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a5000001-0001-0001-0001-000000000001",
+      "Name": "ThreatLevel",
+      "Type": { "TypeId": "System.Single" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "a5000001-0002-0002-0002-000000000002",
+      "Name": "SquadSize",
+      "Type": { "TypeId": "System.Int32" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "a5000001-0003-0003-0003-000000000003",
+      "Name": "Formation",
+      "Type": { "TypeId": "System.Byte" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b5000001-0001-0001-0001-000000000001",
+      "Name": "GetThreatLevel",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d5000001-0001-0001-0001-000000000001",
+          "Name": "ThreatLevel",
+          "Type": { "TypeId": "System.Single" },
+          "DefaultValueJson": null
+        }
+      ],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "c5000001-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "c5000001-0002-0002-0002-000000000002",
+          "VariableId": "a5000001-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "c5000001-0003-0003-0003-000000000003",
+          "Status": 0,
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Squad Shared State (template)",
+      "Category": "Shared",
+      "Description": "Holds cross-cutting squad state with pure getter graphs. Other Instance Blueprints declare this in callablePeers and read state via peer calls or WhenNode Value Changed (peer source). Use this pattern for any shared singleton entity state.",
+      "Difficulty": "Intermediate",
+      "ConceptsTaught": [
+        "Instance Blueprint as a state container",
+        "Pure-function graphs with output parameters",
+        "Designed to be referenced via callablePeers",
+        "The EntityState/SquadState shared-state pattern"
+      ]
+    }
+  }
+}

@@ -17,11 +17,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// If not found, submits a <see cref="RaycastRequestEvent"/> (subject to the
     /// per-tick budget in <see cref="EqsSolverGlobalState"/>) and marks the candidate
     /// with <see cref="FlagPendingRay"/> so the solver knows to yield.</para>
+    ///
+    /// <para>The threat position is read from the entity in the configured context slot
+    /// (default slot 1 = Target). The observer's <see cref="TargetMemory"/> is still
+    /// consulted for the threat-score threshold gate, but NOT for the target position.</para>
     /// </summary>
     public sealed class AccurateLineOfSightTest : IEqsTest
     {
         /// <summary>Flag bit 15: raycast submitted but result not yet in ring buffer.</summary>
         public const short FlagPendingRay = unchecked((short)(1 << 15));
+
+        /// <summary>
+        /// Index of the sensor context slot whose entity's <see cref="SimTransform"/>
+        /// provides the threat position. Default 1 (Target slot by convention).
+        /// </summary>
+        public byte ContextSlotIndex { get; set; } = 1;
 
         /// <inheritdoc/>
         public EqsTestPhase Phase => EqsTestPhase.ScoreExpensive;
@@ -35,12 +45,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
         {
             if (view is not EntityRepository repo) return;
 
-            // Bypass: no TargetMemory or no threats tracked.
+            // Step 1-3: Resolve context slot; bypass if null or no SimTransform.
+            var slotEntity = GetSlotEntity(ref sensor);
+            if (slotEntity.IsNull) return;
+            if (!repo.HasComponent<SimTransform>(slotEntity)) return;
+            ref readonly var slotTransform = ref repo.GetComponentRO<SimTransform>(slotEntity);
+
+            // Step 4-6: Keep threshold gate (reads from observer's TargetMemory).
             if (!repo.HasComponent<TargetMemory>(observer)) return;
             ref readonly var mem = ref repo.GetComponentRO<TargetMemory>(observer);
             if (mem.Count == 0) return;
-
-            // Bypass: threat score below threshold.
             if (mem.ThreatScores[0] < sensor.ThreatThreshold) return;
 
             // Guard: ring buffer not initialized — mark all non-rejected candidates as pending.
@@ -57,10 +71,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
             // Guard: global budget state not initialized.
             if (!repo.HasSingleton<EqsSolverGlobalState>()) return;
 
-            ref readonly var rayBatch   = ref repo.GetSingleton<RaycastBatchData>();
+            ref readonly var rayBatch    = ref repo.GetSingleton<RaycastBatchData>();
             ref var          globalState = ref repo.GetSingletonUnmanaged<EqsSolverGlobalState>();
 
-            var targetPos3D = new Vector3(mem.PositionsX[0], mem.PositionsY[0], 1.5f);
+            // Threat position from slot entity's SimTransform (not from TargetMemory).
+            var targetPos3D = new Vector3(slotTransform.Position.X, slotTransform.Position.Y, 1.5f);
             var cmd         = view.GetCommandBuffer();
 
             for (int i = 0; i < candidates.Length; i++)
@@ -80,13 +95,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                     if (hit.HasHit != 0)
                     {
-                        // Geometry blocks LOS → candidate is occluded → good cover.
-                        candidates[i].Flags |= 1;
+                        // Geometry blocks LOS -> candidate is occluded -> good cover.
+                        candidates[i].Flags           |= 1;
+                        candidates[i].FlagsMeaningful |= 1; // Bit 0 was computed by this test.
                     }
                     else
                     {
-                        // Clear LOS → candidate exposed to threat → reject.
-                        candidates[i].EntityId = -1L;
+                        // Clear LOS -> candidate exposed to threat -> reject.
+                        candidates[i].EntityId        = -1L;
+                        candidates[i].FlagsMeaningful |= 1; // Bit 0 was computed (result = rejection).
                     }
                 }
                 else
@@ -112,6 +129,16 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     candidates[i].Flags = unchecked((short)(candidates[i].Flags | (1 << 15)));
                 }
             }
+        }
+
+        private Entity GetSlotEntity(ref EqsSensor sensor)
+        {
+            return ContextSlotIndex switch
+            {
+                0 => sensor.ContextSlot0,
+                2 => sensor.ContextSlot2,
+                _ => sensor.ContextSlot1,
+            };
         }
     }
 }

@@ -1,0 +1,110 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000000-aaaa-0001-0000-000000000001",
+  "Name": "CoverAwarePatrol",
+  "Dispatch": 2,
+  "TierHint": 0,
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a1000001-0001-0001-0001-000000000001",
+      "Name": "CoverQuery",
+      "Type": { "TypeId": "FDP.Eqs.EqsSensorHandle" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "a1000001-0002-0002-0002-000000000002",
+      "Name": "Initialized",
+      "Type": { "TypeId": "System.Boolean" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "a1000001-0003-0003-0003-000000000003",
+      "Name": "PatrolTarget",
+      "Type": { "TypeId": "System.Numerics.Vector2" },
+      "IsEditable": false,
+      "DefaultValueJson": null
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b1000001-0001-0001-0001-000000000001",
+      "Name": "Tick",
+      "Kind": 1,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "c1000001-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "SpawnEqsSensor",
+          "Id": "c1000001-0002-0002-0002-000000000002",
+          "TemplateAssetId": "00000000-cccc-0001-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "When",
+          "Id": "c1000001-0003-0003-0003-000000000003",
+          "Mode": 3,
+          "Edges": 1,
+          "EqsResult": {
+            "SensorVariableName": "CoverQuery",
+            "Trigger": 1,
+            "ScoreThreshold": 0.0,
+            "MaxAgeSeconds": 0.0
+          },
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "ReadEqsResult",
+          "Id": "c1000001-0004-0004-0004-000000000004",
+          "SensorVariableName": "CoverQuery",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "c1000001-0005-0005-0005-000000000005",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Cover-aware Patrol",
+      "Category": "Combat",
+      "Description": "Complete end-to-end EQS pipeline demonstration. First-tick branch gates one-shot sensor setup; WhenNode observes the sensor for top-result changes; ReadEqsResultNode extracts position; MoveTo channel command issued. Demonstrates all three new nodes.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "Declaring an EqsSensorHandle variable",
+        "First-tick pattern: using an Initialized boolean to gate one-shot setup",
+        "SpawnEqsSensorNode with SearchRadius and FactionFilter pins",
+        "WhenNode in EQS Result mode (TopChanged trigger)",
+        "ReadEqsResultNode for downstream data extraction",
+        "The complete spawn - observe - read - act pipeline"
+      ]
+    }
+  }
+}

@@ -36,6 +36,16 @@ public sealed class AssetMetadata
 {
     public string? Description { get; set; }
     public string? Category { get; set; }
+    public RecipeMetadata? Recipe { get; set; }
+}
+
+public sealed class RecipeMetadata
+{
+    public string DisplayName { get; set; } = "";
+    public string Category { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Difficulty { get; set; } = "Beginner";
+    public List<string> ConceptsTaught { get; set; } = new();
 }
 
 public sealed class GraphMetadata

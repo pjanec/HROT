@@ -50,6 +50,9 @@ namespace Hrot.Network.NED.SimHost
             {
                 ref readonly var evt = ref events[ei];
 
+                // Skip local-only results (ParentNetworkId == 0): they are not replicated via DDS.
+                if (evt.ParentNetworkId == 0) continue;
+
                 // Build the managed DDS payload from the unmanaged pool slice.
                 // EntryCount == 0 (Phase 1 stub) is valid: publish an empty result.
                 var entries = new List<EqsResultEntry>(evt.EntryCount);
@@ -73,18 +76,20 @@ namespace Hrot.Network.NED.SimHost
 
                         entries.Add(new EqsResultEntry
                         {
-                            EntityId  = resolvedNetId,
-                            PositionX = r.PositionX,
-                            PositionY = r.PositionY,
-                            Score     = r.Score,
-                            Flags     = (ushort)r.Flags,
+                            EntityId       = resolvedNetId,
+                            PositionX      = r.PositionX,
+                            PositionY      = r.PositionY,
+                            Score          = r.Score,
+                            Flags          = (ushort)r.Flags,
+                            FlagsMeaningful = (ushort)r.FlagsMeaningful,
                         });
                     }
                 }
 
                 _writer.Write(new EqsResultTopic
                 {
-                    SensorNetworkId = evt.SensorNetworkId,
+                    ParentNetworkId = evt.ParentNetworkId,
+                    LocalChildIndex = evt.LocalChildIndex,
                     Epoch           = evt.Epoch,
                     RefreshTick     = evt.RefreshTick,
                     Results         = entries,

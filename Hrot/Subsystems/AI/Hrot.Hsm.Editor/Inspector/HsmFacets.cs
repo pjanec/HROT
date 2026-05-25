@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Fhsm.Kernel.Data;
+using Hrot.Editor.AiShared;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core.Attributes;
 
@@ -68,7 +69,7 @@ public struct TransitionFacet
     [HsmEventPicker]
     public ushort EventId;
 
-    [EditDisplayName("Guard")]
+    [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
     [HsmGuardPicker]
     public string? GuardFunction;
 
@@ -169,7 +170,7 @@ public struct GlobalTransitionFacet
     [HsmStateSelector]
     public string TargetStateName;
 
-    [EditDisplayName("Guard")]
+    [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
     [HsmGuardPicker]
     public string? GuardFunction;
 

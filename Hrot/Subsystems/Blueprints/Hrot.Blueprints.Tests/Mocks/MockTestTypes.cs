@@ -41,7 +41,7 @@ internal unsafe struct LargeTestStruct
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(254)]
-internal struct AnotherTestComponent
+public struct AnotherTestComponent
 {
     public float X;
     public float Y;

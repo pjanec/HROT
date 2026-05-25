@@ -15,6 +15,7 @@ internal sealed class ValidationContext
     public IEngineEventCatalog EngineEvents { get; }
     public IChannelCommandCatalog ChannelCommands { get; }
     public IWaitPrimitiveCatalog WaitPrimitives { get; }
+    public IEqsTemplateCatalog? EqsTemplates { get; }
 
     // Patch 1: signatures only, NOT full assets.
     public IReadOnlyDictionary<Guid, BlueprintSignature> SiblingSignaturesById { get; }
@@ -30,6 +31,7 @@ internal sealed class ValidationContext
         EngineEvents     = options.EngineEvents;
         ChannelCommands  = options.ChannelCommands;
         WaitPrimitives   = options.WaitPrimitives;
+        EqsTemplates     = options.EqsTemplates;
         SiblingSignaturesById = options.SiblingSignatures
             .ToDictionary(s => s.AssetId);
     }

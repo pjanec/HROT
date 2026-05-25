@@ -86,12 +86,21 @@ public sealed class FindCoverFromTargetTests : IDisposable
         TargetMemory.AddOrUpdateTarget(ref mem, entityId: 999L, posX: 20f, posY: 0f, scoreBoost: 100f, tick: 1);
         _harness.Repo.AddComponent(observer, mem);
 
+        // Context slot 1 entity -- provides threat position (20, 0) for CheapLineOfSightTest.
+        var targetEntity = _harness.Repo.CreateEntity();
+        _harness.Repo.AddComponent(targetEntity, new SimTransform
+        {
+            Position = new Vector3(20f, 0f, 0f),
+            Rotation = Quaternion.Identity,
+        });
+
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = FindCoverFromTarget.BlueprintId,
             Epoch           = 1,
             SearchRadius    = 25f,
             ThreatThreshold = 50f,
+            ContextSlot1    = targetEntity,
         });
         _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8001L });
 
@@ -148,12 +157,21 @@ public sealed class FindCoverFromTargetTests : IDisposable
         // No threats: TargetMemory.Count == 0.
         _harness.Repo.AddComponent(observer, new TargetMemory());
 
+        // Context slot 1 entity -- needed to reach the Count==0 bypass gate.
+        var nullThreatTarget = _harness.Repo.CreateEntity();
+        _harness.Repo.AddComponent(nullThreatTarget, new SimTransform
+        {
+            Position = new Vector3(100f, 0f, 0f),
+            Rotation = Quaternion.Identity,
+        });
+
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = FindCoverFromTarget.BlueprintId,
             Epoch           = 1,
             SearchRadius    = 25f,
             ThreatThreshold = 50f,
+            ContextSlot1    = nullThreatTarget,
         });
         _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 8002L });
 

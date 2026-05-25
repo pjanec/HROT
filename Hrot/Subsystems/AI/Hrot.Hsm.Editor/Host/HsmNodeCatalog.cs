@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hrot.Editor.AiShared;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -16,8 +17,11 @@ internal sealed class HsmNodeCatalog : INodeCatalog
 
     private static readonly IReadOnlyList<NodeCatalogEntry> _all = BuildEntries();
 
-    private static readonly IReadOnlyList<NodeCategoryDescriptor> _categories =
-        new[] { new NodeCategoryDescriptor(CatStates, "States", null) };
+    private static readonly IReadOnlyList<NodeCategoryDescriptor> _categories = new[]
+    {
+        new NodeCategoryDescriptor(CatStates, "States", null),
+        new NodeCategoryDescriptor(ReactiveGuardVocabulary.CategoryName, ReactiveGuardVocabulary.CategoryName, null),
+    };
 
     public IReadOnlyList<NodeCatalogEntry> All       => _all;
     public IReadOnlyList<NodeCategoryDescriptor> Categories => _categories;

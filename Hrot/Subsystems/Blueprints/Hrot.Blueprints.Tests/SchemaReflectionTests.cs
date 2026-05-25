@@ -1,19 +1,20 @@
 using System.Reflection;
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 
 namespace Hrot.Blueprints.Tests;
 
 public sealed class SchemaReflectionTests
 {
     [Fact]
-    public void ConcreteNodeSubtypeCount_Is19()
+    public void ConcreteNodeSubtypeCount_Is22()
     {
         var count = typeof(Node).Assembly
             .GetTypes()
             .Count(t => !t.IsAbstract && t.IsSubclassOf(typeof(Node)));
 
-        Assert.Equal(19, count);
+        Assert.Equal(22, count);
     }
 
     [Theory]
@@ -36,6 +37,9 @@ public sealed class SchemaReflectionTests
     [InlineData(typeof(ChannelCommandNode),      "ChannelCommand")]
     [InlineData(typeof(WaitForChannelNode),      "WaitForChannel")]
     [InlineData(typeof(WaitForEventNode),        "WaitForEvent")]
+    [InlineData(typeof(WhenNode),           "When")]
+    [InlineData(typeof(ReadEqsResultNode),  "ReadEqsResult")]
+    [InlineData(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")]
     public void DiscriminatorRoundTrip_EachNodeKind(Type nodeType, string expectedDiscriminator)
     {
         var node = (Node)Activator.CreateInstance(nodeType)!;
@@ -104,5 +108,17 @@ public sealed class SchemaReflectionTests
         Assert.Empty(asset.Graphs);
         Assert.NotNull(asset.EventDispatchers);
         Assert.Empty(asset.EventDispatchers);
+    }
+
+    [Fact]
+    public void EqsSensorHandle_IsPermittedVariableType()
+    {
+        var typeRef = new BlueprintTypeRef { TypeId = "FDP.Eqs.EqsSensorHandle" };
+        bool resolved = StaticTypeRegistry.Instance.TryResolve(typeRef, out var irType);
+
+        Assert.True(resolved);
+        Assert.Equal("FDP.Eqs.EqsSensorHandle", irType.FullName);
+        Assert.True(irType.IsUnmanaged);
+        Assert.Equal(8, irType.SizeBytes);
     }
 }

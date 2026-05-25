@@ -115,7 +115,7 @@ internal static class Stage3_Normalize
                 ToNodeId   = link.ToNodeId, ToPinId  = link.ToPinId,
             });
 
-            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2002,
+            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP3011,
                 $"Implicit cast inserted from '{fromIr.FullName}' to '{toIr.FullName}'.",
                 asset.AssetId, graph.Id));
         }
@@ -169,7 +169,7 @@ internal static class Stage3_Normalize
         var orphanIds = new HashSet<Guid>(orphans.Select(n => n.Id));
 
         foreach (var orphan in orphans)
-            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2001,
+            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP3010,
                 $"Orphan node '{orphan.Id}' in graph '{graph.Name}' was eliminated.",
                 asset.AssetId, graph.Id, orphan.Id));
 
@@ -187,6 +187,11 @@ internal static class Stage3_Normalize
         {
             if (link.FromNodeId == startId)
                 CollectReachable(graph, link.ToNodeId, visited);
+            // Also follow links in reverse so that data-provider nodes (e.g. LiteralNode)
+            // are not incorrectly eliminated as orphans when their only connection is an
+            // outgoing data wire into a node that is exec-reachable.
+            if (link.ToNodeId == startId)
+                CollectReachable(graph, link.FromNodeId, visited);
         }
     }
 

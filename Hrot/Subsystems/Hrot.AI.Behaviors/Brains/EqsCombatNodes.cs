@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
+using FDP.Eqs;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -20,6 +21,11 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         /// <summary>Distance from the cover point that counts as arrival (m).</summary>
         public float ArrivalRadius;
+        /// <summary>
+        /// Optional: if valid, read EqsCognitiveBuffer from the child sensor entity.
+        /// If invalid (default), fall back to reading from ctx.Self.
+        /// </summary>
+        public EqsSensorHandle SensorHandle;
     }
 
     /// <summary>
@@ -58,13 +64,18 @@ namespace Hrot.AI.Behaviors.Brains
             ref BehaviorTreeState state,
             ref BTreeContext ctx)
         {
-            // 1. Guard: require both components
-            if (!ctx.World.HasComponent<EqsCognitiveBuffer>(ctx.Self) ||
+            // 1. Resolve the entity to read the buffer from.
+            Entity bufferEntity = p.SensorHandle.IsValid && ctx.World.IsAlive(p.SensorHandle.ChildId)
+                ? p.SensorHandle.ChildId
+                : ctx.Self;
+
+            // 2. Guard: require both components (LocomotionChannel stays on ctx.Self).
+            if (!ctx.World.HasComponent<EqsCognitiveBuffer>(bufferEntity) ||
                 !ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
                 return NodeStatus.Failure;
 
-            // 2. Buffer must be ready and non-empty
-            ref readonly var buffer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(ctx.Self);
+            // 3. Buffer must be ready and non-empty
+            ref readonly var buffer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(bufferEntity);
             if (!buffer.IsReady || buffer.Count == 0)
                 return NodeStatus.Failure;
 
@@ -73,21 +84,21 @@ namespace Hrot.AI.Behaviors.Brains
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
 
-            // 3. Propagate behavior instance ID to prevent channel arbitration stomping
+            // 4. Propagate behavior instance ID to prevent channel arbitration stomping
             if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
             {
                 var behavior = ctx.World.GetComponent<BehaviorState>(ctx.Self);
                 channel.BehaviorInstanceId = behavior.InstanceId;
             }
 
-            // 4. Forward terminal status from the executor
+            // 5. Forward terminal status from the executor
             if (channel.ActiveAction == NavigationConstants.ActionIdMoveTo)
             {
                 if (channel.Status == NodeStatus.Success) return NodeStatus.Success;
                 if (channel.Status == NodeStatus.Failure) return NodeStatus.Failure;
             }
 
-            // 5. Activate or update the locomotion channel
+            // 6. Activate or update the locomotion channel
             bool needsActivation = channel.ActiveAction != NavigationConstants.ActionIdMoveTo ||
                                    channel.Status == NodeStatus.Failure;
 

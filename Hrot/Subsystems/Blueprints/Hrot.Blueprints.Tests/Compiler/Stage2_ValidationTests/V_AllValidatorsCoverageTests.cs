@@ -9,11 +9,12 @@ namespace Hrot.Blueprints.Tests.Compiler;
 /// </summary>
 public sealed class V_AllValidatorsCoverageTests
 {
-    // Codes that are defined but not yet emitted by Slice 1 implementation.
+    // Codes that are defined but not yet emitted by current implementation.
     private static readonly HashSet<string> KnownNotYetEmittedCodes = new(StringComparer.Ordinal)
     {
-        "BP1600",  // OrphanedNode: declared as unused alias of BP2001
-        "BP2003",  // Reserved for Stage 3, Slice 2
+        "BP1600",  // OrphanedNode: declared as graph-structure code, not yet emitted
+        "BP2015",  // WhenNode downstream of Branch: deferred (pins not materialized at Stage 2)
+        "BP3012",  // Reserved for Stage 3, future use
         "BP3001",  // Reserved for Stage 4, Slice 2
         "BP4002",  // Reserved for Stage 5, Slice 2
         "BP4003",  // Reserved for Stage 5, Slice 2

@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         [Fact]
         public void EqsResult_SizeIs24Bytes()
         {
-            // 8 (EntityId) + 4 (PositionX) + 4 (PositionY) + 4 (Score) + 2 (Flags) + 2 (_pad) = 24
+            // 8 (EntityId) + 4 (PositionX) + 4 (PositionY) + 4 (Score) + 2 (Flags) + 2 (FlagsMeaningful) = 24
             Assert.Equal(24, Marshal.SizeOf<EqsResult>());
         }
 

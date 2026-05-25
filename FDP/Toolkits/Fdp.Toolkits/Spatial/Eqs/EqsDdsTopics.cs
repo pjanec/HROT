@@ -15,8 +15,10 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EqsSensorConfigTopic
     {
-        /// <summary>Network ID of the entity that owns the sensor (key field).</summary>
-        [DdsKey] public long EntityId;
+        /// <summary>Network ID of the parent agent entity (first key field of the compound key).</summary>
+        [DdsKey] public long ParentNetworkId;
+        /// <summary>PartMetadata.InstanceId of the child sensor; 0 for legacy single-sensor (second key field of the compound key).</summary>
+        [DdsKey] public int LocalChildIndex;
         /// <summary>FNV-1a 32-bit hash of the query template BlueprintId.</summary>
         public uint BlueprintId;
         /// <summary>Sensor version counter. Muscle resets evaluation state on mismatch.</summary>
@@ -31,6 +33,14 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public byte PublishPolicy;
         /// <summary>Solver priority band byte (Critical, Normal, Low).</summary>
         public byte Priority;
+        /// <summary>Score change threshold for the ScoreDelta publish policy.</summary>
+        public float ScoreDeltaThreshold;
+        /// <summary>Network ID of the entity in context slot 0 (Self/Observer). 0 = not assigned.</summary>
+        public long ContextSlot0NetworkId;
+        /// <summary>Network ID of the entity in context slot 1 (Target). 0 = not assigned.</summary>
+        public long ContextSlot1NetworkId;
+        /// <summary>Network ID of the entity in context slot 2 (Leader). 0 = not assigned.</summary>
+        public long ContextSlot2NetworkId;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────
@@ -53,6 +63,11 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public float Score;
         /// <summary>Result flags (e.g., HasLOSToContext).</summary>
         public ushort Flags;
+        /// <summary>
+        /// Parallel bitset indicating which bits in <see cref="Flags"/> were actually
+        /// computed by the template's tests.
+        /// </summary>
+        public ushort FlagsMeaningful;
     }
 
     /// <summary>
@@ -64,8 +79,10 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct EqsResultTopic
     {
-        /// <summary>Network ID of the entity that owns the originating sensor (key field).</summary>
-        [DdsKey] public long SensorNetworkId;
+        /// <summary>Network ID of the parent agent (first key field of the compound key).</summary>
+        [DdsKey] public long ParentNetworkId;
+        /// <summary>PartMetadata.InstanceId of the child sensor; 0 for legacy single-sensor (second key field of the compound key).</summary>
+        [DdsKey] public int LocalChildIndex;
         /// <summary>Sensor epoch at solve time. Brain discards stale deliveries.</summary>
         public uint Epoch;
         /// <summary>Simulation tick at which the solver completed this evaluation.</summary>

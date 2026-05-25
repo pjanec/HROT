@@ -37,11 +37,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
                 if (!navmesh.IsReachable(obsPos, targetPos))
                 {
-                    candidate.EntityId = -1L; // Reject: unreachable.
+                    candidate.EntityId        = -1L; // Reject: unreachable.
+                    candidate.FlagsMeaningful |= (short)(1 << 3); // Bit 3 was computed (result = rejection).
                 }
                 else
                 {
-                    candidate.Flags |= (1 << 3); // Bit 3: NavmeshReachable.
+                    candidate.Flags         |= (1 << 3); // Bit 3: NavmeshReachable.
+                    candidate.FlagsMeaningful |= (short)(1 << 3); // Bit 3 was computed by this test.
                 }
             }
         }

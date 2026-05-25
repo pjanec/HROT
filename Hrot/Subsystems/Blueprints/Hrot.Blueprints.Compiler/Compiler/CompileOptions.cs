@@ -12,4 +12,5 @@ public sealed record CompileOptions(
     IWaitPrimitiveCatalog WaitPrimitives,
     IReadOnlyList<BlueprintSignature> SiblingSignatures,
     bool EmitPdbWithEmbeddedSource = false,
-    string? VirtualSourcePath = null);
+    string? VirtualSourcePath = null,
+    IEqsTemplateCatalog? EqsTemplates = null);  // optional; null = no templates registered

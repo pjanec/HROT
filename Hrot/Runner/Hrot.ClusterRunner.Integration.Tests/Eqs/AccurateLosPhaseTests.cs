@@ -107,12 +107,21 @@ public sealed class AccurateLosPhaseTests : IDisposable
         }
         _harness.Repo.AddComponent(observer, mem);
 
+        // Context slot 1 entity -- provides threat position for AccurateLineOfSightTest.
+        var targetEntity = _harness.Repo.CreateEntity();
+        _harness.Repo.AddComponent(targetEntity, new SimTransform
+        {
+            Position = new Vector3(30f, 0f, 0f),
+            Rotation = Quaternion.Identity,
+        });
+
         _harness.Repo.AddComponent(observer, new EqsSensor
         {
             BlueprintId     = blueprintId,
             Epoch           = 1,
             SearchRadius    = 50f,
             ThreatThreshold = 0f,
+            ContextSlot1    = targetEntity,
         });
         _harness.Repo.AddComponent(observer, new NetworkIdentity { Value = 9001L + blueprintId });
         return observer;

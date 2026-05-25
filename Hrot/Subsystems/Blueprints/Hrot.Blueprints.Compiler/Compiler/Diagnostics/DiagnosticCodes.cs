@@ -49,14 +49,40 @@ public static class DiagnosticCodes
     public const string BP1503 = "BP1503";  // ManagedTypeInState
 
     // Stage 2 -- Validate (graph structure)
-    public const string BP1600 = "BP1600";  // OrphanedNode (unused, alias of BP2001)
+    public const string BP1600 = "BP1600";  // OrphanedNode (Stage 2 graph-structure)
     public const string BP1601 = "BP1601";  // GraphHasNoReturn
     public const string BP1602 = "BP1602";  // GraphHasNoEntry
 
+    // Stage 2 -- Validate (WhenNode rules)
+    public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
+    public const string BP2002 = "BP2002";  // WhenNode missing required payload
+    public const string BP2003 = "BP2003";  // WhenNode Value Changed: invalid property path
+    public const string BP2004 = "BP2004";  // WhenNode Value Changed: peer BP variable not declared
+    public const string BP2005 = "BP2005";  // WhenNode Event Fired: event type not in catalog
+    public const string BP2006 = "BP2006";  // WhenNode Event Fired: Self filter without target field
+    public const string BP2007 = "BP2007";  // WhenNode Event Fired: payload condition invalid
+    public const string BP2008 = "BP2008";  // WhenNode Condition Met: predicate tree null or empty
+    public const string BP2009 = "BP2009";  // WhenNode Condition Met: predicate DTO references unknown type
+    public const string BP2010 = "BP2010";  // WhenNode EQS Result: sensor variable not declared
+    public const string BP2011 = "BP2011";  // WhenNode EQS Result: trigger requires threshold/max-age
+    public const string BP2012 = "BP2012";  // WhenNode Edges set to None
+    public const string BP2013 = "BP2013";  // WhenNode Event Fired falling edge meaningless (warning)
+    public const string BP2014 = "BP2014";  // WhenNode Value Changed epsilon on non-float field (warning)
+    public const string BP2015 = "BP2015";  // WhenNode downstream of a Branch (warning)
+
+    // Stage 2 -- Validate (ReadEqsResultNode rules)
+    public const string BP2020 = "BP2020";  // ReadEqsResultNode in unsupported dispatch
+    public const string BP2021 = "BP2021";  // ReadEqsResultNode sensor variable not declared
+
+    // Stage 2 -- Validate (SpawnEqsSensorNode rules)
+    public const string BP2030 = "BP2030";  // SpawnEqsSensorNode in unsupported dispatch
+    public const string BP2031 = "BP2031";  // SpawnEqsSensorNode template not found
+    public const string BP2032 = "BP2032";  // SpawnEqsSensorNode InstanceId collision
+
     // Stage 3 -- Normalize
-    public const string BP2001 = "BP2001";
-    public const string BP2002 = "BP2002";
-    public const string BP2003 = "BP2003";
+    public const string BP3010 = "BP3010";
+    public const string BP3011 = "BP3011";
+    public const string BP3012 = "BP3012";
 
     // Stage 4 -- TypeResolve
     public const string BP3001 = "BP3001";

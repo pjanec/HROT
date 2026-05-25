@@ -8,6 +8,13 @@ internal static class SynthesizedGuids
     public static Guid WaitUntilTimeField(Guid assetId)
         => Derive("wait-until-time", assetId.ToString());
 
+    /// <summary>
+    /// Returns a deterministic GUID for the synthesized _when_&lt;id8&gt;_prev field
+    /// of a specific WhenNode within a specific Blueprint asset.
+    /// </summary>
+    public static Guid WhenPrevField(Guid assetId, Guid nodeId)
+        => Derive("when-prev-field", assetId.ToString(), nodeId.ToString());
+
     public static Guid DispatchBlock(Guid graphId)
         => Derive("dispatch-block", graphId.ToString());
 

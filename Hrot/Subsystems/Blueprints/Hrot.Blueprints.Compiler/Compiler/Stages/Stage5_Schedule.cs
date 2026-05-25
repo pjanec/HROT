@@ -140,6 +140,9 @@ internal sealed class GraphScheduler
     // Tracks whether a block has been fully scheduled
     private readonly HashSet<int> _scheduledBlocks = new();
 
+    // Post-BFS actions: appended to fired blocks after all user nodes are scheduled.
+    private readonly List<(int blockId, IrStatement stmt)> _whenPostActions = new();
+
     public GraphScheduler(Graph graph, TypedAsset typed, ValidationContext ctx)
     {
         _graph   = graph;
@@ -174,6 +177,10 @@ internal sealed class GraphScheduler
             _pinValueCache.Clear();
             ScheduleBlock(blockId, startNode);
         }
+
+        // Apply WhenNode post-actions: append StorePrev to each onFired block.
+        foreach (var (blockId, stmt) in _whenPostActions)
+            _blockBuilders[blockId].Statements.Add(stmt);
 
         return new IrGraph
         {
@@ -230,6 +237,10 @@ internal sealed class GraphScheduler
 
                 case WaitForEventNode wfe:
                     ScheduleLatentNode(wfe, bb, BuildWaitForEventOp(wfe));
+                    return;
+
+                case WhenNode wn:
+                    ScheduleWhenNode(wn, bb);
                     return;
 
                 default:
@@ -336,6 +347,248 @@ internal sealed class GraphScheduler
     }
 
     // -----------------------------------------------------------------------
+    // WhenNode handling
+    // -----------------------------------------------------------------------
+
+    private void ScheduleWhenNode(WhenNode wn, BlockBuilder bb)
+    {
+        var idShort = wn.Id.ToString("N").Substring(0, 8);
+        var synthFieldName = $"_when_{idShort}_prev";
+        var debug = DebugOf(wn);
+
+        bool hasFired = (wn.Edges & WhenEdge.RisingEdge) != 0;
+        bool hasEnded = (wn.Edges & WhenEdge.FallingEdge) != 0;
+
+        // Allocate blocks
+        IrBlockId? onFiredBlock = hasFired ? AllocBlock($"when_{idShort}_fired") : (IrBlockId?)null;
+        // TODO M3: FallingEdge — block structure is allocated but condition logic deferred.
+        IrBlockId? onEndedBlock = hasEnded ? AllocBlock($"when_{idShort}_ended") : (IrBlockId?)null;
+        var outBlock = AllocBlock($"when_{idShort}_out");
+
+        // Allocate result value (bool "fired/changed/matched")
+        var boolType = new IrTypeRef { FullName = "System.Boolean", IsUnmanaged = true, SizeBytes = 1 };
+        var condValue = AllocValue(boolType);
+
+        // Emit the mode-specific check op
+        switch (wn.Mode)
+        {
+            case WhenMode.ValueChanged:
+            {
+                var vc = wn.ValueChanged;
+                if (vc is null) break; // BP2002 already reported in Stage 2
+
+                string componentFqn = vc.ComponentTypeId;
+                string propertyPath  = vc.PropertyPath;
+                float epsilon = (float)vc.Epsilon;
+                int sourceKind = (int)vc.Source; // 0=SelfComponent, 1=Peer, 2=WorkingState
+
+                // At Stage 5 field type is unknown; emit "var" - Stage 7 emitter uses "var".
+                string fieldCSharpType = "var";
+
+                // Only emit WhenValueChangedCheck when RisingEdge is active.
+                // For FallingEdge-only (M2 deferred), emit a false constant so the
+                // branch structure is preserved without synthesizing a state field.
+                if (!hasFired)
+                {
+                    bb.Statements.Add(new IrStatement
+                    {
+                        ResultValue = condValue,
+                        Operation   = new IrOp_Const("false", boolType),
+                        Debug       = debug,
+                    });
+                    break;
+                }
+
+                // Determine the onFired block for StorePrev post-action
+                IrBlockId effectiveFiredBlock = onFiredBlock ?? outBlock;
+
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = condValue,
+                    Operation   = new IrOp_WhenValueChangedCheck(
+                        ComponentFqn:    componentFqn,
+                        PropertyPath:    propertyPath,
+                        Epsilon:         epsilon,
+                        SynthFieldName:  synthFieldName,
+                        FieldCSharpType: fieldCSharpType,
+                        OnFiredBlock:    effectiveFiredBlock,
+                        SourceKind:      sourceKind),
+                    Debug = debug,
+                });
+
+                // Register StorePrev to be appended to the fired block after BFS.
+                if (hasFired)
+                {
+                    _whenPostActions.Add((effectiveFiredBlock.Value, new IrStatement
+                    {
+                        Operation = new IrOp_WhenStorePrev(
+                            ComponentFqn:   componentFqn,
+                            PropertyPath:   propertyPath,
+                            SynthFieldName: synthFieldName),
+                        Debug = new IrDebugAnnotation { GraphId = _graph.Id, Synthesized = "when-store-prev" },
+                    }));
+                }
+                break;
+            }
+
+            case WhenMode.EventFired:
+            {
+                var ef = wn.EventFired;
+                if (ef is null) break;
+
+                bool filterSelf = ef.TargetFilter == EventTargetFilter.Self;
+                string? payloadField = ef.PayloadCheck?.PropertyPath;
+                string? payloadOp    = ef.PayloadCheck is not null
+                    ? ComparisonOpToCSharp(ef.PayloadCheck.Operator)
+                    : null;
+                string? payloadVal   = ef.PayloadCheck?.TargetValueText;
+
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = condValue,
+                    Operation   = new IrOp_WhenEventFiredCheck(
+                        EventFqn:              ef.EventTypeId,
+                        FilterSelf:            filterSelf,
+                        TargetFieldName:       ef.TargetFieldName ?? "Target",
+                        PayloadFieldPath:      payloadField,
+                        PayloadOperatorCSharp: payloadOp,
+                        PayloadValueLiteral:   payloadVal),
+                    Debug = debug,
+                });
+                // No StorePrev for EventFired — no synthesized state field.
+                break;
+            }
+
+            case WhenMode.ConditionMet:
+            {
+                var cm = wn.ConditionMet;
+                if (cm is null) break; // BP2002 already reported
+
+                // Serialize predicate DTO to JSON (embedded as const string in generated code).
+                string predicateJson = cm.Condition is not null
+                    ? System.Text.Json.JsonSerializer.Serialize(cm.Condition)
+                    : "null";
+
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = null, // No result value -- branching is embedded in the op emit
+                    Operation   = new IrOp_WhenConditionMetCheck(
+                        PredicateDtoJson: predicateJson,
+                        SynthFieldName:   synthFieldName,
+                        OnFiredBlock:     hasFired  ? onFiredBlock  : null,
+                        OnEndedBlock:     hasEnded  ? onEndedBlock  : null),
+                    Debug = debug,
+                });
+
+                // ConditionMet uses Goto terminator (not Branch): prev-update and gotos
+                // are emitted inline by StatementEmitter.
+                bb.Terminator = new IrTerm_Goto(outBlock) { Debug = debug };
+
+                // Skip the standard IrTerm_Branch code below.
+                goto scheduleSuccessors;
+            }
+
+            case WhenMode.EqsResult:
+            {
+                var er = wn.EqsResult;
+                if (er is null) break; // BP2002 already reported
+
+                string trigger = er.Trigger.ToString(); // "FirstReady", "TopChanged", "ScoreCrossed", "BecomesStale"
+
+                // Determine struct shape from trigger
+                string structTypeName = $"_WhenEqs{trigger}_{idShort}_PrevState";
+                int structSizeBytes = trigger switch
+                {
+                    "TopChanged"   => 16, // uint LastEvaluatedEpoch + long PrevTopId + float PrevTopScore
+                    "FirstReady"   => 4,  // uint LastEvaluatedEpoch
+                    "ScoreCrossed" => 8,  // uint LastEvaluatedEpoch + float PrevTopScore
+                    "BecomesStale" => 4,  // float PrevStaleCheckTime
+                    _              => 8,
+                };
+
+                string? scoreThreshold = trigger == "ScoreCrossed"
+                    ? $"{er.ScoreThreshold.ToString("G", System.Globalization.CultureInfo.InvariantCulture)}f"
+                    : null;
+                string? maxAge = trigger == "BecomesStale"
+                    ? $"{er.MaxAgeSeconds.ToString("G", System.Globalization.CultureInfo.InvariantCulture)}f"
+                    : null;
+
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = null,
+                    Operation   = new IrOp_WhenEqsResultCheck(
+                        SensorVariableName:   er.SensorVariableName,
+                        Trigger:              trigger,
+                        SynthFieldName:       synthFieldName,
+                        SynthStructTypeName:  structTypeName,
+                        SynthStructSizeBytes: structSizeBytes,
+                        ScoreThresholdLiteral: scoreThreshold,
+                        MaxAgeLiteral:        maxAge,
+                        OnFiredBlock:         hasFired ? onFiredBlock : null,
+                        OnEndedBlock:         hasEnded ? onEndedBlock : null),
+                    Debug = debug,
+                });
+
+                bb.Terminator = new IrTerm_Goto(outBlock) { Debug = debug };
+                goto scheduleSuccessors;
+            }
+
+            default:
+                // Unknown modes: emit noop false const.
+                bb.Statements.Add(new IrStatement
+                {
+                    ResultValue = condValue,
+                    Operation   = new IrOp_Const("false", boolType),
+                    Debug       = debug,
+                });
+                break;
+        }
+
+        // The primary branch: condition true -> onFired (if any), else -> out
+        IrBlockId trueTarget  = onFiredBlock ?? outBlock;
+        IrBlockId falseTarget = outBlock;
+
+        bb.Terminator = new IrTerm_Branch(condValue, trueTarget, falseTarget) { Debug = debug };
+
+        scheduleSuccessors:
+        // Schedule exec successors
+        Node? firedSucc  = GetWhenExecSuccessor(wn, "OnFired");
+        Node? endedSucc  = GetWhenExecSuccessor(wn, "OnEnded");
+        Node? outSucc    = GetWhenExecSuccessor(wn, "Out");
+
+        if (onFiredBlock.HasValue && firedSucc is not null)
+            _bfsQueue.Enqueue((onFiredBlock.Value.Value, firedSucc));
+
+        if (onEndedBlock.HasValue && endedSucc is not null)
+            _bfsQueue.Enqueue((onEndedBlock.Value.Value, endedSucc));
+
+        if (outSucc is not null)
+            _bfsQueue.Enqueue((outBlock.Value, outSucc));
+        // else outBlock stays empty -> auto-fallthrough from BlockBuilder.Build()
+    }
+
+    private static string ComparisonOpToCSharp(ComparisonOperator op) => op switch
+    {
+        ComparisonOperator.Equal              => "==",
+        ComparisonOperator.NotEqual           => "!=",
+        ComparisonOperator.LessThan           => "<",
+        ComparisonOperator.LessThanOrEqual    => "<=",
+        ComparisonOperator.GreaterThan        => ">",
+        ComparisonOperator.GreaterThanOrEqual => ">=",
+        _                                     => "==",
+    };
+
+    private Node? GetWhenExecSuccessor(WhenNode wn, string pinName)
+    {
+        var pin = wn.Pins.FirstOrDefault(
+            p => p.IsExec && p.Direction == "Out" &&
+                 string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+        if (pin is null) return null;
+        var link = _graph.Links.FirstOrDefault(l => l.FromNodeId == wn.Id && l.FromPinId == pin.Id);
+        return link is not null && _nodeById.TryGetValue(link.ToNodeId, out var t) ? t : null;
+    }
+
+    // -----------------------------------------------------------------------
     // Emit statements for a regular (non-terminal) node
     // -----------------------------------------------------------------------
 
@@ -432,6 +685,60 @@ internal sealed class GraphScheduler
             case SequenceNode:
                 // SequenceNode just chains execution; no statements needed.
                 break;
+
+            case SpawnEqsSensorNode ssn:
+            {
+                // Compute the baked InstanceId from the node's Guid hash.
+                int bakedInstanceId = ssn.Id.GetHashCode();
+
+                // Compute the template's BlueprintId from its AssetId.
+                // BlueprintIdHash.Compute returns int; cast to uint for the EqsSensor.BlueprintId field.
+                uint templateBpId = (uint)BlueprintIdHash.Compute(ssn.TemplateAssetId);
+                string templateBpIdLiteral = $"0x{templateBpId:X8}u";
+
+                // Resolve each parameter pin (SearchRadius, FactionFilter, ThreatThreshold, PublishPolicy, Priority).
+                // For unconnected pins, use type-specific defaults via null return.
+                IrValue? ResolveParamPin(string pinName)
+                {
+                    var pin = ssn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                                  && string.Equals(p.Name, pinName, StringComparison.OrdinalIgnoreCase));
+                    if (pin is null) return null;
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == ssn.Id && l.ToPinId == pin.Id);
+                    if (link is null) return null;
+                    return ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                }
+
+                var searchRadius    = ResolveParamPin("SearchRadius");
+                var factionFilter   = ResolveParamPin("FactionFilter");
+                var threatThreshold = ResolveParamPin("ThreatThreshold");
+                var publishPolicy   = ResolveParamPin("PublishPolicy");
+                var priority        = ResolveParamPin("Priority");
+
+                // Emit the spawn op; result is the EqsSensorHandle
+                var handleType = new IrTypeRef { FullName = "FDP.Eqs.EqsSensorHandle", IsUnmanaged = true, SizeBytes = 8 };
+                var handleResult = AllocValue(handleType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = handleResult,
+                    Operation   = new IrOp_SpawnEqsSensor(
+                        TemplateBlueprintIdLiteral: templateBpIdLiteral,
+                        BakedInstanceId:            bakedInstanceId,
+                        SearchRadiusValue:          searchRadius,
+                        FactionFilterValue:         factionFilter,
+                        ThreatThresholdValue:       threatThreshold,
+                        PublishPolicyValue:         publishPolicy,
+                        PriorityValue:              priority),
+                    Debug = DebugOf(ssn),
+                });
+
+                // Cache the Handle output pin value
+                var handleOutPin = ssn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                                        && string.Equals(p.Name, "Handle", StringComparison.OrdinalIgnoreCase));
+                if (handleOutPin is not null)
+                    _pinValueCache[handleOutPin.Id] = handleResult;
+
+                break;
+            }
 
             default:
                 // Unknown impure node kind -- emit BP4004 and skip.
@@ -595,6 +902,80 @@ internal sealed class GraphScheduler
                                                     new[] { castInput }, pinType),
                     Debug = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = cn.Id },
                 });
+                break;
+            }
+
+            case ReadEqsResultNode rer:
+            {
+                string id8 = rer.Id.ToString("N").Substring(0, 8);
+                string structTypeName = $"_EqsResultRead_{id8}";
+
+                var resultStructType = new IrTypeRef
+                {
+                    FullName    = structTypeName,
+                    IsUnmanaged = true,
+                    SizeBytes   = 32, // bool(1) + int(4) + Entity(8) + Vector2(8) + float(4) + pad ~= 32
+                };
+
+                // Resolve the ResultIndex input pin (default 0 if unconnected)
+                var indexPin = rer.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                                                             && string.Equals(p.Name, "ResultIndex", StringComparison.OrdinalIgnoreCase));
+                IrValue indexValue;
+                if (indexPin is not null)
+                {
+                    var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == rer.Id && l.ToPinId == indexPin.Id);
+                    if (link is not null)
+                        indexValue = ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts);
+                    else
+                    {
+                        indexValue = AllocValue(Stage5_Schedule.Int32Type);
+                        stmts.Add(new IrStatement
+                        {
+                            ResultValue = indexValue,
+                            Operation   = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id },
+                        });
+                    }
+                }
+                else
+                {
+                    indexValue = AllocValue(Stage5_Schedule.Int32Type);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = indexValue,
+                        Operation   = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id },
+                    });
+                }
+
+                // Emit the helper invocation
+                var helperResult = AllocValue(resultStructType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = helperResult,
+                    Operation   = new IrOp_ReadEqsResult(rer.SensorVariableName, indexValue, id8, structTypeName),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id },
+                });
+
+                // Eagerly emit FieldRead for each output pin and cache all of them
+                // so that multiple consumers share one helper invocation.
+                foreach (var outPin in rer.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    if (_pinValueCache.ContainsKey(outPin.Id)) continue;
+
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var t2) ? t2 : Stage5_Schedule.UnknownType;
+                    var fieldResult = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldResult,
+                        Operation   = new IrOp_FieldRead(helperResult, outPin.Name, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rer.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id] = fieldResult;
+                }
+
+                // Return the value for the specifically requested pin
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes) ? pinRes : helperResult;
                 break;
             }
 

@@ -22,6 +22,7 @@ namespace Hrot.Network.NED.SimHost
     {
         private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsWriter<EqsSensorConfigTopic>? _writer;
+        private readonly NetworkEntityMap _entityMap;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
@@ -32,6 +33,8 @@ namespace Hrot.Network.NED.SimHost
         public EqsSensorConfigEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
             if (participant == null) throw new ArgumentNullException(nameof(participant));
+            if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
+            _entityMap = entityMap;
             _writer = new DdsWriter<EqsSensorConfigTopic>(participant, DdsTopicName);
         }
 
@@ -40,9 +43,10 @@ namespace Hrot.Network.NED.SimHost
         {
             if (_writer is null) return;
 
+            // Query all entities with EqsSensor regardless of NetworkIdentity:
+            // child-entity sensors identify themselves via PartMetadata.
             var query = view.Query()
                 .With<EqsSensor>()
-                .With<NetworkIdentity>()
                 .Build();
 
             foreach (var entity in query)
@@ -53,27 +57,53 @@ namespace Hrot.Network.NED.SimHost
                     continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
-                ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
+
+                // 3-branch compound identity resolution.
+                long parentNetworkId;
+                int  localChildIndex;
+                if (view.HasComponent<PartMetadata>(entity))
+                {
+                    var meta   = view.GetComponentRO<PartMetadata>(entity);
+                    var parent = meta.ParentEntity;
+                    if (!view.IsAlive(parent) || !view.HasComponent<NetworkIdentity>(parent))
+                        continue; // parent gone or local-only
+                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(parent).Value;
+                    localChildIndex = meta.InstanceId;
+                }
+                else if (view.HasComponent<NetworkIdentity>(entity))
+                {
+                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+                    localChildIndex = 0;
+                }
+                else
+                {
+                    // Local-only sensor: skip DDS publish.
+                    continue;
+                }
 
                 _writer.Write(new EqsSensorConfigTopic
                 {
-                    EntityId        = netId.Value,
-                    BlueprintId     = sensor.BlueprintId,
-                    Epoch           = sensor.Epoch,
-                    SearchRadius    = sensor.SearchRadius,
-                    FactionFilter   = sensor.FactionFilter,
-                    ThreatThreshold = sensor.ThreatThreshold,
-                    PublishPolicy   = sensor.PublishPolicy,
-                    Priority        = sensor.Priority,
+                    ParentNetworkId       = parentNetworkId,
+                    LocalChildIndex       = localChildIndex,
+                    BlueprintId           = sensor.BlueprintId,
+                    Epoch                 = sensor.Epoch,
+                    SearchRadius          = sensor.SearchRadius,
+                    FactionFilter         = sensor.FactionFilter,
+                    ThreatThreshold       = sensor.ThreatThreshold,
+                    PublishPolicy         = sensor.PublishPolicy,
+                    Priority              = sensor.Priority,
+                    ScoreDeltaThreshold   = sensor.ScoreDeltaThreshold,
+                    ContextSlot0NetworkId = SlotNetId(sensor.ContextSlot0),
+                    ContextSlot1NetworkId = SlotNetId(sensor.ContextSlot1),
+                    ContextSlot2NetworkId = SlotNetId(sensor.ContextSlot2),
                 });
 
                 SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
 
-            // Removal detection: find entities that were previously published for this
-            // descriptor but no longer carry EqsSensor. Emit NOT_ALIVE_DISPOSED so the
-            // Muscle-side ingress translator removes the component from the ghost entity.
+            // Removal detection: find entities with NetworkIdentity that no longer carry
+            // EqsSensor. These are legacy single-sensor entities (LocalChildIndex == 0).
             var removalQuery = view.Query()
                 .With<NetworkIdentity>()
                 .Without<EqsSensor>()
@@ -89,7 +119,7 @@ namespace Hrot.Network.NED.SimHost
 
                 // Entity lost EqsSensor after a prior publish -- send dispose.
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                _writer.DisposeInstance(new EqsSensorConfigTopic { EntityId = netId.Value });
+                _writer.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = netId.Value, LocalChildIndex = 0 });
                 state.LastPublishedTickMap.Remove(DescriptorOrdinal);
             }
         }
@@ -103,7 +133,14 @@ namespace Hrot.Network.NED.SimHost
         /// <inheritdoc/>
         public void Dispose(long networkEntityId)
         {
-            _writer?.DisposeInstance(new EqsSensorConfigTopic { EntityId = networkEntityId });
+            _writer?.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = networkEntityId, LocalChildIndex = 0 });
+        }
+
+        // Returns the network ID of a context-slot entity, or 0 if the entity is null/unregistered.
+        private long SlotNetId(Entity slotEntity)
+        {
+            if (slotEntity.IsNull) return 0L;
+            return _entityMap.TryGetNetworkId(slotEntity, out long netId) ? netId : 0L;
         }
     }
 }

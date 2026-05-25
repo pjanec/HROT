@@ -75,13 +75,21 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             var mem = new TargetMemory(); // Count = 0 by default.
             _repo.AddComponent(observer, mem);
 
+            // Context slot entity with SimTransform -- needed to reach the Count==0 bypass gate.
+            var targetEntity = _repo.CreateEntity();
+            _repo.AddComponent(targetEntity, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(10f, 0f, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+
             var candidates = new EqsResult[]
             {
                 new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f },
                 new EqsResult { EntityId = 0L, PositionX = 2f, PositionY = 0f, Score = 1f },
             };
 
-            var sensor = new EqsSensor { ThreatThreshold = 50f };
+            var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService());
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 
@@ -101,6 +109,14 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 10f, tick: 1);
             _repo.AddComponent(observer, mem);
 
+            // Context slot entity -- needed to reach the threshold bypass gate.
+            var targetEntity = _repo.CreateEntity();
+            _repo.AddComponent(targetEntity, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(10f, 0f, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+
             var candidates = new EqsResult[]
             {
                 new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
@@ -108,7 +124,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             };
 
             // ThreatScores[0] = 10f < ThreatThreshold = 50f  => bypass.
-            var sensor = new EqsSensor { ThreatThreshold = 50f };
+            var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService());
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 
@@ -126,13 +142,21 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
+            // Context slot 1 entity provides threat position for the LOS test.
+            var targetEntity = _repo.CreateEntity();
+            _repo.AddComponent(targetEntity, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(10f, 0f, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+
             var candidates = new EqsResult[]
             {
                 new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f },
             };
 
             // ThreatScores[0] = 100f > ThreatThreshold = 50f => LOS test active.
-            var sensor = new EqsSensor { ThreatThreshold = 50f };
+            var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new ExposedLosService()); // always clear
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 
@@ -149,12 +173,20 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 10f, posY: 0f, scoreBoost: 100f, tick: 1);
             _repo.AddComponent(observer, mem);
 
+            // Context slot 1 entity provides threat position for the LOS test.
+            var targetEntity = _repo.CreateEntity();
+            _repo.AddComponent(targetEntity, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(10f, 0f, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+
             var candidates = new EqsResult[]
             {
                 new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Flags = 0 },
             };
 
-            var sensor = new EqsSensor { ThreatThreshold = 50f };
+            var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             var test = new CheapLineOfSightTest(new BlockedLosService()); // always blocked
             test.ExecuteBatch(observer, ref sensor, _repo, candidates.AsSpan());
 

@@ -53,7 +53,8 @@ namespace Hrot.SimHost.Systems
                 ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(evt.Observer);
                 buffer.Count         = Math.Min(evt.Results.Count, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true.
-                buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
+                buffer.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
+                buffer.LastUpdateTimeSeconds   = (float)view.Time;
 
                 // Write through GetSpanRW() to bypass the [InlineArray] ldobj defensive-copy trap.
                 var span = buffer.GetSpanRW();
@@ -61,11 +62,12 @@ namespace Hrot.SimHost.Systems
                 {
                     span[i] = new EqsResult
                     {
-                        EntityId  = evt.Results[i].EntityId,
-                        PositionX = evt.Results[i].PositionX,
-                        PositionY = evt.Results[i].PositionY,
-                        Score     = evt.Results[i].Score,
-                        Flags     = (short)evt.Results[i].Flags,
+                        EntityId        = evt.Results[i].EntityId,
+                        PositionX       = evt.Results[i].PositionX,
+                        PositionY       = evt.Results[i].PositionY,
+                        Score           = evt.Results[i].Score,
+                        Flags           = (short)evt.Results[i].Flags,
+                        FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,
                     };
                 }
             }
@@ -76,41 +78,73 @@ namespace Hrot.SimHost.Systems
             if (!repo.HasSingletonUnmanaged<EqsResultPool>()) return;
             ref var pool = ref repo.GetSingletonUnmanaged<EqsResultPool>();
 
-            // Build an inline entity lookup: scan all EqsSensor + NetworkIdentity entities
-            // to map SensorNetworkId -> entity.  O(n*m) but n is small for Phase 1.
+            // Build an inline entity lookup: scan all EqsSensor entities (NetworkIdentity
+            // not required -- child-entity and local-only sensors are also handled here).
             var sensorQuery = view.Query()
                 .With<EqsSensor>()
-                .With<NetworkIdentity>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             for (int i = 0; i < unmanagedEvents.Length; i++)
             {
                 ref readonly var evt = ref unmanagedEvents[i];
 
-                // Find the Brain entity whose NetworkIdentity matches the event's SensorNetworkId.
+                // Find the entity whose compound key matches (ParentNetworkId, LocalChildIndex).
                 Entity observer = default;
                 foreach (var candidate in sensorQuery)
                 {
-                    ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(candidate);
-                    if (netId.Value == evt.SensorNetworkId)
+                    if (evt.ParentNetworkId == 0)
                     {
-                        observer = candidate;
-                        break;
+                        // Local-only sensor: matched by entity Index.
+                        if (candidate.Index == evt.LocalChildIndex)
+                        {
+                            observer = candidate;
+                            break;
+                        }
                     }
+                    else if (view.HasComponent<PartMetadata>(candidate))
+                    {
+                        // Child-entity sensor: try PartMetadata path first, even when LocalChildIndex==0
+                        // (InstanceId=0 is a valid first child index).
+                        var meta = view.GetComponentRO<PartMetadata>(candidate);
+                        if (meta.InstanceId == evt.LocalChildIndex &&
+                            view.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
+                            view.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == evt.ParentNetworkId)
+                        {
+                            observer = candidate;
+                            break;
+                        }
+                    }
+                    else if (evt.LocalChildIndex == 0)
+                    {
+                        // Legacy single-sensor: matched by NetworkIdentity on the entity itself
+                        // (only when candidate has no PartMetadata).
+                        if (view.HasComponent<NetworkIdentity>(candidate))
+                        {
+                            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(candidate);
+                            if (netId.Value == evt.ParentNetworkId)
+                            {
+                                observer = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    // No else: if LocalChildIndex != 0 and candidate has no PartMetadata, skip.
                 }
                 if (observer.IsNull || !repo.IsAlive(observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(observer)) continue;
                 ref readonly var sensor2 = ref repo.GetComponentRO<EqsSensor>(observer);
-                // CRITICAL: epoch check — discard stale results.
+                // CRITICAL: epoch check -- discard stale results.
                 if (evt.Epoch != sensor2.Epoch) continue;
 
                 if (!repo.HasComponent<EqsCognitiveBuffer>(observer))
                     repo.AddComponent(observer, new EqsCognitiveBuffer());
 
                 ref var buffer2 = ref repo.GetComponentRW<EqsCognitiveBuffer>(observer);
-                buffer2.Count         = Math.Min(evt.EntryCount, EqsResultPool.MaxTopK);
+                buffer2.Count                = Math.Min(evt.EntryCount, EqsResultPool.MaxTopK);
                 // Ensure LastUpdateTick > 0 so IsReady returns true even at tick 0.
-                buffer2.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
+                buffer2.LastUpdateTick          = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
+                buffer2.LastUpdateTimeSeconds   = (float)view.Time;
 
                 // Write through GetSpanRW() to bypass the [InlineArray] ldobj defensive-copy trap.
                 var span2 = buffer2.GetSpanRW();

@@ -48,6 +48,17 @@ public sealed class BlueprintTestFixture : IDisposable
     public BlueprintCompiler Compiler { get; }
     public CapturingDebugSession DebugSession { get; }
 
+    /// <summary>
+    /// When set, passed to generated registrars that declare an IPredicateCompiler parameter.
+    /// Null (default) means predicates compile in degraded mode (delegate fields stay null).
+    /// </summary>
+    public Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler? PredicateCompiler { get; set; }
+
+    /// <summary>
+    /// When set, passed to generated registrars that declare an ISearchPredicateRegistry parameter.
+    /// </summary>
+    public Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry? PredicateRegistry { get; set; }
+
     // ---- Private state ------------------------------------------------------
 
     private readonly BlueprintTestFixtureOptions _options;
@@ -115,17 +126,23 @@ public sealed class BlueprintTestFixture : IDisposable
         View.AdvanceTime(deltaTime);
 
         // 3. Simulation phase
+        // Inject the fixture's MockEntityCommandBuffer so blueprints get EAGER entity
+        // creation semantics (CreateEntity returns a real entity, not a deferred placeholder).
         // Pass _repo (EntityRepository) so BlueprintTickSystem can cast for write access.
         // Also sync repo simulation time so view.Time is accurate for tick delegates.
         _repo.SetSimulationTime(View.Time);
+        _repo.SetCommandBufferOverride(Ecb);
         TickSystem.Execute(_repo, deltaTime);
         foreach (var sys in _auxSimulationSystems)
             sys.Execute(_repo, deltaTime);  // pass EntityRepository so MockDispatcherSystem can cast for write access
+        _repo.SetCommandBufferOverride(null);
 
         // 4. BeforeSync phase
         MaintenanceSystem.Execute(_repo, deltaTime);
 
-        // 5. Sync phase: ECB playback (structural mutations + queued events apply)
+        // 5. Sync phase: flush any deferred ops from production-path ECBs (safety), then
+        //    play back the fixture mock ECB (test-injected ops and ops from simulation systems).
+        _repo.FlushCommandBuffers();
         Ecb.Playback(_repo);
 
         // 6. Mid-tick inspection hook (after everything settled)
@@ -147,7 +164,14 @@ public sealed class BlueprintTestFixture : IDisposable
     /// Requires Phase 3 compiler -- throws NotImplementedException in Phase 1.
     /// </summary>
     public Assembly CompileAndLoad(BlueprintAsset asset, CompilerMode mode = CompilerMode.Debug)
-        => CompileAndLoadMany(new[] { asset }, mode);
+        => CompileAndLoadCore(new[] { asset }, MakeDefaultOptions(mode));
+
+    /// <summary>
+    /// Compiles one Blueprint asset with custom CompileOptions.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public Assembly CompileAndLoad(BlueprintAsset asset, CompileOptions options)
+        => CompileAndLoadCore(new[] { asset }, options);
 
     /// <summary>
     /// Compiles multiple Blueprint assets and loads them into a new collectible ALC.
@@ -157,16 +181,24 @@ public sealed class BlueprintTestFixture : IDisposable
     public Assembly CompileAndLoadMany(
         IReadOnlyList<BlueprintAsset> assets,
         CompilerMode mode = CompilerMode.Debug)
+        => CompileAndLoadCore(assets, MakeDefaultOptions(mode));
+
+    private static CompileOptions MakeDefaultOptions(CompilerMode mode) => new CompileOptions(
+        Mode:              mode,
+        NodeRegistry:      BuiltInNodeRegistry.Instance,
+        TypeRegistry:      StaticTypeRegistry.Instance,
+        EngineEvents:      BuiltInEngineEventCatalog.Instance,
+        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+        SiblingSignatures: Array.Empty<BlueprintSignature>());
+
+    /// <summary>Core implementation shared by all CompileAndLoad overloads.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private Assembly CompileAndLoadCore(
+        IReadOnlyList<BlueprintAsset> assets,
+        CompileOptions options)
     {
         var sink = new DiagnosticSink();
-        var options = new CompileOptions(
-            Mode:              mode,
-            NodeRegistry:      BuiltInNodeRegistry.Instance,
-            TypeRegistry:      StaticTypeRegistry.Instance,
-            EngineEvents:      BuiltInEngineEventCatalog.Instance,
-            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
-            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
-            SiblingSignatures: Array.Empty<BlueprintSignature>());
 
         var generatedSources = new List<string>(assets.Count);
         foreach (var asset in assets)
@@ -440,6 +472,10 @@ public static class ThrowingRegistrar
                             "Registrar requests HsmActionDispatcher as a parameter, but it is a " +
                             "static class and cannot be injected. " +
                             "Call HsmActionDispatcher.RegisterAction statically from inside Register.");
+                    else if (paramInfos[i].ParameterType == typeof(Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler))
+                        args[i] = PredicateCompiler;
+                    else if (paramInfos[i].ParameterType == typeof(Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry))
+                        args[i] = PredicateRegistry;
                     else
                         throw new HotReloadRegistrarException(
                             $"Unknown registrar parameter type: {paramInfos[i].ParameterType.FullName}. " +

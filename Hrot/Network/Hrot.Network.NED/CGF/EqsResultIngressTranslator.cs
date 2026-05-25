@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fdp.Toolkit.Spatial.Eqs.Topics;
@@ -21,6 +23,9 @@ namespace Hrot.Network.NED.CGF
         private const string DdsTopicName = "EqsResult";
         private readonly DdsReader<EqsResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
+        // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
+        private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
@@ -51,7 +56,39 @@ namespace Hrot.Network.NED.CGF
                 ReceivedSampleCount++;
                 var data = sample.Data;
 
-                if (!_entityMap.TryGetEntity(data.SensorNetworkId, out var observer)) continue;
+                // Skip offline results (ParentNetworkId == 0): they are never sent via DDS.
+                if (data.ParentNetworkId == 0) continue;
+
+                Entity observer;
+                if (data.LocalChildIndex == 0)
+                {
+                    // Legacy single-sensor: sensor lives on the parent entity itself.
+                    if (!_entityMap.TryGetEntity(data.ParentNetworkId, out observer)) continue;
+                }
+                else
+                {
+                    // Child-entity sensor: look up via dictionary cache.
+                    var cacheKey = (data.ParentNetworkId, data.LocalChildIndex);
+                    if (!_childEntityCache.TryGetValue(cacheKey, out observer))
+                    {
+                        // Cache miss: one-shot scan for the child entity.
+                        Entity? found = null;
+                        foreach (var e in repo.Query().With<PartMetadata>().Build())
+                        {
+                            var meta = repo.GetComponentRO<PartMetadata>(e);
+                            if (meta.InstanceId == data.LocalChildIndex &&
+                                repo.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
+                                repo.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == data.ParentNetworkId)
+                            {
+                                found = e;
+                                break;
+                            }
+                        }
+                        if (!found.HasValue) continue;
+                        observer = found.Value;
+                        _childEntityCache[cacheKey] = observer;
+                    }
+                }
 
                 // Bridge to the managed event bus so EqsResultUpdateSystem can consume it.
                 // EqsResultTopic.Results is List<EqsResultEntry> -- direct assignment works.

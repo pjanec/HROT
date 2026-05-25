@@ -22,8 +22,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public float Score;
         /// <summary>Bitfield of result flags (e.g., HasLOSToContext).</summary>
         public short Flags;
-        /// <summary>Padding to 24 bytes.</summary>
-        public short _pad;
+        /// <summary>
+        /// Parallel bitset indicating which bits in <see cref="Flags"/> were actually computed
+        /// by the template's tests. A bit not set here must not be read by consumers.
+        /// Same 2-byte slot as the former _pad field; struct size remains 24 bytes.
+        /// </summary>
+        public short FlagsMeaningful;
     }
 
     /// <summary>
@@ -50,6 +54,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public int Count;
         /// <summary>Simulation tick when the buffer was last written.</summary>
         public uint LastUpdateTick;
+        /// <summary>
+        /// Simulation time in seconds when the buffer was last written.
+        /// Written by <c>EqsResultUpdateSystem</c> from <c>view.Time</c>.
+        /// Distinct from <see cref="LastUpdateTick"/> which is the determinism-friendly
+        /// publish-side timestamp.
+        /// </summary>
+        public float LastUpdateTimeSeconds;
         /// <summary>Packed Top-K result entries (inline array, 16 slots).</summary>
         public EqsResultArray Results;
 
@@ -92,6 +103,25 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     /// <summary>
+    /// Discriminators controlling when <see cref="EqsSolverSystem"/> emits an
+    /// <c>EqsResultEvent</c> after a successful evaluation.
+    /// </summary>
+    public enum EqsPublishPolicy : byte
+    {
+        /// <summary>Always emit a result event after each evaluation (default).</summary>
+        AlwaysPush  = 0,
+        /// <summary>Emit only when the top-ranked candidate identity changes.</summary>
+        TopChanged  = 1,
+        /// <summary>Reserved (not yet implemented).</summary>
+        _Reserved2  = 2,
+        /// <summary>
+        /// Emit only when any top-K score changes by more than
+        /// <see cref="EqsSensor.ScoreDeltaThreshold"/> since the last publish.
+        /// </summary>
+        ScoreDelta  = 3,
+    }
+
+    /// <summary>
     /// Standing query configuration attached to a Brain entity.
     /// Replicated from Brain to Muscle via DDS to trigger the background EQS solver.
     /// </summary>
@@ -112,9 +142,24 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public uint FactionFilter;
         /// <summary>Minimum threat score required to pass the cheap LOS filter.</summary>
         public float ThreatThreshold;
-        /// <summary>Publish policy controlling when results are broadcast (e.g., TopChanged, AlwaysPush).</summary>
+        /// <summary>Publish policy controlling when results are broadcast (see <see cref="EqsPublishPolicy"/>).</summary>
         public byte PublishPolicy;
         /// <summary>Solver scheduling priority band: Critical, Normal, or Low.</summary>
         public byte Priority;
+        /// <summary>
+        /// Score change threshold for the <see cref="EqsPublishPolicy.ScoreDelta"/> publish policy.
+        /// The solver skips emitting a result event when all top-K score deltas are at or below
+        /// this value since the last published result. Default 0.0f (every change triggers a publish).
+        /// </summary>
+        public float ScoreDeltaThreshold;
+        /// <summary>Context slot 0 (by convention: Self). Position source for tests that need
+        /// the observer position. Filled by the spawn/maintain helper.</summary>
+        public Entity ContextSlot0;
+        /// <summary>Context slot 1 (by convention: Target). Primary position source for LOS
+        /// tests. Replaces TargetMemory[0] position read.</summary>
+        public Entity ContextSlot1;
+        /// <summary>Context slot 2 (by convention: Leader / Squad-mate). Optional secondary
+        /// LOS context.</summary>
+        public Entity ContextSlot2;
     }
 }

@@ -52,13 +52,23 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Strictly unmanaged ECS event published by the EQS solver when a result set is ready.
     /// Consumed in the same frame by <c>EqsResultEventEgressTranslator</c> to build the DDS payload.
+    /// Size: 8 (ParentNetworkId) + 4 (LocalChildIndex) + 4 (Epoch) + 4 (RefreshTick) + 4 (ResultHandle) + 4 (EntryCount) = 28 bytes.
     /// </summary>
     [EventId(2050)]
     [StructLayout(LayoutKind.Sequential)]
     public struct EqsResultEvent
     {
-        /// <summary>Network ID of the entity that owns the originating <see cref="EqsSensor"/>.</summary>
-        public long SensorNetworkId;
+        /// <summary>
+        /// Network ID of the parent agent (or the sensor entity itself for legacy single-sensor path).
+        /// 0 for purely local (offline/editor) sensors.
+        /// </summary>
+        public long ParentNetworkId;
+        /// <summary>
+        /// PartMetadata.InstanceId of the child sensor entity; 0 for the legacy single-sensor path
+        /// where the sensor lives directly on the parent entity.
+        /// For local-only sensors (ParentNetworkId == 0), this holds the sensor entity's Index.
+        /// </summary>
+        public int LocalChildIndex;
         /// <summary>
         /// Epoch echoed from the sensor at solve time. The Brain discards events whose epoch
         /// does not match the current sensor epoch (staleness guard).

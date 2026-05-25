@@ -20,10 +20,10 @@ public sealed class Stage3_NormalizationTests
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: Array.Empty<BlueprintSignature>());
 
-    // ---- BP2001: Orphan node elimination --------------------------------
+    // ---- BP3010: Orphan node elimination --------------------------------
 
     [Fact]
-    [CoversDiagnosticCode("BP2001")]
+    [CoversDiagnosticCode("BP3010")]
     public void Normalize_OrphanNode_EmitsBP2001AndRemovesNode()
     {
         // Build a Library with an entry -> return graph PLUS an orphan ReturnNode
@@ -56,8 +56,8 @@ public sealed class Stage3_NormalizationTests
 
         var normalized = Stage3_Normalize.Run(asset, ctx);
 
-        // BP2001 warning emitted for the orphan node.
-        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP2001);
+        // BP3010 warning emitted for the orphan node.
+        Assert.Contains(sink.All, d => d.Code == DiagnosticCodes.BP3010);
         // Orphan node removed from the output.
         Assert.DoesNotContain(normalized.Graphs[0].Nodes, n => n.Id == orphanId);
     }
@@ -73,18 +73,18 @@ public sealed class Stage3_NormalizationTests
         var sink = new DiagnosticSink();
         var normalized = Stage3_Normalize.Run(asset, new ValidationContext(sink, DefaultOptions()));
 
-        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2001);
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP3010);
         Assert.Equal(asset.Graphs[0].Nodes.Count, normalized.Graphs[0].Nodes.Count);
     }
 
-    // ---- BP2002: Implicit cast insertion --------------------------------
+    // ---- BP3011: Implicit cast insertion --------------------------------
 
     [Fact]
-    [CoversDiagnosticCode("BP2002")]
+    [CoversDiagnosticCode("BP3011")]
     public void Normalize_ImplicitCastNeeded_EmitsBP2002AndInsertsCastNode()
     {
         // Create a graph where an int output is wired to a float input.
-        // StaticTypeRegistry must support int->float coercion for this to emit BP2002.
+        // StaticTypeRegistry must support int->float coercion for this to emit BP3011.
         var assetId = SyntheticGuidHelper.Compute(Guid.Empty, Guid.Empty, "CastTest");
         var graphId = SyntheticGuidHelper.Compute(assetId, Guid.Empty, "Graph", "CastGraph");
         var entryId = Guid.NewGuid();
@@ -149,10 +149,10 @@ public sealed class Stage3_NormalizationTests
         var sink = new DiagnosticSink();
         var normalized = Stage3_Normalize.Run(asset, new ValidationContext(sink, DefaultOptions()));
 
-        // If the TypeRegistry supports int->float coercion, BP2002 is emitted and
+        // If the TypeRegistry supports int->float coercion, BP3011 is emitted and
         // a CastNode is inserted. If the registry does not support this coercion,
         // we simply verify no crash occurs (this test still demonstrates the path).
-        var hasCast = sink.All.Any(d => d.Code == DiagnosticCodes.BP2002);
+        var hasCast = sink.All.Any(d => d.Code == DiagnosticCodes.BP3011);
         var nodeCount = normalized.Graphs[0].Nodes.Count;
 
         if (hasCast)

@@ -126,6 +126,8 @@ namespace Hrot.Editor
         private readonly AiHotReloadCoordinatorOptions _options;
         private readonly IGeographicTransform?         _geoTransform;
         private readonly NetworkEntityMap?             _entityMap;
+        private readonly global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler? _predicateCompiler;
+        private readonly global::Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry? _dtoRegistry;
         private readonly HotReloadManager              _hotReloadManager = new();
 
         // ---- File-system watch / debounce ----
@@ -165,7 +167,9 @@ namespace Hrot.Editor
             BlueprintRegistry blueprintRegistry,
             AiHotReloadCoordinatorOptions options,
             IGeographicTransform? geoTransform = null,
-            NetworkEntityMap? entityMap = null)
+            NetworkEntityMap? entityMap = null,
+            global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler? predicateCompiler = null,
+            global::Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry? dtoRegistry = null)
         {
             _watchDirectory    = watchDirectory;
             _world             = world;
@@ -174,6 +178,8 @@ namespace Hrot.Editor
             _options           = options;
             _geoTransform      = geoTransform;
             _entityMap         = entityMap;
+            _predicateCompiler = predicateCompiler;
+            _dtoRegistry       = dtoRegistry;
 
             _debounceTimer = new Timer(OnDebounceElapsed, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -514,6 +520,10 @@ namespace Hrot.Editor
             if (paramType == typeof(IGeographicTransform))     return _geoTransform;
             if (typeof(IGeographicTransform).IsAssignableFrom(paramType)) return _geoTransform;
             if (paramType == typeof(NetworkEntityMap))         return _entityMap;
+            if (paramType == typeof(global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler))
+                return _predicateCompiler;
+            if (paramType == typeof(global::Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry))
+                return _dtoRegistry;
             return null;
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.Interfaces;
@@ -58,9 +59,10 @@ namespace Hrot.SimHost.Systems
 
             // Build sensor query once; use All lifecycle so it works both offline (Active)
             // and in the distributed Muscle node (Ghost).
+            // NetworkIdentity is NOT required: child-entity sensors have PartMetadata instead,
+            // and local-only (editor) sensors may have neither.
             _sensorQuery ??= repo.Query()
                 .With<EqsSensor>()
-                .With<NetworkIdentity>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
@@ -84,7 +86,33 @@ namespace Hrot.SimHost.Systems
             var repo = _currentRepo;
 
             ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
-            ref readonly var netId  = ref repo.GetComponentRO<NetworkIdentity>(entity);
+
+            // --- 3-branch compound identity resolution ---
+            // Branch 1: child entity with PartMetadata -> derive key from parent's NetworkIdentity.
+            // Branch 2: entity directly has NetworkIdentity -> legacy single-sensor path.
+            // Branch 3: no NetworkIdentity anywhere -> local-only (offline/editor) path.
+            long parentNetworkId;
+            int  localChildIndex;
+            if (repo.HasComponent<PartMetadata>(entity))
+            {
+                var meta   = repo.GetComponentRO<PartMetadata>(entity);
+                var parent = meta.ParentEntity;
+                if (!repo.IsAlive(parent) || !repo.HasComponent<NetworkIdentity>(parent))
+                    return; // parent gone or local-only child
+                parentNetworkId = repo.GetComponentRO<NetworkIdentity>(parent).Value;
+                localChildIndex = meta.InstanceId;
+            }
+            else if (repo.HasComponent<NetworkIdentity>(entity))
+            {
+                parentNetworkId = repo.GetComponentRO<NetworkIdentity>(entity).Value;
+                localChildIndex = 0;
+            }
+            else
+            {
+                // Purely local sensor (offline / editor).
+                parentNetworkId = 0;
+                localChildIndex = entity.Index;
+            }
 
             // --- SensorEvalState management ---
             // Lazy-read SensorEvalState if present; otherwise create a default.
@@ -112,7 +140,8 @@ namespace Hrot.SimHost.Systems
                 // No registry or unknown template: Phase 1 stub fallback (empty result).
                 _currentCmd.PublishEvent(new EqsResultEvent
                 {
-                    SensorNetworkId = netId.Value,
+                    ParentNetworkId = parentNetworkId,
+                    LocalChildIndex = localChildIndex,
                     Epoch           = sensor.Epoch,
                     RefreshTick     = (uint)(_currentTick + 1),
                     ResultHandle    = 0,
@@ -144,7 +173,8 @@ namespace Hrot.SimHost.Systems
                 // Nothing generated: still publish an empty event so Brain's IsReady ticks.
                 _currentCmd.PublishEvent(new EqsResultEvent
                 {
-                    SensorNetworkId = netId.Value,
+                    ParentNetworkId = parentNetworkId,
+                    LocalChildIndex = localChildIndex,
                     Epoch           = sensor.Epoch,
                     RefreshTick     = (uint)(_currentTick + 1),
                     ResultHandle    = 0,
@@ -211,16 +241,12 @@ namespace Hrot.SimHost.Systems
             // Update structure hash so next tick does not trigger a spurious hard-reset.
             evalState.CurrentStructureHash = template.ComputeStructureHash();
             evalState.Phase = EqsEvalPhase.Idle;
-            if (repo.HasComponent<SensorEvalState>(entity))
-                _currentCmd.SetComponent(entity, evalState);
-            else
-                _currentCmd.AddComponent(entity, evalState);
 
             // 7. Sort descending by Score.
             MemoryExtensions.Sort(activeCandidates, (a, b) => b.Score.CompareTo(a.Score));
 
-            // 8. Write to pool and publish.
-            WriteResultsToPoolAndPublish(netId.Value, sensor.Epoch, activeCandidates);
+            // 8. Write to pool and publish (persists evalState, including LastPublishedTopK update).
+            WriteResultsToPoolAndPublish(entity, parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
         }
 
         // Returns a compacted + top-K truncated span.
@@ -246,20 +272,68 @@ namespace Hrot.SimHost.Systems
             return validSpan;
         }
 
-        private void WriteResultsToPoolAndPublish(long sensorNetId, uint epoch, Span<EqsResult> finalCandidates)
+        private void WriteResultsToPoolAndPublish(
+            Entity entity,
+            long parentNetworkId,
+            int  localChildIndex,
+            uint epoch,
+            ref SensorEvalState evalState,
+            in EqsSensor sensor,
+            Span<EqsResult> finalCandidates)
         {
+            // ScoreDelta policy: suppress publish when all top-K score deltas are within threshold.
+            if ((EqsPublishPolicy)sensor.PublishPolicy == EqsPublishPolicy.ScoreDelta)
+            {
+                bool anyExceedsThreshold = false;
+                int  compareCount        = Math.Min(finalCandidates.Length, 16);
+                ReadOnlySpan<float> lastPublished = MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.As<TopKScoreCache, float>(ref evalState.LastPublishedTopK), 16);
+                for (int i = 0; i < compareCount; i++)
+                {
+                    float delta = MathF.Abs(finalCandidates[i].Score - lastPublished[i]);
+                    if (delta > sensor.ScoreDeltaThreshold)
+                    {
+                        anyExceedsThreshold = true;
+                        break;
+                    }
+                }
+                if (!anyExceedsThreshold)
+                {
+                    // No significant change — persist evalState and skip publish.
+                    if (_currentRepo.HasComponent<SensorEvalState>(entity))
+                        _currentCmd.SetComponent(entity, evalState);
+                    else
+                        _currentCmd.AddComponent(entity, evalState);
+                    return;
+                }
+                // Update cache with current top-K scores before publishing.
+                Span<float> cache = MemoryMarshal.CreateSpan(
+                    ref Unsafe.As<TopKScoreCache, float>(ref evalState.LastPublishedTopK), 16);
+                for (int i = 0; i < compareCount; i++)
+                    cache[i] = finalCandidates[i].Score;
+                // Zero out any slots beyond current result count.
+                for (int i = compareCount; i < 16; i++)
+                    cache[i] = 0f;
+            }
+
             ref var pool = ref _currentRepo.GetSingletonUnmanaged<EqsResultPool>();
             // WriteAndWrap takes ReadOnlySpan<EqsResult>.
             int handle = pool.WriteAndWrap((ReadOnlySpan<EqsResult>)finalCandidates);
 
             _currentCmd.PublishEvent(new EqsResultEvent
             {
-                SensorNetworkId = sensorNetId,
+                ParentNetworkId = parentNetworkId,
+                LocalChildIndex = localChildIndex,
                 Epoch           = epoch,
                 RefreshTick     = (uint)(_currentTick + 1),
                 ResultHandle    = handle,
                 EntryCount      = finalCandidates.Length,
             });
+
+            if (_currentRepo.HasComponent<SensorEvalState>(entity))
+                _currentCmd.SetComponent(entity, evalState);
+            else
+                _currentCmd.AddComponent(entity, evalState);
         }
     }
 }

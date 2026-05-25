@@ -1,0 +1,75 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000000-aaaa-0001-0000-000000000002",
+  "Name": "HealthThresholdReaction",
+  "Dispatch": 2,
+  "TierHint": 0,
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b2000001-0001-0001-0001-000000000001",
+      "Name": "Tick",
+      "Kind": 1,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "c2000001-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "When",
+          "Id": "c2000001-0002-0002-0002-000000000002",
+          "Mode": 2,
+          "Edges": 1,
+          "ConditionMet": {
+            "Condition": {
+              "$type": "Compound",
+              "Operator": 0,
+              "Conditions": [
+                { "$type": "Numeric", "MinValue": 0.0, "MaxValue": 0.3 }
+              ],
+              "ReadOnlyChildIndices": []
+            }
+          },
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "c2000001-0003-0003-0003-000000000003",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "FollowRoute",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Health-threshold Reaction",
+      "Category": "Combat",
+      "Description": "Reacts when a condition is met (e.g., low health in combat) by issuing a channel command. Demonstrates WhenNode Condition Met mode with edge-triggered behavior changes.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "WhenNode Condition Met mode",
+        "Edge-triggered behavior changes",
+        "Connecting OnFired to channel commands"
+      ]
+    }
+  }
+}

@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<TargetMemory>();
+            _repo.RegisterComponent<SimTransform>();
             // Consume entity index 0 so observers never have index 0.
             // Index 0 would make rayId=0L for candidate i=0, which accidentally matches
             // the default-initialized (zeroed) ring buffer slot.
@@ -54,6 +55,18 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             return observer;
         }
 
+        // Creates an entity at (x, y) with SimTransform for use as a context slot.
+        private Entity CreateTargetEntity(float x, float y)
+        {
+            var target = _repo.CreateEntity();
+            _repo.AddComponent(target, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(x, y, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+            return target;
+        }
+
         private void SetupRaycastSingletons(int maxBudget)
         {
             _repo.SetSingleton(new RaycastBatchData
@@ -74,6 +87,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void AccurateLos_RingBufferHit_CandidateResolved()
         {
             var observer = CreateObserverWithThreat(threatScore: 100f, threatThreshold: 0f, threatX: 10f, threatY: 0f);
+            var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2048);
 
             // Pre-fill ring buffer for candidate i=0 with HasHit=1 (blocked = good cover).
@@ -85,7 +99,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Span<EqsResult> candidates = stackalloc EqsResult[1];
             candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
 
-            var sensor = new EqsSensor { ThreatThreshold = 0f };
+            var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
             // Resolved via ring buffer: not rejected, flag bit 0 set (occluded = good cover).
@@ -102,6 +116,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void AccurateLos_RingBufferMiss_CandidateRejected()
         {
             var observer = CreateObserverWithThreat(threatScore: 100f, threatThreshold: 0f, threatX: 10f, threatY: 0f);
+            var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2048);
 
             long rayId = ((long)observer.Index << 32) | 0u;
@@ -113,7 +128,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Span<EqsResult> candidates = stackalloc EqsResult[1];
             candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
 
-            var sensor = new EqsSensor { ThreatThreshold = 0f };
+            var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
             // Clear LOS = exposed = rejected.
@@ -128,6 +143,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void AccurateLos_BudgetZero_FlagPendingRaySet()
         {
             var observer = CreateObserverWithThreat(threatScore: 100f, threatThreshold: 0f, threatX: 10f, threatY: 0f);
+            var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 0);
 
             // Ring buffer slot does NOT have the matching RayId (default RayId=0 != our computed rayId).
@@ -137,7 +153,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Span<EqsResult> candidates = stackalloc EqsResult[1];
             candidates[0] = new EqsResult { PositionX = 5f, PositionY = 0f, EntityId = 0L };
 
-            var sensor = new EqsSensor { ThreatThreshold = 0f };
+            var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
             // Budget=0: no event submitted, but FlagPendingRay still set.
@@ -154,6 +170,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         public void AccurateLos_BudgetTwo_TwoCandidatesSubmitted_AllPending()
         {
             var observer = CreateObserverWithThreat(threatScore: 100f, threatThreshold: 0f, threatX: 10f, threatY: 0f);
+            var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2);
 
             // Ensure the ring buffer slots for i=0,1,2 do NOT match (leave default RayId=0).
@@ -175,7 +192,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0L };
             candidates[2] = new EqsResult { PositionX = 3f, PositionY = 0f, EntityId = 0L };
 
-            var sensor = new EqsSensor { ThreatThreshold = 0f };
+            var sensor = new EqsSensor { ThreatThreshold = 0f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
             // Exactly 2 rays submitted (budget=2).
@@ -200,13 +217,14 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         {
             // ThreatScores[0]=10, ThreatThreshold=50 → bypass.
             var observer = CreateObserverWithThreat(threatScore: 10f, threatThreshold: 50f, threatX: 10f, threatY: 0f);
+            var targetEntity = CreateTargetEntity(10f, 0f);
             SetupRaycastSingletons(maxBudget: 2048);
 
             Span<EqsResult> candidates = stackalloc EqsResult[2];
             candidates[0] = new EqsResult { PositionX = 1f, PositionY = 0f, EntityId = 0L };
             candidates[1] = new EqsResult { PositionX = 2f, PositionY = 0f, EntityId = 0L };
 
-            var sensor = new EqsSensor { ThreatThreshold = 50f };
+            var sensor = new EqsSensor { ThreatThreshold = 50f, ContextSlot1 = targetEntity };
             new AccurateLineOfSightTest().ExecuteBatch(observer, ref sensor, _repo, candidates);
 
             // Bypass: no FlagPendingRay, no rejection.

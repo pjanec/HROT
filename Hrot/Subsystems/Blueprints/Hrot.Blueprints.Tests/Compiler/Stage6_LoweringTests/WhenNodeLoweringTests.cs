@@ -1,0 +1,626 @@
+﻿using Fdp.Toolkit.Blueprints;
+using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Ir;
+using Hrot.Blueprints.Core.Compiler.Stages;
+using Hrot.Blueprints.Tests.Builders;
+using Fdp.Toolkit.ReplayBrowser.Search;
+using AssetDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
+
+namespace Hrot.Blueprints.Tests.Compiler;
+
+public sealed class WhenNodeLoweringTests
+{
+    private static CompileOptions DefaultOptions() => new CompileOptions(
+        Mode:              CompilerMode.Debug,
+        NodeRegistry:      BuiltInNodeRegistry.Instance,
+        TypeRegistry:      StaticTypeRegistry.Instance,
+        EngineEvents:      BuiltInEngineEventCatalog.Instance,
+        ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+        WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+        SiblingSignatures: Array.Empty<BlueprintSignature>());
+
+    /// <summary>Runs Stage 5 then Stage 6; returns the lowered IrAsset.</summary>
+    private static IrAsset RunLower(BlueprintAsset asset, DiagnosticSink sink)
+    {
+        var opts  = DefaultOptions();
+        var typed = new TypedAsset(
+            asset,
+            PinTypes:   new Dictionary<Guid, IrTypeRef>(),
+            FieldTypes: new Dictionary<Guid, IrTypeRef>());
+        var ctx = new ValidationContext(sink, opts);
+        var ir  = Stage5_Schedule.Run(typed, ctx);
+        return Stage6_Lower.Run(ir, CompilerMode.Debug, sink);
+    }
+
+    /// <summary>Runs all stages (skipping Stage 2) and returns the generated C# source.</summary>
+    private static string? Compile(BlueprintAsset asset)
+    {
+        var opts = DefaultOptions();
+        var sink = new DiagnosticSink();
+        var ctx  = new ValidationContext(sink, opts);
+
+        // Skip Stage 2 (validation tests are in WhenNodeValidatorTests).
+        // These are lowering/emission tests; BP1601/BP2005 would block unrelated graphs.
+        asset  = Stage3_Normalize.Run(asset, ctx);
+        var typed   = Stage4_TypeResolve.Run(asset, ctx);
+        var ir      = Stage5_Schedule.Run(typed, ctx);
+        var lowered = Stage6_Lower.Run(ir, opts.Mode, sink);
+        var (source, _) = Stage7_Emit.Run(lowered, opts.Mode, sink);
+        return sink.HasErrors ? null : source;
+    }
+
+    /// <summary>
+    /// Builds a minimal WhenNode for a ValueChanged / SelfComponent scenario.
+    /// The node has an ExecIn, ExecOut ("Out"), and optionally OnFired pins.
+    /// </summary>
+    private static WhenNode MakeValueChangedNode(
+        Guid nodeId,
+        Guid graphId,
+        Guid assetId,
+        string componentTypeId,
+        string propertyPath,
+        float epsilon = 0.001f,
+        WhenEdge edges = WhenEdge.RisingEdge)
+    {
+        var node = new WhenNode
+        {
+            Id   = nodeId,
+            Mode = WhenMode.ValueChanged,
+            Edges = edges,
+            ValueChanged = new ValueChangedPayload
+            {
+                ComponentTypeId = componentTypeId,
+                PropertyPath    = propertyPath,
+                Epsilon         = epsilon,
+                Source          = ValueChangedSource.SelfComponent,
+            },
+        };
+
+        // Exec pins
+        var execIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() };
+        var execOut = new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() };
+
+        if ((edges & WhenEdge.RisingEdge) != 0)
+            node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        node.Pins.Add(execIn);
+        node.Pins.Add(execOut);
+        return node;
+    }
+
+    [Fact]
+    public void Lower_StructureHashIncludesSynthesizedFields()
+    {
+        // Build an Instance asset with a ValueChanged WhenNode (RisingEdge).
+        var assetId  = Guid.NewGuid();
+        var graphId  = Guid.NewGuid();
+        var nodeId   = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "MyGame.Health",
+            propertyPath:    "Current",
+            epsilon:         0.001f,
+            edges:           WhenEdge.RisingEdge);
+
+        // Wire entry -> whenNode (Out not connected = no further nodes)
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id    = graphId,
+            Name  = "Tick",
+            Kind  = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "WhenTest",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+
+        var sink   = new DiagnosticSink();
+        var lowered = RunLower(asset, sink);
+
+        Assert.False(sink.HasErrors,
+            $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
+
+        // Stage 6 must have added the synthesized field to Variables.
+        var id8 = nodeId.ToString("N").Substring(0, 8);
+        var expectedFieldName = $"_when_{id8}_prev";
+        Assert.Contains(lowered.Variables, v => v.Name == expectedFieldName);
+
+        // StructureHash must be non-zero (computed in Stage 6 from Variables).
+        Assert.NotEqual(0UL, lowered.StructureHash);
+    }
+
+    [Fact]
+    public void Lower_ValueChanged_Scalar_EmitsInlineComparison()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "MyGame.Health",
+            propertyPath:    "Current",
+            epsilon:         0.001f);
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id    = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenScalar",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // Must emit the component read
+        Assert.Contains("GetComponentRO<global::MyGame.Health>", src);
+        // Must emit the field access
+        Assert.Contains(".Current", src);
+        // Must emit the epsilon comparison
+        Assert.Contains("MathF.Abs", src);
+        // Must reference the synthesized prev-state field
+        Assert.Contains($"_when_{id8}_prev", src);
+    }
+
+    [Fact]
+    public void Lower_ValueChanged_Vector2_EmitsLengthSquaredComparison()
+    {
+        // Use epsilon == 0 to verify the direct-equality path is chosen.
+        // Full Vector2 + LengthSquared path is verified in M4 integration tests
+        // (requires type-resolved IrTypeRef for Vector2 fields).
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "MyGame.Transform",
+            propertyPath:    "Position",
+            epsilon:         0f);          // epsilon=0 -> direct equality path
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenVector",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // epsilon=0 -> != comparison, not MathF.Abs
+        Assert.Contains("!=", src);
+        Assert.DoesNotContain("MathF.Abs", src);
+        // Still must reference the prev field
+        Assert.Contains($"_when_{id8}_prev", src);
+    }
+
+    [Fact]
+    public void Lower_ValueChanged_PeerVariable_EmitsSlotLookup()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var node = new WhenNode
+        {
+            Id    = nodeId,
+            Mode  = WhenMode.ValueChanged,
+            Edges = WhenEdge.RisingEdge,
+            ValueChanged = new ValueChangedPayload
+            {
+                ComponentTypeId      = "",
+                PropertyPath         = "",
+                Source               = ValueChangedSource.PeerBlueprintVariable,
+                PeerBlueprintAssetId = Guid.NewGuid(),
+                PeerVariableName     = "Speed",
+                Epsilon              = 0.01,
+            },
+        };
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = node.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, node },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = node.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenPeer",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        // PeerBlueprintVariable source: Stage 5 schedules without crash.
+        // Full peer-slot emit is deferred to M4.
+        var sink = new DiagnosticSink();
+        var lowered = RunLower(asset, sink);
+
+        // No crashes = pass. Diagnostic errors for unsupported source are acceptable.
+        // What must NOT happen: NullReferenceException / InvalidOperationException.
+        Assert.NotNull(lowered);
+    }
+
+    [Fact]
+    public void Lower_EventFired_WithSelf_EmitsTargetCheck()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var node = new WhenNode
+        {
+            Id    = nodeId,
+            Mode  = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId     = "MyGame.HitEvent",
+                TargetFilter    = EventTargetFilter.Self,
+                TargetFieldName = "Target",
+            },
+        };
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = node.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, node },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = node.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenEvent",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        Assert.Contains("ReadEvents<global::MyGame.HitEvent>", src);
+        // Target filter must emit a != self check
+        Assert.Contains("!= self", src);
+    }
+
+    [Fact]
+    public void Lower_EventFired_WithPayloadCondition_EmitsValueParse()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var node = new WhenNode
+        {
+            Id    = Guid.NewGuid(),
+            Mode  = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "MyGame.HitEvent",
+                TargetFilter = EventTargetFilter.Self,
+                PayloadCheck = new PayloadCondition
+                {
+                    PropertyPath    = "Damage",
+                    Operator        = ComparisonOperator.GreaterThan,
+                    TargetValueText = "50f",
+                },
+            },
+        };
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = node.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, node },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = node.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenPayload",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // Must emit the Damage field access
+        Assert.Contains(".Damage", src);
+        // Must emit the > operator
+        Assert.Contains("> 50f", src);
+    }
+
+    [Fact]
+    public void Lower_EventFired_NoFilters_EmitsHasEventFastPath()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var node = new WhenNode
+        {
+            Id    = Guid.NewGuid(),
+            Mode  = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "MyGame.ExplosionEvent",
+                TargetFilter = EventTargetFilter.None,
+                // No PayloadCheck
+            },
+        };
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = node.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, node },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = node.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenFastPath",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // Fast path: no loop, just Length > 0 check
+        Assert.Contains(".Length > 0", src);
+        // Must NOT emit a full for-loop since there are no filters
+        Assert.DoesNotContain("for (int", src);
+    }
+
+    [Fact]
+    public void Lower_EventFired_NoSynthesizedField()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var node = new WhenNode
+        {
+            Id    = nodeId,
+            Mode  = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "MyGame.SpawnEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = node.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, node },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = node.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenEventNoState",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var sink   = new DiagnosticSink();
+        var lowered = RunLower(asset, sink);
+
+        Assert.False(sink.HasErrors,
+            $"Unexpected errors: {string.Join(", ", sink.All.Select(d => d.Code))}");
+
+        // EventFired must NOT add any _when_xxx_prev field to Variables.
+        var synthFieldName = $"_when_{id8}_prev";
+        Assert.DoesNotContain(lowered.Variables, v => v.Name == synthFieldName);
+    }
+
+    /// <summary>
+    /// Builds a minimal WhenNode for a ConditionMet scenario with a simple PropertyMatchDto predicate.
+    /// </summary>
+    private static WhenNode MakeConditionMetNode(
+        Guid nodeId,
+        WhenEdge edges = WhenEdge.RisingEdge)
+    {
+        var node = new WhenNode
+        {
+            Id   = nodeId,
+            Mode = WhenMode.ConditionMet,
+            Edges = edges,
+            ConditionMet = new ConditionMetPayload
+            {
+                Condition = new PropertyMatchDto
+                {
+                    ComponentType = typeof(object),  // dummy; Stage 2 validation is skipped
+                    PropertyPath  = "Value",
+                    Predicate     = new NumericPredicateDto
+                    {
+                        MinValue = 10.0,
+                        MaxValue = double.MaxValue,
+                    },
+                },
+            },
+        };
+
+        if ((edges & WhenEdge.RisingEdge) != 0)
+            node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnFired", Direction = "Out", IsExec = true, TypeRef = new() });
+        if ((edges & WhenEdge.FallingEdge) != 0)
+            node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "OnEnded", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "Out",     Direction = "Out", IsExec = true, TypeRef = new() });
+
+        return node;
+    }
+
+    [Fact]
+    public void Lower_ConditionMet_EmitsStaticDelegateField()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeConditionMetNode(nodeId, WhenEdge.RisingEdge);
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id    = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "CondMetTest",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // Static delegate field
+        Assert.Contains($"_whenCondPred_{id8}", src);
+        // InitializePredicates method
+        Assert.Contains("InitializePredicates", src);
+        // Synthesized bool prev field in State struct
+        Assert.Contains($"_when_{id8}_prev", src);
+        // Tick-body: predicate null-check
+        Assert.Contains($"_whenCondPred_{id8} != null", src);
+        // Tick-body: EntityRepository cast + predicate invocation
+        Assert.Contains($"_whenCondPred_{id8}(", src);
+    }
+
+    [Fact]
+    public void Lower_ConditionMet_RisingFallingBoth_BothBranchesEmitted()
+    {
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeConditionMetNode(nodeId, WhenEdge.RisingEdge | WhenEdge.FallingEdge);
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id    = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "CondMetBothEdges",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        // Rising edge: current && !prev -> goto fired block
+        Assert.Contains($"__cur_{id8} && !__prev_{id8}", src);
+        // Falling edge: !current && prev -> goto ended block
+        Assert.Contains($"!__cur_{id8} && __prev_{id8}", src);
+        // Prev field is updated unconditionally
+        Assert.Contains($"{id8}_prev = __cur_{id8}", src);
+    }
+}

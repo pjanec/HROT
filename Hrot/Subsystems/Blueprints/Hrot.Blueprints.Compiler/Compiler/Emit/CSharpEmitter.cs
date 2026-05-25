@@ -107,6 +107,12 @@ internal sealed class CSharpEmitter
         bool needsBehReg = asset.Hostings.Any(h =>
             h == AiPrimitiveHosting.BTreeAction || h == AiPrimitiveHosting.BTreeCondition);
 
+        bool hasConditionMet = asset.Dispatch == AssetDispatch.Instance &&
+            asset.Graphs
+                .SelectMany(g => g.Blocks)
+                .SelectMany(b => b.Statements)
+                .Any(s => s.Operation is IrOp_WhenConditionMetCheck);
+
         WriteLine("[global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]");
         WriteLine($"public static class {registrarName}");
         WriteLine("{");
@@ -116,6 +122,11 @@ internal sealed class CSharpEmitter
             { "global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging" };
         if (needsBehReg)
             paramParts.Add("global::Fdp.Toolkit.Behavior.BehaviorRegistry behReg");
+        if (hasConditionMet)
+        {
+            paramParts.Add("global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler predicateCompiler");
+            paramParts.Add("global::Hrot.Blueprints.Core.Compiler.ISearchPredicateRegistry dtoRegistry");
+        }
         var paramSig = string.Join(", ", paramParts);
 
         WriteLine($"public static unsafe void Register({paramSig})");
@@ -131,6 +142,8 @@ internal sealed class CSharpEmitter
                 EmitAiPrimitiveRegistration(className, asset, needsBehReg);
                 break;
             case AssetDispatch.Instance:
+                if (hasConditionMet)
+                    WriteLine($"{className}.InitializePredicates(predicateCompiler, dtoRegistry);");
                 EmitInstanceRegistration(className, asset);
                 break;
         }

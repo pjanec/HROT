@@ -50,6 +50,14 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 IsEntityHandle = true,
             },
 
+            // EQS sensor handle -- wraps Entity (8 bytes), unmanaged value type
+            ["FDP.Eqs.EqsSensorHandle"] = new IrTypeRef
+            {
+                FullName    = "FDP.Eqs.EqsSensorHandle",
+                IsUnmanaged = true,
+                SizeBytes   = 8,
+            },
+
             // Common aliases used in test assets
             ["bool"]   = Unmanaged("System.Boolean", 1),
             ["byte"]   = Unmanaged("System.Byte",    1),

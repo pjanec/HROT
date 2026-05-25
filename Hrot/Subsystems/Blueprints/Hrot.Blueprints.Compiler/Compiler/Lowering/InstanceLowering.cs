@@ -7,6 +7,9 @@ internal static class InstanceLowering
 {
     public static IrAsset Apply(IrAsset asset, DiagnosticSink sink)
     {
+        // Add synthesized _when_xxx_prev fields for ValueChanged WhenNodes.
+        asset = WhenLowering_Instance.Apply(asset);
+
         var newGraphs = new List<IrGraph>(asset.Graphs.Count);
         foreach (var graph in asset.Graphs)
         {

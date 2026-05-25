@@ -311,4 +311,165 @@ public sealed class AssetJsonRoundTripTests
         Assert.NotNull(asset.CallablePeers);
         Assert.Empty(asset.CallablePeers);
     }
+
+    // WhenNode round-trip — all four modes in one graph.
+    [Fact]
+    public void WhenNode_AllModes_RoundTrip()
+    {
+        var nodes = new List<Node>
+        {
+            new WhenNode
+            {
+                Id   = new Guid("e1000000-0001-0001-0001-000000000001"),
+                Mode = WhenMode.ValueChanged,
+                ValueChanged = new ValueChangedPayload
+                {
+                    ComponentTypeId = "Hrot.Components.Health",
+                    PropertyPath    = "Current",
+                    Epsilon         = 0.01,
+                    Source          = ValueChangedSource.SelfComponent,
+                },
+            },
+            new WhenNode
+            {
+                Id   = new Guid("e1000000-0002-0001-0001-000000000001"),
+                Mode = WhenMode.EventFired,
+                EventFired = new EventFiredPayload
+                {
+                    EventTypeId   = "Hrot.Events.HitEvent",
+                    TargetFilter  = EventTargetFilter.Self,
+                    TargetFieldName = "Target",
+                    PayloadCheck  = new PayloadCondition
+                    {
+                        PropertyPath    = "Damage",
+                        Operator        = ComparisonOperator.GreaterThan,
+                        TargetValueText = "50",
+                    },
+                },
+            },
+            new WhenNode
+            {
+                Id          = new Guid("e1000000-0003-0001-0001-000000000001"),
+                Mode        = WhenMode.ConditionMet,
+                ConditionMet = new ConditionMetPayload { Condition = null },
+            },
+            new WhenNode
+            {
+                Id        = new Guid("e1000000-0004-0001-0001-000000000001"),
+                Mode      = WhenMode.EqsResult,
+                Edges     = WhenEdge.RisingEdge | WhenEdge.FallingEdge,
+                EqsResult = new EqsResultPayload
+                {
+                    SensorVariableName = "CoverQuery",
+                    Trigger            = EqsTrigger.TopChanged,
+                    ScoreThreshold     = 0.7f,
+                    MaxAgeSeconds      = 2.0f,
+                },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId  = new Guid("e1000000-0000-0000-0000-000000000000"),
+            Name     = "WhenAllModes",
+            Dispatch = BlueprintDispatchKind.Library,
+            Graphs   =
+            [
+                new Graph
+                {
+                    Id    = new Guid("e1000000-0099-0001-0001-000000000001"),
+                    Name  = "Main",
+                    Kind  = GraphKind.Function,
+                    Nodes = nodes,
+                },
+            ],
+        };
+
+        var j1           = BlueprintJsonServices.Serialize(asset);
+        var deserialized = BlueprintJsonServices.Deserialize(j1);
+        Assert.NotNull(deserialized);
+        var j2 = BlueprintJsonServices.Serialize(deserialized);
+
+        Assert.Equal(j1, j2);
+        Assert.Contains("\"kind\":\"When\"", j1);
+        var deserializedNodes = deserialized.Graphs[0].Nodes;
+        Assert.Equal(4, deserializedNodes.Count);
+        Assert.All(deserializedNodes, n => Assert.IsType<WhenNode>(n));
+    }
+
+    // ReadEqsResultNode round-trip.
+    [Fact]
+    public void ReadEqsResultNode_RoundTrip()
+    {
+        var asset = new BlueprintAsset
+        {
+            AssetId  = new Guid("d1000000-0000-0000-0000-000000000001"),
+            Name     = "ReadEqsResult",
+            Dispatch = BlueprintDispatchKind.Library,
+            Graphs   =
+            [
+                new Graph
+                {
+                    Id    = new Guid("d1000000-0099-0001-0001-000000000001"),
+                    Name  = "Main",
+                    Kind  = GraphKind.Function,
+                    Nodes =
+                    [
+                        new ReadEqsResultNode
+                        {
+                            Id                 = new Guid("d1000000-0001-0001-0001-000000000001"),
+                            SensorVariableName = "CoverQuery",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var j1           = BlueprintJsonServices.Serialize(asset);
+        var deserialized = BlueprintJsonServices.Deserialize(j1);
+        Assert.NotNull(deserialized);
+        var j2 = BlueprintJsonServices.Serialize(deserialized);
+
+        Assert.Equal(j1, j2);
+        Assert.Contains("\"kind\":\"ReadEqsResult\"", j1);
+        Assert.IsType<ReadEqsResultNode>(deserialized.Graphs[0].Nodes[0]);
+    }
+
+    // SpawnEqsSensorNode round-trip.
+    [Fact]
+    public void SpawnEqsSensorNode_RoundTrip()
+    {
+        var asset = new BlueprintAsset
+        {
+            AssetId  = new Guid("d2000000-0000-0000-0000-000000000001"),
+            Name     = "SpawnEqsSensor",
+            Dispatch = BlueprintDispatchKind.Library,
+            Graphs   =
+            [
+                new Graph
+                {
+                    Id    = new Guid("d2000000-0099-0001-0001-000000000001"),
+                    Name  = "Main",
+                    Kind  = GraphKind.Function,
+                    Nodes =
+                    [
+                        new SpawnEqsSensorNode
+                        {
+                            Id              = new Guid("d1000000-0002-0001-0001-000000000001"),
+                            TemplateAssetId = new Guid("00000000-cccc-0001-0000-000000000001"),
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var j1           = BlueprintJsonServices.Serialize(asset);
+        var deserialized = BlueprintJsonServices.Deserialize(j1);
+        Assert.NotNull(deserialized);
+        var j2 = BlueprintJsonServices.Serialize(deserialized);
+
+        Assert.Equal(j1, j2);
+        Assert.Contains("\"kind\":\"SpawnEqsSensor\"", j1);
+        Assert.IsType<SpawnEqsSensorNode>(deserialized.Graphs[0].Nodes[0]);
+    }
 }

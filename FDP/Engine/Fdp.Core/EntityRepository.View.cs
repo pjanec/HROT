@@ -12,6 +12,17 @@ namespace Fdp.Core
         // Thread-local command buffer for modules
         internal readonly ThreadLocal<EntityCommandBuffer> _perThreadCommandBuffer = new(() => new EntityCommandBuffer(), trackAllValues: true);
 
+        // Optional override for tests and advanced scenarios.
+        // When set, GetCommandBuffer() returns this instead of the per-thread buffer.
+        private IEntityCommandBuffer? _commandBufferOverride;
+
+        /// <summary>
+        /// Overrides the command buffer returned by GetCommandBuffer().
+        /// Pass null to restore the default per-thread buffer.
+        /// Intended for test fixtures that need EAGER entity creation semantics.
+        /// </summary>
+        public void SetCommandBufferOverride(IEntityCommandBuffer? ecb) => _commandBufferOverride = ecb;
+
         // Properties
         uint ISimulationView.Tick => _globalVersion;
         
@@ -21,7 +32,18 @@ namespace Fdp.Core
         
         IEntityCommandBuffer ISimulationView.GetCommandBuffer()
         {
-            return _perThreadCommandBuffer.Value!;
+            return _commandBufferOverride ?? _perThreadCommandBuffer.Value!;
+        }
+
+        /// <summary>
+        /// Plays back all pending per-thread command buffer operations into the repository.
+        /// Call at the sync phase, after simulation systems have finished recording deferred ops.
+        /// In production the scheduler calls this; in tests call it from TickFrame.
+        /// </summary>
+        public void FlushCommandBuffers()
+        {
+            foreach (var buffer in _perThreadCommandBuffer.Values)
+                buffer.Playback(this);
         }
 
         ref readonly T ISimulationView.GetComponentRO<T>(Entity e)

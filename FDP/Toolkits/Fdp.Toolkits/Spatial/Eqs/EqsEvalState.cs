@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
@@ -33,7 +34,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
         // Tracks the StructureHash of the template currently evaluated.
         // Used by EqsSolverSystem to detect structural hot-reloads (hard reset).
         public ulong CurrentStructureHash;
+
+        // 16-float inline array storing scores from the last published result set.
+        // Used by ScoreDelta publish policy to avoid re-emitting near-identical results.
+        public TopKScoreCache LastPublishedTopK;
     }
+
+    /// <summary>
+    /// 16-float inline array storing scores from the last published EQS result set.
+    /// Used by the <see cref="EqsPublishPolicy.ScoreDelta"/> publish policy.
+    /// </summary>
+    [InlineArray(16)]
+    public struct TopKScoreCache { private float _e; }
 
     [ComponentId(GlobalComponentIds.EqsSolverGlobalState)]
     public struct EqsSolverGlobalState
