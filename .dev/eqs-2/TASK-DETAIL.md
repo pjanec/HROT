@@ -959,3 +959,573 @@ and deferred:
   `FindSafeRetreatPoint`, `FindAllyForFormation`, `FindOpenFiringPosition`.
 - Each is straightforward to add once TASK-EQS-020 (Roslyn generator) is complete.
 
+---
+
+## Phase 10 — Corrective: Schema additions (architect findings #1, #2, #3)
+
+**Goal:** Land three additive struct/topic field changes that the EQS v1.3 design explicitly
+required but the initial implementation omitted. Identified during the When-node iteration
+scoping conversation with the engine architect.
+
+**Cross-iteration coordination:** The new `EqsCognitiveBuffer.LastUpdateTimeSeconds` field
+(TASK-EQS-033) is also listed as the When-node iteration's engine-side dependency
+([When_Reactivity_Iteration_Design_v2_2.md](../blueprints-3-when-node/When_Reactivity_Iteration_Design_v2_2.md)
+§1.10 note 4, §6.8, §11). It is landed here, in EQS-2, as the natural data owner. When-node
+iteration consumes it without shipping its own copy.
+
+Expanding `EqsSensor` with `ScoreDeltaThreshold` (TASK-EQS-034) and 3 context-slot fields
+(Phase 11) deliberately overrides When-node design v2.2 §1.10 note 9, which fixed the seven
+existing `EqsSensor` fields as "the known field set" exposed by `SpawnEqsSensorNode`. After
+this phase lands, that note must be revised to include the additional fields and the spawn
+node's pin layout (§2.8) expanded accordingly.
+
+---
+
+### TASK-EQS-032 — Add `FlagsMeaningful` to `EqsResult`
+
+**Design reference:** Design §4.1 ("a parallel `FlagsMeaningful` bitset indicating which bits
+were actually computed by the template's tests"), §4.2 ("A bit not in `FlagsMeaningful` must
+not be read"); architect response item #1.
+
+**Scope (IN):**
+- Add `public short FlagsMeaningful` to `EqsResult`, replacing the existing `short _pad`
+  field. Struct stays at exactly 24 bytes.
+- Update `EqsResultUpdateSystem` (both online and offline paths) to copy
+  `FlagsMeaningful` alongside `Flags`.
+- Update `EqsResultTopic.EqsResultEntry` DDS struct to carry the field, then update
+  `EqsResultEventEgressTranslator` and `EqsResultIngressTranslator` to thread it through.
+- Update `IEqsTest` implementations whose `Flag` bit setting is currently unconditional to
+  set the matching bit in `FlagsMeaningful` whenever the test actually evaluates the bit
+  (`CheapLineOfSightTest`, `AccurateLineOfSightTest`, `NavmeshReachableTest`).
+- For tests that bypass evaluation (e.g. threat-below-threshold path), `FlagsMeaningful`
+  for the corresponding bit must remain 0 on those candidates.
+
+**Scope (OUT):** Refactoring readers (BTree nodes, gizmo) to honour `FlagsMeaningful` — those
+become tasks within Phase 11 once context slots also need it.
+
+**Constraints:**
+- `Marshal.SizeOf<EqsResult>()` must remain `24` after the change.
+- Both flag-write sites in each test must update both `Flags` and `FlagsMeaningful` together
+  via a small helper or matching assignment pair.
+
+**Success conditions:**
+1. `Marshal.SizeOf<EqsResult>()` returns `24` unchanged.
+2. Unit test: register a template whose only LOS test is bypassed (threat score below
+   threshold) — assert all candidates in the resulting buffer have
+   `FlagsMeaningful & (1<<0) == 0` even though `Flags` may be 0 or carry other bits.
+3. Unit test: register a template that exercises `CheapLineOfSightTest` with threats above
+   threshold — assert `FlagsMeaningful & (1<<0) != 0` on every surviving candidate.
+4. DDS round-trip test: `FlagsMeaningful` survives a Brain → Muscle → Brain cycle and lands
+   in the `EqsCognitiveBuffer` unchanged.
+
+---
+
+### TASK-EQS-033 — Add `LastUpdateTimeSeconds` to `EqsCognitiveBuffer`
+
+**Design reference:** Design §8 ("the most recent top-K result and the simulation time of last
+update"); architect response item #2; When-node design v2.2 §1.10 note 4, §6.8
+(`BecomesStale` trigger uses simtime, not ticks).
+
+**Scope (IN):**
+- Add `public float LastUpdateTimeSeconds` to `EqsCognitiveBuffer`. Insertion point: after
+  `LastUpdateTick`. Struct alignment review required (insert padding if needed so the
+  inline-array offset stays a multiple of `EqsResult.Stride`).
+- `EqsResultUpdateSystem` stamps the field from `view.Time` (the consumer's simulation time)
+  on every successful write of the buffer. Both online and offline paths.
+- Document that `LastUpdateTick` remains the determinism-friendly timestamp (publish-side,
+  carried through `EqsResultEvent`) while `LastUpdateTimeSeconds` is the consumer-side
+  wall-of-simtime stamp used by recency queries.
+- No change to `EqsResultEvent` (it does not carry seconds; the consumer time-stamps).
+- No change to DDS wire format.
+
+**Scope (OUT):** A `BecomesStale` reader helper or BTree node — that's a When-node iteration
+or future EQS feature.
+
+**Constraints:**
+- `LastUpdateTimeSeconds` must be set every time `Count` and `LastUpdateTick` are written,
+  including the "empty result event" path (where `Count = 0` but `IsReady` flips to true).
+- `EqsCognitiveBuffer.IsReady` semantics must remain `LastUpdateTick > 0` — do NOT switch
+  to checking `LastUpdateTimeSeconds`.
+
+**Success conditions:**
+1. Unit test: spawn entity at `view.Time = 5.0f`, publish a result event, assert
+   `buffer.LastUpdateTimeSeconds == 5.0f`.
+2. Unit test: advance to `view.Time = 5.5f` and publish a second event with empty
+   `EntryCount`, assert `buffer.LastUpdateTimeSeconds == 5.5f` (stamps even on empty
+   updates).
+3. `Marshal.SizeOf<EqsCognitiveBuffer>()` remains a multiple of `EqsResult.Stride`; no
+   regression in the existing `EqsCognitiveBuffer_GetSpanRW_NoDefensiveCopy` test.
+
+---
+
+### TASK-EQS-034 — Add `ScoreDeltaThreshold` to `EqsSensor` and DDS topic
+
+**Design reference:** Design §3.2 ("`ScoreDelta(threshold)` — send when any top-K score has
+shifted by more than the threshold"), §3.1 (publish policies overridable per-sensor);
+architect response item #3.
+
+**Scope (IN):**
+- Add `public float ScoreDeltaThreshold` to `EqsSensor`. Insertion point: alongside
+  `PublishPolicy` / `Priority`.
+- Add the same field to `EqsSensorConfigTopic` DDS struct.
+- Thread the field through `EqsSensorConfigEgressTranslator` and `EqsSensorConfigIngressTranslator`.
+- Update `EqsLifecycleNodes.Action_MaintainEqsSensor`: when the threshold changes, increment
+  `sensor.Epoch` (same pattern as the existing four-field comparison).
+- Wire the threshold into the solver's publish-policy decision (currently the policy byte is
+  carried but no `ScoreDelta` path exists). Add a per-sensor `LastPublishedTopK` cache
+  (small array of 16 floats) on `SensorEvalState` so the next publish can diff the
+  current top-K against the last-published top-K and decide whether to emit
+  `EqsResultEvent`.
+- Default value: `0.0f` (every change publishes, equivalent to `AlwaysPush` behavior for
+  the `ScoreDelta` policy when the threshold is unset).
+
+**Scope (OUT):** Authoring helpers (`SpawnEqsSensorNode` pin addition) — handled by the
+When-node iteration after this lands.
+
+**Constraints:**
+- `PublishPolicy` byte enum must gain a `ScoreDelta = 3` discriminator (or whatever value
+  preserves the existing enum's ordinals) — confirm with Design §3.2's policy list.
+- The diff cache lives on `SensorEvalState`, not `EqsSensor` — it is solver-local state, not
+  Brain-replicated parameters.
+
+**Success conditions:**
+1. Unit test: sensor with `PublishPolicy = ScoreDelta`, threshold 0.1. First evaluation
+   publishes. Second evaluation with all top-K scores ≤ 0.05 change does NOT publish.
+   Third evaluation with one top-K score changed by 0.2 publishes.
+2. Unit test: `Action_MaintainEqsSensor` mutates `ScoreDeltaThreshold` only — assert
+   `sensor.Epoch` incremented exactly once.
+3. DDS round-trip: `ScoreDeltaThreshold` survives Brain → Muscle replication via
+   `EqsSensorConfigTopic`.
+
+---
+
+## Phase 11 — Corrective: Context-slot generalization (architect finding #4)
+
+**Goal:** Replace the hardcoded `TargetMemory.PositionsX/Y[0]` reads in `CheapLineOfSightTest`
+and `AccurateLineOfSightTest` with a generalized 3-context-slot mechanism declared on
+`EqsSensor` per Design §4.2.
+
+---
+
+### TASK-EQS-035 — Add context slots to `EqsSensor` and DDS topic
+
+**Design reference:** Design §4.2 ("Context slots are query-template-defined runtime
+references (typically self, target, leader/squad-mate). Up to 3 LOS contexts simultaneously");
+architect response item #4.
+
+**Scope (IN):**
+- Add three context-slot fields to `EqsSensor`:
+  ```csharp
+  public Entity ContextSlot0;   // by convention: Self (filled by the spawn helper)
+  public Entity ContextSlot1;   // by convention: Target
+  public Entity ContextSlot2;   // by convention: Leader / Squad-mate
+  ```
+- Add the same three fields to `EqsSensorConfigTopic`. DDS carries them as
+  `(uint Index, uint Generation)` pairs (or whatever the existing entity-wire encoding is).
+- Thread through both DDS translators. On Muscle side, the ingress translator must map the
+  incoming `Entity` (which is the *Brain*'s entity handle) to the local *Muscle*'s ghost
+  entity via the existing `NetworkEntityMap`. If the lookup fails (ghost not yet promoted),
+  the slot remains `Entity.Null` until the next config sample.
+- Update `EqsLifecycleNodes.Action_MaintainEqsSensor` to accept three additional
+  `EqsParams.ContextSlot0/1/2` fields (additive — existing callers pass `Entity.Null`).
+- Update `EqsParams` blackboard struct to include the three slot fields (additive).
+
+**Constraints:**
+- Slots are filled with arbitrary `Entity` handles by the caller; the EQS subsystem assigns
+  no semantic meaning to slot indices. The convention "Slot 0 = Self, Slot 1 = Target,
+  Slot 2 = Leader" is documented only in the spawn helper, not enforced by the solver.
+- Tests read whichever slots they need (e.g. an LOS test reading `ContextSlot1` will fail
+  gracefully if the caller left it as `Entity.Null`).
+- For the cross-network handle mapping: a slot whose Brain-side entity has no corresponding
+  Muscle-side ghost yet (e.g. spawning order) must remain `Entity.Null` on the Muscle side
+  until the next replication tick; do not block evaluation.
+
+**Success conditions:**
+1. Unit test: spawn `EqsSensor` with `ContextSlot1 = targetEntity`; assert DDS round-trip
+   preserves the slot value and Muscle-side ghost resolves correctly.
+2. Unit test: spawn `EqsSensor` with `ContextSlot1` pointing at an entity that has no Muscle
+   ghost yet — assert solver does not throw; slot stays `Entity.Null` on Muscle.
+3. Unit test: `Action_MaintainEqsSensor` mutates `ContextSlot1` — assert `sensor.Epoch`
+   incremented.
+
+---
+
+### TASK-EQS-036 — Generalize LOS tests to read from context slots
+
+**Design reference:** Design §4.2; architect response item #4.
+
+**Scope (IN):**
+- Replace `CheapLineOfSightTest`'s hardcoded `TargetMemory.PositionsX[0]/PositionsY[0]`
+  read with a configurable context-slot index (default 1, matching "Target" by convention).
+  Add `public byte ContextSlotIndex { get; set; } = 1;` to the test's parameter struct.
+- Same change in `AccurateLineOfSightTest`. Same default.
+- Both tests must:
+  - Read `sensor.ContextSlotN` per their configured index.
+  - If the slot is `Entity.Null`, bypass the test (treat as "no threat configured") — do not
+    fall through to old `TargetMemory[0]` logic. Set `FlagsMeaningful` bit 0 to 0 on every
+    candidate (TASK-EQS-032 dependency).
+  - If the slot points to a live entity that has `SimTransform`, read position from
+    `view.GetComponentRO<SimTransform>(slotEntity).Position`. The dependency on
+    `TargetMemory` is removed entirely.
+  - On success (LOS evaluated), set both `Flags` bit and `FlagsMeaningful` bit per
+    TASK-EQS-032.
+
+**Scope (OUT):** A multi-context-bit fan-out (e.g. setting all three `HasLOSToContext0/1/2`
+bits in a single test pass) — the test is still single-context per invocation; a template
+that needs three LOS readings declares three test instances each pointing at a different
+slot index.
+
+**Constraints:**
+- `TargetMemory` consumption is permitted (e.g. as a fallback to derive a slot) but must not
+  be hardcoded; the existing tests that depend on `TargetMemory.ThreatScores[0]` for the
+  threat-threshold bypass should continue to work using the **observer's** `TargetMemory`,
+  not a slot lookup. The slot is the *position source*; the observer's threat list is still
+  read for the threshold gate.
+
+**Success conditions:**
+1. Unit test: observer with no `TargetMemory`, sensor with `ContextSlot1` set to a live
+   target entity — assert `CheapLineOfSightTest` reads the target's `SimTransform.Position`
+   and runs (not bypassed for missing TargetMemory).
+2. Unit test: sensor with `ContextSlot1 = Entity.Null` — assert test bypasses cleanly;
+   no candidate has `FlagsMeaningful` bit 0 set.
+3. Existing tests in `CoverGeneratorAndLosTests.cs` and `AccurateLosTests.cs` continue to
+   pass after migration to the new slot-based API (test fixtures may need to set
+   `sensor.ContextSlot1 = target` instead of relying on `TargetMemory[0]`).
+
+---
+
+## Phase 12 — Corrective: Multi-sensor child-entity support (architect findings #A, #5)
+
+**Goal:** Implement the engine-confirmed pattern of hosting multiple concurrent EQS queries
+per agent via dynamically-spawned child entities, each carrying its own `EqsSensor` +
+`EqsCognitiveBuffer`. Pattern uses the existing `PartMetadata` + `SubEntityCleanupSystem`
+cleanup infrastructure (verified extant at
+[FDP/Toolkits/Fdp.Toolkits/Replication/Systems/SubEntityCleanupSystem.cs](../../FDP/Toolkits/Fdp.Toolkits/Replication/Systems/SubEntityCleanupSystem.cs)
+and [PartMetadata.cs](../../FDP/Toolkits/Fdp.Toolkits/Replication/Components/PartMetadata.cs)).
+
+**Cross-iteration coordination:** The `EqsSensorHandle` wrapper struct is listed in
+[When_Reactivity_Iteration_Design_v2_2.md](../blueprints-3-when-node/When_Reactivity_Iteration_Design_v2_2.md)
+§2.1 as a When-node iteration deliverable. It is landed here, in EQS-2, as the natural
+data owner. When-node iteration consumes it.
+
+---
+
+### TASK-EQS-037 — Declare `EqsSensorHandle` wrapper struct
+
+**Design reference:** Architect response item #A ("a lightweight wrapper struct like
+`EqsSensorHandle { public Entity ChildId; }`"); When-node design v2.2 §2.1.
+
+**Scope (IN):**
+- New file `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsSensorHandle.cs` (namespace `FDP.Eqs`,
+  matching the When-node design's import).
+- Struct definition exactly per When-node design v2.2 §2.1:
+  ```csharp
+  namespace FDP.Eqs;
+  [StructLayout(LayoutKind.Sequential, Pack = 4)]
+  public readonly struct EqsSensorHandle : IEquatable<EqsSensorHandle>
+  {
+      public readonly Entity ChildId;
+      public EqsSensorHandle(Entity childId) => ChildId = childId;
+      public bool Equals(EqsSensorHandle other) => ChildId.Equals(other.ChildId);
+      public override bool Equals(object? obj) => obj is EqsSensorHandle other && Equals(other);
+      public override int GetHashCode() => ChildId.GetHashCode();
+      public static bool operator ==(EqsSensorHandle a, EqsSensorHandle b) => a.Equals(b);
+      public static bool operator !=(EqsSensorHandle a, EqsSensorHandle b) => !a.Equals(b);
+      public bool IsValid => ChildId.Id != 0;
+  }
+  ```
+- No runtime behavior; purely a type-system wrapper so Blueprint variable pickers can
+  filter to "EQS sensor handles" rather than presenting all `Entity` variables.
+
+**Success conditions:**
+1. Compile: struct compiles standalone.
+2. Unit test: `EqsSensorHandle(entity).ChildId == entity`.
+3. Unit test: two handles with the same `Entity` are `Equals` and produce equal
+   hash codes.
+4. Unit test: `default(EqsSensorHandle).IsValid == false`.
+
+---
+
+### TASK-EQS-038 — Relax `EqsSolverSystem` query and rekey sensor replication
+
+**Design reference:** Architect response — child entities created via the deferred command
+buffer on Brain, attached `PartMetadata + EqsSensor`; replicated to Muscle via existing
+`EqsSensorConfigEgressTranslator`. Q3 resolved: solver drops `NetworkIdentity` requirement.
+Architect implementation-guidance addendum: identity-read branching, dictionary-cached
+ingress, invisible-ghost spawning.
+
+**Scope (IN):**
+
+**A. Solver query and identity-read rewrite (`EqsSolverSystem`):**
+- `EqsSolverSystem._sensorQuery` becomes
+  `repo.Query().With<EqsSensor>().WithLifecycle(EntityLifecycle.All).Build()`.
+  No `.With<NetworkIdentity>()`.
+- **Rewrite `EvaluateSensor`'s ID-resolution step.** Today it unconditionally reads
+  `NetworkIdentity` from the sensor entity to populate `EqsResultEvent.SensorNetworkId`;
+  dropping the query requirement without rewriting this read will throw an ECS
+  `KeyNotFoundException`/component-missing exception on the first child-entity sensor.
+  The new branch is:
+  ```
+  if (repo.HasComponent<PartMetadata>(sensorEntity)) {
+      var parent     = repo.GetComponentRO<PartMetadata>(sensorEntity).ParentEntity;
+      var instanceId = repo.GetComponentRO<PartMetadata>(sensorEntity).InstanceId;
+      if (!repo.IsAlive(parent) || !repo.HasComponent<NetworkIdentity>(parent))
+          return; // parent gone or local-only; for local-only see local-path below
+      parentNetworkId = repo.GetComponentRO<NetworkIdentity>(parent).Value;
+      localChildIndex = instanceId;
+  } else if (repo.HasComponent<NetworkIdentity>(sensorEntity)) {
+      // Legacy single-sensor path (Action_MaintainEqsSensor on ctx.Self).
+      parentNetworkId = repo.GetComponentRO<NetworkIdentity>(sensorEntity).Value;
+      localChildIndex = 0;
+  } else {
+      // Purely local sensor (no NetworkIdentity anywhere in the chain).
+      parentNetworkId = 0;
+      localChildIndex = sensorEntity.Index; // any locally-unique value works
+  }
+  ```
+- `EqsResultEvent` carries `(long ParentNetworkId, int LocalChildIndex)` instead of the
+  single `SensorNetworkId`. Rename the field accordingly. Update both publish sites in
+  `EqsSolverSystem` (the stub-fallback empty-result path and the real
+  `WriteResultsToPoolAndPublish` path).
+
+**B. Wire-format change (`EqsSensorConfigTopic` and translators):**
+- Change `EqsSensorConfigTopic`'s `[DdsKey]` from the sensor entity's own `NetworkId`
+  (which child entities lack) to the compound:
+  - `[DdsKey] long ParentNetworkId` — the parent agent's `NetworkIdentity.Value`.
+  - `[DdsKey] int LocalChildIndex` — `PartMetadata.InstanceId` for the child case,
+    `0` for the legacy single-sensor case.
+- `EqsSensorConfigEgressTranslator.ScanAndPublish`: apply the same identity-resolution
+  branch shown above to derive the key from the sensor entity.
+
+**C. Muscle-side ingress with dictionary cache (no per-packet ECS query):**
+- `EqsSensorConfigIngressTranslator` maintains a managed dictionary as private state:
+  ```csharp
+  private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
+  ```
+- On each `PollIngress` sample:
+  1. Look up `parentGhost = _entityMap.Resolve(ParentNetworkId)`. If parent ghost not yet
+     promoted (returns `Entity.Null`), skip the sample; the Brain's
+     Reliable/TransientLocal QoS will redeliver after the parent lands.
+  2. Look up the child ghost in `_childGhostCache` by key.
+  3. **Cache miss** → spawn an invisible carrier ghost via the egress command buffer
+     (see §D below). Insert into cache.
+  4. **Cache hit** → reuse the existing ghost.
+  5. Apply / update the `EqsSensor` component (and `EqsCognitiveBuffer` if missing) on
+     the resolved child ghost.
+- **Forbidden:** scanning the ECS via `repo.Query().With<PartMetadata>()...` inside the
+  ingress loop. That iterates 64KB chunks per packet and destroys the CPU budget under
+  load. **Reference implementation pattern:** `MultiInstanceCycloneTranslator<T>` in the
+  codebase solves the same problem.
+- On `NotAliveDisposed` (Brain removed the sensor): look up the child in the cache,
+  `ecb.RemoveComponent<EqsSensor>(child)` (or destroy the child entity), and remove the
+  cache entry.
+
+**D. "Invisible ghost" spawning rules (Muscle side, child carrier only):**
+- The Muscle-side carrier ghost is created purely via
+  `var ecb = view.GetCommandBuffer(); var child = ecb.CreateEntity();`. Do **not** route
+  the spawn through `GhostCreationSystem` or any other DDS-aware lifecycle machinery.
+- **Only** these components may be attached to the carrier:
+  - `PartMetadata { ParentEntity = parentGhost, InstanceId = LocalChildIndex, DescriptorOrdinal = 0 }`
+  - `EqsSensor { ... }` (populated from the DDS sample)
+  - `EqsCognitiveBuffer` (the solver will write into it; lazy-add via
+    `EqsResultUpdateSystem` is also acceptable but local-attach saves a round-trip)
+- **Forbidden:** attaching `NetworkIdentity`, `TkbIdentity`, `GhostStateTracker`, or any
+  other replication-lifecycle component on the carrier. It is an invisible local entity
+  whose entire purpose is to host the sensor without participating in the
+  `EntityMaster`/`EntityLifecycleModule` DDS handshake.
+
+**E. Result-event reverse lookup (Brain side):**
+- `EqsResultIngressTranslator` symmetrically maintains
+  `Dictionary<(long ParentNetId, int ChildIndex), Entity>` on the Brain side, populated by
+  the egress side of the same sensor's lifecycle (or rebuilt lazily on first miss by
+  scanning for the corresponding `PartMetadata` only once and caching).
+- Translates inbound `EqsResultEvent`'s `(ParentNetworkId, LocalChildIndex)` back to the
+  local Brain-side child entity and publishes the bridged `EqsResultUpdateEvent`.
+
+**F. Purely local (single-node editor) path:**
+- For sensors with no parent network identity at all (single-process editor mode), the
+  solver still iterates them; no DDS replication occurs. The `EqsResultEvent`'s reverse
+  lookup is short-circuited because publisher and consumer share the same
+  `EntityRepository`: `EqsResultUpdateSystem` matches by the sensor entity directly,
+  not by `(ParentNetworkId, LocalChildIndex)`. Add a fast-path: if
+  `evt.ParentNetworkId == 0`, treat `LocalChildIndex` as the sensor entity's local index
+  and resolve directly.
+
+**Scope (OUT):** Migrating the existing `Action_MaintainEqsSensor` (which attaches directly
+to `ctx.Self`, a parent-shaped entity) — that BTree action keeps working for single-sensor
+agents because `ctx.Self` typically has `NetworkIdentity`. Decision: legacy single-sensor
+path continues; new pattern is additive.
+
+**Constraints:**
+- **Identity branch:** The solver must branch its identity read on `HasComponent<PartMetadata>`.
+  If true, derive `ParentNetworkId` from `PartMetadata.ParentEntity`'s `NetworkIdentity`
+  and use `PartMetadata.InstanceId` as `LocalChildIndex`. Else read `NetworkIdentity` from
+  the sensor entity itself and use `LocalChildIndex = 0`. Else (no network identity
+  anywhere) use the local-path fast-key (`ParentNetworkId = 0`,
+  `LocalChildIndex = sensor.Index`). Skipping this branch causes a runtime exception on
+  the first child-entity sensor.
+- **Ingress cache mandatory:** `EqsSensorConfigIngressTranslator` must cache child `Entity`
+  handles in a private `Dictionary<(long, int), Entity>` to avoid O(N-entities) ECS
+  queries during network polling. Do **not** call `repo.Query().With<PartMetadata>()` or
+  any equivalent inside the polling loop. Mirror `MultiInstanceCycloneTranslator<T>`.
+- **Invisible-ghost rules:** Muscle-side carrier ghosts must be spawned via
+  `ecb.CreateEntity()` (never through `GhostCreationSystem`) and must carry exactly
+  `PartMetadata`, `EqsSensor`, and `EqsCognitiveBuffer` — **no** `NetworkIdentity`,
+  `TkbIdentity`, or `GhostStateTracker`. Adding any of those activates the standard DDS
+  entity-lifecycle handshake and will cause spurious destroy commands when the Brain
+  releases the sensor.
+- **Backwards compat:** if an `EqsSensor` is attached to an entity that has
+  `NetworkIdentity` but no `PartMetadata` (the legacy single-sensor case from
+  `Action_MaintainEqsSensor`), the egress translator must still publish, keying as
+  `ParentNetworkId = sensor entity's own NetworkId`, `LocalChildIndex = 0`. Muscle ingress
+  finds the corresponding ghost directly via `_entityMap.Resolve(ParentNetworkId)` (since
+  the parent IS the sensor host) and attaches `EqsSensor` on it. The dictionary cache
+  stores `(parentNetId, 0) → parentGhost` so subsequent updates are O(1). This preserves
+  the single-sensor `HideInCover_BT` behavior unchanged.
+- `EqsResultUpdateSystem` must handle three shapes: (a) result event whose key resolves
+  to a separate child-carrier entity (multi-sensor path), (b) one that resolves to the
+  legacy parent-host entity (single-sensor path), (c) one with
+  `ParentNetworkId == 0` resolving by local sensor index (offline path).
+
+**Success conditions:**
+1. Unit test: spawn a sensor on a non-networked entity (no `NetworkIdentity`, no
+   `PartMetadata`) — assert solver iterates it, emits `EqsResultEvent` with
+   `ParentNetworkId == 0`, and does NOT throw any "component missing" exception.
+2. Unit test: spawn a sensor on a child entity with `PartMetadata{ParentEntity=parent,
+   InstanceId=42}` where parent has `NetworkIdentity.Value=12345` — assert
+   `EqsResultEvent.ParentNetworkId == 12345` and `LocalChildIndex == 42`.
+3. Integration test (distributed): Brain spawns a parent entity and a child sensor
+   entity; assert Muscle's `EqsSensorConfigIngressTranslator` spawns exactly one carrier
+   ghost (via `ecb.CreateEntity()`) carrying only `PartMetadata`, `EqsSensor`, and
+   `EqsCognitiveBuffer` — assert no `NetworkIdentity` / `TkbIdentity` /
+   `GhostStateTracker` on the carrier.
+4. Performance: with 1000 dynamic child sensors and 10 Hz config updates, ingress
+   translator's `PollIngress` allocates 0 bytes per call after warmup (dictionary
+   pre-grown), and per-packet work is O(1) lookup, not O(entities).
+5. Backwards compat: existing `HideInCover_BT` test (legacy single-sensor on `ctx.Self`)
+   continues to pass with no test-side changes.
+6. Local-only path: editor harness without DDS — spawn 3 child sensors on one parent,
+   pump, assert 3 separate `EqsCognitiveBuffer` components are populated (one per child).
+
+---
+
+### TASK-EQS-039 — BTree spawning / destroying child-sensor actions
+
+**Design reference:** Architect response item #5; When-node design v2.2 §1.8 (`SpawnEqsSensorNode`
+semantics — equivalent for the BTree side).
+
+**Scope (IN):**
+- New action `Action_SpawnEqsSensorChild` in `EqsLifecycleNodes`:
+  - Reads its `EqsParams` blackboard params plus a new
+    `EqsSpawnParams { byte ChildSlotIndex; }`.
+  - Allocates a deterministic `LocalChildIndex` per parent + slot index pair so re-running
+    the action targets the same child. Recommended formula:
+    `(int)((uint)ctx.Self.Index << 8) | childSlotIndex`. Stable across ticks for the same
+    parent/slot pair.
+  - **Spawns the child via the deferred command buffer**, NOT via direct repo mutation:
+    ```csharp
+    var ecb   = ctx.World.GetCommandBuffer();
+    var child = ecb.CreateEntity();
+    ecb.AddComponent(child, new PartMetadata {
+        ParentEntity      = ctx.Self,
+        InstanceId        = computedIndex,
+        DescriptorOrdinal = 0,
+    });
+    ecb.AddComponent(child, new EqsSensor { /* populated from EqsParams + context slots */ });
+    ecb.AddComponent(child, default(EqsCognitiveBuffer));
+    ```
+    BTree actions execute during `SystemPhase.Simulation` while the kernel is iterating
+    ECS chunks. Calling `ctx.World.CreateEntity()` or `ctx.World.AddComponent(...)`
+    directly during this phase mutates the chunk arrays mid-iteration and corrupts memory.
+    The ECB defers the structural change to the next safe playback point.
+  - Writes the resulting `EqsSensorHandle { ChildId = newChild }` into a blackboard slot
+    (the action's output param, exposed as a blackboard-field write). The reserved
+    child `Entity` handle returned by `ecb.CreateEntity()` is valid to store immediately
+    and resolves to a stable slot at playback time.
+  - Returns `NodeStatus.Success` after recording the spawn; subsequent invocations with
+    the same `(parent, slot)` reuse the existing child (idempotent — see Constraints).
+- New deactivator `Deactivate_SpawnEqsSensorChild` paired with the `@0` compound-key
+  convention. Destroys the child entity referenced by the blackboard handle, also via
+  the command buffer:
+  ```csharp
+  var ecb = ctx.World.GetCommandBuffer();
+  if (handle.IsValid && ctx.World.IsAlive(handle.ChildId))
+      ecb.DestroyEntity(handle.ChildId);
+  ```
+- Update `EqsParams` (or create `EqsSpawnParams`) to include the slot-index discriminator.
+
+**Scope (OUT):** A Blueprint `SpawnEqsSensorNode` — that's a When-node iteration deliverable.
+
+**Constraints:**
+- **Deferred structural mutation only.** The BTree action must use the ECB
+  (`ctx.World.GetCommandBuffer()`) for `CreateEntity` and every `AddComponent`. Direct
+  `ctx.World.CreateEntity()` / `ctx.World.AddComponent(...)` during the Simulation phase
+  causes chunk-array corruption — the kernel is iterating chunks when the BTree runs.
+  Same constraint applies to the deactivator's `DestroyEntity`.
+- **Idempotency without per-tick scans.** The action must not double-spawn: if a child
+  already exists matching `(ctx.Self, ChildSlotIndex)`, reuse it. The deterministic
+  `LocalChildIndex` formula above lets the action store the previously-spawned
+  `EqsSensorHandle` in its blackboard output slot and reuse it on re-entry — no ECS scan
+  in the steady-state path. On first entry only (handle slot empty or stale), fall back
+  to a one-shot guarded scan: a pre-built `EntityQuery` on `PartMetadata` (cached at
+  module level, not rebuilt per tick) filtered by `ParentEntity == ctx.Self &&
+  InstanceId == computedIndex` to find a pre-existing matching child that may have
+  survived across a BTree restart. Cache the result back into the blackboard immediately.
+- **Cascading cleanup is automatic.** When the deactivator's `ecb.DestroyEntity(child)`
+  plays back, the child's `EqsSensor` and `EqsCognitiveBuffer` components vanish along
+  with the entity through normal ECS destruction.
+- **Parent death is automatic.** `SubEntityCleanupSystem` already runs in `PostSimulation`
+  and destroys any entity whose `PartMetadata.ParentEntity` is no longer alive. No extra
+  cleanup code needed for the agent-death path.
+
+**Success conditions:**
+1. Unit test (EditorHarness): parent entity, run `Action_SpawnEqsSensorChild` with slot 1 —
+   assert one child exists with matching `PartMetadata`; assert the blackboard
+   `EqsSensorHandle` field points at that child.
+2. Unit test: run the action twice with same slot — assert exactly one child still exists
+   (idempotent).
+3. Unit test: run the action twice with different slot indices — assert two children exist.
+4. Unit test: deactivate the action — assert child entity destroyed; the `EqsSensor` and
+   `EqsCognitiveBuffer` components vanish with it.
+5. Unit test: destroy the parent entity — assert `SubEntityCleanupSystem` cleans up the
+   child on the next PostSimulation tick (no manual deactivator needed).
+
+---
+
+### TASK-EQS-040 — Multi-sensor integration test + HideInCover_BT child-entity recipe
+
+**Design reference:** Design §11 (sensor lifecycle), §6.6 (starter templates);
+architect response items #A + #5.
+
+**Scope (IN):**
+- New integration test `Eqs_MultiSensor_OneAgentTwoConcurrentQueries` (EditorHarness):
+  - Spawn observer + 5 enemy entities + 3 cover points.
+  - Spawn two child sensors on the observer via `Action_SpawnEqsSensorChild` with
+    different `(template, slot)` pairs: one running `FindNearestEnemy`, one running
+    `FindCoverFromTarget`.
+  - Pump solver ticks.
+  - Assert both children's `EqsCognitiveBuffer` are populated with different result
+    counts and shapes (entity-shaped vs positional).
+  - Assert results are read from the children via `handle.ChildId`, not the parent.
+- New "child-entity" alternative `HideInCover_BT_v2` BTree definition in
+  `HideInCoverBehavior.cs` that uses `Action_SpawnEqsSensorChild` +
+  `Action_DestroyEqsSensorChild` instead of `Action_MaintainEqsSensor`. The existing
+  `HideInCover_BT` stays in place as a single-sensor reference; v2 is the canonical
+  multi-sensor example for documentation / future starter-pack recipes.
+- `Action_MoveToOptimalCover` (TASK-EQS-030) gains an `EqsSensorHandle` blackboard input
+  so it can read from a child sensor's buffer rather than the agent's. Backwards compat:
+  if the handle is `Entity.Null`, fall back to reading from `ctx.Self`.
+
+**Scope (OUT):** Distributed multi-sensor (depends on TASK-EQS-038's replication rekey
+landing). Recommend a separate `Eqs_DistributedMultiSensor_ReplicatesChildren` test as
+a follow-up once TASK-EQS-038 is green.
+
+**Success conditions:**
+1. `Eqs_MultiSensor_OneAgentTwoConcurrentQueries` passes (offline editor).
+2. `HideInCover_BT_v2` smoke test: spawn agent, inject threat, pump 500 ms, assert
+   `LocomotionChannel.ActiveAction == ActionIdMoveTo` and the destination matches the
+   child sensor's top result.
+3. Existing `HideInCover_BT` test continues to pass (no regression).
+4. `Action_MoveToOptimalCover` unit test with `EqsSensorHandle.IsValid == false` falls
+   back to the parent-buffer path correctly.
+

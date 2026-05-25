@@ -77,3 +77,37 @@ Progress checklist. Cross-reference: [TASK-DETAIL.md](./TASK-DETAIL.md),
 
 - [x] [TASK-EQS-030](./TASK-DETAIL.md#task-eqs-030--hideincover-blackboard-and-action_movetooptimalcover) — HideInCoverBlackboard and Action_MoveToOptimalCover
 - [x] [TASK-EQS-031](./TASK-DETAIL.md#task-eqs-031--hideincover_bt-full-behavior-definition) — HideInCover_BT full behavior definition
+
+---
+
+## Phase 10 — Corrective: Schema additions (architect findings #1, #2, #3)
+
+**Goal:** Land three additive struct/topic field changes the EQS v1.3 design required but the
+initial implementation omitted. Surfaced during the When-node iteration scoping conversation.
+
+- [ ] [TASK-EQS-032](./TASK-DETAIL.md#task-eqs-032--add-flagsmeaningful-to-eqsresult) — Add `FlagsMeaningful` to `EqsResult`
+- [ ] [TASK-EQS-033](./TASK-DETAIL.md#task-eqs-033--add-lastupdatetimeseconds-to-eqscognitivebuffer) — Add `LastUpdateTimeSeconds` to `EqsCognitiveBuffer` *(When-node iteration consumes; landed here as data owner)*
+- [ ] [TASK-EQS-034](./TASK-DETAIL.md#task-eqs-034--add-scoredeltathreshold-to-eqssensor-and-dds-topic) — Add `ScoreDeltaThreshold` to `EqsSensor` and DDS topic
+
+---
+
+## Phase 11 — Corrective: Context-slot generalization (architect finding #4)
+
+**Goal:** Replace hardcoded `TargetMemory[0]` LOS reads with a 3-context-slot mechanism on
+`EqsSensor` per Design §4.2.
+
+- [ ] [TASK-EQS-035](./TASK-DETAIL.md#task-eqs-035--add-context-slots-to-eqssensor-and-dds-topic) — Add context slots to `EqsSensor` and DDS topic
+- [ ] [TASK-EQS-036](./TASK-DETAIL.md#task-eqs-036--generalize-los-tests-to-read-from-context-slots) — Generalize LOS tests to read from context slots
+
+---
+
+## Phase 12 — Corrective: Multi-sensor child-entity support (architect findings #A, #5)
+
+**Goal:** Multiple concurrent EQS queries per agent via dynamically-spawned child entities,
+each carrying its own `EqsSensor` + `EqsCognitiveBuffer`. Uses the existing `PartMetadata` +
+`SubEntityCleanupSystem` cleanup infrastructure.
+
+- [ ] [TASK-EQS-037](./TASK-DETAIL.md#task-eqs-037--declare-eqssensorhandle-wrapper-struct) — Declare `EqsSensorHandle` wrapper struct *(When-node iteration consumes; landed here as data owner)*
+- [ ] [TASK-EQS-038](./TASK-DETAIL.md#task-eqs-038--relax-eqssolversystem-query-and-rekey-sensor-replication) — Relax `EqsSolverSystem` query and rekey sensor replication
+- [ ] [TASK-EQS-039](./TASK-DETAIL.md#task-eqs-039--btree-spawning--destroying-child-sensor-actions) — BTree spawning / destroying child-sensor actions
+- [ ] [TASK-EQS-040](./TASK-DETAIL.md#task-eqs-040--multi-sensor-integration-test--hideincover_bt-child-entity-recipe) — Multi-sensor integration test + `HideInCover_BT_v2` child-entity recipe
