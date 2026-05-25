@@ -1,0 +1,556 @@
+
+---
+
+# Replay Browser — Federated Multi-Node Post-Mortem Inspection
+
+**Spec for review**
+
+## 1. Purpose and scope
+
+This feature extends the existing Replay Browser to support **post-mortem inspection of a distributed cluster run** (Brain / Muscle / IG / etc.) from a single operator UI. It is the recovery path for the "visual disconnect" problem we accept when running Universal Breakpoints on a live cluster: when the Brain pauses at tick N and the Muscle drifts to N+3, the operator's live debugger can no longer trust what it sees on screen. Instead of trying to corrective-publish state over DDS (which destroys the simulation), the operator finishes the run, then opens all of the per-node `.fdp` recordings together in the Replay Browser and reconstructs the moment of interest offline.
+
+This is explicitly an **offline diagnostic tool**. It is not subject to the 60 Hz / zero-allocation budget that governs the live debugger. It is allowed to allocate, serialize, and copy.
+
+## 2. Inputs and entry points
+
+The feature is driven by two inputs:
+
+- **A set of `.fdp` recordings**, one per cluster node, captured from the same exercise. The Replay Browser must accept these as a group, not one at a time.
+- **A wall-clock tick value** (`TotalWallTicks`, the 8-byte UTC stamp the `AsyncRecorder` writes into every delta and keyframe header). The most common source is a value logged by the Universal Breakpoint system when a breakpoint fires on the live cluster, but any wall-tick value works (manual seek, scenario timestamp, etc.).
+
+The Universal Breakpoint system must be extended (small change) to record the current `GlobalTime.TotalWallTicks` whenever a breakpoint fires, and to expose that value to the operator (copy-to-clipboard from the breakpoint hit panel is sufficient for v1).
+
+## 3. Data layer: isolated `ReplayBrowserContext` per node
+
+The Replay Browser must instantiate **one `ReplayBrowserContext` per loaded `.fdp` file**, held in an array (or a keyed map by node identity). Each context owns its own `PlaybackController` and its own `EntityRepository`. There is no shared ECS memory between nodes.
+
+This is non-negotiable and stems from the recording format: `.fdp` files store raw 64 KB `NativeChunkTable` blocks and `EntityIndex` arrays whose `Entity.Index` values are strictly node-local. Entity index 42 on the Brain might be a tank; entity index 42 on the Muscle might be a tree. Any attempt to merge those at the raw memory level corrupts the `EntityIndex` free-list and the chunk layout. The data layer therefore stays federated, and all merging happens above it.
+
+## 4. Wall-tick alignment
+
+The Replay Browser exposes a **base wall-clock tick** for the federated view. When the operator sets or seeks this value, the browser calls `PlaybackController.SeekToWallClockTicks(baseWallTicks)` on **every** context. The existing binary-search-on-frame-index implementation handles the snap-to-nearest-recorded-frame behavior per node.
+
+This alignment is what makes "open all recordings at the moment the breakpoint fired" a one-action operation.
+
+## 5. Per-node time offsets
+
+In addition to the base wall-tick, each `ReplayBrowserContext` in the federation carries an **independent signed offset** (in ticks). The operator can dial each node forward or backward to compensate for the asynchronicity the cluster ran with.
+
+When the base time changes, or when any per-node offset changes, the browser computes for each node:
+
+```
+targetWallTicks_node = baseWallTicks + offset_node
+```
+
+and calls `SeekToWallClockTicks(targetWallTicks_node)` on that node's `PlaybackController`. Because each context's `PlaybackController` and `EntityRepository` are fully isolated, independent seeks are memory-safe — they cannot interfere with each other.
+
+UI requirement: the offset controls must be visible and per-node, with both numeric entry and step-by-frame buttons. A visible warning must indicate that non-zero offsets introduce relational desync (see §8).
+
+## 6. View modes
+
+The Replay Browser must support two inspection modes over the same set of federated contexts:
+
+**(a) Per-node mode.** The operator picks one `ReplayBrowserContext` and the UI binds to its `ISimulationView` directly. This is the existing single-recording experience, unchanged, and is the safe default.
+
+**(b) Federated / "Frankenstein" merged mode.** The operator gets a single unified inspector view that aggregates components from all nodes according to authority. This is the mode that makes the feature useful for distributed debugging. It comes in two implementations described below.
+
+## 7. Merged mode implementation
+
+### 7.1 Inspector-level federation (cheap path, default)
+
+A `FederatedInspectableSession` implements `IInspectableSession`. When the UI asks the session for an entity:
+
+1. Resolve the entity globally by its `NetworkIdentity.Value` across all contexts.
+2. For each component on that entity, walk the contexts and consult `NetworkAuthority` and `DescriptorOwnership` (authority is granular per-descriptor, not just per-entity — the Brain may own `NavigationIntent` while the Muscle owns `NavigationStatus` on the same logical entity).
+3. Return the authoritative slice from whichever node owned it.
+
+The inspector and gizmos consume this session through the existing `IInspectableSession` / `ISimulationView` interfaces and remain unaware that the data is composed from multiple repositories. Nothing is copied or allocated beyond the per-query lookup overhead.
+
+This path is sufficient for the Entity Inspector, watch panels, component dumps, and any other tool that reads through `IInspectableSession`.
+
+### 7.2 Transient master repository (rich path, on demand)
+
+Some tools — gizmos that traverse hierarchies, anything that needs a real `EntityRepository`, or the operator who simply wants "everything in one place" — need a concrete repository. For these cases, the browser must support **synthesizing a transient master `EntityRepository`** on request, scoped either to a single `NetworkIdentity` or to a working set the operator picks.
+
+Construction must go through the existing scenario pipeline, not raw memory copies. Specifically:
+
+1. Allocate a fresh transient `EntityRepository`.
+2. For each target entity, walk the isolated contexts, evaluate `NetworkAuthority` and `DescriptorOwnership` per component, and select the authoritative slices.
+3. Use `ScenarioSerializer` to extract those slices to a JSON DOM. This step is critical because it routes every relational `Entity` handle (`VisHierarchyNode.Parent`, `IsEmbarkedTag.VehicleEntity`, `UnitSubordinate`, etc.) through `IGuidResolver`, converting node-local handles into stable GUIDs.
+4. Deserialize the combined DOM into the transient master. The load-side `IGuidResolver` issues fresh, valid `Entity` handles bound to the new repository's layout.
+
+The result is a memory-correct synthetic repository the UI can bind to via the standard `ISimulationView` / `IInspectableSession` adapters. The cost is real (allocations, JSON round-trip, full ID remapping) — acceptable because this is step-by-step offline analysis, not 60 Hz playback.
+
+This is the existing remapping machinery already used by `StagingEntityExtractor` for scenario loading (which patches handles in `InitialHierarchyIntent`, `InitialPassengersIntent`, etc.) — we are reusing it, not building it.
+
+### 7.3 When to use which
+
+The inspector-level federation (§7.1) should always be available and is the default. The transient master synthesis (§7.2) is on-demand: the operator triggers it explicitly ("build merged repository for entity X" or "build merged repository for selection"), accepts the cost, and gets a real `EntityRepository` to bind tools against. Synthesis must be re-runnable cheaply when the base wall-tick or any per-node offset changes.
+
+## 8. Relational desync — operator-facing semantics
+
+Time-skewing with per-node offsets is memory-safe but introduces *domain-level* paradoxes that the operator must understand. If the Muscle context is at T+3 and the Muscle destroyed a vehicle at T+2, the Brain context at T still holds intent components referencing that entity. After serializer + GUID resolver pass, the dead entity has no GUID in the target snapshot, and `IGuidResolver` will resolve the handle to `Entity.Null`.
+
+This is by design. No out-of-bounds reads, no segfaults — the UI simply shows orphaned handles or null targets. Spec requirements:
+
+- The merged-view UI must visually flag entities with unresolved handles (icon, tooltip explaining "referenced entity not present in federated snapshot").
+- The offset panel must show, near each non-zero offset, a "causality may not hold" indicator.
+- Documentation must position this as an *advanced* diagnostic where causality paradoxes are expected.
+
+## 9. Non-requirements and explicit deferrals
+
+- **No live cluster rewind.** This feature does not attempt to rewind a running cluster. It is strictly post-mortem against `.fdp` files. Live multi-node debugging continues to be solved by switching to the single-node networkless HROT Editor (`OfflineNetworkFactory`).
+- **No corrective DDS publishing.** We explicitly rejected publishing historical state to remote nodes to fix visual disconnect. The replay-based post-mortem is the agreed alternative.
+- **No 60 Hz guarantees.** The federated session and especially the transient master synthesis are explicitly outside the production frame budget.
+
+## 10. Summary of components touched
+
+- `PlaybackController` — used as-is via `SeekToWallClockTicks`.
+- `ReplayBrowserContext` — instantiated per `.fdp` file, held in a federation array.
+- `FederatedInspectableSession` (new) — implements `IInspectableSession` over the array; performs per-query `NetworkIdentity` + `NetworkAuthority` + `DescriptorOwnership` resolution.
+- Transient master synthesis (new) — orchestrates `ScenarioSerializer` + `IGuidResolver` round-trip from federated contexts into a fresh `EntityRepository`.
+- Universal Breakpoint system — minor extension to capture and expose `TotalWallTicks` at hit time.
+- Replay Browser UI — federation loader (multi-file open), per-node offset controls with desync indicators, mode switch (per-node ↔ federated), "synthesize merged repository" action.
+
+---
+
+
+
+
+
+
+i would like to discuss extedning the existiing replay browser by the possibility do load and show recordings from same exercise but different nodes (simply by allowing to open more than one FDP recording) and merge the ECS view based on component authority flags to see "Merged view", using optional interactively adjustable time offset for different node's recordings to compensate fro sligth time shift between nodes; pls read merged-view.md and let's discuss how to apporach it
+
+The approach outlined in your specification is highly robust and correctly identifies the core architectural constraints of the FDP engine—specifically, that raw ECS memory chunks cannot be directly merged because `Entity.Index` values are strictly node-local.
+
+Here is a breakdown of how we can approach implementing this federated multi-node inspection feature, following the phases detailed in your spec:
+
+1\. Isolated Contexts and Time Alignment
+
+Because `.fdp` files store raw 64 KB `NativeChunkTable` blocks and `EntityIndex` arrays, merging them at the memory level would corrupt the chunk layout.
+
+-   **Data Layer:** We will need to update the Replay Browser to instantiate an array or dictionary of `ReplayBrowserContext` instances (one per loaded `.fdp` file), rather than a single context. Each context will safely manage its own isolated `EntityRepository` and `PlaybackController`.-   **Time Sync & Offsets:** We can use the 8-byte UTC `TotalWallTicks` as our absolute baseline. When the user seeks or adjusts a node's offset, the browser will compute `targetWallTicks_node = baseWallTicks + offset_node` and invoke `PlaybackController.SeekToWallClockTicks(targetWallTicks_node)` independently on each node's context. Because the contexts are isolated, these concurrent seeks are entirely memory-safe.
+
+2\. Tier 1: Inspector-Level Federation (The Fast Path)
+
+For standard UI needs (like the Entity Inspector, watch panels, and event browsers), we can implement a `FederatedInspectableSession` that implements `IInspectableSession`. When the UI requests an entity:
+
+-   We resolve it globally across all isolated contexts using `NetworkIdentity.Value`.-   For each component on the entity, we consult the `NetworkAuthority` and `DescriptorOwnership` components to determine which node currently holds authority. This handles split-authority scenarios natively (e.g., the Brain node owns `NavigationIntent` while the Muscle node owns `NavigationStatus`).-   The session returns the authoritative data slice. The UI consumes this seamlessly without any heavy memory allocation.
+
+3\. Tier 2: Transient Master Synthesis (The Rich Path)
+
+For complex operations that require a concrete `EntityRepository` (like hierarchical gizmos or spatial queries), we will build the "Transient Master" synthesis on-demand.
+
+-   Instead of raw memory copies, we will leverage the existing scenario loading pipeline.-   We will extract the authoritative component slices into a JSON DOM using `ScenarioSerializer`.-   During deserialization into the fresh transient `EntityRepository`, we will use `IGuidResolver` to safely remap volatile node-local entity handles (like `UnitSubordinate.Commander` or `VisHierarchyNode.Parent`) into stable GUIDs, and then back into the new repository's layout.
+
+4\. Handling Relational Desync
+
+As you noted, allowing manual time offsets introduces "relational desync"—domain-level paradoxes where, for example, node A references an entity that node B has already destroyed.
+
+-   Because we route everything through `IGuidResolver`, these dead references will safely resolve to `Entity.Null`, preventing segfaults or out-of-bounds reads.-   We will need to update the UI to visibly flag unresolved handles (e.g., a warning tooltip on the entity icon) and display a "causality may not hold" warning next to non-zero time offsets.
+
+**Where would you like to start?** We could begin by refactoring the Replay Browser UI to allow multi-file loading and spawning the isolated `ReplayBrowserContext` array, or we could start by sketching out the `FederatedInspectableSession` class to handle the granular component-authority resolution.
+
+pls explain why tier 1 and tier 2, when tier 2 seems "better" from the point of showing right data at cost of performace) ? what tier 1 brings , what are tier 1 limitation, why are you thinking about tier 1 at all?
+
+While Tier 2 (the Transient Master) is indeed "better" because it correctly resolves cross-node entity relationships into a mathematically accurate snapshot, its performance cost makes it impossible to use as the default view. We need both tiers because of a fundamental architectural constraint in the FDP engine: **raw ECS memory chunks cannot be merged because** **Entity.Index** **handles are strictly node-local**.
+
+Here is a breakdown of why both tiers are necessary, what Tier 1 brings, and its limitations.
+
+What Tier 1 Brings (and why we need it at all)
+
+Tier 1 (Inspector-Level Federation) is the "cheap path" and serves as the default mode.
+
+-   **Zero Allocation & Real-Time Performance:** Instead of copying memory, Tier 1 dynamically resolves entities globally via their `NetworkIdentity.Value` and fetches the authoritative component slices on the fly. Nothing is copied or allocated beyond the per-query lookup overhead.-   **Smooth UI Scrubbing:** When an operator scrubs the replay timeline or adjusts a node's time offset to align causality, the view must update instantly. If we used Tier 2 for every tick adjustment, the UI would completely freeze because creating a Transient Master requires extracting data to a JSON DOM, remapping all IDs, and deserializing into a fresh repository. Tier 1 allows the browser to remain responsive during these real-time adjustments.-   **Sufficient for Basic Tools:** This fast path is perfectly sufficient for the standard Entity Inspector, watch panels, and raw component dumps, which only need to read flat values (like a vehicle's speed or health) through the `IInspectableSession` interface.
+
+Tier 1 Limitations
+
+The fatal limitation of Tier 1 is that **it cannot safely resolve relational entity handles across node boundaries**. Because it skips the heavy `ScenarioSerializer` and `IGuidResolver` steps, raw ECS entity handles (such as `VisHierarchyNode.Parent`, `UnitSubordinate`, or `IsEmbarkedTag.VehicleEntity`) remain as node-local integer indices.
+
+For example, if the Brain node says an entity's commander is `Entity.Index == 42`, that index means nothing on the Muscle node's memory layout. Therefore, any tool that relies on cross-entity relationships will fail or read garbage data under Tier 1. Furthermore, tools like complex spatial gizmos that require a concrete `EntityRepository` to execute queries cannot function against Tier 1's dynamic session.
+
+Why the Dual Approach?
+
+By combining both tiers, we get the best of both worlds:
+
+-   **Tier 1 provides real-time exploration.** The operator uses the fast Tier 1 inspector to freely scrub through time, adjust individual node offsets, and pinpoint the exact moment of interest (e.g., when a paradox or desync occurred) without the UI locking up.-   **Tier 2 provides deep, correct analysis.** Once the operator finds the right moment, they explicitly request the rich path ("build merged repository for selection"). The system accepts the heavy cost of allocations, JSON round-trips, and full ID remapping to synthesize a true `EntityRepository` where all hierarchical and relational links are safely remapped to stable GUIDs.
+
+lots of gizmos etc migth expect the entity references are valid. how they are supposed to work with tier 1?
+
+You have hit on the exact reason why the two-tier system exists: **complex gizmos that expect valid cross-entity references are simply not supposed to work with Tier 1.**
+
+According to the specification, the Tier 1 fast path is strictly limited in its capabilities to ensure zero-allocation performance. Here is how the design approaches gizmos and relational data:
+
+**1\. Tier 1 is restricted to "flat" inspection** Tier 1 is designed to be consumed through interfaces like `IInspectableSession` specifically to feed the Entity Inspector, watch panels, and raw component dumps. When an operator looks at an entity in the inspector under Tier 1, the UI will simply display the raw, unmapped node-local integer for a handle (like a `VisHierarchyNode.Parent` index) but will not attempt to resolve or traverse it.
+
+**2\. Relational gizmos mandate Tier 2** The spec explicitly states that "gizmos that traverse hierarchies, anything that needs a real `EntityRepository`... need a concrete repository". If a gizmo needs to draw a line between a vehicle and its commander, or if a tool needs to execute a spatial query, it cannot function in Tier 1. For those tools to work, the operator must explicitly request the Tier 2 "Transient Master" synthesis.
+
+**3\. The Tier 2 safety mechanism (ID Remapping)** When the operator triggers Tier 2 to support these complex gizmos, the system leverages the `ScenarioSerializer` to extract the authoritative component slices into a JSON DOM. This step is critical because it forces every relational `Entity` handle to pass through an `IGuidResolver`, safely translating the volatile, node-local integer indices into stable, global GUID strings. When deserialized into the fresh transient `EntityRepository`, the load-side resolver issues entirely new, mathematically correct `Entity` handles that are guaranteed to be valid within that new repository's memory layout.
+
+**4\. Handling Paradoxes (Relational Desync)** Even in Tier 2, if the operator manually adjusts time offsets between nodes, they might create a "relational desync" (e.g., node A's components reference an entity that node B has already destroyed in its respective timeline). Because the rich path routes everything through the `IGuidResolver`, these dead references will safely resolve to `Entity.Null` instead of causing out-of-bounds memory reads or segfaults. The UI is then required to visually flag these unresolved handles (e.g., with a warning tooltip) so the operator knows causality has been broken by their time shift.
+
+In short, the Replay Browser protects the engine by isolating relationship-traversing gizmos exclusively to the Tier 2 transient master, requiring the operator to accept the performance cost of full ID remapping when they need that level of deep visual analysis.
+
+I do not want any tier 1. The merged-view does not talk about anything like that, right. I need "correct" merged view, not fast but broken one. The tool should be swicthabe between single-node view (fast as now) and merged-view (frankenstein) which is slow like hell (each frame must be recostructed via json path) but is complete.
+
+Actually, the `merged-view.md` specification _does_ explicitly outline both approaches: Section 7.1 details the "Inspector-level federation (cheap path)" and Section 7.2 details the "Transient master repository (rich path)".
+
+However, if you want to completely scrap Section 7.1 to guarantee absolute relational correctness and avoid maintaining a "fast but broken" intermediate view, we can absolutely simplify the architecture to match your strict requirements.
+
+By dropping the fast path, the tool will feature exactly two switchable modes:
+
+**1\. Single-Node View (Fast)** This remains the safe, real-time default. The operator picks one specific node, and the Replay Browser binds the UI directly to that node's isolated `ReplayBrowserContext` and its `ISimulationView`. Scrubbing the timeline is instantaneous because it's just reading raw ECS memory chunks directly from that node's `.fdp` file.
+
+**2\. Frankenstein Merged-View (Slow but Complete)** When the operator switches to the Merged View, we accept that performance will tank ("slow like hell") in exchange for a mathematically complete and correct `EntityRepository`. Every time the frame updates or the operator interactively adjusts a node's time offset to compensate for cluster drift, we execute the heavy reconstruction pipeline:
+
+-   **Allocate:** We spin up a brand new, empty transient `EntityRepository`.-   **Resolve Authority:** We walk the isolated contexts and evaluate `NetworkAuthority` and `DescriptorOwnership` to determine which node currently owns which component slice for a given `NetworkIdentity`.-   **JSON Extraction:** We use the `ScenarioSerializer` to extract these authoritative component slices into a JSON DOM.-   **Remap Relationships:** During this JSON round-trip, every relational entity handle (e.g., `VisHierarchyNode.Parent`, `UnitSubordinate`) is routed through the `IGuidResolver` to safely translate the volatile, node-local integer handles into stable global GUIDs.-   **Deserialize:** The combined JSON DOM is deserialized into the fresh transient repository, issuing entirely new, valid `Entity` handles.
+
+**The Implications of This Approach** Because we are discarding the lightweight inspector, the UI will likely hang/stutter whenever the operator scrubs the timeline while the "Frankenstein" mode is toggled on, as it must reconstruct the JSON DOM and re-allocate the repository every single frame.
+
+However, the major benefit is that **all gizmos, spatial queries, and hierarchical tools will work flawlessly 100% of the time** because they are querying a mathematically correct `EntityRepository`. Furthermore, if manual time offsets cause a relational paradox (e.g., Node A references a vehicle that Node B has already destroyed), the `IGuidResolver` will elegantly map the dead reference to `Entity.Null`, preventing any crashes.
+
+If you are comfortable with the severe performance penalty of rebuilding the ECS world via JSON for every frame update in the Merged View, this approach is far cleaner to implement.
+
+yes i accept severe performance penalty of merged view. clean implementation is also a benefit.
+
+i need you to define
+
+-   how to allow loading multiple recording files (thay are expected to be from the same exercise, maybe we could check it that is true - maybe the recording metadaat could be extended to contain the exercise guid?)
+-   how to switch between single-node view (by selecting which recording to show) and merged view
+-   how to set the per-node offsset (must immediately update the merged view)
+-   define internal infrastructure to make the above possible
+
+**Loading Multiple Recording Files** To load multiple files safely as a group, we must ensure they belong to the exact same distributed run.
+
+-   **Extend Metadata:** We will extend the `RecordingMetadata` class (which is serialized into the `.meta.json` sidecar file) to include a `public Guid ExerciseId { get; set; }` property. The `AsyncRecorder` already requires an `ExerciseId` during initialization via `RecordingConfiguration`, so writing this to the metadata file is trivial.-   **Validation on Load:** When the operator selects multiple `.fdp` files, the Replay Browser will first load all `.meta.json` files via `MetadataSerializer.Deserialize`. It will verify that all files share the exact same `ExerciseId`. If they mismatch, the load is rejected.-   **Instantiation:** If valid, the system instantiates an array or dictionary of `ReplayBrowserContext` instances, allocating one completely isolated context per `.fdp` file.
+
+**Switching Between Single-Node and Merged Views** Because we are discarding the lightweight inspector path, the UI will simply swap which concrete `EntityRepository` it binds to via the `RepositoryAdapter`:
+
+-   **Single-Node View:** The UI provides a dropdown to select a specific node. The browser binds the UI components (Entity Inspector, Gizmos, Map) directly to that specific node's `ReplayBrowserContext.SandboxRepo`. Scrubbing the timeline is lightning-fast because no data is copied.-   **Merged View:** When toggled on, the UI binds to a separate, dynamically generated **Transient Master Repository**. Every time the timeline changes, the system synthesizes this repository from scratch.
+
+**Setting the Per-Node Offset** The Replay Browser will maintain a master **base wall-clock tick** (`TotalWallTicks`, the 8-byte UTC stamp) and a distinct **signed tick offset** for each loaded node.
+
+-   **UI Controls:** The browser will display per-node offset spinners (numeric entry and step-by-frame buttons) alongside a "causality may not hold" warning when offsets are non-zero.-   **Immediate Update:** When the operator adjusts an offset, the system computes `targetWallTicks_node = baseWallTicks + offset_node`. It invokes `PlaybackController.SeekToWallClockTicks(targetWallTicks_node)` independently on that node's context.-   **Reconstruction:** Immediately after the seek completes, the system discards the old transient master repository, allocates a new one, and re-runs the full JSON extraction and ID remapping pipeline to update the UI with the mathematically correct snapshot.
+
+**Internal Infrastructure Definition** To make this possible, we need a new orchestrator layer above `ReplayBrowserContext`.
+
+**1\.** **FederatedReplayManager** This class manages the lifecycle of the cluster session:
+
+-   Holds a `Dictionary<int, ReplayBrowserContext>` keyed by Node ID.-   Maintains the `BaseWallTicks` and a `Dictionary<int, long> NodeOffsets`.-   Exposes a `SeekToTime(long baseWallTicks)` method that coordinates the isolated seeks across all contexts.
+
+**2\.** **TransientMasterBuilder** This is the heavy-lifting class responsible for synthesizing the "Frankenstein" repository. When asked to build a frame, it performs the following:
+
+-   **Allocate:** Creates a fresh `EntityRepository`.-   **Correlate:** Scans all node contexts and groups entities globally by their `NetworkIdentity.Value`.-   **Resolve Authority:** For each correlated entity, it evaluates the `NetworkAuthority` and `DescriptorOwnership` components across all nodes. It generates a `BitMask512` for each node, representing the exact subset of components that node currently has authority over.-   **Extract to JSON:** It invokes the existing `ScenarioSerializer.SerializeEntity(repo, entity, resolver, componentMask)` on each node, passing in the node-specific authority mask. This extracts only the authoritative data slices into a JSON DOM.-   **Remap IDs:** During this serialization step, the `IGuidResolver` intercepts all relational entity handles (like `VisHierarchyNode.Parent` or `UnitSubordinate.Commander`) and translates the node-local integer indices into stable global GUIDs. If a node offset has caused a relational desync (e.g., pointing to an entity that no longer exists in that timeline), the resolver gracefully maps it to `Entity.Null`.-   **Deserialize:** The merged JSON DOMs are fed back into `ScenarioSerializer.Deserialize`, which injects the data into the fresh transient `EntityRepository`, issuing entirely new, globally consistent `Entity` handles.
+
+This transient repository is then passed to the UI, guaranteeing that all complex gizmos and spatial queries execute flawlessly against a fully realized, memory-safe ECS world.
+
+which parts are the most complex and needs detailing to make it clear how they were meant?
+
+Based on the strict "Frankenstein" (Transient Master only) approach we agreed on, the core concept is sound. However, when we look closely at the actual engine architecture in the sources, there are **four highly complex areas** that require precise detailing. If we don't get these right, the merged view will either silently corrupt data or crash the tool entirely.
+
+Here are the most complex parts that need to be detailed:
+
+1\. Cross-Node Entity Identity Mapping (The Custom `IGuidResolver`)
+
+The sources show that the `ScenarioSerializer` relies heavily on an `IGuidResolver` to translate volatile memory handles (like `VisHierarchyNode.Parent`) into strings during extraction, and back into memory handles during deserialization.
+
+-   **The Complexity:** The default diagnostic resolver (`DiagnosticGuidResolver`) just outputs `[Index, vGeneration]`. Because `Entity.Index` is node-local, an index of 42 on the Brain node has nothing to do with index 42 on the Muscle node.-   **What needs detailing:** We must define a custom **FederatedGuidResolver**. During the JSON extraction phase across isolated contexts, this resolver must translate a node-local `Entity` handle into its global `NetworkIdentity.Value`. During the deserialization phase into the transient master, it must translate that `NetworkIdentity.Value` string into the newly allocated transient `Entity` handle.
+
+2\. Bypassing the Strict `LoadResolver` Paradox Crash
+
+This is a critical safety issue related to manual time offsets (relational desyncs).
+
+-   **The Complexity:** If you offset the Brain node by +50 ticks, it might reference a subordinate entity that the Muscle node hasn't spawned yet. The specification states that these dead references should gracefully resolve to `Entity.Null`. However, the engine's default `LoadResolver` explicitly throws an `InvalidOperationException` if a GUID string fails to resolve to a loaded entity, stating "The scenario file is corrupt".-   **What needs detailing:** Our custom `FederatedGuidResolver` must explicitly override this strict validation. When deserializing the JSON back into the transient repository, if it encounters a `NetworkIdentity` string that doesn't exist in the combined snapshot, it must swallow the error and return `Entity.Null`. We need to detail how the UI will surface these `Entity.Null` paradoxes to the operator without crashing the `ScenarioSerializer.Deserialize` pipeline.
+
+3\. Granular Component Authority Resolution
+
+We cannot simply grab all components from all nodes, or we will overwrite authoritative data with stale ghost data.
+
+-   **The Complexity:** Authority is granular per-component, not per-entity. For example, the Brain node owns `NavigationIntent` while the Muscle node owns `NavigationStatus` on the exact same entity. Furthermore, the engine tracks network authority using descriptor ordinals, but the `ScenarioSerializer` filters data using an ECS component `BitMask512`.-   **What needs detailing:** We must detail how the `TransientMasterBuilder` uses the `DescriptorOwnershipMap`—which the engine defines as the "Single Source of Truth" for mapping network descriptors to exact ECS component type IDs—to dynamically construct a perfectly accurate `BitMask512` for each isolated node. This mask guarantees that `ScenarioSerializer.SerializeEntity` extracts _only_ the specific components that node currently owns.
+
+4\. Merging the JSON DOM Fragments
+
+Because we are extracting authoritative slices from different nodes, we aren't getting one complete JSON document per entity.
+
+-   **The Complexity:** If we call `ScenarioSerializer.SerializeEntity` on the Brain node, it will return a `JsonObject` containing only the cognitive components (e.g., `{ "MissionPlanQueue": {...} }`). Calling it on the Muscle node for the same entity will return a different `JsonObject` (e.g., `{ "SimTransform": {...}, "SimVelocity": {...} }`).-   **What needs detailing:** We need to define exactly how the `TransientMasterBuilder` merges these fragmented `JsonObject` nodes into a single, cohesive entity JSON block _before_ passing the final DOM to `ScenarioSerializer.Deserialize`. If two nodes claim authority over the same component (a split-brain bug in the recorded simulation), we also need a defined conflict-resolution rule (e.g., lower Node ID wins, or throw a visible warning).
+
+**Which of these four complexities would you like to drill into first?** I suggest we start with the **JSON DOM Merging Strategy (4)** or the **Custom GuidResolver (1 & 2)**, as they are the foundational mechanisms that make the "Frankenstein" approach possible.
+
+let's detail one at a time. start with 1. Cross-Node Entity Identity Mapping (The Custom IGuidResolver). feel free to ask me for next part of the same topic if the detailing requires more than one page (just ask me to write 'go')
+
+To achieve accurate cross-node identity mapping, we must implement a custom `IGuidResolver`. The fundamental challenge is that the `IGuidResolver` interface only receives a raw `Entity` handle (during extraction) or a `string` (during deserialization). It has no contextual knowledge of _which_ node's `EntityRepository` it is currently operating against.
+
+Therefore, the orchestration of the mapping must be managed by the `TransientMasterBuilder` using a stateful resolver that swaps its mapping dictionaries depending on the active phase.
+
+Here is the detailed design for the **FederatedGuidResolver** and its orchestration:
+
+1\. The `FederatedGuidResolver` Class
+
+We will define a custom resolver that holds two distinct mapping dictionaries:
+
+-   **\_saveMap** **(****Dictionary<Entity, string>****)**: Maps a node-local `Entity` to its global string ID. This map is hot-swapped for each node being processed.-   **\_loadMap** **(****Dictionary<string, Entity>****)**: Maps a global string ID to the newly allocated `Entity` in the transient master repository.
+
+```
+public sealed class FederatedGuidResolver : IGuidResolver
+{
+    private Dictionary<Entity, string>? _saveMap;
+    private Dictionary<string, Entity>? _loadMap;
+
+    public void SetSaveMap(Dictionary<Entity, string> saveMap) => _saveMap = saveMap;
+    public void SetLoadMap(Dictionary<string, Entity> loadMap) => _loadMap = loadMap;
+
+    // Save-time: volatile node-local handle -> stable global string
+    public string Resolve(Entity entity)
+    {
+        if (_saveMap != null && _saveMap.TryGetValue(entity, out string globalId))
+            return globalId;
+        
+        return "null"; // Fallback for unresolved or local-only entities
+    }
+
+    // Load-time: stable global string -> new transient master handle
+    public Entity Resolve(string guidStr)
+    {
+        if (_loadMap != null && _loadMap.TryGetValue(guidStr, out Entity transientEntity))
+            return transientEntity;
+            
+        return Entity.Null;
+    }
+}
+```
+
+2\. The TransientMasterBuilder Orchestration Flow
+
+Because raw integer `Entity.Index` handles are meaningless across node boundaries, the `TransientMasterBuilder` uses the `NetworkIdentity.Value` as the stable global anchor. Every time the merged view requests a new frame, the builder executes these steps:
+
+**Step A: Global Correlation & Pre-Allocation (Building the Load Map)**
+
+-   The builder creates the new transient `EntityRepository`.-   It scans all isolated node contexts and collects every unique `NetworkIdentity.Value`.-   For each unique network ID, it explicitly creates a new `Entity` in the transient master repository (`var e = transientRepo.CreateEntity();`).-   It stores this pairing in the `_loadMap` (e.g., `["987654321"] = e`).
+
+**Step B: Node-Local Extraction (Building the Save Maps)** For each isolated node context (Brain, Muscle, etc.):
+
+-   The builder scans the node's repository and builds a temporary `_saveMap` mapping that specific node's local `Entity` handles to their `NetworkIdentity.Value.ToString()`.-   It injects this node's map into the `FederatedGuidResolver.SetSaveMap()`.-   It calls `ScenarioSerializer.SerializeEntity(nodeRepo, localEntity, federatedResolver, nodeAuthorityMask)`.-   _Result:_ As the serializer extracts relational components (like `UnitSubordinate.Commander` or `VisHierarchyNode.Parent`), the `FederatedGuidResolver` intercepts the volatile node-local `Entity` handles and writes the stable network ID strings into the JSON DOM.
+
+**Step C: Deserialization into the Master** Once the fragmented JSON DOMs are merged, the builder feeds the combined JSON back into `ScenarioSerializer.Deserialize`.
+
+-   The `FederatedGuidResolver` switches to use the `_loadMap`.-   As relational components are injected into the transient master, the resolver intercepts the network ID strings and provides the mathematically correct `Entity` handles mapped during Step A.
+
+This guarantees that all spatial queries, parent-child hierarchies, and command links point to the correct blocks of memory in the new Transient Master, completely insulating the gizmo logic from the multi-node reality.
+
+Let me know if you are ready to detail the next complex part, **2\. Bypassing the Strict LoadResolver Paradox Crash**, which handles the relational desyncs caused by manual time offsets. Just write 'go'.
+
+go
+
+Here is the detailed design for **2\. Bypassing the Strict LoadResolver Paradox Crash**, which handles relational desyncs caused by manual time offsets.
+
+The Engine Constraint (Why the Crash Happens)
+
+When the FDP engine normally deserializes a scenario, it expects absolute relational integrity. The default `LoadResolver` used by the `ScenarioSerializer` enforces this strictly: if it reads a GUID string from the JSON DOM that does not exist in its lookup map, it immediately throws an `InvalidOperationException` stating: _"GUID {guid} does not resolve to any loaded entity. This may indicate a forward reference or a corrupt scenario file"_.
+
+If we used the default pipeline, the "Frankenstein" merged view would instantly crash the moment an operator offset the Brain node by +50 ticks, causing a commander entity to reference a subordinate that the Muscle node hasn't spawned yet.
+
+The Solution: `FederatedGuidResolver` Fallback
+
+To safely build the transient master repository, we bypass the internal `LoadResolver` entirely and inject our `FederatedGuidResolver` into the `ScenarioSerializer.Inject` and `FdpAutoSerializer.TryInject` pipelines.
+
+When the deserialization pipeline encounters a relational handle (e.g., extracting the `Vehicle` property for an `IsEmbarkedTag`), it asks our resolver to translate the string back into an `Entity`.
+
+Our resolver elegantly absorbs the paradox:
+
+```
+public Entity Resolve(string guidStr)
+{
+    // 1. Try to find the entity in the pre-allocated Load Map
+    if (_loadMap != null && _loadMap.TryGetValue(guidStr, out Entity transientEntity))
+    {
+        return transientEntity;
+    }
+            
+    // 2. PARADOX CAUGHT: The entity exists in one node's timeline but not the other's.
+    // Instead of throwing like the default LoadResolver, we safely return Entity.Null.
+    return Entity.Null; 
+}
+```
+
+By returning `Entity.Null`, the engine safely assigns a dead reference to the component field in memory. This guarantees no out-of-bounds memory reads or segfaults will occur when gizmos try to traverse the hierarchy.
+
+Surfacing the Paradox in the UI
+
+Silently nullifying the reference keeps the engine from crashing, but the operator needs to know _why_ a connection is broken. The specification dictates that these desyncs must be visually flagged.
+
+To achieve this, we will update the ImGui presentation layer:
+
+-   **EntityRenderer** **Update:** The existing `EntityRenderer` (which draws inline `[index, vGeneration]` labels for entity fields) will be extended. If it receives an `Entity.Null` while the Replay Browser is in "Merged View" mode and per-node offsets are non-zero, it will render the field in a warning color (e.g., yellow/orange).-   **Warning Tooltips:** Hovering over this nullified field will display a specific tooltip: _"Referenced entity not present in federated snapshot"_.-   **Global Causality Warning:** As required by the spec, the offset control panel itself will display a "causality may not hold" indicator next to any node that has a non-zero time offset.
+
+This design turns a fatal engine crash into a deliberate, operator-facing diagnostic feature.
+
+Let me know if you are ready to detail the next complex part, **3\. Granular Component Authority Resolution**, which guarantees we don't overwrite authoritative data with stale ghost data. Just write 'go'.
+
+go
+
+Here is the detailed design for **3\. Granular Component Authority Resolution**, which ensures the Transient Master is built exclusively from true authoritative data, completely ignoring stale ghost components.
+
+The Danger: Stale Ghost Data Overwrites
+
+In the FDP architecture, a ghost entity on Node B contains copies of components owned by Node A (e.g., Node B has a ghost of a tank with a `SimTransform`, but Node A calculates the physics). If the operator adjusts the time offset of Node B to be +50 ticks ahead of Node A, Node B's ghost `SimTransform` will be 50 ticks out of date compared to the true physics state on Node A.
+
+If we blindly extract all components from all nodes, Node B's stale ghost `SimTransform` JSON might overwrite Node A's authoritative JSON during the merge, corrupting the view.
+
+The Solution: The Consensus Extraction Mask
+
+When the `TransientMasterBuilder` prepares to extract an entity from a node's `ReplayBrowserContext`, it must not pass the entity's full component mask to `ScenarioSerializer.SerializeEntity`. Instead, it calculates a strict, node-specific **Extraction Mask**.
+
+The engine already natively tracks component-level authority via `EntityMetadataCold.AuthorityMask` (which is maintained under the hood by `OwnershipIngressSystem` evaluating the `DescriptorOwnershipMap` \[i\]). We will leverage this, combined with a "first-claim-wins" consensus mechanism to handle split-brain paradoxes caused by manual time offsets.
+
+Here is the exact algorithm the `TransientMasterBuilder` will execute for each globally correlated entity:
+
+Step A: Determine Node Priority
+
+To ensure deterministic conflict resolution if two nodes claim authority over the same component due to time-skew, we sort the isolated contexts for this entity:
+
+-   **Primary Owner First:** We inspect the `NetworkAuthority` component across all nodes to find the `PrimaryOwnerId`. The context matching this Node ID is evaluated first.-   **Secondary Owners:** Remaining nodes are evaluated in ascending order of their Node ID.
+
+Step B: Build the Safe Extraction Masks
+
+We maintain a global `BitMask512 alreadyClaimedMask` (initially empty) for the entity being built. Then, we iterate through the sorted node contexts:
+
+```
+BitMask512 alreadyClaimedMask = default;
+
+foreach (var nodeContext in sortedContexts)
+{
+    Entity localEntity = GetLocalEntity(nodeContext, globalNetworkId);
+    if (localEntity == Entity.Null) continue;
+
+    // 1. What components actually exist on this node's version of the entity?
+    BitMask512 presenceMask = nodeContext.Repo.GetComponentMask(localEntity.Index);
+
+    // 2. What components does this node officially have authority over?
+    BitMask512 authorityMask = nodeContext.Repo.GetMetadata(localEntity.Index).AuthorityMask;
+
+    // 3. The node wants to contribute components it has AND owns.
+    BitMask512 candidateMask = presenceMask;
+    candidateMask.BitwiseAnd(in authorityMask);
+
+    // 4. SPLIT-BRAIN RESOLUTION: Strip out any components a higher-priority node already claimed.
+    BitMask512 actualExtractionMask = candidateMask;
+    actualExtractionMask.BitwiseAndNot(in alreadyClaimedMask); // (Theoretical helper: actual = candidate & ~claimed)
+
+    // 5. Update global claim ledger
+    alreadyClaimedMask.BitwiseOr(in actualExtractionMask);
+
+    // 6. Extract only the safe, authoritative components into the fragmented JSON DOM
+    JsonObject fragment = ScenarioSerializer.SerializeEntity(
+        nodeContext.Repo, 
+        localEntity, 
+        federatedResolver, 
+        actualExtractionMask); 
+        
+    fragmentsToMerge.Add(fragment);
+}
+```
+
+Why This is Bulletproof
+
+-   **Zero Ghost Data:** By explicitly bitwise-ANDing the `presenceMask` with the `AuthorityMask`, we mathematically guarantee that ghost components (which are present but unowned) are completely ignored during JSON serialization.-   **Split-Brain Safety:** If the operator dials offsets so aggressively that both Brain and Muscle nodes claim authority over `NavigationIntent` at that exact millisecond combination, the `alreadyClaimedMask` ensures the Primary Owner's data is safely preserved, and the conflicting secondary node's data is discarded, preventing JSON merge crashes.-   **Engine Alignment:** This respects the engine's strict `DescriptorOwnershipMap` architecture without needing to manually map DDS ordinals to ECS IDs during replay, because the recorded `.fdp` files already captured the correctly resolved 512-bit `AuthorityMask` in the `EntityMetadataCold` chunk \[i\].
+
+Let me know if you are ready to detail the final piece of the Frankenstein builder: **4\. Merging the JSON DOM Fragments** (how we combine the disparate JSON objects from Step B into a single entity definition before deserialization). Just write 'go'.
+
+go
+
+Here is the detailed design for **4\. Merging the JSON DOM Fragments**, which defines how the system combines the isolated component slices into a unified, mathematically correct ECS world before deserialization.
+
+The Challenge: Fragmented Entity Definitions
+
+Because `ScenarioSerializer.SerializeEntity` extracts data on a per-node basis, it returns a distinct `JsonObject` for each node containing only the components that node owns.
+
+For example, for a single tank (Network ID: `123`), the builder receives:
+
+-   **From the Brain Node:** `{ "MissionPlanQueue": {...}, "NavigationIntent": {...} }`-   **From the Muscle Node:** `{ "SimTransform": {...}, "SimVelocity": {...}, "NavigationStatus": {...} }`
+
+If we pass these fragments directly to the deserializer, it will treat them as separate, incomplete entities. We must fuse them into a single, comprehensive entity definition that matches the strict schema expected by the engine.
+
+The Merging Strategy
+
+The `TransientMasterBuilder` constructs a single master JSON Document Object Model (DOM) that mimics a standard `.json` scenario file format.
+
+**1\. Constructing the Master Envelope** The builder initializes a root `JsonObject` with the required `Header` and an empty `Entities` dictionary:
+
+```
+{
+  "Header": { "SubsystemType": "Hrot.Scenario", "SchemaVersion": 1 },
+  "Entities": {}
+}
+```
+
+**2\. Fusing the Entity Fragments** For each globally correlated entity (identified by its string `NetworkIdentity.Value`), the builder creates a new `JsonObject` to hold the merged components. It then iterates through the fragmented `JsonObject` slices extracted in Step 3:
+
+```
+JsonObject mergedEntityNode = new JsonObject();
+
+foreach (JsonObject fragment in fragmentsForThisEntity)
+{
+    // Each fragment contains properties like "SimTransform": { ... }
+    foreach (var kvp in fragment)
+    {
+        // 3. Conflict Resolution (Safety Net)
+        if (!mergedEntityNode.ContainsKey(kvp.Key))
+        {
+            // Deep clone the node to safely detach it from the fragment DOM
+            mergedEntityNode.Add(kvp.Key, kvp.Value.DeepClone());
+        }
+        else
+        {
+            // A collision occurred! (e.g., a component missing from the AuthorityMask).
+            // Because we processed the Primary Owner's fragment first in Step 3, 
+            // we safely ignore this lower-priority duplicate.
+            FdpLog.Warn($"Discarding duplicate component {kvp.Key} from secondary node.");
+        }
+    }
+}
+
+// 4. Attach the merged entity to the master DOM using its global NetworkIdentity string
+masterEntitiesNode.Add(globalNetworkIdStr, mergedEntityNode);
+```
+
+The Final Deserialization (Closing the Loop)
+
+Once every global entity has been merged and attached to the `Entities` block of the master DOM, the `TransientMasterBuilder` executes the final phase:
+
+-   **Invoke Deserializer:** It calls `ScenarioSerializer.Deserialize(transientRepo, masterDom)`.-   **Entity Instantiation:** The engine parses the `Entities` block. For each unique GUID string (our `NetworkIdentity.Value`), it creates a fresh `Entity` handle in the empty `transientRepo`.-   **Component Injection:** The engine injects the merged JSON components onto the new entities.-   **Relational Resolution:** During injection, whenever a relational component (like `VisHierarchyNode.Parent`) needs to point to another entity, it passes the target's GUID string to the load-time `IGuidResolver`. As detailed in Steps 1 & 2, this resolver translates the string into the newly minted `Entity` handle, or gracefully returns `Entity.Null` if the target is missing due to a time-offset paradox.
+
+The Result
+
+The output is a single, fully populated `EntityRepository` where all hierarchical links, spatial transforms, and cognitive states are perfectly unified and memory-safe. The Replay Browser UI binds its map and gizmos to this transient repository, allowing the operator to scrub through time, tweak offsets, and visualize the true cross-node cluster state.
+
+This concludes the detailing of the four complex pillars required for the **Frankenstein Merged View**. Do you have any specific questions about this architecture, or are we ready to move forward with the implementation plan?
+
+ready to move forward with implementation plan
+
+Here is the step-by-step implementation plan to build the Frankenstein Merged View, structured into logical phases for development.
+
+Phase 1: Metadata Extension and Group Loading
+
+First, we must ensure the engine can safely identify and group recordings that belong to the exact same distributed run.
+
+-   **Update Metadata Schema:** Modify the `RecordingMetadata` class to include a `public Guid ExerciseId { get; set; }` property.-   **Recorder Injection:** Update the `AsyncRecorder` so that when it writes the `.meta.json` file during disposal, it stamps the `ExerciseId` (which it already receives via `RecordingConfiguration`).-   **File Dialog Update:** Update the `ReplayTimelinePanel` and its `LoadFdpAsync` method to allow multi-file selection.-   **Validation:** When multiple files are selected, load their `.meta.json` sidecars first using `MetadataSerializer.Deserialize`. Reject the load if the `ExerciseId` values do not match across all selected files.
+
+Phase 2: Core Federation Infrastructure
+
+We need to replace the single-file assumption in the Replay Browser with a multi-node manager.
+
+-   **Create** **FederatedReplayManager****:** This new orchestrator will hold a `Dictionary<int, ReplayBrowserContext>`.-   **Modify** **ReplayBrowserSubsystem****:** Update the subsystem to instantiate the `FederatedReplayManager` instead of a single `ReplayBrowserContext`.-   **Clock Orchestration:** Add a global `BaseWallTicks` property and a `Dictionary<int, long> NodeOffsets` to the manager. Expose a `SeekToTime(long baseWallTicks)` method that computes `targetWallTicks_node = baseWallTicks + offset_node` and loops through all isolated contexts to invoke `PlaybackController.SeekToWallClockTicks`.
+
+Phase 3: The Frankenstein Synthesis Engine
+
+This is the heavy-lifting phase where we implement the ECS memory reconstruction.
+
+-   **Implement** **FederatedGuidResolver****:** Create the custom class implementing `IGuidResolver` with the hot-swappable `_saveMap` and `_loadMap` dictionaries. Ensure the `Resolve(string guidStr)` method gracefully returns `Entity.Null` instead of throwing an exception when a time-offset paradox occurs.-   **Implement** **TransientMasterBuilder****:**
+    -   **Pre-allocation:** Scan all contexts, collect unique `NetworkIdentity.Value` strings, create blank entities in a new transient `EntityRepository`, and populate the resolver's `_loadMap`.-   **Consensus Masking:** Iterate contexts and use `NetworkAuthority.PrimaryOwnerId` to build the strict `BitMask512` extraction masks so ghost components are skipped.-   **DOM Extraction:** Call `ScenarioSerializer.SerializeEntity` per node, passing the custom mask and resolver.-   **DOM Merging & Injection:** Fuse the fragmented `JsonObject` nodes into a master scenario DOM, then call `ScenarioSerializer.Deserialize` to inject the combined data into the transient master repository.
+
+Phase 4: UI Binding and Paradox Visualisation
+
+Finally, we expose the controls to the operator and bind the synthesized data to the screen.
+
+-   **View Toggling:** Add a UI toggle in the Replay Browser to switch between Single-Node (binding the UI directly to one node's `SandboxRepo`) and Merged View (binding the UI to the output of `TransientMasterBuilder`).-   **Offset Spinners:** Add numerical spinners for per-node tick offsets in the `ReplayTimelinePanel`. When adjusted, immediately trigger the `FederatedReplayManager` to seek and rebuild the transient master. Add the "causality may not hold" warning icon next to non-zero offsets.-   **Paradox Styling:** Update the UI presentation layer (likely within `ComponentReflector` or the entity handle renderer) to detect `Entity.Null` values while in Merged View. Render these specific nulls in a warning color (e.g., orange) with a tooltip stating _"Referenced entity not present in federated snapshot"_ to explicitly identify relational desyncs caused by manual time shifts.
+
