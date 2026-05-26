@@ -360,6 +360,7 @@ public sealed class IntegrationTests
                 FilePath   = tempFile,
                 ExerciseId = Guid.NewGuid(),
                 Blocking   = true,
+                NodeId = 0,
             };
             var module   = new RecordingModule(config);
             var captured = new CapturingSystemRegistry();

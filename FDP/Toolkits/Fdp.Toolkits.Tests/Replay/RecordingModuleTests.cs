@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -48,6 +49,7 @@ namespace Fdp.Toolkit.Replay.Tests
             {
                 FilePath = Path.Combine(_tempDir, "test.fdp"),
                 ExerciseId  = Guid.NewGuid(),
+                NodeId = 0,
             };
             using var world  = CreateWorld();
             var module = new RecordingModule(config);
@@ -152,6 +154,7 @@ namespace Fdp.Toolkit.Replay.Tests
                 FilePath = Path.Combine(_tempDir, "blocking_test.fdp"),
                 ExerciseId  = Guid.NewGuid(),
                 Blocking = true,
+                NodeId = 0,
             };
 
             using var world = CreateWorld();
@@ -188,6 +191,7 @@ namespace Fdp.Toolkit.Replay.Tests
             {
                 FilePath = Path.Combine(_tempDir, "sc_install.fdp"),
                 ExerciseId  = Guid.NewGuid(),
+                NodeId = 0,
             };
             var module   = new RecordingModule(config);
             var registry = new CapturingSystemRegistry();
@@ -221,6 +225,7 @@ namespace Fdp.Toolkit.Replay.Tests
             {
                 FilePath = Path.Combine(_tempDir, "sc_uninstall.fdp"),
                 ExerciseId  = Guid.NewGuid(),
+                NodeId = 0,
             };
             var module   = new RecordingModule(config);
             var registry = new CapturingSystemRegistry();
@@ -241,6 +246,24 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Equal("RecorderTickSystem", registry2.Systems[0].GetType().Name);
 
             module2.Dispose();
+        }
+
+        // ── RBF-P1T2 test ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Verifies that <see cref="RecordingConfiguration.NodeId"/> is decorated with
+        /// <see cref="System.Runtime.CompilerServices.RequiredMemberAttribute"/>,
+        /// confirming that omitting it in an object initializer is a compile error.
+        /// </summary>
+        [Fact]
+        public void RBF_P1T2_Configuration_NodeIdRequired()
+        {
+            var prop = typeof(RecordingConfiguration).GetProperty("NodeId");
+            Assert.NotNull(prop);
+            var attrs = prop!.GetCustomAttributes(
+                typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), false);
+            Assert.True(attrs.Length > 0,
+                "RecordingConfiguration.NodeId must be decorated with RequiredMemberAttribute");
         }
 
         // ── Helper: bare-minimum ISystemRegistry ─────────────────────────────────

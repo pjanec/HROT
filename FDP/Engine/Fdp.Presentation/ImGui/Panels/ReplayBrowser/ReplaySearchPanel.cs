@@ -43,6 +43,12 @@ public sealed class ReplaySearchPanel
     /// <summary>Set by the subsystem after loading a recording file.</summary>
     public string? CurrentFilePath { get; set; }
 
+    /// <summary>
+    /// When true the search panel is in Merged View mode.
+    /// DrawContent renders a disabled overlay and returns early.
+    /// </summary>
+    public bool IsMergedViewActive { get; set; }
+
     /// <summary>Optional spatial picker context; injected by the subsystem when needed.</summary>
     public ISpatialPickerContext? SpatialPickerCtx { get; set; }
 
@@ -116,6 +122,13 @@ public sealed class ReplaySearchPanel
 
     public void DrawContent()
     {
+        if (IsMergedViewActive)
+        {
+            ImGuiApi.BeginDisabled();
+            ImGuiApi.Text("Search is not available in Merged View.");
+            ImGuiApi.EndDisabled();
+            return;
+        }
         EnsureSession();
         if (_predicateSession == null || _componentEditDrawer == null)
             return;

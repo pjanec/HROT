@@ -285,3 +285,65 @@ public class ReplaySearchPanelDecouplingTests
         Assert.Single(selectLog);
     }
 }
+
+// ── RBF-P4T7: IsMergedViewActive property on ReplaySearchPanel ────────────
+
+public class ReplaySearchPanelMergedViewTests
+{
+    private sealed class NopEditService : IComponentEditService
+    {
+        private sealed class NopSession : IEditSession
+        {
+            public EditDocument Document => null!;
+            public bool IsDirty => false;
+            public EditRebuildState RebuildState => EditRebuildState.Stable;
+            public void MarkStructuralChange() { }
+            public void RebuildDocument() { }
+            public ValidationResult Validate() => ValidationResult.Ok();
+            public object Commit() => new object();
+            public void Cancel() { }
+            public void Dispose() { }
+        }
+
+        public IEditSession Open(object component, Type componentType, EditScope? scope = null, EditContext? context = null)
+            => new NopSession();
+    }
+
+    private sealed class NopSearchService : IRecordingSearchService
+    {
+        public IReadOnlyList<SearchResultDto> ExecuteSearch(string fdpPath, SearchPredicateDto root, TargetEntityFilter? entityFilter = null, CancellationToken ct = default)
+            => Array.Empty<SearchResultDto>();
+        public IReadOnlyList<LifecycleSearchResultDto> ExecuteLifecycleSearch(string fdpPath, LifecyclePredicateDto criteria, TargetEntityFilter? entityFilter = null, CancellationToken ct = default)
+            => Array.Empty<LifecycleSearchResultDto>();
+    }
+
+    private static ReplaySearchPanel MakeSearchPanel()
+        => new ReplaySearchPanel(
+            new NopEditService(),
+            new NopSearchService(),
+            _ => { }, _ => { }, (_, _) => { });
+
+    [Fact]
+    public void RBF_P4T7_IsMergedViewActive_DefaultsFalse()
+    {
+        var panel = MakeSearchPanel();
+        Assert.False(panel.IsMergedViewActive);
+    }
+
+    [Fact]
+    public void RBF_P4T7_SetMergedViewActive_True_PropertyReflectsChange()
+    {
+        var panel = MakeSearchPanel();
+        panel.IsMergedViewActive = true;
+        Assert.True(panel.IsMergedViewActive);
+    }
+
+    [Fact]
+    public void RBF_P4T7_SetMergedViewActive_False_PropertyReflectsChange()
+    {
+        var panel = MakeSearchPanel();
+        panel.IsMergedViewActive = true;
+        panel.IsMergedViewActive = false;
+        Assert.False(panel.IsMergedViewActive);
+    }
+}

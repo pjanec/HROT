@@ -72,4 +72,31 @@ public sealed class ReplayTimelinePanelTests
     {
         Assert.True(ReplayTimelinePanel.GetDisabledTimeInputs(mode));
     }
+
+    // ── RBF-P4T6: Play button enable/disable logic ────────────────────────
+
+    [Fact]
+    public void RBF_P4T6_Play_DisabledInMerged()
+    {
+        Assert.False(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true, isMergedView: true));
+    }
+
+    [Fact]
+    public void RBF_P4T6_Play_EnabledInSingleNode()
+    {
+        Assert.True(ReplayTimelinePanel.IsPlayEnabled(hasRecording: true, isMergedView: false));
+    }
+
+    [Fact]
+    public void RBF_P4T6_Play_DisabledWhenNoRecording()
+    {
+        Assert.False(ReplayTimelinePanel.IsPlayEnabled(hasRecording: false, isMergedView: false));
+    }
+
+    [Fact]
+    public void RBF_P4T6_PlayTooltipContainsDisclaimer()
+    {
+        const string mergedTooltip = "Continuous playback is disabled in Merged View. Use Step-Forward/Backward or the timeline slider.";
+        Assert.Contains("disabled in Merged View", mergedTooltip);
+    }
 }

@@ -49,6 +49,7 @@ namespace Fdp.Toolkit.Replay.Tests
                 FilePath     = Path.Combine(_tempDir, "episode.fdp"),
                 EntityFilter = filter,
                 ExerciseId      = episodeId,
+                NodeId = 0,
             };
 
             var module   = new EpisodeRecorderModule(config);
@@ -116,11 +117,11 @@ namespace Fdp.Toolkit.Replay.Tests
 
             var moduleA = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathA, ExerciseId = episodeA,
+                FilePath = pathA, ExerciseId = episodeA, NodeId = 0,
             });
             var moduleB = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathB, ExerciseId = episodeB,
+                FilePath = pathB, ExerciseId = episodeB, NodeId = 0,
             });
 
             var registryA = new CapturingSystemRegistry();

@@ -54,5 +54,7 @@ namespace Fdp.Examples.CarKinem
             get => _selectionManager.HoveredEntity;
             set => _selectionManager.HoveredEntity = value;
         }
+
+        public bool IsMergedView { get; set; }
     }
 }

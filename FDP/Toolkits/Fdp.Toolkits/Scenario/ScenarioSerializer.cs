@@ -409,6 +409,94 @@ namespace Fdp.Toolkit.Scenario
             }
         }
 
+        // ── DeserializeWith ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Deserializes components from <paramref name="dom"/> into <paramref name="repo"/>
+        /// using caller-supplied entity mappings and a caller-supplied GUID resolver.
+        /// Unlike <see cref="Deserialize(EntityRepository,JsonObject,bool,Guid?)"/>, this overload:
+        /// <list type="bullet">
+        ///   <item>Skips the subsystem-type header check (the DOM may carry mixed-subsystem data).</item>
+        ///   <item>Skips entity creation (pass 1). All entity keys in the DOM must be present in
+        ///     <paramref name="preAllocated"/>; a missing key throws.</item>
+        ///   <item>Passes <paramref name="loadResolver"/> into every translator and auto-serializer
+        ///     call so callers control cross-entity reference resolution.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="repo">Target repository.</param>
+        /// <param name="dom">Scenario DOM containing an <c>Entities</c> node.</param>
+        /// <param name="loadResolver">Resolver forwarded to translators and auto-serializer for
+        ///   Entity-typed fields during injection.</param>
+        /// <param name="preAllocated">Maps DOM entity-key strings to pre-created Entity handles.</param>
+        /// <exception cref="ArgumentNullException">When any argument is null.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the DOM is missing the <c>Entities</c> node, an entity key is absent from
+        /// <paramref name="preAllocated"/>, or an unknown component type name is encountered.
+        /// </exception>
+        public void DeserializeWith(
+            EntityRepository repo,
+            JsonObject dom,
+            IGuidResolver loadResolver,
+            Dictionary<string, Entity> preAllocated)
+        {
+            if (repo         == null) throw new ArgumentNullException(nameof(repo));
+            if (dom          == null) throw new ArgumentNullException(nameof(dom));
+            if (loadResolver == null) throw new ArgumentNullException(nameof(loadResolver));
+            if (preAllocated == null) throw new ArgumentNullException(nameof(preAllocated));
+
+            var entitiesNode = (dom["Entities"] ?? dom["entities"]) as JsonObject;
+            if (entitiesNode == null)
+                throw new InvalidOperationException(
+                    "[ScenarioSerializer] DeserializeWith: scenario DOM is missing or has a non-object 'Entities' node.");
+
+            // No pass-1: entities must already exist in preAllocated.
+            // ── Pass 2: inject components using the caller-supplied resolver ────
+            foreach (var kvp in entitiesNode)
+            {
+                if (!preAllocated.TryGetValue(kvp.Key, out var entity))
+                    continue; // Entity not in preAllocated: caller did not request it, skip.
+
+                var entityNode = kvp.Value as JsonObject;
+                if (entityNode == null) continue;
+
+                // Build a set of component names handled by custom translators.
+                var translatorHandled = new HashSet<string>(StringComparer.Ordinal);
+
+                // Build a full data map so N:M translators can use their own custom DOM keys.
+                var scenarioData = new Dictionary<string, object>(StringComparer.Ordinal);
+                foreach (var kv in entityNode)
+                {
+                    if (kv.Value != null) scenarioData[kv.Key] = kv.Value;
+                }
+
+                foreach (var translator in _translators)
+                {
+                    translator.Inject(repo, entity, scenarioData, loadResolver);
+
+                    foreach (var name in BuildConsumedNames(translator.GetConsumedComponentsMask()))
+                        translatorHandled.Add(name);
+
+                    foreach (var key in translator.GetOutputDomKeys())
+                        translatorHandled.Add(key);
+                }
+
+                // Auto-serializer handles the rest, forwarding the caller-supplied resolver.
+                foreach (var compKvp in entityNode)
+                {
+                    if (translatorHandled.Contains(compKvp.Key)) continue;
+
+                    int typeId = FindTypeIdByName(compKvp.Key);
+                    if (typeId < 0)
+                        throw new InvalidOperationException(
+                            $"[ScenarioSerializer] DeserializeWith: unknown component type name '{compKvp.Key}'. " +
+                            "The scenario file references a component that is not registered in the current " +
+                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
+
+                    AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
+                }
+            }
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────────────
 
         /// <summary>Collects all active entities that do NOT carry <see cref="ScenarioIgnoreTag"/>.</summary>

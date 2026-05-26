@@ -47,5 +47,17 @@ namespace Fdp.Core.FlightRecorder.Metadata
         /// </para>
         /// </summary>
         public long MaxNetworkId { get; set; } = 0;
+
+        /// <summary>
+        /// Distributed exercise identifier shared by all nodes participating in one exercise session.
+        /// Defaults to <see cref="Guid.Empty"/> for legacy recordings that pre-date federation support.
+        /// </summary>
+        public Guid ExerciseId { get; set; } = Guid.Empty;
+
+        /// <summary>
+        /// Identifier of the distributed node that produced this recording.
+        /// Defaults to <c>0</c> for legacy recordings that pre-date federation support.
+        /// </summary>
+        public int NodeId { get; set; } = 0;
     }
 }

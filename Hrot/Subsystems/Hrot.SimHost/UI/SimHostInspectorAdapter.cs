@@ -40,6 +40,8 @@ namespace Hrot.SimHost.UI
             set => _sel.HoveredEntity = value;
         }
 
+        public bool IsMergedView { get; set; }
+
         // ── ISelectionState ───────────────────────────────────────────────────
 
         public bool IsSelected(Entity entity) => _sel.Contains(entity);

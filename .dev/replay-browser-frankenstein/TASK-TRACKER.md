@@ -11,45 +11,45 @@
 
 **Goal:** Make `.fdp` recordings self-identifying (ExerciseId + NodeId) and load groups safely.
 
-- [ ] **RBF-P1T1** `RecordingMetadata` schema extension [details](./TASK-DETAILS.md#rbf-p1t1--recordingmetadata-schema-extension)
-- [ ] **RBF-P1T2** `RecordingConfiguration.NodeId` [details](./TASK-DETAILS.md#rbf-p1t2--recordingconfigurationnodeid)
-- [ ] **RBF-P1T3** `AsyncRecorder` stamps metadata [details](./TASK-DETAILS.md#rbf-p1t3--asyncrecorder-stamps-metadata)
-- [ ] **RBF-P1T4** `FederatedReplayManager.LoadGroup(string[] paths)` [details](./TASK-DETAILS.md#rbf-p1t4--federatedreplaymanagerloadgroupstring-paths)
+- [x] **RBF-P1T1** `RecordingMetadata` schema extension [details](./TASK-DETAILS.md#rbf-p1t1--recordingmetadata-schema-extension)
+- [x] **RBF-P1T2** `RecordingConfiguration.NodeId` [details](./TASK-DETAILS.md#rbf-p1t2--recordingconfigurationnodeid)
+- [x] **RBF-P1T3** `AsyncRecorder` stamps metadata [details](./TASK-DETAILS.md#rbf-p1t3--asyncrecorder-stamps-metadata)
+- [x] **RBF-P1T4** `FederatedReplayManager.LoadGroup(string[] paths)` [details](./TASK-DETAILS.md#rbf-p1t4--federatedreplaymanagerloadgroupstring-paths)
 
 
 ## Phase P2 — Federation runtime infrastructure
 
 **Goal:** Replace single-context replay with a manager that owns per-node contexts and coordinates wall-tick seeks.
 
-- [ ] **RBF-P2T1** `FederatedReplayManager` time state + `SeekAll` [details](./TASK-DETAILS.md#rbf-p2t1--federatedreplaymanager-time-state--seekall)
-- [ ] **RBF-P2T2** `FederatedReplayManager` lifecycle + dispose [details](./TASK-DETAILS.md#rbf-p2t2--federatedreplaymanager-lifecycle--dispose)
-- [ ] **RBF-P2T3** Subsystem wiring: `ReplayBrowserSubsystem` owns a manager [details](./TASK-DETAILS.md#rbf-p2t3--subsystem-wiring-replaybrowsersubsystem-owns-a-manager)
+- [x] **RBF-P2T1** `FederatedReplayManager` time state + `SeekAll` [details](./TASK-DETAILS.md#rbf-p2t1--federatedreplaymanager-time-state--seekall)
+- [x] **RBF-P2T2** `FederatedReplayManager` lifecycle + dispose [details](./TASK-DETAILS.md#rbf-p2t2--federatedreplaymanager-lifecycle--dispose)
+- [x] **RBF-P2T3** Subsystem wiring: `ReplayBrowserSubsystem` owns a manager [details](./TASK-DETAILS.md#rbf-p2t3--subsystem-wiring-replaybrowsersubsystem-owns-a-manager)
 
 
 ## Phase P3 — Frankenstein synthesis engine
 
 **Goal:** Build a mathematically correct transient `EntityRepository` from authority-filtered slices, with graceful paradox handling.
 
-- [ ] **RBF-P3T1** `NetworkIdGuid` helper [details](./TASK-DETAILS.md#rbf-p3t1--networkidguid-helper)
-- [ ] **RBF-P3T2** `FederatedGuidResolver` [details](./TASK-DETAILS.md#rbf-p3t2--federatedguidresolver)
-- [ ] **RBF-P3T3** `ScenarioSerializer.DeserializeWith(IGuidResolver)` overload [details](./TASK-DETAILS.md#rbf-p3t3--scenarioserializerdeserializewithiguidresolver-overload)
-- [ ] **RBF-P3T4** Consensus-mask helper [details](./TASK-DETAILS.md#rbf-p3t4--consensus-mask-helper)
-- [ ] **RBF-P3T5** `TransientMasterBuilder.Build(manager)` [details](./TASK-DETAILS.md#rbf-p3t5--transientmasterbuilderbuildmanager)
-- [ ] **RBF-P3T6** Extract `PrimeAppDomainAndSandbox` to shared helper [details](./TASK-DETAILS.md#rbf-p3t6--extract-primeappdomainandsandbox-to-shared-helper)
-- [ ] **RBF-P3T7** Local-Entities Provider injection in `TransientMasterBuilder` [details](./TASK-DETAILS.md#rbf-p3t7--local-entities-provider-injection-in-transientmasterbuilder)
+- [x] **RBF-P3T1** `NetworkIdGuid` helper [details](./TASK-DETAILS.md#rbf-p3t1--networkidguid-helper)
+- [x] **RBF-P3T2** `FederatedGuidResolver` [details](./TASK-DETAILS.md#rbf-p3t2--federatedguidresolver)
+- [x] **RBF-P3T3** `ScenarioSerializer.DeserializeWith(IGuidResolver)` overload [details](./TASK-DETAILS.md#rbf-p3t3--scenarioserializerdeserializewithiguidresolver-overload)
+- [x] **RBF-P3T4** Consensus-mask helper [details](./TASK-DETAILS.md#rbf-p3t4--consensus-mask-helper)
+- [x] **RBF-P3T5** `TransientMasterBuilder.Build(manager)` [details](./TASK-DETAILS.md#rbf-p3t5--transientmasterbuilderbuildmanager)
+- [x] **RBF-P3T6** Extract `PrimeAppDomainAndSandbox` to shared helper [details](./TASK-DETAILS.md#rbf-p3t6--extract-primeappdomainandsandbox-to-shared-helper)
+- [x] **RBF-P3T7** Local-Entities Provider injection in `TransientMasterBuilder` [details](./TASK-DETAILS.md#rbf-p3t7--local-entities-provider-injection-in-transientmasterbuilder)
 
 
 ## Phase P4 — UI binding and paradox visualisation
 
 **Goal:** Operator-facing controls and diagnostic feedback.
 
-- [ ] **RBF-P4T1** Multi-file open dialog [details](./TASK-DETAILS.md#rbf-p4t1--multi-file-open-dialog)
-- [ ] **RBF-P4T2** `FederationPanel` (new ImGui panel) [details](./TASK-DETAILS.md#rbf-p4t2--federationpanel-new-imgui-panel)
-- [ ] **RBF-P4T3** Subsystem mode swap + repo rebind [details](./TASK-DETAILS.md#rbf-p4t3--subsystem-mode-swap--repo-rebind)
-- [ ] **RBF-P4T4** Inspector field flagging for `Entity.Null` paradoxes [details](./TASK-DETAILS.md#rbf-p4t4--inspector-field-flagging-for-entitynull-paradoxes)
-- [ ] **RBF-P4T5** Documentation: severe stutter is expected [details](./TASK-DETAILS.md#rbf-p4t5--documentation-severe-stutter-is-expected)
-- [ ] **RBF-P4T6** Disable continuous playback in Merged View [details](./TASK-DETAILS.md#rbf-p4t6--disable-continuous-playback-in-merged-view)
-- [ ] **RBF-P4T7** Disable search in Merged View [details](./TASK-DETAILS.md#rbf-p4t7--disable-search-in-merged-view)
+- [x] **RBF-P4T1** Multi-file open dialog [details](./TASK-DETAILS.md#rbf-p4t1--multi-file-open-dialog)
+- [x] **RBF-P4T2** `FederationPanel` (new ImGui panel) [details](./TASK-DETAILS.md#rbf-p4t2--federationpanel-new-imgui-panel)
+- [x] **RBF-P4T3** Subsystem mode swap + repo rebind [details](./TASK-DETAILS.md#rbf-p4t3--subsystem-mode-swap--repo-rebind)
+- [x] **RBF-P4T4** Inspector field flagging for `Entity.Null` paradoxes [details](./TASK-DETAILS.md#rbf-p4t4--inspector-field-flagging-for-entitynull-paradoxes)
+- [x] **RBF-P4T5** Documentation: severe stutter is expected [details](./TASK-DETAILS.md#rbf-p4t5--documentation-severe-stutter-is-expected)
+- [x] **RBF-P4T6** Disable continuous playback in Merged View [details](./TASK-DETAILS.md#rbf-p4t6--disable-continuous-playback-in-merged-view)
+- [x] **RBF-P4T7** Disable search in Merged View [details](./TASK-DETAILS.md#rbf-p4t7--disable-search-in-merged-view)
 
 
 ---

@@ -36,6 +36,21 @@ public sealed class ReplayTimelinePanel
     /// </summary>
     public Action<Entity>? OnEntitySelected { get; set; }
 
+    /// <summary>
+    /// Called when the user confirms file selection. Receives the selected paths.
+    /// Returns a rejection reason string, or null on success.
+    /// </summary>
+    public Func<string[], string?>? OnLoadGroup { get; set; }
+
+    /// <summary>
+    /// After a rejected LoadGroup call, holds the rejection reason shown in a modal.
+    /// Cleared when the modal is dismissed. Exposed for testing.
+    /// </summary>
+    internal string? LoadGroupRejectionReason { get; private set; }
+
+    /// <summary>Returns true when the active view is Merged View.</summary>
+    public Func<bool>? IsMergedViewQuery { get; set; }
+
     public ReplayTimelinePanel(
         ReplayBrowserContext context,
         IRecordingExportService exportService,
@@ -54,6 +69,20 @@ public sealed class ReplayTimelinePanel
 
     public void DrawContent()
     {
+        if (LoadGroupRejectionReason != null)
+        {
+            Gui.OpenPopup("LoadGroupError");
+        }
+        if (Gui.BeginPopupModal("LoadGroupError", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            Gui.TextWrapped(LoadGroupRejectionReason ?? string.Empty);
+            if (Gui.Button("OK"))
+            {
+                LoadGroupRejectionReason = null;
+                Gui.CloseCurrentPopup();
+            }
+            Gui.EndPopup();
+        }
         DrawRow1_Transport();
         DrawRow2_TimeInfo();
         DrawRow3_Slider();
@@ -92,12 +121,21 @@ public sealed class ReplayTimelinePanel
 
         Gui.SameLine();
         TransportShape playPauseShape = IsPlaying ? TransportShape.Pause : TransportShape.Play;
-        if (TransportIconRenderer.DrawButton("##rb_play_pause", iconSize, playPauseShape, hasRecording, out _, out _))
+        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
+        bool playEnabled = IsPlayEnabled(hasRecording, isMerged);
+        if (!playEnabled) Gui.BeginDisabled();
+        if (TransportIconRenderer.DrawButton("##rb_play_pause", iconSize, playPauseShape, playEnabled, out _, out _))
         {
             IsPlaying = !IsPlaying;
         }
+        if (!playEnabled) Gui.EndDisabled();
         if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip(IsPlaying ? "Pause playback" : "Start playback");
+        {
+            if (isMerged)
+                Gui.SetTooltip("Continuous playback is disabled in Merged View. Use Step-Forward/Backward or the timeline slider.");
+            else
+                Gui.SetTooltip(IsPlaying ? "Pause playback" : "Start playback");
+        }
 
         Gui.SameLine();
         float comboOffsetY = (iconSize - Gui.GetFrameHeight()) * 0.5f;
@@ -386,17 +424,31 @@ public sealed class ReplayTimelinePanel
 
     // ── Async helpers ─────────────────────────────────────────────────────
 
-    private async Task LoadFdpAsync()
+    internal async Task LoadFdpAsync()
     {
-        var path = await _fileDialogService.ShowOpenFileDialogAsync("ReplayBrowser_LoadRecording", "*.fdp");
-        if (!string.IsNullOrEmpty(path))
+        var paths = await _fileDialogService.ShowOpenMultipleFilesDialogAsync(
+            "ReplayBrowser_LoadRecording", "*.fdp");
+        if (paths == null || paths.Length == 0) return;
+
+        _playbackHistory.Clear();
+        _inspectorState.SelectedEntity = null;
+        IsPlaying = false;
+
+        if (OnLoadGroup != null)
         {
-            _playbackHistory.Clear();
-            _inspectorState.SelectedEntity = null;
-            IsPlaying = false;
-            _context.LoadRecording(path);
+            string? rejection = OnLoadGroup(paths);
+            if (rejection != null)
+                LoadGroupRejectionReason = rejection;
+        }
+        else
+        {
+            // Fallback for single-file backward-compat when no manager is wired
+            _context.LoadRecording(paths[0]);
         }
     }
+
+    internal static bool IsPlayEnabled(bool hasRecording, bool isMergedView)
+        => hasRecording && !isMergedView;
 
     private async Task SaveAsync(JsonExportOptions snapshot)
     {

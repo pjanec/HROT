@@ -20,6 +20,7 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Runner;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Vis2D;
+using Fdp.Toolkit.ReplayBrowser.Federation;
 using Hrot.CGF.Configuration;
 using Hrot.Core.Network;
 using StructEdit.Reflection;
@@ -42,9 +43,31 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     // ── State (always allocated on Initialize) ────────────────────────────
 
     private ReplayBrowserContext _context = null!;
+    private FederatedReplayManager? _manager;
+    private EntityRepository? _activeRepo;
     private EntitySelectionHistory _entityHistory = null!;
     private PlaybackHistoryTracker _playbackHistory = null!;
     private bool _headless;
+
+    // ── Federation / Merged View state ────────────────────────────────────
+
+    private ViewMode _viewMode = ViewMode.SingleNode;
+    private EntityRepository? _transientMaster;
+    private TransientMasterBuilder? _transientBuilder;
+    private FederationPanel? _federationPanel;
+
+    // ── Internal accessors for testing ────────────────────────────────────
+
+    internal FederatedReplayManager? Manager => _manager;
+    internal EntityRepository? ActiveRepo => _activeRepo;
+    internal ViewMode ViewMode => _viewMode;
+
+    /// <summary>
+    /// Test seam: when set, replaces the <see cref="TransientMasterBuilder.Build"/> call
+    /// inside <see cref="BuildAndBindTransientMaster"/> so tests can count builds or
+    /// return a controlled repo without spinning up <see cref="TransientMasterBuilder"/>.
+    /// </summary>
+    internal Func<FederatedReplayManager, EntityRepository>? TransientBuildOverride;
 
     // ── State (non-headless only) ─────────────────────────────────────────
 
@@ -95,12 +118,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     public void Initialize(SubsystemConfig config)
     {
         _headless = config.Headless;
-        _context = new ReplayBrowserContext();
+        _manager = null;
+        _activeRepo = null;
         _entityHistory = new EntitySelectionHistory();
         _playbackHistory = new PlaybackHistoryTracker();
 
         if (!_headless)
         {
+            _context = new ReplayBrowserContext();
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
@@ -221,6 +246,37 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 _fileDialogService,
                 _playbackHistory,
                 _inspectorState);
+
+            // Wire up group-load delegate and merged-view query so the timeline panel
+            // can coordinate with the federation manager without knowing about it.
+            _timelinePanel.OnLoadGroup = paths =>
+            {
+                try
+                {
+                    _manager?.Dispose();
+                    _transientMaster?.Dispose();
+                    _transientMaster = null;
+
+                    _manager = FederatedReplayManager.LoadGroup(paths);
+                    _manager.OnTimeChanged += OnManagerTimeChanged;
+
+                    // Create/replace the federation panel for the new manager.
+                    if (_federationPanel != null)
+                        _federationPanel.OnViewModeChanged -= SetViewMode;
+                    _federationPanel = new FederationPanel(_manager);
+                    _federationPanel.OnViewModeChanged += SetViewMode;
+
+                    OnManagerTimeChanged();
+                    return null;  // no rejection
+                }
+                catch (LoadGroupException ex)
+                {
+                    return ex.Message;
+                }
+            };
+            _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
+
+            _transientBuilder = new TransientMasterBuilder(_scenarioSerializer);
 
             _inspectorPanel = new EntityInspectorPanel();
             _inspectorPanel.Serializer = _scenarioSerializer;
@@ -357,7 +413,117 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     public void Shutdown()
     {
+        _manager?.Dispose();
+        _transientMaster?.Dispose();
         _context?.Dispose();
+    }
+
+    // ── Federation wiring (internal for tests) ────────────────────────────
+
+    /// <summary>
+    /// Switches <see cref="ActiveRepo"/> to the sandbox repo of the local-entities
+    /// provider node whenever the manager reports a time change.
+    /// In Merged View, rebuilds the transient master and binds to that instead.
+    /// </summary>
+    private void OnManagerTimeChanged()
+    {
+        if (_manager == null || _manager.Contexts.Count == 0) return;
+
+        if (_viewMode == ViewMode.Merged)
+        {
+            BuildAndBindTransientMaster();
+        }
+        else
+        {
+            int nodeId = _manager.LocalEntitiesProviderNodeId;
+            if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
+                RebindActiveRepo(ctx.SandboxRepo);
+        }
+    }
+
+    /// <summary>
+    /// Builds a fresh transient master from the current manager state and
+    /// rebinds <see cref="ActiveRepo"/> to it.
+    /// Disposes any previously allocated transient master.
+    /// </summary>
+    private void BuildAndBindTransientMaster()
+    {
+        if (_manager == null) return;
+
+        EntityRepository newMaster;
+        if (TransientBuildOverride != null)
+        {
+            newMaster = TransientBuildOverride(_manager);
+        }
+        else if (_transientBuilder != null)
+        {
+            newMaster = _transientBuilder.Build(_manager);
+        }
+        else
+        {
+            // Fallback: no builder available — bind to single-node as before.
+            int nodeId = _manager.LocalEntitiesProviderNodeId;
+            if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
+                RebindActiveRepo(ctx.SandboxRepo);
+            return;
+        }
+
+        _transientMaster?.Dispose();
+        _transientMaster = newMaster;
+        RebindActiveRepo(_transientMaster);
+    }
+
+    /// <summary>
+    /// Switches the active view mode. Notifies panels and triggers a rebind.
+    /// </summary>
+    internal void SetViewMode(ViewMode mode)
+    {
+        _viewMode = mode;
+
+        if (_searchPanel != null)
+            _searchPanel.IsMergedViewActive = mode == ViewMode.Merged;
+
+        if (_inspectorState != null)
+            _inspectorState.IsMergedView = mode == ViewMode.Merged;
+
+        // Trigger immediate rebind for the new mode.
+        OnManagerTimeChanged();
+    }
+
+    /// <summary>
+    /// Test seam: loads a federated group from <paramref name="paths"/> using a provided
+    /// <paramref name="builder"/> (bypassing headless-guard so tests can call it directly).
+    /// </summary>
+    internal void LoadFdpGroupForTest(string[] paths, TransientMasterBuilder builder)
+    {
+        _manager?.Dispose();
+        _transientMaster?.Dispose();
+        _transientMaster = null;
+
+        _transientBuilder = builder;
+        _manager = FederatedReplayManager.LoadGroup(paths);
+        _manager.OnTimeChanged += OnManagerTimeChanged;
+        OnManagerTimeChanged();
+    }
+
+    private void RebindActiveRepo(EntityRepository repo)
+    {
+        _activeRepo = repo;
+        if (_session != null)
+            _session = new RepositoryAdapter(repo);
+    }
+
+    /// <summary>
+    /// Loads one or more .fdp recording files via a fresh <see cref="FederatedReplayManager"/>
+    /// and binds <see cref="ActiveRepo"/> to the local-entities provider node's sandbox repo.
+    /// Disposes any previously loaded manager first.
+    /// </summary>
+    internal void LoadFdpViaManager(string path)
+    {
+        _manager?.Dispose();
+        _manager = FederatedReplayManager.LoadGroup(new[] { path });
+        _manager.OnTimeChanged += OnManagerTimeChanged;
+        OnManagerTimeChanged();
     }
 
     // ── IWindowRegistrar ──────────────────────────────────────────────────
@@ -649,6 +815,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
+
+        public System.Threading.Tasks.Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
+            => System.Threading.Tasks.Task.FromResult<string[]?>(null);
     }
 
     private sealed class ReplaySpatialPickerContext : Fdp.Presentation.Editing.ISpatialPickerContext

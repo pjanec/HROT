@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.FlightRecorder;
@@ -31,7 +30,7 @@ namespace Fdp.Toolkit.ReplayBrowser
             SandboxRepo = new EntityRepository();
             SandboxBus = new FdpEventBus();
             HistoryService = new DiagnosticEventHistoryService();
-            PrimeAppDomainAndSandbox(SandboxRepo, SandboxBus);
+            Federation.RepositoryPriming.RegisterDiscoveredComponents(SandboxRepo, SandboxBus);
         }
 
         /// <summary>
@@ -159,73 +158,6 @@ namespace Fdp.Toolkit.ReplayBrowser
         {
             if (_disposed)
                 throw new ObjectDisposedException(nameof(ReplayBrowserContext));
-        }
-
-        private static void PrimeAppDomainAndSandbox(EntityRepository repo, FdpEventBus bus)
-        {
-            MethodInfo? registerMethod = null;
-            foreach (var m in typeof(EntityRepository).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (m.Name != "RegisterComponent") continue;
-                if (!m.IsGenericMethodDefinition) continue;
-                if (m.GetParameters().Length == 1) { registerMethod = m; break; }
-            }
-
-            MethodInfo? ensureStreamMethod = typeof(FdpEventBus).GetMethod(
-                nameof(FdpEventBus.PrepareForNativeEventReplay),
-                BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                if (assembly.IsDynamic) continue;
-                string? fullName = assembly.FullName;
-                if (!string.IsNullOrEmpty(fullName) &&
-                    (fullName.StartsWith("System", StringComparison.Ordinal) ||
-                     fullName.StartsWith("Microsoft", StringComparison.Ordinal)))
-                {
-                    continue;
-                }
-
-                Type[] types;
-                try
-                {
-                    types = assembly.GetTypes();
-                }
-                catch (ReflectionTypeLoadException ex)
-                {
-                    types = System.Array.FindAll(ex.Types, t => t != null)!;
-                }
-                catch
-                {
-                    continue;
-                }
-
-                foreach (Type type in types)
-                {
-                    if (type.GetCustomAttributes(typeof(ComponentIdAttribute), false).Length > 0)
-                    {
-                        try
-                        {
-                            ComponentTypeRegistry.GetOrRegisterManaged(type);
-                            registerMethod?.MakeGenericMethod(type).Invoke(repo, new object?[] { null });
-                        }
-                        catch
-                        {
-                        }
-                    }
-
-                    if (type.IsValueType && type.GetCustomAttributes(typeof(EventIdAttribute), false).Length > 0)
-                    {
-                        try
-                        {
-                            ensureStreamMethod?.MakeGenericMethod(type).Invoke(bus, null);
-                        }
-                        catch
-                        {
-                        }
-                    }
-                }
-            }
         }
     }
 }

@@ -15,6 +15,7 @@ namespace Fdp.Presentation.Tests
     {
         public Entity? SelectedEntity { get; set; }
         public Entity? HoveredEntity { get; set; }
+        public bool IsMergedView { get; set; }
     }
 
     [Collection("ImGui Sequential")]

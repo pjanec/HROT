@@ -139,6 +139,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 FilePath     = filePath,
                 EntityFilter = null,   // record all entities above MinRecordableId
                 ExerciseId      = exerciseId,
+                NodeId = _nodeId,
             };
             _activeRecordingModule = new RecordingModule(config);
             await _kernel.InstallModuleAsync(_activeRecordingModule);
@@ -190,6 +191,7 @@ namespace Hrot.SimHost.Modules.Orchestration
                 FilePath     = filePath,
                 EntityFilter = BuildEpisodeFilter(episodeId),
                 ExerciseId      = episodeId,
+                NodeId = 0,
             };
             var module = new EpisodeRecorderModule(config);
             _episodeModules[episodeId] = module;

@@ -1,8 +1,14 @@
 using System;
+using System.IO;
 using System.Numerics;
 using System.Reflection;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.ReplayBrowser.Federation;
+using Fdp.Toolkit.Scenario;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.Panels;
@@ -23,15 +29,18 @@ namespace Hrot.ReplayBrowser.Tests;
 public sealed class ReplayBrowserSubsystemTests : IDisposable
 {
     private readonly ReplayBrowserSubsystem _subsystem;
+    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), $"RBSTests_{Guid.NewGuid():N}");
 
     public ReplayBrowserSubsystemTests()
     {
         _subsystem = new ReplayBrowserSubsystem();
+        Directory.CreateDirectory(_tempDir);
     }
 
     public void Dispose()
     {
         _subsystem.Shutdown();
+        try { Directory.Delete(_tempDir, recursive: true); } catch { }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -251,6 +260,223 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Equal(5, seekTarget);
     }
 
+    // ── RBF-P2T3: FederatedReplayManager wiring ──────────────────────────────
+
+    /// <summary>
+    /// RBF-P2T3: After headless Initialize, Manager and ActiveRepo must both be null;
+    /// LoadFdpViaManager has not been called yet.
+    /// </summary>
+    [Fact]
+    public void RBF_P2T3_Subsystem_InitialState_ManagerIsNull()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        Assert.Null(_subsystem.Manager);
+        Assert.Null(_subsystem.ActiveRepo);
+    }
+
+    /// <summary>
+    /// RBF-P2T3: LoadFdpViaManager with a valid single-node recording creates the manager
+    /// and binds ActiveRepo to the SandboxRepo of the loaded context.
+    /// </summary>
+    [Fact]
+    public void RBF_P2T3_Subsystem_LoadOneFile_BindsActiveRepo()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"rbf_p2t3a_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var path = CreateMinimalFdpFile(tempDir, exerciseId, nodeId: 1);
+
+            _subsystem.LoadFdpViaManager(path);
+
+            Assert.NotNull(_subsystem.Manager);
+            Assert.NotNull(_subsystem.ActiveRepo);
+            int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+            Assert.Same(
+                _subsystem.Manager.Contexts[nodeId].SandboxRepo,
+                _subsystem.ActiveRepo);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// RBF-P2T3: After LoadFdpViaManager, calling SetBaseWallTicks fires OnTimeChanged
+    /// which re-runs RebindActiveRepo; ActiveRepo remains bound to the correct SandboxRepo.
+    /// </summary>
+    [Fact]
+    public void RBF_P2T3_Subsystem_SeekAfterLoad_ActiveRepoRemainsCorrect()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"rbf_p2t3b_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            var path = CreateMinimalFdpFile(tempDir, exerciseId, nodeId: 2);
+
+            _subsystem.LoadFdpViaManager(path);
+
+            int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+            var expectedRepo = _subsystem.Manager.Contexts[nodeId].SandboxRepo;
+
+            // SetBaseWallTicks fires OnTimeChanged => OnManagerTimeChanged => RebindActiveRepo
+            _subsystem.Manager.SetBaseWallTicks(1_500_000L);
+
+            Assert.Same(expectedRepo, _subsystem.ActiveRepo);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+    }
+
+    // ── RBF-P2T3: minimal recording helper ───────────────────────────────────
+
+    /// <summary>
+    /// Creates a minimal valid .fdp + .meta.json pair in <paramref name="directory"/>.
+    /// </summary>
+    private static string CreateMinimalFdpFile(string directory, Guid exerciseId, int nodeId)
+    {
+        var path = Path.Combine(directory, $"node{nodeId}.fdp");
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        using var repo = new EntityRepository();
+        using var recorder = new AsyncRecorder(path, meta);
+        recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        recorder.CaptureFrame(repo, 0u, 2_000_000L, blocking: true, eventBus: repo.Bus);
+        // Dispose finalizes .fdp and writes the .meta.json sidecar.
+        return path;
+    }
+
+    // ── RBF-P4T3: multi-file federation helpers ───────────────────────────────
+
+    /// <summary>
+    /// Creates a minimal .fdp recording with one <see cref="NetworkIdentity"/> entity.
+    /// </summary>
+    private string MakeOneFrameRecording(int nodeId, Guid exerciseId)
+    {
+        string path = Path.Combine(_tempDir, $"node{nodeId}_{Guid.NewGuid():N}.fdp");
+        var meta = new RecordingMetadata { ExerciseId = exerciseId, NodeId = nodeId };
+        using var repo = new EntityRepository();
+        repo.RegisterComponent<NetworkIdentity>();
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new NetworkIdentity { Value = nodeId * 100L });
+        using (var rec = new AsyncRecorder(path, meta))
+            rec.CaptureKeyframe(repo, 1_000_000L, blocking: true, eventBus: repo.Bus);
+        return path;
+    }
+
+    private static ScenarioSerializer MakeTestSerializer()
+    {
+        // Prime component-type registry entries used by the TransientMasterBuilder.
+        using var primeRepo = new EntityRepository();
+        primeRepo.RegisterComponent<NetworkIdentity>();
+        primeRepo.RegisterComponent<NetworkAuthority>();
+        return new ScenarioSerializerBuilder("TestSubsystem").Build();
+    }
+
+    // ── RBF-P4T3: federated-mode tests ───────────────────────────────────────
+
+    [Fact]
+    public void RBF_P4T3_SingleNodeMode_BindsToCtxRepo()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+
+        _subsystem.SetViewMode(ViewMode.SingleNode);
+
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        Assert.Same(_subsystem.Manager.Contexts[nodeId].SandboxRepo, _subsystem.ActiveRepo);
+    }
+
+    [Fact]
+    public void RBF_P4T3_MergedMode_BindsToTransientMaster()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+
+        _subsystem.SetViewMode(ViewMode.Merged);
+
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        Assert.NotSame(_subsystem.Manager.Contexts[nodeId].SandboxRepo, _subsystem.ActiveRepo);
+    }
+
+    [Fact]
+    public void RBF_P4T3_OnTimeChangedInMerged_RebuildsMaster()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+
+        int buildCount = 0;
+        _subsystem.TransientBuildOverride = _ => { buildCount++; return new EntityRepository(); };
+        _subsystem.Manager!.SetBaseWallTicks(1_500_000L);
+
+        Assert.True(buildCount >= 1, "OnTimeChanged in Merged mode must trigger a transient master rebuild.");
+    }
+
+    [Fact]
+    public void RBF_P4T3_ProviderChangeInMerged_RebuildsMaster()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        string path1 = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        string path2 = MakeOneFrameRecording(nodeId: 2, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path1, path2 }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+
+        int buildCount = 0;
+        _subsystem.TransientBuildOverride = _ => { buildCount++; return new EntityRepository(); };
+        _subsystem.Manager!.SetLocalEntitiesProvider(2);
+
+        Assert.True(buildCount >= 1, "Changing the local-entities provider in Merged mode must trigger a master rebuild.");
+    }
+
+    [Fact]
+    public void RBF_P4T3_ModeSwitchToSingle_DisposesTransientMaster()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+        var mergedRepo = _subsystem.ActiveRepo;
+
+        _subsystem.SetViewMode(ViewMode.SingleNode);
+
+        Assert.Equal(ViewMode.SingleNode, _subsystem.ViewMode);
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        Assert.Same(_subsystem.Manager.Contexts[nodeId].SandboxRepo, _subsystem.ActiveRepo);
+        Assert.NotSame(mergedRepo, _subsystem.ActiveRepo);
+    }
+
+    [Fact]
+    public void RBF_P4T3_ModeSwitchToMerged_DoesNotThrowInHeadlessMode()
+    {
+        // In headless mode, _timelinePanel and _searchPanel are null.
+        // SetViewMode must guard those null refs gracefully.
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+
+        var ex = Record.Exception(() => _subsystem.SetViewMode(ViewMode.Merged));
+        Assert.Null(ex);
+        Assert.Equal(ViewMode.Merged, _subsystem.ViewMode);
+    }
+
     // ── Stubs ─────────────────────────────────────────────────────────────
 
     private static Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext CreateNullContext()
@@ -270,6 +496,9 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         public System.Threading.Tasks.Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
             => System.Threading.Tasks.Task.FromResult<string?>(null);
+
+        public System.Threading.Tasks.Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
+            => System.Threading.Tasks.Task.FromResult<string[]?>(null);
     }
 
     private sealed class StubHistoryService : Fdp.Core.Diagnostics.IDiagnosticEventHistoryService

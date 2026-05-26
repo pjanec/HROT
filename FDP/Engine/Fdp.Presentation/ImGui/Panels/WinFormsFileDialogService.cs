@@ -42,6 +42,143 @@ public sealed class WinFormsFileDialogService : IFileDialogService
         return ShowDialogAsync(openDialog: true, callSiteId, string.Empty, extensionFilter, dir, _openDirectories);
     }
 
+    public Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
+    {
+        string dir = _openDirectories.GetOrAdd(callSiteId, Environment.CurrentDirectory);
+        return ShowMultiSelectDialogAsync(callSiteId, extensionFilter, dir);
+    }
+
+    private Task<string[]?> ShowMultiSelectDialogAsync(string callSiteId, string extensionFilter, string initialDir)
+    {
+        var tcs = new TaskCompletionSource<string[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            tcs.TrySetResult(null);
+            return tcs.Task;
+        }
+
+        Thread thread = new(() =>
+        {
+            IntPtr filterPtr = IntPtr.Zero;
+            IntPtr filePtr = IntPtr.Zero;
+            IntPtr titlePtr = IntPtr.Zero;
+            IntPtr initialDirPtr = IntPtr.Zero;
+
+            try
+            {
+                const int bufSize = 32768;
+                string filter = BuildComdlgFilter(extensionFilter);
+                string safeInitialDir = Directory.Exists(initialDir) ? initialDir : Environment.CurrentDirectory;
+                string title = "Open Files";
+
+                filterPtr = Marshal.StringToHGlobalUni(filter);
+                titlePtr = Marshal.StringToHGlobalUni(title);
+                initialDirPtr = Marshal.StringToHGlobalUni(safeInitialDir);
+
+                filePtr = Marshal.AllocHGlobal(bufSize * 2);
+                for (int i = 0; i < bufSize; i++)
+                    Marshal.WriteInt16(filePtr, i * 2, 0);
+
+                var ofn = new OPENFILENAME
+                {
+                    lStructSize = Marshal.SizeOf(typeof(OPENFILENAME)),
+                    hwndOwner = IntPtr.Zero,
+                    hInstance = IntPtr.Zero,
+                    lpstrFilter = filterPtr,
+                    lpstrCustomFilter = IntPtr.Zero,
+                    nMaxCustFilter = 0,
+                    nFilterIndex = 1,
+                    lpstrFile = filePtr,
+                    nMaxFile = bufSize,
+                    lpstrFileTitle = IntPtr.Zero,
+                    nMaxFileTitle = 0,
+                    lpstrInitialDir = initialDirPtr,
+                    lpstrTitle = titlePtr,
+                    Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER | OFN_ALLOWMULTISELECT,
+                    nFileOffset = 0,
+                    nFileExtension = 0,
+                    lpstrDefExt = IntPtr.Zero,
+                    lCustData = IntPtr.Zero,
+                    lpfnHook = IntPtr.Zero,
+                    lpTemplateName = IntPtr.Zero,
+                    pvReserved = IntPtr.Zero,
+                    dwReserved = 0,
+                    FlagsEx = 0
+                };
+
+                bool ok = GetOpenFileName(ref ofn);
+                if (!ok)
+                {
+                    tcs.TrySetResult(null);
+                    return;
+                }
+
+                // Parse null-delimited buffer.
+                // Single file: <full-path>\0\0
+                // Multiple files: <directory>\0<file1>\0<file2>\0...\0\0
+                var parts = new List<string>();
+                int offset = 0;
+                while (offset < bufSize)
+                {
+                    // Read chars until we hit a null terminator
+                    int start = offset;
+                    while (offset < bufSize && Marshal.ReadInt16(filePtr, offset * 2) != 0)
+                        offset++;
+                    if (offset == start) break; // double-null = end
+                    string segment = Marshal.PtrToStringUni(filePtr + start * 2) ?? string.Empty;
+                    if (!string.IsNullOrEmpty(segment))
+                        parts.Add(segment);
+                    offset++; // skip null terminator
+                }
+
+                string[] result;
+                if (parts.Count == 1)
+                {
+                    // Single file selected — buffer is just the full path
+                    result = new[] { parts[0] };
+                }
+                else if (parts.Count > 1)
+                {
+                    // First part is directory, rest are file names
+                    string directory = parts[0];
+                    result = new string[parts.Count - 1];
+                    for (int i = 1; i < parts.Count; i++)
+                        result[i - 1] = Path.Combine(directory, parts[i]);
+                }
+                else
+                {
+                    tcs.TrySetResult(null);
+                    return;
+                }
+
+                // Persist the directory of the first selected file
+                string persistDir = Path.GetDirectoryName(result[0]) ?? safeInitialDir;
+                _openDirectories[callSiteId] = persistDir;
+                SaveState();
+
+                tcs.TrySetResult(result);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+            finally
+            {
+                if (filterPtr != IntPtr.Zero) Marshal.FreeHGlobal(filterPtr);
+                if (filePtr != IntPtr.Zero) Marshal.FreeHGlobal(filePtr);
+                if (titlePtr != IntPtr.Zero) Marshal.FreeHGlobal(titlePtr);
+                if (initialDirPtr != IntPtr.Zero) Marshal.FreeHGlobal(initialDirPtr);
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+
+        return tcs.Task;
+    }
+
     private Task<string?> ShowDialogAsync(
         bool openDialog,
         string callSiteId,
@@ -249,6 +386,7 @@ public sealed class WinFormsFileDialogService : IFileDialogService
     private const int OFN_FILEMUSTEXIST = 0x00001000;
     private const int OFN_PATHMUSTEXIST = 0x00000800;
     private const int OFN_EXPLORER = 0x00080000;
+    private const int OFN_ALLOWMULTISELECT = 0x00000200;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct OPENFILENAME

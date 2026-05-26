@@ -37,6 +37,12 @@ namespace Fdp.Toolkit.Replay
         public required Guid ExerciseId { get; init; }
 
         /// <summary>
+        /// Node identifier embedded in the recording metadata.
+        /// Identifies which distributed node produced this recording.
+        /// </summary>
+        public required int NodeId { get; init; }
+
+        /// <summary>
         /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls
         /// <c>AsyncRecorder.CaptureFrame(blocking: true)</c> on every frame, blocking the
         /// caller until the front-buffer swap completes.  This prevents delta-frame drops

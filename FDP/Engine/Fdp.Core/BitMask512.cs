@@ -128,6 +128,18 @@ namespace Fdp.Core
             _q4 |= other._q4; _q5 |= other._q5; _q6 |= other._q6; _q7 |= other._q7;
         }
 
+        /// <summary>
+        /// Clears every bit in <c>this</c> that is set in <paramref name="other"/>
+        /// (i.e. <c>this &amp;= ~other</c>).
+        /// Useful for removing a set of claimed component bits from a candidate mask.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void BitwiseAndNot(in BitMask512 other)
+        {
+            _q0 &= ~other._q0; _q1 &= ~other._q1; _q2 &= ~other._q2; _q3 &= ~other._q3;
+            _q4 &= ~other._q4; _q5 &= ~other._q5; _q6 &= ~other._q6; _q7 &= ~other._q7;
+        }
+
         // ----------------------------------------------------------
         // QUERY OPERATIONS (AVX2 optimized, two-stage lower/upper)
         // ----------------------------------------------------------

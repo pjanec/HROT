@@ -40,6 +40,13 @@ public sealed class ImGuiFileDialogService : IFileDialogService
     public Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter)
         => OpenDialogInternal("Open File", string.Empty, extensionFilter);
 
+    /// <inheritdoc/>
+    public Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
+    {
+        // ImGui-based multi-select is not implemented; return null (cancelled) to fall back gracefully.
+        return Task.FromResult<string[]?>(null);
+    }
+
     private Task<string?> OpenDialogInternal(string title, string defaultFileName, string extensionFilter)
     {
         // Cancel any pending dialog.

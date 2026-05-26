@@ -205,6 +205,7 @@ namespace Fdp.Examples.Scenarios.Replay
             {
                 FilePath = recFilePath,
                 ExerciseId  = Guid.NewGuid(),
+                NodeId = 0,
                 Blocking = true    // prevents delta-frame drops in CPU-bound tight loop
             });
             using var liveKernel = new ModuleHostKernel(liveWorld, liveAccumulator);

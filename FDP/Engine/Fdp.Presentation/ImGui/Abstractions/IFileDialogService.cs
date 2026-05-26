@@ -31,4 +31,15 @@ public interface IFileDialogService
     /// or the dialog was superseded by a subsequent call.
     /// </returns>
     Task<string?> ShowOpenFileDialogAsync(string callSiteId, string extensionFilter);
+
+    /// <summary>
+    /// Displays an "Open File" modal dialog with multi-select enabled.
+    /// </summary>
+    /// <param name="callSiteId">Stable call-site identifier used to persist directory memory.</param>
+    /// <param name="extensionFilter">File extension filter string, e.g. <c>"*.fdp"</c>.</param>
+    /// <returns>
+    /// The full paths chosen by the user, or <c>null</c> if the user cancelled
+    /// or the dialog was superseded by a subsequent call.
+    /// </returns>
+    Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter);
 }

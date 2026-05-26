@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
+using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Replay
@@ -47,7 +48,8 @@ namespace Fdp.Toolkit.Replay
         /// <inheritdoc/>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            _recorder = new AsyncRecorder(_config.FilePath);
+            var metadata = new RecordingMetadata { ExerciseId = _config.ExerciseId, NodeId = _config.NodeId };
+            _recorder = new AsyncRecorder(_config.FilePath, metadata);
 
             if (_config.EntityFilter != null)
                 _recorder.EntityFilter = _config.EntityFilter;
