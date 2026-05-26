@@ -750,3 +750,477 @@ Items explicitly out of scope for this iteration (DESIGN §1.3, §17 Resolutions
   shape only).
 - BTree-side spawn helper for child sensors (handled separately under EQS-DETAIL
   TASK-EQS-039).
+
+---
+
+## Phase M10 — Corrective: library defects
+
+**Goal:** Fix concrete code defects identified during post-implementation review. Four
+bugs from an independent architect review, plus three test-coverage holes from the
+file-level walk-through. Each one is a violation of an explicit DESIGN constraint or
+a gap-patch carried over from the prior corrective turn.
+
+These tasks supersede the relevant constraint lines in the original M1/M2/M4 tasks
+where indicated. Do not modify those tasks in place; this phase carries the canonical
+guidance going forward.
+
+---
+
+### WHEN-M10-T1 — Deterministic `PartMetadata.InstanceId` via `BlueprintIdHash.Compute()`
+
+**Supersedes:** the formula `(int)node.Id.GetHashCode()` recommended in
+[WHEN-M4-T4 → Scope](./TASK-DETAIL.md#when-m4-t4--spawneqssensornode-lowering). That
+recommendation was wrong: `Guid.GetHashCode()` is **not deterministic across processes
+or AppDomains** in .NET. A Blueprint recompile, an editor restart, or any ALC swap will
+yield a different `InstanceId` for the same `SpawnEqsSensorNode`, breaking the DDS
+replication key `(ParentNetworkId, LocalChildIndex)` defined in
+EQS-DETAIL `TASK-EQS-038`. The cross-tick stable identity of the spawned child sensor
+is silently destroyed.
+
+**Design reference:** WHEN-M4-T4 Scope + Constraints; EQS-DETAIL TASK-EQS-038 Scope (B);
+the existing `BlueprintIdHash.Compute(Guid)` utility already used by the EqsTemplate
+hash machinery (search `BlueprintIdHash` for the existing FNV-1a implementation).
+
+**Scope (IN):**
+- `Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs`,
+  `V_SpawnEqsSensorNodeRules`: replace `x.Node.Id.GetHashCode()` with
+  `BlueprintIdHash.Compute(x.Node.Id)` in the BP2032 collision check.
+- `Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs`: replace
+  `int bakedInstanceId = ssn.Id.GetHashCode();` (the literal emitted into the spawn
+  lowering) with `int bakedInstanceId = BlueprintIdHash.Compute(ssn.Id);`.
+- Add `using` for the `BlueprintIdHash` namespace in both files.
+
+**Constraints:**
+- The two sites must agree on the formula (validator's collision-detection set and
+  emitter's literal must produce identical hashes for the same input Guid).
+- `BlueprintIdHash.Compute` is the engine's canonical FNV-1a 32-bit hash. **Do not**
+  invent a new hash; the project already uses this utility for template registrar
+  emission and for matching across hot-reload boundaries.
+
+**Success conditions:**
+1. `Lower_PartMetadataInstanceId_IsDeterministicAndNonZero` (existing test from
+   WHEN-M4-T4 SC #3) — already exists; must continue to pass after the change.
+2. **(new)** `Lower_PartMetadataInstanceId_StableAcrossProcessRestart` — compile the
+   same Blueprint asset, capture the emitted `InstanceId` literal; restart the test
+   AppDomain (or simulate by invoking the lowering pipeline in two distinct
+   `AssemblyLoadContext`s); recompile; assert the emitted literal is identical to the
+   first run.
+3. **(new)** `Lower_PartMetadataInstanceId_MatchesValidatorComputation` — for the same
+   `SpawnEqsSensorNode.Id`, the validator's collision-check value and the emitter's
+   baked literal must be equal byte-for-byte.
+
+---
+
+### WHEN-M10-T2 — `HasComponent<EqsCognitiveBuffer>` guard + safe-default contract in `ReadEqsResult` helper
+
+**Supersedes:** the failure-path return-shape contract from
+[WHEN-M4-T3 → Scope (Failure-path return shape)](./TASK-DETAIL.md#when-m4-t3--readeqsresultnode-lowering).
+That contract was specified but only one half of it (`view.IsAlive(handle.ChildId)`) is
+emitted in the current lowering. The second half — the `view.HasComponent<EqsCognitiveBuffer>`
+guard — is missing. Consequence: when a `SpawnEqsSensorNode` has executed
+`ecb.CreateEntity()` but the kernel has not yet played back the
+`ecb.AddComponent<EqsCognitiveBuffer>` (same-tick read after spawn, or interleaved BTree
+tick before ECB playback), `IsAlive` returns `true` while the buffer component does not
+yet exist. The subsequent `view.GetComponentRO<EqsCognitiveBuffer>(handle.ChildId)` call
+throws a fatal ECS exception, violating the design's promised "safe-zero fallback"
+(WHEN-M4-T3 SC #6/#7 already filed but with no implementation to assert against).
+
+**Design reference:** WHEN-M4-T3 Scope; DESIGN §6.2 ("liveness guard precedes the buffer
+read"); DESIGN §6.1 ("non-negotiable buffer-access pattern").
+
+**Scope (IN):**
+- In `StatementEmitter.EmitReadEqsResultHelpers`, immediately after the
+  `view.IsAlive(handle.ChildId)` guard, emit:
+  ```csharp
+  if (!view.HasComponent<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId))
+      return result;   // safe-zero default
+  ```
+  Before the `GetComponentRO<EqsCognitiveBuffer>` call.
+- Confirm the helper's `result` local is initialized to
+  `default(EqsResultRead_<id>)` (so `IsReady = false`, `ResultCount = 0`, all other
+  fields zero/default) before the guard chain. If currently constructed in-line at the
+  successful read site, hoist it to the top of the helper.
+
+**Constraints:**
+- The guard must short-circuit **before** any `GetComponentRO` call (carried verbatim
+  from WHEN-M4-T3 Constraints — but with a real implementation now, not just a
+  test-success condition).
+- The helper must **never** throw.
+
+**Success conditions:**
+1. `Lower_LivenessGuardFails_ReturnsSafeDefault` (WHEN-M4-T3 SC #6) — implement the test
+   that was filed but never added.
+2. `Lower_BufferComponentMissing_ReturnsSafeDefault` (WHEN-M4-T3 SC #7) — implement.
+   Specifically: spawn a child entity via ECB but defer the `AddComponent<EqsCognitiveBuffer>`
+   playback by one tick; run the read helper inside that window; assert `IsReady == false`
+   and no exception.
+3. **(new)** `ReadEqs_ImmediatelyAfterSpawn_NoCrash` (runtime test in
+   `Hrot.Blueprints.Tests/Runtime/ReadEqsResultNodeRuntimeTests.cs`) — author a graph where
+   the same Tick branch contains both `SpawnEqsSensorNode` and `ReadEqsResultNode` reading
+   the just-spawned handle; pump one tick (so ECB playback for the buffer attach is still
+   pending); assert no crash and `IsReady == false`.
+
+---
+
+### WHEN-M10-T3 — Vector-aware epsilon comparison in Value Changed lowering
+
+**Supersedes:** the lowering shape of WHEN-M2-T2's Value-Changed mode for Vector2/Vector3
+fields. The DESIGN §15.1 named test `Lower_ValueChanged_Vector2_EmitsLengthSquaredComparison`
+exists and is presumably passing, but the production `StatementEmitter` path for
+`IrOp_WhenValueChangedCheck` unconditionally emits `MathF.Abs(cur - prev) > Epsilon`,
+which is a C# **compile-time error** when applied to `Vector2`/`Vector3` operands. Either
+the test currently exercises only the scalar branch (likely), or the lowering passes the
+test by some accident — investigation needed. Either way, the production emission must
+branch on the field type.
+
+**Design reference:** DESIGN §7.1 (canonical Value Changed lowering — both scalar and
+vector forms shown); WHEN-M2-T2 Scope.
+
+**Scope (IN):**
+- In `StatementEmitter.cs`, where `IrOp_WhenValueChangedCheck` lowers:
+  ```csharp
+  if (op.FieldCSharpType.Contains("Vector"))
+  {
+      e.WriteLine($"bool __t{idx}_changed = " +
+                  $"(__t{idx}_cur - {sv}.{op.SynthFieldName}).LengthSquared() > " +
+                  $"({op.Epsilon}f * {op.Epsilon}f);");
+  }
+  else
+  {
+      e.WriteLine($"bool __t{idx}_changed = " +
+                  $"global::System.MathF.Abs(__t{idx}_cur - {sv}.{op.SynthFieldName}) > " +
+                  $"{op.Epsilon}f;");
+  }
+  ```
+- Cover `Vector2`, `Vector3` (the engine's `Vector2`/`Vector3` are
+  `System.Numerics.Vector2`/`Vector3` — both have `LengthSquared()`). A future tier (e.g.
+  `Vector4`, `Quaternion`) is out of scope; the branch checks must be tight (substring
+  `"Vector2"` or `"Vector3"`, not just `"Vector"` to avoid accidental matches like
+  `Vector256`).
+
+**Constraints:**
+- Epsilon-squared is the correct epsilon for `LengthSquared()` (compares squared distance
+  vs squared threshold).
+- Epsilon == 0 (the "ignore epsilon" case) continues to fall through to a strict-inequality
+  comparison without the `MathF.Abs` / `LengthSquared` math; do not regress that path.
+
+**Success conditions:**
+1. `Lower_ValueChanged_Vector2_EmitsLengthSquaredComparison` (existing) — must continue
+   to pass; confirm it actually exercises the vector branch (read the test body and
+   verify it constructs a `WhenNode` with `ValueChanged.ComponentTypeId` pointing at a
+   `Vector2` field).
+2. **(new)** `Lower_ValueChanged_Vector3_EmitsLengthSquaredComparison` — same pattern
+   for `Vector3` fields.
+3. **(new)** `Compile_ValueChanged_OnVector2Field_ProducesValidCSharp` — full Roslyn
+   compile of an asset whose `WhenNode` targets a `Vector2` field; assert the generated
+   source parses and compiles without errors. This catches the `MathF.Abs` bug directly
+   (current emission would fail Roslyn compile).
+4. **(new)** `Lower_ValueChanged_ScalarPath_UnchangedAfterVectorBranchAdded` — regression
+   test: scalar `float`/`double` field still emits `MathF.Abs` as before.
+
+---
+
+### WHEN-M10-T4 — `BP2014` epsilon warning must check the resolved property type
+
+**Supersedes:** the current `BP2014` emission in
+`V_WhenNodeRules.ValidateValueChanged`. Today it fires unconditionally whenever
+`vc.Epsilon != 0`. The DESIGN intent (and the warning's text — "Epsilon non-zero on
+integer/bool/enum field") is for it to fire only when the resolved property type is
+non-floating-point. Currently every floating-point use of Epsilon yields a noisy false-
+positive warning in the editor.
+
+**Design reference:** WHEN-M1-T3 Scope (BP20xx diagnostics); DESIGN §4.1 (full BP2014
+description — confirm the exact intended trigger condition).
+
+**Scope (IN):**
+- Resolve the property path's type in Stage 2 (`V_WhenNodeRules.ValidateValueChanged`).
+  Use `ctx.TypeRegistry` (the same lookup mechanism BP2003 / BP2009 use) to walk the
+  dot-notation `PropertyPath` and obtain the resolved `Type`.
+- Emit `BP2014` **only when** the resolved type is **not** `System.Single`,
+  `System.Double`, nor a vector type (`System.Numerics.Vector2`/`Vector3` — once
+  WHEN-M10-T3 lands these are valid epsilon targets too).
+- If type resolution at Stage 2 is structurally infeasible for this property path
+  (e.g., it depends on a Stage 4 type-resolve), defer the warning emission to Stage 4
+  per the original review note. Mark the Stage 2 site with a `// deferred to Stage 4`
+  comment and add the emission there.
+
+**Constraints:**
+- If property-path resolution fails (e.g., BP2003 already fires for an invalid path),
+  suppress BP2014 — they're redundant signal noise on the same root error.
+- Pre-existing `Validate_EpsilonNonZero_ValueChanged_BP2014Warning` test asserts the
+  warning fires for the bad case; it must continue to pass for the documented
+  integer/bool case but must NOT fire for floats.
+
+**Success conditions:**
+1. `Validate_EpsilonNonZero_ValueChanged_BP2014Warning` (existing) — modify the test
+   fixture to target an `int`/`bool`/`enum` field explicitly (rather than relying on
+   the unconditional emission). Test continues to pass.
+2. **(new)** `Validate_EpsilonNonZero_OnFloatField_NoBP2014` — same setup but the
+   property path resolves to a `float`; assert no `BP2014` warning emitted.
+3. **(new)** `Validate_EpsilonNonZero_OnDoubleField_NoBP2014` — same for `double`.
+4. **(new)** `Validate_EpsilonNonZero_OnVector2Field_NoBP2014` — same for `Vector2`
+   (depends on WHEN-M10-T3 landing first to make this a valid combination).
+
+---
+
+### WHEN-M10-T5 — `SpawnEqsSensorNode` pin-binding test coverage
+
+**Design reference:** DESIGN §15.1 `SpawnEqsSensorLoweringTests.cs` (two named tests
+not yet present); DESIGN §15.3 `SpawnEqsSensorRuntimeTests.cs` (three named tests not
+yet present).
+
+**Background:** DESIGN §15.1 calls for `Lower_WiredPin_EmitsUpstreamExpression` and
+`Lower_UnconnectedPin_EmitsLiteralDefault`. The current implementation has neither.
+This either means (a) the lowering does not actually distinguish wired vs literal
+(simpler than the design assumed), or (b) the distinction exists but isn't covered.
+This task disambiguates.
+
+**Scope (IN):**
+- Read the current `StatementEmitter.cs` emission for `SpawnEqsSensorNode`'s parameter
+  pins. Determine which branch is taken in each case.
+- **If both branches exist:** add the two missing lowering tests
+  (`Lower_WiredPin_EmitsUpstreamExpression`, `Lower_UnconnectedPin_EmitsLiteralDefault`)
+  and the three missing runtime tests (`Spawn_LiteralParameters_AppliedCorrectly`,
+  `Spawn_WiredParameters_ReadFromExpression`, `Spawn_ZeroAllocation`).
+- **If only the literal branch exists:** add a compile-time decision: confirm with the
+  iteration owner whether dynamic-pin binding is in scope. If not, formally close
+  these five test names by removing them from the DESIGN §15.1 / §15.3 lists and
+  documenting the closure in the iteration's `DEBT-TRACKER.md`.
+
+**Constraints:**
+- `Spawn_ZeroAllocation` is a benchmark-style test — host it under
+  `Hrot.Blueprints.Tests/Benchmarks/` (next to `WhenNodePerfTests.cs`) not under
+  `Runtime/`.
+
+**Success conditions:** depend on the disambiguation outcome above. Either three or
+five new tests pass, or a DEBT-TRACKER entry records the formal closure with rationale.
+
+---
+
+### WHEN-M10-T6 — Strengthen `CoverAwarePatrol_HotReload_SoftReload_*` to assert sensor preservation
+
+**Supersedes:** the current `CoverAwarePatrol_HotReload_SoftReload_PreservesStructure`
+test in `CoverAwarePatrolEndToEndTest.cs`. The DESIGN §15.9 named test was
+`_PreservesSensor`, with the explicit assertion: "subsequent ticks continue observing
+the original child sensor". The renamed `_PreservesStructure` is a weaker claim
+(structure hashes survive), which doesn't exercise the actual child-entity-survival
+property.
+
+**Design reference:** DESIGN §15.9 row 3 (the recipe-hot-reload assertion shape).
+
+**Scope (IN):**
+- Either rename the existing test to `_PreservesSensor` and add the missing
+  sensor-survival assertion, or keep `_PreservesStructure` (as a complementary check)
+  and add a separate `_PreservesSensor` test.
+- Required assertion: capture the `EqsSensorHandle.ChildId` before the Soft Reload;
+  trigger the reload (e.g., edit `MaxAgeSeconds` on the recipe's `WhenNode` without
+  changing graph structure); pump several ticks; assert the captured `ChildId` is
+  still alive (`view.IsAlive(ChildId) == true`), still has `EqsSensor` and
+  `EqsCognitiveBuffer`, and is the entity the `WhenNode` continues to observe (a
+  TopChanged fire on the same handle resolves to the same child).
+
+**Constraints:**
+- The Soft Reload must be structurally non-modifying (per DESIGN §10's soft-reload
+  rules) so the test can assert the child survives. If the chosen edit triggers a
+  Hard Reload, the test premise is invalid — adjust the edit to something the existing
+  hot-reload classifier judges as Soft.
+
+**Success conditions:**
+1. `CoverAwarePatrol_HotReload_SoftReload_PreservesSensor` exists and passes per
+   DESIGN §15.9.
+2. The captured child entity handle is the same `Entity` instance across the reload
+   boundary (not a re-created one with a different generation).
+
+---
+
+## Phase M11 — Corrective: Production wiring
+
+**Goal:** Wire the implemented library into the running Blueprint editor so an operator
+actually sees the new nodes / palette entries / pills / recipes. Identical wiring-gap
+pattern to the EQS-2 and Universal-Breakpoints corrective phases.
+
+`trace_path(<class>, direction=inbound)` returns **zero** callers for every editor-side
+class added by this iteration: `WhenNodeDrawer`, `ReadEqsResultNodeDrawer`,
+`SpawnEqsSensorNodeDrawer`, `WhenNodePaletteEntries`, `WhenNodeAttachmentProvider`,
+`CrossAssetDependencyAttachmentProvider`, and even `DrawerRegistry` itself. Unit tests
+construct them directly; no production editor bootstrap code registers them.
+
+---
+
+### WHEN-M11-T1 — Register the three drawers with the editor's `DrawerRegistry`
+
+**Design reference:** WHEN-M5-T1/T2/T3 (drawer classes); DESIGN §8 (drawer hosting
+contract).
+
+**Scope (IN):**
+- Find or create the Blueprint editor's bootstrap code path that constructs the
+  `DrawerRegistry` and hands it to the inspector frame.
+- Construct the three drawers with their required DI dependencies
+  (`WhenNodeDrawer` needs `IChannelCommandCatalog`, `IEngineEventCatalog`,
+  `IEditService`, `IPredicateCompiler`; `ReadEqsResultNodeDrawer` and
+  `SpawnEqsSensorNodeDrawer` see their respective ctors for their DI surface).
+- Call `registry.Register(typeof(WhenNode), new WhenNodeDrawer(...))` and equivalents
+  for the other two.
+
+**Constraints:**
+- The bootstrap site is likely in `Hrot.Editor.EditorSubsystem` or wherever
+  Blueprint-editor windows get instantiated — same wiring layer used for other
+  editor-shared services. Investigate before writing; the registration site may not
+  exist yet at all.
+- If no central DrawerRegistry construction site exists in production, that's a real
+  bug — add one (the tests demonstrate the registry is the intended dispatch
+  mechanism).
+
+**Success conditions:**
+1. Integration test (boot editor harness): select a `WhenNode` in the inspector; assert
+   the rendered drawer is an instance of `WhenNodeDrawer` (not the fallback generic
+   drawer).
+2. Same for `ReadEqsResultNode` and `SpawnEqsSensorNode`.
+3. `trace_path(WhenNodeDrawer, direction=inbound)` returns at least one production
+   caller after the fix.
+
+---
+
+### WHEN-M11-T2 — Register `WhenNodePaletteEntries` in the palette host
+
+**Design reference:** WHEN-M5-T4; DESIGN §14.2 (palette categories).
+
+**Scope (IN):**
+- Find the editor's palette / context-menu host (the system that drives the
+  "+ New Node" canvas right-click).
+- Have it call `WhenNodePaletteEntries`'s entry-producing API at editor startup so
+  the "Reactive Guards → When", "EQS → ReadEqsResult", and "EQS → SpawnEqsSensor"
+  items show up.
+
+**Success conditions:**
+1. Integration test: in the running editor, right-click an empty canvas spot of an
+   Instance Blueprint; assert the menu contains the three entries with the correct
+   categories.
+2. `trace_path(WhenNodePaletteEntries, direction=inbound)` returns at least one
+   production caller.
+
+---
+
+### WHEN-M11-T3 — Register the three visual attachment providers with the canvas
+
+**Design reference:** WHEN-M6-T1/T2/T3/T4; DESIGN §9.
+
+**Scope (IN):**
+- Find the canvas's `NodeAttachmentProvider` list / `CustomCanvasRenderer` list.
+- Register:
+  - `WhenNodeAttachmentProvider` (the ConditionSummaryAttachment provider).
+  - The `EqsTemplateAttachment` provider for `SpawnEqsSensorNode`.
+  - The sensor-name-pill provider for `ReadEqsResultNode`.
+  - `CrossAssetDependencyAttachmentProvider`.
+  - `WhenFiringPulseRenderer` (as a `CustomCanvasRenderer` for Debug-mode runtime
+    overlay).
+
+**Constraints:**
+- The renderer must only run in Debug mode (DESIGN §9.5); the bootstrap should also
+  guard the registration on a debug-flag check.
+
+**Success conditions:**
+1. Visual smoke test (manual): open a graph containing a `WhenNode`, a
+   `SpawnEqsSensorNode`, and a peer-variable `ValueChanged` `WhenNode`; assert each
+   node renders the expected pills and the cross-asset badge appears on the peer node.
+2. `trace_path(WhenNodeAttachmentProvider, direction=inbound)` and
+   `trace_path(CrossAssetDependencyAttachmentProvider, direction=inbound)` both return
+   at least one production caller.
+
+---
+
+### WHEN-M11-T4 — Move recipes to production location + wire Asset Browser discovery
+
+**Design reference:** DESIGN header note ("recipes under
+`Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Recipes/`"); DESIGN §16 M7; WHEN-M7-T1.
+
+**Scope (IN):**
+- Move (or duplicate, if the tests rely on the test-assets copy) the five recipe
+  `.bp.json` files from
+  `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/TestAssets/Recipes/` to
+  `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Recipes/`. The production location is
+  the path the engine packages and ships; the test location is not.
+- Update the `Hrot.AI.Behaviors` project file so the recipes are content-bundled
+  (`<Content Include="Blueprints/Recipes/*.bp.json" />` or equivalent).
+- Add a discovery step in the Asset Browser's New-from-Recipe dialog: enumerate the
+  production recipes folder at editor startup, parse each `.bp.json`, filter to assets
+  carrying `EditorMetadata.Recipe != null`, present in the dropdown.
+- Wire the dropdown's "Create" button to `NewFromRecipeService.CreateFromRecipe(...)`.
+
+**Constraints:**
+- `RecipeIntegrityTests.cs` must continue to pass — it currently reads from
+  `TestAssets/Recipes/`. Either point it at the new production location (preferred) or
+  keep a parallel copy in tests with a CI sync check.
+
+**Success conditions:**
+1. Integration test: boot editor; open Asset Browser; click "+ New" → "From Recipe…";
+   assert the dropdown contains all five recipe names with the "(★ recommended for
+   learning)" star on `CoverAwarePatrol`.
+2. Select a recipe + enter a name; click "Create"; assert a new `BlueprintAsset` is
+   created in the project with a fresh `AssetId` and `EditorMetadata.Recipe == null`.
+
+---
+
+### WHEN-M11-T5 — Consolidate the two `ReactiveGuardVocabulary` declarations
+
+**Design reference:** DESIGN §14.4 ("One new file: `Hrot/Editor/Hrot.Editor.AiShared/ReactiveGuardVocabulary.cs` (~40 lines)").
+
+**Scope (IN):**
+- Compare the two existing files:
+  - `Hrot/Editor/Hrot.Editor.AiShared/ReactiveGuardVocabulary.cs` (the design's
+    intended canonical location).
+  - `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/NodeDrawers/ReactiveGuardVocabulary.cs`
+    (an unexpected duplicate).
+- Keep the `Hrot.Editor.AiShared` copy. Remove or convert the
+  `Hrot.Blueprints.Editor/NodeDrawers/` copy into a type-forward (or delete entirely
+  and update all `using`s in the Blueprint editor to reference the AiShared namespace).
+- Verify the constants in both files are byte-identical; if they have drifted, the
+  AiShared copy is authoritative.
+
+**Success conditions:**
+1. Only one `class ReactiveGuardVocabulary` declaration remains in the solution after
+   the change.
+2. All previous consumers of the `Hrot.Blueprints.Editor.NodeDrawers.ReactiveGuardVocabulary`
+   type compile against the `Hrot.Editor.AiShared.ReactiveGuardVocabulary` type.
+
+---
+
+### WHEN-M11-T6 — End-to-end "wired" smoke test in the running editor
+
+**Design reference:** DESIGN §16 M9; mirrors EQS-2 `TASK-EQS-040` and UBP `UBP-P12T1`
+patterns ("revalidate against the wired engine, not a test harness").
+
+**Scope (IN):**
+- New test `Hrot.Blueprints.Tests/Integration/WhenNodeEditorSmokeTest.cs` (or
+  equivalent in the editor-host test project) that:
+  1. Boots a real editor instance (headless).
+  2. Asserts the `DrawerRegistry` has the three new drawers registered (failure of
+     WHEN-M11-T1 yields a clear test failure here).
+  3. Asserts the palette host has the three new entries (failure of WHEN-M11-T2).
+  4. Asserts the canvas attachment-provider list contains the three new providers
+     (failure of WHEN-M11-T3).
+  5. Asserts the Asset Browser's recipe discovery returns 5 entries from the
+     production folder (failure of WHEN-M11-T4).
+
+**Constraints:**
+- This test serves as the integration anchor for the M11 phase. It must remain in the
+  test suite even after the phase closes — it's the regression guard preventing future
+  bootstrap-code drift from silently un-wiring the new editor surface.
+
+**Success conditions:** the five assertions above all pass when the editor boots
+against the wired-up production code.
+
+---
+
+### Cross-phase notes
+
+- **M10 lands before M11.** The library defects (especially WHEN-M10-T1's
+  `InstanceId` determinism and WHEN-M10-T2's `HasComponent` guard) are correctness
+  bugs that make any production wiring (M11) unsafe.
+- **M10-T1 corrects guidance previously committed.** The original WHEN-M4-T4
+  recommendation of `(int)node.Id.GetHashCode()` is now formally superseded by
+  WHEN-M10-T1. Future readers should treat the corrective task as canonical.
+- **No DEBT-TRACKER entries from this corrective pass.** Each gap is either fixed by a
+  named task above or formally closed via WHEN-M10-T5's disambiguation. The iteration's
+  `DEBT-TRACKER.md` (if any) should remain empty unless WHEN-M10-T5 produces a
+  documented closure.

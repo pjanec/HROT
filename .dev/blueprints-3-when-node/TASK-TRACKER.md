@@ -127,3 +127,35 @@ performance budgets met.
 - [x] **WHEN-M9-T1** `CoverAwarePatrol` end-to-end integration test [details](./TASK-DETAIL.md#when-m9-t1--coverawarepatrol-end-to-end-integration-test)
 - [x] **WHEN-M9-T2** Performance test battery [details](./TASK-DETAIL.md#when-m9-t2--performance-test-battery)
 - [x] **WHEN-M9-T3** Hot-reload integration battery [details](./TASK-DETAIL.md#when-m9-t3--hot-reload-integration-battery)
+
+---
+
+## Phase M10 — Corrective: library defects
+
+**Goal:** Fix four code defects from independent review + three test-coverage holes from
+the post-implementation walk-through. Each supersedes a constraint in an earlier task
+where indicated.
+
+- [ ] **WHEN-M10-T1** Deterministic `PartMetadata.InstanceId` via `BlueprintIdHash.Compute()` *(supersedes WHEN-M4-T4 recommendation)* [details](./TASK-DETAIL.md#when-m10-t1--deterministic-partmetadatainstanceid-via-blueprintidhashcompute)
+- [ ] **WHEN-M10-T2** `HasComponent<EqsCognitiveBuffer>` guard + safe-default contract in `ReadEqsResult` helper *(supersedes WHEN-M4-T3 failure-path)* [details](./TASK-DETAIL.md#when-m10-t2--hascomponenteqscognitivebuffer-guard--safe-default-contract-in-readeqsresult-helper)
+- [ ] **WHEN-M10-T3** Vector-aware epsilon comparison in Value Changed lowering [details](./TASK-DETAIL.md#when-m10-t3--vector-aware-epsilon-comparison-in-value-changed-lowering)
+- [ ] **WHEN-M10-T4** `BP2014` epsilon warning must check the resolved property type [details](./TASK-DETAIL.md#when-m10-t4--bp2014-epsilon-warning-must-check-the-resolved-property-type)
+- [ ] **WHEN-M10-T5** `SpawnEqsSensorNode` pin-binding test coverage (or formal closure) [details](./TASK-DETAIL.md#when-m10-t5--spawneqssensornode-pin-binding-test-coverage)
+- [ ] **WHEN-M10-T6** Strengthen `CoverAwarePatrol_HotReload_SoftReload_*` to assert sensor preservation [details](./TASK-DETAIL.md#when-m10-t6--strengthen-coverawarepatrol_hotreload_softreload_-to-assert-sensor-preservation)
+
+---
+
+## Phase M11 — Corrective: Production wiring
+
+**Goal:** Wire the implemented library into the running Blueprint editor. Identical
+gap-pattern to EQS-2 and Universal-Breakpoints corrective phases — every editor-side
+class added by this iteration currently has zero inbound callers from production code.
+
+**Hard dependency:** M10 lands first (correctness fixes before production exposure).
+
+- [ ] **WHEN-M11-T1** Register the three drawers with the editor's `DrawerRegistry` [details](./TASK-DETAIL.md#when-m11-t1--register-the-three-drawers-with-the-editors-drawerregistry)
+- [ ] **WHEN-M11-T2** Register `WhenNodePaletteEntries` in the palette host [details](./TASK-DETAIL.md#when-m11-t2--register-whennodepaletteentries-in-the-palette-host)
+- [ ] **WHEN-M11-T3** Register the three visual attachment providers with the canvas [details](./TASK-DETAIL.md#when-m11-t3--register-the-three-visual-attachment-providers-with-the-canvas)
+- [ ] **WHEN-M11-T4** Move recipes to production location + wire Asset Browser discovery [details](./TASK-DETAIL.md#when-m11-t4--move-recipes-to-production-location--wire-asset-browser-discovery)
+- [ ] **WHEN-M11-T5** Consolidate the two `ReactiveGuardVocabulary` declarations [details](./TASK-DETAIL.md#when-m11-t5--consolidate-the-two-reactiveguardvocabulary-declarations)
+- [ ] **WHEN-M11-T6** End-to-end "wired" smoke test in the running editor [details](./TASK-DETAIL.md#when-m11-t6--end-to-end-wired-smoke-test-in-the-running-editor)
