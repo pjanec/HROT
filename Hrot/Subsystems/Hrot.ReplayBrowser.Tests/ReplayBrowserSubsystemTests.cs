@@ -130,7 +130,8 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
 
         // Use stub panels (subsystem is headless so real panels were not created)
         var timelinePanel  = new Fdp.Presentation.Panels.ReplayBrowser.ReplayTimelinePanel(
-            CreateNullContext(),
+            null,
+            () => 0,
             new StubExportService(),
             new StubFileDialogService(),
             new Fdp.Toolkit.ReplayBrowser.PlaybackHistoryTracker(),
@@ -547,5 +548,236 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
             Fdp.Toolkit.ReplayBrowser.Search.TargetEntityFilter? entityFilter = null,
             System.Threading.CancellationToken ct = default)
             => System.Array.Empty<Fdp.Toolkit.ReplayBrowser.Search.LifecycleSearchResultDto>();
+    }
+
+    // ── RBF-P5T1: Excise ReplayBrowserContext from subsystem ──────────────────
+
+    /// <summary>
+    /// RBF-P5T1: ReplayBrowserSubsystem must not hold any field of type ReplayBrowserContext.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T1_Subsystem_NoContextField()
+    {
+        var fields = typeof(ReplayBrowserSubsystem)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        bool hasContextField = fields.Any(f => f.FieldType == typeof(ReplayBrowserContext));
+        Assert.False(hasContextField,
+            "ReplayBrowserSubsystem must not hold a ReplayBrowserContext field (DESIGN §6.4)");
+    }
+
+    /// <summary>
+    /// RBF-P5T1: Initialize + Update with no files loaded must not throw (null manager path).
+    /// </summary>
+    [Fact]
+    public void RBF_P5T1_Subsystem_EmptyManager_NoNullRef()
+    {
+        var ex = Record.Exception(() =>
+        {
+            _subsystem.Initialize(HeadlessConfig());
+            _subsystem.Update(0.016f);
+        });
+        Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// RBF-P5T1: After loading one file, SetBaseWallTicks via manager seeks the primary context;
+    /// PrimaryNodeCurrentFrame() returns the frame corresponding to the new ticks.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T1_SingleNode_SeekViaManager()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpViaManager(path);
+
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        var ctx = _subsystem.Manager.Contexts[nodeId];
+        long ticks = ctx.Playback!.GetFrameMetadata(1).WallClockTicks;
+
+        _subsystem.Manager.SetBaseWallTicks(ticks);
+
+        Assert.Equal(ctx.CurrentFrame, _subsystem.PrimaryNodeCurrentFrame());
+    }
+
+    /// <summary>
+    /// RBF-P5T1: In Merged mode, seeking via SetBaseWallTicks triggers a transient master rebuild;
+    /// ActiveRepo is replaced each time (new reference from TransientBuildOverride).
+    /// </summary>
+    [Fact]
+    public void RBF_P5T1_Merged_SeekRebuildsTransientMaster()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+
+        int rebuilds = 0;
+        _subsystem.TransientBuildOverride = _ => { rebuilds++; return new EntityRepository(); };
+
+        var repoBefore = _subsystem.ActiveRepo;
+        _subsystem.Manager!.SetBaseWallTicks(1_500_000L);
+        var repoAfter = _subsystem.ActiveRepo;
+
+        Assert.True(rebuilds >= 1, "A seek in Merged mode must trigger at least one transient master rebuild.");
+        Assert.NotSame(repoBefore, repoAfter);
+    }
+
+    /// <summary>
+    /// RBF-P5T1: PrimaryNodeCurrentFrame() reflects the frame index of the primary context;
+    /// this is what the EventBrowserPanel CurrentFrameProvider lambda captures.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T1_EventBrowser_CurrentFrameProvider_UsesActiveContext()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpViaManager(path);
+
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        var ctx = _subsystem.Manager.Contexts[nodeId];
+        long ticks = ctx.Playback!.GetFrameMetadata(1).WallClockTicks;
+        _subsystem.Manager.SetBaseWallTicks(ticks);
+
+        Assert.Equal(ctx.CurrentFrame, _subsystem.PrimaryNodeCurrentFrame());
+        Assert.Equal(1, _subsystem.PrimaryNodeCurrentFrame());
+    }
+
+    // ── RBF-P5T3: Diff engine through _activeRepo ─────────────────────────────
+
+    private static Fdp.Toolkit.Scenario.ScenarioSerializer MakeMinimalSerializer()
+    {
+        using var primeRepo = new EntityRepository();
+        primeRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        return new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Test").Build();
+    }
+
+    /// <summary>
+    /// RBF-P5T3: In Merged mode the diff cycle calls SetBaseWallTicks exactly twice —
+    /// once for the before-state and once to restore the after-state.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T3_Diff_Merged_TwoRebuilds()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+        _subsystem.SetSerializerForTest(MakeMinimalSerializer());
+
+        int buildCount = 0;
+        _subsystem.TransientBuildOverride = _ => { buildCount++; return new EntityRepository(); };
+
+        // Frame 1, non-null entity handle (not alive in rebuilt repo — that's fine)
+        _subsystem.ComputeDiffForTest(frame: 1, entity: new Entity(1, 1));
+
+        Assert.Equal(2, buildCount);
+    }
+
+    /// <summary>
+    /// RBF-P5T3: After the diff cycle completes, BaseWallTicks is restored to the after-state ticks
+    /// (not left at the before-state).
+    /// </summary>
+    [Fact]
+    public void RBF_P5T3_Diff_RestoresAfterTicks()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+        _subsystem.SetSerializerForTest(MakeMinimalSerializer());
+        _subsystem.TransientBuildOverride = _ => new EntityRepository();
+
+        int nodeId = _subsystem.Manager!.LocalEntitiesProviderNodeId;
+        var ctx = _subsystem.Manager.Contexts[nodeId];
+        long afterTicks = ctx.Playback!.GetFrameMetadata(1).WallClockTicks;
+
+        _subsystem.ComputeDiffForTest(frame: 1, entity: new Entity(1, 1));
+
+        // Manager must be left at the after-state ticks
+        Assert.Equal(afterTicks, _subsystem.Manager!.BaseWallTicks);
+    }
+
+    /// <summary>
+    /// RBF-P5T3: If the entity does not exist in the rebuilt repo (before or after state),
+    /// no exception is thrown and the result is an empty diff list.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T3_Diff_NoCrashOnMissingEntity()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+        _subsystem.SetSerializerForTest(MakeMinimalSerializer());
+        // Override always returns empty repo — entity will not be found
+        _subsystem.TransientBuildOverride = _ => new EntityRepository();
+
+        var ex = Record.Exception(() =>
+            _subsystem.ComputeDiffForTest(frame: 1, entity: new Entity(1, 1)));
+
+        Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// RBF-P5T3: In Single-Node mode, the diff cycle does NOT trigger transient master rebuilds;
+    /// it operates directly on the primary context's SandboxRepo.
+    /// </summary>
+    [Fact]
+    public void RBF_P5T3_Diff_SingleNode_StillProducesDiff()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = CreateMinimalFdpFile(_tempDir, exerciseId, nodeId: 1);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.SingleNode);
+        _subsystem.SetSerializerForTest(MakeMinimalSerializer());
+
+        int buildCount = 0;
+        _subsystem.TransientBuildOverride = _ => { buildCount++; return new EntityRepository(); };
+
+        var result = _subsystem.ComputeDiffForTest(frame: 1, entity: new Entity(1, 1));
+
+        // In Single-Node mode no transient master rebuilds should happen
+        Assert.Equal(0, buildCount);
+        // Result is non-null (even if empty, since entity is not alive in sandbox)
+        Assert.NotNull(result);
+    }
+
+    // ── RBF-P5T4: Subsystem guard for seek-to-change in Merged mode ───────────
+
+    /// <summary>
+    /// RBF-P5T4: When the subsystem is in Merged view, invoking OnSeekToChangeRequested
+    /// via the wired delegate must NOT trigger a seek (manager BaseWallTicks unchanged).
+    /// </summary>
+    [Fact]
+    public void RBF_P5T4_SubsystemShortCircuit_NoSeekInMerged()
+    {
+        _subsystem.Initialize(HeadlessConfig());
+        var exerciseId = Guid.NewGuid();
+        var path = MakeOneFrameRecording(nodeId: 1, exerciseId);
+        _subsystem.LoadFdpGroupForTest(new[] { path }, new TransientMasterBuilder(MakeTestSerializer()));
+        _subsystem.SetViewMode(ViewMode.Merged);
+
+        long initialTicks = _subsystem.Manager!.BaseWallTicks;
+
+        var diffPanel      = new ComponentDiffPanel();
+        var entityHistory  = new EntitySelectionHistory();
+        var playbackHistory = new PlaybackHistoryTracker();
+        var inspectorState = new InspectorState();
+        var eventPanel     = new EventBrowserPanel(new StubHistoryService());
+
+        _subsystem.WireDelegatesForTest(entityHistory, playbackHistory, inspectorState,
+            new ReplayBrowserContext(), diffPanel, eventPanel);
+
+        // Invoke seek-to-change in Merged mode — must short-circuit without starting a seek
+        diffPanel.OnSeekToChangeRequested?.Invoke(1);
+
+        Assert.Equal(initialTicks, _subsystem.Manager!.BaseWallTicks);
     }
 }

@@ -36,6 +36,20 @@ public sealed class ComponentDiffPanel
     public bool IsEpsilonIgnored => _ignoreEpsilon;
     public IReadOnlySet<Type> ExcludedTypes => _excludedTypes;
 
+    /// <summary>
+    /// Optional query for whether the UI is in Merged View.
+    /// When non-null and returning true, seek-to-change buttons are disabled.
+    /// </summary>
+    public Func<bool>? IsMergedViewQuery { get; set; }
+
+    /// <summary>Tooltip shown on the seek-to-change buttons when Merged View is active.</summary>
+    public const string MergedViewDisabledTooltip =
+        "Step-change search is disabled in Merged View. Switch to Single-Node View to seek to the next change.";
+
+    /// <summary>Test helper: returns true when seek-to-change should be enabled.</summary>
+    internal static bool IsSeekToChangeEnabled(bool isSearching, bool isMerged)
+        => !isSearching && !isMerged;
+
     // ── Draw entry point ──────────────────────────────────────────────────
 
     public void DrawContent()
@@ -93,18 +107,29 @@ public sealed class ComponentDiffPanel
         if (!Gui.IsPopupOpen("##diff_filter_popup"))
             _typeFilter = string.Empty;
 
+        bool isMerged = IsMergedViewQuery?.Invoke() ?? false;
+        bool prevNextEnabled = !IsSearching && !isMerged;
+
         Gui.SameLine();
-        TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, !IsSearching, out _, out bool prevClicked);
+        TransportIconRenderer.DrawButton("##prev_change", 20f, TransportShape.StepBack, prevNextEnabled, out _, out bool prevClicked);
         if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Seek to previous frame with changes");
-        if (prevClicked && !IsSearching)
+        {
+            Gui.SetTooltip(isMerged
+                ? MergedViewDisabledTooltip
+                : "Seek to previous frame with changes");
+        }
+        if (prevClicked && prevNextEnabled)
             OnSeekToChangeRequested?.Invoke(-1);
 
         Gui.SameLine();
-        TransportIconRenderer.DrawButton("##next_change", 20f, TransportShape.StepFwd, !IsSearching, out _, out bool nextClicked);
+        TransportIconRenderer.DrawButton("##next_change", 20f, TransportShape.StepFwd, prevNextEnabled, out _, out bool nextClicked);
         if (Gui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled | ImGuiHoveredFlags.DelayNormal))
-            Gui.SetTooltip("Seek to next frame with changes");
-        if (nextClicked && !IsSearching)
+        {
+            Gui.SetTooltip(isMerged
+                ? MergedViewDisabledTooltip
+                : "Seek to next frame with changes");
+        }
+        if (nextClicked && prevNextEnabled)
             OnSeekToChangeRequested?.Invoke(1);
 
         Gui.Separator();

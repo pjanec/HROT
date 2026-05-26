@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Icons;
 using Fdp.Toolkit.ReplayBrowser;
+using Fdp.Toolkit.ReplayBrowser.Federation;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Panels.ReplayBrowser;
@@ -15,11 +16,16 @@ namespace Fdp.Presentation.Panels.ReplayBrowser;
 /// </summary>
 public sealed class ReplayTimelinePanel
 {
-    private readonly ReplayBrowserContext _context;
+    private FederatedReplayManager? _manager;
+    private readonly Func<int> _getSelectedNodeId;
     private readonly IRecordingExportService _exportService;
     private readonly IFileDialogService _fileDialogService;
     private readonly PlaybackHistoryTracker _playbackHistory;
     private readonly InspectorState _inspectorState;
+
+    /// <summary>Returns the active context for the currently selected node, or null if not available.</summary>
+    private ReplayBrowserContext? ActiveContext =>
+        _manager != null && _manager.Contexts.TryGetValue(_getSelectedNodeId(), out var ctx) ? ctx : null;
 
     private JsonExportOptions _options = new();
     private bool _isExporting;
@@ -52,18 +58,23 @@ public sealed class ReplayTimelinePanel
     public Func<bool>? IsMergedViewQuery { get; set; }
 
     public ReplayTimelinePanel(
-        ReplayBrowserContext context,
+        FederatedReplayManager? manager,
+        Func<int> getSelectedNodeId,
         IRecordingExportService exportService,
         IFileDialogService fileDialogService,
         PlaybackHistoryTracker playbackHistory,
         InspectorState inspectorState)
     {
-        _context = context;
+        _manager = manager;
+        _getSelectedNodeId = getSelectedNodeId;
         _exportService = exportService;
         _fileDialogService = fileDialogService;
         _playbackHistory = playbackHistory;
         _inspectorState = inspectorState;
     }
+
+    /// <summary>Binds a new manager after a successful group load.</summary>
+    public void SetManager(FederatedReplayManager manager) { _manager = manager; }
 
     // ── Public draw entry point ───────────────────────────────────────────
 
@@ -97,7 +108,7 @@ public sealed class ReplayTimelinePanel
     {
         float iconSize = Gui.GetFrameHeight() * 1.8f;
         float dt = Gui.GetIO().DeltaTime;
-        bool hasRecording = _context.Playback != null;
+        bool hasRecording = ActiveContext?.Playback != null;
 
         if (TransportIconRenderer.DrawButton("##rb_hist_back", iconSize, TransportShape.HistoryBack, _playbackHistory.CanGoBack, out _, out _))
             _playbackHistory.GoBack();
@@ -162,7 +173,7 @@ public sealed class ReplayTimelinePanel
         if (stepBackActivated)
         {
             IsPlaying = false;
-            _context.StepBackward();
+            StepBackward();
             _stepHoldTime = 0f;
             _stepHoldDirection = -1;
             _autoStepAccumulator = 0f;
@@ -175,7 +186,7 @@ public sealed class ReplayTimelinePanel
         if (stepFwdActivated)
         {
             IsPlaying = false;
-            _context.StepForward();
+            StepForward();
             _stepHoldTime = 0f;
             _stepHoldDirection = 1;
             _autoStepAccumulator = 0f;
@@ -215,16 +226,15 @@ public sealed class ReplayTimelinePanel
                     {
                         for (int i = 0; i < framesToStep; i++)
                         {
-                            if (!_context.StepForward())
-                                break;
+                            StepForward();
                         }
                     }
                     else
                     {
-                        int currentFrame = _context.CurrentFrame;
+                        int currentFrame = ActiveContext?.CurrentFrame ?? 0;
                         int targetFrame = Math.Max(0, currentFrame - framesToStep);
                         if (targetFrame < currentFrame)
-                            _context.SeekToFrame(targetFrame);
+                            SeekToFrame(targetFrame);
                     }
                 }
             }
@@ -239,22 +249,22 @@ public sealed class ReplayTimelinePanel
 
     private void DrawRow2_TimeInfo()
     {
-        if (_context.Playback == null || _context.CurrentFrame < 0)
+        if (ActiveContext?.Playback == null || (ActiveContext?.CurrentFrame ?? -1) < 0)
         {
             Gui.TextDisabled("Frame: - | Wall Ticks: - | Wall Time: - | Sim Time: -");
             return;
         }
 
-        int current = _context.CurrentFrame;
-        var meta = _context.Playback.GetFrameMetadata(current);
-        long firstFrameWallTicks = _context.Playback.GetFrameMetadata(0).WallClockTicks;
+        int current = ActiveContext!.CurrentFrame;
+        var meta = ActiveContext.Playback.GetFrameMetadata(current);
+        long firstFrameWallTicks = ActiveContext.Playback.GetFrameMetadata(0).WallClockTicks;
 
         double relativeWallSec =
             (meta.WallClockTicks - firstFrameWallTicks) / (double)TimeSpan.TicksPerSecond;
 
         double simTimeSec = 0.0;
-        if (_context.SandboxRepo.HasSingletonUnmanaged<GlobalTime>())
-            simTimeSec = _context.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+        if (ActiveContext?.SandboxRepo?.HasSingletonUnmanaged<GlobalTime>() ?? false)
+            simTimeSec = ActiveContext.SandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
 
         Gui.TextUnformatted(
             $"Frame: {current} | Wall Ticks: {meta.WallClockTicks} | Wall Time: {relativeWallSec:F3}s | Sim Time: {simTimeSec:F3}s");
@@ -262,14 +272,14 @@ public sealed class ReplayTimelinePanel
 
     private void DrawRow3_Slider()
     {
-        int totalFrames = _context.Playback?.TotalFrames ?? 1;
-        int current = _context.CurrentFrame < 0 ? 0 : _context.CurrentFrame;
+        int totalFrames = ActiveContext?.Playback?.TotalFrames ?? 1;
+        int current = (ActiveContext?.CurrentFrame ?? -1) < 0 ? 0 : ActiveContext!.CurrentFrame;
         int max = totalFrames > 0 ? totalFrames - 1 : 0;
 
         if (Gui.SliderInt("##timeline", ref current, 0, max))
         {
             IsPlaying = false;
-            _context.SeekToFrame(current);
+            SeekToFrame(current);
         }
         Gui.SameLine();
         Gui.TextUnformatted($"Frame {current} / {max}");
@@ -279,7 +289,7 @@ public sealed class ReplayTimelinePanel
     {
         // Metadata display (tick, simframe, simtime, frame type, size)
         // When no recording is loaded, show dashes.
-        if (_context.Playback == null)
+        if (ActiveContext?.Playback == null)
         {
             Gui.TextDisabled("Tick: - | SimFrame: - | SimTime: - | Type: - | Size: -");
         }
@@ -298,7 +308,7 @@ public sealed class ReplayTimelinePanel
             _ = LoadFdpAsync();
         }
         Gui.SameLine();
-        string displayPath = _context.CurrentFdpPath ?? "(none)";
+        string displayPath = ActiveContext?.CurrentFdpPath ?? "(none)";
         Gui.TextUnformatted(displayPath);
     }
 
@@ -402,7 +412,7 @@ public sealed class ReplayTimelinePanel
 
     private void DrawSaveButton()
     {
-        bool canSave = !_isExporting && _context.CurrentFdpPath != null;
+        bool canSave = !_isExporting && ActiveContext?.CurrentFdpPath != null;
         if (!canSave) Gui.BeginDisabled();
         if (Gui.Button("Save to JSON..."))
         {
@@ -415,7 +425,7 @@ public sealed class ReplayTimelinePanel
             }
 
             var snapshot = CloneOptions(_options);
-            _ = SaveAsync(snapshot);
+            _ = SaveAsync(snapshot, ActiveContext?.CurrentFdpPath);
         }
         if (!canSave) Gui.EndDisabled();
 
@@ -440,25 +450,20 @@ public sealed class ReplayTimelinePanel
             if (rejection != null)
                 LoadGroupRejectionReason = rejection;
         }
-        else
-        {
-            // Fallback for single-file backward-compat when no manager is wired
-            _context.LoadRecording(paths[0]);
-        }
+        // No fallback: file loading always goes through OnLoadGroup
     }
 
     internal static bool IsPlayEnabled(bool hasRecording, bool isMergedView)
         => hasRecording && !isMergedView;
 
-    private async Task SaveAsync(JsonExportOptions snapshot)
+    private async Task SaveAsync(JsonExportOptions snapshot, string? inputPath)
     {
         _isExporting = true;
         try
         {
             string? outPath = await _fileDialogService.ShowSaveAsDialogAsync("ReplayBrowser_ExportJson", "dump.json", "*.json");
-            if (string.IsNullOrEmpty(outPath)) return;
+            if (string.IsNullOrEmpty(outPath) || inputPath == null) return;
 
-            string inputPath = _context.CurrentFdpPath!;
             await Task.Factory.StartNew(
                 () => _exportService.ExportToJson(inputPath, outPath, snapshot),
                 TaskCreationOptions.LongRunning);
@@ -471,9 +476,42 @@ public sealed class ReplayTimelinePanel
 
     private void SeekToFirst()
     {
-        if (_context.Playback != null)
-            _context.SeekToFrame(0);
+        if (ActiveContext?.Playback != null)
+            SeekToFrame(0);
     }
+
+    // ── Manager-driven navigation ─────────────────────────────────────────
+
+    private void SeekToFrame(int frame)
+    {
+        if (_manager == null || ActiveContext?.Playback == null) return;
+        long wallTicks = ActiveContext.Playback.GetFrameMetadata(frame).WallClockTicks;
+        _manager.SetBaseWallTicks(wallTicks);
+    }
+
+    private void StepForward()
+    {
+        var ctx = ActiveContext;
+        if (ctx == null || ctx.Playback == null || _manager == null) return;
+        int nextFrame = ctx.CurrentFrame + 1;
+        if (nextFrame >= ctx.Playback.TotalFrames) return;
+        _manager.StepForwardAll();
+    }
+
+    private void StepBackward()
+    {
+        var ctx = ActiveContext;
+        if (ctx == null || ctx.Playback == null || _manager == null) return;
+        int prevFrame = ctx.CurrentFrame - 1;
+        if (prevFrame < 0) return;
+        _manager.StepBackwardAll();
+    }
+
+    // ── Test seams ────────────────────────────────────────────────────────
+
+    internal void SeekToFrameForTest(int frame) => SeekToFrame(frame);
+    internal void StepForwardForTest() => StepForward();
+    internal void StepBackwardForTest() => StepBackward();
 
     // ── Testable helpers ──────────────────────────────────────────────────
 

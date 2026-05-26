@@ -202,9 +202,29 @@ The current `ReplayTimelinePanel.Update` auto-step path (which uses `IsPlaying`)
 
 When the operator switches back to Single-Node View, `CurrentFilePath` is restored to the selected context's `CurrentFdpPath` and the panel returns to its normal state.
 
+#### 6.2.3 Component-Diff policy ("passive diff works; "next change" disabled")
+
+The reactive `ComponentDiffService` must remain functional in Merged View — the operator analyses cluster state step-by-frame, and the diff between two adjacent frames is the primary investigative artefact.
+
+**Policy:** while Merged View is active:
+
+- **Passive diff stays on.** When the selected entity or time changes, the subsystem performs a *manual* two-step diff: it asks `FederatedReplayManager` to rewind by one tick delta, rebuilds the transient master, serialises the selected entity via `ScenarioSerializer.SerializeEntity(_activeRepo, entity, resolver, mask)` to get the "before" DOM; then asks the manager to advance to the original tick, rebuilds again, serialises to get the "after" DOM; finally feeds both DOMs into `ComponentDiffService.ComputeTreeDiff(before, after, epsilon)`. The existing `ComputeEntityDiff(repo, ...)` overload is unsuitable because it assumes a stable `EntityRepository` instance across the step callback, which the transient master is not (each rebuild allocates a fresh repo).
+- **Cost.** Each diff costs two full builds of the transient master (severe stutter, acceptable per SC-6 — the operator is stepping one frame at a time).
+- **"Seek to Previous/Next Change" buttons are DISABLED in Merged View.** Their algorithm spins a background `ReplayBrowserContext` and fast-forwards through the whole file computing diffs at hyperspeed; replicating that against the federated manager would require thousands of transient-master rebuilds and lock the UI for minutes. It also violates the §6.2.2 "search is disabled" policy in spirit. Hover tooltip on the disabled buttons: *"Step-change search is disabled in Merged View. Switch to Single-Node View to seek to the next change."*
+
 ### 6.3 Switching modes
 
-A radio toggle in the new `FederationPanel` flips between Single-Node and Merged. On switch the UI rebinds its `RepositoryAdapter`, forces a synthesis if entering Merged, applies the Play-button gate (§6.2.1), and applies the search-panel gate (§6.2.2).
+A radio toggle in the new `FederationPanel` flips between Single-Node and Merged. On switch the UI rebinds its `RepositoryAdapter`, forces a synthesis if entering Merged, applies the Play-button gate (§6.2.1), the search-panel gate (§6.2.2), and the diff "next-change" button gate (§6.2.3).
+
+### 6.4 Sole source of truth — no legacy `_context`
+
+The subsystem must hold **exactly one** path to per-recording state: `FederatedReplayManager`. Any residual `ReplayBrowserContext _context` field on `ReplayBrowserSubsystem` is forbidden — its presence allowed timeline controls to bypass the manager entirely, leaving the merged view frozen on scrub.
+
+- The single-node case is `_manager.Contexts[selectedNodeId]` (after a 1-file `LoadGroup`).
+- The active repo in Single-Node mode is `_manager.Contexts[selectedNodeId].SandboxRepo`; in Merged mode it is the transient master. Both are surfaced through the same `_activeRepo` reference (§8.4).
+- All UI panels (`ReplayTimelinePanel`, `ComponentDiffPanel`, `EventBrowserPanel`, `ReplaySearchPanel`) communicate with the manager — directly via injected references for state-bearing operations (timeline scrub, mode-aware behaviour), or indirectly via the subsystem-owned `_activeRepo` / `RepositoryAdapter` for read-only inspection.
+
+This is restated as a binding constraint because corrective work (Phase P5) found that an undetected residual `_context` field disconnected the slider from the merged view.
 
 ---
 

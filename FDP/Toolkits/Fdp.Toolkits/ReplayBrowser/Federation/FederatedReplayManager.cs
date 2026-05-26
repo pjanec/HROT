@@ -177,6 +177,44 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         }
 
         /// <summary>
+        /// Advances every loaded context by one frame using sequential stepping.
+        /// Fires <see cref="OnTimeChanged"/>.
+        /// </summary>
+        public void StepForwardAll()
+        {
+            ThrowIfDisposed();
+            foreach (var ctx in _contexts.Values)
+            {
+                if (ctx.Playback != null && !ctx.Playback.IsAtEnd)
+                    ctx.StepForward(suppressHistory: true);
+            }
+
+            if (_contexts.TryGetValue(LocalEntitiesProviderNodeId, out var primaryCtx) && primaryCtx.Playback != null)
+                BaseWallTicks = primaryCtx.Playback.GetFrameMetadata(primaryCtx.CurrentFrame).WallClockTicks;
+
+            OnTimeChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Rewinds every loaded context by one frame using sequential stepping.
+        /// Fires <see cref="OnTimeChanged"/>.
+        /// </summary>
+        public void StepBackwardAll()
+        {
+            ThrowIfDisposed();
+            foreach (var ctx in _contexts.Values)
+            {
+                if (ctx.Playback != null && ctx.CurrentFrame > 0)
+                    ctx.StepBackward(suppressHistory: true);
+            }
+
+            if (_contexts.TryGetValue(LocalEntitiesProviderNodeId, out var primaryCtx) && primaryCtx.Playback != null)
+                BaseWallTicks = primaryCtx.Playback.GetFrameMetadata(primaryCtx.CurrentFrame).WallClockTicks;
+
+            OnTimeChanged?.Invoke();
+        }
+
+        /// <summary>
         /// Disposes all owned <see cref="ReplayBrowserContext"/> instances.
         /// Double-dispose is a no-op.
         /// </summary>

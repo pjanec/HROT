@@ -359,6 +359,103 @@ Any in-progress search must complete (or be cancelled if `ReplaySearchPanel` alr
 
 ---
 
+## Phase P5 — Corrective: subsystem wiring excises legacy `_context`
+
+Post-implementation review of P2/P4 found that `ReplayBrowserSubsystem` kept both the new `FederatedReplayManager _manager` AND the legacy `ReplayBrowserContext _context`. The two are not in sync — `ReplayTimelinePanel` still drives `_context` while the merged-view rebuild reads from `_manager.Contexts`. Net effect: scrubbing the timeline in Merged View does not update the Frankenstein repository. These tasks are corrective; they MUST land before any user-facing release.
+
+DESIGN refs for the whole phase: §6.4 (binding "no legacy `_context`" constraint), §6.2.3 (diff policy).
+
+### RBF-P5T1 — Excise `ReplayBrowserContext _context` from `ReplayBrowserSubsystem`
+
+**Scope.** Delete the `private ReplayBrowserContext _context` field and every reference to it in [Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs](../../Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs). The replacements (consistent with RBF-P4T3's `_activeRepo` reference):
+
+- `_context.SandboxRepo` → `_activeRepo` for read-only adapter/gizmo/selection paths.
+- `_context.HistoryService` → take the history service from the currently active context (`_manager.Contexts[selectedNodeId].HistoryService` in Single-Node; in Merged, the history service is sourced from the Local-Entities Provider's context for diagnostic continuity).
+- `_context.SeekToFrame(n)` → resolve frame `n` of the currently active context to a wall-tick value (`ctx.Playback.GetFrameMetadata(n).WallClockTicks`) and call `_manager.SetBaseWallTicks(targetTicks)`. The manager seeks every node and fires `OnTimeChanged`, which the subsystem already handles for rebuild + adapter swap.
+- `_context.StepForward()` / `_context.StepBackward()` → advance/rewind `_manager.BaseWallTicks` by the wall-tick delta to the next/previous frame of the **primary node** (typically the lowest-NodeId loaded context); call `_manager.SetBaseWallTicks(newTicks)`. Step-forward returns `true` iff a next frame existed on that primary node.
+- `_context.CurrentFdpPath` → `_manager.Contexts[selectedNodeId].CurrentFdpPath`.
+- `_context.CurrentFrame` (used by `EventBrowserPanel.CurrentFrameProvider`) → `_manager.Contexts[selectedNodeId].CurrentFrame` (the panel observes the per-node single-node frame in Single-Node mode; in Merged mode the value is whatever the primary node reads).
+
+The subsystem must remain functional with **zero** loaded files (post-`Initialize`, pre-`LoadGroup`): all `_manager?.…` accesses must null-guard.
+
+**DESIGN refs.** §6.4, §5, §6.1, §6.2.
+
+**Success conditions.**
+- `RBF_P5T1_Subsystem_NoContextField` — reflection / source-grep assertion that no `ReplayBrowserContext` field exists on `ReplayBrowserSubsystem`.
+- `RBF_P5T1_Subsystem_EmptyManager_NoNullRef` — `Initialize` → `Update` → `DrawUI` cycle does not throw before any file is loaded.
+- `RBF_P5T1_SingleNode_SeekViaManager` — loading one file and triggering a slider seek causes `_manager.BaseWallTicks` to change to the corresponding wall-tick of the requested frame, and `_activeRepo == _manager.Contexts[0].SandboxRepo` (or whichever single NodeId).
+- `RBF_P5T1_Merged_SeekRebuildsTransientMaster` — in Merged mode, a seek triggered through the new code path produces a NEW transient master instance (verified by reference inequality with the previous one).
+- `RBF_P5T1_EventBrowser_CurrentFrameProvider_UsesActiveContext` — the event browser's frame provider reflects the active single-node context's `CurrentFrame`.
+
+### RBF-P5T2 — `ReplayTimelinePanel` drives `FederatedReplayManager` directly
+
+**Scope.** Refactor [ReplayTimelinePanel.cs](../../FDP/Engine/Fdp.Presentation/ImGui/Panels/ReplayBrowser/ReplayTimelinePanel.cs) so that:
+
+- The constructor takes a `FederatedReplayManager? manager` reference (plus an `Func<int> getSelectedNodeId` to know which context the slider should mirror for label/frame readout) instead of the bare `ReplayBrowserContext _context`.
+- Every `_context.SeekToFrame(n)` becomes `manager.SetBaseWallTicks(targetWallTicks)` where `targetWallTicks` is resolved from frame `n` of the currently selected context via `ctx.Playback.GetFrameMetadata(n).WallClockTicks`.
+- Every `_context.StepForward()` / `StepBackward()` becomes a wall-tick delta advance / retreat on the manager (per RBF-P5T1 semantics).
+- The slider's max value, current value, and labels read from the selected context but **never** mutate it directly — all mutation routes through the manager.
+- `LoadFdpAsync` no longer falls through to `_context.LoadRecording(paths[0])`. The `OnLoadGroup` callback fully owns the load; on success the panel simply clears its UI state and returns; on rejection it sets the modal flag and returns.
+- The "Save to JSON" export uses `manager.Contexts[selectedNodeId].CurrentFdpPath` as the input path.
+
+The Play-button disable (RBF-P4T6) and tooltip already in place are preserved.
+
+**DESIGN refs.** §6.4, §8.1, §6.2.1.
+
+**Success conditions.**
+- `RBF_P5T2_Panel_NoContextField` — reflection assertion that `ReplayTimelinePanel` no longer holds a `ReplayBrowserContext` field.
+- `RBF_P5T2_SliderMove_CallsSetBaseWallTicks` — simulated slider change at frame N invokes `manager.SetBaseWallTicks(GetFrameMetadata(N).WallClockTicks)` exactly once.
+- `RBF_P5T2_StepForward_AdvancesBaseWallTicks` — Step-Forward advances `manager.BaseWallTicks` to the wall-tick of the primary node's next frame.
+- `RBF_P5T2_StepBackward_RewindsBaseWallTicks`.
+- `RBF_P5T2_LoadGroup_DoesNotDoubleLoad` — on a successful `OnLoadGroup`, no per-file `LoadRecording` call happens from the panel. Verified by spying that `FederatedReplayManager.LoadGroup` is invoked exactly once and no additional `ReplayBrowserContext.LoadRecording` happens afterward.
+- `RBF_P5T2_LoadGroup_RejectionStillShowsModal` — regression coverage for RBF-P4T1's `RBF_P4T1_LoadFdpAsync_RejectionShowsModal` against the refactored code path.
+
+### RBF-P5T3 — Diff engine routed through `_activeRepo` with two-rebuild before/after cycle
+
+**Scope.** The reactive diff path in `ReplayBrowserSubsystem.Update` currently passes `_context.SandboxRepo` to `ComputeEntityDiff` and uses `_context.StepForward(suppressHistory: true)` as the step callback. Replace this with a manual two-shot extraction that works in both Single-Node and Merged modes per DESIGN §6.2.3:
+
+1. Compute the previous wall-tick by querying the primary node's frame `currentFrame - 1`: `prevTicks = primaryCtx.Playback.GetFrameMetadata(currentFrame - 1).WallClockTicks`.
+2. `manager.SetBaseWallTicks(prevTicks)` — this fires `OnTimeChanged`, the subsystem rebuilds the transient master (in Merged) or seeks the single-node context.
+3. Serialise the selected entity from `_activeRepo`: `before = _scenarioSerializer.SerializeEntity(_activeRepo, entityInActiveRepo, resolver, mask)`. In Merged mode the entity handle is looked up by `NetworkIdentity`-derived synthetic Guid (or by the synthetic local-only Guid when applicable) — reuse the resolver's `_loadMap` keys to find the transient master entity for the originally-selected logical identity.
+4. `manager.SetBaseWallTicks(currentTicks)` — rebuilds again, restoring the "after" state.
+5. Serialise again from `_activeRepo` for the "after" DOM.
+6. `_diffPanel.CurrentDiffs = _diffService.ComputeTreeDiff(before, after, epsilon)`.
+
+Implementation notes:
+
+- In Single-Node mode the two seeks are O(binary-search-on-frame-index) — cheap. The behaviour is equivalent to today's single-context diff.
+- In Merged mode the two seeks each trigger a full transient-master rebuild — slow, accepted (SC-6 + §6.2.3).
+- The selected-entity tracking across rebuilds must be by **stable global identity** (`NetworkIdentity.Value` or the synthetic local-provider Guid), NOT by the volatile transient-master `Entity` handle (which differs across rebuilds). Capture the global identity at the time of selection.
+- The diff path must null-guard `_manager` and only run when at least one file is loaded.
+
+**DESIGN refs.** §6.2.3, §6.4.
+
+**Success conditions.**
+- `RBF_P5T3_Diff_SingleNode_StillProducesDiff` — regression: selecting an entity and seeking by one frame in Single-Node mode still yields a populated `CurrentDiffs` list equivalent to the pre-refactor output for the same input.
+- `RBF_P5T3_Diff_Merged_ProducesDiff` — in Merged mode, the same selection + frame step yields a non-empty `CurrentDiffs` list. Verify the diff reflects authoritative federated state by checking at least one component value matches the merged extraction (not the legacy single-context extraction).
+- `RBF_P5T3_Diff_Merged_TwoRebuilds` — instrument `TransientMasterBuilder.Build` with a counter; one diff cycle increments it by exactly 2 (one for "before", one for "after"). After the diff completes the manager is left at the original `BaseWallTicks` (no off-by-one drift).
+- `RBF_P5T3_Diff_StableIdentityAcrossRebuilds` — the selected entity's NetworkIdentity (or synthetic local Guid) is preserved across the two rebuilds; the diff is computed for the same logical entity even though the transient master `Entity` handle differs in the "before" and "after" rebuilds.
+- `RBF_P5T3_Diff_NoCrashOnMissingEntity` — if the entity exists in "after" but is missing from "before" (or vice versa, e.g., it was destroyed in the gap), the diff path treats the missing side as `null` and still produces a valid `CurrentDiffs` list (a "wholly added" or "wholly removed" diff).
+
+### RBF-P5T4 — Disable "Seek to Previous/Next Change" arrows in Merged View
+
+**Scope.** Pass an `IsMergedViewQuery` (a `Func<bool>`) into `ComponentDiffPanel` (or evaluate the gate in the subsystem when wiring `OnSeekToChangeRequested`). When the gate returns true:
+
+- The `##prev_change` and `##next_change` transport buttons are rendered with `Gui.BeginDisabled` (or the existing `enabled` flag set to false).
+- Hovering shows the tooltip: *"Step-change search is disabled in Merged View. Switch to Single-Node View to seek to the next change."*
+- The `OnSeekToChangeRequested` callback is never invoked while in Merged View, even if the button somehow fires (defense-in-depth in the subsystem: short-circuit when `IsMergedView()` is true).
+
+**DESIGN refs.** §6.2.3.
+
+**Success conditions.**
+- `RBF_P5T4_PrevChange_DisabledInMerged` — button renders disabled in Merged View.
+- `RBF_P5T4_NextChange_DisabledInMerged` — button renders disabled in Merged View.
+- `RBF_P5T4_PrevNextChange_EnabledInSingleNode` — both buttons enabled in Single-Node mode when a file is loaded and no search is in progress.
+- `RBF_P5T4_SubsystemShortCircuit_NoSeekInMerged` — even if the panel is somehow forced to fire `OnSeekToChangeRequested(±1)` while Merged is active, the subsystem ignores it (no background `SeekToNextChangeAsync` is started).
+- `RBF_P5T4_TooltipContainsDisclaimer` — tooltip string contains "Step-change search is disabled in Merged View".
+
+---
+
 ## Cross-phase notes
 
 - All new code lives under `Fdp.Toolkits/ReplayBrowser/Federation/` (headless) and `Fdp.Presentation/ImGui/Panels/ReplayBrowser/` (UI). The Hrot subsystem only wires existing types.

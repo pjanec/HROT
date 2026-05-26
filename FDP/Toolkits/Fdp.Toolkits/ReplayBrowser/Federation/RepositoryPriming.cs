@@ -13,14 +13,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
     /// <see cref="FederatedReplayManager"/>) can share the same priming path
     /// without duplicating the reflection logic.
     /// </summary>
-    internal static class RepositoryPriming
+    public static class RepositoryPriming
     {
         /// <summary>
         /// Reflects all loaded (non-system) assemblies and registers discovered
         /// component types on <paramref name="repo"/> and (optionally) event types
         /// on <paramref name="bus"/>.
         /// </summary>
-        internal static void RegisterDiscoveredComponents(EntityRepository repo, FdpEventBus? bus = null)
+        public static void RegisterDiscoveredComponents(EntityRepository repo, FdpEventBus? bus = null)
         {
             MethodInfo? registerMethod = null;
             foreach (var m in typeof(EntityRepository).GetMethods(BindingFlags.Public | BindingFlags.Instance))

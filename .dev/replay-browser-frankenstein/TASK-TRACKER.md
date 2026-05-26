@@ -52,15 +52,25 @@
 - [x] **RBF-P4T7** Disable search in Merged View [details](./TASK-DETAILS.md#rbf-p4t7--disable-search-in-merged-view)
 
 
+## Phase P5 — Corrective: subsystem wiring excises legacy `_context`
+
+**Goal:** Eliminate the residual `ReplayBrowserContext _context` field on `ReplayBrowserSubsystem`; route all timeline / diff / load flows through `FederatedReplayManager` so the merged view actually updates on scrub. Keep Component Diff fully operational in Merged View (Option B: two transient-master rebuilds per diff).
+
+- [x] **RBF-P5T1** Excise `ReplayBrowserContext _context` from `ReplayBrowserSubsystem` [details](./TASK-DETAILS.md#rbf-p5t1--excise-replaybrowsercontext-_context-from-replaybrowsersubsystem)
+- [x] **RBF-P5T2** `ReplayTimelinePanel` drives `FederatedReplayManager` directly [details](./TASK-DETAILS.md#rbf-p5t2--replaytimelinepanel-drives-federatedreplaymanager-directly)
+- [x] **RBF-P5T3** Diff engine routed through `_activeRepo` with two-rebuild before/after cycle [details](./TASK-DETAILS.md#rbf-p5t3--diff-engine-routed-through-_activerepo-with-two-rebuild-beforeafter-cycle)
+- [x] **RBF-P5T4** Disable "Seek to Previous/Next Change" arrows in Merged View [details](./TASK-DETAILS.md#rbf-p5t4--disable-seek-to-previousnext-change-arrows-in-merged-view)
+
+
 ---
 
 ## Success-condition coverage map
 
 | SC | Covered by tasks |
 |----|------------------|
-| **SC-1** Validated multi-file group loading | RBF-P1T1, RBF-P1T2, RBF-P1T3, RBF-P1T4, RBF-P4T1 |
-| **SC-2** Mathematically correct ECS synthesis | RBF-P3T1, RBF-P3T2, RBF-P3T3, RBF-P3T4, RBF-P3T5, RBF-P3T6, RBF-P3T7 |
+| **SC-1** Validated multi-file group loading | RBF-P1T1, RBF-P1T2, RBF-P1T3, RBF-P1T4, RBF-P4T1, **RBF-P5T2** (closes double-load gap) |
+| **SC-2** Mathematically correct ECS synthesis | RBF-P3T1, RBF-P3T2, RBF-P3T3, RBF-P3T4, RBF-P3T5, RBF-P3T6, RBF-P3T7, **RBF-P5T1, RBF-P5T2** (closes scrub-disconnect gap so the merged view actually updates) |
 | **SC-3** Graceful relational paradox handling | RBF-P3T2, RBF-P3T3 (incl. inline-array handle + auto-serializer forwarding), RBF-P3T5 (`MissingTargetResolvesToEntityNull`) |
-| **SC-4** Flawless gizmo / tool compatibility | RBF-P3T5, RBF-P4T3 (gizmos require no changes; structural) |
+| **SC-4** Flawless gizmo / tool compatibility | RBF-P3T5, RBF-P4T3 (gizmos require no changes; structural), **RBF-P5T3** (Component Diff remains operational in Merged View) |
 | **SC-5** Accurate diagnostic UI feedback | RBF-P4T2, RBF-P4T4 |
-| **SC-6** Acceptance of performance degradation | RBF-P4T5 (documentation), RBF-P4T6 (Play disabled in Merged), RBF-P4T7 (Search disabled in Merged) |
+| **SC-6** Acceptance of performance degradation | RBF-P4T5 (documentation), RBF-P4T6 (Play disabled in Merged), RBF-P4T7 (Search disabled in Merged), **RBF-P5T4** (step-change search disabled in Merged) |

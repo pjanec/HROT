@@ -34,11 +34,10 @@ public sealed class RBF_P4T1_LoadFdpTests
 
     private static ReplayTimelinePanel MakePanel(IFileDialogService dialogService)
     {
-        var context         = new ReplayBrowserContext();
         var exportService   = new StubExportService();
         var playbackHistory = new PlaybackHistoryTracker();
         var inspectorState  = new InspectorState();
-        return new ReplayTimelinePanel(context, exportService, dialogService, playbackHistory, inspectorState);
+        return new ReplayTimelinePanel(null, () => 0, exportService, dialogService, playbackHistory, inspectorState);
     }
 
     private sealed class StubExportService : IRecordingExportService

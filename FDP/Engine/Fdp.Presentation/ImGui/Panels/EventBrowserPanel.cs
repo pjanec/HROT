@@ -17,7 +17,17 @@ namespace Fdp.Presentation.Panels;
 
 public class EventBrowserPanel
 {
-    private readonly IDiagnosticEventHistoryService _historyService;
+    private IDiagnosticEventHistoryService? _historyService;
+
+    /// <summary>
+    /// The diagnostic event history service used to fetch snapshots.
+    /// Can be swapped at runtime (e.g. when the federation manager changes the active node).
+    /// </summary>
+    public IDiagnosticEventHistoryService? HistoryService
+    {
+        get => _historyService;
+        set => _historyService = value;
+    }
 
     // ── Per-type filter state ─────────────────────────────────────────────
     private readonly HashSet<string> _knownTypes    = new();
@@ -72,9 +82,12 @@ public class EventBrowserPanel
         return null;
     }
 
+    /// <summary>Creates a panel with no history service; set <see cref="HistoryService"/> before drawing.</summary>
+    public EventBrowserPanel() { _historyService = null; }
+
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
-        _historyService = historyService ?? throw new ArgumentNullException(nameof(historyService));
+        _historyService = historyService;
     }
 
     /// <param name="title">Optional window title override. Default: "Event Browser".</param>
@@ -93,7 +106,7 @@ public class EventBrowserPanel
     public void DrawContent()
     {
         // Fetch a snapshot from the service each frame unless paused.
-        if (!_paused)
+        if (!_paused && _historyService != null)
             _cachedSnapshot = _historyService.GetHistory();
 
         CapturedEventDto[] snapshot = _cachedSnapshot;
@@ -176,7 +189,7 @@ public class EventBrowserPanel
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Clear"))
         {
-            _historyService.ClearHistory();
+            _historyService?.ClearHistory();
             _selectedEvents.Clear();
             _lastClickedIndex = -1;
             _knownTypes.Clear();

@@ -42,7 +42,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     // ── State (always allocated on Initialize) ────────────────────────────
 
-    private ReplayBrowserContext _context = null!;
+
     private FederatedReplayManager? _manager;
     private EntityRepository? _activeRepo;
     private EntitySelectionHistory _entityHistory = null!;
@@ -78,7 +78,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private IFileDialogService? _fileDialogService;
     private IRecordingExportService? _exportService;
     private ComponentDiffPanel? _diffPanel;
-    private ComponentDiffService _diffService = null!;
+    private ComponentDiffService _diffService = new ComponentDiffService();
     private EntityInspectorPanel? _inspectorPanel;
     private EventBrowserPanel? _eventPanel;
     private ReplaySearchPanel? _searchPanel;
@@ -87,6 +87,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     // ── Continuous Diff Tracking ──────────────────────────────────────────
     private int _lastDiffFrame = -1;
     private Entity? _lastDiffEntity = null;
+    private JsonNode? _lastDiffEntityJson = null;
     private float _playbackAccumulator = 0f;
     private Task? _seekToChangeTask;
     private volatile int _pendingChangeSeekFrame = -1;
@@ -125,11 +126,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         if (!_headless)
         {
-            _context = new ReplayBrowserContext();
+            _activeRepo = new EntityRepository();
+            Fdp.Toolkit.ReplayBrowser.Federation.RepositoryPriming.RegisterDiscoveredComponents(_activeRepo);
             _canvas = new MapCanvas();
 
             _inspectorState = new InspectorState();
-            _session = new RepositoryAdapter(_context.SandboxRepo);
+            _session = new RepositoryAdapter(_activeRepo);
 
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
@@ -189,12 +191,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             statelessRegistry.RegisterGlobal(new ReplaySpatialBoundsGizmo(() => _searchPanel?.ActiveSpatialBounds));
             _statelessGizmoSystem = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem(statelessRegistry, _gizmoBuffer);
 
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_context.SandboxRepo, _interactionBus, rubberBandState);
+            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_activeRepo!, _interactionBus, rubberBandState);
             _selectionSystem.OnSelectionChanged += (entity, worldPos) =>
             {
                 if (entity == Fdp.Core.Entity.Null)
                     _inspectorState.SelectedEntity = null;
-                else if (_context.SandboxRepo.IsAlive(entity))
+                else if (_activeRepo?.IsAlive(entity) ?? false)
                     _inspectorState.SelectedEntity = entity;
             };
 
@@ -231,7 +233,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             schemaRegistry.Register(Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo.SchemaHash, layerControlSchemaSession.Document);
 
             _gizmoLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(
-                31, _gizmoBuffer, _interactionBus, _context.SandboxRepo, _canvas.Camera,
+                31, _gizmoBuffer, _interactionBus, _activeRepo!, _canvas.Camera,
                 new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary(), schemaRegistry);
 
             _canvas.AddLayer(_gizmoLayer);
@@ -241,7 +243,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
             _fileDialogService = new WinFormsFileDialogService();
             _timelinePanel = new ReplayTimelinePanel(
-                _context,
+                null,
+                () => _manager?.LocalEntitiesProviderNodeId ?? 0,
                 _exportService,
                 _fileDialogService,
                 _playbackHistory,
@@ -267,11 +270,24 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                     _federationPanel.OnViewModeChanged += SetViewMode;
 
                     OnManagerTimeChanged();
+                    _timelinePanel?.SetManager(_manager!);
                     return null;  // no rejection
                 }
                 catch (LoadGroupException ex)
                 {
                     return ex.Message;
+                }
+                catch (System.IO.IOException ex)
+                {
+                    return $"Failed to read recording file: {ex.Message}";
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    return $"Access denied reading recording file: {ex.Message}";
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    return $"Recording metadata is corrupt: {ex.Message}";
                 }
             };
             _timelinePanel.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
@@ -281,10 +297,10 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _inspectorPanel = new EntityInspectorPanel();
             _inspectorPanel.Serializer = _scenarioSerializer;
             _diffPanel = new ComponentDiffPanel();
-            _eventPanel = new EventBrowserPanel(_context.HistoryService)
+            _eventPanel = new EventBrowserPanel()
             {
                 SelectedProvider = "All",
-                CurrentFrameProvider = () => (uint)Math.Max(0, _context.CurrentFrame)
+                CurrentFrameProvider = () => (uint)Math.Max(0, PrimaryNodeCurrentFrame())
             };
 
             WireDelegates();
@@ -301,14 +317,21 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         {
             _pendingChangeSeekFrame = -1;
             Entity currentEntity = _inspectorState?.SelectedEntity ?? Entity.Null;
-            _playbackHistory.PushWaypoint(_context.CurrentFrame, currentEntity);
+            _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), currentEntity);
             _playbackHistory.PushWaypoint(pendingSeek, currentEntity);
-            _context.SeekToFrame(pendingSeek);
+            SeekFrameViaManager(pendingSeek);
         }
 
         if (_searchPanel != null)
         {
-            _searchPanel.CurrentFilePath = _context.CurrentFdpPath;
+            if (_viewMode == ViewMode.Merged || _manager == null || _manager.Contexts.Count == 0)
+                _searchPanel.CurrentFilePath = null;
+            else
+            {
+                int searchNodeId = _manager.LocalEntitiesProviderNodeId;
+                _searchPanel.CurrentFilePath = _manager.Contexts.TryGetValue(searchNodeId, out var searchCtx)
+                    ? searchCtx.CurrentFdpPath : null;
+            }
         }
 
         if (!_headless)
@@ -324,7 +347,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 while (_playbackAccumulator >= frameTime)
                 {
                     _playbackAccumulator -= frameTime;
-                    if (!_context.StepForward())
+                    if (!TryStepForwardViaManager())
                     {
                         _timelinePanel.IsPlaying = false;
                         _playbackAccumulator = 0f;
@@ -333,31 +356,30 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
                 }
             }
 
-            int currentFrame = _context.CurrentFrame;
+            int currentFrame = PrimaryNodeCurrentFrame();
             Entity? currentEntity = _inspectorState?.SelectedEntity;
+            bool isPlaying = _timelinePanel != null && _timelinePanel.IsPlaying;
 
             // Reactive diff engine: re-evaluate whenever time or selection shifts.
-            if (_lastDiffFrame != currentFrame || _lastDiffEntity != currentEntity)
+            if ((_lastDiffFrame != currentFrame || _lastDiffEntity != currentEntity) && !isPlaying)
             {
-                _lastDiffFrame = currentFrame;
-                _lastDiffEntity = currentEntity;
+                bool isNextFrame = (currentFrame == _lastDiffFrame + 1) && (_lastDiffEntity == currentEntity);
 
                 if (_diffPanel != null)
                 {
                     if (currentFrame > 0 && currentEntity.HasValue && !currentEntity.Value.IsNull)
                     {
-                        _context.SeekToFrame(currentFrame - 1, suppressHistory: true);
-                        _diffPanel.CurrentDiffs = _diffService.ComputeEntityDiff(
-                            currentEntity.Value,
-                            _context.SandboxRepo,
-                            _scenarioSerializer,
-                            () => _context.StepForward(suppressHistory: true));
+                        _diffPanel.CurrentDiffs = ComputeDiffInternal(currentFrame, currentEntity.Value, isNextFrame);
                     }
                     else
                     {
                         _diffPanel.CurrentDiffs = Array.Empty<DiffNode>();
+                        _lastDiffEntityJson = null;
                     }
                 }
+
+                _lastDiffFrame = currentFrame;
+                _lastDiffEntity = currentEntity;
             }
 
             // Allow user to pan the replay viewport when ImGui isn't capturing the mouse
@@ -369,13 +391,13 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             // Evict transient primitives before backend population
             _gizmoBuffer?.EndFrame(deltaTime);
 
-            if (_context.SandboxRepo != null)
+            if (_activeRepo != null)
             {
                 _selectionSystem?.Tick(deltaTime);
-                _actionDispatchSystem?.Execute(_context.SandboxRepo, deltaTime);
-                _dataDrivenGizmoSystem?.Execute(_context.SandboxRepo, deltaTime);
-                _globalGizmoManager?.Execute(_context.SandboxRepo, deltaTime);
-                _statelessGizmoSystem?.Execute(_context.SandboxRepo, deltaTime);
+                _actionDispatchSystem?.Execute(_activeRepo, deltaTime);
+                _dataDrivenGizmoSystem?.Execute(_activeRepo, deltaTime);
+                _globalGizmoManager?.Execute(_activeRepo, deltaTime);
+                _statelessGizmoSystem?.Execute(_activeRepo, deltaTime);
             }
 
             // Swap the interaction bus so intent events are visible on the next frame
@@ -415,7 +437,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         _manager?.Dispose();
         _transientMaster?.Dispose();
-        _context?.Dispose();
     }
 
     // ── Federation wiring (internal for tests) ────────────────────────────
@@ -439,6 +460,11 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             if (_manager.Contexts.TryGetValue(nodeId, out var ctx))
                 RebindActiveRepo(ctx.SandboxRepo);
         }
+
+        // Update EventBrowserPanel's history service to the primary node's service.
+        if (_eventPanel != null && _manager != null
+            && _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primaryCtxForEvent))
+            _eventPanel.HistoryService = primaryCtxForEvent.HistoryService;
     }
 
     /// <summary>
@@ -478,6 +504,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal void SetViewMode(ViewMode mode)
     {
+        if (mode == ViewMode.Merged && _seekToChangeTask != null && !_seekToChangeTask.IsCompleted)
+        {
+            if (_diffPanel != null)
+                _diffPanel.IsSearching = false;
+        }
+
         _viewMode = mode;
 
         if (_searchPanel != null)
@@ -503,14 +535,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _transientBuilder = builder;
         _manager = FederatedReplayManager.LoadGroup(paths);
         _manager.OnTimeChanged += OnManagerTimeChanged;
+        _timelinePanel?.SetManager(_manager);
         OnManagerTimeChanged();
     }
 
     private void RebindActiveRepo(EntityRepository repo)
     {
         _activeRepo = repo;
-        if (_session != null)
-            _session = new RepositoryAdapter(repo);
+        _session = new RepositoryAdapter(repo);
     }
 
     /// <summary>
@@ -523,6 +555,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         _manager?.Dispose();
         _manager = FederatedReplayManager.LoadGroup(new[] { path });
         _manager.OnTimeChanged += OnManagerTimeChanged;
+        _timelinePanel?.SetManager(_manager);
         OnManagerTimeChanged();
     }
 
@@ -558,7 +591,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
         // Capture safe references for the inspector window factories.
         InspectorState stateRef = _inspectorState ?? new InspectorState();
-        RepositoryAdapter? sessionRef = _session;
 
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.ReplayTimelineWindow(
             "rb_timeline", "Replay Timeline", perspective, timelinePanel, color));
@@ -566,7 +598,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         windowManager.RegisterWindow(new Fdp.Presentation.Windows.ReplayBrowser.FdpEntityInspectorWindow(
             "rb_inspector", "Replay Entity Inspector", perspective,
             inspectorPanel,
-            () => sessionRef,
+            () => _session,
             () => stateRef,
             color));
 
@@ -585,12 +617,14 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     private void WireDelegates()
     {
         var (seekIntent, selectIntent, matchIntent) = WireDelegatesForTest(
-            _entityHistory, _playbackHistory, _inspectorState!, _context, _diffPanel!, _eventPanel!);
+            _entityHistory, _playbackHistory, _inspectorState!, null!, _diffPanel!, _eventPanel!);
 
         _inspectorPanel!.OnEntitySelected = selectIntent;
         _inspectorPanel.ChainToMap = true;
+        _diffPanel!.IsMergedViewQuery = () => _viewMode == ViewMode.Merged;
         _diffPanel!.OnSeekToChangeRequested = direction =>
         {
+            if (_viewMode == ViewMode.Merged) return; // disabled in Merged View
             if (_inspectorState?.SelectedEntity != null)
                 _seekToChangeTask = SeekToNextChangeAsync(_inspectorState.SelectedEntity.Value, direction);
         };
@@ -608,9 +642,9 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         Func<long?> getSelectedNetworkId = () =>
         {
             var e = _inspectorState?.SelectedEntity;
-            if (e == null || e.Value.IsNull || !_context.SandboxRepo.IsAlive(e.Value)) return null;
-            if (_context.SandboxRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value))
-                return _context.SandboxRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value).Value;
+            if (e == null || e.Value.IsNull || !(_activeRepo?.IsAlive(e.Value) ?? false)) return null;
+            if (_activeRepo?.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value) ?? false)
+                return _activeRepo!.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e.Value).Value;
             return null;
         };
 
@@ -625,12 +659,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
     private async Task SeekToNextChangeAsync(Entity target, int direction)
     {
-        if (_context.CurrentFdpPath == null || _diffPanel == null || _diffPanel.IsSearching)
+        if (PrimaryNodeCurrentFdpPath() == null || _diffPanel == null || _diffPanel.IsSearching)
             return;
 
         _diffPanel.IsSearching = true;
-        string fdpPath = _context.CurrentFdpPath;
-        int startFrame = _context.CurrentFrame;
+        string fdpPath = PrimaryNodeCurrentFdpPath()!;
+        int startFrame = PrimaryNodeCurrentFrame();
         var excludedNames = new HashSet<string>(_diffPanel.ExcludedTypes.Select(t => t.Name));
         double epsilon = _diffPanel.IsEpsilonIgnored ? 0.001 : 0.0;
         var diffSvc = _diffService;
@@ -740,7 +774,6 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     {
         _entityHistory   = entityHistory;
         _playbackHistory = playbackHistory;
-        _context         = context;
 
         // History-driven selection: when the selection history changes, update inspector state.
         entityHistory.OnSelectionChanged += e => inspectorState.SelectedEntity = e;
@@ -748,7 +781,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         // Seek history: when the playback history fires, seek frame + restore selection.
         playbackHistory.OnWaypointRequested += wp =>
         {
-            context.SeekToFrame(wp.FrameIndex);
+            SeekFrameViaManager(wp.FrameIndex);
             inspectorState.SelectedEntity = wp.SelectedEntity.IsNull ? null : wp.SelectedEntity;
             if (!wp.SelectedEntity.IsNull)
                 entityHistory.PushSelection(wp.SelectedEntity);
@@ -758,17 +791,16 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
         Action<int> seekIntent = f =>
         {
             Entity selected = inspectorState.SelectedEntity ?? Entity.Null;
-            playbackHistory.PushWaypoint(context.CurrentFrame, selected);
             playbackHistory.PushWaypoint(f, selected);
-            context.SeekToFrame(f);
+            SeekFrameViaManager(f);
         };
         Action<Entity> selectIntent = e => entityHistory.PushSelection(e);
         Action<int, Entity> matchIntent = (f, e) =>
         {
-            playbackHistory.PushWaypoint(context.CurrentFrame, inspectorState.SelectedEntity ?? Entity.Null);
+            playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), inspectorState.SelectedEntity ?? Entity.Null);
             playbackHistory.PushWaypoint(f, e);
             entityHistory.PushSelection(e);
-            context.SeekToFrame(f);
+            SeekFrameViaManager(f);
         };
 
         diffPanel.OnEntityLinkClicked  = selectIntent;
@@ -784,21 +816,124 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
     /// </summary>
     internal void ExecuteCausalityJump(int eventFrame, Entity target)
     {
-        _playbackHistory.PushWaypoint(_context.CurrentFrame, _inspectorState?.SelectedEntity ?? Entity.Null);
-        _entityHistory.PushSelection(_inspectorState?.SelectedEntity ?? Entity.Null);
+        _playbackHistory.PushWaypoint(PrimaryNodeCurrentFrame(), _inspectorState?.SelectedEntity ?? Entity.Null);
+        // Do not push Entity.Null to entity selection history; only push the target.
 
         int targetFrame = eventFrame + 1;
 
         _entityHistory.PushSelection(target);
         _playbackHistory.PushWaypoint(targetFrame, target);
-        _context.SeekToFrame(targetFrame);
+        SeekFrameViaManager(targetFrame);
     }
 
     /// <summary>
     /// Compatibility overload retained for existing tests. Uses the current frame as jump origin.
     /// </summary>
     internal void ExecuteCausalityJump(Entity target)
-        => ExecuteCausalityJump(_context.CurrentFrame, target);
+        => ExecuteCausalityJump(PrimaryNodeCurrentFrame(), target);
+
+    // ── Manager-driven helpers ────────────────────────────────────────────
+
+    internal int PrimaryNodeCurrentFrame()
+    {
+        if (_manager == null || _manager.Contexts.Count == 0) return -1;
+        return _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx)
+            ? ctx.CurrentFrame : -1;
+    }
+
+    private string? PrimaryNodeCurrentFdpPath()
+    {
+        if (_manager == null || _manager.Contexts.Count == 0) return null;
+        return _manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var ctx)
+            ? ctx.CurrentFdpPath : null;
+    }
+
+    private bool TryStepForwardViaManager()
+    {
+        if (_manager == null) return false;
+        int nodeId = _manager.LocalEntitiesProviderNodeId;
+        if (!_manager.Contexts.TryGetValue(nodeId, out var ctx) || ctx.Playback == null) return false;
+        int nextFrame = ctx.CurrentFrame + 1;
+        if (nextFrame >= ctx.Playback.TotalFrames) return false;
+        _manager.StepForwardAll();
+        return true;
+    }
+
+    private void SeekFrameViaManager(int frame)
+    {
+        if (_manager == null) return;
+        int nodeId = _manager.LocalEntitiesProviderNodeId;
+        if (!_manager.Contexts.TryGetValue(nodeId, out var ctx) || ctx.Playback == null) return;
+        _manager.SetBaseWallTicks(ctx.Playback.GetFrameMetadata(frame).WallClockTicks);
+    }
+
+    private IReadOnlyList<DiffNode> ComputeDiffInternal(int frame, Entity entity, bool isNextFrame)
+    {
+        if (_manager == null || _scenarioSerializer == null || entity.IsNull) return Array.Empty<DiffNode>();
+        int nodeId = _manager.LocalEntitiesProviderNodeId;
+        if (!_manager.Contexts.TryGetValue(nodeId, out var primaryCtx) || primaryCtx.Playback == null)
+            return Array.Empty<DiffNode>();
+        if (frame <= 0 || frame >= primaryCtx.Playback.TotalFrames)
+            return Array.Empty<DiffNode>();
+
+        long? networkId = GetStableNetworkId(entity, _activeRepo);
+        var resolver = new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver();
+        JsonNode? before = null;
+
+        if (isNextFrame && _lastDiffEntityJson != null)
+        {
+            before = _lastDiffEntityJson;
+        }
+        else
+        {
+            _manager.StepBackwardAll();
+            Entity beforeEntity = networkId.HasValue ? FindEntityByNetworkId(networkId.Value) : entity;
+            if (_activeRepo != null && _activeRepo.IsAlive(beforeEntity))
+            {
+                var mask = _activeRepo.GetSnapshotableMask();
+                before = _scenarioSerializer.SerializeEntity(_activeRepo, beforeEntity, resolver, mask);
+            }
+            _manager.StepForwardAll();
+        }
+
+        Entity afterEntity = networkId.HasValue ? FindEntityByNetworkId(networkId.Value) : entity;
+        JsonNode? after = null;
+        if (_activeRepo != null && _activeRepo.IsAlive(afterEntity))
+        {
+            var mask = _activeRepo.GetSnapshotableMask();
+            after = _scenarioSerializer.SerializeEntity(_activeRepo, afterEntity, resolver, mask);
+        }
+
+        _lastDiffEntityJson = after;
+        return _diffService.ComputeTreeDiff(before, after, 0.0);
+    }
+
+    /// <summary>Test seam: exposes the two-rebuild diff cycle for headless tests.</summary>
+    internal IReadOnlyList<DiffNode> ComputeDiffForTest(int frame, Entity entity)
+        => ComputeDiffInternal(frame, entity, false);
+
+    /// <summary>Test seam: injects a ScenarioSerializer for headless diff tests.</summary>
+    internal void SetSerializerForTest(Fdp.Toolkit.Scenario.ScenarioSerializer serializer)
+        => _scenarioSerializer = serializer;
+
+    private static long? GetStableNetworkId(Entity entity, EntityRepository? repo)
+    {
+        if (repo == null || entity.IsNull || !repo.IsAlive(entity)) return null;
+        if (!repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return null;
+        return repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
+    }
+
+    private Entity FindEntityByNetworkId(long networkId)
+    {
+        if (_activeRepo == null) return Entity.Null;
+        foreach (var e in _activeRepo.Query().Build())
+        {
+            if (_activeRepo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) &&
+                _activeRepo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value == networkId)
+                return e;
+        }
+        return Entity.Null;
+    }
 
     // ── Null service stubs (used until real implementations are injected) ──
 
