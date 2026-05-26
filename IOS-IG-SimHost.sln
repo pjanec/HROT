@@ -249,6 +249,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Diagnostics.Breakpoint
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Diagnostics.Breakpoints.Tests", "Hrot\Diagnostics\Hrot.Diagnostics.Breakpoints.Tests\Hrot.Diagnostics.Breakpoints.Tests.csproj", "{E2CCA1B6-A0FD-4AFF-8037-F0E7AB5B8700}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Blueprints.Compiler", "Hrot\Subsystems\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj", "{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1399,6 +1401,18 @@ Global
 		{E2CCA1B6-A0FD-4AFF-8037-F0E7AB5B8700}.Release|x64.Build.0 = Release|Any CPU
 		{E2CCA1B6-A0FD-4AFF-8037-F0E7AB5B8700}.Release|x86.ActiveCfg = Release|Any CPU
 		{E2CCA1B6-A0FD-4AFF-8037-F0E7AB5B8700}.Release|x86.Build.0 = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|x64.Build.0 = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Debug|x86.Build.0 = Debug|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|x64.ActiveCfg = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|x64.Build.0 = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|x86.ActiveCfg = Release|Any CPU
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1524,6 +1538,7 @@ Global
 		{5E4C52BA-6213-E083-B735-5DDE0CCE6DA3} = {5C2304A2-F84F-44D0-B617-A6D0426873E2}
 		{8D681346-7303-43A6-8B3B-C73977C3F9DB} = {5E4C52BA-6213-E083-B735-5DDE0CCE6DA3}
 		{E2CCA1B6-A0FD-4AFF-8037-F0E7AB5B8700} = {5E4C52BA-6213-E083-B735-5DDE0CCE6DA3}
+		{BD9C3289-EFF3-3135-C4BB-C6F8F624CB27} = {70D9CE10-CADE-A799-78B8-DAECE906F310}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}
