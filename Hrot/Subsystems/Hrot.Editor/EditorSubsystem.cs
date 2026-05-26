@@ -226,6 +226,8 @@ namespace Hrot.Editor
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
         private BlueprintRegistry          _blueprintRegistry = new();
+        private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
+        private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -696,17 +698,15 @@ namespace Hrot.Editor
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
-            var blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+            _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
                 channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
-            var blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry();
+            _blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry();
             var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
                 eqsTemplates, peerNameResolver: _ => null);
             var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
 
             // Store registries for later use by blueprint editor windows (opened on-demand).
             // The actual UI panels that consume these will be initialized in headless gate below.
-            _world.SetSingletonManaged(blueprintNodeDrawers);
-            _world.SetSingletonManaged(blueprintPaletteEntries);
             // ─────────────────────────────────────────────────────────────────────────────────
 
             // ── UBP-P10T10: forward reload events to breakpoint manager ─────────────────────

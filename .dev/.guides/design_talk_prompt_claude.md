@@ -23,6 +23,8 @@ Check against the success conditions mentioned in the design talk.
 
 create empty sample debt tracker (take inspiration from the below)
 
+use codebase-memory mcp. Do not use search_code. Use search_graph to query my codebase instead."
+
 ```
 # Gizmos-2 Headless — Technical Debt Tracker
 
