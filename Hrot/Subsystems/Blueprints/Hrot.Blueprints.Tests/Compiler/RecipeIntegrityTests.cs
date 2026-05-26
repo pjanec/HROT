@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using System.Reflection;
 
 namespace Hrot.Blueprints.Tests.Compiler;
 
@@ -12,8 +13,30 @@ public sealed class RecipeIntegrityTests
 
     private static BlueprintAsset LoadRecipe(string name)
     {
-        var dir  = TestData.ResolveTestAssetsDir();
-        var path = Path.Combine(dir, "Recipes", name + ".bp.json");
+        // WHEN-M11-T4: Prefer production location (Hrot.AI.Behaviors/Blueprints/Recipes/)
+        // but fall back to test location if assembly not loaded.
+        var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
+            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+
+        string path;
+        if (aiBehaviorsAssembly != null)
+        {
+            // Production location: loaded from Hrot.AI.Behaviors assembly output
+            var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
+                ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors assembly location.");
+            var recipesPath = Path.Combine(assemblyLocation, "Blueprints", "Recipes");
+            path = Path.Combine(recipesPath, name + ".bp.json");
+        }
+        else
+        {
+            // Fallback: test location (for isolated test runs where assembly not loaded)
+            var dir = TestData.ResolveTestAssetsDir();
+            path = Path.Combine(dir, "Recipes", name + ".bp.json");
+        }
+
+        if (!File.Exists(path))
+            throw new FileNotFoundException($"Recipe file not found: {path}");
+
         var json = File.ReadAllText(path);
         return BlueprintJsonServices.Deserialize(json)
             ?? throw new InvalidDataException($"Null from '{path}'");

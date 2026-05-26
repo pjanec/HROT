@@ -306,6 +306,20 @@ namespace Hrot.Editor
             public void Dispose() { }
         }
 
+        // ?? WHEN-M11: No-op IEditService stub ????????????????????????????
+
+        /// <summary>
+        /// Stub implementation of IEditService for blueprint node drawers.
+        /// Full undo/redo integration deferred to M5.
+        /// </summary>
+        private sealed class NoOpEditService : Hrot.Blueprints.Editor.NodeDrawers.IEditService
+        {
+            public void MarkDirty(Hrot.Blueprints.Core.Assets.BlueprintAsset asset)
+            {
+                // No-op: undo/redo integration deferred
+            }
+        }
+
         // ?? Internal test accessors ???????????????????????????????????????????
 
         /// <summary>Internal test hook: direct access to the ECS world.</summary>
@@ -668,6 +682,31 @@ namespace Hrot.Editor
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             _blueprintDebugSession = bpBlueprintSession;
+            // ─────────────────────────────────────────────────────────────────────────────────
+
+            // ── WHEN-M11: Wire Blueprint Editor Bootstrap (Corrective) ──────────────────────
+            // Initialize node drawers, palette entries, and visual attachments for When-Node.
+            // Dependencies: use existing breakpoint infrastructure components.
+            var channelCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
+            var engineEventCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance;
+            var eqsTemplates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
+
+            // IEditService stub - no-op for now since the interface is marked as stub.
+            var blueprintEditService = new Hrot.Editor.EditorSubsystem.NoOpEditService();
+
+            // Note: These registries are created but not yet wired to UI components.
+            // Final wiring happens in the canvas/UI initialization below (section 10+).
+            var blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
+            var blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry();
+            var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
+                eqsTemplates, peerNameResolver: _ => null);
+            var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
+
+            // Store registries for later use by blueprint editor windows (opened on-demand).
+            // The actual UI panels that consume these will be initialized in headless gate below.
+            _world.SetSingletonManaged(blueprintNodeDrawers);
+            _world.SetSingletonManaged(blueprintPaletteEntries);
             // ─────────────────────────────────────────────────────────────────────────────────
 
             // ── UBP-P10T10: forward reload events to breakpoint manager ─────────────────────

@@ -52,8 +52,16 @@
   </ItemGroup>
 
   <!-- Blueprint asset files: picked up by the incremental generator. -->
+  <!-- Exclude Recipes folder - these are templates, not compiled blueprints. -->
   <ItemGroup>
-    <AdditionalFiles Include="Blueprints\**\*.bp.json" />
+    <AdditionalFiles Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
+  </ItemGroup>
+
+  <!-- Recipe blueprint files: bundled as content for editor discovery (WHEN-M11-T4). -->
+  <ItemGroup>
+    <Content Include="Blueprints\Recipes\*.bp.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

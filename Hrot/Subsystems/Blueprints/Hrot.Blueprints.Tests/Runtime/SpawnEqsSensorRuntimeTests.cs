@@ -144,6 +144,58 @@ public sealed class SpawnEqsSensorRuntimeTests
         }, templateId, nodeId);
     }
 
+    /// <summary>
+    /// Builds a blueprint where SearchRadius is wired from a literal 5.0f node.
+    /// Returns (asset, radiusVarId, nodeId) where radiusVarId is unused (Guid.Empty).
+    /// </summary>
+    private static (BlueprintAsset asset, Guid radiusVarId, Guid nodeId) BuildSpawnAssetWithWiredRadius()
+    {
+        var assetId    = Guid.NewGuid();
+        var graphId    = Guid.NewGuid();
+        var nodeId     = Guid.NewGuid();
+        var templateId = Guid.NewGuid();
+
+        var spawnNode = new SpawnEqsSensorNode { Id = nodeId, TemplateAssetId = templateId };
+        var execIn    = new Pin { Id = Guid.NewGuid(), Name = "In",           Direction = "In",  IsExec = true,  TypeRef = new() };
+        var execOut   = new Pin { Id = Guid.NewGuid(), Name = "Out",          Direction = "Out", IsExec = true,  TypeRef = new() };
+        var srPin     = new Pin { Id = Guid.NewGuid(), Name = "SearchRadius", Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        var handleOut = new Pin { Id = Guid.NewGuid(), Name = "Handle",       Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "FDP.Eqs.EqsSensorHandle" } };
+        spawnNode.Pins.AddRange(new[] { execIn, execOut, srPin, handleOut });
+
+        // LiteralNode provides SearchRadius = 5.0f
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "5" };
+        var litOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        litNode.Pins.Add(litOut);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        entry.Pins.Add(entryOut);
+
+        var retNode = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn   = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
+        retNode.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = graphId, Name = "Tick", Kind = GraphKind.Function,
+            Nodes = { entry, litNode, spawnNode, retNode },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id, ToNodeId = spawnNode.Id, ToPinId = execIn.Id },
+                new Link { FromNodeId = spawnNode.Id, FromPinId = execOut.Id, ToNodeId = retNode.Id, ToPinId = retIn.Id },
+                new Link { FromNodeId = litNode.Id, FromPinId = litOut.Id,  ToNodeId = spawnNode.Id, ToPinId = srPin.Id },
+            },
+        };
+
+        return (new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "WiredRadiusTest",
+            Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
+            Graphs   = { graph },
+        }, Guid.Empty, nodeId);
+    }
+
     // ---- Tests ----
 
     [Fact]
@@ -289,8 +341,8 @@ public sealed class SpawnEqsSensorRuntimeTests
 
         var childEntities = QueryEntities<PartMetadata>(fixture);
         var meta = fixture.World.GetComponentRO<PartMetadata>(childEntities[0]);
-        // InstanceId is derived from nodeId.GetHashCode() baked at compile time
-        int expectedId = nodeId.GetHashCode();
+        // InstanceId is derived from BlueprintIdHash.Compute(nodeId) baked at compile time
+        int expectedId = (int)BlueprintIdHash.Compute(nodeId);
         Assert.Equal(expectedId, meta.InstanceId);
     }
 
@@ -311,5 +363,44 @@ public sealed class SpawnEqsSensorRuntimeTests
         var childEntities = QueryEntities<EqsSensor>(fixture);
         Assert.True(childEntities.Count >= 2, "Two parents should produce two child sensor entities");
         Assert.NotEqual(childEntities[0], childEntities[1]);
+    }
+
+    [Fact]
+    public void Spawn_LiteralParameters_AppliedCorrectly()
+    {
+        // When all pins are unconnected (no wired data), SearchRadius defaults to 0f.
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        RegisterEqsComponents(fixture);
+        var (asset, _, _) = BuildSpawnAsset();
+        fixture.CompileAndLoad(asset, MakeEqsOptions());
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        var childEntities = QueryEntities<EqsSensor>(fixture);
+        Assert.NotEmpty(childEntities);
+        var sensor = fixture.World.GetComponentRO<EqsSensor>(childEntities[0]);
+        Assert.Equal(0f, sensor.SearchRadius);
+    }
+
+    [Fact]
+    public void Spawn_WiredParameters_ReadFromExpression()
+    {
+        // When a literal 5.0f node is wired to SearchRadius, the spawned sensor should have
+        // SearchRadius == 5.0f (the upstream expression value is used, not a default).
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        RegisterEqsComponents(fixture);
+        var (asset, _, _) = BuildSpawnAssetWithWiredRadius();
+        fixture.CompileAndLoad(asset, MakeEqsOptions());
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        var childEntities = QueryEntities<EqsSensor>(fixture);
+        Assert.NotEmpty(childEntities);
+        var sensor = fixture.World.GetComponentRO<EqsSensor>(childEntities[0]);
+        Assert.Equal(5.0f, sensor.SearchRadius);
     }
 }

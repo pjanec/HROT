@@ -460,6 +460,8 @@ public sealed class WhenNodeValidatorTests
     [CoversDiagnosticCode("BP2014")]
     public void Validate_EpsilonNonZero_ValueChanged_BP2014Warning()
     {
+        // TestComponent.Value is an int field (not floating-point).
+        // BP2014 must fire when epsilon is non-zero on a non-float resolvable field.
         var node = new WhenNode
         {
             Id   = Guid.NewGuid(),
@@ -467,10 +469,10 @@ public sealed class WhenNodeValidatorTests
             Edges = WhenEdge.RisingEdge,
             ValueChanged = new ValueChangedPayload
             {
-                ComponentTypeId = "SomeComponent",
-                PropertyPath    = "SomeField",
+                ComponentTypeId = "Hrot.Blueprints.Tests.Mocks.TestComponent",
+                PropertyPath    = "Value",
                 Source          = ValueChangedSource.SelfComponent,
-                Epsilon         = 0.001,   // non-zero epsilon
+                Epsilon         = 0.001,   // non-zero epsilon on int field -> BP2014
             },
         };
         var sink = new DiagnosticSink();
@@ -485,6 +487,90 @@ public sealed class WhenNodeValidatorTests
         Assert.Contains(sink.All, d =>
             d.Code == DiagnosticCodes.BP2014
             && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void Validate_EpsilonNonZero_OnFloatField_NoBP2014()
+    {
+        // AnotherTestComponent.X is a float field. BP2014 must NOT fire.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.ValueChanged,
+            Edges = WhenEdge.RisingEdge,
+            ValueChanged = new ValueChangedPayload
+            {
+                ComponentTypeId = "Hrot.Blueprints.Tests.Mocks.AnotherTestComponent",
+                PropertyPath    = "X",
+                Source          = ValueChangedSource.SelfComponent,
+                Epsilon         = 0.05,
+            },
+        };
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_FloatNoBP2014")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2014);
+    }
+
+    [Fact]
+    public void Validate_EpsilonNonZero_OnDoubleField_NoBP2014()
+    {
+        // VectorTestComponent.DoubleValue is a double field. BP2014 must NOT fire.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.ValueChanged,
+            Edges = WhenEdge.RisingEdge,
+            ValueChanged = new ValueChangedPayload
+            {
+                ComponentTypeId = "Hrot.Blueprints.Tests.Mocks.VectorTestComponent",
+                PropertyPath    = "DoubleValue",
+                Source          = ValueChangedSource.SelfComponent,
+                Epsilon         = 0.001,
+            },
+        };
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_DoubleNoBP2014")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2014);
+    }
+
+    [Fact]
+    public void Validate_EpsilonNonZero_OnVector2Field_NoBP2014()
+    {
+        // VectorTestComponent.Position2D is Vector2. BP2014 must NOT fire.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.ValueChanged,
+            Edges = WhenEdge.RisingEdge,
+            ValueChanged = new ValueChangedPayload
+            {
+                ComponentTypeId = "Hrot.Blueprints.Tests.Mocks.VectorTestComponent",
+                PropertyPath    = "Position2D",
+                Source          = ValueChangedSource.SelfComponent,
+                Epsilon         = 0.1,
+            },
+        };
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_Vector2NoBP2014")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2014);
     }
 
     // ---- Happy path: valid Instance WhenNode ---------------------------

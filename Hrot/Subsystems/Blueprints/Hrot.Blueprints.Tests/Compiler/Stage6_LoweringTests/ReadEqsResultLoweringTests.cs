@@ -284,4 +284,37 @@ public sealed class ReadEqsResultLoweringTests
         var h2 = RunLower(BuildReadEqsResultAsset(fixedId), sink2).StructureHash;
         Assert.Equal(h1, h2);
     }
+
+    [Fact]
+    public void Lower_LivenessGuardFails_ReturnsSafeDefault()
+    {
+        // Emitted helper must guard with BOTH IsAlive AND HasComponent<EqsCognitiveBuffer>
+        // before calling GetComponentRO<EqsCognitiveBuffer>. This protects against calling
+        // GetComponentRO on an entity that has not yet had EqsCognitiveBuffer attached
+        // (e.g. immediately after spawn before the ECB flush).
+        var source = Compile(BuildReadEqsResultAsset());
+        Assert.NotNull(source);
+        Assert.Contains("view.IsAlive(handle.ChildId)", source!);
+        Assert.Contains("view.HasComponent<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId)", source!);
+    }
+
+    [Fact]
+    public void Lower_BufferComponentMissing_ReturnsSafeDefault()
+    {
+        // The HasComponent<EqsCognitiveBuffer> guard must appear strictly BEFORE GetComponentRO
+        // in the emitted source. A reversed order would allow GetComponentRO to crash before
+        // the guard fires.
+        var source = Compile(BuildReadEqsResultAsset());
+        Assert.NotNull(source);
+        int hasComponentIdx = source!.IndexOf(
+            "HasComponent<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>",
+            StringComparison.Ordinal);
+        int getComponentIdx = source.IndexOf(
+            "GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>",
+            StringComparison.Ordinal);
+        Assert.True(hasComponentIdx >= 0, "HasComponent guard not found in emitted source");
+        Assert.True(getComponentIdx >= 0, "GetComponentRO not found in emitted source");
+        Assert.True(hasComponentIdx < getComponentIdx,
+            "HasComponent guard must appear before GetComponentRO");
+    }
 }

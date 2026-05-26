@@ -317,8 +317,21 @@ internal static class StatementEmitter
                 }
                 else
                 {
-                    // Float epsilon comparison
-                    e.WriteLine($"bool __t{idx}_changed = global::System.MathF.Abs(__t{idx}_cur - {sv}.{op.SynthFieldName}) > {op.Epsilon}f;");
+                    // Vector or float epsilon comparison
+                    bool isVector2 = op.FieldCSharpType.Contains("Vector2");
+                    bool isVector3 = op.FieldCSharpType.Contains("Vector3");
+                    if (isVector2 || isVector3)
+                    {
+                        e.WriteLine($"bool __t{idx}_changed = " +
+                            $"(__t{idx}_cur - {sv}.{op.SynthFieldName}).LengthSquared() > " +
+                            $"({op.Epsilon}f * {op.Epsilon}f);");
+                    }
+                    else
+                    {
+                        e.WriteLine($"bool __t{idx}_changed = " +
+                            $"global::System.MathF.Abs(__t{idx}_cur - {sv}.{op.SynthFieldName}) > " +
+                            $"{op.Epsilon}f;");
+                    }
                 }
 
                 if (idx >= 0) e.WriteLine($"bool __t{idx} = __t{idx}_changed;");

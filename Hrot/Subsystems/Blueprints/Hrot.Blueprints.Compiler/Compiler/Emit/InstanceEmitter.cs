@@ -424,6 +424,11 @@ internal static class InstanceEmitter
             e.WriteLine("return result;");
             e.Outdent();
             e.WriteLine();
+            e.WriteLine($"if (!view.HasComponent<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId))");
+            e.Indent();
+            e.WriteLine("return result;");
+            e.Outdent();
+            e.WriteLine();
             e.WriteLine($"ref readonly var buffer = ref view.GetComponentRO<global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(handle.ChildId);");
             e.WriteLine($"if (!buffer.IsReady)");
             e.Indent();

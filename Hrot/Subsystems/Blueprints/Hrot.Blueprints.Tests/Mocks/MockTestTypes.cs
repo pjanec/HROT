@@ -48,6 +48,19 @@ public struct AnotherTestComponent
 }
 
 /// <summary>
+/// Test component with Vector2 and Vector3 fields for M10-T3/T4 vector epsilon tests.
+/// ComponentId 255 is reserved for this type.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(255)]
+public struct VectorTestComponent
+{
+    public System.Numerics.Vector2 Position2D;
+    public System.Numerics.Vector3 Position3D;
+    public double DoubleValue;
+}
+
+/// <summary>
 /// Registers all test-only component types in a given EntityRepository.
 /// Call this at the start of any test that performs AddComponent / GetComponentRO
 /// operations with the test types above.
@@ -59,5 +72,6 @@ internal static class MockTestComponents
         repo.RegisterComponent<TestComponent>();
         repo.RegisterComponent<LargeTestStruct>();
         repo.RegisterComponent<AnotherTestComponent>();
+        repo.RegisterComponent<VectorTestComponent>();
     }
 }

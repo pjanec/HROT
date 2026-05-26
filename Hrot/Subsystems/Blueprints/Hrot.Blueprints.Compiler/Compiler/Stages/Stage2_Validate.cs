@@ -744,12 +744,22 @@ internal sealed class V_WhenNodeRules : IValidator
                     asset.AssetId, graph.Id, node.Id));
         }
 
-        // BP2014 -- epsilon on non-float field (warning, best-effort)
-        if (vc.Epsilon != 0)
-            ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2014,
-                "WhenNode ValueChanged: Epsilon is non-zero. "
-                + "Ensure the observed property is a floating-point type.",
-                asset.AssetId, graph.Id, node.Id));
+        // BP2014 -- epsilon on non-float field (warning, best-effort via reflection)
+        // Only emit when the resolved property type is NOT a floating-point or vector type.
+        // If the type cannot be resolved (e.g. unknown component), suppress BP2014 silently.
+        if (vc.Epsilon != 0 && vc.Source != ValueChangedSource.PeerBlueprintVariable)
+        {
+            var resolvedType = TryResolvePropertyType(vc.ComponentTypeId, vc.PropertyPath);
+            bool isFloatingPoint = resolvedType == typeof(float)
+                || resolvedType == typeof(double)
+                || resolvedType == typeof(System.Numerics.Vector2)
+                || resolvedType == typeof(System.Numerics.Vector3);
+            if (resolvedType != null && !isFloatingPoint)
+                ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2014,
+                    "WhenNode ValueChanged: Epsilon is non-zero. "
+                    + "Ensure the observed property is a floating-point type.",
+                    asset.AssetId, graph.Id, node.Id));
+        }
     }
 
     private static void ValidateEventFired(
@@ -863,6 +873,33 @@ internal sealed class V_WhenNodeRules : IValidator
                 "WhenNode EqsResult Trigger=BecomesStale requires MaxAgeSeconds > 0.",
                 asset.AssetId, graph.Id, node.Id));
     }
+
+    // -----------------------------------------------------------------------
+    // Reflection-based property type resolution for BP2014 (M10-T4)
+    // -----------------------------------------------------------------------
+
+    // Attempts to resolve the .NET System.Type of a component field/property.
+    // Scans all loaded assemblies; returns null when resolution fails.
+    private static System.Type? TryResolvePropertyType(string componentTypeId, string propertyPath)
+    {
+        if (string.IsNullOrEmpty(componentTypeId) || string.IsNullOrEmpty(propertyPath)) return null;
+
+        System.Type? componentType = null;
+        foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+        {
+            componentType = asm.GetType(componentTypeId);
+            if (componentType != null) break;
+        }
+        if (componentType is null) return null;
+
+        var field = componentType.GetField(propertyPath,
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (field is not null) return field.FieldType;
+
+        var prop = componentType.GetProperty(propertyPath,
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        return prop?.PropertyType;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -953,7 +990,7 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
         if (allSpawnNodes.Count > 1)
         {
             var instanceIdGroups = allSpawnNodes
-                .GroupBy(x => x.Node.Id.GetHashCode())
+                .GroupBy(x => BlueprintIdHash.Compute(x.Node.Id))
                 .Where(g => g.Count() > 1);
 
             foreach (var collision in instanceIdGroups)

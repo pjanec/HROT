@@ -597,4 +597,35 @@ public sealed class WhenNodePerfTests
         Assert.True(sw.Elapsed.TotalSeconds < 1.0,
             $"100 ticks took {sw.Elapsed.TotalSeconds:F3}s, expected < 1s");
     }
+
+    /// <summary>
+    /// SpawnEqsSensorNode: second tick (after initial spawn/ECB flush) must produce zero managed
+    /// allocations. This guards against accidental boxing in the hot code path.
+    /// </summary>
+    [Fact]
+    public void Spawn_ZeroAllocation()
+    {
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+        fixture.World.RegisterComponent<PartMetadata>();
+        var (asset, _) = BuildSpawnAsset();
+        fixture.CompileAndLoad(asset, MakeEqsOptions());
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // First tick: spawn happens, ECB flush allocates. This is expected.
+        fixture.TickFrame(0.016f);
+
+        // Warm-up JIT for the measured path.
+        fixture.TickFrame(0.016f);
+
+        // Measure allocations on the third tick (sensor already spawned).
+        long before = GC.GetTotalAllocatedBytes(precise: false);
+        fixture.TickFrame(0.016f);
+        long after = GC.GetTotalAllocatedBytes(precise: false);
+
+        long allocated = after - before;
+        Assert.Equal(0L, allocated);
+    }
 }

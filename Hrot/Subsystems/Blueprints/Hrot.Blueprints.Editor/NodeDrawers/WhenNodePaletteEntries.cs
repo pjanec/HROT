@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Editor.AiShared;  // WHEN-M11-T5: Use canonical ReactiveGuardVocabulary
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 

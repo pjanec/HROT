@@ -193,9 +193,8 @@ public sealed class WhenNodeLoweringTests
     [Fact]
     public void Lower_ValueChanged_Vector2_EmitsLengthSquaredComparison()
     {
-        // Use epsilon == 0 to verify the direct-equality path is chosen.
-        // Full Vector2 + LengthSquared path is verified in M4 integration tests
-        // (requires type-resolved IrTypeRef for Vector2 fields).
+        // With epsilon > 0 and a Vector2 field (resolvable at test runtime via reflection),
+        // the emitter should use LengthSquared() instead of MathF.Abs.
         var assetId = Guid.NewGuid();
         var graphId = Guid.NewGuid();
         var nodeId  = Guid.NewGuid();
@@ -205,9 +204,9 @@ public sealed class WhenNodeLoweringTests
         entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
 
         var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
-            componentTypeId: "MyGame.Transform",
-            propertyPath:    "Position",
-            epsilon:         0f);          // epsilon=0 -> direct equality path
+            componentTypeId: "Hrot.Blueprints.Tests.Mocks.VectorTestComponent",
+            propertyPath:    "Position2D",
+            epsilon:         0.1f);   // epsilon > 0 -> vector path
 
         var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
         var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
@@ -221,18 +220,141 @@ public sealed class WhenNodeLoweringTests
         };
         var asset = new BlueprintAsset
         {
-            AssetId = assetId, Name = "WhenVector",
+            AssetId = assetId, Name = "WhenVector2",
             Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
         };
 
         var src = Compile(asset);
 
         Assert.NotNull(src);
-        // epsilon=0 -> != comparison, not MathF.Abs
-        Assert.Contains("!=", src);
-        Assert.DoesNotContain("MathF.Abs", src);
+        // Vector2 epsilon path: must use LengthSquared(), must NOT use MathF.Abs
+        Assert.Contains("LengthSquared()", src!);
+        Assert.DoesNotContain("MathF.Abs", src!);
         // Still must reference the prev field
-        Assert.Contains($"_when_{id8}_prev", src);
+        Assert.Contains($"_when_{id8}_prev", src!);
+    }
+
+    [Fact]
+    public void Lower_ValueChanged_Vector3_EmitsLengthSquaredComparison()
+    {
+        // With epsilon > 0 and a Vector3 field, must use LengthSquared() path.
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "Hrot.Blueprints.Tests.Mocks.VectorTestComponent",
+            propertyPath:    "Position3D",
+            epsilon:         0.5f);
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenVector3",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        Assert.Contains("LengthSquared()", src!);
+        Assert.DoesNotContain("MathF.Abs", src!);
+        Assert.Contains($"_when_{id8}_prev", src!);
+    }
+
+    [Fact]
+    public void Compile_ValueChanged_OnVector2Field_ProducesValidCSharp()
+    {
+        // Full end-to-end: compile a blueprint that observes a Vector2 field.
+        // The emitted C# source must contain LengthSquared and NOT MathF.Abs.
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "Hrot.Blueprints.Tests.Mocks.VectorTestComponent",
+            propertyPath:    "Position2D",
+            epsilon:         0.25f);
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenVector2Full",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        Assert.Contains("LengthSquared()", src!);
+        Assert.DoesNotContain("MathF.Abs", src!);
+    }
+
+    [Fact]
+    public void Lower_ValueChanged_ScalarPath_UnchangedAfterVectorBranchAdded()
+    {
+        // After adding the vector branch, scalar float fields must STILL use MathF.Abs.
+        // Uses AnotherTestComponent.X which is a float field (resolvable at test runtime).
+        var assetId = Guid.NewGuid();
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var id8     = nodeId.ToString("N").Substring(0, 8);
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        entry.Pins.Add(new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        var whenNode = MakeValueChangedNode(nodeId, graphId, assetId,
+            componentTypeId: "Hrot.Blueprints.Tests.Mocks.AnotherTestComponent",
+            propertyPath:    "X",
+            epsilon:         0.05f);  // epsilon > 0, scalar float -> MathF.Abs path
+
+        var execOutPin = entry.Pins.First(p => p.IsExec && p.Direction == "Out");
+        var execInPin  = whenNode.Pins.First(p => p.IsExec && p.Direction == "In");
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Event,
+            Nodes = { entry, whenNode },
+            Links = { new Link { FromNodeId = entry.Id, FromPinId = execOutPin.Id,
+                                 ToNodeId = whenNode.Id, ToPinId = execInPin.Id } },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId, Name = "WhenScalarFloat",
+            Dispatch = AssetDispatchKind.Instance, Graphs = { graph },
+        };
+
+        var src = Compile(asset);
+
+        Assert.NotNull(src);
+        Assert.Contains("MathF.Abs", src!);
+        Assert.DoesNotContain("LengthSquared()", src!);
+        Assert.Contains($"_when_{id8}_prev", src!);
     }
 
     [Fact]

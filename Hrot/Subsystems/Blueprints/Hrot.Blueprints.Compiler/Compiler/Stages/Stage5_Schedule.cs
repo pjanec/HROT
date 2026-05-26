@@ -382,8 +382,9 @@ internal sealed class GraphScheduler
                 float epsilon = (float)vc.Epsilon;
                 int sourceKind = (int)vc.Source; // 0=SelfComponent, 1=Peer, 2=WorkingState
 
-                // At Stage 5 field type is unknown; emit "var" - Stage 7 emitter uses "var".
-                string fieldCSharpType = "var";
+                // Attempt to resolve the field C# type via reflection for vector-aware emission.
+                // Falls back to "var" if the type cannot be resolved at compile time.
+                string fieldCSharpType = TryResolveFieldCSharpType(componentFqn, propertyPath);
 
                 // Only emit WhenValueChangedCheck when RisingEdge is active.
                 // For FallingEdge-only (M2 deferred), emit a false constant so the
@@ -689,7 +690,7 @@ internal sealed class GraphScheduler
             case SpawnEqsSensorNode ssn:
             {
                 // Compute the baked InstanceId from the node's Guid hash.
-                int bakedInstanceId = ssn.Id.GetHashCode();
+                int bakedInstanceId = (int)BlueprintIdHash.Compute(ssn.Id);
 
                 // Compute the template's BlueprintId from its AssetId.
                 // BlueprintIdHash.Compute returns int; cast to uint for the EqsSensor.BlueprintId field.
@@ -1100,6 +1101,35 @@ internal sealed class GraphScheduler
         GraphKind.Construction => IrGraphKind.Construction,
         _                       => IrGraphKind.Function,
     };
+
+    // -----------------------------------------------------------------------
+    // Reflection-based field type resolution for vector-aware emission (M10-T3)
+    // -----------------------------------------------------------------------
+
+    // Attempts to resolve the C# full type name of a component field/property.
+    // Scans all loaded assemblies; returns "var" when resolution fails.
+    private static string TryResolveFieldCSharpType(string componentFqn, string propertyPath)
+    {
+        if (string.IsNullOrEmpty(componentFqn) || string.IsNullOrEmpty(propertyPath)) return "var";
+
+        System.Type? componentType = null;
+        foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+        {
+            componentType = asm.GetType(componentFqn);
+            if (componentType != null) break;
+        }
+        if (componentType is null) return "var";
+
+        var field = componentType.GetField(propertyPath,
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (field is not null) return field.FieldType.FullName ?? "var";
+
+        var prop = componentType.GetProperty(propertyPath,
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        if (prop is not null) return prop.PropertyType.FullName ?? "var";
+
+        return "var";
+    }
 
     // -----------------------------------------------------------------------
     // BlockBuilder: mutable accumulator for one IrBlock

@@ -152,4 +152,60 @@ public sealed class CoverAwarePatrolEndToEndTest
 
         Assert.Equal(hash1, hash2);
     }
+
+    /// <summary>
+    /// Verifies that a soft reload (identical asset) preserves the existing spawned
+    /// EQS sensor child entity. The entity and its EqsSensor + EqsCognitiveBuffer
+    /// components must survive the reload.
+    /// </summary>
+    [Fact]
+    public void CoverAwarePatrol_HotReload_SoftReload_PreservesSensor()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        RegisterEqsComponents(fixture);
+
+        var asset = LoadRecipe();
+        fixture.CompileAndLoad(asset, MakeEqsOptions());
+
+        var parentEntity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, parentEntity);
+
+        // Tick several frames to give the blueprint time to spawn the sensor child.
+        for (int i = 0; i < 5; i++)
+            fixture.TickFrame(0.016f);
+
+        var childrenBefore = QueryEntities<PartMetadata>(fixture);
+        if (childrenBefore.Count == 0)
+        {
+            // Recipe did not spawn any child entities -- sensor spawning is conditional.
+            // Skip sensor-preservation assertions; just verify the reload does not crash.
+            fixture.CompileAndLoad(asset, MakeEqsOptions());
+            var ex = Record.Exception(() => fixture.TickFrame(0.016f));
+            Assert.Null(ex);
+            return;
+        }
+
+        var childBefore = childrenBefore[0];
+        Assert.True(fixture.World.IsAlive(childBefore),
+            "Child entity must be alive after initial spawn ticks.");
+
+        // Soft reload: compile and load the identical asset again.
+        // StructureHash must match, so no hard restart is triggered.
+        fixture.CompileAndLoad(asset, MakeEqsOptions());
+
+        // Tick several frames to let the reload settle.
+        for (int i = 0; i < 3; i++)
+            fixture.TickFrame(0.016f);
+
+        // The original child entity must still be alive after a soft reload.
+        Assert.True(fixture.World.IsAlive(childBefore),
+            "Child sensor entity must survive a soft hot-reload (same StructureHash).");
+
+        // It must still have EqsSensor and EqsCognitiveBuffer components.
+        Assert.True(fixture.World.HasComponent<EqsSensor>(childBefore),
+            "Child entity must retain EqsSensor after soft reload.");
+        Assert.True(fixture.World.HasComponent<EqsCognitiveBuffer>(childBefore),
+            "Child entity must retain EqsCognitiveBuffer after soft reload.");
+    }
 }

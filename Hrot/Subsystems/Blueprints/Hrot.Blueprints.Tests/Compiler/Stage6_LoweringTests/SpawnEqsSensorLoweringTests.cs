@@ -221,7 +221,7 @@ public sealed class SpawnEqsSensorLoweringTests
         Assert.NotNull(source1);
         Assert.NotNull(source2);
 
-        int bakedId = fixedNodeId.GetHashCode();
+        int bakedId = (int)BlueprintIdHash.Compute(fixedNodeId);
         Assert.NotEqual(0, bakedId);
         Assert.Contains($"InstanceId        = {bakedId}", source1!);
         Assert.Contains($"InstanceId        = {bakedId}", source2!);
@@ -230,18 +230,18 @@ public sealed class SpawnEqsSensorLoweringTests
     [Fact]
     public void Lower_TwoSpawnNodes_ProduceDistinctInstanceIds()
     {
-        // Find a pair of GUIDs whose GetHashCode() values differ on this runtime.
+        // Find a pair of GUIDs whose BlueprintIdHash.Compute() values differ.
         Guid nodeId1 = Guid.NewGuid();
         Guid nodeId2 = Guid.NewGuid();
-        while (nodeId1.GetHashCode() == nodeId2.GetHashCode())
+        while (BlueprintIdHash.Compute(nodeId1) == BlueprintIdHash.Compute(nodeId2))
             nodeId2 = Guid.NewGuid();
 
         var asset  = BuildAssetWithTwoSpawnNodes(nodeId1, nodeId2);
         var source = Compile(asset);
         Assert.NotNull(source);
 
-        int id1 = nodeId1.GetHashCode();
-        int id2 = nodeId2.GetHashCode();
+        int id1 = (int)BlueprintIdHash.Compute(nodeId1);
+        int id2 = (int)BlueprintIdHash.Compute(nodeId2);
         Assert.NotEqual(id1, id2); // guaranteed by the while-loop above
         Assert.Contains($"InstanceId        = {id1}", source!);
         Assert.Contains($"InstanceId        = {id2}", source!);
@@ -300,5 +300,100 @@ public sealed class SpawnEqsSensorLoweringTests
         var sink    = new DiagnosticSink();
         Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
         Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2032);
+    }
+
+    [Fact]
+    public void Lower_PartMetadataInstanceId_StableAcrossProcessRestart()
+    {
+        // Two independent Compile() calls with the same nodeId must produce the same InstanceId.
+        // This validates that BlueprintIdHash.Compute (FNV-1a) is stable regardless of runtime state.
+        var fixedNodeId = Guid.Parse("aabbccdd-1111-2222-3333-aabbccddeeff");
+        var source1 = Compile(BuildSpawnAsset(nodeId: fixedNodeId));
+        var source2 = Compile(BuildSpawnAsset(nodeId: fixedNodeId));
+        Assert.NotNull(source1);
+        Assert.NotNull(source2);
+
+        int expectedId = (int)BlueprintIdHash.Compute(fixedNodeId);
+        Assert.Contains($"InstanceId        = {expectedId}", source1!);
+        Assert.Contains($"InstanceId        = {expectedId}", source2!);
+        Assert.Equal(source1!.Contains($"InstanceId        = {expectedId}"),
+                     source2!.Contains($"InstanceId        = {expectedId}"));
+    }
+
+    [Fact]
+    public void Lower_PartMetadataInstanceId_MatchesValidatorComputation()
+    {
+        // The emitted InstanceId literal must equal BlueprintIdHash.Compute(nodeId) as an int.
+        // This ensures Stage5 and Stage2 use the same hash formula (BP2032 collision detection
+        // and the actual baked ID are consistent).
+        var nodeId = Guid.Parse("deadbeef-cafe-babe-f00d-0102030405ff");
+        int expectedId = (int)BlueprintIdHash.Compute(nodeId);
+
+        var source = Compile(BuildSpawnAsset(nodeId: nodeId));
+        Assert.NotNull(source);
+        Assert.Contains($"InstanceId        = {expectedId}", source!);
+    }
+
+    [Fact]
+    public void Lower_WiredPin_EmitsUpstreamExpression()
+    {
+        // When SearchRadius pin is wired, the emitted source must NOT contain 'SearchRadius    = 0f,'
+        // (i.e. no literal zero default -- the upstream expression is used instead).
+        var nodeId     = Guid.NewGuid();
+        var templateId = Guid.NewGuid();
+
+        // Build asset: literal node (value 5.0) wired to SpawnEqsSensor.SearchRadius
+        var spawnNode = new SpawnEqsSensorNode
+        {
+            Id              = nodeId,
+            TemplateAssetId = templateId,
+        };
+        var execIn    = new Pin { Id = Guid.NewGuid(), Name = "In",           Direction = "In",  IsExec = true,  TypeRef = new() };
+        var execOut   = new Pin { Id = Guid.NewGuid(), Name = "Out",          Direction = "Out", IsExec = true,  TypeRef = new() };
+        var srPin     = new Pin { Id = Guid.NewGuid(), Name = "SearchRadius", Direction = "In",  IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        var handlePin = new Pin { Id = Guid.NewGuid(), Name = "Handle",       Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "FDP.Eqs.EqsSensorHandle" } };
+        spawnNode.Pins.AddRange(new[] { execIn, execOut, srPin, handlePin });
+
+        var litNode = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "5" };
+        var litOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", IsExec = false, TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        litNode.Pins.Add(litOut);
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        entry.Pins.Add(entryOut);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Tick",
+            Kind  = GraphKind.Event,
+            Nodes = { entry, litNode, spawnNode },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id,    FromPinId = entryOut.Id, ToNodeId = spawnNode.Id, ToPinId = execIn.Id },
+                new Link { FromNodeId = litNode.Id,  FromPinId = litOut.Id,  ToNodeId = spawnNode.Id, ToPinId = srPin.Id },
+            },
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "WiredPinTest",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   = { graph },
+        };
+
+        var source = Compile(asset);
+        Assert.NotNull(source);
+        // The emitted SearchRadius must not be the literal zero default
+        Assert.DoesNotContain("SearchRadius    = 0f,", source!);
+    }
+
+    [Fact]
+    public void Lower_UnconnectedPin_EmitsLiteralDefault()
+    {
+        // When no pins are wired, the emitted source must contain 'SearchRadius    = 0f,'
+        var source = Compile(BuildSpawnAsset());
+        Assert.NotNull(source);
+        Assert.Contains("SearchRadius    = 0f,", source!);
     }
 }

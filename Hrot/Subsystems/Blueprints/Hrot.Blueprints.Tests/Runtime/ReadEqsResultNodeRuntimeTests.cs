@@ -245,4 +245,31 @@ public sealed class ReadEqsResultNodeRuntimeTests
         bool wasReady = ReadSlotField<bool>(fixture, asset, entity, "WasReady");
         Assert.True(wasReady);
     }
+
+    [Fact]
+    public void ReadEqs_ImmediatelyAfterSpawn_NoCrash()
+    {
+        // Scenario: Tick graph contains SpawnEqsSensor followed by ReadEqsResult on the same tick.
+        // The sensor child entity is spawned via ECB but EqsCognitiveBuffer is not attached until
+        // after the first tick. The HasComponent guard must prevent GetComponentRO from crashing.
+        using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.World.RegisterComponent<EqsCognitiveBuffer>();
+        fixture.World.RegisterComponent<EqsSensor>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+
+        var (readAsset, sensorVarName) = BuildReadEqsAsset();
+        // CompileAndLoad registers the asset so it can be ticked.
+        fixture.CompileAndLoad(readAsset);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(readAsset, entity);
+
+        // First tick: handle is default (zeroed), so child is dead -- HasComponent guard fires.
+        var ex = Record.Exception(() => fixture.TickFrame(0.016f));
+        Assert.Null(ex);
+
+        // IsReady must be false because the handle has no valid child yet.
+        bool wasReady = ReadSlotField<bool>(fixture, readAsset, entity, "WasReady");
+        Assert.False(wasReady);
+    }
 }
