@@ -634,4 +634,302 @@ public sealed class WhenNodeValidatorTests
                 Epsilon         = 0,
             },
         };
+
+    // ---- BP2016: BestEffort event wired to a WhenNode (warning) ---------
+
+    /// <summary>
+    /// Custom catalog that exposes a single BestEffort event for BP2016 testing.
+    /// </summary>
+    private sealed class BestEffortTestCatalog : IEngineEventCatalog
+    {
+        public static readonly BestEffortTestCatalog Instance = new();
+
+        public IReadOnlyList<EngineEventCatalogEntry> GetEntries() =>
+            new List<EngineEventCatalogEntry>
+            {
+                new(Name:                "HitEvent",
+                    EventTypeFqn:        "Fdp.Toolkit.Combat.Contracts.HitEvent",
+                    QoS:                 EventQoS.Reliable,
+                    PropagatesAcrossNodes: true),
+                new(Name:                "BestEffortTestEvent",
+                    EventTypeFqn:        "Hrot.Blueprints.Tests.BestEffortTestEvent",
+                    QoS:                 EventQoS.BestEffort,
+                    PropagatesAcrossNodes: true),
+                // FootstepEvent-like: local-only (for BP2017 tests)
+                new(Name:                "LocalOnlyTestEvent",
+                    EventTypeFqn:        "Hrot.Blueprints.Tests.LocalOnlyTestEvent",
+                    QoS:                 EventQoS.Reliable,
+                    PropagatesAcrossNodes: false),
+            };
+    }
+
+    private static CompileOptions OptionsWithBestEffortCatalog(
+        ExecutionNodeHint node = ExecutionNodeHint.Any) =>
+        new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BestEffortTestCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>(),
+            ExecutionNode:     node);
+
+    [Fact]
+    [CoversDiagnosticCode("BP2016")]
+    public void Validate_BestEffortEvent_EmitsBP2016_Warning()
+    {
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "BestEffortTestEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_BP2016")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink, OptionsWithBestEffortCatalog()));
+
+        Assert.False(sink.HasErrors);
+        Assert.Contains(sink.All, d =>
+            d.Code == DiagnosticCodes.BP2016
+            && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void Validate_ReliableEvent_NoBP2016()
+    {
+        // A Reliable event (HitEvent in the test catalog) must NOT emit BP2016.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "HitEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_NoBP2016")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink, OptionsWithBestEffortCatalog()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2016);
+    }
+
+    // ---- BP2017: Brain Blueprint subscribing to a local-only event ------
+
+    [Fact]
+    [CoversDiagnosticCode("BP2017")]
+    public void Validate_BrainBlueprintOnLocalOnlyEvent_EmitsBP2017_Error()
+    {
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "LocalOnlyTestEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_BP2017")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink,
+            OptionsWithBestEffortCatalog(ExecutionNodeHint.Brain)));
+
+        Assert.Contains(sink.All, d =>
+            d.Code == DiagnosticCodes.BP2017
+            && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Validate_MuscleContextOnLocalOnlyEvent_NoBP2017()
+    {
+        // Muscle-targeted Blueprint subscribing to a local-only event is fine.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "LocalOnlyTestEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_NoBP2017_Muscle")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink,
+            OptionsWithBestEffortCatalog(ExecutionNodeHint.Muscle)));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2017);
+    }
+
+    [Fact]
+    public void Validate_AnyContextOnLocalOnlyEvent_NoBP2017()
+    {
+        // ExecutionNodeHint.Any (default) must NOT emit BP2017.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "LocalOnlyTestEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_NoBP2017_Any")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink,
+            OptionsWithBestEffortCatalog(ExecutionNodeHint.Any)));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2017);
+    }
+
+    [Fact]
+    public void Validate_BrainContextOnPropagatingEvent_NoBP2017()
+    {
+        // A Brain Blueprint subscribing to a cross-node (PropagatesAcrossNodes=true) event
+        // must NOT emit BP2017.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "HitEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_NoBP2017_BrainOK")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+        Stage2_Validate.Run(asset, new ValidationContext(sink,
+            OptionsWithBestEffortCatalog(ExecutionNodeHint.Brain)));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2017);
+    }
+
+    // ---- BP2016 + BP2017 do not fire on the real animation catalog ------
+
+    [Fact]
+    public void Validate_RealAnimationCatalog_LifecycleEvent_NoBP2016_NoBP2017_BrainContext()
+    {
+        // Brain Blueprint subscribing to MontageEndedEvent (Reliable, PropagatesAcrossNodes=true)
+        // must not emit BP2016 or BP2017.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "MontageEndedEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_Anim_BrainOK")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+
+        var opts = new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>(),
+            ExecutionNode:     ExecutionNodeHint.Brain);
+
+        Stage2_Validate.Run(asset, new ValidationContext(sink, opts));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2016);
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2017);
+    }
+
+    [Fact]
+    [CoversDiagnosticCode("BP2017")]
+    public void Validate_RealAnimationCatalog_FootstepEvent_BP2017_BrainContext()
+    {
+        // Brain Blueprint subscribing to FootstepEvent (PropagatesAcrossNodes=false)
+        // must emit BP2017.
+        var node = new WhenNode
+        {
+            Id   = Guid.NewGuid(),
+            Mode = WhenMode.EventFired,
+            Edges = WhenEdge.RisingEdge,
+            EventFired = new EventFiredPayload
+            {
+                EventTypeId  = "FootstepEvent",
+                TargetFilter = EventTargetFilter.None,
+            },
+        };
+
+        var sink = new DiagnosticSink();
+        var asset = BlueprintAssetBuilder
+            .Instance("WhenTest_Footstep_BrainError")
+            .WithGraph("Main", GraphKind.Function, g => g.Entry().Return())
+            .Build();
+        asset.Graphs[0].Nodes.Add(node);
+
+        var opts = new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>(),
+            ExecutionNode:     ExecutionNodeHint.Brain);
+
+        Stage2_Validate.Run(asset, new ValidationContext(sink, opts));
+
+        Assert.Contains(sink.All, d =>
+            d.Code == DiagnosticCodes.BP2017
+            && d.Severity == DiagnosticSeverity.Error);
+    }
 }

@@ -28,8 +28,9 @@ namespace Fdp.Network.Cyclone.Translators
             : base(topicName)
         {
             EntityMap = entityMap;
-            Reader = new DdsReader<TDds>(participant);
-            Writer = new DdsWriter<TDds>(participant);
+            // participant may be null in unit-test mode — Reader/Writer become no-ops.
+            Reader = participant is not null ? new DdsReader<TDds>(participant) : null!;
+            Writer = participant is not null ? new DdsWriter<TDds>(participant) : null!;
         }
 
         // =================================================================
@@ -37,6 +38,7 @@ namespace Fdp.Network.Cyclone.Translators
         // =================================================================
         public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Reader is null) return; // test mode — no DDS participant supplied
             using var loan = Reader.Take();
             foreach (var sample in loan)
             {
@@ -65,7 +67,7 @@ namespace Fdp.Network.Cyclone.Translators
             {
                 if (TryEncode(evt, out TDds ddsEvent))
                 {
-                    Writer.Write(ddsEvent);
+                    Writer?.Write(ddsEvent);
                     SentSampleCount++;
                 }
             }

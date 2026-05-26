@@ -69,6 +69,8 @@ public static class DiagnosticCodes
     public const string BP2013 = "BP2013";  // WhenNode Event Fired falling edge meaningless (warning)
     public const string BP2014 = "BP2014";  // WhenNode Value Changed epsilon on non-float field (warning)
     public const string BP2015 = "BP2015";  // WhenNode downstream of a Branch (warning)
+    public const string BP2016 = "BP2016";  // WhenNode Event Fired on BestEffort event (warning)
+    public const string BP2017 = "BP2017";  // Brain WhenNode on PropagatesAcrossNodes=false event (error)
 
     // Stage 2 -- Validate (ReadEqsResultNode rules)
     public const string BP2020 = "BP2020";  // ReadEqsResultNode in unsupported dispatch

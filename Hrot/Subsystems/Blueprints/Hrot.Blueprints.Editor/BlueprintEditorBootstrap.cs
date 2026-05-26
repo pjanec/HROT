@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Visuals;
+using Hrot.Editor.AiShared.Catalog;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using NodeEditor.Core.Interfaces;
 using System.Reflection;
@@ -24,7 +25,9 @@ public static class BlueprintEditorBootstrap
         IEngineEventCatalog eventCatalog,
         IEditService editService,
         IPredicateCompiler predicateCompiler,
-        EqsTemplateRegistry eqsTemplates)
+        EqsTemplateRegistry eqsTemplates,
+        IAnimationTkbQueries? animationQueries = null,
+        Func<string?>? currentClassProvider = null)
     {
         var registry = new BlueprintNodeDrawerRegistry();
 
@@ -33,6 +36,13 @@ public static class BlueprintEditorBootstrap
             channelCatalog, eventCatalog, editService, predicateCompiler));
         registry.Register(typeof(ReadEqsResultNode), new ReadEqsResultNodeDrawer());
         registry.Register(typeof(SpawnEqsSensorNode), new SpawnEqsSensorNodeDrawer(eqsTemplates));
+
+        // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
+        if (animationQueries != null && currentClassProvider != null)
+        {
+            registry.Register(typeof(BranchNode), new PlayMontageChainNodeDrawer(
+                animationQueries, editService, currentClassProvider));
+        }
 
         return registry;
     }

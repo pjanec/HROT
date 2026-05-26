@@ -804,6 +804,39 @@ internal sealed class V_WhenNodeRules : IValidator
             ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2013,
                 "WhenNode EventFired with FallingEdge: events cannot have a falling edge; this edge will never fire.",
                 asset.AssetId, graph.Id, node.Id));
+
+        // Resolve the matched catalog entry for QoS / propagation checks (BP2016/BP2017).
+        // Only run when EventTypeId is non-empty and was found in the catalog (BP2005 not fired).
+        if (!string.IsNullOrEmpty(ef.EventTypeId) && catalogEntries.Count > 0)
+        {
+            var matchedEntry = catalogEntries.FirstOrDefault(e =>
+                e.EventTypeFqn == ef.EventTypeId
+                || Stage2Helpers.LastSegment(e.EventTypeFqn) == ef.EventTypeId);
+
+            if (matchedEntry != null)
+            {
+                // BP2016 -- BestEffort event wired to a WhenNode (warning, non-blocking).
+                // Designers who do this knowingly can suppress; we emit so it was an explicit choice.
+                if (matchedEntry.QoS == EventQoS.BestEffort)
+                    ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP2016,
+                        $"WhenNode EventFired: event '{matchedEntry.Name}' has BestEffort QoS. "
+                        + "This When-node may miss occurrences if the network drops the underlying "
+                        + "UDP packet. Consider promoting the event to Reliable in its catalog entry, "
+                        + "or restructure the dependent behavior to tolerate missed firings.",
+                        asset.AssetId, graph.Id, node.Id));
+
+                // BP2017 -- Brain Blueprint subscribing to a local-only (non-propagating) event (error).
+                // Only fires when the compile context is explicitly Brain-targeted.
+                if (!matchedEntry.PropagatesAcrossNodes
+                    && ctx.ExecutionNode == ExecutionNodeHint.Brain)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2017,
+                        $"WhenNode EventFired: event '{matchedEntry.Name}' is registered with "
+                        + "PropagatesAcrossNodes=false and will never reach this Blueprint's "
+                        + "execution node. Move the subscriber to the node where this event is "
+                        + "locally published, or wrap the data in a cross-node typed event.",
+                        asset.AssetId, graph.Id, node.Id));
+            }
+        }
     }
 
     private static void ValidateConditionMet(

@@ -291,6 +291,7 @@ public sealed class SpawnEqsSensorLoweringTests
     }
 
     [Fact]
+    [CoversDiagnosticCode("BP2032")]
     public void Validate_SpawnEqsSensor_InstanceIdCollision_BP2032()
     {
         // Happy path: two distinct GUIDs -> no BP2032 emitted.

@@ -67,4 +67,112 @@ public sealed class CatalogTests
         Assert.False(result.Succeeded);
         Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1401);
     }
+
+    // ---- ANC-P4-03: Seven Brain-visible animation entries ------------------
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_HasSevenBrainVisibleAnimationEntries()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+        var brainAnimEntries = entries
+            .Where(e => e.Category.StartsWith("Animation/") && e.PropagatesAcrossNodes)
+            .ToList();
+
+        Assert.Equal(7, brainAnimEntries.Count);
+
+        // Verify the seven expected events are present
+        var brainNames = brainAnimEntries.Select(e => e.Name).ToHashSet();
+        Assert.Contains("MontageStartedEvent", brainNames);
+        Assert.Contains("MontageEndedEvent", brainNames);
+        Assert.Contains("MontageSectionAdvancedEvent", brainNames);
+        Assert.Contains("StanceChangedEvent", brainNames);
+        Assert.Contains("HitWindowOpenedEvent", brainNames);
+        Assert.Contains("HitWindowClosedEvent", brainNames);
+        Assert.Contains("AnimNotifyEvent", brainNames);
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_FootstepEvent_IsExcludedBrainSide()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+
+        // FootstepEvent must be in the catalog (so BP2017 can fire), but with
+        // PropagatesAcrossNodes=false, which marks it as Muscle-local.
+        var footstep = entries.Single(e => e.Name == "FootstepEvent");
+        Assert.False(footstep.PropagatesAcrossNodes);
+
+        // Brain-visible entries must NOT include FootstepEvent.
+        var brainVisible = entries.Where(e => e.PropagatesAcrossNodes).Select(e => e.Name);
+        Assert.DoesNotContain("FootstepEvent", brainVisible);
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_AnimationEntries_HaveCorrectCategory()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+
+        var lifecycle = new[] { "MontageStartedEvent", "MontageEndedEvent",
+            "MontageSectionAdvancedEvent", "StanceChangedEvent" };
+        var notify = new[] { "FootstepEvent", "HitWindowOpenedEvent",
+            "HitWindowClosedEvent", "AnimNotifyEvent" };
+
+        foreach (var name in lifecycle)
+        {
+            var entry = entries.Single(e => e.Name == name);
+            Assert.Equal("Animation/Lifecycle", entry.Category);
+        }
+
+        foreach (var name in notify)
+        {
+            var entry = entries.Single(e => e.Name == name);
+            Assert.Equal("Animation/Notify", entry.Category);
+        }
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_AnimationEntries_HaveTargetFieldName()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+        var animEntries = entries.Where(e => e.Category.StartsWith("Animation/"));
+
+        foreach (var entry in animEntries)
+            Assert.Equal("Target", entry.TargetFieldName);
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_AllAnimationEntries_AreReliable()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+        var animEntries = entries.Where(e => e.Category.StartsWith("Animation/"));
+
+        foreach (var entry in animEntries)
+            Assert.Equal(EventQoS.Reliable, entry.QoS);
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_AnimationEntries_HaveFilterableFields()
+    {
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+
+        // MontageEndedEvent must have EndReason in filterable fields (DD-3 §4.1)
+        var ended = entries.Single(e => e.Name == "MontageEndedEvent");
+        Assert.NotNull(ended.FilterableFields);
+        Assert.Contains("EndReason", ended.FilterableFields!);
+
+        // AnimNotifyEvent must have MarkerHash in filterable fields
+        var notify = entries.Single(e => e.Name == "AnimNotifyEvent");
+        Assert.NotNull(notify.FilterableFields);
+        Assert.Contains("MarkerHash", notify.FilterableFields!);
+    }
+
+    [Fact]
+    public void BuiltInEngineEventCatalog_AnimationEntries_HaveCorrectFqns()
+    {
+        const string animNs = "Hrot.MuscleCharacter.Animation.Events";
+        var entries = BuiltInEngineEventCatalog.Instance.GetEntries();
+
+        var animEntries = entries.Where(e => e.Category.StartsWith("Animation/"));
+        foreach (var entry in animEntries)
+            Assert.StartsWith(animNs, entry.EventTypeFqn);
+    }
 }

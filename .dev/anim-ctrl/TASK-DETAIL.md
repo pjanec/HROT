@@ -344,9 +344,9 @@ Register all nine action nodes + two getters as AiPrimitives (`RegisterAiPrimiti
 **Success:** Reuse test: the same primitive compiles/dispatches in a BTree-action and an HSM-action hosting (mirror `AiPrimitive_WithAllDecorations_*`).
 
 ### ANC-P5-08 — `PlayMontageChainNode` custom drawer (editor)
-**Refs:** DD-5 §14.5.
-Custom array drawer (add/remove/reorder/per-entry sub-drawer). Editor-team-owned ticket — tracked here for completeness; runtime side (P5-02/06) does not block on it.
-**Success:** Drawer renders chain entries with per-entry montage picker + blend/rate/section; or, if deferred, a DEBT-TRACKER entry referencing the editor ticket.
+**Refs:** DD-5 §14.5. **Now scheduled for implementation — see [Addendum A](#addendum-a--anc-p5-08-implementation-plan-playmontagechainnode-custom-drawer) for the full how-to.** (Was deferred as DEBT D-15.)
+Custom array drawer (add/remove/reorder/per-entry sub-drawer) over the chain entries, each entry a montage picker. The default per-field reflection already renders 8 fixed `[MontagePicker]` slots; this task adds the dynamic-array ergonomics + `ChainCount` management DD-5 §14.5 calls for.
+**Success:** See Addendum A success conditions (ANC-P5-08a…d).
 
 ---
 
@@ -482,3 +482,100 @@ Each resolution from the DDs' summaries is covered below (FINAL CHECK requiremen
 **DD-Tests §11:** 11.1 shared IClassFixture → P7-03; 11.2 BakeForTest seam → P2-05; 11.3 PumpUntil split → P7-01/P7-02; 11.4 always-fake + Stride smoke → P7 + P8-03.
 **Validator rules:** ANIM001–007 → P2-07; ANIM008–012 → P5-06; BP2016/BP2017 → P4-04.
 **8 integration scenarios:** → P7-04…P7-11. **3 test layers:** L1 → P1-08; L2 → P3-11; L3 → P7.
+
+
+
+
+
+# Addendum A — ANC-P5-08 implementation plan: `PlayMontageChainNode` custom drawer
+
+> **Purpose:** Promote ANC-P5-08 from deferred (DEBT D-15) to an actionable
+> plan. Implements the custom authoring drawer DD-5 §14.5 requires so designers
+> can build a montage chain with add / remove / reorder / per-entry sub-drawer
+> ergonomics, instead of editing eight fixed reflection-generated slots and
+> hand-maintaining `ChainCount`.
+>
+> **Verified grounding (v233 graph):**
+> - Node-drawer contract `IBlueprintNodeDrawer` — `bool Handles(Node node)` + `INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset)` ([IBlueprintNodeDrawer.cs](Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/NodeDrawers/IBlueprintNodeDrawer.cs)).
+> - Session contract `INodeEditSession : IDisposable` — `bool IsDirty`, `void Draw()`, `void ResetDirty()` ([INodeEditSession.cs](Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/NodeDrawers/INodeEditSession.cs)).
+> - Exemplar: `WhenNodeDrawer` + `WhenNodeSession` ([WhenNodeDrawer.cs](Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/NodeDrawers/WhenNodeDrawer.cs)) — ctor injects catalogs + `IEditService` + `IPredicateCompiler`; `Handles(node) => node is WhenNode`; `CreateSession` returns the session.
+> - Registration: `BlueprintEditorBootstrap.CreateNodeDrawerRegistry(...)` → `registry.Register(typeof(WhenNode), new WhenNodeDrawer(...))` on a `BlueprintNodeDrawerRegistry` ([BlueprintEditorBootstrap.cs](Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/BlueprintEditorBootstrap.cs)).
+> - Node under edit: `PlayMontageChainNode { uint TargetCharacter; byte ChainCount; [MarshalAs(ByValArray,SizeConst=8)] int[] ChainedMontages }` ([AnimationActionNodes.cs](Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Nodes/AnimationActionNodes.cs)). `[MontagePicker]` is reflection-discovered per `int` field at editor startup (BATCH-07 report §2–3); the schema generator reads `SizeConst=8` to know the array bound.
+> - Picker data source: `IAnimationTkbQueries.GetPlayableMontages(currentClass)` / `GetMontage(...)` (ANC-P2-06); compile-time name→id via `StableIdHasher` (ANC-P2-02); current target-class context via the shared AI editor infra (DD-4 §5.1).
+> - Tests exemplar: `WhenNodeDrawerTests` (`Drawer_HandlesWhenNode`, `..._ExcludesOtherTypes`) + wiring test `DrawerRegistry_Contains_WhenNodeDrawer` / `NodeDrawerRegistry_AllThreeDrawers_HaveProductionCaller`.
+
+### Integration route (decision)
+**Primary — node-level session drawer (Route A).** Mirror `WhenNodeDrawer`
+exactly: a `PlayMontageChainNodeDrawer : IBlueprintNodeDrawer` whose session
+renders the dynamic chain UI, registered in `CreateNodeDrawerRegistry`. This
+reuses the established registry/session/dirty/edit-service plumbing.
+
+**Dispatch keying — the one thing to confirm in ANC-P5-08a.** The registry keys
+by `Node` type (`registry.Register(typeof(WhenNode), …)`), but `PlayMontageChainNode`
+is an **AiPrimitive params struct**, not a Blueprint `Node` subclass — it is
+hosted on the generic AiPrimitive node. So `Handles(Node)` must recognise *the
+AiPrimitive node whose primitive identity / params type is
+`PlayMontageChainNode`* (inspect `AiPrimitiveDecl`/primitive id on the node),
+and registration may need to key on the AiPrimitive node type with a
+`Handles`-level primitive-id check rather than a distinct `Node` subtype.
+Confirm against `AiPrimitiveDecl` and `BlueprintNodeDrawerRegistry` lookup
+semantics before building 08b.
+*Alternative (Route B), if node-level keying proves awkward:* a field-level
+array editor triggered by a new `[MontageChainPicker]` attribute on
+`ChainedMontages`, dispatched by the same per-field reflection path that already
+handles `[MontagePicker]`. Record the chosen route in the ANC-P5-08a finding.
+
+### ANC-P5-08a — Drawer + session skeleton
+**Refs:** DD-5 §14.5; `WhenNodeDrawer`/`WhenNodeSession` pattern.
+Create `PlayMontageChainNodeDrawer : IBlueprintNodeDrawer` and
+`PlayMontageChainNodeSession : INodeEditSession` in
+`Hrot.Blueprints.Editor/NodeDrawers/` (or the animation editor assembly if
+node-drawers may live with the primitive — decide with the route). Inject
+`IAnimationTkbQueries`, `IEditService`, and the current-class context provider.
+`Handles` recognises the chain AiPrimitive node (per the dispatch-keying
+decision above). `CreateSession` returns the session; `IsDirty`/`ResetDirty`
+follow the exemplar.
+**Success:** Unit tests mirroring `WhenNodeDrawerTests`: `Handles` returns true
+for the chain node and false for other nodes; `CreateSession` returns a
+non-null session; a findings note records the confirmed dispatch route (A or B).
+
+### ANC-P5-08b — Dynamic chain-entry UI + `ChainCount` management
+**Refs:** DD-5 §3.3 (drawer inputs), §14.5; DD-1 §6.3 (≤8, same-slot).
+In `Draw()`, render a reorderable list of 0..8 entries. Per entry: a montage
+dropdown populated by `GetPlayableMontages(currentClass)` (resolved name→id via
+`StableIdHasher`) plus `BlendIntoTime` / `PlayRate` / `StartSection` inputs.
+Controls: **Add** (disabled at 8), **Remove**, **Move up/down**. The session
+keeps `ChainCount` == live entry count and writes `ChainedMontages[0..Count-1]`
+back through `IEditService` (storage-agnostic — works whether the field stays a
+managed `int[]` or moves to `[InlineArray]` per DEBT D-18). Any mutation sets
+`IsDirty`.
+**Success:** Headless session-state tests (no ImGui render): Add past 8 is a
+no-op; Remove/reorder reindexes entries and keeps `ChainCount` correct;
+write-back populates `ChainedMontages[0..Count-1]` and zeroes the tail; `IsDirty`
+toggles on edit and clears on `ResetDirty`; node round-trips through asset JSON
+unchanged after a no-op open/close.
+
+### ANC-P5-08c — In-drawer validation feedback (ANIM005 / ANIM012)
+**Refs:** DD-4 §6 (ANIM005 same-slot), DD-5 §3.3/§10 (ANIM012 length ≤8); ANC-P2-07 / ANC-P5-06.
+Surface the existing compile-time rules live in the drawer: query
+`GetMontage(currentClass, name).Slot` for each entry and flag a violation when
+entries do not share one slot (ANIM005) or when length would exceed 8 (ANIM012,
+already prevented by the Add guard but flagged if a loaded asset is over-long).
+This is feedback only — the authoritative errors remain the compiler rules.
+**Success:** Test: a chain whose entries span two slots reports the ANIM005
+violation from the session; an over-long loaded chain reports ANIM012.
+
+### ANC-P5-08d — Registration + wiring tests
+**Refs:** `CreateNodeDrawerRegistry`; `WhenNodeEditorWiringTests`.
+Register the drawer in `BlueprintEditorBootstrap.CreateNodeDrawerRegistry`
+(extend its signature with `IAnimationTkbQueries` if not already available
+there). Add a wiring test akin to `DrawerRegistry_Contains_WhenNodeDrawer`.
+**Success:** Wiring test asserts the registry resolves `PlayMontageChainNodeDrawer`
+for a chain node and that it has a production caller; full editor test suite
+green; headless builds unaffected (no ImGui at registration time).
+
+**Cross-references / dependencies:** DEBT **D-18** (managed `int[]` → possible
+`[InlineArray]` for cross-context dispatch) — 08b's write-back is intentionally
+storage-agnostic so either backing works; if D-18 converts the field, the
+session write-back uses the Span-cast (Pattern A) idiom. DEBT **D-15** is
+superseded by this addendum.

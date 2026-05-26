@@ -16,6 +16,7 @@ internal sealed class ValidationContext
     public IChannelCommandCatalog ChannelCommands { get; }
     public IWaitPrimitiveCatalog WaitPrimitives { get; }
     public IEqsTemplateCatalog? EqsTemplates { get; }
+    public ExecutionNodeHint ExecutionNode { get; }
 
     // Patch 1: signatures only, NOT full assets.
     public IReadOnlyDictionary<Guid, BlueprintSignature> SiblingSignaturesById { get; }
@@ -32,6 +33,7 @@ internal sealed class ValidationContext
         ChannelCommands  = options.ChannelCommands;
         WaitPrimitives   = options.WaitPrimitives;
         EqsTemplates     = options.EqsTemplates;
+        ExecutionNode    = options.ExecutionNode;
         SiblingSignaturesById = options.SiblingSignatures
             .ToDictionary(s => s.AssetId);
     }

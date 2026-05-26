@@ -11,7 +11,10 @@ namespace Fdp.Toolkit.Behavior.Components
         None = 0,
         CanMove = 1,
         CanShoot = 2,
-        CanInteract = 4
+        CanInteract = 4,
+        CanPlayAnimations = 8,
+        CanChangeStance = 16,
+        CanAim = 32
     }
 
     /// <summary>
