@@ -86,10 +86,10 @@ namespace Fdp.Toolkit.Navigation.Tests
         }
 
         /// <summary>
-        /// None intent is skipped — NavState retains its current values unchanged.
+        /// None intent halts navigation — NavState.Mode = KinematicsMode.None, TargetSpeed = 0.
         /// </summary>
         [Fact]
-        public void NoneIntent_IsSkipped_NavStateUnchanged()
+        public void NoneIntent_HaltsNavigation_NavStateSetToNone()
         {
             var repo = CreateWorld();
             var system = new NavigationIntentBridgeSystem();
@@ -102,8 +102,8 @@ namespace Fdp.Toolkit.Navigation.Tests
             system.Execute(repo, 0.016f);
 
             var nav = repo.GetComponent<NavState>(entity);
-            Assert.Equal(KinematicsMode.Direct, nav.Mode);
-            Assert.Equal(99f, nav.TargetSpeed);
+            Assert.Equal(KinematicsMode.None, nav.Mode);
+            Assert.Equal(0f, nav.TargetSpeed);
 
             repo.Dispose();
         }

@@ -66,10 +66,15 @@ namespace Hrot.NED.Descriptors
     /// </summary>
     public enum ENavigationResult : byte
     {
-        RES_IN_PROGRESS      = 0,
-        RES_ARRIVED          = 1,
-        RES_FAILED_BLOCKED   = 2,
+        RES_IN_PROGRESS       = 0,
+        RES_ARRIVED           = 1,
+        RES_FAILED_BLOCKED    = 2,
         RES_FAILED_UNREACHABLE = 3,
+        // NAV-P0-T4: nav subsystem v2 result codes.
+        RES_PATH_FOUND        = 4,
+        RES_NO_PATH           = 5,
+        RES_FAILED_NO_LAYER   = 6,
+        RES_FAILED_INVALID_HANDLE = 7,
     }
 
     /// <summary>
@@ -103,6 +108,9 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Arrival tolerance radius (metres).</summary>
         public float ArrivalRadius;
+
+        /// <summary>Route handle allocated by the nav subsystem v2 solver; 0 = none.</summary>
+        public int RouteHandle;
     }
 
     /// <summary>
@@ -130,6 +138,19 @@ namespace Hrot.NED.Descriptors
         /// not hold <c>NavState</c> directly (CQRS feedback channel, PACK-N001).
         /// </summary>
         public float ProgressS;
+
+        // NAV-P0-T4: nav subsystem v2 extended status fields.
+        /// <summary>Current execution phase (maps to <c>NavigationPhase</c>).</summary>
+        public byte Phase;
+
+        /// <summary>Number of times the path has been replanned for the current intent.</summary>
+        public ushort ReplanCount;
+
+        /// <summary>Route handle currently being followed; 0 = none.</summary>
+        public int RouteHandle;
+
+        /// <summary>Navmesh version observed when the current path was planned.</summary>
+        public uint NavmeshVersionObserved;
     }
 
     // ── Shared coordinate helper (MOD1-P6T2) ──────────────────────────────────────────

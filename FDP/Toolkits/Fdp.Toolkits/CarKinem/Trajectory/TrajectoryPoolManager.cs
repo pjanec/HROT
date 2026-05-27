@@ -99,7 +99,52 @@ namespace CarKinem.Trajectory
                 return id;
             }
         }
-        
+
+        /// <summary>
+        /// Registers a trajectory under a caller-supplied <paramref name="key"/> (e.g., a
+        /// Brain- or Muscle-allocated <c>RouteHandle</c>).  If a trajectory already exists
+        /// for that key its <see cref="NativeArray{T}"/> is disposed before being replaced.
+        /// </summary>
+        public void RegisterTrajectoryWithKey(Vector2[] positions, int key)
+        {
+            if (positions == null || positions.Length < 2)
+                throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
+
+            lock (_lock)
+            {
+                // Dispose any existing trajectory stored at this key.
+                if (_trajectories.TryGetValue(key, out var existing) && existing.Waypoints.IsCreated)
+                    existing.Waypoints.Dispose();
+
+                // Build linear waypoints (same path as default RegisterTrajectory).
+                var waypoints = new NativeArray<TrajectoryWaypoint>(positions.Length, Allocator.Persistent);
+                float cumulativeDistance = 0f;
+
+                for (int i = 0; i < positions.Length; i++)
+                {
+                    if (i > 0)
+                        cumulativeDistance += Vector2.Distance(positions[i - 1], positions[i]);
+
+                    waypoints[i] = new TrajectoryWaypoint
+                    {
+                        Position           = positions[i],
+                        Tangent            = GetTangent(positions, null, i, TrajectoryInterpolation.Linear),
+                        DesiredSpeed       = 10.0f,
+                        CumulativeDistance = cumulativeDistance,
+                    };
+                }
+
+                _trajectories[key] = new CustomTrajectory
+                {
+                    Id            = key,
+                    Waypoints     = waypoints,
+                    TotalLength   = cumulativeDistance,
+                    IsLooped      = 0,
+                    Interpolation = TrajectoryInterpolation.Linear,
+                };
+            }
+        }
+
         /// <summary>
         /// Get trajectory by ID (read-only).
         /// </summary>

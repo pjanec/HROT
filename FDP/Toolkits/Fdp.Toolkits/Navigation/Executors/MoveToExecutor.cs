@@ -53,6 +53,9 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.TargetSpeed      = p.Speed;
             intent.ArrivalRadius    = p.ArrivalRadius;
             intent.ReverseAllowed   = p.ReverseAllowed;
+            intent.Flags            = p.Flags;
+            intent.MaxReplans       = p.MaxReplans;
+            intent.RouteHandle      = p.RouteHandle;
             world.SetComponent(entity, intent);
 
             channel.Status = NodeStatus.Running;
@@ -81,13 +84,29 @@ namespace Fdp.Toolkit.Navigation.Executors
             {
                 case NavigationResult.Arrived:
                     channel.Status = NodeStatus.Success;
+                    world.Bus.Publish(new MoveCompletedEvent
+                    {
+                        Target      = entity,
+                        Reason      = NavigationResult.Arrived,
+                        RouteHandle = status.RouteHandle,
+                    });
                     break;
 
                 case NavigationResult.FailedBlocked:
                 case NavigationResult.FailedUnreachable:
+                case NavigationResult.NoPath:
+                case NavigationResult.FailedNoLayer:
+                case NavigationResult.FailedInvalidHandle:
                     channel.Status = NodeStatus.Failure;
+                    world.Bus.Publish(new MoveCompletedEvent
+                    {
+                        Target      = entity,
+                        Reason      = status.Result,
+                        RouteHandle = status.RouteHandle,
+                    });
                     break;
 
+                case NavigationResult.PathFound:
                 case NavigationResult.InProgress:
                 default:
                     // Keep Running — nothing to do.

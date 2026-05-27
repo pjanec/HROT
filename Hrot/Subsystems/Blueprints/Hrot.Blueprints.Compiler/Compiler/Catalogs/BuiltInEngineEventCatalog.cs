@@ -8,6 +8,13 @@ file static class AnimFqn
     public static string Of(string typeName) => $"{Ns}.{typeName}";
 }
 
+// Navigation event type FQN prefix (Fdp.Toolkit.Navigation namespace).
+file static class NavFqn
+{
+    private const string Ns = "Fdp.Toolkit.Navigation";
+    public static string Of(string typeName) => $"{Ns}.{typeName}";
+}
+
 public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
 {
     public static readonly BuiltInEngineEventCatalog Instance = new();
@@ -99,6 +106,83 @@ public sealed class BuiltInEngineEventCatalog : IEngineEventCatalog
                 Category:            "Animation/Notify",
                 TargetFieldName:     "Target",
                 FilterableFields:    new[] { "MontageId", "MarkerHash" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            // ---- Navigation lifecycle events (NAV-P4 §4.5, §5) ------------------
+            // All propagate across nodes (Brain-visible) unless noted.
+
+            new(Name:                "MoveStartedEvent",
+                EventTypeFqn:        NavFqn.Of("MoveStartedEvent"),
+                DisplayName:         "Move Started",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "",
+                FilterableFields:    new[] { "RouteHandle" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "MoveCompletedEvent",
+                EventTypeFqn:        NavFqn.Of("MoveCompletedEvent"),
+                DisplayName:         "Move Completed",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "Reason", "RouteHandle" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "PathReplannedEvent",
+                EventTypeFqn:        NavFqn.Of("PathReplannedEvent"),
+                DisplayName:         "Path Replanned",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "RouteHandle", "ReplanCount" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "OffMeshTraversalStartedEvent",
+                EventTypeFqn:        NavFqn.Of("OffMeshTraversalStartedEvent"),
+                DisplayName:         "Off-Mesh Traversal Started",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "TraversalKind" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "OffMeshTraversalEndedEvent",
+                EventTypeFqn:        NavFqn.Of("OffMeshTraversalEndedEvent"),
+                DisplayName:         "Off-Mesh Traversal Ended",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "Kind" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            new(Name:                "MoveBlockedEvent",
+                EventTypeFqn:        NavFqn.Of("MoveBlockedEvent"),
+                DisplayName:         "Move Blocked",
+                Category:            "Navigation/Lifecycle",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "ReasonCode" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: true),
+
+            // WaypointReachedEvent: Muscle-local only (progress tracking). Brain Blueprints
+            // should not subscribe to individual waypoint events due to high frequency.
+            new(Name:                "WaypointReachedEvent",
+                EventTypeFqn:        NavFqn.Of("WaypointReachedEvent"),
+                DisplayName:         "Waypoint Reached",
+                Category:            "Navigation/Progress",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "SegmentIndex" },
+                QoS:                 EventQoS.Reliable,
+                PropagatesAcrossNodes: false),
+
+            new(Name:                "NavigationPathDetailsArrivedEvent",
+                EventTypeFqn:        NavFqn.Of("NavigationPathDetailsArrivedEvent"),
+                DisplayName:         "Navigation Path Details Arrived",
+                Category:            "Navigation/PathDetails",
+                TargetFieldName:     "Target",
+                FilterableFields:    new[] { "RouteHandle", "IsAutoRefresh" },
                 QoS:                 EventQoS.Reliable,
                 PropagatesAcrossNodes: true),
         };

@@ -1,0 +1,23 @@
+{
+  "layers": [
+    {
+      "layer": "Infantry",
+      "polygons": [
+        { "id": 0, "vertices": [[0,0,0],[10,0,0],[10,0,10],[0,0,10]] },
+        { "id": 1, "vertices": [[20,0,0],[30,0,0],[30,0,10],[20,0,10]] }
+      ],
+      "adjacency": [[],[]]
+      ,
+      "off_mesh_links": [
+        {
+          "from_polygon_id": 0,
+          "to_polygon_id": 1,
+          "start_pos": [10,0,5],
+          "end_pos":   [20,0,5],
+          "cost": 5.0,
+          "kind": "Jump"
+        }
+      ]
+    }
+  ]
+}

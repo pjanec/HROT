@@ -31,5 +31,23 @@ namespace CarKinem.Core
         /// Reset to zero when the vehicle accelerates above the threshold or a new intent begins.
         /// </summary>
         public int Ticks;
+
+        /// <summary>
+        /// 1 once <see cref="Fdp.Toolkit.Navigation.PathfindingEvents.MoveStartedEvent"/> has been
+        /// fired for the current intent, 0 before. Reset to 0 with the rest of the struct when a
+        /// new intent begins.
+        /// </summary>
+        public byte MoveStartedFired;
+
+        /// <summary>
+        /// 1 once <see cref="Fdp.Toolkit.Navigation.PathfindingEvents.MoveBlockedEvent"/> has been
+        /// fired for the current frustration episode, 0 before.  Reset to 0 when frustration
+        /// resets (new intent or post-replan).
+        /// </summary>
+        public byte BlockedEventFired;
+
+        // 2 bytes explicit padding to keep the struct size at 8 bytes (int + 4 x byte).
+        private byte _pad0;
+        private byte _pad1;
     }
 }

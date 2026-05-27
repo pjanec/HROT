@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Navigation
     public struct PathfindingBatchData
     {
         /// <summary>Default pre-allocated capacity for concurrent pathfinding results.</summary>
-        public const int DefaultCapacity = 64;
+        public const int DefaultCapacity = 256;
 
         /// <summary>Ring-buffer of results written by <c>PathfindingResultMaterializationSystem</c>.
         /// Indexed via <c>requestId % DefaultCapacity</c>.</summary>

@@ -25,8 +25,10 @@ namespace Fdp.Toolkit.Navigation.Modules
         /// <inheritdoc/>
         public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10);
 
-        private readonly RoadNetworkBlob       _roadNetwork;
-        private readonly TrajectoryPoolManager _trajectoryPool;
+        private readonly RoadNetworkBlob         _roadNetwork;
+        private readonly TrajectoryPoolManager   _trajectoryPool;
+        private readonly INavmeshProvider?       _navmesh;
+        private readonly IVolumetricPathProvider? _volumetric;
 
         /// <summary>
         /// Initialises the module with the static road network and shared trajectory pool.
@@ -37,10 +39,18 @@ namespace Fdp.Toolkit.Navigation.Modules
         /// <param name="trajectoryPool">
         ///   Shared trajectory pool.  A new (empty) pool is allocated when <c>null</c>.
         /// </param>
-        public NavigationSolverModule(RoadNetworkBlob roadNetwork, TrajectoryPoolManager? trajectoryPool = null)
+        /// <param name="navmesh">Optional navmesh provider forwarded to the solver.</param>
+        /// <param name="volumetric">Optional volumetric provider forwarded to the solver.</param>
+        public NavigationSolverModule(
+            RoadNetworkBlob          roadNetwork,
+            TrajectoryPoolManager?   trajectoryPool = null,
+            INavmeshProvider?        navmesh        = null,
+            IVolumetricPathProvider? volumetric     = null)
         {
             _roadNetwork    = roadNetwork;
             _trajectoryPool = trajectoryPool ?? new TrajectoryPoolManager();
+            _navmesh        = navmesh;
+            _volumetric     = volumetric;
         }
 
         /// <summary>
@@ -56,7 +66,8 @@ namespace Fdp.Toolkit.Navigation.Modules
         /// <inheritdoc/>
         public void Tick(ISimulationView view, float dt)
         {
-            new PathfindingSolverSystem(_roadNetwork, _trajectoryPool).Execute(view, dt);
+            new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric)
+                .Execute(view, dt);
         }
     }
 }

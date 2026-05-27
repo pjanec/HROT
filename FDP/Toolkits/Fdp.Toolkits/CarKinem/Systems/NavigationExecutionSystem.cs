@@ -122,9 +122,23 @@ namespace CarKinem.Systems
                         ProgressS = progressAtThisTick,
                     };
                     repo.SetComponent(entity, status);
-                    frustration.Ticks = 0;
+
+                    frustration = new FrustrationTicks();
+                    repo.SetComponent(entity, frustration);
+
+                    repo.Bus.Publish(new MoveStartedEvent
+                    {
+                        RouteHandle = intent.RouteHandle,
+                    });
+                    frustration.MoveStartedFired = 1;
                     repo.SetComponent(entity, frustration);
                 }
+
+                // ── Skip entities already at a terminal result ────────────────────────────────
+                // Once Arrived or a hard failure is written, do not mutate status further
+                // until the Brain issues a new intent (increments IntentId).
+                if (status.Result != NavResult.InProgress)
+                    continue;
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
                 // Trust NavState.HasArrived whenever NavState is present (set by CarKinematicsSystem).
@@ -146,6 +160,14 @@ namespace CarKinem.Systems
                 {
                     status.Result = NavResult.Arrived;
                     repo.SetComponent(entity, status);
+
+                    repo.Bus.Publish(new MoveCompletedEvent
+                    {
+                        Target      = entity,
+                        Reason      = NavResult.Arrived,
+                        RouteHandle = intent.RouteHandle,
+                    });
+
                     frustration.Ticks = 0;
                     repo.SetComponent(entity, frustration);
                     continue;
@@ -161,9 +183,81 @@ namespace CarKinem.Systems
 
                     if (frustration.Ticks > FrustrationTickLimit)
                     {
-                        status.Result = NavResult.FailedBlocked;
-                        repo.SetComponent(entity, status);
-                        continue;
+                        byte effectiveMax = intent.MaxReplans != 0
+                            ? intent.MaxReplans
+                            : NavigationConstants.DefaultMaxReplans;
+
+                        bool allowReplan = (intent.Flags & (1 << NavigationConstants.FlagBitAllowReplan)) != 0;
+
+                        if (allowReplan && status.ReplanCount < effectiveMax)
+                        {
+                            // ── Internal Muscle replan ─────────────────────────────────────────
+                            status.ReplanCount++;
+                            repo.SetComponent(entity, status);
+
+                            repo.Bus.Publish(new PathfindingRequestEvent
+                            {
+                                RequestId   = (long)entity.Index << 32 | (uint)status.ReplanCount,
+                                Start       = tf.Position,
+                                End         = new Vector3(
+                                                  intent.FinalDestination.X,
+                                                  intent.FinalDestination.Y,
+                                                  tf.Position.Z),
+                                RouteHandle = intent.RouteHandle,
+                            });
+
+                            repo.Bus.Publish(new PathReplannedEvent
+                            {
+                                Target      = entity,
+                                RouteHandle = intent.RouteHandle,
+                                ReplanCount = (byte)status.ReplanCount,
+                            });
+
+                            if ((intent.Flags & (1 << NavigationConstants.FlagBitAutoSendPathOnReplan)) != 0)
+                            {
+                                repo.Bus.Publish(new NavigationPathDetailsResponseEvent
+                                {
+                                    Target        = entity,
+                                    RouteHandle   = intent.RouteHandle,
+                                    ReplanCount   = (byte)status.ReplanCount,
+                                    IsAutoRefresh = 1,
+                                });
+                            }
+
+                            // Throttle MoveBlockedEvent to once per frustration episode.
+                            if (frustration.BlockedEventFired == 0)
+                            {
+                                repo.Bus.Publish(new MoveBlockedEvent
+                                {
+                                    Target = entity,
+                                });
+                                frustration.BlockedEventFired = 1;
+                            }
+
+                            frustration.Ticks = 0;
+                            repo.SetComponent(entity, frustration);
+
+                            status.Result = NavResult.InProgress;
+                            repo.SetComponent(entity, status);
+                            continue;
+                        }
+                        else
+                        {
+                            // ── Hard failure: replan budget exhausted or not allowed ────────────
+                            status.Result = NavResult.FailedBlocked;
+                            repo.SetComponent(entity, status);
+
+                            repo.Bus.Publish(new MoveCompletedEvent
+                            {
+                                Target      = entity,
+                                Reason      = NavResult.FailedBlocked,
+                                RouteHandle = intent.RouteHandle,
+                            });
+
+                            frustration.Ticks = 0;
+                            repo.SetComponent(entity, frustration);
+                            continue;
+                        }
                     }
                 }
                 else

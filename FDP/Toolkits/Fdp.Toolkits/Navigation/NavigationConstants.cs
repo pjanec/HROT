@@ -31,10 +31,24 @@ namespace Fdp.Toolkit.Navigation
         public const ushort ActionIdFollowRoute     = 3;
 
         /// <summary>Navigate along the road graph toward a specific node.</summary>
+        // Subsumed by MoveTo+BackendForce=RoadGraph -- see NAV-P4-T2
+        [System.Obsolete("Use ActionIdMoveTo with MoveToParams.BackendForce=2 instead. See NAV-P4-T2.")]
         public const ushort ActionIdFollowRoadGraph = 4;
 
         /// <summary>Join an existing formation led by another entity.</summary>
         public const ushort ActionIdJoinFormation   = 5;
+
+        /// <summary>Plan a path to a destination using the nav subsystem v2 solver; returns a route handle.</summary>
+        public const ushort ActionIdPlanRoute        = 6;
+
+        /// <summary>Follow a previously planned path by route handle.</summary>
+        public const ushort ActionIdFollowPath       = 7;
+
+        /// <summary>Fetch detailed waypoint data for a route handle into <c>NavigationPathDetailsBuffer</c>.</summary>
+        public const ushort ActionIdFetchPathDetails = 8;
+
+        /// <summary>Release a route handle allocated by <see cref="ActionIdPlanRoute"/>.</summary>
+        public const ushort ActionIdReleasePath      = 9;
 
         // ── Frustration guard ─────────────────────────────────────────────────────
 
@@ -57,5 +71,27 @@ namespace Fdp.Toolkit.Navigation
         /// At 60 Hz, 30 ticks ≈ 0.5 seconds between flee vector recalculations.
         /// </summary>
         public const int FleeReplanIntervalTicks = 30;
+
+        // ── Replan policy defaults ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Default maximum number of Muscle-internal replans per intent episode when
+        /// <see cref="MoveToParams.MaxReplans"/> is 0 (caller did not specify a limit).
+        /// </summary>
+        public const byte DefaultMaxReplans = 3;
+
+        // ── Intent Flags bits ──────────────────────────────────────────────────────
+
+        /// <summary>Bit index in <see cref="NavigationIntent.Flags"/>: allow internal Muscle replan.</summary>
+        public const byte FlagBitAllowReplan = 0;
+
+        /// <summary>Bit index in <see cref="NavigationIntent.Flags"/>: fire auto-refresh path details on replan.</summary>
+        public const byte FlagBitAutoSendPathOnReplan = 4;
+
+        /// <summary>
+        /// Bit index in <see cref="NavigationIntent.Flags"/>: stream the 8-waypoint
+        /// corridor preview to Brain via <see cref="NavigationCorridorPreview"/>.
+        /// </summary>
+        public const byte FlagBitStreamCorridorPreview = 3;
     }
 }

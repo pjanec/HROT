@@ -251,6 +251,9 @@ namespace Hrot.SimHost
                     new ArchitectureDiagnosticsService(() => _app?.Kernel)),
                 SimHostWindowColor.TitleBar));
 
+            windowManager.RegisterWindow(new FakeNavigationInspectorWindow(
+                () => _app?.WorldOrNull));
+
             vis.SetPanelsWindowManaged();
 
             // ── Time transport controls in status bar ─────────────────────────

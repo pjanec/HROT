@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;

@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            var obsPos = new Vector2(tf.Position.X, tf.Position.Y);
+            var obsPos = new Vector3(tf.Position.X, 0f, tf.Position.Y);
 
             for (int i = 0; i < candidates.Length; i++)
             {
@@ -33,9 +34,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // Skip already-rejected candidates.
                 if (candidate.EntityId == -1L) continue;
 
-                var targetPos = new Vector2(candidate.PositionX, candidate.PositionY);
+                var targetPos = new Vector3(candidate.PositionX, 0f, candidate.PositionY);
 
-                if (!navmesh.IsReachable(obsPos, targetPos))
+                // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
+                if (!navmesh.PathExists(obsPos, targetPos))
                 {
                     candidate.EntityId        = -1L; // Reject: unreachable.
                     candidate.FlagsMeaningful |= (short)(1 << 3); // Bit 3 was computed (result = rejection).

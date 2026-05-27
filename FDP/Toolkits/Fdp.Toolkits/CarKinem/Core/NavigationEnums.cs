@@ -16,7 +16,11 @@ namespace CarKinem.Core
         RoadGraph = 1,      // Follow road network (approach → follow → leave)
         CustomTrajectory = 2, // Follow custom trajectory from trajectory pool
         Formation = 3,      // Follow formation target (overrides other modes)
-        Direct = 4          // Drive directly to FinalDestination (used by MoveToExecutor / FleeExecutor)
+        Direct = 4,         // Drive directly to FinalDestination (used by MoveToExecutor / FleeExecutor)
+        // Design's DirectPoint == existing Direct=4. Crowd/Naval/Flying start at 5.
+        Crowd = 5,          // Crowd-managed local avoidance agent (dtCrowd)
+        Naval = 6,          // Naval / surface watercraft pathfinding
+        Flying = 7,         // 3-D volumetric pathfinding for aircraft
     }
 
     /// <summary>

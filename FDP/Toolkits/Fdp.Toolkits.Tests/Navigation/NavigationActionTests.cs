@@ -84,19 +84,74 @@ namespace Fdp.Toolkit.Navigation.Tests
         [Fact]
         public void AllNavigationActionIds_AreDistinct()
         {
+#pragma warning disable CS0618
             var ids = new[]
             {
                 NavigationConstants.ActionIdMoveTo,
                 NavigationConstants.ActionIdFlee,
                 NavigationConstants.ActionIdFollowRoute,
                 NavigationConstants.ActionIdFollowRoadGraph,
+                NavigationConstants.ActionIdPlanRoute,
+                NavigationConstants.ActionIdFollowPath,
+                NavigationConstants.ActionIdFetchPathDetails,
+                NavigationConstants.ActionIdReleasePath,
             };
+#pragma warning restore CS0618
 
             var distinct = new System.Collections.Generic.HashSet<ushort>(ids);
             Assert.Equal(ids.Length, distinct.Count);
         }
 
         // ── FleeParams.Threat field type guard ────────────────────────────────────
+
+        /// <summary>MoveToParams must be exactly 32 bytes.</summary>
+        [Fact]
+        public unsafe void MoveToParams_SizeIsAtMost32Bytes()
+        {
+            Assert.True(sizeof(MoveToParams) <= 32,
+                $"MoveToParams is {sizeof(MoveToParams)} bytes — exceeds 32-byte channel limit.");
+            Assert.Equal(32, sizeof(MoveToParams));
+        }
+
+        /// <summary>PlanRouteParams must be exactly 32 bytes.</summary>
+        [Fact]
+        public unsafe void PlanRouteParams_SizeIs32Bytes()
+        {
+            Assert.Equal(32, sizeof(PlanRouteParams));
+        }
+
+        /// <summary>FollowPathParams must be exactly 32 bytes.</summary>
+        [Fact]
+        public unsafe void FollowPathParams_SizeIs32Bytes()
+        {
+            Assert.Equal(32, sizeof(FollowPathParams));
+        }
+
+        /// <summary>FetchPathDetailsParams must be exactly 32 bytes.</summary>
+        [Fact]
+        public unsafe void FetchPathDetailsParams_SizeIs32Bytes()
+        {
+            Assert.Equal(32, sizeof(FetchPathDetailsParams));
+        }
+
+        /// <summary>ReleasePathParams must be exactly 32 bytes.</summary>
+        [Fact]
+        public unsafe void ReleasePathParams_SizeIs32Bytes()
+        {
+            Assert.Equal(32, sizeof(ReleasePathParams));
+        }
+
+        /// <summary>
+        /// The new NavigationResult values must not collide with the original values.
+        /// </summary>
+        [Fact]
+        public void NavigationResult_NewValuesNotColliding()
+        {
+            var values = (NavigationResult[])Enum.GetValues(typeof(NavigationResult));
+            var nums   = new System.Collections.Generic.HashSet<int>();
+            foreach (var v in values)
+                Assert.True(nums.Add((int)v), $"Duplicate NavigationResult value: {v} = {(int)v}");
+        }
 
         /// <summary>
         /// DEBT-009 guard: <see cref="FleeParams.Threat"/> must be a full <see cref="Entity"/>

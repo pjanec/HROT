@@ -27,6 +27,8 @@ namespace CarKinem.Tests.Systems
             repo.RegisterComponent<FrustrationTicks>();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<SimVelocity>();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
             return repo;
         }

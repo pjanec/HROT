@@ -7,61 +7,69 @@ using Fdp.Toolkit.Behavior.Executors;
 namespace Fdp.Toolkit.Navigation.Executors
 {
     /// <summary>
-    /// Executor for the <see cref="NavigationConstants.ActionIdFollowRoadGraph"/> action.
-    /// Issues a <see cref="NavigationMode.RoadGraph"/> <see cref="NavigationIntent"/> and reports
-    /// <see cref="NodeStatus.Success"/> when <see cref="NavigationStatus.Result"/> is
-    /// <see cref="NavigationResult.Arrived"/>.
-    ///
-    /// <para><b>CQRS compliance (BS1-T019):</b> this executor writes <see cref="NavigationIntent"/>
-    /// instead of <c>NavState</c> directly, so it is safe to run on a Brain node.</para>
+    /// Executor for <see cref="NavigationConstants.ActionIdFollowPath"/>.
+    /// Instructs the Muscle layer to follow a pre-loaded route identified by
+    /// <see cref="FollowPathParams.RouteHandle"/>.
+    /// Returns Success on <see cref="NavigationResult.Arrived"/>; Failure if the handle
+    /// is invalid or the path becomes unreachable.
     /// </summary>
-    public sealed class FollowRoadGraphExecutor : IActionExecutor<LocomotionChannel>
+    public sealed class FollowPathExecutor : IActionExecutor<LocomotionChannel>
     {
-        // ── OnEnter ───────────────────────────────────────────────────────────────────────────────
+        // ── OnEnter ──────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Copies <see cref="FollowPathParams.RouteHandle"/> into
+        /// <see cref="NavigationIntent"/> and sets the channel Running.
+        /// </summary>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            FollowRoadGraphParams p;
+            FollowPathParams p;
             fixed (byte* src = channel.Params)
-                p = *(FollowRoadGraphParams*)src;
+                p = *(FollowPathParams*)src;
 
-            // BS1-T019: write NavigationIntent instead of NavState.
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.IntentId++;
-            intent.Mode        = NavigationMode.RoadGraph;
-            intent.TargetNodeId = p.TargetNodeId;
-            intent.TargetSpeed  = p.Speed;
+            intent.Mode        = NavigationMode.None;
+            intent.RouteHandle = p.RouteHandle;
+            intent.TargetSpeed = p.Speed;
             world.SetComponent(entity, intent);
 
-            channel.Status = Fbt.NodeStatus.Running;
+            channel.Status = NodeStatus.Running;
         }
 
         // ── Execute ───────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Observes <see cref="NavigationStatus"/>. Returns Success on Arrived;
+        /// Failure on FailedInvalidHandle, FailedUnreachable, or NoPath.
+        /// </summary>
         public void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
         {
-            // BS1-T019: poll NavigationStatus (set by NavigationExecutionSystem on the Muscle).
+            if (!world.IsAlive(entity))
+                return;
+
             var intent = world.GetComponent<NavigationIntent>(entity);
             var status = world.GetComponent<NavigationStatus>(entity);
 
-            // Ignore stale status reports for a different intent.
             if (status.IntentId != intent.IntentId)
-                return;
+                return;   // stale; keep Running
 
             switch (status.Result)
             {
                 case NavigationResult.Arrived:
-                    channel.Status = Fbt.NodeStatus.Success;
+                    channel.Status = NodeStatus.Success;
                     break;
 
-                case NavigationResult.FailedBlocked:
+                case NavigationResult.FailedInvalidHandle:
                 case NavigationResult.FailedUnreachable:
-                    channel.Status = Fbt.NodeStatus.Failure;
+                case NavigationResult.NoPath:
+                case NavigationResult.FailedNoLayer:
+                    channel.Status = NodeStatus.Failure;
                     break;
 
                 case NavigationResult.InProgress:
                 default:
-                    break;  // keep Running
+                    break;
             }
         }
 
@@ -69,7 +77,6 @@ namespace Fdp.Toolkit.Navigation.Executors
 
         public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // BS1-T019: cancel locomotion via NavigationIntent (DO NOT write NavState directly).
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.Mode        = NavigationMode.None;
             intent.TargetSpeed = 0f;

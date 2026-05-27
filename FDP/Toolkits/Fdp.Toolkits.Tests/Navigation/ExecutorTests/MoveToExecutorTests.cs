@@ -218,6 +218,158 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(NodeStatus.Failure, channel.Status);
         }
+        // ── Test 7: RouteHandle defaults to 0 when not provided ──────────────────────────────────
+
+        private static (EntityRepository world, Entity entity, LocomotionChannel channel)
+            BuildWorldWithHandle(Vector2 destination, float arrivalRadius, float speed,
+                                 int routeHandle, uint existingIntentId = 0)
+        {
+            var world  = NavigationTestWorldFactory.Create();
+            var entity = world.CreateEntity();
+
+            world.AddComponent(entity, new NavigationIntent { IntentId = existingIntentId });
+            world.AddComponent(entity, new NavigationStatus());
+            world.AddComponent(entity, new LocomotionChannel());
+
+            var channel = world.GetComponent<LocomotionChannel>(entity);
+            channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
+
+            unsafe
+            {
+                var p = new MoveToParams
+                {
+                    Destination   = destination,
+                    ArrivalRadius = arrivalRadius,
+                    Speed         = speed,
+                    RouteHandle   = routeHandle,
+                };
+                Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            }
+
+            world.SetComponent(entity, channel);
+            channel = world.GetComponent<LocomotionChannel>(entity);
+            return (world, entity, channel);
+        }
+
+        /// <summary>
+        /// DD-Tests-Nav §4.5 row 2: MoveTo_DefaultHandle_IsZero.
+        /// When <see cref="MoveToParams.RouteHandle"/> is 0 (fire-and-forget),
+        /// <see cref="NavigationIntent.RouteHandle"/> must also be 0 after OnEnter.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_OnEnter_DefaultRouteHandle_IsZero()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(0, intent.RouteHandle);
+        }
+
+        // ── Test 8: Explicit RouteHandle is passed through ────────────────────────────────────────
+
+        /// <summary>
+        /// DD-Tests-Nav §4.5 row 3: MoveTo_ExplicitHandle_PassedThrough.
+        /// When <see cref="MoveToParams.RouteHandle"/> is non-zero, the same value must
+        /// appear in <see cref="NavigationIntent.RouteHandle"/> after OnEnter.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_OnEnter_ExplicitRouteHandle_PassedThrough()
+        {
+            const int handle = 42;
+            var (world, entity, channel) = BuildWorldWithHandle(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, routeHandle: handle);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(handle, intent.RouteHandle);
+        }
+
+        // ── Test 9: Arrived emits MoveCompletedEvent ──────────────────────────────────────────────
+
+        /// <summary>
+        /// When <see cref="NavigationStatus.Result"/> is Arrived, <see cref="MoveToExecutor"/>
+        /// must publish <see cref="MoveCompletedEvent"/> with Reason=Arrived and the route handle.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_Execute_Arrived_EmitsMoveCompletedEvent()
+        {
+            const int handle = 7;
+            var (world, entity, channel) = BuildWorldWithHandle(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f,
+                routeHandle: handle, existingIntentId: 0);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId    = intent.IntentId,
+                Result      = NavigationResult.Arrived,
+                RouteHandle = handle,
+            });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Success, channel.Status);
+
+            // Verify the event.
+            world.Bus.SwapBuffers();
+            var events = world.Bus.Read<MoveCompletedEvent>().ToArray();
+            Assert.Single(events);
+            Assert.Equal(entity,                   events[0].Target);
+            Assert.Equal(NavigationResult.Arrived, events[0].Reason);
+            Assert.Equal(handle,                   events[0].RouteHandle);
+        }
+
+        // ── Test 10: BTreeInstanceIdBump abandons current move ────────────────────────────────────
+
+        /// <summary>
+        /// DD-Tests-Nav §4.5 row 14: BTreeInstanceIdBump_AbandonsCurrentMove.
+        /// After OnExit + new OnEnter (new BTree instance), stale <see cref="NavigationStatus"/>
+        /// from the prior command must be ignored and the channel must remain Running.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_BTreeInstanceIdBump_AbandonsCurrentMove()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(50f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 0);
+
+            var executor = new MoveToExecutor();
+
+            // First BTree instance: OnEnter -> IntentId = 1.
+            executor.OnEnter(entity, ref channel, world);
+            var firstIntentId = world.GetComponent<NavigationIntent>(entity).IntentId;
+
+            // Simulate Muscle writing a status for the first instance.
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = firstIntentId,
+                Result   = NavigationResult.Arrived,
+            });
+
+            // BTree abandons the node: OnExit bumps IntentId to 2.
+            executor.OnExit(entity, ref channel, world);
+
+            // Second BTree instance: OnEnter -> IntentId = 3.
+            channel = world.GetComponent<LocomotionChannel>(entity);
+            channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
+            world.SetComponent(entity, channel);
+            channel = world.GetComponent<LocomotionChannel>(entity);
+            executor.OnEnter(entity, ref channel, world);
+
+            // Status still carries IntentId=1 (stale from first instance).
+            // Execute must ignore it and keep Running.
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
     }
 }
 

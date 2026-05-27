@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 using CarKinem.Core;
+using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 
 namespace Fdp.Toolkit.Navigation.Systems
 {
@@ -40,10 +44,40 @@ namespace Fdp.Toolkit.Navigation.Systems
         // FIX: Cache by the full Entity struct (Index + Generation) to prevent
         // false-positives when entity indices are recycled by the free-list.
         private readonly Dictionary<Entity, uint> _lastAppliedIntentId = new();
-    
+
+        // Cache for LocomotionChannel action idempotency (keyed by full Entity).
+        private readonly Dictionary<Entity, uint> _lastAppliedActionInstanceId = new();
+
+        private readonly TrajectoryPoolManager? _trajectoryPool;
+        private readonly IDtCrowdProvider? _dtCrowd;
+
         private uint _lastScanTick;
 
-        public void Execute(ISimulationView view, float deltaTime)
+        /// <summary>
+        /// Creates an instance without trajectory pool access.
+        /// FollowPath and ReleasePath actions requiring pool queries will treat all handles as invalid.
+        /// </summary>
+        public NavigationIntentBridgeSystem() { }
+
+        /// <summary>
+        /// Creates an instance with access to the shared <see cref="TrajectoryPoolManager"/>
+        /// for FollowPath handle validation and ReleasePath cleanup.
+        /// </summary>
+        public NavigationIntentBridgeSystem(TrajectoryPoolManager? trajectoryPool)
+        {
+            _trajectoryPool = trajectoryPool;
+        }
+
+        /// <summary>
+        /// Creates an instance with access to the crowd provider for infantry crowd registration.
+        /// </summary>
+        public NavigationIntentBridgeSystem(TrajectoryPoolManager? trajectoryPool, IDtCrowdProvider? dtCrowd)
+        {
+            _trajectoryPool = trajectoryPool;
+            _dtCrowd = dtCrowd;
+        }
+
+        public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
@@ -126,7 +160,179 @@ namespace Fdp.Toolkit.Navigation.Systems
                 _lastAppliedIntentId[entity] = intent.IntentId;
             }
 
-            _lastScanTick = repo.GlobalVersion; 
+            _lastScanTick = repo.GlobalVersion;
+
+            // ── Route LocomotionChannel actions into the nav v2 pipeline ──────────────
+            // Iterate ALL entities with LocomotionChannel each tick; use the
+            // _lastAppliedActionInstanceId dict for fine-grained idempotency since a
+            // change to ActionInstanceId does not alter the component mask (QueryDelta
+            // would miss the transition).
+            if (!repo.IsComponentTypeRegistered<LocomotionChannel>())
+                return;
+
+            var chQuery = repo.Query()
+                .With<LocomotionChannel>()
+                .Build();
+
+            foreach (var entity in chQuery)
+            {
+                ref var ch = ref repo.GetComponentRW<LocomotionChannel>(entity);
+
+                // Idempotency: skip if this ActionInstanceId was already applied.
+                if (_lastAppliedActionInstanceId.TryGetValue(entity, out uint lastActionId)
+                    && lastActionId == ch.ActionInstanceId)
+                {
+                    continue;
+                }
+
+                switch (ch.ActiveAction)
+                {
+                    case NavigationConstants.ActionIdMoveTo:
+                    {
+                        var p = Unsafe.ReadUnaligned<MoveToParams>(ref ch.Params[0]);
+
+                        var from = repo.HasComponent<SimTransform>(entity)
+                            ? repo.GetComponent<SimTransform>(entity).Position
+                            : Vector3.Zero;
+
+                        var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
+                            ? repo.GetComponent<NavAgentProfile>(entity)
+                            : default;
+
+                        long reqId = ((long)entity.Index << 32) | (uint)repo.GlobalVersion;
+                        repo.Bus.Publish(new PathfindingRequestEvent
+                        {
+                            RequestId       = reqId,
+                            Start           = from,
+                            End             = new Vector3(p.Destination.X, p.Destination.Y, 0f),
+                            MobilityProfile = agentProfile.MobilityProfile,
+                            BackendForce    = (NavigationBackend)p.BackendForce,
+                            RouteHandle     = p.RouteHandle,
+                            NavLayerMask    = (int)p.LayerMask,
+                        });
+
+                        // Crowd registration for infantry (entities without VehicleState).
+                        if (_dtCrowd != null && !repo.HasComponent<VehicleState>(entity))
+                        {
+                            var profile = repo.HasComponent<NavAgentProfile>(entity)
+                                ? repo.GetComponent<NavAgentProfile>(entity)
+                                : default;
+
+                            float radius  = profile.AgentRadius > 0f ? profile.AgentRadius : 0.4f;
+                            float maxSpd  = p.Speed > 0f ? p.Speed : 5f;
+
+                            _dtCrowd.RegisterAgent(entity, new CrowdAgentParams
+                            {
+                                Radius          = radius,
+                                Height          = profile.AgentHeight > 0f ? profile.AgentHeight : 1.8f,
+                                MaxSpeed        = maxSpd,
+                                MaxAcceleration = 20f,
+                                SeparationWeight = 2,
+                            });
+
+                            // Tag the entity as crowd-managed.
+                            if (!repo.HasComponent<CrowdAgent>(entity))
+                                repo.AddComponent(entity, default(CrowdAgent));
+
+                            // Set the target in the crowd provider.
+                            var destination = new Vector3(
+                                p.Destination.X, p.Destination.Y, 0f);
+                            _dtCrowd.SetAgentTarget(entity, destination);
+                        }
+                        break;
+                    }
+
+                    case NavigationConstants.ActionIdPlanRoute:
+                    {
+                        var p = Unsafe.ReadUnaligned<PlanRouteParams>(ref ch.Params[0]);
+
+                        var from = repo.HasComponent<SimTransform>(entity)
+                            ? repo.GetComponent<SimTransform>(entity).Position
+                            : Vector3.Zero;
+
+                        // Carry the Brain-allocated RouteHandle through if the entity
+                        // has a NavigationIntent with a pre-allocated handle.
+                        int routeHandle = repo.HasComponent<NavigationIntent>(entity)
+                            ? repo.GetComponent<NavigationIntent>(entity).RouteHandle
+                            : 0;
+
+                        var agentProfile = repo.HasComponent<NavAgentProfile>(entity)
+                            ? repo.GetComponent<NavAgentProfile>(entity)
+                            : default;
+
+                        long reqId = ((long)entity.Index << 32) | (uint)repo.GlobalVersion;
+                        repo.Bus.Publish(new PathfindingRequestEvent
+                        {
+                            RequestId       = reqId,
+                            Start           = from,
+                            End             = new Vector3(p.Destination.X, p.Destination.Y, 0f),
+                            MobilityProfile = agentProfile.MobilityProfile,
+                            BackendForce    = (NavigationBackend)p.BackendForce,
+                            RouteHandle     = routeHandle,
+                            NavLayerMask    = (int)p.LayerMask,
+                            MaxCost         = p.MaxCost,
+                        });
+                        break;
+                    }
+
+                    case NavigationConstants.ActionIdFollowPath:
+                    {
+                        var p = Unsafe.ReadUnaligned<FollowPathParams>(ref ch.Params[0]);
+
+                        bool found = _trajectoryPool?.TryGetTrajectory(p.RouteHandle, out _) == true;
+                        if (!found)
+                        {
+                            // Handle is not in the trajectory pool — report failure immediately.
+                            repo.AddComponent(entity, new NavigationStatus
+                            {
+                                Result = NavigationResult.FailedInvalidHandle,
+                            });
+                        }
+                        break;
+                    }
+
+                    case NavigationConstants.ActionIdFetchPathDetails:
+                    {
+                        var p = Unsafe.ReadUnaligned<FetchPathDetailsParams>(ref ch.Params[0]);
+
+                        // Publish NavigationPathDetailsResponseEvent so the Brain-side
+                        // NavigationPathDetailsUpdateSystem can ingest it this tick.
+                        if (_trajectoryPool != null && _trajectoryPool.TryGetTrajectory(p.RouteHandle, out _))
+                        {
+                            var replanCount = repo.HasComponent<NavigationStatus>(entity)
+                                ? (byte)repo.GetComponent<NavigationStatus>(entity).ReplanCount
+                                : (byte)0;
+
+                            repo.Bus.Publish(new NavigationPathDetailsResponseEvent
+                            {
+                                Target        = entity,
+                                RouteHandle   = p.RouteHandle,
+                                ReplanCount   = replanCount,
+                                IsAutoRefresh = 0,
+                            });
+                        }
+                        break;
+                    }
+
+                    case NavigationConstants.ActionIdReleasePath:
+                    {
+                        var p = Unsafe.ReadUnaligned<ReleasePathParams>(ref ch.Params[0]);
+
+                        _trajectoryPool?.RemoveTrajectory(p.RouteHandle);
+
+                        // Reset the corridor muscle component so downstream systems
+                        // see a clean state immediately after release.
+                        if (repo.IsComponentTypeRegistered<NavigationCorridorMuscle>()
+                            && repo.HasComponent<NavigationCorridorMuscle>(entity))
+                        {
+                            repo.AddComponent(entity, default(NavigationCorridorMuscle));
+                        }
+                        break;
+                    }
+                }
+
+                _lastAppliedActionInstanceId[entity] = ch.ActionInstanceId;
+            }
         }
     }
 }

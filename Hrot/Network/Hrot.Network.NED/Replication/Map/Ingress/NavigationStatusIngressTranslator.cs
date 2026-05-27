@@ -8,6 +8,7 @@ using Fdp.ModuleHost.Abstractions;
 
 using EcsNavigationStatus = Fdp.Toolkit.Navigation.NavigationStatus;
 using EcsNavResult        = Fdp.Toolkit.Navigation.NavigationResult;
+using NavigationPhase     = Fdp.Toolkit.Navigation.NavigationPhase;
 
 namespace Hrot.Map.Common.Replication.Ingress
 {
@@ -68,9 +69,13 @@ namespace Hrot.Map.Common.Replication.Ingress
 
                 cmd.SetComponent(entity, new EcsNavigationStatus
                 {
-                    IntentId  = msg.IntentId,
-                    Result    = MapResult(msg.Result),
-                    ProgressS = msg.ProgressS,
+                    IntentId               = msg.IntentId,
+                    Result                 = MapResult(msg.Result),
+                    ProgressS              = msg.ProgressS,
+                    Phase                  = (NavigationPhase)msg.Phase,
+                    ReplanCount            = msg.ReplanCount,
+                    RouteHandle            = msg.RouteHandle,
+                    NavmeshVersionObserved = msg.NavmeshVersionObserved,
                 });
 
                 FdpLog<NavigationStatusIngressTranslator>.Trace(
@@ -92,10 +97,14 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         private static EcsNavResult MapResult(ENavigationResult result) => result switch
         {
-            ENavigationResult.RES_ARRIVED             => EcsNavResult.Arrived,
-            ENavigationResult.RES_FAILED_BLOCKED      => EcsNavResult.FailedBlocked,
-            ENavigationResult.RES_FAILED_UNREACHABLE  => EcsNavResult.FailedUnreachable,
-            _                                         => EcsNavResult.InProgress,
+            ENavigationResult.RES_ARRIVED              => EcsNavResult.Arrived,
+            ENavigationResult.RES_FAILED_BLOCKED       => EcsNavResult.FailedBlocked,
+            ENavigationResult.RES_FAILED_UNREACHABLE   => EcsNavResult.FailedUnreachable,
+            ENavigationResult.RES_PATH_FOUND           => EcsNavResult.PathFound,
+            ENavigationResult.RES_NO_PATH              => EcsNavResult.NoPath,
+            ENavigationResult.RES_FAILED_NO_LAYER      => EcsNavResult.FailedNoLayer,
+            ENavigationResult.RES_FAILED_INVALID_HANDLE => EcsNavResult.FailedInvalidHandle,
+            _                                          => EcsNavResult.InProgress,
         };
     }
 }

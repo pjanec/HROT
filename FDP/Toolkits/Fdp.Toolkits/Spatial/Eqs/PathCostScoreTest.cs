@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
@@ -24,7 +25,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            var obsPos = new Vector2(tf.Position.X, tf.Position.Y);
+            var obsPos = new Vector3(tf.Position.X, 0f, tf.Position.Y);
 
             float maxDist = sensor.SearchRadius;
             if (maxDist <= 0f) return;
@@ -36,9 +37,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // Skip already-rejected candidates.
                 if (candidate.EntityId == -1L) continue;
 
-                var targetPos = new Vector2(candidate.PositionX, candidate.PositionY);
+                var targetPos = new Vector3(candidate.PositionX, 0f, candidate.PositionY);
 
-                if (navmesh.TryGetPathDistance(obsPos, targetPos, out float pathDist))
+                // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
+                float pathDist = navmesh.PathCost(obsPos, targetPos);
+                if (pathDist != float.MaxValue)
                 {
                     // Inverse-linear falloff: shorter path = higher score. Additive.
                     float score = 1.0f - Math.Clamp(pathDist / maxDist, 0f, 1f);

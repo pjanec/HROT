@@ -13,9 +13,29 @@ namespace Fdp.Toolkit.Navigation
         // where they were originally allocated to avoid circular assembly dependencies.
 
         /// <summary><c>NavigationIntent</c> — CQRS command component carrying the Brain's navigation order.</summary>
-        public const byte NavigationIntent = 67;
+        public const int NavigationIntent = 67;
 
         /// <summary><c>NavigationStatus</c> — CQRS status component carrying the Muscle's navigation result.</summary>
-        public const byte NavigationStatus = 68;
+        public const int NavigationStatus = 68;
+
+        // IDs 257-261: Nav subsystem v2 components (NAV-P0-T5).
+        // IDs 69-73 cannot be used — they are occupied by FrustrationTicks, InFormationTag,
+        // Faction, PerceptionReceptor, and TargetMemory in GlobalComponentIds.
+        // The 257-261 block is in the extended 256-511 range (ecs-512-comps).
+
+        /// <summary><c>NavAgentProfile</c> — locomotion profile used by the nav solver.</summary>
+        public const int NavAgentProfile                = 257;
+
+        /// <summary><c>NavigationCorridorMuscle</c> — Muscle-owned active corridor runtime state.</summary>
+        public const int NavigationCorridorMuscle       = 258;
+
+        /// <summary><c>NavigationCorridorPreview</c> — Brain-readable look-ahead of first 8 corridor waypoints.</summary>
+        public const int NavigationCorridorPreview      = 259;
+
+        /// <summary><c>NavigationPathDetailsBuffer</c> — full waypoint snapshot fetched from the path registry.</summary>
+        public const int NavigationPathDetailsBuffer    = 260;
+
+        /// <summary><c>CrowdAgent</c> — tag component opting the entity into Detour crowd avoidance.</summary>
+        public const int CrowdAgent                     = 261;
     }
 }

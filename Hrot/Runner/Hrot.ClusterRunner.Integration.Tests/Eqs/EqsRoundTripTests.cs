@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
@@ -45,23 +46,25 @@ public sealed class EqsRoundTripTests : IDisposable
         }
     }
 
-    // Navmesh stub: all positions reachable; distance = Euclidean; 1 random point.
+    // Navmesh stub: all positions reachable; PathCost = flat-earth Euclidean; 1 sample point.
     private sealed class MockNavmeshProvider : INavmeshProvider
     {
-        public bool IsReachable(Vector2 start, Vector2 end) => true;
-
-        public bool TryGetPathDistance(Vector2 start, Vector2 end, out float distance)
-        {
-            distance = Vector2.Distance(start, end);
-            return true;
-        }
-
-        public int GetRandomPointsInRadius(Vector2 center, float radius, Span<Vector2> points)
+        public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => true;
+        public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF) { snapped = position; return true; }
+        public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> points, uint layerMask = 0xFFFFFFFF)
         {
             if (points.Length < 1) return 0;
-            points[0] = new Vector2(center.X + radius * 0.5f, center.Y);
+            points[0] = new Vector3(center.X + radius * 0.5f, center.Y, center.Z);
             return 1;
         }
+        public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
+        public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
+        {
+            float dx = from.X - to.X; float dz = from.Z - to.Z;
+            return MathF.Sqrt(dx * dx + dz * dz);
+        }
+        public uint QueryVersion() => 1;
+        public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
     }
 
     // ── T-RT2 helpers ──────────────────────────────────────────────────────────

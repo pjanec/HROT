@@ -1,0 +1,11 @@
+{
+  "layers": [
+    {
+      "layer": "Infantry",
+      "polygons": [
+        { "id": 0, "vertices": [[0,0,0],[10,0,0],[10,0,10],[0,0,10]] }
+      ],
+      "adjacency": [[]]
+    }
+  ]
+}

@@ -57,6 +57,123 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Execution failed — destination is unreachable.</summary>
         FailedUnreachable = 3,
+
+        /// <summary>Path found and route handle allocated; executor may transition to FollowPath.</summary>
+        PathFound = 4,
+
+        /// <summary>Solver could not find any path to the destination.</summary>
+        NoPath = 5,
+
+        /// <summary>Execution failed — the requested navmesh layer is not loaded.</summary>
+        FailedNoLayer = 6,
+
+        /// <summary>Execution failed — the supplied route handle is invalid or expired.</summary>
+        FailedInvalidHandle = 7,
+    }
+
+    /// <summary>
+    /// Execution phase of the active navigation command, written by the Muscle tier.
+    /// </summary>
+    public enum NavigationPhase : byte
+    {
+        /// <summary>No active command (idle).</summary>
+        Idle = 0,
+
+        /// <summary>Path request sent to solver; awaiting reply.</summary>
+        AwaitingPath = 1,
+
+        /// <summary>Path received; entity is following the corridor.</summary>
+        Following = 2,
+
+        /// <summary>Paused at a waypoint, awaiting traversal action (e.g., door open).</summary>
+        AwaitingTraversal = 3,
+
+        /// <summary>Destination reached; command finalised.</summary>
+        Completed = 4,
+    }
+
+    /// <summary>
+    /// How an agent traverses the segment leading to a waypoint.
+    /// </summary>
+    public enum TraversalKind : byte
+    {
+        /// <summary>Standard ground locomotion.</summary>
+        Walk = 0,
+
+        /// <summary>Agent must jump to reach the waypoint.</summary>
+        Jump = 1,
+
+        /// <summary>Agent climbs a ladder or wall section.</summary>
+        Climb = 2,
+
+        /// <summary>Agent passes through a door or gate.</summary>
+        Door = 3,
+
+        /// <summary>Agent uses aerial locomotion.</summary>
+        Fly = 4,
+    }
+
+    /// <summary>
+    /// Surface type at a waypoint.
+    /// </summary>
+    public enum SurfaceType : byte
+    {
+        /// <summary>No specific surface type (generic ground).</summary>
+        Generic = 0,
+
+        /// <summary>Paved road.</summary>
+        Road = 1,
+
+        /// <summary>Natural terrain (grass, dirt, sand, etc.).</summary>
+        Terrain = 2,
+
+        /// <summary>Water surface or underwater.</summary>
+        Water = 3,
+
+        /// <summary>Indoor flooring.</summary>
+        Indoor = 4,
+    }
+
+    /// <summary>
+    /// Pathfinding backend used to compute a route.
+    /// </summary>
+    public enum NavigationBackend : byte
+    {
+        /// <summary>System selects the most appropriate backend automatically.</summary>
+        Auto = 0,
+
+        /// <summary>Road-graph Dijkstra over <c>RoadNetworkBlob</c>.</summary>
+        NavRoadGraph = 1,
+
+        /// <summary>Navmesh A* via <see cref="INavmeshProvider"/>.</summary>
+        Navmesh = 2,
+
+        /// <summary>Hybrid: road-graph for macro routing, navmesh for local correction.</summary>
+        Hybrid = 3,
+
+        /// <summary>3-D volumetric pathfinding for aerial/sub-surface agents via <c>IVolumetricPathProvider</c>.</summary>
+        Volumetric = 4,
+    }
+
+    /// <summary>
+    /// Reason a pathfinding request failed.  <see cref="NoFailure"/> when the path succeeded.
+    /// </summary>
+    public enum NavigationFailureReason : byte
+    {
+        /// <summary>No failure; path was found successfully.</summary>
+        NoFailure = 0,
+
+        /// <summary>Destination is not reachable from the origin.</summary>
+        Unreachable = 1,
+
+        /// <summary>Solver budget was exceeded before a path was found.</summary>
+        Timeout = 2,
+
+        /// <summary>The supplied route handle is invalid or expired.</summary>
+        InvalidHandle = 3,
+
+        /// <summary>The backend provider returned an error.</summary>
+        ProviderError = 4,
     }
 
     // ── ECS component structs ────────────────────────────────────────────────
@@ -84,9 +201,19 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Active navigation mode; <see cref="NavigationMode.None"/> = inactive.</summary>
         public NavigationMode Mode;
 
-        // 2 bytes padding (sequential layout).
-        private byte _pad0;
-        private byte _pad1;
+        /// <summary>
+        /// Behavioural flags for the active navigation command.
+        /// Bit 0: AllowReplan. Bit 4: AutoSendPathOnReplan.
+        /// Copied from <see cref="MoveToParams.Flags"/> by <c>MoveToExecutor</c>.
+        /// </summary>
+        public byte Flags;
+
+        /// <summary>
+        /// Maximum internal Muscle replans for this command (0 = use
+        /// <see cref="NavigationConstants.DefaultMaxReplans"/>).
+        /// Copied from <see cref="MoveToParams.MaxReplans"/> by <c>MoveToExecutor</c>.
+        /// </summary>
+        public byte MaxReplans;
 
         /// <summary>
         /// When 1, the muscle tier is allowed to drive in reverse to reach the destination.
@@ -137,6 +264,13 @@ namespace Fdp.Toolkit.Navigation
         // BS1-T020: Follow-route fields (used when Mode == NavigationMode.FollowRoute).
         /// <summary>Trajectory pool ID; populated by <c>FollowRouteExecutor</c>.</summary>
         public int TrajectoryId;
+
+        /// <summary>
+        /// Route handle allocated by the nav subsystem v2 solver.
+        /// 0 = no handle (fire-and-forget mode). Written by <c>MoveToExecutor</c> from
+        /// <see cref="MoveToParams.RouteHandle"/> and by <c>PlanRouteExecutor</c>.
+        /// </summary>
+        public int RouteHandle;
     }
 
     /// <summary>
@@ -168,5 +302,188 @@ namespace Fdp.Toolkit.Navigation
         /// <c>NavigationStatusEgressTranslator</c> and <c>NavigationStatusIngressTranslator</c>.
         /// </summary>
         public float ProgressS;
+
+        /// <summary>Current execution phase; written by the Muscle tier.</summary>
+        public NavigationPhase Phase;
+
+        /// <summary>
+        /// The traversal kind of the off-mesh link currently being traversed.
+        /// Walk = 0 (no active off-mesh traversal).
+        /// Written by <c>OffMeshLinkDetectionSystem</c>.
+        /// </summary>
+        public TraversalKind CurrentTraversalKind;
+
+        /// <summary>Result code from the most recent failure (InProgress when no failure has occurred).</summary>
+        public NavigationResult LastFailureReason;
+
+        /// <summary>Number of times the path has been replanned for the current intent.</summary>
+        public ushort ReplanCount;
+
+        /// <summary>Route handle currently being followed; 0 = none.</summary>
+        public int RouteHandle;
+
+        /// <summary>Estimated time to arrival (seconds); 0 = unknown.</summary>
+        public float EstimatedTimeRemaining;
+
+        /// <summary>Navmesh version observed when the current path was planned.</summary>
+        public uint NavmeshVersionObserved;
+    }
+
+    // ── Nav subsystem v2 component structs (NAV-P0-T5) ───────────────────────
+
+    /// <summary>
+    /// Agent locomotion profile used by the nav solver to select the correct navmesh layer
+    /// and compute physically plausible paths.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(NavigationContractsComponentIds.NavAgentProfile)]
+    public struct NavAgentProfile
+    {
+        /// <summary>Bitfield of navmesh layers this agent can traverse. 0xFFFFFFFF = all layers.</summary>
+        public uint PreferredLayerMask;
+
+        /// <summary>Physical radius of the agent capsule (metres). Used for corridor clearance checks.</summary>
+        public float AgentRadius;
+
+        /// <summary>Physical height of the agent capsule (metres).</summary>
+        public float AgentHeight;
+
+        /// <summary>Maximum traversable slope angle in degrees.</summary>
+        public float MaxSlopeDeg;
+
+        /// <summary>
+        /// Locomotion profile: 0 = Wheeled/Ground (default), 4 = Flying (routes via volumetric provider).
+        /// </summary>
+        public byte MobilityProfile;
+    }
+
+    /// <summary>
+    /// Muscle-owned runtime state for the active navigation corridor.
+    /// Destroyed and recreated each time a new route handle is accepted.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(NavigationContractsComponentIds.NavigationCorridorMuscle)]
+    [DataPolicy(DataPolicy.NoSave)]
+    public struct NavigationCorridorMuscle
+    {
+        /// <summary>Handle to the active route in the path registry. 0 = no active route.</summary>
+        public int RouteHandle;
+
+        /// <summary>Navmesh version when the current path was planned.</summary>
+        public uint NavmeshVersion;
+
+        /// <summary>Index of the segment the agent is currently traversing.</summary>
+        public int CurrentSegmentIndex;
+
+        /// <summary>Total number of segments in the active path.</summary>
+        public int TotalSegmentCount;
+
+        /// <summary>Total arc-length of the planned path (metres).</summary>
+        public float TotalDistance;
+
+        /// <summary>Primary backend that produced this path (0=NavMesh, 1=RoadGraph, 2=Volumetric).</summary>
+        public byte PrimaryBackend;
+
+        /// <summary>Internal corridor flags (reserved for Muscle use).</summary>
+        public byte Flags;
+
+        // 2 bytes of explicit padding.
+        private byte _pad0;
+        private byte _pad1;
+    }
+
+    /// <summary>
+    /// A single waypoint in a <see cref="NavigationCorridorPreview"/> buffer.
+    /// </summary>
+    /// <remarks><b>Size:</b> Vector3 (12) + byte (1) + byte (1) + 2 pad = 16 bytes.</remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PreviewWaypoint
+    {
+        /// <summary>World-space position of the waypoint.</summary>
+        public System.Numerics.Vector3 Position;
+
+        /// <summary>How the agent traverses the edge leading to this waypoint.</summary>
+        public TraversalKind Traversal;
+
+        /// <summary>Surface type at this waypoint.</summary>
+        public SurfaceType Surface;
+
+        // 2 bytes of explicit padding.
+        private byte _pad0;
+        private byte _pad1;
+    }
+
+    /// <summary>
+    /// Brain-readable look-ahead view of the first 8 waypoints in the active corridor.
+    /// Updated by the Muscle tier whenever the corridor advances.
+    /// </summary>
+    /// <remarks>
+    /// <b>Size:</b> uint (4) + int (4) + int (4) + int (4) = 16 bytes header
+    /// + 8 x <see cref="PreviewWaypoint"/> (8 x 16 = 128 bytes) = 144 bytes total.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(NavigationContractsComponentIds.NavigationCorridorPreview)]
+    public struct NavigationCorridorPreview
+    {
+        /// <summary>Incremented each time this buffer is refreshed; allows Brain to detect staleness.</summary>
+        public uint PreviewVersion;
+
+        /// <summary>Number of valid entries in W0..W7 (0–8).</summary>
+        public int WaypointCount;
+
+        /// <summary>Global segment index corresponding to W0 (for stitching into the full corridor).</summary>
+        public int GlobalSegmentStart;
+
+        // 4 bytes of explicit padding.
+        private int _pad;
+
+        /// <summary>Waypoint 0 (nearest to current position).</summary>
+        public PreviewWaypoint W0;
+        /// <summary>Waypoint 1.</summary>
+        public PreviewWaypoint W1;
+        /// <summary>Waypoint 2.</summary>
+        public PreviewWaypoint W2;
+        /// <summary>Waypoint 3.</summary>
+        public PreviewWaypoint W3;
+        /// <summary>Waypoint 4.</summary>
+        public PreviewWaypoint W4;
+        /// <summary>Waypoint 5.</summary>
+        public PreviewWaypoint W5;
+        /// <summary>Waypoint 6.</summary>
+        public PreviewWaypoint W6;
+        /// <summary>Waypoint 7 (furthest look-ahead).</summary>
+        public PreviewWaypoint W7;
+    }
+
+    /// <summary>
+    /// Holds a snapshot of full waypoint data fetched from the path registry by
+    /// <c>FetchPathDetailsParams</c>. Written by the Muscle tier; read by Brain nodes
+    /// that need more than the 8-waypoint preview.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(NavigationContractsComponentIds.NavigationPathDetailsBuffer)]
+    public struct NavigationPathDetailsBuffer
+    {
+        /// <summary>Route handle this buffer corresponds to.</summary>
+        public int RouteHandle;
+
+        /// <summary>Replan count at the time of the fetch (for staleness detection).</summary>
+        public ushort ReplanCountAtFetch;
+
+        /// <summary>Total number of waypoints in the fetched path.</summary>
+        public ushort WaypointCount;
+
+        /// <summary>Total arc-length of the fetched path (metres).</summary>
+        public float TotalDistance;
+    }
+
+    /// <summary>
+    /// Tag component indicating this entity is managed by the Detour crowd simulation.
+    /// Presence of this component opts the entity into crowd-avoidance updates.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(NavigationContractsComponentIds.CrowdAgent)]
+    public struct CrowdAgent
+    {
     }
 }

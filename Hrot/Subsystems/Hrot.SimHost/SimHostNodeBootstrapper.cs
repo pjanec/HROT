@@ -12,6 +12,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Diagnostics;
+using Fdp.Toolkit.Navigation.EngineBacked;
 using Fdp.Toolkit.Perception.Translators;
 using Fdp.Toolkit.Spatial;
 using Fdp.Toolkit.Lifecycle;
@@ -277,6 +278,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         context.Kernel.RegisterModule(new SimHostModule(spawnSystem: spawningSystem));
         context.Kernel.RegisterModule(CoreLogicPack!);
         context.Kernel.RegisterModule(new EqsModule());
+
+        // Register engine-backed navigation providers (road-graph + direct-line stubs).
+        var navModule = new EngineBackedNavigationModule(
+            RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
+            CoreLogicPack!.TrajectoryPool);
+        context.Kernel.RegisterModule(navModule);
+        navModule.RegisterProviders(context.World);
+
         context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
 
         PerceptionModule = new CognitiveSpatialModule(

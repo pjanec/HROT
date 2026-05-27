@@ -124,6 +124,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var intent = ref view.GetComponentRO<EcsNavigationIntent>(entity);
 
+                // Skip entities with no active navigation command (Mode=None means idle).
+                if (intent.Mode == EcsNavMode.None)
+                    continue;
 
                 // 2. Fine-grained per-entity filter: only publish when IntentId changed.
                 //    IntentId is incremented by every executor (MoveToExecutor, FollowRouteExecutor,
@@ -146,7 +149,8 @@ namespace Hrot.Map.Common.Replication.Egress
                     Mode             = MapMode(intent.Mode),
                     FinalDestination = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
                     TargetSpeed      = intent.TargetSpeed,
-                    ArrivalRadius    = intent.ArrivalRadius
+                    ArrivalRadius    = intent.ArrivalRadius,
+                    RouteHandle      = intent.RouteHandle
                 });
 
                 SentSampleCount++;

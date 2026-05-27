@@ -19,8 +19,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
 
-            // CarKinem navigation state — still used by FollowRouteExecutor,
-            // FollowRoadGraphExecutor, and FleeExecutor.
+            // CarKinem navigation state — still used by FollowRouteExecutor and FleeExecutor.
             world.RegisterComponent<NavState>();
 
             // CQRS navigation contract components — used by the refactored MoveToExecutor
@@ -31,8 +30,31 @@ namespace Fdp.Toolkit.Navigation.Tests
             // Behavior channel — holds action params, state payload, and status.
             world.RegisterComponent<LocomotionChannel>();
 
+            // Phase 1 corridor + crowd components — required by Phase 2+ systems and tests.
+            world.RegisterComponent<NavigationCorridorMuscle>();
+            world.RegisterComponent<NavigationCorridorPreview>();
+            world.RegisterComponent<NavigationPathDetailsBuffer>();
+            world.RegisterComponent<CrowdAgent>();
+            world.RegisterComponent<NavAgentProfile>();
+
             // Seed GlobalTime singleton so FleeExecutor can read FrameNumber for throttled replan.
             world.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 0 });
+
+            // Frustration tracking — written exclusively by NavigationExecutionSystem.
+            world.RegisterComponent<FrustrationTicks>();
+
+            // Navigation lifecycle events — required by MoveToExecutor event-emission tests
+            // and by NavigationPathDetailsUpdateSystem tests.
+            world.RegisterEvent<MoveCompletedEvent>();
+            world.RegisterEvent<NavigationPathDetailsResponseEvent>();
+            world.RegisterEvent<NavigationPathDetailsArrivedEvent>();
+
+            // Phase 5 replan-flow events — required by NavigationExecutionSystem replan tests.
+            world.RegisterEvent<MoveStartedEvent>();
+            world.RegisterEvent<PathReplannedEvent>();
+            world.RegisterEvent<MoveBlockedEvent>();
+            world.RegisterEvent<PathfindingRequestEvent>();
+            world.RegisterEvent<WaypointReachedEvent>();
 
             return world;
         }

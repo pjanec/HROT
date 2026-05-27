@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 
 namespace Fdp.Toolkit.Navigation.Systems
 {
@@ -41,6 +42,73 @@ namespace Fdp.Toolkit.Navigation.Systems
                     RouteHandle         = evt.RouteHandle,
                     SourceNodeId        = evt.SourceNodeId,
                 };
+
+                // Entity-specific writes: look up originator, branch on action.
+                // entityIndex is packed in the high 32 bits of RequestId.
+                int entityIndex = (int)((ulong)evt.RequestId >> 32);
+                var entity = repo.GetEntityByIndex(entityIndex);
+                if (!repo.IsAlive(entity)) continue;
+
+                // Determine which action is active (requires LocomotionChannel).
+                if (!repo.HasComponent<LocomotionChannel>(entity)) continue;
+                ref readonly var loco = ref repo.GetComponent<LocomotionChannel>(entity);
+                ushort action = loco.ActiveAction;
+
+                if (action == NavigationConstants.ActionIdMoveTo)
+                {
+                    if (evt.IsReachable)
+                    {
+                        // Commit corridor state for this entity.
+                        repo.AddComponent(entity, new NavigationCorridorMuscle
+                        {
+                            RouteHandle         = evt.RouteHandle,
+                            NavmeshVersion      = (uint)evt.NavmeshVersionAtPlan,
+                            CurrentSegmentIndex = 0,
+                            TotalSegmentCount   = 1,
+                            TotalDistance       = evt.TotalDistanceMeters,
+                            PrimaryBackend      = (byte)evt.PrimaryBackend,
+                        });
+
+                        if (repo.HasComponent<NavigationStatus>(entity))
+                        {
+                            ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
+                            status.Phase  = NavigationPhase.Following;
+                            status.Result = NavigationResult.InProgress;
+                        }
+
+                        repo.Bus.Publish(new MoveStartedEvent
+                        {
+                            RequestId    = evt.RequestId,
+                            RouteHandle  = evt.RouteHandle,
+                            SourceNodeId = evt.SourceNodeId,
+                        });
+                    }
+                    else
+                    {
+                        if (repo.HasComponent<NavigationStatus>(entity))
+                        {
+                            ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
+                            status.Result = NavigationResult.FailedUnreachable;
+                        }
+                    }
+                }
+                else if (action == NavigationConstants.ActionIdPlanRoute)
+                {
+                    if (repo.HasComponent<NavigationStatus>(entity))
+                    {
+                        ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
+                        if (evt.IsReachable)
+                        {
+                            status.Phase       = NavigationPhase.Idle;
+                            status.Result      = NavigationResult.PathFound;
+                            status.RouteHandle = evt.RouteHandle;
+                        }
+                        else
+                        {
+                            status.Result = NavigationResult.NoPath;
+                        }
+                    }
+                }
             }
         }
     }

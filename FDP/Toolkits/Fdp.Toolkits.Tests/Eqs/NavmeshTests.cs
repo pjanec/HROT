@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Spatial.Eqs;
 using Xunit;
 
@@ -14,28 +15,40 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
     {
         private readonly EntityRepository _repo;
 
-        // Mock navmesh where IsReachable always returns false.
+        // Mock navmesh where PathExists always returns false.
         private sealed class AlwaysUnreachableNavmesh : INavmeshProvider
         {
-            public bool IsReachable(Vector2 from, Vector2 to) => false;
-            public bool TryGetPathDistance(Vector2 from, Vector2 to, out float pathDist) { pathDist = 0f; return false; }
-            public int GetRandomPointsInRadius(Vector2 center, float radius, Span<Vector2> results) => 0;
+            public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => false;
+            public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF) { snapped = position; return false; }
+            public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => false;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.MaxValue;
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
         }
 
-        // Mock navmesh where IsReachable always returns true, but no path distance.
+        // Mock navmesh where PathExists returns true but no path cost available.
         private sealed class AlwaysReachableNavmesh : INavmeshProvider
         {
-            public bool IsReachable(Vector2 from, Vector2 to) => true;
-            public bool TryGetPathDistance(Vector2 from, Vector2 to, out float pathDist) { pathDist = 0f; return false; }
-            public int GetRandomPointsInRadius(Vector2 center, float radius, Span<Vector2> results) => 0;
+            public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => true;
+            public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF) { snapped = position; return true; }
+            public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.MaxValue;
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
         }
 
-        // Mock navmesh where TryGetPathDistance always returns false (no path).
+        // Mock navmesh where PathCost always returns float.MaxValue (no path).
         private sealed class NoPathNavmesh : INavmeshProvider
         {
-            public bool IsReachable(Vector2 from, Vector2 to) => true;
-            public bool TryGetPathDistance(Vector2 from, Vector2 to, out float pathDist) { pathDist = 0f; return false; }
-            public int GetRandomPointsInRadius(Vector2 center, float radius, Span<Vector2> results) => 0;
+            public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => true;
+            public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF) { snapped = position; return true; }
+            public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => float.MaxValue;
+            public uint QueryVersion() => 1;
+            public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF) => 0;
         }
 
         public NavmeshTests()

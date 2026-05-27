@@ -40,10 +40,10 @@ namespace Hrot.Map.Common.Replication.Egress
 
         // â”€â”€ Per-entity change-detection cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Avoids publishing on every tick when the status is unchanging.
-        // Keyed by Entity; value is the last-published (IntentId, Result).
-        // ProgressS is omitted from the key â€” it is included unconditionally
+        // Keyed by Entity; value is the last-published (IntentId, Result, Phase).
+        // ProgressS is omitted from the key — it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
-        private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result)> _lastPublished = new();
+        private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result, NavigationPhase Phase)> _lastPublished = new();
 
         // Heartbeat: republish ProgressS every 5 s even when nothing has changed,
         // to recover from any UDP packet loss on unreliable topics.
@@ -90,7 +90,8 @@ namespace Hrot.Map.Common.Replication.Egress
                 bool isFirstPublish = !_lastPublished.TryGetValue(entity, out var last);
                 bool hasChanged     = isFirstPublish
                     || last.IntentId != status.IntentId
-                    || last.Result   != status.Result;
+                    || last.Result   != status.Result
+                    || last.Phase    != status.Phase;
 
                 // Salted heartbeat so not all entities flush at the same tick.
                 uint salt      = (uint)(entity.Index % ProgressHeartbeatInterval);
@@ -103,14 +104,18 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
                 {
-                    EntityId  = (int)netId.Value,
-                    IntentId  = status.IntentId,
-                    Result    = MapResult(status.Result),
-                    ProgressS = status.ProgressS,
+                    EntityId              = (int)netId.Value,
+                    IntentId              = status.IntentId,
+                    Result                = MapResult(status.Result),
+                    ProgressS             = status.ProgressS,
+                    Phase                 = (byte)status.Phase,
+                    ReplanCount           = status.ReplanCount,
+                    RouteHandle           = status.RouteHandle,
+                    NavmeshVersionObserved = status.NavmeshVersionObserved,
                 });
 
                 SentSampleCount++;
-                _lastPublished[entity] = (status.IntentId, status.Result);
+                _lastPublished[entity] = (status.IntentId, status.Result, status.Phase);
 
                 FdpLog<NavigationStatusEgressTranslator>.Trace(
                     "[Node-{0}] NavigationStatus egress: EntityId={1} IntentId={2} Result={3}",
@@ -132,10 +137,14 @@ namespace Hrot.Map.Common.Replication.Egress
 
         private static ENavigationResult MapResult(EcsNavResult result) => result switch
         {
-            EcsNavResult.Arrived           => ENavigationResult.RES_ARRIVED,
-            EcsNavResult.FailedBlocked     => ENavigationResult.RES_FAILED_BLOCKED,
-            EcsNavResult.FailedUnreachable => ENavigationResult.RES_FAILED_UNREACHABLE,
-            _                              => ENavigationResult.RES_IN_PROGRESS,
+            EcsNavResult.Arrived              => ENavigationResult.RES_ARRIVED,
+            EcsNavResult.FailedBlocked        => ENavigationResult.RES_FAILED_BLOCKED,
+            EcsNavResult.FailedUnreachable    => ENavigationResult.RES_FAILED_UNREACHABLE,
+            EcsNavResult.PathFound            => ENavigationResult.RES_PATH_FOUND,
+            EcsNavResult.NoPath               => ENavigationResult.RES_NO_PATH,
+            EcsNavResult.FailedNoLayer        => ENavigationResult.RES_FAILED_NO_LAYER,
+            EcsNavResult.FailedInvalidHandle  => ENavigationResult.RES_FAILED_INVALID_HANDLE,
+            _                                 => ENavigationResult.RES_IN_PROGRESS,
         };
     }
 }

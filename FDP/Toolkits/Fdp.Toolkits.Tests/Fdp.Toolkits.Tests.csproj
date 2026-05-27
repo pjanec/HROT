@@ -49,6 +49,7 @@
 
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Navigation\data\navmaps\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- Expose internal test helpers (HarnessPosition, HarnessVelocity) to sibling test projects -->

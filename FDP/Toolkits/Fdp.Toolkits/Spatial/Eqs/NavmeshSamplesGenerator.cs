@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Toolkit.Spatial.Eqs
 {
@@ -20,19 +21,20 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            var center = new Vector2(tf.Position.X, tf.Position.Y);
+            var center3D = new Vector3(tf.Position.X, 0f, tf.Position.Y);
 
-            // Intermediate stackalloc buffer for raw positions.
-            Span<Vector2> rawPoints = stackalloc Vector2[candidates.Length];
-            int rawCount = navmesh.GetRandomPointsInRadius(center, sensor.SearchRadius, rawPoints);
+            // Intermediate stackalloc buffer for raw positions (3D flat-earth, Y=0).
+            Span<Vector3> rawPoints3D = stackalloc Vector3[candidates.Length];
+            // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
+            int rawCount = navmesh.SampleNavmeshPoints(center3D, sensor.SearchRadius, rawPoints3D);
 
             for (int i = 0; i < rawCount; i++)
             {
                 candidates[i] = new EqsResult
                 {
                     EntityId  = 0L, // Positional candidate.
-                    PositionX = rawPoints[i].X,
-                    PositionY = rawPoints[i].Y,
+                    PositionX = rawPoints3D[i].X,
+                    PositionY = rawPoints3D[i].Z, // north axis mapped to Z in 3D
                     Score     = 0f,
                     Flags     = 0,
                 };

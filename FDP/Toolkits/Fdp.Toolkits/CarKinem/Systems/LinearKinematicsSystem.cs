@@ -3,6 +3,7 @@ using CarKinem.Core;
 using CarKinem.Systems;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Navigation;
 
 namespace Fdp.Toolkit.CarKinem.Systems
 {
@@ -55,6 +56,7 @@ namespace Fdp.Toolkit.CarKinem.Systems
                 .With<SimTransform>()
                 .With<SimVelocity>()
                 .Without<VehicleState>()
+                .Without<CrowdAgent>()
                 .Build();
 
             // Parallel position integration: tf.Position += vel.Linear * dt.

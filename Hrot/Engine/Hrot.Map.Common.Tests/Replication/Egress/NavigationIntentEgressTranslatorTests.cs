@@ -272,4 +272,28 @@ public sealed class NavigationIntentEgressTranslatorTests
         Assert.Equal(11, writer.Publishes[1].EntityId);
         Assert.Equal(1u, writer.Publishes[1].IntentId);
     }
+
+    /// <summary>
+    /// RouteHandle set in the ECS NavigationIntent must appear in the published DDS sample.
+    /// </summary>
+    [Fact]
+    public void RouteHandle_IsIncludedInPublishedSample()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+
+        var entity = SpawnAuthoritativeEntity(world, netId: 77);
+
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent
+        {
+            IntentId    = 1,
+            Mode        = EcsNavMode.DirectPoint,
+            RouteHandle = 42,
+        });
+        translator.ScanAndPublish(world);
+
+        Assert.Single(writer.Publishes);
+        Assert.Equal(42, writer.Publishes[0].RouteHandle);
+    }
 }

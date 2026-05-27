@@ -408,6 +408,8 @@
         public const int SensorEvalState = 213;
         /// <summary>Global EQS solver budget singleton (EQS v1.3 Phase 5).</summary>
         public const int EqsSolverGlobalState = 214;
+        /// <summary><c>IPathRegistry</c> — managed singleton path cache (NAV-P6).</summary>
+        public const int IPathRegistry = 215;
 
         // ── Animation subsystem (220–249) ────────────────────────────────────────
         // Animation components: replicated channels, internal executors, queues.
