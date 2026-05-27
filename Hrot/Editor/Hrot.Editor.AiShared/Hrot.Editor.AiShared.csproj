@@ -5,11 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />
     <InternalsVisibleTo Include="Hrot.MuscleCharacter.Animation.Tests" />
+    <InternalsVisibleTo Include="Hrot.BTree.Editor.Tests" />
+    <InternalsVisibleTo Include="Hrot.Hsm.Editor.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
   </ItemGroup>
 

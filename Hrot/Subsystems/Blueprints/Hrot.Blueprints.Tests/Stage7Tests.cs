@@ -148,6 +148,70 @@ public sealed class Stage7Tests
     }
 
     // ------------------------------------------------------------------
+    // BB-1g-04 and BB-1g-05: Comments and Explicit Order Test
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Stage7_AiPrimitive_EmitsCommentsAndFollowsExplicitOrder()
+    {
+        var p1 = new ParameterDecl { Id = Guid.NewGuid(), Name = "ParamA", Type = new BlueprintTypeRef { TypeId = "System.Single" }, Comment = "Line 1\nLine 2" };
+        var p2 = new ParameterDecl { Id = Guid.NewGuid(), Name = "ParamB", Type = new BlueprintTypeRef { TypeId = "System.Int32" }, Comment = "Only one line" };
+        var p3 = new ParameterDecl { Id = Guid.NewGuid(), Name = "ParamC", Type = new BlueprintTypeRef { TypeId = "System.Boolean" }, Comment = null };
+
+        var w1 = new VariableDecl { Id = Guid.NewGuid(), Name = "StateX", Type = new BlueprintTypeRef { TypeId = "System.Single" } };
+        var w2 = new VariableDecl { Id = Guid.NewGuid(), Name = "StateY", Type = new BlueprintTypeRef { TypeId = "System.Int32" }, Comment = "State comment" };
+
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("OrderingTest")
+            .WithIntent(AiPrimitiveIntent.Action)
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        // Overwrite params with explicitly ordered ones (test expects order B, C, A)
+        asset.Parameters = new List<ParameterDecl> { p1, p2, p3 };
+        asset.ParameterOrder = new List<Guid> { p2.Id, p3.Id, p1.Id };
+        
+        // And working state with explicit order (Y, X)
+        asset.WorkingState = new List<VariableDecl> { w1, w2 };
+        asset.WorkingStateOrder = new List<Guid> { w2.Id, w1.Id };
+
+        var result = Compile(asset);
+        Assert.True(result.Succeeded,
+            $"Compile failed: {string.Join(", ", result.Diagnostics.Select(d => d.Code))}");
+
+        var src = result.GeneratedSource!;
+
+        // 1. Verify ParamB comes before ParamC, and ParamC before ParamA
+        var idxB = src.IndexOf("public int ParamB;");
+        var idxC = src.IndexOf("public bool ParamC;");
+        var idxA = src.IndexOf("public float ParamA;");
+
+        Assert.True(idxB > 0 && idxC > idxB && idxA > idxC, 
+            "Parameters were not emitted in the explicit ParameterOrder: B, C, A.");
+
+        // 2. Verify StateY comes before StateX
+        var idxY = src.IndexOf("public int StateY;");
+        var idxX = src.IndexOf("public float StateX;");
+
+        Assert.True(idxY > 0 && idxX > idxY, 
+            "Working state was not emitted in the explicit WorkingStateOrder: Y, X.");
+
+        // 3. Verify comments (ParamA)
+        var commentLine1 = src.IndexOf("/// Line 1");
+        var paramALine = src.IndexOf("public float ParamA;");
+        Assert.True(commentLine1 > 0 && commentLine1 < paramALine, "Multi-line comment missing or out of order for ParamA.");
+
+        // 4. Verify comments (ParamB)
+        var commentBLine = src.IndexOf("/// Only one line");
+        var paramBLine = src.IndexOf("public int ParamB;");
+        Assert.True(commentBLine > 0 && commentBLine < paramBLine, "Single-line comment missing or out of order for ParamB.");
+
+        // 5. Verify no comment for ParamC
+        // Difficult to precisely check "no comment" but we check it doesn't emit an empty /// <summary> block just for ParamC.
+    }
+
+    // ------------------------------------------------------------------
     // SC3: Instance emission test -- Tick signature includes instanceVersion
     // ------------------------------------------------------------------
 

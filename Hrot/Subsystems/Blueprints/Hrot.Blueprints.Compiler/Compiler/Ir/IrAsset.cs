@@ -8,6 +8,7 @@ public sealed record IrField
     public string Name { get; init; } = "";
     public IrTypeRef Type { get; init; } = null!;
     public string DefaultValueCSharp { get; init; } = "";
+    public string? Comment { get; init; }
     public int Offset { get; init; }
     public int Size { get; init; }
 }

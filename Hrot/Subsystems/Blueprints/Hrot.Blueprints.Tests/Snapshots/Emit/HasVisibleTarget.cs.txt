@@ -44,9 +44,10 @@ public static class HasVisibleTarget_96FB0E6E_Bp
         {
         }
         
+        return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;
     }
     
-    public static bool BTreeEvaluate(
+    public static unsafe bool BTreeEvaluate(
         ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
@@ -67,7 +68,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
                     InitDefaultWorkingState((WorkingState*)(memory + 8));
                 }
                 ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;
+                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;
             }
         }
     }
@@ -86,5 +87,6 @@ public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
             StructureHash = HasVisibleTarget_96FB0E6E_Bp.StructureHash,
             StateSize = 0,
         });
+        behReg.RegisterCondition(HasVisibleTarget_96FB0E6E_Bp.BlueprintId, "HasVisibleTarget", HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate);
     }
 }

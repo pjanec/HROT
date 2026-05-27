@@ -12,10 +12,13 @@ public sealed class BlueprintAsset
     // For AiPrimitive only:
     public AiPrimitiveDecl? Primitive { get; set; }
     public List<ParameterDecl> Parameters { get; set; } = new();
+    public List<Guid>? ParameterOrder { get; set; }
     public List<VariableDecl> WorkingState { get; set; } = new();
+    public List<Guid>? WorkingStateOrder { get; set; }
 
     // For Instance only:
     public List<VariableDecl> Variables { get; set; } = new();
+    public List<Guid>? VariableOrder { get; set; }
     public List<EventDispatcherDecl> EventDispatchers { get; set; } = new();
     public List<CustomEventDecl> CustomEvents { get; set; } = new();
     public List<Guid> CallablePeers { get; set; } = new();

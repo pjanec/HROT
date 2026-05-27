@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Fbt;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Emit;
 
 namespace Hrot.BTree.Editor.Emit;
@@ -442,27 +443,75 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
             .OrderBy(n => n.VisualId.ToString("D"), StringComparer.Ordinal)
             .ToList();
 
-        for (int i = 0; i < nodeEntries.Count; i++)
-        {
-            var node = nodeEntries[i];
-            bool lastEntry = i == nodeEntries.Count - 1 && asset.Pills.Count == 0;
-            EmitLayoutNodeEntry(sb, node, lastEntry);
-        }
+        // Emit subtree sync field entries sorted by nodeVisualId then fieldName for determinism.
+        var allSyncBindings = asset.GetAllSyncBindings();
+        var syncFields = allSyncBindings
+            .OrderBy(kv => kv.Key.ToString("D"), StringComparer.Ordinal)
+            .SelectMany(kv => kv.Value
+                .Where(b => b.SyncIn || b.SyncOut || b.MasterVariableName != null)
+                .OrderBy(b => b.FieldName, StringComparer.Ordinal)
+                .Select(b => (NodeId: kv.Key, Binding: b)))
+            .Where(x => x.Binding.SyncIn || x.Binding.SyncOut || x.Binding.MasterVariableName != null)
+            // Omit completely empty bindings (no-op to persist)
+            .Where(x => x.Binding.SyncIn || x.Binding.SyncOut || x.Binding.MasterVariableName != null)
+            .ToList();
+
+        // Filter out no-op entries (all false and no master var)
+        syncFields = syncFields
+            .Where(x => x.Binding.SyncIn || x.Binding.SyncOut || x.Binding.MasterVariableName != null)
+            .Where(x => !(x.Binding.SyncIn == false && x.Binding.SyncOut == false && x.Binding.MasterVariableName == null))
+            .ToList();
 
         // Emit pill entries.
         var pillEntries = asset.Pills
             .OrderBy(p => p.VisualId.ToString("D"), StringComparer.Ordinal)
             .ToList();
 
+        for (int i = 0; i < nodeEntries.Count; i++)
+        {
+            var node = nodeEntries[i];
+            bool lastEntry = false;
+            EmitLayoutNodeEntry(sb, node, lastEntry);
+        }
+
         for (int i = 0; i < pillEntries.Count; i++)
         {
             var pill = pillEntries[i];
-            bool lastEntry = i == pillEntries.Count - 1;
+            bool lastEntry = false;
             EmitLayoutPillEntry(sb, pill, lastEntry);
         }
 
-        if (nodeEntries.Count == 0 && pillEntries.Count == 0)
-            sb.AppendLine($"{Indent}{Indent}.Build();");
+        for (int i = 0; i < syncFields.Count; i++)
+        {
+            var (nodeId, binding) = syncFields[i];
+            bool lastEntry = false;
+            EmitSyncFieldEntry(sb, nodeId.ToString("D"), binding, lastEntry);
+        }
+
+        var conflictSuppressions = asset.GetConflictSuppressions().OrderBy(s => s.VariableName).ThenBy(s => s.WriterPairKey).ToList();
+        foreach (var sup in conflictSuppressions)
+        {
+            sb.AppendLine($"{Indent}{Indent}.SuppressBlackboardConflict(\"{sup.VariableName}\", \"{sup.WriterPairKey}\")");
+        }
+
+        var unusedSuppressions = asset.GetUnusedSuppressions().OrderBy(s => s).ToList();
+        foreach (var sup in unusedSuppressions)
+        {
+            sb.AppendLine($"{Indent}{Indent}.SuppressUnusedWarning(\"{sup}\")");
+        }
+
+        sb.AppendLine($"{Indent}{Indent}.Build();");
+    }
+
+    private static void EmitSyncFieldEntry(StringBuilder sb, string visualId, SubtreeSyncBinding b, bool isLast)
+    {
+        string masterVarExpr = b.MasterVariableName != null
+            ? $"masterVar: \"{b.MasterVariableName}\""
+            : "masterVar: null";
+        string syncInStr  = b.SyncIn  ? "true" : "false";
+        string syncOutStr = b.SyncOut ? "true" : "false";
+        string suffix = isLast ? ".Build();" : "";
+        sb.AppendLine($"{Indent}{Indent}.SubtreeSyncField(\"{visualId}\", \"{b.FieldName}\", {masterVarExpr}, syncIn: {syncInStr}, syncOut: {syncOutStr}){suffix}");
     }
 
     private static void EmitLayoutNodeEntry(StringBuilder sb, BTreeEditorNode node, bool isLast)
@@ -560,3 +609,4 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
     private static string EscapeString(string s) =>
         s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }
+

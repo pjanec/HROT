@@ -44,9 +44,9 @@ internal static class Stage5_Schedule
             Dispatch      = asset.Dispatch,
             Intent        = asset.Primitive?.Intent,
             Hostings      = (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings ?? Array.Empty<AiPrimitiveHosting>(),
-            Parameters    = BuildIrFields(asset.Parameters, typedAsset),
-            WorkingState  = BuildIrFields(asset.WorkingState, typedAsset),
-            Variables     = BuildIrFields(asset.Variables, typedAsset),
+            Parameters    = BuildIrFields(asset.Parameters, typedAsset, asset.ParameterOrder),
+            WorkingState  = BuildIrFields(asset.WorkingState, typedAsset, asset.WorkingStateOrder),
+            Variables     = BuildIrFields(asset.Variables, typedAsset, asset.VariableOrder),
             CustomEvents  = BuildCustomEvents(asset.CustomEvents, typedAsset),
             CallablePeerBlueprintIds = BuildPeerIds(asset.CallablePeers),
             IsWorldSingleton = asset.IsWorldSingleton,
@@ -55,7 +55,7 @@ internal static class Stage5_Schedule
     }
 
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<ParameterDecl> decls, TypedAsset typed)
+        IEnumerable<ParameterDecl> decls, TypedAsset typed, List<Guid>? order)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
@@ -67,13 +67,14 @@ internal static class Stage5_Schedule
                 Name = d.Name,
                 Type = irType ?? UnknownType,
                 DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Comment = d.Comment,
             });
         }
-        return result;
+        return GetOrdered(result, order);
     }
 
     private static IReadOnlyList<IrField> BuildIrFields(
-        IEnumerable<VariableDecl> decls, TypedAsset typed)
+        IEnumerable<VariableDecl> decls, TypedAsset typed, List<Guid>? order)
     {
         var result = new List<IrField>();
         foreach (var d in decls)
@@ -85,9 +86,10 @@ internal static class Stage5_Schedule
                 Name = d.Name,
                 Type = irType ?? UnknownType,
                 DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Comment = d.Comment,
             });
         }
-        return result;
+        return GetOrdered(result, order);
     }
 
     private static IReadOnlyList<IrCustomEvent> BuildCustomEvents(
@@ -100,9 +102,28 @@ internal static class Stage5_Schedule
             {
                 Id = d.Id,
                 Name = d.Name,
-                Parameters = BuildIrFields(d.Parameters, typed),
+                Parameters = BuildIrFields(d.Parameters, typed, null),
             });
         }
+        return result;
+    }
+
+    private static IReadOnlyList<IrField> GetOrdered(List<IrField> items, List<Guid>? order)
+    {
+        if (order == null || order.Count == 0)
+            return items;
+
+        var dict = items.ToDictionary(f => f.Id);
+        var result = new List<IrField>();
+        foreach (var id in order)
+        {
+            if (dict.TryGetValue(id, out var item))
+            {
+                result.Add(item);
+                dict.Remove(id);
+            }
+        }
+        result.AddRange(dict.Values);
         return result;
     }
 

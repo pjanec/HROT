@@ -46,9 +46,10 @@ public static class MoveToAndFire_649F8F53_Bp
         {
         }
         
+        return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;
     }
     
-    public static global::Hrot.Blueprints.Core.Assets.NodeStatus BTreeTick(
+    public static unsafe global::Fbt.NodeStatus BTreeTick(
         ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
@@ -69,7 +70,7 @@ public static class MoveToAndFire_649F8F53_Bp
                     InitDefaultWorkingState((WorkingState*)(memory + 8));
                 }
                 ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
+                return (global::Fbt.NodeStatus)(int)TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
             }
         }
     }
@@ -88,5 +89,6 @@ public static class BlueprintRegistrar_MoveToAndFire_649F8F53_Bp
             StructureHash = MoveToAndFire_649F8F53_Bp.StructureHash,
             StateSize = 0,
         });
+        behReg.RegisterAction(MoveToAndFire_649F8F53_Bp.BlueprintId, "MoveToAndFire", MoveToAndFire_649F8F53_Bp.BTreeTick);
     }
 }

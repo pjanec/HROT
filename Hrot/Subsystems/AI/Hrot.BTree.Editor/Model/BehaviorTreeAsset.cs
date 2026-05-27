@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fbt;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.BTree.Editor.Model;
 
@@ -132,11 +133,18 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset
 {
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
     private readonly List<BTreeEditorPill> _pills  = new();
+    private readonly List<BlackboardVariableEntry> _blackboardVariables = new();
+    private readonly Dictionary<string, List<BlackboardAliasBinding>> _aliases = new();
+    private readonly Dictionary<Guid, List<SubtreeSyncBinding>> _syncBindings = new();
+    // Sub-tree identity metadata per subtree-node visual ID. Populated by Inspector callbacks.
+    private readonly Dictionary<Guid, (string SubtreeName, string SubDtoTypeName, string? SubDtoTypeNs)> _syncNodeMeta = new();
+    private readonly HashSet<(string VariableName, string WriterPairKey)> _conflictSuppressions = new();
+    private readonly HashSet<string> _unusedSuppressions = new();
 
     // ---- BT-S1-03: lookup tables ----
     private readonly Dictionary<Guid, int>              _visualIdToBlobIndex = new();
@@ -164,6 +172,352 @@ public sealed class BehaviorTreeAsset : IEditableAsset
     // ---- Editor collections (read-only views) ----
     public IReadOnlyList<BTreeEditorNode> Nodes => _nodes;
     public IReadOnlyList<BTreeEditorPill> Pills => _pills;
+
+    // ---- IBlackboardManagedAsset ----
+    public bool IsBlackboardEditorManaged { get; set; }
+    public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => _blackboardVariables;
+
+    /// <summary>Load-time health of the companion blackboard file. Defaults to Clean.</summary>
+    public BlackboardLoadState LoadState { get; private set; }
+
+    /// <summary>Diagnostic message when LoadState is non-Clean; null otherwise.</summary>
+    public string? LoadDiagnosticMessage { get; private set; }
+
+    /// <summary>Sets the load diagnostic. Called by the projector after parsing the companion file.</summary>
+    internal void SetLoadDiagnostic(BlackboardLoadState state, string? message)
+    {
+        LoadState = state;
+        LoadDiagnosticMessage = message;
+    }
+
+    /// <summary>Replaces the current variable list and fires Changed.
+    /// Call this when the editor commits an updated set of variables.
+    /// </summary>
+    public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)
+    {
+        _blackboardVariables.Clear();
+        _blackboardVariables.AddRange(vars);
+        MarkDirty();
+    }
+
+    /// <summary>Appends a new variable at the end of the canonical order. Fires Changed.</summary>
+    public void AddVariable(BlackboardVariableEntry entry)
+    {
+        _blackboardVariables.Add(entry);
+        MarkDirty();
+    }
+
+    /// <summary>Removes the variable with the given name. No-op if not found. Fires Changed.</summary>
+    public void RemoveVariable(string name)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+        if (idx < 0) return;
+        _blackboardVariables.RemoveAt(idx);
+        _aliases.Remove(name);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Removes all variables whose names appear in <paramref name="names"/>.
+    /// Fires Changed exactly once if any variables were removed; no-op (no Changed) when none match.
+    /// </summary>
+    public void RemoveVariables(IReadOnlyList<string> names)
+    {
+        if (names.Count == 0) return;
+        bool removed = false;
+        foreach (var name in names)
+        {
+            int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+            if (idx < 0) continue;
+            _blackboardVariables.RemoveAt(idx);
+            _aliases.Remove(name);
+            removed = true;
+        }
+        if (removed) MarkDirty();
+    }
+
+    /// <summary>Replaces the comment on an existing variable. No-op if not found. Fires Changed.</summary>
+    public void UpdateVariableComment(string name, string? comment)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+        if (idx < 0) return;
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Comment = comment };
+        MarkDirty();
+    }
+
+    /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
+    public void MoveVariable(int sourceIndex, int destIndex)
+    {
+        if (sourceIndex < 0 || sourceIndex >= _blackboardVariables.Count) return;
+        if (destIndex   < 0 || destIndex   >= _blackboardVariables.Count) return;
+        if (sourceIndex == destIndex) return;
+        var entry = _blackboardVariables[sourceIndex];
+        _blackboardVariables.RemoveAt(sourceIndex);
+        _blackboardVariables.Insert(destIndex, entry);
+        MarkDirty();
+    }
+
+    /// <summary>Renames a variable. No-op if not found. Fires Changed.</summary>
+    public void RenameVariable(string oldName, string newName)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == oldName);
+        if (idx < 0) return;
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Name = newName };
+        if (_aliases.TryGetValue(oldName, out var list))
+        {
+            _aliases.Remove(oldName);
+            _aliases[newName] = list;
+        }
+        MarkDirty();
+    }
+
+    /// <summary>Returns the count of action/condition nodes that reference variableName via ExpressionTargetField.</summary>
+    public int CountNodesReferencingVariable(string name)
+    {
+        int count = 0;
+        foreach (var node in _nodes)
+        {
+            if (node.Action?.ExpressionTargetField == name) count++;
+            else if (node.Condition?.ExpressionTargetField == name) count++;
+        }
+        return count;
+    }
+
+    /// <summary>Returns all alias bindings recorded against the named variable. Empty list if none.</summary>
+    public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>
+        _aliases.TryGetValue(variableName, out var list)
+            ? list.AsReadOnly()
+            : Array.Empty<BlackboardAliasBinding>();
+
+    /// <summary>Binds an unbound sub-tree requirement to a defined variable. Fires Changed.</summary>
+    public void AddAlias(string variableName, BlackboardAliasBinding binding)
+    {
+        if (!_aliases.TryGetValue(variableName, out var list))
+        {
+            list = new List<BlackboardAliasBinding>();
+            _aliases[variableName] = list;
+        }
+        // Prevent duplicate by (RequiringAssetId, RequiringElementId) pair.
+        if (list.Exists(a => a.RequiringAssetId == binding.RequiringAssetId
+                          && a.RequiringElementId == binding.RequiringElementId))
+            return;
+        list.Add(binding);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Removes an alias binding from the named variable. No-op if not found. Fires Changed.
+    /// </summary>
+    public void RemoveAlias(string variableName, Guid requiringAssetId, Guid requiringElementId)
+    {
+        if (!_aliases.TryGetValue(variableName, out var list)) return;
+        int idx = list.FindIndex(a => a.RequiringAssetId == requiringAssetId
+                                   && a.RequiringElementId == requiringElementId);
+        if (idx < 0) return;
+        list.RemoveAt(idx);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Removes alias bindings whose RequiringAssetId is not present in knownAssetIds.
+    /// Fires Changed once if any bindings were removed.
+    /// </summary>
+    public void PruneStaleAliasBindings(IReadOnlyCollection<Guid> knownAssetIds)
+    {
+        bool removed = false;
+        foreach (var varName in new List<string>(_aliases.Keys))
+        {
+            var list = _aliases[varName];
+            int before = list.Count;
+            list.RemoveAll(a => !knownAssetIds.Contains(a.RequiringAssetId));
+            if (list.Count < before) removed = true;
+            if (list.Count == 0) _aliases.Remove(varName);
+        }
+        if (removed) MarkDirty();
+    }
+
+    /// <summary>
+    /// Returns the set of all distinct RequiringAssetId GUIDs currently referenced
+    /// across all alias binding lists.
+    /// </summary>
+    public IReadOnlyCollection<Guid> GetKnownSubAssetIds()
+    {
+        var ids = new HashSet<Guid>();
+        foreach (var list in _aliases.Values)
+            foreach (var a in list)
+                ids.Add(a.RequiringAssetId);
+        return ids;
+    }
+
+    public bool IsConflictSuppressed(string variableName, string writerPairKey) =>
+        _conflictSuppressions.Contains((variableName, writerPairKey));
+
+    public void SetConflictSuppressed(string variableName, string writerPairKey, bool suppressed)
+    {
+        bool wasSuppressed = _conflictSuppressions.Contains((variableName, writerPairKey));
+        if (wasSuppressed == suppressed) return;
+        if (suppressed) _conflictSuppressions.Add((variableName, writerPairKey));
+        else            _conflictSuppressions.Remove((variableName, writerPairKey));
+        MarkDirty();
+    }
+
+    public bool IsUnusedWarningSuppressed(string variableName) =>
+        _unusedSuppressions.Contains(variableName);
+
+    public IEnumerable<(string VariableName, string WriterPairKey)> GetConflictSuppressions() => _conflictSuppressions;
+    public IEnumerable<string> GetUnusedSuppressions() => _unusedSuppressions;
+
+    public void SetUnusedWarningSuppressed(string variableName, bool suppressed)
+    {
+        bool wasSuppressed = _unusedSuppressions.Contains(variableName);
+        if (wasSuppressed == suppressed) return;
+        if (suppressed) _unusedSuppressions.Add(variableName);
+        else            _unusedSuppressions.Remove(variableName);
+        MarkDirty();
+    }
+
+    // ---- IBTreeSyncableAsset -----------------------------------------------
+
+    /// <summary>
+    /// Returns subtree info for the node with the given visual ID, or null when the node
+    /// does not exist or is not a Subtree node.
+    /// </summary>
+    public SubtreeNodeInfo? GetSubtreeNodeInfo(Guid nodeVisualId)
+    {
+        var node = FindNode(nodeVisualId);
+        if (node is null || node.KernelType != NodeType.Subtree) return null;
+        var payload = node.Subtree;
+        if (payload is null) return null;
+        return new SubtreeNodeInfo(payload.IsResolved, payload.SubtreeAssetId);
+    }
+
+    /// <summary>Returns the sync bindings for the given Subtree node. Empty list when none exist.</summary>
+    public IReadOnlyList<SubtreeSyncBinding> GetSyncBindings(Guid nodeVisualId) =>
+        _syncBindings.TryGetValue(nodeVisualId, out var list)
+            ? list.AsReadOnly()
+            : Array.Empty<SubtreeSyncBinding>();
+
+    /// <summary>
+    /// Upserts a sync binding for the given Subtree node.
+    /// An existing binding with the same FieldName is replaced. Fires Changed.
+    /// </summary>
+    public void SetSyncBinding(Guid nodeVisualId, SubtreeSyncBinding binding)
+    {
+        if (!_syncBindings.TryGetValue(nodeVisualId, out var list))
+        {
+            list = new List<SubtreeSyncBinding>();
+            _syncBindings[nodeVisualId] = list;
+        }
+        int idx = list.FindIndex(b => b.FieldName == binding.FieldName);
+        if (idx >= 0)
+            list[idx] = binding;
+        else
+            list.Add(binding);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Removes all sync bindings for the given Subtree node.
+    /// No-op when none exist. Fires Changed only when bindings were actually removed.
+    /// </summary>
+    public void ClearSyncBindings(Guid nodeVisualId)
+    {
+        if (!_syncBindings.TryGetValue(nodeVisualId, out var list) || list.Count == 0) return;
+        _syncBindings.Remove(nodeVisualId);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Returns all blackboard variables whose display type name equals typeName
+    /// (exact match, case-sensitive via BlackboardTypeHelper.GetDisplayName).
+    /// </summary>
+    public IReadOnlyList<BlackboardVariableEntry> GetVariablesOfType(string typeName)
+    {
+        var result = new List<BlackboardVariableEntry>();
+        foreach (var v in _blackboardVariables)
+        {
+            if (BlackboardTypeHelper.GetDisplayName(v.FieldType) == typeName)
+                result.Add(v);
+        }
+        return result;
+    }
+
+    /// <summary>Records sub-tree identity metadata for a Subtree node.</summary>
+    public void RecordSubtreeNodeMeta(Guid nodeVisualId, string subTreeName, string subDtoTypeName, string? subDtoTypeNs)
+        => _syncNodeMeta[nodeVisualId] = (subTreeName, subDtoTypeName, subDtoTypeNs);
+
+    /// <summary>
+    /// Returns Approach B sync groups: subtree nodes with at least one active sync binding
+    /// whose sub-tree identity has been recorded via RecordSubtreeNodeMeta.
+    /// </summary>
+    public IReadOnlyList<ApproachBSyncGroup> GetApproachBSyncGroups()
+    {
+        var result = new List<ApproachBSyncGroup>();
+        foreach (var kv in _syncBindings)
+        {
+            var nodeId = kv.Key;
+            var bindings = kv.Value;
+            // Only include if at least one binding has active sync direction.
+            bool anyActive = bindings.Any(b =>
+                (b.SyncIn || b.SyncOut) && b.MasterVariableName != null);
+            if (!anyActive) continue;
+            // Only include if identity metadata has been recorded.
+            if (!_syncNodeMeta.TryGetValue(nodeId, out var meta)) continue;
+            result.Add(new ApproachBSyncGroup(
+                nodeId,
+                meta.SubtreeName,
+                meta.SubDtoTypeName,
+                meta.SubDtoTypeNs,
+                bindings.AsReadOnly()));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Exposes _syncBindings for the emitter (read-only view).
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<SubtreeSyncBinding>> GetAllSyncBindings() =>
+        _syncBindings.ToDictionary(
+            kv => kv.Key,
+            kv => (IReadOnlyList<SubtreeSyncBinding>)kv.Value.AsReadOnly());
+
+    /// <summary>
+    /// Called by BehaviorTreeAssetProjector after applying node layout.
+    /// </summary>
+    public void LoadSyncBindings(IReadOnlyDictionary<Guid, IReadOnlyList<SubtreeSyncBinding>>? bindings)
+    {
+        _syncBindings.Clear();
+        if (bindings is null) return;
+        foreach (var kv in bindings)
+            _syncBindings[kv.Key] = new List<SubtreeSyncBinding>(kv.Value);
+    }
+
+    /// <summary>
+    /// Returns auto-allocated blackboard variable entries for Approach B subtree nodes
+    /// that are not covered by an Approach A alias.
+    /// The caller adds these to the bin-packer's aggregated variable list.
+    /// </summary>
+    public IReadOnlyList<BlackboardVariableEntry> GetAutoAllocatedVariables()
+    {
+        var groups = GetApproachBSyncGroups();
+        if (groups.Count == 0) return Array.Empty<BlackboardVariableEntry>();
+
+        var result = new List<BlackboardVariableEntry>(groups.Count);
+        foreach (var group in groups)
+        {
+            // Check if covered by Approach A: any master variable has an alias binding
+            // whose RequiringElementId == group.NodeVisualId.
+            bool coveredByA = _blackboardVariables.Any(v =>
+                GetAliasesFor(v.Name).Any(a => a.RequiringElementId == group.NodeVisualId));
+            if (coveredByA) continue;
+
+            string fieldName = $"{group.SubtreeName}_{group.SubtreeDtoTypeName}";
+            // Use object as a placeholder type -- the real type is known only at runtime.
+            // DEBT: real type resolution requires catalog integration (deferred to a future batch).
+            result.Add(new BlackboardVariableEntry(fieldName, typeof(object), Comment: null));
+        }
+        return result;
+    }
 
     // ---- Canvas state ----
     public Vector2 CanvasPanOffset  { get; set; }

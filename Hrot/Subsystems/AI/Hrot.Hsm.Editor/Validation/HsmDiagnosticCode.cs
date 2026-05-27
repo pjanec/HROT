@@ -30,6 +30,11 @@ public enum HsmDiagnosticCode
     // the same CommandLane via their OutputLaneMask.
     OutputLaneConflict,
 
+    // Two sub-trees in different parallel regions of the same composite both write
+    // to the same master blackboard variable (Approach A alias, Approach B sync-out,
+    // or both). The writes are concurrent and non-deterministic.
+    CrossRegionBlackboardConflict,
+
     // A state's depth in the tree exceeds 16 (kernel byte limit).
     StateDepthExceeded,
 

@@ -10,6 +10,7 @@ public sealed class VariableDecl
     public bool IsExposedOnSpawn { get; set; }
     public string? Category { get; set; }
     public string? Tooltip { get; set; }
+    public string? Comment { get; set; }
 }
 
 public sealed class ParameterDecl
@@ -19,6 +20,7 @@ public sealed class ParameterDecl
     public BlueprintTypeRef Type { get; set; } = new();
     public string? DefaultValueJson { get; set; }
     public string? Tooltip { get; set; }
+    public string? Comment { get; set; }
 }
 
 public sealed class EventDispatcherDecl

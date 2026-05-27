@@ -9,6 +9,8 @@ public sealed class HsmEditorLayoutBuilder
     private readonly Dictionary<Guid, StateLayoutEntry> _states = new();
     private readonly Dictionary<Guid, TransitionLayoutEntry> _transitions = new();
     private readonly Dictionary<Guid, RegionLayoutEntry> _regions = new();
+    private readonly List<(string VariableName, string WriterPairKey)> _conflictSuppressions = new();
+    private readonly List<string> _unusedSuppressions = new();
 
     public HsmEditorLayoutBuilder Canvas(Vector2 panOffset, float zoomLevel)
     {
@@ -76,6 +78,18 @@ public sealed class HsmEditorLayoutBuilder
         return this;
     }
 
+    public HsmEditorLayoutBuilder SuppressBlackboardConflict(string variableName, string writerPairKey)
+    {
+        _conflictSuppressions.Add((variableName, writerPairKey));
+        return this;
+    }
+
+    public HsmEditorLayoutBuilder SuppressUnusedWarning(string variableName)
+    {
+        _unusedSuppressions.Add(variableName);
+        return this;
+    }
+
     public HsmEditorLayout Build() => new HsmEditorLayout
     {
         PanOffset = _panOffset,
@@ -83,5 +97,7 @@ public sealed class HsmEditorLayoutBuilder
         States = _states,
         Transitions = _transitions,
         Regions = _regions,
+        BlackboardConflictSuppressions = _conflictSuppressions,
+        UnusedWarningSuppressions = _unusedSuppressions,
     };
 }

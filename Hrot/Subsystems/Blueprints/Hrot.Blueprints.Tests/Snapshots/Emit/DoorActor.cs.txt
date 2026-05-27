@@ -43,8 +43,8 @@ public static class DoorActor_FFB212F0_Bp
     
     public static void Tick(
         ref State s,
-        global::Fdp.Interfaces.ISimulationView view,
-        global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,
+        global::Fdp.ModuleHost.Abstractions.ISimulationView view,
+        global::Fdp.Interfaces.IEntityCommandBuffer ecb,
         global::Fdp.Core.Entity self,
         float time,
         float deltaTime,
@@ -54,8 +54,8 @@ public static class DoorActor_FFB212F0_Bp
     
     public static void TickThunk(
         global::System.Span<byte> bytes,
-        global::Fdp.Interfaces.ISimulationView view,
-        global::Fdp.ModuleHost.Abstractions.IEntityCommandBuffer ecb,
+        global::Fdp.ModuleHost.Abstractions.ISimulationView view,
+        global::Fdp.Interfaces.IEntityCommandBuffer ecb,
         global::Fdp.Core.Entity self,
         float time,
         float deltaTime,

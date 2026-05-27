@@ -19,5 +19,12 @@ namespace Fhsm.Kernel.Attributes
         /// Triggers debug-only AccessCount increment.
         /// </summary>
         public bool UsesRNG { get; set; }
+
+        /// <summary>
+        /// The DTO type associated with this HSM guard. Used by the schema exporter when the
+        /// method uses void* parameters (unsafe interop) and the DTO type cannot be inferred
+        /// from the parameter signature. When null, the exporter skips this method.
+        /// </summary>
+        public Type? DtoType { get; set; }
     }
 }

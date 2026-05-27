@@ -14,19 +14,22 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
     private readonly RuntimeInspectorWindow _runtimeInspector;
     private readonly TraceTimelineWindow _traceTimeline;
     private readonly FindResultsWindow _findResults;
+    private readonly BlackboardAuthoringWindow _blackboardAuthoring;
 
     public SharedAiWindowRegistrar(
         AssetBrowserWindow assetBrowser,
         InspectorWindow inspector,
         RuntimeInspectorWindow runtimeInspector,
         TraceTimelineWindow traceTimeline,
-        FindResultsWindow findResults)
+        FindResultsWindow findResults,
+        BlackboardAuthoringWindow blackboardAuthoring)
     {
-        _assetBrowser = assetBrowser;
-        _inspector = inspector;
-        _runtimeInspector = runtimeInspector;
-        _traceTimeline = traceTimeline;
-        _findResults = findResults;
+        _assetBrowser        = assetBrowser;
+        _inspector           = inspector;
+        _runtimeInspector    = runtimeInspector;
+        _traceTimeline       = traceTimeline;
+        _findResults         = findResults;
+        _blackboardAuthoring = blackboardAuthoring;
     }
 
     public void RegisterWindows(WindowManager windowManager)
@@ -36,5 +39,6 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
         windowManager.RegisterWindow(_runtimeInspector);
         windowManager.RegisterWindow(_traceTimeline);
         windowManager.RegisterWindow(_findResults);
+        windowManager.RegisterWindow(_blackboardAuthoring);
     }
 }

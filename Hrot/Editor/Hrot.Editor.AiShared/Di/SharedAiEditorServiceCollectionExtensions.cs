@@ -37,6 +37,7 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
         services.AddSingleton<FindResultsWindow>();
+        services.AddSingleton<BlackboardAuthoringWindow>();
         services.AddSingleton<DiagnosticsWindow>(sp =>
             new DiagnosticsWindow(
                 sp.GetRequiredService<IAssetCatalog>(),

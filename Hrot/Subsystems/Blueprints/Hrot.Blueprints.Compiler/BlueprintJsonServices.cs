@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Hrot.Blueprints.Core.Assets;
 
@@ -18,6 +19,7 @@ public static class BlueprintJsonServices
             ReadCommentHandling         = JsonCommentHandling.Skip,
             WriteIndented               = false,
         };
+        opts.Converters.Add(new JsonStringEnumConverter());
         opts.TypeInfoResolver = new DefaultJsonTypeInfoResolver();
         _options = opts;
     }

@@ -43,8 +43,12 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public struct Params");
         e.WriteLine("{");
         e.Indent();
+        
         foreach (var f in asset.Parameters)
+        {
+            EmitComment(e, f.Comment);
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         e.Outdent();
         e.WriteLine("}");
     }
@@ -55,10 +59,28 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("public struct WorkingState");
         e.WriteLine("{");
         e.Indent();
+        
         foreach (var f in asset.WorkingState)
+        {
+            EmitComment(e, f.Comment);
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
         e.Outdent();
         e.WriteLine("}");
+    }
+
+    private static void EmitComment(CSharpEmitter e, string? comment)
+    {
+        if (!string.IsNullOrWhiteSpace(comment))
+        {
+            e.WriteLine("/// <summary>");
+            var lines = comment!.Replace("\r\n", "\n").Split('\n');
+            foreach (var line in lines)
+            {
+                e.WriteLine($"/// {line}");
+            }
+            e.WriteLine("/// </summary>");
+        }
     }
 
     private static void EmitInitDefault(CSharpEmitter e, IrAsset asset)

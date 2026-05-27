@@ -10,14 +10,14 @@ public class HsmAssetValidatorTests
     [Fact]
     public void SupportedKind_IsHsm()
     {
-        var validator = new HsmAssetValidator(new HsmValidator());
+        var validator = new HsmAssetValidator();
         validator.SupportedKind.Should().Be(AssetKind.Hsm);
     }
 
     [Fact]
     public void Validate_WithWrongAssetKind_ReturnsEmpty()
     {
-        var validator = new HsmAssetValidator(new HsmValidator());
+        var validator = new HsmAssetValidator();
         var stub = new StubEditableAsset(Guid.NewGuid(), "test", AssetKind.BTree);
         var result = validator.Validate(stub);
         result.Should().BeEmpty();

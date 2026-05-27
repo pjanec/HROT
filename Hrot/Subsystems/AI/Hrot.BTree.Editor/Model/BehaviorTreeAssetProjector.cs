@@ -60,6 +60,24 @@ internal static class BehaviorTreeAssetProjector
             BTreeAutoLayout.Layout(asset);
         }
 
+        asset.LoadSyncBindings(layout?.SyncBindings);
+
+        if (layout?.BlackboardConflictSuppressions != null)
+        {
+            foreach (var kvp in layout.BlackboardConflictSuppressions)
+            {
+                asset.SetConflictSuppressed(kvp.VariableName, kvp.WriterPairKey, true);
+            }
+        }
+
+        if (layout?.UnusedWarningSuppressions != null)
+        {
+            foreach (var variableName in layout.UnusedWarningSuppressions)
+            {
+                asset.SetUnusedWarningSuppressed(variableName, true);
+            }
+        }
+
         return asset;
     }
 

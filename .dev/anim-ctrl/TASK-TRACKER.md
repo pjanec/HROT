@@ -84,7 +84,11 @@ slice (independently shippable / verifiable). Phase 6 (replication) and Phase 8
 - [x] **ANC-P5-05** Getter nodes [details](./TASK-DETAIL.md#anc-p5-05--getter-nodes) ✓ BATCH-08
 - [x] **ANC-P5-06** Validators ANIM008–ANIM012 [details](./TASK-DETAIL.md#anc-p5-06--validators-anim008anim012) ✓ BATCH-08 (ANIM008–011 implemented; 012 deferred)
 - [x] **ANC-P5-07** AiPrimitive registration + cross-subsystem reuse [details](./TASK-DETAIL.md#anc-p5-07--aiprimitive-registration--cross-subsystem-reuse) ✓ BATCH-10
-- [x] **ANC-P5-08** `PlayMontageChainNode` custom drawer (editor) [details](./TASK-DETAIL.md#anc-p5-08--playmontagechainnode-custom-drawer-editor) ✓ BATCH-17 + BATCH-17-CONTINUATION
+- [ ] **ANC-P5-08** `PlayMontageChainNode` custom drawer (editor) [details](./TASK-DETAIL.md#anc-p5-08--playmontagechainnode-custom-drawer-editor) · plan: [Addendum A](./TASK-DETAIL.md#addendum-a--anc-p5-08-implementation-plan-playmontagechainnode-custom-drawer)
+  - [ ] **ANC-P5-08a** Drawer + session skeleton (confirm dispatch route)
+  - [ ] **ANC-P5-08b** Dynamic chain-entry UI + `ChainCount` management
+  - [ ] **ANC-P5-08c** In-drawer validation feedback (ANIM005 / ANIM012)
+  - [ ] **ANC-P5-08d** Registration + wiring tests
 
 ## Phase 6 — Replication (DD-2)
 **Goal:** Cross-node DDS for the animation contract (depends on ANC-P0-08).

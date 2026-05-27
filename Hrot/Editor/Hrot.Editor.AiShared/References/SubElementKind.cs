@@ -8,4 +8,5 @@ public enum SubElementKind
     EventName,
     AssetReference,
     BlackboardField,
+    BlackboardVariable,
 }

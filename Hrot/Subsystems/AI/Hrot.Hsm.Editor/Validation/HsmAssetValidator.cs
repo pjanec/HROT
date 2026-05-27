@@ -1,4 +1,5 @@
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Validation;
 using Hrot.Hsm.Editor.Model;
 
@@ -12,9 +13,9 @@ public sealed class HsmAssetValidator : IAssetValidator
 {
     private readonly HsmValidator _inner;
 
-    public HsmAssetValidator(HsmValidator inner)
+    public HsmAssetValidator(IActionSchemaExporter? schema = null)
     {
-        _inner = inner;
+        _inner = new HsmValidator(schema);
     }
 
     public AssetKind SupportedKind => AssetKind.Hsm;
@@ -24,7 +25,8 @@ public sealed class HsmAssetValidator : IAssetValidator
         if (asset is not HsmAsset hsmAsset)
             return Array.Empty<AssetDiagnostic>();
 
-        var raw = _inner.Validate(hsmAsset);
+        var blackboard = hsmAsset as IBlackboardManagedAsset;  // null if not wired yet
+        var raw = _inner.Validate(hsmAsset, blackboard);
         var result = new List<AssetDiagnostic>(raw.Count);
         foreach (var d in raw)
         {

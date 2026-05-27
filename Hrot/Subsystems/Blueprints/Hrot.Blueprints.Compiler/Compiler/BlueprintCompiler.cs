@@ -14,6 +14,11 @@ public interface IBlueprintCompiler
 
 public sealed class BlueprintCompiler : IBlueprintCompiler
 {
+    // Injected by Hrot.Blueprints.Core at module initialization when Roslyn is available.
+    // Signature: (source, virtualFilePath, assemblyName, sink) -> (pe, pdb)
+    internal static Func<string, string, string, DiagnosticSink, (byte[] Pe, byte[] Pdb)>?
+        RoslynFinalizer;
+
     public CompileResult Compile(BlueprintAsset asset, CompileOptions options)
     {
         var sink = new DiagnosticSink();
@@ -45,6 +50,18 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
 
         byte[]? pe = null;
         byte[]? pdb = null;
+
+        if (options.EmitPdbWithEmbeddedSource && RoslynFinalizer is not null)
+        {
+            var fileName = $"{lowered.SanitizedName}_{lowered.BlueprintId:X8}_Bp.g.cs";
+            var (compiledPe, compiledPdb) = RoslynFinalizer(
+                generatedSource, fileName, $"Blueprint.{lowered.SanitizedName}", sink);
+            if (!sink.HasErrors)
+            {
+                pe  = compiledPe;
+                pdb = compiledPdb;
+            }
+        }
 
         return new CompileResult(
             Succeeded:         true,

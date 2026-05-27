@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Hsm.Editor.Model;
 
 namespace Hrot.Hsm.Editor.Validation;
@@ -13,10 +14,15 @@ namespace Hrot.Hsm.Editor.Validation;
 public sealed class HsmValidator
 {
     private const int MaxAllowedDepth = 16;
+    private readonly IActionSchemaExporter? _schema;
 
-    public HsmValidator() { }
+    public HsmValidator(IActionSchemaExporter? schema = null)
+    {
+        _schema = schema;
+    }
 
-    public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset)
+    public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,
+        IBlackboardManagedAsset? blackboard = null)
     {
         var diagnostics = new List<HsmDiagnostic>();
 
@@ -27,6 +33,9 @@ public sealed class HsmValidator
         CheckStateDepthExceeded(asset, diagnostics);
         CheckEventReferenceDangling(asset, diagnostics);
         CheckOutputLaneConflicts(asset, diagnostics);
+
+        if (blackboard != null)
+            CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
 
         return diagnostics;
     }
@@ -198,7 +207,112 @@ public sealed class HsmValidator
         }
     }
 
+    // Rule 8: CrossRegionBlackboardConflict.
+    // For each variable in the blackboard, check whether two alias bindings land in different
+    // parallel regions of the same composite state. Only Approach A aliases are scanned here.
+    // TODO TASK-BB-1f-01: add Approach B sync-out scan when BTree sync-out metadata is
+    // accessible from HsmAsset (deferred — requires inter-asset catalog wiring).
+    private void CheckBlackboardRegionConflicts(
+        HsmAsset asset,
+        IBlackboardManagedAsset blackboard,
+        List<HsmDiagnostic> out_)
+    {
+        // Build a map: StateNode.StableId -> StateNode for fast lookup.
+        var stateById = asset.AllStates.ToDictionary(s => s.StableId);
+
+        foreach (var variable in blackboard.BlackboardVariables)
+        {
+            var aliases = blackboard.GetAliasesFor(variable.Name);
+            if (aliases.Count < 2) continue;   // Need at least 2 to conflict.
+
+            // For each alias, find the parallel-region index (if any).
+            // A binding is "in region R of parallel P" if:
+            //   - stateById[RequiringElementId] exists AND
+            //   - that state's Parent is a parallel composite (IsParallel) AND
+            //   - RegionIndex is the child's RegionIndex.
+            var regionsByCompositeId =
+                new Dictionary<Guid, List<(int RegionIndex, BlackboardAliasBinding Binding)>>();
+
+            foreach (var binding in aliases)
+            {
+                if (!stateById.TryGetValue(binding.RequiringElementId, out var state))
+                    continue;
+                if (state.Parent == null || !state.Parent.IsParallel)
+                    continue;   // Not in a parallel composite -- no conflict risk.
+
+                var compositeId = state.Parent.StableId;
+                if (!regionsByCompositeId.TryGetValue(compositeId, out var list))
+                {
+                    list = new List<(int, BlackboardAliasBinding)>();
+                    regionsByCompositeId[compositeId] = list;
+                }
+                list.Add((state.RegionIndex, binding));
+            }
+
+            // Check each parallel composite for multi-region writers.
+            foreach (var (compositeId, regionList) in regionsByCompositeId)
+            {
+                if (regionList.Count < 2) continue;
+
+                // Emit a diagnostic if and only if at least one state in the list has writing action
+                bool hasWriter = false;
+                foreach (var r in regionList)
+                {
+                    if (HasWritingAction(stateById[r.Binding.RequiringElementId]))
+                    {
+                        hasWriter = true;
+                        break;
+                    }
+                }
+                if (!hasWriter) continue;
+
+                // Check all pairs for distinct region indices.
+                for (int i = 0; i < regionList.Count; i++)
+                for (int j = i + 1; j < regionList.Count; j++)
+                {
+                    if (regionList[i].RegionIndex != regionList[j].RegionIndex)
+                    {
+                        var composite = stateById[compositeId];
+                        out_.Add(new HsmDiagnostic(
+                            HsmDiagnosticCode.CrossRegionBlackboardConflict,
+                            HsmDiagnosticSeverity.Warning,
+                            $"Variable '{variable.Name}' is written by sub-trees in regions " +
+                            $"{regionList[i].RegionIndex} and {regionList[j].RegionIndex} of " +
+                            $"parallel composite '{composite.Name}' -- concurrent writes are " +
+                            $"non-deterministic.",
+                            new[] { composite.StableId }));
+                        goto nextVariable;   // One diagnostic per variable is enough.
+                    }
+                }
+                nextVariable:;
+            }
+        }
+    }
+
     // ---- Helpers -----------------------------------------------
+
+    // Returns true if the state has at least one action that writes to the blackboard.
+    // Conservative: unknown schema, unknown FQN, or Unknown access -> treat as writer.
+    // A state with ONLY ReadOnly actions is safe to skip from conflict detection.
+    private bool HasWritingAction(StateNode state)
+    {
+        if (_schema == null) return true;
+        string?[] fqns = {
+            state.OnEntryAction,
+            state.OnExitAction,
+            state.ActivityAction,
+            state.TimerAction,
+        };
+        foreach (var fqn in fqns)
+        {
+            if (fqn == null) continue;
+            var entry = _schema.Lookup(fqn);
+            if (entry == null) return true;                              // unknown -> conservative
+            if (entry.Access != BlackboardAccess.ReadOnly) return true;  // non-ReadOnly -> writer
+        }
+        // Either no FQNs (zero actions) or all known FQNs are ReadOnly -> not a writer.
+        return false;
+    }
 
     // Computes the depth of state s relative to rootState.
     // depth(rootState) = 0; depth(direct child of rootState) = 1.

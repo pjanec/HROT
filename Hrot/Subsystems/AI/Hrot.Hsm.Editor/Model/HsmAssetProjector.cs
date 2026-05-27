@@ -262,6 +262,24 @@ internal static class HsmAssetProjector
             rootState, allStatesList, transitionNodes,
             globalTransNodes, regionNodes, eventDefs);
 
+        if (layout != null)
+        {
+            if (layout.BlackboardConflictSuppressions != null)
+            {
+                foreach (var sup in layout.BlackboardConflictSuppressions)
+                {
+                    asset.SetConflictSuppressed(sup.VariableName, sup.WriterPairKey, true);
+                }
+            }
+            if (layout.UnusedWarningSuppressions != null)
+            {
+                foreach (var sup in layout.UnusedWarningSuppressions)
+                {
+                    asset.SetUnusedWarningSuppressed(sup, true);
+                }
+            }
+        }
+
         // Run auto-layout if no layout was provided
         if (layout == null || layout.States.Count == 0)
             HsmAutoLayout.Layout(asset);

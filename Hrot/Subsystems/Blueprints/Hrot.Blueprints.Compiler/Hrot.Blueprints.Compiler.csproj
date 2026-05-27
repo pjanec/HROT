@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Blueprints.Tests" />
+    <InternalsVisibleTo Include="Hrot.Blueprints.Core" />
   </ItemGroup>
 
   <ItemGroup>

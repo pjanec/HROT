@@ -4,6 +4,7 @@ using System.Numerics;
 using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Layout;
 using Xunit;
 
@@ -276,5 +277,129 @@ public sealed class BehaviorTreeAssetProjectionTests
         waitNode.KernelType.Should().Be(NodeType.Wait);
         waitNode.Wait.Should().NotBeNull();
         waitNode.Wait!.Duration.Should().BeApproximately(3.5f, 0.001f);
+    }
+
+    // ---- Sync bindings projection tests (1e-03) ----
+
+    [Fact]
+    public void Project_LoadsSyncBindings_FromLayout()
+    {
+        var nodeId = Guid.NewGuid();
+        var binding = new SubtreeSyncBinding("HP", "MasterHP", SyncIn: true, SyncOut: false);
+        var layout = new BTreeEditorLayoutBuilder()
+            .Node(nodeId.ToString("D"), new Vector2(0, 0))
+            .SubtreeSyncField(nodeId.ToString("D"), "HP", "MasterHP", syncIn: true, syncOut: false)
+            .Build();
+
+        var asset = Project(SimpleBlob(new[] { N(NodeType.Root, 0, 1) }), layout: layout);
+
+        var bindings = asset.GetAllSyncBindings();
+        bindings.Should().ContainKey(nodeId);
+        bindings[nodeId].Should().ContainSingle(b => b.FieldName == "HP" && b.SyncIn);
+    }
+
+    [Fact]
+    public void Project_SyncBindings_EmptyWhenLayoutHasNone()
+    {
+        var layout = new BTreeEditorLayoutBuilder()
+            .Canvas(Vector2.Zero, 1.0f)
+            .Build();
+
+        var asset = Project(SimpleBlob(new[] { N(NodeType.Root, 0, 1) }), layout: layout);
+
+        var bindings = asset.GetAllSyncBindings();
+        Assert.Empty(bindings);
+    }
+
+    [Fact]
+    public void Project_SyncBindings_EmptyWhenLayoutIsNull()
+    {
+        var asset = Project(SimpleBlob(new[] { N(NodeType.Root, 0, 1) }));
+
+        var bindings = asset.GetAllSyncBindings();
+        Assert.Empty(bindings);
+    }
+
+    [Fact]
+    public void Project_PreservesMultipleSyncBindings_PerNode()
+    {
+        var nodeId = Guid.NewGuid();
+        var layout = new BTreeEditorLayoutBuilder()
+            .SubtreeSyncField(nodeId.ToString("D"), "Aim",   "MasterAim",   syncIn: true,  syncOut: false)
+            .SubtreeSyncField(nodeId.ToString("D"), "Speed", "MasterSpeed", syncIn: false, syncOut: true)
+            .Build();
+
+        var asset = Project(SimpleBlob(new[] { N(NodeType.Root, 0, 1) }), layout: layout);
+
+        var bindings = asset.GetAllSyncBindings();
+        bindings.Should().ContainKey(nodeId);
+        bindings[nodeId].Should().HaveCount(2);
+    }
+}
+
+// ---- BTreeEditorLayoutBuilder SubtreeSyncField tests ----
+
+public sealed class BTreeEditorLayoutBuilderSyncTests
+{
+    [Fact]
+    public void SubtreeSyncField_StoredInLayout_SingleBinding()
+    {
+        var nodeId = Guid.NewGuid();
+        var layout = new BTreeEditorLayoutBuilder()
+            .SubtreeSyncField(nodeId.ToString("D"), "Aim", "MasterAim", syncIn: true, syncOut: false)
+            .Build();
+
+        layout.SyncBindings.Should().ContainKey(nodeId);
+        layout.SyncBindings[nodeId].Should().ContainSingle(b =>
+            b.FieldName == "Aim" && b.MasterVariableName == "MasterAim" && b.SyncIn && !b.SyncOut);
+    }
+
+    [Fact]
+    public void SubtreeSyncField_AccumulatesMultipleBindings_SameNode()
+    {
+        var nodeId = Guid.NewGuid();
+        var layout = new BTreeEditorLayoutBuilder()
+            .SubtreeSyncField(nodeId.ToString("D"), "A", "MA", syncIn: true,  syncOut: false)
+            .SubtreeSyncField(nodeId.ToString("D"), "B", "MB", syncIn: false, syncOut: true)
+            .Build();
+
+        layout.SyncBindings[nodeId].Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void SubtreeSyncField_AccumulatesBindings_DifferentNodes()
+    {
+        var node1 = Guid.NewGuid();
+        var node2 = Guid.NewGuid();
+        var layout = new BTreeEditorLayoutBuilder()
+            .SubtreeSyncField(node1.ToString("D"), "F1", "M1", syncIn: true,  syncOut: false)
+            .SubtreeSyncField(node2.ToString("D"), "F2", "M2", syncIn: false, syncOut: true)
+            .Build();
+
+        layout.SyncBindings.Should().ContainKey(node1);
+        layout.SyncBindings.Should().ContainKey(node2);
+        Assert.Equal(2, layout.SyncBindings.Count);
+    }
+
+    [Fact]
+    public void SyncBindings_EmptyDictionary_WhenNoneAdded()
+    {
+        var layout = new BTreeEditorLayoutBuilder()
+            .Canvas(System.Numerics.Vector2.Zero, 1.0f)
+            .Build();
+
+        Assert.Empty(layout.SyncBindings);
+    }
+
+    [Fact]
+    public void SubtreeSyncField_NullMasterVar_StoredCorrectly()
+    {
+        var nodeId = Guid.NewGuid();
+        var layout = new BTreeEditorLayoutBuilder()
+            .SubtreeSyncField(nodeId.ToString("D"), "Phase", null, syncIn: false, syncOut: false)
+            .Build();
+
+        layout.SyncBindings[nodeId].Should().ContainSingle(b =>
+            b.FieldName == "Phase" && b.MasterVariableName == null);
     }
 }

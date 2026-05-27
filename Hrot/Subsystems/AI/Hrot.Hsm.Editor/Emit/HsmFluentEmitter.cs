@@ -382,6 +382,18 @@ public sealed class HsmFluentEmitter : IFluentCSharpEmitter<HsmAsset>
             sb.AppendLine(")");
         }
 
+        var conflictSuppressions = asset.GetConflictSuppressions().OrderBy(s => s.VariableName).ThenBy(s => s.WriterPairKey).ToList();
+        foreach (var sup in conflictSuppressions)
+        {
+            sb.AppendLine($"{Indent}{Indent}.SuppressBlackboardConflict(\"{sup.VariableName}\", \"{sup.WriterPairKey}\")");
+        }
+
+        var unusedSuppressions = asset.GetUnusedSuppressions().OrderBy(s => s).ToList();
+        foreach (var sup in unusedSuppressions)
+        {
+            sb.AppendLine($"{Indent}{Indent}.SuppressUnusedWarning(\"{sup}\")");
+        }
+
         sb.AppendLine($"{Indent}{Indent}.Build();");
     }
 
