@@ -1,4 +1,15 @@
 <Project>
+  <PropertyGroup>
+    <!-- Read the release version from a single human-editable file at the repo root. -->
+    <VersionFilePath>$([System.IO.Path]::Combine($(MSBuildThisFileDirectory), 'version.txt'))</VersionFilePath>
+    <Version Condition="Exists('$(VersionFilePath)')">$([System.IO.File]::ReadAllText('$(VersionFilePath)').Trim())</Version>
+    <Version Condition="'$(Version)' == ''">0.0.1</Version>
+    <!-- AssemblyVersion and FileVersion track only major.minor for binary compatibility. -->
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <!-- InformationalVersion is extended with the git commit hash by Directory.Build.targets. -->
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(IsTestProject)' == 'true' Or $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests'))">
     <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8618;CS8620;CS8625;CS8634;CS8669</NoWarn>
   </PropertyGroup>
