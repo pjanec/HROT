@@ -12,20 +12,20 @@ Legend: `[ ]` not done · `[x]` done · **(GATE)** = architect approval required
 
 **Goal:** ship `Fdp.Core.Serialization.Migrations` as a self-contained, fully-tested library. No engine code outside `Fdp.Core` is touched (only exception: the M-1 extraction in JM-P1-007 reaches into `Fdp.Toolkits.ReplayBrowser.Diff`).
 
-- [ ] **JM-P1-001** Foundation types (DocumentMeta, MigrationDirection, MigrationReport, MigrationWarning, MigrationException, SnapshotEntry, SidecarFileInfo, SidecarKind, FdpDocumentTypes) [details](./TASK-DETAILS.md#jm-p1-001--foundation-types)
-- [ ] **JM-P1-002** JsonEnvelope with streaming peek [details](./TASK-DETAILS.md#jm-p1-002--jsonenvelope-streaming-peek)
-- [ ] **JM-P1-003** JSONPath parser / applicator [details](./TASK-DETAILS.md#jm-p1-003--jsonpath-parserapplicator)
-- [ ] **JM-P1-004** MigrationContext + scope stack [details](./TASK-DETAILS.md#jm-p1-004--migrationcontext--scope-stack)
-- [ ] **JM-P1-005** MigrationRegistry + IJsonDocumentMigrator [details](./TASK-DETAILS.md#jm-p1-005--registry--ijsondocumentmigrator)
-- [ ] **JM-P1-006** MigrationPipeline **(GATE)** [details](./TASK-DETAILS.md#jm-p1-006--migrationpipeline-gate)
-- [ ] **JM-P1-007** DomDiffer extraction from Fdp.Toolkits **(GATE)** [details](./TASK-DETAILS.md#jm-p1-007--domdiffer-extraction-from-fdptoolkits-gate)
-- [ ] **JM-P1-008** DiffToJournalConverter + UnknownsJournal + HashUtilities [details](./TASK-DETAILS.md#jm-p1-008--difftojournalconverter--unknownsjournal--hashutilities)
-- [ ] **JM-P1-009** IMigrationStorage + InMemoryMigrationStorage [details](./TASK-DETAILS.md#jm-p1-009--imigrationstorage--inmemorymigrationstorage)
-- [ ] **JM-P1-010** FileSystemMigrationStorage [details](./TASK-DETAILS.md#jm-p1-010--filesystemmigrationstorage)
-- [ ] **JM-P1-011** ReadOnlyMigrationAdapter **(GATE)** [details](./TASK-DETAILS.md#jm-p1-011--readonlymigrationadapter-gate)
-- [ ] **JM-P1-012** PersistentMigrationAdapter + Round-Trip Diff **(GATE)** [details](./TASK-DETAILS.md#jm-p1-012--persistentmigrationadapter--round-trip-diff-gate)
-- [ ] **JM-P1-013** MigrationServices + MigrationBootstrap **(GATE)** [details](./TASK-DETAILS.md#jm-p1-013--migrationservices--migrationbootstrap-gate)
-- [ ] **JM-P1-014** Phase 1 acceptance **(GATE)** [details](./TASK-DETAILS.md#jm-p1-014--phase-1-acceptance-gate-gate)
+- [x] **JM-P1-001** Foundation types (DocumentMeta, MigrationDirection, MigrationReport, MigrationWarning, MigrationException, SnapshotEntry, SidecarFileInfo, SidecarKind, FdpDocumentTypes) [details](./TASK-DETAILS.md#jm-p1-001--foundation-types)
+- [x] **JM-P1-002** JsonEnvelope with streaming peek [details](./TASK-DETAILS.md#jm-p1-002--jsonenvelope-streaming-peek)
+- [x] **JM-P1-003** JSONPath parser / applicator [details](./TASK-DETAILS.md#jm-p1-003--jsonpath-parserapplicator)
+- [x] **JM-P1-004** MigrationContext + scope stack [details](./TASK-DETAILS.md#jm-p1-004--migrationcontext--scope-stack)
+- [x] **JM-P1-005** MigrationRegistry + IJsonDocumentMigrator [details](./TASK-DETAILS.md#jm-p1-005--registry--ijsondocumentmigrator)
+- [x] **JM-P1-006** MigrationPipeline **(GATE)** [details](./TASK-DETAILS.md#jm-p1-006--migrationpipeline-gate)
+- [x] **JM-P1-007** DomDiffer extraction from Fdp.Toolkits **(GATE)** [details](./TASK-DETAILS.md#jm-p1-007--domdiffer-extraction-from-fdptoolkits-gate)
+- [x] **JM-P1-008** DiffToJournalConverter + UnknownsJournal + HashUtilities [details](./TASK-DETAILS.md#jm-p1-008--difftojournalconverter--unknownsjournal--hashutilities)
+- [x] **JM-P1-009** IMigrationStorage + InMemoryMigrationStorage [details](./TASK-DETAILS.md#jm-p1-009--imigrationstorage--inmemorymigrationstorage)
+- [x] **JM-P1-010** FileSystemMigrationStorage [details](./TASK-DETAILS.md#jm-p1-010--filesystemmigrationstorage)
+- [x] **JM-P1-011** ReadOnlyMigrationAdapter **(GATE)** [details](./TASK-DETAILS.md#jm-p1-011--readonlymigrationadapter-gate)
+- [x] **JM-P1-012** PersistentMigrationAdapter + Round-Trip Diff **(GATE)** [details](./TASK-DETAILS.md#jm-p1-012--persistentmigrationadapter--round-trip-diff-gate)
+- [x] **JM-P1-013** MigrationServices + MigrationBootstrap **(GATE)** [details](./TASK-DETAILS.md#jm-p1-013--migrationservices--migrationbootstrap-gate)
+- [x] **JM-P1-014** Phase 1 acceptance gate **(GATE)** [details](./TASK-DETAILS.md#jm-p1-014--phase-1-acceptance-gate-gate)
 
 ---
 
