@@ -5,4 +5,5 @@ public enum AssetKind
     Blueprint,
     BTree,
     Hsm,
+    Blackboard,
 }

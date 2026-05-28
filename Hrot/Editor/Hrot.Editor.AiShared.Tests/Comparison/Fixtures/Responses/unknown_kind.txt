@@ -1,0 +1,29 @@
+----- HUMAN SUMMARY -----
+Some changes were detected in the OrcGuard_BT asset.
+
+----- STRUCTURED CHANGES (JSON) -----
+{
+  "summary": "Some changes detected.",
+  "changes": [
+    {
+      "kind": "something_new",
+      "elementId": "b4711d22-1d22-4c5e-9a3b-2c4d5e6f7a8b",
+      "elementDescription": "Some node with unknown kind",
+      "field": null,
+      "oldValue": null,
+      "newValue": null,
+      "severity": "behavior",
+      "description": "This change has an unknown kind value."
+    },
+    {
+      "kind": "variable_renamed",
+      "elementId": "BurstShotsRemaining",
+      "elementDescription": "AmmoCount blackboard variable",
+      "field": "name",
+      "oldValue": "AmmoCount",
+      "newValue": "BurstShotsRemaining",
+      "severity": "cosmetic",
+      "description": "Variable renamed for clarity."
+    }
+  ]
+}

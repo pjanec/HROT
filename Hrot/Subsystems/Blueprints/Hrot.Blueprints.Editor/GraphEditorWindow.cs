@@ -4,6 +4,9 @@ using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Reload;
 using Hrot.Diagnostics.Breakpoints;
+using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Comparison;
+using Hrot.Editor.AiShared.Comparison.UI;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -14,10 +17,12 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
     private readonly EditorState _editorState;
     private readonly QuickReloadService _quickReloadService;
     private readonly FullRebuildService _fullRebuildService;
+    private readonly ComparisonToolbarAction? _comparisonToolbar;
 
     public override string Title => "Graph Editor";
 
     public BlueprintAsset? CurrentAsset { get; private set; }
+    public string CurrentAssetPath { get; private set; } = "";
     public SelectionState Selection { get; } = new();
     public CommandHistory Commands { get; } = new();
 
@@ -30,7 +35,10 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
         DirtyTracker dirtyTracker,
         EditorState editorState,
         QuickReloadService quickReloadService,
-        FullRebuildService fullRebuildService)
+        FullRebuildService fullRebuildService,
+        SanitizerRegistry? sanitizerRegistry = null,
+        ComparisonExportBuilder? exportBuilder = null,
+        ComparisonSessionRegistry? sessionRegistry = null)
     {
         _selectionStore     = selectionStore     ?? throw new ArgumentNullException(nameof(selectionStore));
         _dirtyTracker       = dirtyTracker       ?? throw new ArgumentNullException(nameof(dirtyTracker));
@@ -38,12 +46,16 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
         _quickReloadService = quickReloadService ?? throw new ArgumentNullException(nameof(quickReloadService));
         _fullRebuildService = fullRebuildService ?? throw new ArgumentNullException(nameof(fullRebuildService));
 
+        if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
+            _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
+
         _selectionStore.OnSelectionChanged += OnSelectionChanged;
     }
 
-    public void OpenAsset(BlueprintAsset asset)
+    public void OpenAsset(BlueprintAsset asset, string sourcePath = "")
     {
         CurrentAsset = asset;
+        CurrentAssetPath = sourcePath;
         Selection.ClearAll();
         Commands.Clear();
     }
@@ -82,12 +94,19 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
             _ = _fullRebuildService.TriggerAsync();
         }
 
+        ImGui.SameLine();
+
+        if (_comparisonToolbar != null && CurrentAsset != null)
+        {
+            _comparisonToolbar.Render(CurrentAsset.AssetId, CurrentAssetPath, AssetKind.Blueprint);
+        }
+
         ImGui.Separator();
 
         // -- Canvas placeholder --
         ImGui.BeginChild("##canvas", new System.Numerics.Vector2(0, 0), ImGuiChildFlags.None,
             ImGuiWindowFlags.HorizontalScrollbar);
-        ImGui.TextDisabled($"Graph: {CurrentAsset.Name}");
+        ImGui.TextDisabled($"Graph: {CurrentAsset!.Name}");
         ImGui.EndChild();
     }
 

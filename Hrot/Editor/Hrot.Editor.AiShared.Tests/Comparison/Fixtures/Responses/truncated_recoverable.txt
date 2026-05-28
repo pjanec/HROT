@@ -1,0 +1,22 @@
+----- HUMAN SUMMARY -----
+The combat behavior in OrcGuard_BT has been refined to be more aggressive
+about firing. The previously-single-shot Action node now repeats up to 3
+times via a new Repeater decorator, which means the guard will commit to a
+burst before re-evaluating threats.
+
+No other behavior changes were detected. Threat detection logic is unchanged.
+
+----- STRUCTURED CHANGES (JSON) -----
+{
+  "summary": "Burst-fire behavior added to OrcGuard combat; ammo tracking variable renamed.",
+  "changes": [
+    {
+      "kind": "node_added",
+      "elementId": "b4711d22-1d22-4c5e-9a3b-2c4d5e6f7a8b",
+      "elementDescription": "Repeater decorator wrapping AimAndFire",
+      "field": null,
+      "oldValue": null,
+      "newValue": "Repeater(count: 3)",
+      "severity": "behavior",
+      "description": "AimAndFire now repeats 3 times per Sequence iteration before yielding back to threat re-evaluation. Guard will commit to burst fire."
+    }
