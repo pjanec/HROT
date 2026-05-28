@@ -8,7 +8,7 @@ Process the design document
 
 according to Design-From-Talk.md guide.
 
-do not create new design, use the already existing one and create just task documents in .dev\ai-hsm-btree-vis-edit folder
+do not create new design, use the already existing one and create just task documents in same folder
 
 Related documents that you can reference if needed:
 
@@ -20,8 +20,9 @@ VERIFY FACTS
 
 Do not assume. Verify all facts with the codebase before writing the design and tasks.
 
-ASK BEFORE WRITING DESIGN
-If there is anything ambiguous or unclear or simply good to add, ask the user clarifying/suggesting questions first.
+REVIEW BEFORE WRITING DESIGN
+Review the whole design with respect to the existing codebase If there is anything ambiguous
+or unclear or wrong or simply good to add, ask the user clarifying/suggesting questions first.
 
 FINAL CHECK
 
