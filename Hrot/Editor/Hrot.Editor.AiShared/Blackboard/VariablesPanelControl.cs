@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ImGuiNET;
+using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Windows;
 
@@ -98,27 +99,30 @@ public sealed class VariablesPanelControl
         _knownTypeNames = knownTypeNames;
     }
 
-    public void DrawSingle(VariablesPanelSection section)
+    public void DrawSingle(VariablesPanelSection section,
+        Func<string, FieldDecoration?>? rowDecoration = null)
     {
-        DrawSection(section);
+        DrawSection(section, rowDecoration);
         DrawPopups();
     }
 
-    public void DrawDual(VariablesPanelSection topSection, VariablesPanelSection bottomSection)
+    public void DrawDual(VariablesPanelSection topSection, VariablesPanelSection bottomSection,
+        Func<string, FieldDecoration?>? rowDecoration = null)
     {
         if (ImGui.CollapsingHeader($"{topSection.SectionName} ({topSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
-            DrawSection(topSection);
+            DrawSection(topSection, rowDecoration);
         
         ImGui.Separator();
         ImGui.Spacing();
         
         if (ImGui.CollapsingHeader($"{bottomSection.SectionName} ({bottomSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
-            DrawSection(bottomSection);
+            DrawSection(bottomSection, rowDecoration);
 
         DrawPopups();
     }
 
-    private void DrawSection(VariablesPanelSection section)
+    private void DrawSection(VariablesPanelSection section,
+        Func<string, FieldDecoration?>? rowDecoration = null)
     {
         var schema = section.Schema;
 
@@ -168,7 +172,7 @@ public sealed class VariablesPanelControl
         }
         else
         {
-            DrawTable(section);
+            DrawTable(section, rowDecoration);
         }
 
         if (section.AliasingEnabled && section.Schema.UnboundRequirements.Count > 0)
@@ -203,7 +207,8 @@ public sealed class VariablesPanelControl
         }
     }
 
-    private void DrawTable(VariablesPanelSection section)
+    private void DrawTable(VariablesPanelSection section,
+        Func<string, FieldDecoration?>? rowDecoration = null)
     {
         var schema = section.Schema;
         if (ImGui.BeginTable(section.TableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
@@ -218,6 +223,18 @@ public sealed class VariablesPanelControl
             {
                 var row = schema.Variables[rowIdx];
                 ImGui.TableNextRow();
+                FieldDecoration? dec = rowDecoration?.Invoke(row.Name);
+                if (dec != null)
+                {
+                    // Apply row background tint for decorated variables.
+                    uint rowColor = 0;
+                    if (dec.IsAdded)        rowColor = ImGui.GetColorU32(new System.Numerics.Vector4(0.2f, 0.8f, 0.2f, 0.15f));
+                    else if (dec.IsRemoved) rowColor = ImGui.GetColorU32(new System.Numerics.Vector4(0.9f, 0.2f, 0.2f, 0.15f));
+                    else if (dec.IsRetyped) rowColor = ImGui.GetColorU32(new System.Numerics.Vector4(0.3f, 0.5f, 1.0f, 0.15f));
+                    else if (dec.IsRenamed) rowColor = ImGui.GetColorU32(new System.Numerics.Vector4(1.0f, 0.85f, 0.3f, 0.15f));
+                    if (rowColor != 0)
+                        ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, rowColor);
+                }
                 ImGui.TableNextColumn();
                 ImGui.PushID(rowIdx);
 

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Comparison;
+using Hrot.Editor.AiShared.Comparison.UI;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 
@@ -62,6 +64,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
 {
     private readonly EditorSelectionStore _store;
     private readonly IRefactorService _refactorService;
+    private readonly ComparisonToolbarAction? _comparisonToolbar;
+    private readonly ComparisonSessionRegistry? _sessionRegistry;
 
     // Inline rename state
     
@@ -87,11 +91,17 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
 
     public BlackboardAuthoringWindow(
         EditorSelectionStore store,
-        IRefactorService refactorService)
+        IRefactorService refactorService,
+        SanitizerRegistry? sanitizerRegistry = null,
+        ComparisonExportBuilder? exportBuilder = null,
+        ComparisonSessionRegistry? sessionRegistry = null)
         : base("ai_blackboard_variables", "Blackboard Variables", "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _refactorService = refactorService;
+        _sessionRegistry = sessionRegistry;
+        if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
+            _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
     }
 
     // ---- View-model building (unit-testable) --------------------------------
@@ -247,6 +257,16 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         if (_store.ActiveAsset is IBlackboardManagedAsset bbAssetForPrune)
             bbAssetForPrune.PruneStaleAliasBindings(bbAssetForPrune.GetKnownSubAssetIds());
 
+        // Comparison toolbar (shown when comparison services are available).
+        if (_comparisonToolbar != null && _store.ActiveAsset != null)
+        {
+            _comparisonToolbar.Render(
+                _store.ActiveAsset.AssetId,
+                _store.ActiveAsset.SourceFilePath,
+                _store.ActiveAsset.Kind);
+            ImGuiNET.ImGui.Separator();
+        }
+
         // State-aware banner: AssemblyFailed replaces the entire client area (1f-07).
         if (_store.ActiveAsset is IBlackboardManagedAsset assetForState
             && assetForState.IsBlackboardEditorManaged
@@ -332,7 +352,15 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             _lastAssetBase = asset;
         }
 
-        _variablesControl.DrawSingle(section);
+        Func<string, FieldDecoration?>? rowDec = null;
+        if (_sessionRegistry != null && _store.ActiveAsset != null)
+        {
+            var compSession = _sessionRegistry.GetSession(_store.ActiveAsset.AssetId);
+            if (compSession != null)
+                rowDec = fieldName => BlackboardComparisonDecorator.GetDecoration(fieldName, compSession);
+        }
+
+        _variablesControl.DrawSingle(section, rowDec);
 
         // Sub-tree allocations section (1e-05): auto-managed slots for Approach B nodes.
         var autoAllocs = (asset as IBTreeSyncableAsset)?.GetAutoAllocatedVariables();

@@ -28,11 +28,14 @@
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- WHEN-M11-T4: Reference Hrot.AI.Behaviors to enable production recipe discovery in tests -->
     <ProjectReference Include="..\..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <!-- BATCH-03: Reference Hrot.Editor.AiShared for comparison sanitizer types -->
+    <ProjectReference Include="..\..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Snapshots\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Comparison\Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

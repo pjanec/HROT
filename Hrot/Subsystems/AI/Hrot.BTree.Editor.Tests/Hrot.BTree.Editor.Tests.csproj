@@ -24,4 +24,11 @@
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="Comparison\Fixtures\*.cs" />
+    <None Include="Comparison\Fixtures\*.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

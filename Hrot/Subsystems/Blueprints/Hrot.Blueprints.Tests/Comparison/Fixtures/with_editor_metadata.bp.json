@@ -1,0 +1,45 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "aaaaaaaa-0002-0000-0000-000000000001",
+  "Name": "WithEditorMetadata",
+  "Dispatch": "AiPrimitive",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0002-0000-0000-000000000001",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "FunctionCall",
+          "Id": "cccccccc-0002-0000-0000-000000000001",
+          "TargetTypeId": "System.Console",
+          "MethodName": "WriteLine",
+          "IsPure": false,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 320,
+            "Y": 180,
+            "Comment": "writes the debug message"
+          }
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {
+        "Viewport": { "Pan": [10, 20], "Zoom": 1.0 },
+        "CanvasComments": [
+          { "Text": "Main execution flow", "X": 100, "Y": -50 }
+        ]
+      }
+    }
+  ],
+  "EditorMetadata": {}
+}

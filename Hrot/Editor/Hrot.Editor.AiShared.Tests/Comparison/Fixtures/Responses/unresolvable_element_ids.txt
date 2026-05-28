@@ -1,0 +1,29 @@
+----- HUMAN SUMMARY -----
+Some changes were detected in the OrcGuard_BT asset.
+
+----- STRUCTURED CHANGES (JSON) -----
+{
+  "summary": "Some changes detected.",
+  "changes": [
+    {
+      "kind": "node_added",
+      "elementId": "nonexistent-id",
+      "elementDescription": "Some node that does not exist on canvas",
+      "field": null,
+      "oldValue": null,
+      "newValue": "SomeValue",
+      "severity": "behavior",
+      "description": "This node id does not exist in the current asset but the parser should not validate it."
+    },
+    {
+      "kind": "variable_renamed",
+      "elementId": "nonexistent-id",
+      "elementDescription": "Some variable that does not exist",
+      "field": "name",
+      "oldValue": "OldName",
+      "newValue": "NewName",
+      "severity": "cosmetic",
+      "description": "This variable id does not exist in the current asset but the parser should not validate it."
+    }
+  ]
+}

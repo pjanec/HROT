@@ -1,0 +1,113 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "ddddeeee-0001-0000-0000-000000000001",
+  "Name": "DeepNestedBlueprint",
+  "Dispatch": "AiPrimitive",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "11111111-0001-0000-0000-000000000001",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "FunctionCall",
+          "Id": "aaaaaaaa-0001-0000-0000-000000000001",
+          "FunctionRef": "InnerGraph1.Execute",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 100,
+            "Y": 100,
+            "Comment": "delegates to inner graph 1"
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "bbbbbbbb-0001-0000-0000-000000000001",
+          "FunctionRef": "InnerGraph2.Execute",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 300,
+            "Y": 100,
+            "Comment": "delegates to inner graph 2"
+          }
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    },
+    {
+      "Id": "22222222-0001-0000-0000-000000000001",
+      "Name": "InnerGraph1",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "Return",
+          "Id": "cccccccc-0001-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 200,
+            "Y": 150,
+            "Comment": "inner graph 1 node A"
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "dddddddd-0001-0000-0000-000000000001",
+          "FunctionRef": "SomeAction",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 400,
+            "Y": 150,
+            "Comment": "inner graph 1 node B"
+          }
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    },
+    {
+      "Id": "33333333-0001-0000-0000-000000000001",
+      "Name": "InnerGraph2",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "Return",
+          "Id": "eeeeeeee-0001-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 200,
+            "Y": 250,
+            "Comment": "inner graph 2 node A"
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "ffffffff-0001-0000-0000-000000000001",
+          "FunctionRef": "AnotherAction",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 400,
+            "Y": 250,
+            "Comment": "inner graph 2 node B"
+          }
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

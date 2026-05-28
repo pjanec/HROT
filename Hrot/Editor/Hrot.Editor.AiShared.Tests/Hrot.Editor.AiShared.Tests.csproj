@@ -20,6 +20,19 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Comparison/Fixtures/Responses/**" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Remove="Comparison\Fixtures\*.cs" />
+    <None Include="Comparison\Fixtures\*.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Include="Comparison\Fixtures\*.bp.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

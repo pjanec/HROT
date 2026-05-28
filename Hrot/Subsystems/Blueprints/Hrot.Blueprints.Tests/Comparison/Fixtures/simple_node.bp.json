@@ -1,0 +1,33 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "aaaaaaaa-0001-0000-0000-000000000001",
+  "Name": "SimpleNode",
+  "Dispatch": "AiPrimitive",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "bbbbbbbb-0001-0000-0000-000000000001",
+      "Name": "Execute",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "Return",
+          "Id": "cccccccc-0001-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}
