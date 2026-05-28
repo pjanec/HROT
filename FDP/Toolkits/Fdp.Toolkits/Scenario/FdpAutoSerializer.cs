@@ -558,24 +558,8 @@ namespace Fdp.Toolkit.Scenario
                 var itemAccess = Expression.Property(
                     jsonObjVar, _jsonObjectIndexer, Expression.Constant(field.Name));
 
-                Expression fieldValue;
-                if (field.FieldType == typeof(Entity))
-                {
-                    // resolver.Resolve(jsonObj["fieldName"].GetValue<string>())
-                    var getStr = Expression.Call(
-                        itemAccess,
-                        _jsonNodeGetValueGeneric.MakeGenericMethod(typeof(string)));
-                    fieldValue = Expression.Call(resolverParam, _resolveStringMethod, getStr);
-                }
-                else
-                {
-                    // DeserializeNode<fieldType>(jsonObj["fieldName"])
-                    // Handles both JsonValue (primitives) and JsonObject (nested structs)
-                    fieldValue = Expression.Call(
-                        null,
-                        _deserializeNodeGeneric.MakeGenericMethod(field.FieldType),
-                        itemAccess);
-                }
+                // Route through the null-safe helper
+                Expression fieldValue = BuildInjectFieldValue(field.FieldType, itemAccess, resolverParam);
 
                 memberBindings.Add(Expression.Bind(field, fieldValue));
             }
@@ -606,12 +590,21 @@ namespace Fdp.Toolkit.Scenario
         /// </summary>
         private static Expression BuildInjectFieldValue(Type fieldType, Expression itemAccess, Expression resolverParam)
         {
+            Expression readValue;
             if (fieldType == typeof(Entity))
             {
                 var getStr = Expression.Call(itemAccess, _jsonNodeGetValueGeneric.MakeGenericMethod(typeof(string)));
-                return Expression.Call(resolverParam, _resolveStringMethod, getStr);
+                readValue = Expression.Call(resolverParam, _resolveStringMethod, getStr);
             }
-            return Expression.Call(null, _deserializeNodeGeneric.MakeGenericMethod(fieldType), itemAccess);
+            else
+            {
+                readValue = Expression.Call(null, _deserializeNodeGeneric.MakeGenericMethod(fieldType), itemAccess);
+            }
+
+            // Safeguard against missing fields in older scenario files: if the JSON key is absent,
+            // itemAccess evaluates to null; zero-initialize the field instead of crashing.
+            var isNotNull = Expression.ReferenceNotEqual(itemAccess, Expression.Constant(null, typeof(JsonNode)));
+            return Expression.Condition(isNotNull, readValue, Expression.Default(fieldType));
         }
 
         // ── Component value copy helper ───────────────────────────────────────────
