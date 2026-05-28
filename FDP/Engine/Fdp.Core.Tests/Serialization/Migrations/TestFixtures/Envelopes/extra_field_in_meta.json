@@ -1,0 +1,11 @@
+{
+  "$meta": {
+    "docType": "Test.Doc",
+    "schemaVersion": 1,
+    "engineVersion": null,
+    "createdBy": null,
+    "createdUtc": null,
+    "unknownField": "this-should-not-be-here"
+  },
+  "data": 1
+}

@@ -1,0 +1,7 @@
+{
+  "data": "comes-before-meta",
+  "$meta": {
+    "docType": "Test.Doc",
+    "schemaVersion": 1
+  }
+}

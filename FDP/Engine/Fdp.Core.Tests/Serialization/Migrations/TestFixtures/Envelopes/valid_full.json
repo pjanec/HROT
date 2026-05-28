@@ -1,0 +1,10 @@
+{
+  "$meta": {
+    "docType": "Test.Doc",
+    "schemaVersion": 2,
+    "engineVersion": "1.0.0",
+    "createdBy": "TestTool",
+    "createdUtc": "2024-01-15T12:00:00Z"
+  },
+  "data": "hello"
+}

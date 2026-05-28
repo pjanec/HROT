@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Scenario;
+using CoreDiff = Fdp.Core.Serialization.Migrations.Internal;
 
 namespace Fdp.Toolkit.ReplayBrowser.Diff
 {
@@ -14,55 +15,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
         /// <inheritdoc/>
         public DiffNode? ComputeDiff(string name, JsonNode? oldNode, JsonNode? newNode, double epsilonTolerance)
         {
-            if (oldNode is JsonObject oldObj && newNode is JsonObject newObj)
-            {
-                var group = new DiffObject(name);
-
-                // Union of keys from both objects
-                var allKeys = oldObj.Select(k => k.Key)
-                    .Union(newObj.Select(k => k.Key))
-                    .Distinct();
-
-                foreach (string key in allKeys)
-                {
-                    DiffNode? childDiff = ComputeDiff(key, oldObj[key], newObj[key], epsilonTolerance);
-                    if (childDiff != null)
-                        group.Children.Add(childDiff);
-                }
-
-                group.EvaluateModificationState();
-                return group;
-            }
-
-            // Arrays: if both are arrays and they differ at any index, emit as single modified leaf
-            if (oldNode is JsonArray oldArr && newNode is JsonArray newArr)
-            {
-                string oldStr = oldArr.ToJsonString();
-                string newStr = newArr.ToJsonString();
-                bool isModified = oldStr != newStr;
-                return new DiffValue(name, oldStr, newStr, JsonValueKind.Array, isModified);
-            }
-
-            // Leaf comparison
-            string oldLeaf = oldNode?.ToJsonString() ?? "null";
-            string newLeaf = newNode?.ToJsonString() ?? "null";
-            JsonValueKind kind = newNode?.GetValueKind() ?? (oldNode?.GetValueKind() ?? JsonValueKind.Null);
-
-            bool leafModified = oldLeaf != newLeaf;
-
-            // Apply epsilon tolerance for numeric leaves
-            if (leafModified && kind == JsonValueKind.Number)
-            {
-                if (double.TryParse(oldLeaf, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out double oldVal)
-                    && double.TryParse(newLeaf, System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out double newVal))
-                {
-                    leafModified = Math.Abs(oldVal - newVal) >= epsilonTolerance;
-                }
-            }
-
-            return new DiffValue(name, oldLeaf, newLeaf, kind, leafModified);
+            var core = CoreDiff.DomDiffer.Diff(oldNode, newNode, name, epsilonTolerance);
+            return ConvertNode(core);
         }
 
         /// <inheritdoc/>
@@ -132,6 +86,37 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
         }
 
         // ── Private helpers ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Converts a Core-internal <see cref="CoreDiff.DiffNode"/> to the Toolkit
+        /// <see cref="DiffNode"/> that callers expect. Returns null when the input is null.
+        /// </summary>
+        private static DiffNode? ConvertNode(CoreDiff.DiffNode? coreNode)
+        {
+            if (coreNode is null)
+                return null;
+
+            if (coreNode is CoreDiff.DiffObject coreObj)
+            {
+                var tkObj = new DiffObject(coreNode.Name);
+                foreach (var child in coreObj.Children)
+                {
+                    DiffNode? converted = ConvertNode(child);
+                    if (converted != null)
+                        tkObj.Children.Add(converted);
+                }
+                tkObj.EvaluateModificationState();
+                return tkObj;
+            }
+
+            if (coreNode is CoreDiff.DiffValue coreVal)
+                return new DiffValue(coreVal.Name, coreVal.OldValue, coreVal.NewValue,
+                    coreVal.ValueType, coreVal.IsModified);
+
+            // Unreachable; guard against future subtypes.
+            throw new InvalidOperationException(
+                $"Unexpected CoreDiff.DiffNode subtype: {coreNode.GetType().Name}");
+        }
 
         /// <summary>
         /// Recursively builds a DiffNode tree where every leaf is marked as modified,
