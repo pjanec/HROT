@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.FlightRecorder;
+using Fdp.Core.Serialization;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Support;
 using Fdp.Toolkit.Scenario;
@@ -44,11 +45,13 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
 
                 var root = LoadJson(outPath);
-                Assert.Equal("FDPREC", root["Header"]!["Magic"]!.GetValue<string>());
-                Assert.Equal((int)FdpConfig.FORMAT_VERSION, root["Header"]!["FormatVersion"]!.GetValue<int>());
+                Assert.Equal(FdpDocumentTypes.FlightRecorderMetadata, root["$meta"]!["docType"]!.GetValue<string>());
+                Assert.Equal(1, root["$meta"]!["schemaVersion"]!.GetValue<int>());
+                Assert.Equal("FDPREC", root["Magic"]!.GetValue<string>());
+                Assert.Equal((int)FdpConfig.FORMAT_VERSION, root["FormatVersion"]!.GetValue<int>());
                 var frames = root["Frames"]!.AsArray();
                 Assert.Equal(4, frames.Count);
             }
@@ -64,7 +67,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 var firstFrame = root["Frames"]!.AsArray()[0]!.AsObject();
                 Assert.Equal("Keyframe", firstFrame["FrameHeader"]!["FrameType"]!.GetValue<string>());
@@ -85,7 +88,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 var frames = root["Frames"]!.AsArray();
 
@@ -113,7 +116,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 var frames = root["Frames"]!.AsArray();
 
@@ -146,7 +149,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
 
                 bool foundOwned = false, foundRemote = false;
@@ -185,7 +188,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 var frames = root["Frames"]!.AsArray();
 
@@ -218,7 +221,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
 
                 // Verify against a sandbox that replays independently
                 var verifyRepo = new EntityRepository();
@@ -253,7 +256,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
 
                 var verifyRepo = new EntityRepository();
                 verifyRepo.RegisterComponent<HarnessPosition>();
@@ -287,7 +290,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 var frames = root["Frames"]!.AsArray();
                 for (int i = 0; i < frames.Count; i++)
@@ -308,7 +311,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
 
                 using var pb2 = new PlaybackController(fdpPath);
                 var root = LoadJson(outPath);
@@ -336,6 +339,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             {
                 var opts = new JsonExportOptions
                 {
+                    FormatMode = ExportFormatMode.AbsoluteState,
                     WindowMode = ExportWindowMode.ByFrame,
                     StartFrame = 2,
                     EndFrame = 3,
@@ -360,6 +364,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             {
                 var opts = new JsonExportOptions
                 {
+                    FormatMode = ExportFormatMode.AbsoluteState,
                     WindowMode = ExportWindowMode.ByTime,
                     StartTimeSec = 1.5f,
                     EndTimeSec = 3.0f,
@@ -393,13 +398,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             {
                 var opts = new JsonExportOptions
                 {
+                    FormatMode = ExportFormatMode.AbsoluteState,
                     WindowMode = ExportWindowMode.ByTime,
                     StartTimeSec = 9999f,  // far past any frame
                     EndTimeSec = float.PositiveInfinity,
                 };
                 new RecordingExportService().ExportToJson(fdpPath, outPath, opts);
                 var root = LoadJson(outPath);
-                Assert.NotNull(root["Header"]);
+                Assert.NotNull(root["$meta"]);
                 var frames = root["Frames"]!.AsArray();
                 Assert.Empty(frames);
             }
@@ -417,6 +423,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             {
                 var opts = new JsonExportOptions
                 {
+                    FormatMode = ExportFormatMode.AbsoluteState,
                     FilterByEntityIndex = true,
                     TargetEntityIndex = destroyedEntity.Index,
                 };
@@ -452,6 +459,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             {
                 var opts = new JsonExportOptions
                 {
+                    FormatMode = ExportFormatMode.AbsoluteState,
                     FilterBySelection = true,
                     TargetEntities = new System.Collections.Generic.List<Entity> { entityA },
                 };
@@ -478,7 +486,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                var opts = new JsonExportOptions { IncludeEvents = false };
+                var opts = new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState, IncludeEvents = false };
                 new RecordingExportService().ExportToJson(fdpPath, outPath, opts);
                 var root = LoadJson(outPath);
                 foreach (var frame in root["Frames"]!.AsArray())
@@ -496,7 +504,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                var opts = new JsonExportOptions { IncludeEntities = false };
+                var opts = new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState, IncludeEntities = false };
                 new RecordingExportService().ExportToJson(fdpPath, outPath, opts);
                 var root = LoadJson(outPath);
                 foreach (var frame in root["Frames"]!.AsArray())
@@ -543,7 +551,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 string text = File.ReadAllText(outPath);
 
                 // Locate the HarnessTransform component payload and assert the Position array
@@ -585,7 +593,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 string text = File.ReadAllText(outPath);
                 string expected = $"[{refEntity.Index}, v{refEntity.Generation}]";
                 Assert.Contains(expected, text);
@@ -624,7 +632,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             try
             {
                 new RecordingExportService(serializer: serializer)
-                    .ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                    .ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
 
                 string text = File.ReadAllText(outPath);
                 var root = JsonNode.Parse(text)!.AsObject();
@@ -657,7 +665,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 bool foundManaged = false;
                 foreach (var frame in root["Frames"]!.AsArray())
@@ -687,7 +695,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             string outPath = Path.GetTempFileName() + ".json";
             try
             {
-                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions());
+                new RecordingExportService().ExportToJson(fdpPath, outPath, new JsonExportOptions { FormatMode = ExportFormatMode.AbsoluteState });
                 var root = LoadJson(outPath);
                 bool foundUnmanaged = false;
                 foreach (var frame in root["Frames"]!.AsArray())

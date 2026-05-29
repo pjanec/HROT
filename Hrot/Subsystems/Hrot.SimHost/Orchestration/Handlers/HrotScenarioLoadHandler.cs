@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Orchestration;
+using Fdp.Core.Serialization.Migrations.Adapters;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Orchestration;
@@ -50,6 +51,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
     private readonly EntityRepository? _world;
     private readonly IRecordReplayController? _controller;
     private readonly string _storageDirectory;
+    private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
 
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private Dictionary<string, ZoneDefinitionDto>? _pendingZones;
@@ -73,7 +75,8 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         INetworkIdAllocator idAllocator,
         EntityRepository? world = null,
         IRecordReplayController? controller = null,
-        string storageDirectory = @"C:\FDP_Temp")
+        string storageDirectory = @"C:\FDP_Temp",
+        ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null)
     {
         _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
@@ -84,6 +87,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         _world             = world;
         _controller        = controller;
         _storageDirectory  = storageDirectory ?? @"C:\FDP_Temp";
+        _readOnlyAdapter   = readOnlyMigrationAdapter;
     }
 
     /// <inheritdoc />
@@ -138,13 +142,32 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
             var json = _scenarioLoader.TryLoadScenarioJson(scenarioId);
             if (json != null)
             {
-                // Parse zones from the envelope DTO for later commit.
-                var dom = JsonNode.Parse(json)?.AsObject();
-                var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
-                _pendingZones = envelope?.Zones;
+                if (_readOnlyAdapter != null)
+                {
+                    // Phase 2 path: migrate the document in-memory before extracting.
+                    var utf8 = System.Text.Encoding.UTF8.GetBytes(json);
+                    var outcome = _readOnlyAdapter.LoadAndMigrateAsync(
+                        new System.IO.MemoryStream(utf8), "staged-scenario.json")
+                        .GetAwaiter().GetResult();
+                    var migratedDom = outcome.AsJsonObject();
+                    _pendingZones = migratedDom
+                        .Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions)
+                        ?.Zones;
+                    // Entity extraction uses the original json string; ScenarioSerializer.Deserialize
+                    // handles both Phase 2 ($meta) and legacy (Header.SubsystemType) formats.
+                    _pendingRequests = _extractor.Extract(_serializer, json, _idAllocator);
+                }
+                else
+                {
+                    // Legacy path: parse zones from the envelope DTO.
+                    var dom = JsonNode.Parse(json)?.AsObject();
+                    var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
+                    _pendingZones = envelope?.Zones;
 
-                // Extract entity creation requests via the staging pipeline.
-                _pendingRequests      = _extractor.Extract(_serializer, json, _idAllocator);
+                    // Extract entity creation requests via the staging pipeline.
+                    _pendingRequests = _extractor.Extract(_serializer, json, _idAllocator);
+                }
+
                 _pendingTransactionId = intent.TransactionId;
             }
         }

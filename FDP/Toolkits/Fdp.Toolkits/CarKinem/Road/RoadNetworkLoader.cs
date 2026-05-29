@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Numerics;
+using System.Threading;
+using Fdp.Core.Serialization.Migrations.Adapters;
 
 namespace CarKinem.Road
 {
@@ -13,13 +15,22 @@ namespace CarKinem.Road
         /// <summary>
         /// Load road network from JSON file.
         /// </summary>
-        public static RoadNetworkBlob LoadFromJson(string jsonPath)
+        public static RoadNetworkBlob LoadFromJson(string jsonPath, ReadOnlyMigrationAdapter? migrationAdapter = null)
         {
             if (!File.Exists(jsonPath))
                 throw new FileNotFoundException($"Road network file not found: {jsonPath}");
-            
-            string jsonContent = File.ReadAllText(jsonPath);
-            var roadData = JsonSerializer.Deserialize<RoadNetworkJson>(jsonContent);
+
+            RoadNetworkJson? roadData;
+            if (migrationAdapter != null)
+            {
+                var outcome = migrationAdapter.LoadAndMigrateAsync(jsonPath, CancellationToken.None).GetAwaiter().GetResult();
+                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(outcome.AsJsonString());
+            }
+            else
+            {
+                string jsonContent = File.ReadAllText(jsonPath);
+                roadData = JsonSerializer.Deserialize<RoadNetworkJson>(jsonContent);
+            }
             
             if (roadData == null)
                 throw new InvalidOperationException("Failed to deserialize road network JSON");

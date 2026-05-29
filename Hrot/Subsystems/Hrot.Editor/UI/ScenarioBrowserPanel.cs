@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Fdp.Core.Serialization.Migrations;
 using ImGuiNET;
 
 namespace Hrot.Editor.UI;
@@ -13,8 +15,8 @@ public sealed class ScenarioBrowserPanel
     private bool   _showLoadDialog;
     private bool   _showSaveAsDialog;
     private int    _selectedLoadIdx = -1;
-    private string _saveAsName = "";
-
+    private string _saveAsName = "";    private bool   _showMigrationHistoryDialog;
+    private IReadOnlyList<SidecarFileInfo>? _migrationSidecars;
     // ── Testable handlers ─────────────────────────────────────────────────────
 
     public void HandleNewClick(IEditorLogic logic)
@@ -35,10 +37,24 @@ public sealed class ScenarioBrowserPanel
 
     public void HandleLoadClick()    => _showLoadDialog   = true;
 
+    public void HandleMigrationHistoryClick(IEditorLogic logic)
+    {
+        _migrationSidecars           = logic.GetMigrationSidecarsForCurrentScenario();
+        _showMigrationHistoryDialog  = true;
+    }
+
     // ── ImGui rendering ───────────────────────────────────────────────────────
 
     public void DrawContent(IEditorLogic logic)
-    {
+    {        // ── Degraded-mode banner ────────────────────────────────────────────────────
+        if (logic.IsScenarioDegraded)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.5f, 0f, 1f));
+            ImGui.TextWrapped("[!] Degraded mode: scenario loaded from a snapshot backup. " +
+                              "Saving will lose newer-version data.");
+            ImGui.PopStyleColor();
+            ImGui.Separator();
+        }
         // ── Current scenario indicator ────────────────────────────────────────
         var loaded = logic.LoadedScenarioName;
         ImGui.Text(string.IsNullOrEmpty(loaded) ? "(no scenario loaded)" : $"Scenario: {loaded}");
@@ -52,6 +68,9 @@ public sealed class ScenarioBrowserPanel
         if (ImGui.Button("Save As")) HandleSaveAsClick();
         ImGui.SameLine();
         if (ImGui.Button("Load"))    HandleLoadClick();
+        ImGui.SameLine();
+        if (ImGui.Button("Migration History"))
+            HandleMigrationHistoryClick(logic);
 
         // ── Load modal dialog ─────────────────────────────────────────────────
         if (_showLoadDialog)
@@ -122,6 +141,55 @@ public sealed class ScenarioBrowserPanel
 
             ImGui.SameLine();
             if (ImGui.Button("Cancel")) ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+
+        // ── Migration history dialog ─────────────────────────────────────────────────────────
+        if (_showMigrationHistoryDialog)
+        {
+            ImGui.OpenPopup("Migration History##browser");
+            _showMigrationHistoryDialog = false;
+        }
+
+        bool historyOpen = true;
+        if (ImGui.BeginPopupModal("Migration History##browser", ref historyOpen,
+                ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape)) ImGui.CloseCurrentPopup();
+            ImGui.Text("Sidecar files for the current scenario:");
+            ImGui.Separator();
+
+            var sidecars = _migrationSidecars;
+            if (sidecars == null || sidecars.Count == 0)
+            {
+                ImGui.TextDisabled("(no sidecars present)");
+            }
+            else
+            {
+                if (ImGui.BeginTable("##sidecars", 4,
+                        ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit))
+                {
+                    ImGui.TableSetupColumn("File", ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn("Kind",    ImGuiTableColumnFlags.WidthFixed, 80f);
+                    ImGui.TableSetupColumn("Version", ImGuiTableColumnFlags.WidthFixed, 60f);
+                    ImGui.TableSetupColumn("Hash",    ImGuiTableColumnFlags.WidthFixed, 130f);
+                    ImGui.TableHeadersRow();
+
+                    foreach (var s in sidecars)
+                    {
+                        ImGui.TableNextRow();
+                        ImGui.TableSetColumnIndex(0); ImGui.TextUnformatted(s.FileName);
+                        ImGui.TableSetColumnIndex(1); ImGui.TextUnformatted(s.Kind.ToString());
+                        ImGui.TableSetColumnIndex(2); ImGui.TextUnformatted(s.Version.ToString());
+                        ImGui.TableSetColumnIndex(3); ImGui.TextUnformatted(s.ContentHash);
+                    }
+                    ImGui.EndTable();
+                }
+            }
+
+            ImGui.Spacing();
+            if (ImGui.Button("Close", new System.Numerics.Vector2(100f, 0f)))
+                ImGui.CloseCurrentPopup();
             ImGui.EndPopup();
         }
     }

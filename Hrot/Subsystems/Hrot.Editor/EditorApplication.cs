@@ -5,11 +5,13 @@ using System.IO;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.DER;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Common.Events;
 using Hrot.Editor.Commands;
 using Hrot.Editor.Events;
+using Hrot.Editor.Migration;
 using Hrot.Editor.Modules;
 using Hrot.ScenarioEditor.Services;
 using Fdp.ModuleHost;
@@ -47,8 +49,7 @@ public sealed class EditorApplication : IEditorLogic
 
     // ── Scenario tracking ─────────────────────────────────────────────────────
 
-    private string? _loadedScenarioName;
-
+    private string? _loadedScenarioName;    private readonly MigrationAlertManager _alertManager = new();
     /// <summary>
     /// Optional delegate that returns the available scenario names.
     /// Injected by <see cref="SetAvailableScenariosSource"/> after construction to
@@ -65,6 +66,12 @@ public sealed class EditorApplication : IEditorLogic
     /// <inheritdoc/>
     public IReadOnlyList<string> AvailableScenarios =>
         _availableScenariosSource?.Invoke() ?? Array.Empty<string>();
+
+    /// <summary>
+    /// Alert manager for migration events. Used by <see cref="EditorBrowserWindow"/>
+    /// to draw the per-frame alert modal and degraded-mode banner.
+    /// </summary>
+    internal MigrationAlertManager AlertManager => _alertManager;
 
     /// <inheritdoc/>
     public void Update()
@@ -133,13 +140,18 @@ public sealed class EditorApplication : IEditorLogic
     {
         _fileService.NewScenario(_world);
         _loadedScenarioName = null;
+        _alertManager.OnScenarioCleared();
     }
 
     /// <inheritdoc/>
     public void SaveScenario(string filePath) => _fileService.SaveScenario(_world, filePath);
 
     /// <inheritdoc/>
-    public void LoadScenario(string filePath) => _fileService.LoadScenario(_world, filePath);
+    public void LoadScenario(string filePath)
+    {
+        _fileService.LoadScenario(_world, filePath);
+        _alertManager.OnScenarioLoaded(_fileService.LastLoadResult);
+    }
 
     /// <inheritdoc/>
     public void LoadScenarioByName(string scenarioName)
@@ -309,6 +321,13 @@ public sealed class EditorApplication : IEditorLogic
         }
         return null;
     }
+
+    /// <inheritdoc/>
+    public bool IsScenarioDegraded => _alertManager.IsDegradedMode;
+
+    /// <inheritdoc/>
+    public IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario()
+        => _fileService.GetSidecarsForLastLoadAsync().GetAwaiter().GetResult();
 
     /// <summary>
     /// Returns an <see cref="EditorSystemsModule"/> initialised against this application's

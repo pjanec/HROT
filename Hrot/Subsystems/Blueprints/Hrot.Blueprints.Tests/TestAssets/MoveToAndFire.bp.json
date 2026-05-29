@@ -1,14 +1,28 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000005-0000-0000-0000-000000000001",
   "Name": "MoveToAndFire",
   "Dispatch": "AiPrimitive",
-  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
   "Parameters": [
     {
       "Id": "b0000005-0000-0000-0000-000000000001",
       "Name": "TargetEntity",
-      "Type": { "TypeId": "System.UInt64" },
+      "Type": {
+        "TypeId": "System.UInt64"
+      },
       "DefaultValueJson": null
     }
   ],
@@ -16,7 +30,9 @@
     {
       "Id": "b0000005-0000-0000-0000-000000000010",
       "Name": "Phase",
-      "Type": { "TypeId": "System.Int32" },
+      "Type": {
+        "TypeId": "System.Int32"
+      },
       "DefaultValueJson": "0"
     }
   ],

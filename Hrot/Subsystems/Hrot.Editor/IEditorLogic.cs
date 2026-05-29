@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.DER;
 
 namespace Hrot.Editor;
@@ -108,4 +109,17 @@ public interface IEditorLogic
     /// the active BTree interpreters without stalling the editor loop.
     /// </summary>
     void RebuildAndReloadAI();
+
+    /// <summary>
+    /// True when the currently loaded scenario was opened in degraded mode
+    /// (snapshot fallback; the file was too new for the current migration chain).
+    /// </summary>
+    bool IsScenarioDegraded { get; }
+
+    /// <summary>
+    /// Returns the sidecar files (snapshots and journals) stored alongside the
+    /// currently loaded scenario file. Returns an empty list when no scenario
+    /// has been loaded or when no migration services are configured.
+    /// </summary>
+    IReadOnlyList<SidecarFileInfo> GetMigrationSidecarsForCurrentScenario();
 }

@@ -1,9 +1,19 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "11111111-0000-0000-0000-000000000097",
   "Name": "PrimitiveWithoutDispatch",
   "Dispatch": "Library",
-  "Primitive": { "Intent": "Action", "Hostings": [] },
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": []
+  },
   "Parameters": [],
   "WorkingState": [],
   "Variables": [],

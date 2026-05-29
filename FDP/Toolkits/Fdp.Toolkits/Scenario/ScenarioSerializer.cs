@@ -3,20 +3,24 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Core.Serialization.Migrations;
 
 namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
     /// Serializes and deserializes an <see cref="EntityRepository"/> to/from an
-    /// in-memory <see cref="JsonObject"/> DOM using the following schema:
+    /// in-memory <see cref="JsonObject"/> DOM using the following schema (Phase 2):
     /// <code>
     /// {
-    ///   "Header": { "SubsystemType": "...", "SchemaVersion": 1 },
+    ///   "$meta": { "docType": "...", "schemaVersion": 1 },
+    ///   "Header": { "TkbName": "..." },
     ///   "Entities": {
     ///     "&lt;guid&gt;": { "ComponentName": { "field": "..." } }
     ///   }
     /// }
     /// </code>
+    /// Legacy files that carry <c>Header.SubsystemType</c> instead of <c>$meta</c> are
+    /// accepted on load for backward compatibility.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -182,19 +186,11 @@ namespace Fdp.Toolkit.Scenario
             }
 
             // ── Assemble root DOM ────────────────────────────────────────────────
-            var headerNode = new JsonObject
-            {
-                ["SubsystemType"]  = JsonValue.Create(header.SubsystemType),
-                ["SchemaVersion"]  = JsonValue.Create(header.SchemaVersion),
-            };
+            var root = new JsonObject { ["Entities"] = entitiesNode };
             if (header.TkbName != null)
-                headerNode["TkbName"] = JsonValue.Create(header.TkbName);
-
-            return new JsonObject
-            {
-                ["Header"]   = headerNode,
-                ["Entities"] = entitiesNode,
-            };
+                root["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(header.TkbName) };
+            JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, 1));
+            return root;
         }
 
         // ── SerializeEntity (single entity, caller-supplied mask) ─────────────────
@@ -314,13 +310,22 @@ namespace Fdp.Toolkit.Scenario
                     "A non-empty Guid is required to stamp Fdp.Core.EpisodeTag on loaded entities.");
 
             // Peek header for subsystem-type filter.
-            // Support both Pascal case ("Header"/"SubsystemType" from ScenarioSerializer.Serialize)
-            // and camelCase ("header"/"subsystemType" from HrotSerializerOptions.HrotJsonOptions).
-            var headerNode = (dom["Header"] ?? dom["header"]) as JsonObject;
-            var savedType  = headerNode?["SubsystemType"]?.GetValue<string>()
-                          ?? headerNode?["subsystemType"]?.GetValue<string>();
-            if (!string.Equals(savedType, _subsystemType, StringComparison.Ordinal))
-                return; // Graceful subsystem mismatch — no entities created.
+            // Phase 2 format: $meta.docType carries the subsystem type.
+            // Legacy format:  Header.SubsystemType (Pascal or camelCase).
+            if (JsonEnvelope.HasEnvelope(dom))
+            {
+                var meta = JsonEnvelope.Read(dom);
+                if (!string.Equals(meta.DocType, _subsystemType, StringComparison.Ordinal))
+                    return; // Graceful subsystem mismatch — no entities created.
+            }
+            else
+            {
+                var headerNode = (dom["Header"] ?? dom["header"]) as JsonObject;
+                var savedType  = headerNode?["SubsystemType"]?.GetValue<string>()
+                              ?? headerNode?["subsystemType"]?.GetValue<string>();
+                if (!string.Equals(savedType, _subsystemType, StringComparison.Ordinal))
+                    return; // Graceful subsystem mismatch — no entities created.
+            }
 
             var entitiesNode = (dom["Entities"] ?? dom["entities"]) as JsonObject;
             if (entitiesNode == null)

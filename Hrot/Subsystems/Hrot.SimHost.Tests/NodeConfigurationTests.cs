@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using Fdp.Core.Serialization.Migrations;
+using Fdp.Core.Serialization.Migrations.Adapters;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -156,6 +158,63 @@ namespace Hrot.SimHost.Tests
                 var config = SimHostApp.ParseNodeConfig(new[] { "--config", tempFile });
 
                 Assert.Equal(99u, config.DdsDomainId);
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        // ── Phase 2 adapter tests ──────────────────────────────────────────────
+
+        [Fact]
+        public void NodeConfiguration_LoadFrom_Phase2Format_WithAdapter_LoadsCorrectly()
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                var phase2Json = """
+                    {
+                      "$meta": { "docType": "Hrot.NodeConfiguration", "schemaVersion": 1 },
+                      "DdsDomainId": 99,
+                      "SimulationRateHz": 30
+                    }
+                    """;
+                File.WriteAllText(tempFile, phase2Json);
+
+                var registry = new MigrationRegistry();
+                registry.RegisterPassthroughDocType("Hrot.NodeConfiguration", 1);
+                var adapter = new ReadOnlyMigrationAdapter(new MigrationPipeline(registry));
+
+                var config = NodeConfiguration.LoadFrom(tempFile, adapter);
+
+                Assert.Equal(99u, config.DdsDomainId);
+                Assert.Equal(30, config.SimulationRateHz);
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void NodeConfiguration_LoadFrom_WithAdapter_StillReturnsDefaults_WhenAdapterThrows()
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                // Legacy format (no $meta): adapter will throw MigrationException; LoadFrom must swallow it.
+                File.WriteAllText(tempFile, "{ \"DdsDomainId\": 7 }");
+
+                var registry = new MigrationRegistry();
+                registry.RegisterPassthroughDocType("Hrot.NodeConfiguration", 1);
+                var adapter = new ReadOnlyMigrationAdapter(new MigrationPipeline(registry));
+
+                var ex = Record.Exception(() => NodeConfiguration.LoadFrom(tempFile, adapter));
+                Assert.Null(ex);
+
+                var config = NodeConfiguration.LoadFrom(tempFile, adapter);
+                Assert.Equal(42u, config.DdsDomainId);
             }
             finally
             {

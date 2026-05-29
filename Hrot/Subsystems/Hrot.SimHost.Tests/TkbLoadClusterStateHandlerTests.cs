@@ -31,11 +31,23 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
             Directory.Delete(_stagingRoot, recursive: true);
     }
 
-    private void WriteScenarioHeader(string? tkbName)
+    private void WriteScenarioHeader(string? tkbName, bool phase2Format = false)
     {
-        string content = tkbName != null
-            ? $"{{\"TkbName\":\"{tkbName}\"}}"
-            : "{\"SubsystemType\":\"SimHost\"}";
+        string content;
+        if (phase2Format && tkbName != null)
+        {
+            // Phase 2 format: $meta first, then TkbName at root level.
+            content = $"{{\"$meta\":{{\"docType\":\"Hrot.Scenario\",\"schemaVersion\":1}},\"TkbName\":\"{tkbName}\"}}";
+        }
+        else if (tkbName != null)
+        {
+            // Legacy format.
+            content = $"{{\"TkbName\":\"{tkbName}\"}}";
+        }
+        else
+        {
+            content = "{\"SubsystemType\":\"SimHost\"}";
+        }
         File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), content, new UTF8Encoding(false));
     }
 
@@ -173,5 +185,26 @@ public class TkbLoadClusterStateHandlerTests : IDisposable
 
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => h.PrepareAsync(MakeIntent(), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// JM-P2-005-T01: Phase 2 scenario header ($meta first, then TkbName) is parsed
+    /// correctly by the forward-only Utf8JsonReader scanner.
+    /// The ExtractTkbNameFromLocalScenario private method skips $meta (not "TkbName")
+    /// and continues until it finds the TkbName property.
+    /// </summary>
+    [Fact]
+    public async Task ExtractTkbName_Phase2Format_ReturnsCorrectName()
+    {
+        var db  = new TkbDatabase();
+        var h   = new TkbLoadClusterStateHandler(db, _stagingRoot);
+        var zip = Path.Combine(_tkbDir, "TestTkb.zip");
+
+        WriteScenarioHeader("TestTkb", phase2Format: true);
+        CreateMinimalTkbZip(zip, "TestTkb");
+
+        await h.PrepareAsync(MakeIntent(), CancellationToken.None);
+
+        Assert.Equal("TestTkb", db.ActiveTkbName);
     }
 }

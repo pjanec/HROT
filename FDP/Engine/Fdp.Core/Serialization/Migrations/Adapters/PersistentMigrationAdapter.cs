@@ -264,4 +264,14 @@ public sealed class PersistentMigrationAdapter
             }
         }
     }
+
+    /// <summary>
+    /// Enumerates sidecar files (snapshots and journals) stored alongside
+    /// <paramref name="originalPath"/>. Returns an empty list when no sidecar
+    /// directory exists. Delegates to <see cref="IMigrationStorage.ListSidecarsAsync"/>.
+    /// </summary>
+    public Task<IReadOnlyList<SidecarFileInfo>> ListSidecarsAsync(
+        string originalPath,
+        CancellationToken ct = default)
+        => _storage.ListSidecarsAsync(originalPath, ct);
 }

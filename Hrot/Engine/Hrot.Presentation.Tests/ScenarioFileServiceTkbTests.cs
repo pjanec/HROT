@@ -69,7 +69,8 @@ public sealed class ScenarioFileServiceTkbTests : IDisposable
         var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
 
         Assert.NotNull(envelope);
-        Assert.Null(envelope!.Header!.TkbName);
+        // Phase 2: Header node is omitted entirely when TkbName is null.
+        Assert.True(envelope!.Header == null || envelope.Header.TkbName == null);
     }
 
     // ── Test 3 ────────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ public sealed class ScenarioFileServiceTkbTests : IDisposable
         var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
 
         Assert.NotNull(envelope);
-        Assert.Null(envelope!.Header!.TkbName);
+        // Phase 2: Header node is omitted entirely when TkbName is null.
+        Assert.True(envelope!.Header == null || envelope.Header.TkbName == null);
     }
 }

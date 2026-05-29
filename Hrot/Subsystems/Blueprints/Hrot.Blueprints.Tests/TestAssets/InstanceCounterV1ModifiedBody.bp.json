@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000002-0000-0000-0000-000000000001",
   "Name": "InstanceCounterV1ModifiedBody",
   "Dispatch": "Instance",
@@ -10,7 +17,9 @@
     {
       "Id": "a0000002-0000-0000-0000-000000000001",
       "Name": "Count",
-      "Type": { "TypeId": "System.Int32" },
+      "Type": {
+        "TypeId": "System.Int32"
+      },
       "DefaultValueJson": "0"
     }
   ],

@@ -158,7 +158,9 @@ namespace Fdp.Toolkit.Scenario.Tests
         {
             ComponentTypeRegistry.Clear();
             var tempRepo = new EntityRepository();
-            tempRepo.RegisterComponent<EntityInlineComp>();
+            // Override the DataPolicy so EntityInlineComp is snapshotable for this test.
+            // (The type is marked NoSnapshot by default to avoid polluting other test runs.)
+            tempRepo.RegisterComponent<EntityInlineComp>(DataPolicy.Default);
             var autoSerializer = new FdpAutoSerializer();
             Assert.Throws<InvalidOperationException>(() => autoSerializer.Build());
             tempRepo.Dispose();
@@ -341,10 +343,15 @@ namespace Fdp.Toolkit.Scenario.Tests
 
     /// <summary>
     /// Component with an [InlineArray] field of Entity elements.
-    /// <see cref="FdpAutoSerializer.Build"/> must throw for this type.
+    /// <see cref="FdpAutoSerializer.Build"/> must throw for this type when it is snapshotable.
+    /// Marked NoSnapshot/NoSave/NoRecord so that AutoRegisterAllComponentTypes (used in
+    /// RecordingExportService) does not register it as snapshotable, which would cause
+    /// FdpAutoSerializer.Build() to throw unexpectedly in EX_T recording-export tests.
+    /// The Build_ComponentWithEntityInInlineArray_Throws test overrides the policy explicitly.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(228)]
+    [DataPolicy(DataPolicy.NoSnapshot | DataPolicy.NoSave | DataPolicy.NoRecord)]
     public struct EntityInlineComp
     {
         /// <summary>Inline array of entity refs — intentionally invalid for serialization.</summary>

@@ -1,12 +1,22 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000000-aaaa-0001-0000-000000000004",
   "Name": "MoveAndFireCombo",
   "Dispatch": 1,
   "TierHint": 0,
   "Primitive": {
     "Intent": 0,
-    "Hostings": [ 0, 2 ]
+    "Hostings": [
+      0,
+      2
+    ]
   },
   "Parameters": [],
   "WorkingState": [],
@@ -84,11 +94,11 @@
     "Recipe": {
       "DisplayName": "Move and Fire Combo",
       "Category": "Combat",
-      "Description": "Sequential AiPrimitive: move to position then fire. Demonstrates ChannelCommand + WaitForChannel pattern (imperative, not reactive). Use this for BTree/HSM actions where A-B-C sequencing is needed.",
+      "Description": "Sequential AiPrimitive: move to position then fire. Demonstrates ChannelCommand \u002B WaitForChannel pattern (imperative, not reactive). Use this for BTree/HSM actions where A-B-C sequencing is needed.",
       "Difficulty": "Beginner",
       "ConceptsTaught": [
-        "AiPrimitive with multi-hosting (BTreeAction + HsmAction)",
-        "ChannelCommand + WaitForChannel for sequential coordination",
+        "AiPrimitive with multi-hosting (BTreeAction \u002B HsmAction)",
+        "ChannelCommand \u002B WaitForChannel for sequential coordination",
         "When NOT to use WhenNode (AiPrimitives stay imperative)"
       ]
     }

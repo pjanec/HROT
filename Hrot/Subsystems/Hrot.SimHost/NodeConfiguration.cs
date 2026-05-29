@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using Fdp.Core.Serialization.Migrations.Adapters;
 using Fdp.Toolkit.Orchestration;
 
 namespace Hrot.SimHost
@@ -106,14 +108,24 @@ namespace Hrot.SimHost
         /// Never throws.
         /// </summary>
         /// <param name="filePath">Absolute or relative path to the JSON file.</param>
-        public static NodeConfiguration LoadFrom(string filePath)
+        /// <param name="migrationAdapter">Optional adapter for reading Phase 2 enveloped JSON files.</param>
+        public static NodeConfiguration LoadFrom(string filePath, ReadOnlyMigrationAdapter? migrationAdapter = null)
         {
             if (!File.Exists(filePath))
                 return new NodeConfiguration();
 
             try
             {
-                var json = File.ReadAllText(filePath);
+                string json;
+                if (migrationAdapter != null)
+                {
+                    var outcome = migrationAdapter.LoadAndMigrateAsync(filePath, CancellationToken.None).GetAwaiter().GetResult();
+                    json = outcome.AsJsonString();
+                }
+                else
+                {
+                    json = File.ReadAllText(filePath);
+                }
                 return JsonSerializer.Deserialize<NodeConfiguration>(json, _jsonOptions)
                        ?? new NodeConfiguration();
             }

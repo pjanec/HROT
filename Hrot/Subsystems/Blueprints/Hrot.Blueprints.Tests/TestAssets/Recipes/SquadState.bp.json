@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000000-aaaa-0001-0000-000000000005",
   "Name": "SquadState",
   "Dispatch": 2,
@@ -11,21 +18,27 @@
     {
       "Id": "a5000001-0001-0001-0001-000000000001",
       "Name": "ThreatLevel",
-      "Type": { "TypeId": "System.Single" },
+      "Type": {
+        "TypeId": "System.Single"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     },
     {
       "Id": "a5000001-0002-0002-0002-000000000002",
       "Name": "SquadSize",
-      "Type": { "TypeId": "System.Int32" },
+      "Type": {
+        "TypeId": "System.Int32"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     },
     {
       "Id": "a5000001-0003-0003-0003-000000000003",
       "Name": "Formation",
-      "Type": { "TypeId": "System.Byte" },
+      "Type": {
+        "TypeId": "System.Byte"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     }
@@ -43,7 +56,9 @@
         {
           "Id": "d5000001-0001-0001-0001-000000000001",
           "Name": "ThreatLevel",
-          "Type": { "TypeId": "System.Single" },
+          "Type": {
+            "TypeId": "System.Single"
+          },
           "DefaultValueJson": null
         }
       ],

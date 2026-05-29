@@ -49,7 +49,8 @@ namespace Fdp.Toolkit.Scenario.Tests
 
             var dom = serializer.Serialize(_repo, header);
 
-            Assert.Null(dom["Header"]!["TkbName"]);
+            // Phase 2: when TkbName is null the entire Header node is omitted.
+            Assert.Null(dom["Header"]);
         }
     }
 }

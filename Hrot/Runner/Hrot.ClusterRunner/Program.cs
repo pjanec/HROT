@@ -11,6 +11,7 @@ using Hrot.ClusterRunner.Scenarios;
 using Hrot.ClusterRunner.Services;
 using Hrot.ClusterRunner.Systems;
 using Hrot.Common;
+using Hrot.Common.Scenario.Migrations;
 using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.Network.NED.Factory;
@@ -45,7 +46,7 @@ namespace Hrot.Runner;
 /// </summary>
 class Program
 {
-    static int Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
@@ -152,6 +153,21 @@ class Program
             // ScenarioSubsystem calls Environment.Exit(code) before reaching here.
             // This return is a safety fallback.
             return 0;
+        }
+
+        // ── Migrate mode: run $meta envelope migration on all known JSON files ──────────────────
+        if (config.RequestedSubsystems.Contains("migrate"))
+        {
+            Console.WriteLine("[Runner] Migrate mode -- constructing migration services...");
+            var migrationServices = HrotMigrationBootstrap.BuildClusterRunnerMigrate();
+
+            var runner = new Hrot.ClusterRunner.Migration.MigrateMode(
+                migrationServices,
+                config.InputDirectory,
+                config.TargetVersion,
+                config.DryRun);
+
+            return await runner.RunAsync();
         }
 
         // ── Build subsystems from mode ────────────────────────────────────────

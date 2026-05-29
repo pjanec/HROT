@@ -1,4 +1,8 @@
 {
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0"
@@ -13,7 +17,7 @@
               "taskId": "ede78c84-e735-4e83-aa44-32f2210aa284",
               "executingEngine": "",
               "behaviorName": "PlatoonHillAttack",
-              "behaviorParams": "{\"firingLineStart\":[52.523639251909096, 13.413515804487876],\"firingLineEnd\":[52.524897363642268, 13.41360444887701],\"baselineStart\":[52.523603361149867, 13.412705470497283],\"baselineEnd\":[52.524924376555148, 13.412838305005167],\"tankSpacing\":30,\"targetAreaNetworkId\":1005}",
+              "behaviorParams": "{\u0022firingLineStart\u0022:[52.523639251909096, 13.413515804487876],\u0022firingLineEnd\u0022:[52.524897363642268, 13.41360444887701],\u0022baselineStart\u0022:[52.523603361149867, 13.412705470497283],\u0022baselineEnd\u0022:[52.524924376555148, 13.412838305005167],\u0022tankSpacing\u0022:30,\u0022targetAreaNetworkId\u0022:1005}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -25,12 +29,29 @@
         }
       },
       "SimTransform": {
-        "Position": [427.805817, 457.924866, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          427.805817,
+          457.924866,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -64,8 +85,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 303
@@ -103,12 +133,29 @@
         "Designation": "Wingman"
       },
       "SimTransform": {
-        "Position": [446.316711, 420.903046, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          446.316711,
+          420.903046,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -172,8 +219,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -216,12 +272,29 @@
         "Designation": "Wingman"
       },
       "SimTransform": {
-        "Position": [447.768555, 442.317627, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          447.768555,
+          442.317627,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -285,8 +358,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -329,12 +411,29 @@
         "Designation": "Wingman"
       },
       "SimTransform": {
-        "Position": [448.857422, 468.087708, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          448.857422,
+          468.087708,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -398,8 +497,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -442,12 +550,29 @@
         "Designation": "Wingman"
       },
       "SimTransform": {
-        "Position": [448.857422, 490.591187, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          448.857422,
+          490.591187,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -511,8 +636,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -569,8 +703,17 @@
         "Version": 0
       },
       "SimTransform": {
-        "Position": [670, 473.5, 0],
-        "Rotation": [0, 0, 0, 0]
+        "Position": [
+          670,
+          473.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "NetworkIdentity": {
         "Value": 1005
@@ -580,8 +723,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 8803
@@ -590,8 +742,18 @@
         "LayerMask": 8
       },
       "MapOverlayStyle": {
-        "FillColor": [255, 0, 0, 80],
-        "BorderColor": [255, 255, 255, 255],
+        "FillColor": [
+          255,
+          0,
+          0,
+          80
+        ],
+        "BorderColor": [
+          255,
+          255,
+          255,
+          255
+        ],
         "LineThickness": 2,
         "IsClosed": true
       }
@@ -601,12 +763,29 @@
         "Entries": []
       },
       "SimTransform": {
-        "Position": [668, 427, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          668,
+          427,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -670,8 +849,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -710,12 +898,29 @@
         "Entries": []
       },
       "SimTransform": {
-        "Position": [668, 522, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          668,
+          522,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -779,8 +984,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100

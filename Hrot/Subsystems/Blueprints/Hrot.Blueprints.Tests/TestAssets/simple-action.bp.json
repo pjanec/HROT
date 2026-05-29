@@ -1,16 +1,30 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "11111111-0000-0000-0000-000000000002",
   "Name": "SimpleAction",
   "Dispatch": "AiPrimitive",
-  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
   "Parameters": [],
   "WorkingState": [],
   "Variables": [
     {
       "Id": "aaaaaaaa-0000-0000-0000-000000000001",
       "Name": "Counter",
-      "Type": { "TypeId": "System.Int32" },
+      "Type": {
+        "TypeId": "System.Int32"
+      },
       "DefaultValueJson": "0"
     }
   ],

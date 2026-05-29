@@ -190,7 +190,6 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             Header = new ScenarioHeaderDto
             {
                 SubsystemType = "Hrot.Scenario",
-                SchemaVersion = "1.0",
             },
             Zones    = null,
             Entities = fdpDom["Entities"]?.AsObject(),

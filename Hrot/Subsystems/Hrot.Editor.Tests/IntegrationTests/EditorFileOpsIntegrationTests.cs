@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Fdp.Core;
+using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.UI;
@@ -143,14 +144,13 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         // JSON is parseable.
         using var doc = JsonDocument.Parse(json);
 
-        // Header.SubsystemType is "Hrot.Scenario" (not "Hrot.Editor" or anything else).
-        // HrotSerializerOptions uses camelCase naming policy, so property keys are lowercase.
-        var header = doc.RootElement.GetProperty("header");
+        // $meta.docType is "Hrot.Scenario" (not "Hrot.Editor" or anything else).
+        var meta = doc.RootElement.GetProperty("$meta");
         Assert.Equal("Hrot.Scenario",
-            header.GetProperty("subsystemType").GetString());
+            meta.GetProperty("docType").GetString());
 
         // Entity count in the Entities object equals repo entity count.
-        var entities = doc.RootElement.GetProperty("entities");
+        var entities = doc.RootElement.GetProperty("Entities");
         Assert.Equal(5, entities.EnumerateObject().Count());
 
         repo.Dispose();
@@ -233,17 +233,17 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
     }
 
     /// <summary>
-    /// F004-3: Loading a file with an unrecognised SubsystemType throws;
-    /// repo is left empty (validation happens before SoftClear).
+    /// F004-3: Loading a file with an unrecognised docType throws MigrationException;
+    /// repo is left empty (migration throws before SoftClear is reached).
     /// </summary>
     [Fact]
     public void LoadScenario_UnrecognisedSubsystemType_Throws_AndLeavesRepoEmpty()
     {
-        // Write a JSON file with an unknown SubsystemType.
+        // Write a JSON file with an unknown $meta docType.
         var badJson = """
             {
-              "Header": { "SubsystemType": "SomeOtherApp", "Version": 1 },
-              "Entities": []
+              "$meta": { "docType": "SomeOtherApp", "schemaVersion": 1 },
+              "Entities": {}
             }
             """;
         File.WriteAllText(_tempFile, badJson);
@@ -251,8 +251,8 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         var repo = CreateRepo();
         var app  = CreateApp(repo);
 
-        // Should throw InvalidOperationException.
-        Assert.Throws<InvalidOperationException>(() => app.LoadScenario(_tempFile));
+        // Should throw MigrationException — migration rejects unknown docType.
+        Assert.Throws<MigrationException>(() => app.LoadScenario(_tempFile));
 
         // Repo is still empty — SoftClear was not reached.
         Assert.Equal(0, repo.EntityCount);

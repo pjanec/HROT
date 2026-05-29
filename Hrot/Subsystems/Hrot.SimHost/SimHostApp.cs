@@ -835,7 +835,7 @@ namespace Hrot.SimHost
 
             try
             {
-                return (loader ?? RoadNetworkLoader.LoadFromJson)(path);
+                return (loader ?? (p => RoadNetworkLoader.LoadFromJson(p)))(path);
             }
             catch (Exception ex)
             {
