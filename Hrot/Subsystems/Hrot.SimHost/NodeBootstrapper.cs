@@ -4,6 +4,7 @@ using Hrot.Core.Network;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Core;
 using Fdp.Core.Orchestration;
+using Fdp.Core.Serialization.Migrations;
 using CarKinem.Road;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -14,6 +15,7 @@ using Hrot.Common.Orchestration.Handlers;
 using Hrot.Map.Common.Services;
 using Hrot.SimHost.Orchestration.Handlers;
 using Hrot.Common.Scenario;
+using Hrot.Common.Scenario.Migrations;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
 using Fdp.Toolkit.NetworkSpawning;
@@ -58,7 +60,36 @@ namespace Hrot.SimHost
         /// </summary>
         public EcsRecordReplayController? RecordReplayController { get; private set; }
 
-        // ── Orchestration construction ─────────────────────────────────────────
+        /// <summary>
+        /// After <see cref="RegisterMigrationServices"/> is called, exposes the
+        /// constructed <see cref="MigrationServices"/> bundle.
+        /// </summary>
+        public MigrationServices? MigrationServices { get; private set; }
+
+        /// <summary>
+        /// Constructs and stores <see cref="MigrationServices"/> for the given node role.
+        /// <para>
+        /// Roles:
+        /// <list type="bullet">
+        ///   <item>Brain / MuscleGround -- SimHost/CGF profile</item>
+        ///   <item>ImageGenerator -- IG profile</item>
+        /// </list>
+        /// </para>
+        /// </summary>
+        public MigrationServices RegisterMigrationServices(NodeRole role,
+            string? writerIdentifier = null)
+        {
+            MigrationServices ms;
+
+            if (role.HasFlag(NodeRole.ImageGenerator))
+                ms = HrotMigrationBootstrap.BuildIg();
+            else
+                ms = HrotMigrationBootstrap.BuildSimHostCgf(
+                    writerIdentifier ?? "Hrot.SimHost");
+
+            MigrationServices = ms;
+            return ms;
+        }
 
         // ── Orchestration construction ─────────────────────────────────────────
 

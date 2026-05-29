@@ -23,7 +23,6 @@ public sealed class HrotScenarioDtoTests
             Header = new ScenarioHeaderDto
             {
                 SubsystemType = "Hrot.Scenario",
-                SchemaVersion = "1.0",
             },
             Zones = new Dictionary<string, ZoneDefinitionDto>
             {

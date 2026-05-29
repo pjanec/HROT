@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Fdp.Core.Serialization.Migrations;
 using Hrot.Editor;
 using Hrot.Editor.UI;
 using Moq;
@@ -44,5 +46,16 @@ public class ScenarioBrowserPanelTests
         var panel = new ScenarioBrowserPanel();
         // HandleLoadClick() just sets a flag — exercised here for coverage
         panel.HandleLoadClick();
+    }
+
+    [Fact]
+    public void HandleMigrationHistoryClick_CallsGetMigrationSidecarsForCurrentScenario()
+    {
+        var mock = new Mock<IEditorLogic>();
+        mock.Setup(l => l.GetMigrationSidecarsForCurrentScenario())
+            .Returns(new List<SidecarFileInfo>());
+        var panel = new ScenarioBrowserPanel();
+        panel.HandleMigrationHistoryClick(mock.Object);
+        mock.Verify(l => l.GetMigrationSidecarsForCurrentScenario(), Times.Once);
     }
 }

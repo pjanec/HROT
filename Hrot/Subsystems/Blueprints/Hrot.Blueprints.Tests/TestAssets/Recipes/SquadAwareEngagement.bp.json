@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000000-aaaa-0001-0000-000000000003",
   "Name": "SquadAwareEngagement",
   "Dispatch": 2,
@@ -10,7 +17,9 @@
   "Variables": [],
   "EventDispatchers": [],
   "CustomEvents": [],
-  "CallablePeers": [ "00000000-aaaa-0001-0000-000000000005" ],
+  "CallablePeers": [
+    "00000000-aaaa-0001-0000-000000000005"
+  ],
   "Graphs": [
     {
       "Id": "b3000001-0001-0001-0001-000000000001",
@@ -53,7 +62,7 @@
     "Recipe": {
       "DisplayName": "Squad-aware Engagement",
       "Category": "Combat",
-      "Description": "Reacts to changes in a peer Blueprint's variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
+      "Description": "Reacts to changes in a peer Blueprint\u0027s variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
       "Difficulty": "Intermediate",
       "ConceptsTaught": [
         "callablePeers declaration",

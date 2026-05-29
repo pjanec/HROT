@@ -64,8 +64,7 @@ public sealed class NodeMetadata
 
 public sealed class Header
 {
-    public string SubsystemType { get; set; } = "Hrot.Blueprints";
-    public string SchemaVersion { get; set; } = "1.0";
+    // SubsystemType and SchemaVersion removed -- $meta envelope carries this since Phase 2 (D-021).
 }
 
 public enum NodeStatus { Success, Failure, Running }

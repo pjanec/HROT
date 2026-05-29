@@ -16,6 +16,12 @@ public sealed class ReadOnlyLoadOutcome
     public bool WasMigrated { get; init; }
     public string? RawContent { get; init; }
     public JsonObject? MigratedDom { get; init; }
+
+    /// <summary>
+    /// The migration report produced during load. <b>Null</b> when the document
+    /// was already at the current version (fast path) and no migration was applied.
+    /// Callers must null-check before accessing <see cref="MigrationReport.Warnings"/>.
+    /// </summary>
     public MigrationReport? Report { get; init; }
 
     /// <summary>

@@ -107,12 +107,14 @@ namespace Fdp.Toolkit.ReplayBrowser
 
             writer.WriteStartObject();
 
-            // Header block
-            writer.WriteStartObject("Header");
+            // Envelope and recording identity fields
+            writer.WriteStartObject("$meta");
+            writer.WriteString("docType", FdpDocumentTypes.FlightRecorderMetadata);
+            writer.WriteNumber("schemaVersion", 1);
+            writer.WriteEndObject();
             writer.WriteString("Magic", "FDPREC");
             writer.WriteNumber("FormatVersion", playback.FormatVersion);
             writer.WriteNumber("Timestamp", playback.RecordingTimestamp);
-            writer.WriteEndObject();
 
             writer.WriteStartArray("Frames");
 
@@ -424,6 +426,20 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                     if (baseline == null && current == null)
                         continue;
+
+                    // First time we see this entity: establish baseline without emitting an entry.
+                    if (baseline == null)
+                    {
+                        baselines[target] = current;
+                        continue;
+                    }
+
+                    // Entity was destroyed this frame: clear baseline without emitting an entry.
+                    if (current == null)
+                    {
+                        baselines[target] = null;
+                        continue;
+                    }
 
                     System.Collections.Generic.IReadOnlyList<Diff.DiffNode> diffs =
                         _diffService.ComputeTreeDiff(baseline, current, options.EpsilonTolerance);

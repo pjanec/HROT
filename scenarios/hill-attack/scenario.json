@@ -1,4 +1,8 @@
 {
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0"
@@ -13,7 +17,7 @@
               "taskId": "ede78c84-e735-4e83-aa44-32f2210aa284",
               "executingEngine": "",
               "behaviorName": "PlatoonHillAttack",
-              "behaviorParams": "{\"firingLineStart\":[52.523639251909096, 13.413515804487876],\"firingLineEnd\":[52.524897363642268, 13.41360444887701],\"baselineStart\":[52.523603361149867, 13.412705470497283],\"baselineEnd\":[52.524924376555148, 13.412838305005167],\"tankSpacing\":30,\"targetAreaNetworkId\":1005}",
+              "behaviorParams": "{\u0022firingLineStart\u0022:[52.523639251909096, 13.413515804487876],\u0022firingLineEnd\u0022:[52.524897363642268, 13.41360444887701],\u0022baselineStart\u0022:[52.523603361149867, 13.412705470497283],\u0022baselineEnd\u0022:[52.524924376555148, 13.412838305005167],\u0022tankSpacing\u0022:30,\u0022targetAreaNetworkId\u0022:1005}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -51,18 +55,71 @@
         "BaselineReservedMask": 0,
         "CurrentWave": 0,
         "EqsRequestTime": 0,
-        "ActiveEntityPacked": [0, 0, 0, 0, 0, 0, 0, 0],
-        "ActiveSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
-        "ReturnBaselineSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
-        "HasStartedRun": [0, 0, 0, 0, 0, 0, 0, 0]
+        "ActiveEntityPacked": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ActiveSlotIndex": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ReturnBaselineSlotIndex": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "HasStartedRun": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "SimTransform": {
-        "Position": [427.805817, 457.924866, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          427.805817,
+          457.924866,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -80,7 +137,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -96,8 +156,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 303
@@ -105,7 +174,10 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,
@@ -136,12 +208,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [446.316711, 420.903046, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          446.316711,
+          420.903046,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -176,7 +265,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [523, 401],
+        "FinalDestination": [
+          523,
+          401
+        ],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -205,8 +297,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -214,7 +315,10 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [523, 401],
+        "FinalDestination": [
+          523,
+          401
+        ],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -250,12 +354,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [447.768555, 442.317627, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          447.768555,
+          442.317627,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -290,7 +411,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [526, 450],
+        "FinalDestination": [
+          526,
+          450
+        ],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -319,8 +443,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -328,7 +461,10 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [526, 450],
+        "FinalDestination": [
+          526,
+          450
+        ],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -364,12 +500,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [448.857422, 468.087708, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          448.857422,
+          468.087708,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -404,7 +557,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [529, 499],
+        "FinalDestination": [
+          529,
+          499
+        ],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -433,8 +589,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -442,7 +607,10 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [529, 499],
+        "FinalDestination": [
+          529,
+          499
+        ],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -478,12 +646,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [448.857422, 490.591187, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          448.857422,
+          490.591187,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -518,7 +703,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [532, 548],
+        "FinalDestination": [
+          532,
+          548
+        ],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -547,8 +735,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -556,7 +753,10 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [532, 548],
+        "FinalDestination": [
+          532,
+          548
+        ],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -605,8 +805,17 @@
         "Version": 0
       },
       "SimTransform": {
-        "Position": [670, 473.5, 0],
-        "Rotation": [0, 0, 0, 0]
+        "Position": [
+          670,
+          473.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "NetworkIdentity": {
         "Value": 1005
@@ -616,8 +825,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 8803
@@ -626,8 +844,18 @@
         "LayerMask": 8
       },
       "MapOverlayStyle": {
-        "FillColor": [255, 0, 0, 80],
-        "BorderColor": [255, 255, 255, 255],
+        "FillColor": [
+          255,
+          0,
+          0,
+          80
+        ],
+        "BorderColor": [
+          255,
+          255,
+          255,
+          255
+        ],
         "LineThickness": 2,
         "IsClosed": true
       }
@@ -638,12 +866,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [668, 427, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          668,
+          427,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -678,7 +923,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -707,8 +955,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -716,7 +973,10 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,
@@ -748,12 +1008,29 @@
       },
       "BrainBlackboard": {},
       "SimTransform": {
-        "Position": [668, 522, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          668,
+          522,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -788,7 +1065,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -817,8 +1097,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 100
@@ -826,7 +1115,10 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,

@@ -2,6 +2,7 @@ using CarKinem.Core;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
+using Fdp.Core.Serialization.Migrations;
 using Fdp.Interfaces;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
@@ -24,6 +25,7 @@ using Fdp.Toolkit.Vis2D.Components;
 using Hrot.Common;
 using Hrot.Common.Diagnostics;
 using Hrot.Common.Infrastructure;
+using Hrot.Common.Scenario.Migrations;
 using Hrot.Common.Orchestration;
 using Hrot.Common.Systems;
 using Hrot.Core.Diagnostics;
@@ -71,6 +73,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
     /// <summary>NodeOp slave translator wired to the DDS participant. Valid after BootstrapNode() returns.</summary>
     public NodeOpSlaveTranslator? IgSlaveTranslator { get; private set; }
+
+    /// <summary>Migration services bundle. Valid after BootstrapNode() returns.</summary>
+    public MigrationServices? MigrationServices { get; private set; }
 
     /// <summary>
     /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
@@ -191,6 +196,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         // CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C).
         var orchestrationBus = new FdpEventBus();
         OrchestrationBus = orchestrationBus;
+        MigrationServices = HrotMigrationBootstrap.BuildIg();
 
         // CGF1-S0104: wire ClusterSlave once DDS participant is confirmed healthy.
         // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)

@@ -41,7 +41,10 @@ public static class EditDocumentJsonSerializer
         using var writer = new Utf8JsonWriter(ms, options);
 
         writer.WriteStartObject();
-        writer.WriteString("structedit_version", SchemaVersion);
+        writer.WriteStartObject("$meta");
+        writer.WriteString("docType", "Hrot.StructEdit");
+        writer.WriteNumber("schemaVersion", 1);
+        writer.WriteEndObject();
         writer.WriteString("rootTypeName", document.RootComponentType.AssemblyQualifiedName);
         writer.WriteString("scope", document.Root.JsonPath);
 
@@ -210,13 +213,19 @@ public static class EditDocumentJsonSerializer
         var root = doc.RootElement;
 
         // 1. Validate schema version
-        if (!root.TryGetProperty("structedit_version", out var versionEl)
-            || versionEl.GetString() != SchemaVersion)
+        // Phase 2 format: $meta envelope is present -- skip structedit_version check.
+        // Legacy format: validate structedit_version == "1.0".
+        bool hasMetaEnvelope = root.TryGetProperty("$meta", out _);
+        if (!hasMetaEnvelope)
         {
-            var found = root.TryGetProperty("structedit_version", out var v) ? v.GetString() : "<missing>";
-            throw new EditJsonMismatchException(
-                "structedit_version",
-                $"JSON schema version mismatch. Expected '{SchemaVersion}', found '{found}'.");
+            if (!root.TryGetProperty("structedit_version", out var versionEl)
+                || versionEl.GetString() != SchemaVersion)
+            {
+                var found = root.TryGetProperty("structedit_version", out var v) ? v.GetString() : "<missing>";
+                throw new EditJsonMismatchException(
+                    "structedit_version",
+                    $"JSON schema version mismatch. Expected '{SchemaVersion}', found '{found}'.");
+            }
         }
 
         // 2. Validate root type name

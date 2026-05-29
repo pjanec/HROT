@@ -7,14 +7,11 @@ namespace Fdp.Toolkit.Scenario
     /// </summary>
     /// <param name="SubsystemType">
     /// Human-readable identifier of the subsystem that produced this file
-    /// (e.g. <c>"Hrot.CGF"</c>, <c>"Hrot.SimHost"</c>).
-    /// </param>
-    /// <param name="SchemaVersion">
-    /// Integer schema version.  Increment when structural changes to the JSON
-    /// contract are made that break old readers.
+    /// (e.g. <c>"Hrot.CGF"</c>, <c>"Hrot.SimHost"</c>). Written to <c>$meta.docType</c>
+    /// in Phase 2 format.
     /// </param>
     /// <param name="TkbName">
     /// Optional TKB name required by this scenario. Null means no opinion.
     /// </param>
-    public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1, string? TkbName = null);
+    public record ScenarioHeader(string SubsystemType, string? TkbName = null);
 }

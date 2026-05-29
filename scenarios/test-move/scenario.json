@@ -1,4 +1,8 @@
 {
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0"
@@ -13,7 +17,7 @@
               "taskId": "57e4221b-65d0-46ce-861f-093fe49cb439",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\"targetLat\":52.52265980372888,\"targetLon\":13.412204386639633,\"speed\":5,\"arrivalRadius\":5}",
+              "behaviorParams": "{\u0022targetLat\u0022:52.52265980372888,\u0022targetLon\u0022:13.412204386639633,\u0022speed\u0022:5,\u0022arrivalRadius\u0022:5}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -34,12 +38,29 @@
         "ArrivalRadius": 5
       },
       "SimTransform": {
-        "Position": [368, 296, 0],
-        "Rotation": [0, 0, 0, 1]
+        "Position": [
+          368,
+          296,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
       },
       "SimVelocity": {
-        "Linear": [0, 0, 0],
-        "Angular": [0, 0, 0]
+        "Linear": [
+          0,
+          0,
+          0
+        ],
+        "Angular": [
+          0,
+          0,
+          0
+        ]
       },
       "ActorCapabilityState": {
         "Capabilities": "CanMove, CanShoot"
@@ -74,7 +95,10 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -103,8 +127,17 @@
         "LocalNodeId": 0
       },
       "NetworkTransform": {
-        "LastPosition": [0, 0, 0],
-        "LastRotation": [0, 0, 0, 0]
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
       },
       "TkbIdentity": {
         "TkbType": 101
@@ -112,7 +145,10 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [
+          0,
+          0
+        ],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,

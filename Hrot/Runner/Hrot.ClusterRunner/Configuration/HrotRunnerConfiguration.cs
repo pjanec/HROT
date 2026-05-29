@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|stridemock|replaybrowser or comma-separated combination")]
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|migrate|stridemock|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -41,6 +41,18 @@ namespace Hrot.ClusterRunner.Configuration
         /// Can be overridden via JSON config file.
         /// </summary>
         public string[] AiBehaviorsProjectPath { get; set; } = new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
+
+        /// <summary>Target schema version for --mode migrate. -1 means current registered version.</summary>
+        [Option("target-version", Required = false, Default = -1, HelpText = "Target schema version (-1 = current) for --mode migrate")]
+        public int TargetVersion { get; set; } = -1;
+
+        /// <summary>Input directory for --mode migrate. Defaults to current working directory.</summary>
+        [Option("input-dir", Required = false, HelpText = "Directory to migrate (for --mode migrate). Defaults to current directory.")]
+        public string InputDirectory { get; set; } = string.Empty;
+
+        /// <summary>When true, --mode migrate reports what would be done without writing any files.</summary>
+        [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
+        public bool DryRun { get; set; }
 
         // -- Parsed values ---------------------------------------------------
 
@@ -72,7 +84,8 @@ namespace Hrot.ClusterRunner.Configuration
                 // "ios" is a legacy alias for "excon"
                 var normalized = name == "ios" ? "excon" : name;
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor", "stridemock", "replaybrowser" };
+                    { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
+                      "stridemock", "replaybrowser", "migrate" };
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
                         $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, stridemock, replaybrowser, or comma-separated combination.");
@@ -107,6 +120,9 @@ namespace Hrot.ClusterRunner.Configuration
 
             // CI mode is always standalone (no peer synchronisation required).
             if (RequestedSubsystems.Contains("ci")) return;
+
+            // Migrate mode is standalone: no peer synchronisation or subsystem-combination logic.
+            if (RequestedSubsystems.Contains("migrate")) return;
 
             // Editor mode is always standalone - must not be combined with distributed flags.
             if (RequestedSubsystems.Contains("editor") &&

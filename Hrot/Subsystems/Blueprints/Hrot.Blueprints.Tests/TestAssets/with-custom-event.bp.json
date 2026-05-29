@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "11111111-0000-0000-0000-000000000005",
   "Name": "WithCustomEvent",
   "Dispatch": "Library",
@@ -16,7 +23,9 @@
         {
           "Id": "ffffffff-0000-0000-0000-000000000002",
           "Name": "Damage",
-          "Type": { "TypeId": "System.Single" },
+          "Type": {
+            "TypeId": "System.Single"
+          },
           "DefaultValueJson": null
         }
       ]

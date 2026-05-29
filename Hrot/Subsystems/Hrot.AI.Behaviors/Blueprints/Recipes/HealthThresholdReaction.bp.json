@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000000-aaaa-0001-0000-000000000002",
   "Name": "HealthThresholdReaction",
   "Dispatch": 2,
@@ -36,7 +43,11 @@
               "$type": "Compound",
               "Operator": 0,
               "Conditions": [
-                { "$type": "Numeric", "MinValue": 0.0, "MaxValue": 0.3 }
+                {
+                  "$type": "Numeric",
+                  "MinValue": 0.0,
+                  "MaxValue": 0.3
+                }
               ],
               "ReadOnlyChildIndices": []
             }

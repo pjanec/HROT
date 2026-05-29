@@ -1,9 +1,21 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000011-0000-0000-0000-000000000001",
   "Name": "ConditionWithDelay",
   "Dispatch": "AiPrimitive",
-  "Primitive": { "Intent": "Condition", "Hostings": [ "BTreeCondition" ] },
+  "Primitive": {
+    "Intent": "Condition",
+    "Hostings": [
+      "BTreeCondition"
+    ]
+  },
   "Parameters": [],
   "WorkingState": [],
   "Variables": [],

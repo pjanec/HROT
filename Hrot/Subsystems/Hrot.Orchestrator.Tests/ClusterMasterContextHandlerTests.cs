@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Text.Json;
+using System.Threading;
 using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
@@ -61,7 +63,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
     /// </summary>
     private void SetupScenarioFiles(string scenarioId, long wallTicks = 12_345L, double simTime = 5.0)
     {
-        var localDir = Path.Combine(_tempDir, scenarioId);
+        var localDir = Path.Combine(_tempDir, Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName, scenarioId);
         Directory.CreateDirectory(localDir);
         var ctxDto = new GlobalContextDto
         {
@@ -69,7 +71,6 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
             SceneId             = "scene_" + scenarioId,
             ScenarioId          = scenarioId,
             ScenarioTimeSeconds = simTime,
-            SchemaVersion       = 2,
         };
         File.WriteAllText(
             Path.Combine(localDir, "Orchestrator.json"),
@@ -183,6 +184,33 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         });
 
         Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// After CommitSerializeLocal, the written Orchestrator.json must contain a
+    /// Phase 2 <c>$meta</c> envelope and must NOT contain a naked <c>schemaVersion</c>.
+    /// </summary>
+    [Fact]
+    public async Task CommitSerializeLocal_ProducesPhase2Envelope()
+    {
+        using var participant = new DdsParticipant(15);
+        var handler = new GlobalContextClusterOpHandler(participant, "test-scenario");
+        handler.LocalTempRoot = _tempDir;
+        handler.ScenarioTimeSeconds = 42.0;
+        var cmd = new NodeOpCommand { Operation = NodeOpType.SerializeLocal };
+        await handler.PrepareAsync(cmd, CancellationToken.None);
+        handler.Commit(cmd, null);
+
+        var writtenPath = handler.CommitManifestEntry!.SourceUnc;
+        var json = File.ReadAllText(writtenPath);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("$meta", out var meta), "$meta envelope must be present");
+        Assert.Equal("Hrot.OrchestratorContext", meta.GetProperty("docType").GetString());
+        Assert.Equal(2, meta.GetProperty("schemaVersion").GetInt32());
+        Assert.False(root.TryGetProperty("schemaVersion", out _), "naked schemaVersion must not be present");
+        Assert.True(root.TryGetProperty("startWallTicks", out _), "startWallTicks payload must be present");
     }
 
     /// <summary>

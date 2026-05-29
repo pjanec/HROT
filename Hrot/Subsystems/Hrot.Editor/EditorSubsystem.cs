@@ -144,6 +144,7 @@ namespace Hrot.Editor
         private MasterSyncController?   _timeController;
         private PhysicsToolkitModule?   _physicsModule;
         private IEditorLogic?           _editorLogic;
+        private EditorApplication?      _editorApp;
         private MapCanvas?              _canvas;
         private MapCamera?              _camera;
         private bool                    _headless;
@@ -986,6 +987,7 @@ namespace Hrot.Editor
                 hotReloadSource: _hotReloadSource,
                 aiProjectPathSegments: AiBehaviorsProjectPath);
             _editorLogic = app;
+            _editorApp   = app;
 
             // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
@@ -1451,7 +1453,7 @@ namespace Hrot.Editor
 
             // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
-            windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic));
+            windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic, _editorApp!.AlertManager));
             if (_clusterPanel != null && _uiCache != null)
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
             if (_clusterDiagnosticsPanel != null)
@@ -1617,6 +1619,7 @@ namespace Hrot.Editor
             _world?.Dispose();
             _world = null;
             _editorLogic = null;
+            _editorApp   = null;
             _timeController = null;
             _canvas = null;
             _camera = null;

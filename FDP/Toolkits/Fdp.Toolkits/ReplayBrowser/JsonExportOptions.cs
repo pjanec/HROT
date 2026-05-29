@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.ReplayBrowser
     public sealed class JsonExportOptions
     {
         public ExportWindowMode WindowMode = ExportWindowMode.FullFile;
-        public ExportFormatMode FormatMode = ExportFormatMode.Incremental;
+        public ExportFormatMode FormatMode = ExportFormatMode.AbsoluteState;
 
         public int StartFrame = 0;
         public int EndFrame = int.MaxValue;

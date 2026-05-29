@@ -1,4 +1,7 @@
+using System.Text.Json.Nodes;
 using CycloneDDS.Runtime;
+using Fdp.Core.Serialization.Migrations;
+using Hrot.Common.Scenario;
 using Hrot.Core.Network;
 using Hrot.NED.Common;
 using Hrot.NED.Descriptors;
@@ -12,9 +15,6 @@ namespace Hrot.Network.NED.ExCon;
 /// </summary>
 public sealed class NedExConEgressWriters : IExConEgressWriters
 {
-    // JSON schema version constant embedded in MapInteractionConfig publications.
-    private const int MapConfigSchemaVersion = 1;
-
     private readonly DdsWriter<MapInteractionConfig>  _configWriter;
     private readonly DdsWriter<CreateEntityRequest>   _createEntityWriter;
     private readonly DdsWriter<MapCommandRequest>     _commandWriter;
@@ -35,13 +35,14 @@ public sealed class NedExConEgressWriters : IExConEgressWriters
     /// <inheritdoc/>
     public void WriteMapConfig(MapConfigDto config)
     {
+        var dom = JsonNode.Parse(config.ConfigJson)!.AsObject();
+        JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.MapInteractionConfig, 1));
         _configWriter.Write(new MapInteractionConfig
         {
             MapGroupId        = _mapGroupId,
             MapId             = 0,
             ActiveContextId   = config.ActiveContextId,
-            JsonSchemaVersion = MapConfigSchemaVersion,
-            ConfigurationJson = config.ConfigJson,
+            ConfigurationJson = dom.ToJsonString(),
         });
     }
 

@@ -1,15 +1,19 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Common.Orchestration;
+using Hrot.Common.Scenario;
 using Hrot.Network.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Core.Logging;
+using Fdp.Core.Serialization.Migrations;
+using Fdp.Core.Serialization.Migrations.Adapters;
 
 namespace Hrot.Orchestrator;
 
@@ -47,6 +51,7 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
 
     private readonly DdsWriter<OrchestratorContextTopic> _contextWriter;
     private readonly string _scenarioId;
+    private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
 
     // ── Seed state exposed for injection ────────────────────────────────────────
     /// <summary>
@@ -101,17 +106,20 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     /// </summary>
     /// <param name="participant">Participant used to publish <see cref="OrchestratorContextTopic"/>.</param>
     /// <param name="scenarioId">Scenario identifier stored in the global context file.</param>
-    public GlobalContextClusterOpHandler(DdsParticipant participant, string scenarioId)
+    /// <param name="readOnlyAdapter">Optional migration adapter for reading Phase 2 enveloped JSON files.</param>
+    public GlobalContextClusterOpHandler(DdsParticipant participant, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
     {
-        _contextWriter = new DdsWriter<OrchestratorContextTopic>(participant);
-        _scenarioId    = scenarioId ?? string.Empty;
+        _contextWriter  = new DdsWriter<OrchestratorContextTopic>(participant);
+        _scenarioId     = scenarioId ?? string.Empty;
+        _readOnlyAdapter = readOnlyAdapter;
     }
 
     /// <summary>Test-only constructor that accepts a pre-built writer.</summary>
-    internal GlobalContextClusterOpHandler(DdsWriter<OrchestratorContextTopic> contextWriter, string scenarioId)
+    internal GlobalContextClusterOpHandler(DdsWriter<OrchestratorContextTopic> contextWriter, string scenarioId, ReadOnlyMigrationAdapter? readOnlyAdapter = null)
     {
-        _contextWriter = contextWriter;
-        _scenarioId    = scenarioId ?? string.Empty;
+        _contextWriter  = contextWriter;
+        _scenarioId     = scenarioId ?? string.Empty;
+        _readOnlyAdapter = readOnlyAdapter;
     }
 
     /// <inheritdoc />
@@ -201,12 +209,12 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
                 SceneId               = _pendingSaveSceneId ?? string.Empty,
                 ScenarioId            = _scenarioId,
                 ScenarioTimeSeconds   = _pendingSaveScenarioTimeSeconds,
-                SchemaVersion         = 2,
             };
 
-            var json = JsonSerializer.Serialize(dto,
-                new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_pendingFilePath, json);
+            var serializeOpts = new JsonSerializerOptions { WriteIndented = true };
+            var dom = JsonSerializer.SerializeToNode(dto, serializeOpts)!.AsObject();
+            JsonEnvelope.Write(dom, new DocumentMeta(HrotDocumentTypes.OrchestratorContext, 2));
+            File.WriteAllText(_pendingFilePath, dom.ToJsonString(serializeOpts));
             var exerciseIdText = new DirectoryInfo(Path.GetDirectoryName(_pendingFilePath)!).Name;
 
             CommitManifestEntry = new FileManifestEntry
@@ -274,7 +282,16 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
 
         try
         {
-            var json = File.ReadAllText(filePath);
+            string json;
+            if (_readOnlyAdapter != null)
+            {
+                var outcome = _readOnlyAdapter.LoadAndMigrateAsync(filePath, CancellationToken.None).GetAwaiter().GetResult();
+                json = outcome.AsJsonString();
+            }
+            else
+            {
+                json = File.ReadAllText(filePath);
+            }
             var dto  = JsonSerializer.Deserialize<GlobalContextDto>(json,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (dto == null)
@@ -378,7 +395,4 @@ public sealed class GlobalContextDto
     [JsonPropertyName("scenarioId")]
     public string ScenarioId { get; set; } = string.Empty;
 
-    /// <summary>Schema version for forward-compatibility guards.</summary>
-    [JsonPropertyName("schemaVersion")]
-    public int SchemaVersion { get; set; } = 2;
 }

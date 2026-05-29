@@ -1,16 +1,30 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "11111111-0000-0000-0000-000000000004",
   "Name": "WithBranch",
   "Dispatch": "AiPrimitive",
-  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
   "Parameters": [],
   "WorkingState": [],
   "Variables": [
     {
       "Id": "aaaaaaaa-0000-0000-0000-000000000010",
       "Name": "Flag",
-      "Type": { "TypeId": "System.Boolean" },
+      "Type": {
+        "TypeId": "System.Boolean"
+      },
       "DefaultValueJson": "false"
     }
   ],

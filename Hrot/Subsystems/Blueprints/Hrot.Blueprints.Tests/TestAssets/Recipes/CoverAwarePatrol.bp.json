@@ -1,5 +1,12 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000000-aaaa-0001-0000-000000000001",
   "Name": "CoverAwarePatrol",
   "Dispatch": 2,
@@ -11,21 +18,27 @@
     {
       "Id": "a1000001-0001-0001-0001-000000000001",
       "Name": "CoverQuery",
-      "Type": { "TypeId": "FDP.Eqs.EqsSensorHandle" },
+      "Type": {
+        "TypeId": "FDP.Eqs.EqsSensorHandle"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     },
     {
       "Id": "a1000001-0002-0002-0002-000000000002",
       "Name": "Initialized",
-      "Type": { "TypeId": "System.Boolean" },
+      "Type": {
+        "TypeId": "System.Boolean"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     },
     {
       "Id": "a1000001-0003-0003-0003-000000000003",
       "Name": "PatrolTarget",
-      "Type": { "TypeId": "System.Numerics.Vector2" },
+      "Type": {
+        "TypeId": "System.Numerics.Vector2"
+      },
       "IsEditable": false,
       "DefaultValueJson": null
     }

@@ -1,7 +1,9 @@
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Scenario;
+using Fdp.Core.Serialization.Migrations;
 using Hrot.Common.Scenario;
+using Hrot.Common.Scenario.Migrations;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor.Services;
 
@@ -34,6 +36,11 @@ public static class EditorBootstrap
 
         var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
 
-        return new ScenarioFileService(serializer);
+        var migrations = HrotMigrationBootstrap.BuildEditor();
+        return new ScenarioFileService(serializer, migrationServices: migrations);
     }
+
+    /// <summary>Creates the full Editor MigrationServices bundle.</summary>
+    public static MigrationServices CreateMigrationServices() =>
+        HrotMigrationBootstrap.BuildEditor();
 }

@@ -1,8 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using Fdp.Core;
+using Fdp.Core.Serialization.Migrations;
+using Fdp.Core.Serialization.Migrations.Adapters;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
@@ -36,18 +41,31 @@ public sealed class ScenarioFileService
     private readonly FdpEventBus? _bus;
     private readonly IZoneManagerService? _zoneService;
     private readonly ITkbDatabase? _tkbDb;
+    private readonly MigrationServices? _migrationServices;
     private Action? _worldResetObservers;
+
+    private MigrationLoadResult? _lastLoadResult;
+    private string? _lastLoadPath;
+
+    /// <summary>
+    /// The <see cref="MigrationLoadResult"/> from the most recent
+    /// <see cref="LoadScenario"/> call that went through the persistent adapter,
+    /// or <c>null</c> if no migration-aware load has occurred.
+    /// </summary>
+    public MigrationLoadResult? LastLoadResult => _lastLoadResult;
 
     public ScenarioFileService(
         ScenarioSerializer serializer,
         FdpEventBus? bus = null,
         IZoneManagerService? zoneService = null,
-        ITkbDatabase? tkbDb = null)
+        ITkbDatabase? tkbDb = null,
+        MigrationServices? migrationServices = null)
     {
-        _serializer  = serializer  ?? throw new ArgumentNullException(nameof(serializer));
-        _bus         = bus;
-        _zoneService = zoneService;
-        _tkbDb       = tkbDb;
+        _serializer        = serializer  ?? throw new ArgumentNullException(nameof(serializer));
+        _bus               = bus;
+        _zoneService       = zoneService;
+        _tkbDb             = tkbDb;
+        _migrationServices = migrationServices;
     }
 
     /// <summary>
@@ -85,29 +103,35 @@ public sealed class ScenarioFileService
         if (filePath == null) throw new ArgumentNullException(nameof(filePath));
 
         var header  = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName);
-        var fdpDom  = _serializer.Serialize(repo, header);
+        var fdpDom  = _serializer.Serialize(repo, header); // stamps $meta
 
         var activeZones = _zoneService?.GetActiveZones();
+        if (activeZones != null && activeZones.Count > 0)
+            fdpDom["Zones"] = System.Text.Json.JsonSerializer
+                .SerializeToNode(activeZones, HrotSerializerOptions.HrotJsonOptions)!;
 
-        var envelope = new HrotScenarioEnvelopeDto
+        if (_migrationServices != null
+            && _lastLoadResult != null
+            && string.Equals(filePath, _lastLoadPath, StringComparison.OrdinalIgnoreCase))
         {
-            Header   = new ScenarioHeaderDto
+            // Use the persistent adapter so that any round-trip journal is applied
+            // (restoring higher-version-only fields) and cleaned up on success.
+            _migrationServices.Persistent
+                .SaveAsync(filePath, fdpDom, _lastLoadResult)
+                .GetAwaiter().GetResult();
+            _lastLoadResult = null;  // consumed; next load will refresh
+            _lastLoadPath   = null;
+        }
+        else
+        {
+            // Direct write path for fresh saves or saves without a prior load result.
+            var minifiedOptions = new System.Text.Json.JsonSerializerOptions(HrotSerializerOptions.HrotJsonOptions)
             {
-                SubsystemType = "Hrot.Scenario",
-                SchemaVersion = "1.0",
-                TkbName       = _tkbDb?.ActiveTkbName,
-            },
-            Zones    = (activeZones != null && activeZones.Count > 0) ? activeZones : null,
-            Entities = fdpDom["Entities"]?.AsObject() ?? fdpDom["entities"]?.AsObject(),
-        };
-
-        var minifiedOptions = new System.Text.Json.JsonSerializerOptions(HrotSerializerOptions.HrotJsonOptions)
-        {
-            WriteIndented = false,
-        };
-        var minifiedJson = System.Text.Json.JsonSerializer.Serialize(envelope, minifiedOptions);
-
-        File.WriteAllText(filePath, JsonAestheticFormatter.FlattenNumericArrays(minifiedJson));
+                WriteIndented = false,
+            };
+            var minifiedJson = System.Text.Json.JsonSerializer.Serialize(fdpDom, minifiedOptions);
+            File.WriteAllText(filePath, JsonAestheticFormatter.FlattenNumericArrays(minifiedJson));
+        }
     }
 
     /// <summary>
@@ -126,8 +150,27 @@ public sealed class ScenarioFileService
 
         var jsonText = File.ReadAllText(filePath);
 
-        // Validate header before destructively clearing the repo.
-        ValidateSubsystemType(jsonText);
+        JsonObject? dom = null;
+
+        if (_migrationServices != null)
+        {
+            // Phase 4 path: use the persistent adapter so that snapshots are written
+            // before up-migration and journals are written on down-migration.
+            // MigrationLoadResult carries WasMigrated / IsDegraded for UI alerts.
+            var result = _migrationServices.Persistent
+                .LoadAndMigrateAsync(filePath)
+                .GetAwaiter().GetResult();
+            _lastLoadResult = result;
+            _lastLoadPath   = filePath;
+            dom = result.Dom;
+        }
+        else
+        {
+            _lastLoadResult = null;
+            _lastLoadPath   = null;
+            // Legacy path: validate subsystem type header before destructively clearing.
+            ValidateSubsystemType(jsonText);
+        }
 
         _worldResetObservers?.Invoke();   // synchronous callbacks BEFORE clear
         repo.SoftClear();                 // also clears Bus — so we publish bus event AFTER this
@@ -139,7 +182,7 @@ public sealed class ScenarioFileService
         if (_zoneService != null)
         {
             // Single JSON parse discipline: parse once, use DOM for both DTOs and FDP serializer.
-            var dom      = JsonNode.Parse(jsonText)?.AsObject();
+            dom ??= JsonNode.Parse(jsonText)?.AsObject();
             var envelope = dom?.Deserialize<HrotScenarioEnvelopeDto>(HrotSerializerOptions.HrotJsonOptions);
 
             if (envelope?.Zones != null)
@@ -153,8 +196,26 @@ public sealed class ScenarioFileService
         }
         else
         {
-            _serializer.Deserialize(repo, jsonText);
+            if (dom != null)
+                _serializer.Deserialize(repo, dom);
+            else
+                _serializer.Deserialize(repo, jsonText);
         }
+    }
+
+    /// <summary>
+    /// Returns sidecar files (snapshots and journals) for the most recently
+    /// loaded file. Returns an empty list when no migration-aware load has
+    /// occurred or when no migration services are configured.
+    /// </summary>
+    public async Task<IReadOnlyList<SidecarFileInfo>> GetSidecarsForLastLoadAsync(
+        CancellationToken ct = default)
+    {
+        if (_migrationServices == null || _lastLoadPath == null)
+            return Array.Empty<SidecarFileInfo>();
+        return await _migrationServices.Persistent
+            .ListSidecarsAsync(_lastLoadPath, ct)
+            .ConfigureAwait(false);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -167,10 +228,27 @@ public sealed class ScenarioFileService
 
     private static void ValidateSubsystemType(string jsonText)
     {
-        // Quick header peek: deserialize only enough to check SubsystemType.
+        // Quick header peek: check $meta.docType (Phase 2) or Header.SubsystemType (legacy).
         // Support both PascalCase (FDP serializer output) and camelCase (HrotSerializerOptions output).
         using var doc = System.Text.Json.JsonDocument.Parse(jsonText);
 
+        // Phase 2: $meta.docType
+        if (doc.RootElement.TryGetProperty("$meta", out var metaElem))
+        {
+            System.Text.Json.JsonElement docTypeElem;
+            if (!metaElem.TryGetProperty("docType", out docTypeElem))
+                throw new InvalidOperationException(
+                    "[ScenarioFileService] File '$meta' is missing 'docType'.");
+
+            var subsystemType = docTypeElem.GetString() ?? string.Empty;
+            if (Array.IndexOf(AcceptedSubsystemTypes, subsystemType) < 0)
+                throw new InvalidOperationException(
+                    $"[ScenarioFileService] Unrecognized docType '{subsystemType}'. " +
+                    $"Accepted: {string.Join(", ", AcceptedSubsystemTypes)}.");
+            return;
+        }
+
+        // Legacy: Header.SubsystemType
         System.Text.Json.JsonElement header;
         if (!doc.RootElement.TryGetProperty("Header", out header) &&
             !doc.RootElement.TryGetProperty("header", out header))
@@ -183,10 +261,10 @@ public sealed class ScenarioFileService
             throw new InvalidOperationException(
                 "[ScenarioFileService] Header is missing 'SubsystemType'.");
 
-        var subsystemType = typeElem.GetString() ?? string.Empty;
-        if (Array.IndexOf(AcceptedSubsystemTypes, subsystemType) < 0)
+        var legacySubsystemType = typeElem.GetString() ?? string.Empty;
+        if (Array.IndexOf(AcceptedSubsystemTypes, legacySubsystemType) < 0)
             throw new InvalidOperationException(
-                $"[ScenarioFileService] Unrecognized SubsystemType '{subsystemType}'. " +
+                $"[ScenarioFileService] Unrecognized SubsystemType '{legacySubsystemType}'. " +
                 $"Accepted: {string.Join(", ", AcceptedSubsystemTypes)}.");
     }
 

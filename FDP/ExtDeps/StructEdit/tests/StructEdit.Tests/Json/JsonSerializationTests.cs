@@ -169,6 +169,71 @@ public class JsonSerializationTests
         var act = () => JsonDocument.Parse(json);
         act.Should().NotThrow();
     }
+
+    // Phase 2: Serialize produces $meta envelope
+    [Fact]
+    public void Serialize_ProducesMetaEnvelope()
+    {
+        using var session = JsonTestHelper.Open(new ScalarComponent { Score = 5 });
+        var json = session.ToJson();
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        root.TryGetProperty("$meta", out var meta).Should().BeTrue();
+        meta.GetProperty("docType").GetString().Should().Be("Hrot.StructEdit");
+        meta.GetProperty("schemaVersion").GetInt32().Should().Be(1);
+    }
+
+    // Phase 2: Serialize does NOT produce structedit_version
+    [Fact]
+    public void Serialize_DoesNotProduceStructEditVersion()
+    {
+        using var session = JsonTestHelper.Open(new ScalarComponent { Score = 5 });
+        var json = session.ToJson();
+
+        using var doc = JsonDocument.Parse(json);
+        doc.RootElement.TryGetProperty("structedit_version", out _).Should().BeFalse();
+    }
+
+    // Phase 2: Deserialize accepts Phase 2 format (with $meta, without structedit_version)
+    [Fact]
+    public void Deserialize_AcceptsPhase2Format()
+    {
+        // Round-trip: serialize (produces $meta), then deserialize
+        var original = new ScalarComponent { Score = 99 };
+        using var writeSession = JsonTestHelper.Open(original);
+        var json = writeSession.ToJson();
+
+        // Verify $meta is present and structedit_version is absent
+        json.Should().Contain("\"$meta\"");
+        json.Should().NotContain("structedit_version");
+
+        // Deserialize into a fresh session
+        var readTarget = new ScalarComponent { Score = 0 };
+        using var readSession = JsonTestHelper.Open(readTarget);
+        var act = () => readSession.LoadJson(json);
+        act.Should().NotThrow();
+    }
+
+    // Phase 2: Deserialize still accepts legacy format (with structedit_version: "1.0", without $meta)
+    [Fact]
+    public void Deserialize_AcceptsLegacyFormat()
+    {
+        var target = new ScalarComponent { Score = 0 };
+        using var session = JsonTestHelper.Open(target);
+        var typeName = target.GetType().AssemblyQualifiedName;
+        var legacyJson = $$"""
+            {
+              "structedit_version": "1.0",
+              "rootTypeName": "{{typeName}}",
+              "scope": "$",
+              "nodes": []
+            }
+            """;
+
+        var act = () => session.LoadJson(legacyJson);
+        act.Should().NotThrow<EditJsonMismatchException>();
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

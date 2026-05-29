@@ -25,6 +25,7 @@ using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Time;
 using Fdp.Core.Orchestration;
 using Fdp.Core.Diagnostics;
+using Fdp.Core.Serialization.Migrations;
 using Hrot.Common.Diagnostics;
 using Hrot.Common.Infrastructure;
 using Hrot.Core.Diagnostics;
@@ -84,6 +85,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// Behavior registry. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
     /// </summary>
     public BehaviorRegistry? BehaviorRegistry { get; private set; }
+
+    /// <summary>Migration services bundle. Valid after BootstrapNode() returns.</summary>
+    public MigrationServices? MigrationServices { get; private set; }
 
     /// <summary>
     /// Loaded road network. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -225,6 +229,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         CheckpointWorker = new CheckpointIOWorker(checkpointPath, context.NodeId);
 
         _nodeBootstrapper = new NodeBootstrapper(_networkFactory);
+        MigrationServices = _nodeBootstrapper.RegisterMigrationServices(
+            _role,
+            writerIdentifier: _role.HasFlag(NodeRole.Brain) ? "Hrot.CGF" : "Hrot.SimHost");
         var slave = _nodeBootstrapper.BuildOrchestration(
             _role, context.Kernel, context.World, context.NodeId,
             participant:          context.Participant,

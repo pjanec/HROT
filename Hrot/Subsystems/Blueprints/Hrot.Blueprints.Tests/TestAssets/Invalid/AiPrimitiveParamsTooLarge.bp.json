@@ -1,13 +1,46 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "00000012-0000-0000-0000-000000000001",
   "Name": "AiPrimitiveParamsTooLarge",
   "Dispatch": "AiPrimitive",
-  "Primitive": { "Intent": "Action", "Hostings": [ "BTreeAction" ] },
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
   "Parameters": [
-    { "Id": "b0000012-0000-0000-0000-000000000001", "Name": "P01", "Type": { "TypeId": "System.Int32" }, "DefaultValueJson": null },
-    { "Id": "b0000012-0000-0000-0000-000000000002", "Name": "P02", "Type": { "TypeId": "System.Int32" }, "DefaultValueJson": null },
-    { "Id": "b0000012-0000-0000-0000-000000000003", "Name": "P03", "Type": { "TypeId": "System.Int32" }, "DefaultValueJson": null }
+    {
+      "Id": "b0000012-0000-0000-0000-000000000001",
+      "Name": "P01",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "b0000012-0000-0000-0000-000000000002",
+      "Name": "P02",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": null
+    },
+    {
+      "Id": "b0000012-0000-0000-0000-000000000003",
+      "Name": "P03",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": null
+    }
   ],
   "WorkingState": [],
   "Variables": [],
