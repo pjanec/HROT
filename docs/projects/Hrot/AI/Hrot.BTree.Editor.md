@@ -3,7 +3,7 @@
 **Project file**: `Hrot/Subsystems/AI/Hrot.BTree.Editor/Hrot.BTree.Editor.csproj`
 **Project folder**: `Hrot/Subsystems/AI/Hrot.BTree.Editor/`
 **Target framework**: net8.0
-**Date**: 2026-05-23
+**Date**: 2026-05-30
 
 ---
 
@@ -217,11 +217,11 @@ NodeEditor uses a "reversed" wiring convention for BTrees:
 classify a reload as one of three tiers by comparing the `BehaviorTreeBlob` hash
 fields:
 
-| Tier         | Condition                         | Editor Action             |
-|--------------|-----------------------------------|---------------------------|
-| `ParamOnly`  | StructureHash same, ParamHash differs | Update param values only |
-| `Full`       | StructureHash differs             | Full re-projection        |
-| `Unchanged`  | Both hashes same                  | No-op                     |
+| Tier       | Condition                                  | Editor Action                  |
+|------------|--------------------------------------------|--------------------------------|
+| `Cosmetic` | Both hashes same                           | No-op                          |
+| `Soft`     | StructureHash same, ParamHash differs      | Update param values only       |
+| `Hard`     | StructureHash differs                      | Full re-projection             |
 
 ---
 
@@ -235,7 +235,7 @@ Core editor-side data model. Mutable; consumed by all other layers.
 
 | File | Class / Type | Purpose |
 |------|-------------|---------|
-| `BehaviorTreeAsset.cs` | `BehaviorTreeAsset` | Top-level editor model for one BTree asset. Owns node + pill lists, lookup tables, canvas state, and `BehaviorTreeBlob`. Implements `IEditableAsset`. |
+| `BehaviorTreeAsset.cs` | `BehaviorTreeAsset` | Top-level editor model for one BTree asset. Owns node + pill lists, lookup tables, canvas state, and `BehaviorTreeBlob`. Implements `IEditableAsset`, `IBlackboardManagedAsset`, and `IBTreeSyncableAsset`. |
 | `BehaviorTreeAsset.cs` | `BTreeEditorNode` | Mutable editor node. Holds `NodeType`, canvas `Position`, `DisplayLabel`, `Comment`, `ChildVisualIds`, typed payloads, `IsBreakpoint`. |
 | `BehaviorTreeAsset.cs` | `BTreeEditorPill` | Decorator collapsed into an attachment badge on the host node. Holds `DecoratorType`, `IntParam`, `FloatParam`, `StackIndex`. |
 | `BehaviorTreeAsset.cs` | `BTreeActionPayload` | Payload for Action leaves: `MethodFqn`, `ExpressionTargetField`, `DelegateShape`. |
@@ -288,6 +288,7 @@ Runtime debug session and event types.
 |------|-------------|---------|
 | `IBTreeDebugSession.cs` | `IBTreeDebugSession` | Extends `IAiDebugSession`. Adds: `GetCurrentStateSnapshot()`, `GetRecentNodeHistory(int)`, `GetRecentAsyncHistory(int)`, `HeatmapModeActive`, `GetAggregateCounters(Guid)`, `ResetAggregateCounters()`, and five events (`OnBreakpointHit`, `OnNodeExecuted`, `OnAsyncIssued`, `OnAsyncResolved`, `OnAsyncAborted`). |
 | `BTreeDebugSession.cs` | `BTreeDebugSession` | Production implementation of `IBTreeDebugSession`. Extends `AiDebugSessionBase`. Maintains two ring buffers (max 200 entries each): `_nodeHistory` and `_asyncHistory`. Tracks per-node aggregate counters when `HeatmapModeActive`. Exposes `RecordNodeExecuted()`, `RecordAsyncEvent()`, `RaiseBreakpointHit()` for the future kernel adapter. Step controls are no-ops until kernel wiring (Slice 3+). |
+| `BTreeBreakpointMenuPopulator.cs` | `BTreeBreakpointMenuPopulator` | Static helper that populates the right-click context menu for a BTree canvas node with Universal Breakpoints items. Called by the canvas right-click handler; synthesises `TraceBufferScanPredicateDto` and `CompoundPredicateDto` conditions and registers them via `IDataBreakpointManager.AddBreakpoint`. Menu items: "Break on Activation (Enter)" (NodeEvaluated + Running status), "Break on Completion (Exit)" (Success OR Failure compound), "Break on Abort", "Add Conditional Data Breakpoint..." (opens predicate editor). The `SourceElementId` of each registered breakpoint is set to `node.VisualId` so `BTreeBreakpointGutterRenderer` can draw the gutter dot without querying the Slice 1 session. |
 | `BTreeDebugTypes.cs` | `BehaviorTreeStateSnapshot` | Immutable record: running node index + VisualId, stack pointer, node-index stack, VisualId stack, local registers, async handles, tree version. |
 | `BTreeDebugTypes.cs` | `BTreeNodeExecuted` | Immutable record: entity, asset ID, node VisualId, `NodeStatus`, sim time, tick. |
 | `BTreeDebugTypes.cs` | `BTreeAsyncEvent` | Immutable record: entity, asset ID, node VisualId, request ID, tree version, `BTreeAsyncPhase`, sim time. |
@@ -365,7 +366,7 @@ Custom `ICustomCanvasRenderer` implementations drawn by the NodeEditor canvas.
 ### BehaviorTreeAsset (Model)
 
 ```csharp
-public sealed class BehaviorTreeAsset : IEditableAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset
 {
     // IEditableAsset
     public Guid   AssetId       { get; }
@@ -389,6 +390,21 @@ public sealed class BehaviorTreeAsset : IEditableAsset
     // Canvas state
     public Vector2 CanvasPanOffset { get; set; }
     public float   CanvasZoomLevel { get; set; }
+
+    // Blackboard (IBlackboardManagedAsset)
+    public string BlackboardTypeName { get; }
+    public bool   IsBlackboardEditorManaged { get; }
+    public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; }
+    public BlackboardLoadState LoadState { get; }
+    public string? LoadDiagnosticMessage { get; }
+    // ... AddVariable, RemoveVariable, RenameVariable, GetAliasesFor, etc.
+
+    // Subtree sync (IBTreeSyncableAsset)
+    public SubtreeNodeInfo?                   GetSubtreeNodeInfo(Guid nodeVisualId);
+    public IReadOnlyList<SubtreeSyncBinding>  GetSyncBindings(Guid nodeVisualId);
+    public void SetSyncBinding(Guid nodeVisualId, SubtreeSyncBinding binding);
+    public void ClearSyncBindings(Guid nodeVisualId);
+    public IReadOnlyList<BlackboardVariableEntry> GetVariablesOfType(string typeName);
 
     // Lookup
     public BTreeEditorNode? FindNode(Guid visualId);
@@ -693,6 +709,24 @@ public sealed class BehaviorHashPickerAttribute : Attribute { }
 
 ---
 
+## Visual Asset Comparison
+
+`Hrot.BTree.Editor` participates in the Visual Asset Comparison feature via three files
+under `Comparison/`:
+
+| File | Purpose |
+|------|---------|
+| `BTreeComparisonSanitizer` | Sanitizes BTree `.cs` files: parses the layout method body, hoists per-node comments and sync-binding annotations into the builder chain, truncates the layout method, and humanizes cross-asset GUID references. |
+| `BTreeComparisonToolbar` | Per-window wrapper that delegates to the shared `ComparisonToolbarAction`; renders "Compare with...", "Paste LLM Response...", and "Exit Comparison" toolbar buttons. |
+| `BTreeEditorComparisonServiceCollectionExtensions` | `AddBTreeEditorComparison()` DI extension; registers `BTreeComparisonSanitizer` as a singleton and wires it into `SanitizerRegistry`. |
+
+Call `AddBTreeEditorComparison()` after `AddSharedAiEditor()` in the composition root.
+
+See [Hrot.Editor.AiShared.Comparison.md](../Editor/Hrot.Editor.AiShared.Comparison.md) for the
+full comparison feature architecture.
+
+---
+
 ## Dependencies
 
 ### ProjectReferences
@@ -860,13 +894,13 @@ BehaviorTreeBlob newBlob = (BehaviorTreeBlob)definitionMethod.Invoke(null, null)
 HotReloadTier tier = BTreeQuickReloadHasher.Classify(oldBlob, newBlob);
 switch (tier)
 {
-    case HotReloadTier.Unchanged:
+    case HotReloadTier.Cosmetic:
         // Nothing to do; skip re-projection.
         break;
-    case HotReloadTier.ParamOnly:
+    case HotReloadTier.Soft:
         // Update leaf params in-place without rebuilding the graph.
         break;
-    case HotReloadTier.Full:
+    case HotReloadTier.Hard:
         // Re-project the full blob into the editor model.
         var updated = BehaviorTreeAssetProjector.Project(
             newBlob, newBlob.DebugMetadata, existingLayout,

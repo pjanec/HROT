@@ -321,6 +321,9 @@ bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
 | `Brains/HillAttackCommanderNodes.cs` | `HillAttackCommanderNodes` (public static unsafe) | All BTree node delegates for PlatoonHillAttack plus `BuildPlatoonHillAttackTree()` |
 | `Brains/HillAttackTankNodes.cs` | `HillAttackConstants` (public static) | Named constants: MaxOvershootMeters=50, SlotArrivalThresholdMeters=15, CreepLookAheadMeters=10000 |
 | `Brains/HillAttackTankNodes.cs` | `HillAttackTankNodes` (public static) | BTree node delegates for HullDownAttackRun plus `BuildHullDownAttackRunTree()` |
+| `Brains/EqsLifecycleNodes.cs` | `EqsParams` (struct) | Blackboard DTO for EQS lifecycle actions (BlueprintId, SearchRadius, FactionFilter, ThreatThreshold, ScoreDeltaThreshold, ContextSlot0-2) |
+| `Brains/EqsLifecycleNodes.cs` | `EqsSpawnParams` (struct) | Blackboard DTO for child-sensor spawn/destroy actions (SensorConfig, ChildSlotIndex, SpawnedHandle) |
+| `Brains/EqsLifecycleNodes.cs` | `EqsLifecycleNodes` (public static) | BTree actions and deactivators for EQS sensor lifecycle management |
 
 ### Namespace: `Hrot.AI.Behaviors.Logging`
 
@@ -342,6 +345,26 @@ bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
 |------|-------------|-------------|
 | `Gizmos/HillAttackGizmo.cs` | `HillAttackGizmo` (public sealed) | Stateless gizmo; draws firing-line (blue) and baseline (green) for PlatoonHillAttack entities |
 | `Gizmos/HillAttackGizmoSettings.cs` | `HillAttackGizmoSettings` (internal static) | Registers `"HillAttack.ShowSlots"` toggle setting (default: true) |
+
+### Blueprint Recipes (`Blueprints/Recipes/`)
+
+Five `.bp.json` recipe files ship with the project. They are processed by
+`Hrot.Blueprints.Generators` and serve as worked examples / instructional
+templates in the Blueprint editor. None carries runtime behavior; their purpose
+is to demonstrate specific Blueprint authoring patterns.
+
+| File | Asset ID | Purpose / Concepts taught |
+|------|----------|--------------------------|
+| `CoverAwarePatrol.bp.json` | `00000000-aaaa-0001-0000-000000000001` | Demonstrates EQS sensor handle variables, `Vector2` patrol target, and conditional branch on sensor readiness. |
+| `HealthThresholdReaction.bp.json` | `00000000-aaaa-0001-0000-000000000002` | Demonstrates component-read `When` node (health threshold), event dispatcher pattern, and response escalation. |
+| `MoveAndFireCombo.bp.json` | `00000000-aaaa-0001-0000-000000000004` | Demonstrates sequential action composition — locomotion then weapon channel — within a single Blueprint graph. |
+| `SquadAwareEngagement.bp.json` | `00000000-aaaa-0001-0000-000000000003` | Demonstrates cross-Blueprint variable access: declares `SquadState` (asset `…000005`) as a callable peer; reacts to its `ThreatLevel` variable via a `WhenNode` (Value Changed, peer-variable source). Intermediate difficulty. |
+| `SquadState.bp.json` | `00000000-aaaa-0001-0000-000000000005` | Shared-state peer that exposes `ThreatLevel` (`float`), `SquadSize` (`int`), and `Formation` (`byte`) variables; provides a `GetThreatLevel` getter graph. Used as the peer by `SquadAwareEngagement`. |
+
+The `SquadState` / `SquadAwareEngagement` pair is the authorable-surface prototype
+for the squad coordination layer (see `Hrot.SquadCoordination` design reference).
+The backing `SquadCognitiveState` runtime data and the coordination systems are
+defined and planned in the squad coordination workstream, not in this project.
 
 ---
 
@@ -449,6 +472,7 @@ public static unsafe class HillAttackCommanderNodes
 | `Condition_IsAreaQueryResolved(ref PlatoonHillAttackParams, ...)` | Polls batch result; 5-second timeout; Failure if area clear; Success caches `TargetGroupHandle`. |
 | `Action_DispatchWaveWithTargets(ref PlatoonHillAttackParams, ...)` | Assigns firing/baseline slots per attacker; publishes `"HullDownAttack"` intent; toggles `CurrentWave`. |
 | `Condition_IsWaveCompleted(ref PlatoonHillAttackParams, ...)` | Monitors `BehaviorState.ActiveBehaviorHash` of each attacker; burns slots on death; swap-removes completed. |
+| `Deactivate_RequestAreaQuery(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — resets `HillAttackMutableState.CachedEqsRequestId` to `-1` when mission-level abort orphans an in-flight EQS query slot. |
 | `ParsePlatoonHillAttackParams(string json, byte* ptr, IGeographicTransform?, NetworkEntityMap)` | Deserializes JSON; converts geodetic to Cartesian; computes attack direction automatically. |
 | `BuildPlatoonHillAttackTree()` | `[BTreeDefinition("PlatoonHillAttack")]` BTree builder. |
 
@@ -465,7 +489,9 @@ public static class HillAttackTankNodes
 |--------|-------------|
 | `Condition_HasTarget(ref HullDownAttackParams, ...)` | Resolves `TargetNetworkId` via `NetworkEntityMap`; scans `TargetMemory` for positive threat score. |
 | `Action_CreepToAndBeyondSlot(ref HullDownAttackParams, ...)` | Two-phase movement: approach at `ApproachSpeed`, then creep at `CreepSpeed`; Failure on overshoot > 50 m. |
+| `Deactivate_CreepToAndBeyondSlot(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — clears `LocomotionChannel.ActiveAction` on branch abort (the Failure path clears it explicitly; this covers the abort path). |
 | `Action_AimAndFireSpecific(ref HullDownAttackParams, ...)` | Resolves target entity; writes `AimAndFire` to `WeaponChannel`; tracks rounds via ammo delta. |
+| `Deactivate_AimAndFireSpecific(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — clears `WeaponChannel.ActiveAction` on branch abort (the MaxRounds path calls `ClearWeaponActionIfActive` explicitly; this covers the abort path). |
 | `Action_ReverseToBaseline(ref HullDownAttackParams, ...)` | Reverse `MoveTo (BaselineX, BaselineY)`; publishes `ClearBehaviorEvent` on arrival. |
 | `Action_AbortEngagement(ref HullDownAttackParams, ...)` | Always Success; overshoot fallback node in Selector. |
 | `ParseHullDownAttackParams(string json, byte* ptr)` | Deserializes JSON; resets `RoundsFired=0`, `LastObservedAmmo=-1`. |
@@ -483,6 +509,95 @@ public static class CommanderNodes
 | Method | Description |
 |--------|-------------|
 | `Action_IssueTacticalIntent(ref IssueTacticalIntentParams, ref BehaviorTreeState, ref BTreeContext)` | Publishes `AssignTacticalIntentEvent` for a single subordinate; returns Failure if `SubordinatePacked == 0`. |
+
+---
+
+### `EqsLifecycleNodes` (public static)
+
+```csharp
+namespace Hrot.AI.Behaviors.Brains
+public static class EqsLifecycleNodes
+```
+
+Provides BTree actions and deactivators for deterministic EQS sensor lifecycle management.
+All actions use the `[BTreeDeactivator]` pattern: the action is always Running while the
+node is on the active path; the deactivator removes or destroys ECS resources when the
+BTree execution pointer leaves the node for any reason (completion, abort, branch switch).
+
+**Blackboard parameter types:**
+
+| Type | Fields | Notes |
+|------|--------|-------|
+| `EqsParams` | `uint BlueprintId; float SearchRadius; float ThreatThreshold; uint FactionFilter; float ScoreDeltaThreshold; Entity ContextSlot0, ContextSlot1, ContextSlot2` | `[StructLayout(LayoutKind.Sequential)]`; parameters for a direct (self-sensor) EQS query |
+| `EqsSpawnParams` | `EqsParams SensorConfig; byte ChildSlotIndex; EqsSensorHandle SpawnedHandle` | Parameters for child-entity sensor pattern; `ChildSlotIndex` discriminates multiple sensors on the same parent (0-254) |
+
+**Inline sensor pattern** (sensor on the brain entity itself):
+
+| Method | Description |
+|--------|-------------|
+| `Action_MaintainEqsSensor(ref EqsParams, ref BehaviorTreeState, ref BTreeContext)` | First tick: adds `EqsSensor` component. Subsequent ticks: updates changed fields and increments `EqsSensor.Epoch` if any param changed (signals solver to discard stale in-flight results). Always returns Running. |
+| `Deactivate_MaintainEqsSensor(ref EqsParams, ...)` | `[BTreeDeactivator]` — removes `EqsSensor` and `EqsCognitiveBuffer` on abort so stale results cannot accumulate. |
+| `Action_WaitForSensor(ref EqsParams, ref BehaviorTreeState, ref BTreeContext)` | Returns Running until `EqsCognitiveBuffer.IsReady`; returns Success once the first solver result is available. |
+
+**Child-entity sensor pattern** (sensor on a dedicated child entity):
+
+| Method | Description |
+|--------|-------------|
+| `Action_SpawnEqsSensorChild(ref EqsSpawnParams, ref BehaviorTreeState, ref BTreeContext)` | First tick: spawns child entity via ECB with `EqsSensor` + `EqsCognitiveBuffer` + `PartMetadata`. Second tick: resolves ECB-created entity via `FindExistingChild` scan. Subsequent ticks: idle (entity is alive). Returns Success once the child is alive. |
+| `Deactivate_SpawnEqsSensorChild(ref EqsSpawnParams, ...)` | `[BTreeDeactivator]` — destroys the child entity via ECB and resets `SpawnedHandle`. |
+| `Action_WaitForChildSensor(ref EqsSpawnParams, ref BehaviorTreeState, ref BTreeContext)` | Polls the spawned child's `EqsCognitiveBuffer.IsReady`; returns Running until ready, then Success. |
+
+**Typical usage pattern (inline sensor):**
+
+```csharp
+Parallel(b =>
+{
+    b.Action<EqsParams>(EqsLifecycleNodes.Action_MaintainEqsSensor);
+    b.Action<EqsParams>(EqsLifecycleNodes.Action_WaitForSensor);
+});
+// On abort: Deactivate_MaintainEqsSensor removes EqsSensor + EqsCognitiveBuffer
+```
+
+**Typical usage pattern (child entity sensor):**
+
+```csharp
+Parallel(b =>
+{
+    b.Action<EqsSpawnParams>(EqsLifecycleNodes.Action_SpawnEqsSensorChild);
+    b.Action<EqsSpawnParams>(EqsLifecycleNodes.Action_WaitForChildSensor);
+});
+// On abort: Deactivate_SpawnEqsSensorChild destroys child via ECB
+```
+
+---
+
+### BTree Deactivator Pattern
+
+BTree action nodes that allocate ECS resources requiring deterministic cleanup
+(`EqsSensor` components, `LocomotionChannel`/`WeaponChannel` reservations, EQS request slots)
+are annotated with `[BTreeDeactivator]`. For each such action a companion static `OnDeactivate`
+method is provided. The BTree interpreter invokes the deactivator automatically when the
+execution pointer leaves the node for **any reason**: natural completion, branch abort, or
+`ObserverSelector` priority switch.
+
+This mirrors `UBTTaskNode.AbortTask` in Unreal Engine. The critical design constraint is
+that the vast majority of BTree actions remain pure stateless static delegates — only the
+small fraction that own cleanup-requiring resources opt into the hook. Per-frame overhead
+for nodes without a deactivator is zero.
+
+**Registration is automatic.** The Roslyn generator (`Fdp.Toolkits.Analyzers`) detects
+`[BTreeDeactivator]` attributes and emits `registry.RegisterDeactivator(...)` calls into
+`FbtActionRegistrar.g.cs` alongside the normal `registry.Register(...)` calls.
+
+**Deactivators registered in this project:**
+
+| Deactivator | Paired action | Resource cleaned up |
+|-------------|---------------|---------------------|
+| `EqsLifecycleNodes.Deactivate_MaintainEqsSensor` | `Action_MaintainEqsSensor` | Removes `EqsSensor` + `EqsCognitiveBuffer` components |
+| `EqsLifecycleNodes.Deactivate_SpawnEqsSensorChild` | `Action_SpawnEqsSensorChild` | Destroys child sensor entity via ECB |
+| `HillAttackTankNodes.Deactivate_CreepToAndBeyondSlot` | `Action_CreepToAndBeyondSlot` | Clears `LocomotionChannel.ActiveAction` on branch abort |
+| `HillAttackTankNodes.Deactivate_AimAndFireSpecific` | `Action_AimAndFireSpecific` | Clears `WeaponChannel.ActiveAction` on branch abort |
+| `HillAttackCommanderNodes.Deactivate_RequestAreaQuery` | `Action_RequestAreaQuery` | Resets `HillAttackMutableState.CachedEqsRequestId` to `-1` |
 
 ---
 
@@ -810,7 +925,7 @@ that return a new `BTreeBuilder` without writing to any shared state.
 | `Fdp.Toolkits.Analyzers` | Roslyn source generator that produces `FbtActionRegistrar.g.cs`, `FbtTreeCatalog.g.cs`, `HsmActionRegistrar.g.cs`, `GizmoRegistrar.g.cs`. These generated files are written to `obj/GeneratedFiles` for debugger source resolution. |
 | `FDP/ExtDeps/FastBTree` | BTree runtime: `Interpreter<TBlackboard, TContext>`, `ActionRegistry`, `NodeStatus`, `BTreeContext`, `[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`. |
 | `FDP/ExtDeps/FastHSM` | HSM runtime and compiler: `HsmBuilder`, `HsmEmitter`, `HsmDefinitionBlob`, `MachineMetadata`, `HsmActionDispatcher`. |
-| `Hrot.Blueprints.Generators` | Roslyn analyzer that processes `*.bp.json` AdditionalFiles and emits C# behavior blueprint code. No `.bp.json` files are currently present in this project. |
+| `Hrot.Blueprints.Generators` | Roslyn analyzer that processes `*.bp.json` AdditionalFiles and emits C# behavior blueprint code. Five recipe files are present under `Blueprints/Recipes/`; see the Blueprint Recipes section above. |
 | `Hrot.IG.Tests` | Test assembly granted internal access via `InternalsVisibleTo`. Contains integration tests for AI behaviors. |
 | `Hrot.Subsystems.Editor` | Hosts `FbtAssemblyHotReloader` which calls `BuildRegistrationAction` on a background thread and stages the result for main-thread application. |
 

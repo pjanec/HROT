@@ -102,7 +102,7 @@ Three dispatch kinds exist:
      |
      v
 +--------------------+
-| Stage 2 - Validate |  14 validators, produces Diagnostic list
+| Stage 2 - Validate |  17 validators, produces Diagnostic list
 +--------------------+
      |
      v
@@ -180,7 +180,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `AssemblyInfo.cs` | _(assembly level)_ | `[assembly: InternalsVisibleTo("Hrot.Blueprints.Tests")]` |
 | `BlueprintsCore.cs` | `Hrot.Blueprints.Core` | Assembly placeholder; no public types |
 | `InMemoryRoslynCompiler.cs` | `Hrot.Blueprints.Core` | `InMemoryRoslynCompiler` (stub, superseded by Compiler.Roslyn version) |
-| `IBlueprintTimeController.cs` | `Hrot.Blueprints.Core.Debug` | `IBlueprintTimeController` |
+| `IBlueprintTimeController.cs` | `Hrot.Blueprints.Core.Debug` | `IEngineDebugTimeController`, `IBlueprintTimeController` (deprecated alias) |
 | `IBlueprintProbeSink.cs` | `Hrot.Blueprints.Core.Debug` | `IBlueprintProbeSink` |
 | `IBlueprintDebugSession.cs` | `Hrot.Blueprints.Core.Debug` | `BreakpointId`, `WatchId`, `StepMode`, `BreakpointHit`, `NodeExecuted`, `PinValueChanged`, `NodeHistoryEntry`, `Breakpoint`, `Watch`, `BlueprintStateSnapshot`, `IBlueprintDebugSession` |
 | `ExecutionHistory.cs` | `Hrot.Blueprints.Core.Debug` | `ExecutionHistory` |
@@ -196,7 +196,7 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Assets/BlueprintAsset.cs` | `BlueprintAsset`, `BlueprintDispatchKind`, `BlackboardTierHint`, `AiPrimitiveDecl`, `AiPrimitiveIntent`, `AiPrimitiveHosting` |
 | `Assets/Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef` |
 | `Assets/GraphTypes.cs` | `Graph`, `GraphKind`, `Pin`, `Link`, `AssetMetadata`, `GraphMetadata`, `NodeMetadata`, `Header`, `NodeStatus` |
-| `Assets/Nodes.cs` | `Node` (abstract), `FunctionCallNode`, `BranchNode`, `SequenceNode`, `GetVariableNode`, `SetVariableNode`, `LiteralNode`, `EventEntryNode`, `ReturnNode`, `CastNode`, `ArrayMakeNode`, `ArrayGetNode`, `LatentDelayNode`, `CallEventDispatcherNode`, `BindEventDispatcherNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`, `ChannelCommandNode`, `WaitForChannelNode`, `WaitForEventNode` |
+| `Assets/Nodes.cs` | `Node` (abstract), `FunctionCallNode`, `BranchNode`, `SequenceNode`, `GetVariableNode`, `SetVariableNode`, `LiteralNode`, `EventEntryNode`, `ReturnNode`, `CastNode`, `ArrayMakeNode`, `ArrayGetNode`, `LatentDelayNode`, `CallEventDispatcherNode`, `BindEventDispatcherNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`, `ChannelCommandNode`, `WaitForChannelNode`, `WaitForEventNode`, `WhenNode`, `ReadEqsResultNode`, `SpawnEqsSensorNode`, `ScoreDecisionNode`, `ReadRankedResultNode` |
 
 #### Compiler/ (namespace `Hrot.Blueprints.Core.Compiler` and sub-namespaces)
 
@@ -208,7 +208,8 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/CompileOptions.cs` | `.Compiler` | `CompileOptions` |
 | `Compiler/CompileResult.cs` | `.Compiler` | `CompileResult`, `ValidationOptions`, `ValidationResult` |
 | `Compiler/IrPrinter.cs` | `.Compiler` | `IrPrinter` |
-| `Compiler/Catalogs/CatalogInterfaces.cs` | `.Compiler.Catalogs` | `EngineEventCatalogEntry`, `ChannelCommandCatalogEntry`, `WaitKind`, `WaitPrimitiveCatalogEntry`, `IEngineEventCatalog`, `IChannelCommandCatalog`, `IWaitPrimitiveCatalog` |
+| `Compiler/Catalogs/CatalogInterfaces.cs` | `.Compiler.Catalogs` | `EventQoS`, `ExecutionNodeHint`, `EngineEventCatalogEntry`, `ChannelCommandCatalogEntry`, `WaitKind`, `WaitPrimitiveCatalogEntry`, `IEngineEventCatalog`, `IChannelCommandCatalog`, `IWaitPrimitiveCatalog` |
+| `Compiler/Catalogs/IEqsTemplateCatalog.cs` | `.Compiler.Catalogs` | `IEqsTemplateCatalog` |
 | `Compiler/Catalogs/INodeRegistry.cs` | `.Compiler.Catalogs` | `INodeRegistry` |
 | `Compiler/Catalogs/ITypeRegistry.cs` | `.Compiler.Catalogs` | `ITypeRegistry` |
 | `Compiler/Catalogs/StaticTypeRegistry.cs` | `.Compiler.Catalogs` | `StaticTypeRegistry` |
@@ -253,12 +254,13 @@ Files in the Core project folder are prefixed `[CORE]`.  Files compiled via
 | `Compiler/Lowering/SynthesizedGuids.cs` | `.Compiler.Lowering` | `SynthesizedGuids` |
 | `Compiler/Lowering/WaitLowering_AiPrimitive.cs` | `.Compiler.Lowering` | `WaitLowering_AiPrimitive` |
 | `Compiler/Lowering/WaitLowering_Instance.cs` | `.Compiler.Lowering` | `WaitLowering_Instance` |
+| `Compiler/Lowering/WhenLowering_Instance.cs` | `.Compiler.Lowering` | `WhenLowering_Instance` |
 | `Compiler/Roslyn/BlueprintCompileException.cs` | `.Compiler.Roslyn` | `BlueprintCompileException` |
 | `Compiler/Roslyn/EmbeddedTextHelper.cs` | `.Compiler.Roslyn` | `EmbeddedTextHelper` |
 | `Compiler/Roslyn/InMemoryRoslynCompiler.cs` | `.Compiler.Roslyn` | `InMemoryRoslynCompiler` (full Roslyn impl) |
 | `Compiler/Roslyn/MetadataReferenceResolver.cs` | `.Compiler.Roslyn` | `MetadataReferenceResolver` |
 | `Compiler/Stages/Stage1_Parse.cs` | `.Compiler.Stages` | `Stage1_Parse` |
-| `Compiler/Stages/Stage2_Validate.cs` | `.Compiler.Stages` | `Stage2_Validate`, 14 `IValidator` implementations |
+| `Compiler/Stages/Stage2_Validate.cs` | `.Compiler.Stages` | `Stage2_Validate`, 17 `IValidator` implementations |
 | `Compiler/Stages/Stage3_Normalize.cs` | `.Compiler.Stages` | `Stage3_Normalize` |
 | `Compiler/Stages/Stage4_TypeResolve.cs` | `.Compiler.Stages` | `Stage4_TypeResolve` |
 | `Compiler/Stages/Stage5_Schedule.cs` | `.Compiler.Stages` | `Stage5_Schedule`, `GraphScheduler` |
@@ -348,6 +350,161 @@ Discriminator property `"kind"`.  Derived types:
 | `ChannelCommand` | `ChannelCommandNode` | `ChannelType`, `ActionId` |
 | `WaitForChannel` | `WaitForChannelNode` | `ChannelType` |
 | `WaitForEvent` | `WaitForEventNode` | `EventTypeId`, `FilterByField`, `CorrelationField` |
+| `When` | `WhenNode` | `Mode` (`ValueChanged`, `EventFired`, `ConditionMet`, `EqsResult`), `Edges` (`WhenEdge` flags), mode-specific payload |
+| `ReadEqsResult` | `ReadEqsResultNode` | `SensorVariableName` |
+| `SpawnEqsSensor` | `SpawnEqsSensorNode` | `TemplateAssetId` |
+| `ScoreDecision` | `ScoreDecisionNode` | `AssetId` (UtilityDecisionDef GUID) |
+| `ReadRankedResult` | `ReadRankedResultNode` | (reads rank-i entry from UtilityResultBuffer) |
+
+#### `WhenNode` and EQS nodes (schema detail)
+
+All three node kinds below are valid only in `Instance` Blueprints.
+
+##### `WhenNode`
+
+```csharp
+public sealed class WhenNode : Node
+{
+    public WhenMode  Mode  { get; set; }
+    public WhenEdge  Edges { get; set; }  // default: RisingEdge
+
+    // Exactly one payload is non-null, matching Mode.
+    public ValueChangedPayload? ValueChanged { get; set; }
+    public EventFiredPayload?   EventFired   { get; set; }
+    public ConditionMetPayload? ConditionMet { get; set; }
+    public EqsResultPayload?    EqsResult    { get; set; }
+}
+```
+
+**`WhenMode` (enum)** -- selects the trigger source:
+
+| Value | Trigger source | Synthesized state field |
+|-------|---------------|-------------------------|
+| `ValueChanged` | An ECS component field value changes beyond an optional epsilon between ticks | `float _when_<id8>_prev` |
+| `EventFired` | A matching engine event is dispatched | None |
+| `ConditionMet` | A `SearchPredicateDto` predicate transitions false→true (or true→false) | `bool _when_<id8>_prev` |
+| `EqsResult` | An EQS cognitive buffer trigger fires | Per-trigger synthesized prev-state struct |
+
+**`WhenEdge` (flags enum)** -- selects which state edge fires the `OnFired` output pin:
+
+| Value | Meaning |
+|-------|---------|
+| `None` | No edge selected. Validator emits `BP2012`. |
+| `RisingEdge` | Fires on false→true transition. Default. |
+| `FallingEdge` | Fires on true→false transition. |
+| `RisingEdge \| FallingEdge` | Fires on both edges. |
+
+##### `ValueChangedPayload`
+
+```csharp
+public sealed class ValueChangedPayload
+{
+    public string             ComponentTypeId      { get; set; }  // FQN of the ECS component
+    public string             PropertyPath         { get; set; }  // dot-separated field path
+    public double             Epsilon              { get; set; }  // 0 -> exact equality
+    public ValueChangedSource Source               { get; set; }
+    public Guid?              PeerBlueprintAssetId { get; set; }  // PeerBlueprintVariable only
+    public string?            PeerVariableName     { get; set; }  // PeerBlueprintVariable only
+    public string?            WorkingStateFieldId  { get; set; }  // WorkingStateField only
+}
+```
+
+**`ValueChangedSource` (enum):** `SelfComponent`, `PeerBlueprintVariable`, `WorkingStateField`.
+
+##### `EventFiredPayload`
+
+```csharp
+public sealed class EventFiredPayload
+{
+    public string            EventTypeId     { get; set; }
+    public EventTargetFilter TargetFilter    { get; set; }  // default: Self
+    public string?           TargetFieldName { get; set; }  // Self filter: entity field compared against self
+    public PayloadCondition? PayloadCheck    { get; set; }
+}
+```
+
+**`EventTargetFilter` (enum):** `None`, `Self`.
+
+**`PayloadCondition`:**
+
+```csharp
+public sealed class PayloadCondition
+{
+    public string             PropertyPath    { get; set; }
+    public ComparisonOperator Operator        { get; set; }
+    public string             TargetValueText { get; set; }
+}
+```
+
+**`ComparisonOperator` (enum):** `Equal`, `NotEqual`, `LessThan`, `LessThanOrEqual`, `GreaterThan`, `GreaterThanOrEqual`.
+
+##### `ConditionMetPayload`
+
+```csharp
+public sealed class ConditionMetPayload
+{
+    // net8.0: SearchPredicateDto from Fdp.Toolkit.ReplayBrowser.Search
+    // netstandard2.0: object?
+    public SearchPredicateDto? Condition { get; set; }
+}
+```
+
+The predicate tree is serialized to JSON at author time and embedded as a const string in
+the generated code. At runtime the predicate evaluates to a chain of ECS component reads
+and comparisons via the `IPredicateCompiler` substrate.
+
+##### `EqsResultPayload`
+
+```csharp
+public sealed class EqsResultPayload
+{
+    public string     SensorVariableName { get; set; }  // name of an EqsSensorHandle variable on this asset
+    public EqsTrigger Trigger            { get; set; }
+    public float      ScoreThreshold     { get; set; }  // ScoreCrossed only
+    public float      MaxAgeSeconds      { get; set; }  // BecomesStale only
+}
+```
+
+**`EqsTrigger` (enum):**
+
+| Value | Description |
+|-------|-------------|
+| `FirstReady` | Fires once when the EQS buffer transitions from empty to at least one result. |
+| `TopChanged` | Fires when the top-ranked entity changes between ticks. |
+| `ScoreCrossed` | Fires when the top score crosses `ScoreThreshold` (uses `RisingEdge`/`FallingEdge`). |
+| `BecomesStale` | Fires when `LastUpdateTimeSeconds` exceeds `MaxAgeSeconds`. |
+
+##### `ReadEqsResultNode`
+
+Reads a ranked entry from an `EqsSensorHandle` cognitive buffer. `SensorVariableName`
+names an `EqsSensorHandle`-typed `Instance` variable on the same asset.
+
+```csharp
+public sealed class ReadEqsResultNode : Node
+{
+    public string SensorVariableName { get; set; }
+}
+```
+
+Fixed output pins: `IsReady` (bool), `ResultCount` (int), `Entity` (Fdp.Core.Entity),
+`Position` (Vector2), `Score` (float).  
+Input pins: `Handle` (FDP.Eqs.EqsSensorHandle), `ResultIndex` (int, default 0).
+
+##### `SpawnEqsSensorNode`
+
+Spawns an EQS sensor as a child entity and returns a handle.
+
+```csharp
+public sealed class SpawnEqsSensorNode : Node
+{
+    // Stable AssetId from the EqsTemplate asset's [EqsTemplate(AssetId = "...")] declaration.
+    public Guid TemplateAssetId { get; set; }
+}
+```
+
+Input pins: `SearchRadius` (float), `FactionFilter` (uint), `ThreatThreshold` (float),
+`PublishPolicy` (byte), `Priority` (byte).  
+Output pin: `Handle` (FDP.Eqs.EqsSensorHandle).
 
 #### `Pin`
 
@@ -406,6 +563,8 @@ IWaitPrimitiveCatalog                WaitPrimitives
 IReadOnlyList<BlueprintSignature>    SiblingSignatures
 bool                                 EmitPdbWithEmbeddedSource  (default: false)
 string?                              VirtualSourcePath          (default: null)
+IEqsTemplateCatalog?                 EqsTemplates               (default: null)
+ExecutionNodeHint                    ExecutionNode              (default: Any)
 ```
 
 #### `CompileResult` (record)
@@ -472,11 +631,18 @@ bool TryGetCoercion(IrTypeRef from, IrTypeRef to, out string coercionExpression)
 `StaticTypeRegistry.Instance` provides a default registry covering all C# primitives,
 `System.Numerics.*` vector types, `Fdp.Core.Entity`, and common HROT component types.
 
-#### `IEngineEventCatalog` / `IChannelCommandCatalog` / `IWaitPrimitiveCatalog`
+#### `IEngineEventCatalog` / `IChannelCommandCatalog` / `IWaitPrimitiveCatalog` / `IEqsTemplateCatalog`
 
-Read-only catalogs that expose `GetEntries()`.  Built-in singletons:
+Read-only catalogs that expose `GetEntries()` or a `Contains` check.  Built-in singletons:
 `BuiltInEngineEventCatalog.Instance`, `BuiltInChannelCommandCatalog.Instance`,
 `BuiltInWaitPrimitiveCatalog.Instance`.
+
+`BuiltInEngineEventCatalog` provides 11 entries in three categories:
+- **General**: `HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`
+- **Animation lifecycle** (Reliable, propagates across nodes): `MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`
+- **Animation notify**: `FootstepEvent` (Muscle-local only, `PropagatesAcrossNodes=false`), `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`
+
+`IEqsTemplateCatalog` exposes `bool Contains(Guid assetId)` and is used by `V_SpawnEqsSensorNodeRules` during Stage 2 validation.
 
 ---
 
@@ -523,6 +689,13 @@ Selected subtypes:
 | `IrOp_WaitForChannel` / `IrOp_WaitForEvent` | Latent wait primitives |
 | `IrOp_DebugProbe_NodeEnter` | Probe inserted by `DebugProbeInsertion` in Debug/Trace mode |
 | `IrOp_DebugProbe_PinValue` | Probe inserted in Trace mode only |
+| `IrOp_WhenValueChangedCheck` | Stage 5 WhenNode (ValueChanged): reads ECS component field, compares to synthesized prev-value with optional epsilon. `ResultValue` holds a bool for `IrTerm_Branch`. Carries `SynthFieldName`, `ComponentFqn`, `PropertyPath`, `Epsilon`, `FieldCSharpType`, `OnFiredBlock`, `SourceKind`. |
+| `IrOp_WhenStorePrev` | Appended by Stage 5 to the `OnFiredBlock`: re-reads the same component field and stores it to the synthesized prev-state field. No result value. |
+| `IrOp_WhenEventFiredCheck` | Stage 5 WhenNode (EventFired): scans the engine-event queue with optional self-target and payload condition filters. `ResultValue` holds a matched bool for `IrTerm_Branch`. |
+| `IrOp_WhenConditionMetCheck` | Stage 5 WhenNode (ConditionMet): evaluates an embedded `SearchPredicateDto` predicate; emits inline gotos to `OnFiredBlock`/`OnEndedBlock`. No result value; block terminator must be `IrTerm_Goto`. |
+| `IrOp_WhenEqsResultCheck` | Stage 5 WhenNode (EqsResult): checks an EQS cognitive buffer trigger against a synthesized per-trigger prev-state struct; emits inline gotos. No result value. Carries `SensorVariableName`, `Trigger`, `SynthFieldName`, `SynthStructTypeName`, `SynthStructSizeBytes`, optional `ScoreThresholdLiteral`/`MaxAgeLiteral`. |
+| `IrOp_ReadEqsResult` | Stage 5 ReadEqsResultNode: reads a ranked entry from the sensor handle; result holds an `_EqsResultRead_<id8>` struct. Individual fields are accessed via downstream `IrOp_FieldRead` statements. |
+| `IrOp_SpawnEqsSensor` | Stage 5 SpawnEqsSensorNode: emits ECB `CreateEntity` + three `AddComponent` calls and returns the spawned `EqsSensorHandle`. Carries baked `TemplateBlueprintIdLiteral` and `BakedInstanceId` (from node.Id.GetHashCode()). |
 
 #### `IrTerminator` (abstract record, 6 subtypes)
 
@@ -581,6 +754,16 @@ Public constants for all compiler diagnostic codes.  Series:
 | `BP1300`-`BP1302` | Stage 2 -- peer references |
 | `BP1400`-`BP1402` | Stage 2 -- catalog references |
 | `BP1500`-`BP1503` | Stage 2 -- type references |
+| `BP1600`-`BP1602` | Stage 2 -- graph structure (`OrphanedNode`, `GraphHasNoReturn`, `GraphHasNoEntry`) |
+| `BP2001`-`BP2017` | Stage 2 -- `WhenNode` rules (mode/payload consistency, edge rules, dispatch restrictions, BestEffort and cross-node event warnings) |
+| `BP2020`-`BP2021` | Stage 2 -- `ReadEqsResultNode` rules (dispatch check, sensor variable lookup) |
+| `BP2030`-`BP2032` | Stage 2 -- `SpawnEqsSensorNode` rules (dispatch check, template lookup, instance-id collision) |
+| `BP3001`, `BP3010`-`BP3012` | Stage 3 / 4 -- normalize and type-resolve |
+| `BP4001`-`BP4004` | Stage 5 -- schedule |
+| `BP5001` | Stage 6 -- lower |
+| `BP6001` | Stage 7 -- emit |
+| `BP7001` | Stage 8 -- Roslyn finalize |
+| `BP9001` | Internal compiler error |
 
 ---
 
@@ -632,6 +815,18 @@ needs to reference at Roslyn compile time.
 
 ### Namespace `Hrot.Blueprints.Core.Debug`
 
+`IEngineDebugTimeController` is the current interface (see `IBlueprintTimeController.cs`). `IBlueprintTimeController` is a backward-compatible alias marked `[Obsolete]`; use `IEngineDebugTimeController` in new code.
+
+```csharp
+public interface IEngineDebugTimeController
+{
+    bool IsPausedByDebugger { get; }
+    void RequestPause();
+    void RequestResume();
+    void RequestStepOneTick();
+}
+```
+
 #### `IBlueprintProbeSink`
 
 Thin interface that generated Blueprint code calls via `DebugProbe`:
@@ -673,18 +868,19 @@ attached: `DebugProbe.Sink = NullProbeSink.Instance;`
 
 #### `IBlueprintTimeController`
 
-Engine-side time control for the debugger (soft-pause semantics: methods return
-immediately; halt occurs on the next engine tick).
+**Deprecated alias.** `IBlueprintTimeController` is now an empty interface that
+inherits `IEngineDebugTimeController` and is marked `[Obsolete]`. New code should
+reference `IEngineDebugTimeController` directly. The alias is retained for one-batch
+backward compatibility so that Slice 1 `BlueprintDebugSession` code compiles unchanged.
 
 ```csharp
-public interface IBlueprintTimeController
-{
-    bool IsPausedByDebugger { get; }
-    void RequestPause();
-    void RequestResume();
-    void RequestStepOneTick();
-}
+[Obsolete("Use IEngineDebugTimeController.")]
+public interface IBlueprintTimeController : IEngineDebugTimeController { }
 ```
+
+`IEngineDebugTimeController` is consumed by `DataBreakpointManager` in
+`Hrot.Diagnostics.Breakpoints` as the engine time-control surface for the Universal
+Breakpoints substrate.
 
 #### `IBlueprintDebugSession`
 
@@ -897,6 +1093,25 @@ control flow for latent blocks.  `DebugMapBuilder` records line-number spans dur
 emission; `Build()` returns the final `DebugMap`.
 
 Generated file name: `{SanitizedName}_{BlueprintId:X8}_Bp.g.cs`
+
+---
+
+## Known AiPrimitive Registrar Assemblies
+
+`[BlueprintRegistrar]` classes discovered at startup contribute node definitions
+to `BlueprintRegistryStaging`. Known registrars as of 2026-05-30:
+
+| Assembly | Registrar class | AiPrimitive ID range | Description |
+|----------|----------------|----------------------|-------------|
+| `Hrot.MuscleCharacter.Animation` | `AnimationNodeRegistrar` | 5001–5011 | 11 animation nodes: PlayMontage, StopMontage, PlayMontageChain, EnqueueMontage, ClearMontageQueue, SetStance, LookAtPoint, LookAtEntity, ReleaseLook, GetMontageQueueProgress, GetCurrentStance. See [Hrot.MuscleCharacter.Animation.md](../Subsystems/Hrot.MuscleCharacter.Animation.md) |
+
+Blueprint compiler validators added by the animation subsystem:
+
+| Rule | Assembly | Level | Description |
+|------|----------|-------|-------------|
+| BP2016 | `Hrot.Blueprints.Compiler` | Warning | `WhenNode` wired to a BestEffort DDS event; may miss events under load |
+| BP2017 | `Hrot.Blueprints.Compiler` | Error | Brain Blueprint subscribes to a local-only event (e.g., `FootstepEvent`) that is never replicated from Muscle |
+| ANIM001–ANIM011 | `Hrot.MuscleCharacter.Animation` | Error/Warning | Animation descriptor and Blueprint node validators; see [Hrot.MuscleCharacter.Animation.md](../Subsystems/Hrot.MuscleCharacter.Animation.md#validators) |
 
 ### Stage 8 -- Roslyn Finalize (Core only)
 

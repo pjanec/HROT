@@ -279,6 +279,8 @@ IServiceCollection.AddBlueprintEditor(assetRootDirectory)
 Hrot.Blueprints.Editor/
 |-- BlueprintsEditor.cs                     -- assembly placeholder stub
 |-- BlueprintEditorModule.cs                -- module orchestrator
+|-- BlueprintEditorBootstrap.cs             -- static factory for drawers, palette, attachment providers
+|-- BlueprintBreakpointMenuPopulator.cs     -- Universal Breakpoints context-menu entries for Blueprint nodes
 |-- BlueprintEditorServiceCollectionExtensions.cs  -- DI registration
 |-- BlueprintEditorConfiguration.cs         -- compile-time config record
 |-- BlueprintEditorPreferences.cs           -- user preferences (JSON)
@@ -293,10 +295,15 @@ Hrot.Blueprints.Editor/
 |-- EditorSelectionStore.cs                 -- single-selection store + event
 |-- DirtyTracker.cs                         -- dirty-flag tracker
 |-- FileSystemAssetCatalog.cs               -- IAssetCatalog on filesystem
+|-- NewFromRecipeService.cs                 -- creates new assets from blueprint recipes
 |-- AssetBrowserWindow.cs                   -- asset table browser window
 |-- GraphEditorWindow.cs                    -- graph canvas + toolbar window
 |-- InspectorWindow.cs                      -- tabbed property inspector window
 |-- PreferencesWindow.cs                    -- editor preferences window
+|
+|-- Comparison/
+|   |-- BlueprintComparisonSanitizer.cs     -- normalizes assets for structural diff
+|   |-- BlueprintEditorComparisonServiceCollectionExtensions.cs
 |
 |-- GraphEditor/
 |   |-- IGraphCommand.cs                    -- command interface (Execute/Undo)
@@ -310,12 +317,44 @@ Hrot.Blueprints.Editor/
 |   |-- DrawerRegistry.cs                   -- type-keyed drawer dictionary
 |   |-- PrimitiveDrawers.cs                 -- float/int/bool/string stub drawers
 |
+|-- NodeDrawers/
+|   |-- IBlueprintNodeDrawer.cs             -- per-node-type drawer interface
+|   |-- BlueprintNodeDrawerRegistry.cs      -- registry mapping Node type -> drawer
+|   |-- NodeKindDescriptor.cs               -- palette entry metadata
+|   |-- NodeKindRegistry.cs                 -- palette registry
+|   |-- IEditService.cs                     -- editor mutation service interface
+|   |-- INodeEditSession.cs                 -- transactional node-edit session
+|   |-- WhenNodeDrawer.cs                   -- drawer for WhenNode (three-mode UI)
+|   |-- ReadEqsResultNodeDrawer.cs          -- drawer for ReadEqsResultNode
+|   |-- SpawnEqsSensorNodeDrawer.cs         -- drawer for SpawnEqsSensorNode
+|   |-- PlayMontageChainNodeDrawer.cs       -- drawer for BranchNode used as montage chain
+|   |-- WhenNodePaletteEntries.cs           -- palette entry descriptors for WHEN nodes
+|   |-- EqsTemplateEntry.cs                 -- single EQS template registration record
+|   |-- EqsTemplateRegistry.cs              -- editor-side catalog of EQS templates
+|
 |-- Reload/
 |   |-- QuickReloadService.cs               -- in-process hot reload coordinator
 |   |-- QuickReloadResult.cs                -- result record
 |   |-- FullRebuildService.cs               -- out-of-process dotnet build
 |   |-- FullRebuildResult.cs                -- result record
 |   |-- BlueprintSignatureBuilder.cs        -- in-memory asset -> BlueprintSignature
+|
+|-- Variables/
+|   |-- BlueprintVariablesWindow.cs         -- window for managing instance variables
+|
+|-- Visuals/
+|   |-- BlueprintEditorTheme.cs             -- ImGui color/style constants
+|   |-- IAttachmentProvider.cs              -- canvas attachment provider interface
+|   |-- WhenNodeAttachmentProvider.cs       -- attachment decorators for WhenNode
+|   |-- ReadEqsResultAttachmentProvider.cs  -- attachment decorators for ReadEqsResultNode
+|   |-- EqsTemplateAttachmentProvider.cs    -- attachment decorators for SpawnEqsSensorNode
+|   |-- CrossAssetDependencyAttachmentProvider.cs  -- cross-asset dependency arrows
+|   |-- ConditionSummaryAttachment.cs       -- inline condition summary rendering
+|   |-- EqsTemplateAttachment.cs            -- EQS template detail rendering
+|   |-- ReadEqsResultAttachment.cs          -- EQS result detail rendering
+|   |-- CrossAssetDependencyAttachment.cs   -- peer dependency detail rendering
+|   |-- WhenFiringPulseRenderer.cs          -- Debug-only canvas renderer for WHEN pulses
+|   |-- PreviewSynthesizer.cs               -- synthesizes attachment preview data
 |
 |-- Debug/
     |-- DebugPanelWindow.cs                 -- pause/step controls window
@@ -324,7 +363,7 @@ Hrot.Blueprints.Editor/
     |-- HotReloadLogWindow.cs               -- reload event log window
     |-- HotReloadLogModel.cs                -- queue ring buffer (max 1000)
     |-- ReloadLogEntry.cs                   -- log entry record
-    |-- MasterSyncTimeControllerAdapter.cs  -- IBlueprintTimeController adapter
+    |-- MasterSyncTimeControllerAdapter.cs  -- IEngineDebugTimeController adapter
 ```
 
 ---
@@ -332,6 +371,49 @@ Hrot.Blueprints.Editor/
 ## Public API Reference
 
 ### Root Namespace
+
+---
+
+#### `BlueprintEditorBootstrap` (static class)
+
+Centralizes all production-code registration for drawers, palette entries, and visual
+attachment providers. Call at editor startup after creating the dependency graph.
+
+```csharp
+public static class BlueprintEditorBootstrap
+{
+    public static BlueprintNodeDrawerRegistry CreateNodeDrawerRegistry(
+        IChannelCommandCatalog channelCatalog,
+        IEngineEventCatalog eventCatalog,
+        IEditService editService,
+        IPredicateCompiler predicateCompiler,
+        EqsTemplateRegistry eqsTemplates,
+        IAnimationTkbQueries? animationQueries = null,
+        Func<string?>? currentClassProvider = null);
+
+    public static NodeKindRegistry CreatePaletteRegistry();
+
+    public static List<IAttachmentProvider> CreateAttachmentProviders(
+        EqsTemplateRegistry eqsTemplates,
+        Func<Guid, string?> peerNameResolver);
+
+    public static List<ICustomCanvasRenderer> CreateCanvasRenderers();
+}
+```
+
+`CreateNodeDrawerRegistry` registers drawers for `WhenNode`, `ReadEqsResultNode`,
+`SpawnEqsSensorNode`, and (when animation queries are provided) `BranchNode` as a
+montage-chain node.
+
+`CreateAttachmentProviders` returns four providers:
+- `WhenNodeAttachmentProvider` -- inline decorators for WhenNode canvas nodes
+- `ReadEqsResultAttachmentProvider` -- decorators for EQS result reads
+- `EqsTemplateAttachmentProvider` -- shows EQS template name and details
+- `CrossAssetDependencyAttachmentProvider` -- draws cross-asset peer arrows with resolved names
+
+`CreateCanvasRenderers` returns `WhenFiringPulseRenderer` in Debug builds only.
+
+---
 
 #### `BlueprintsEditor` (class, `Hrot.Blueprints.Editor`)
 Assembly placeholder stub. No public members beyond the implicit default constructor.
@@ -884,6 +966,32 @@ name, and extracts exported function names from graphs of `GraphKind.Function`.
 
 ### Debug Namespace
 
+#### `BlueprintBreakpointMenuPopulator` (static, `Hrot.Blueprints.Core.Debug` namespace)
+
+Populates the right-click context menu for a Blueprint graph node with **Universal
+Breakpoints** items. Blueprint execution is probe-driven rather than trace-buffer-driven,
+so this populator uses the **external-hit path** via `IDataBreakpointManager.OnExternalHit`
+rather than `TraceBufferScanPredicateDto`.
+
+Menu item added: **"Add Conditional Data Breakpoint..."** — creates a `CompoundPredicateDto`
+(AND) with:
+- Branch A (read-only): `ExternalHitTagPredicateDto { Tag = nodeId }` — fires when the
+  Blueprint probe hits this specific node.
+- Branch B (user-configurable): `BlueprintVariablePredicateDto { TargetBlueprintAssetId }` —
+  evaluates the user-specified variable condition against the Blueprint's blackboard memory.
+
+After registration the caller receives the `BreakpointId` and may open the Predicate
+Details Inspector via the optional `onOpenConditionalInspector` callback.
+
+```csharp
+BlueprintBreakpointMenuPopulator.PopulateNodeMenu(
+    nodeId:                     node.Id.ToString("D"),
+    assetId:                    asset.AssetId,
+    builder:                    contextMenuBuilder,
+    manager:                    dataBreakpointManager,
+    onOpenConditionalInspector: (id, dto) => OpenInspectorFor(id));
+```
+
 #### `BlueprintDebugSession` (sealed, lives in `Hrot.Blueprints.Core.Debug` namespace)
 
 Despite its location in the Editor project, `BlueprintDebugSession` is declared in
@@ -1081,13 +1189,261 @@ simulation clock without waiting for network acknowledgements.
 
 ---
 
+### NodeDrawers Namespace
+
+#### `WhenNodeDrawer` / `WhenNodeSession`
+
+```csharp
+public sealed class WhenNodeDrawer : IBlueprintNodeDrawer
+{
+    public WhenNodeDrawer(
+        IChannelCommandCatalog channelCatalog,
+        IEngineEventCatalog eventCatalog,
+        IEditService editService,
+        IPredicateCompiler predicateCompiler);
+
+    public bool Handles(Node node);  // true for WhenNode
+    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
+}
+```
+
+The session (`WhenNodeSession`) draws a four-section inspector:
+
+1. **Dispatch guard** -- shows a warning banner when the parent asset is not `Instance`
+   dispatch.
+2. **Mode selector** -- radio buttons for `ValueChanged`, `EventFired`, `ConditionMet`,
+   `EqsResult`.
+3. **Mode-specific form** -- one of four sub-forms depending on `WhenNode.Mode`:
+   - `ValueChanged`: component-type picker, property-path field, epsilon input, source
+     selector (`SelfComponent` / `PeerBlueprintVariable` / `WorkingStateField`).
+   - `EventFired`: event-type combo (from `IEngineEventCatalog`), target-filter toggle,
+     optional payload condition builder.
+   - `ConditionMet`: embeds the `IPredicateCompiler`'s tree editor UI.
+   - `EqsResult`: sensor-variable combo, trigger enum picker, conditional threshold /
+     max-age inputs.
+4. **Edge selector** -- checkboxes for `RisingEdge` and `FallingEdge`.
+5. **Preview pill** -- calls `PreviewSynthesizer.Synthesize(node)` to show a compact
+   one-line summary (e.g., `"Health.Current ↑"`).
+
+Internal test hook: `WhenNodeSession.SetModeForTest(WhenMode)` simulates a mode change
+without ImGui, used by `WhenNodeDrawerTests`.
+
+---
+
+#### `ReadEqsResultNodeDrawer` / `ReadEqsResultNodeSession`
+
+```csharp
+public sealed class ReadEqsResultNodeDrawer : IBlueprintNodeDrawer
+{
+    public bool Handles(Node node);  // true for ReadEqsResultNode
+    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
+}
+```
+
+The session draws:
+- A dispatch guard (Instance only).
+- A combo populated from all `EqsSensorHandle`-typed variables on the parent asset.
+- Read-only hints for the fixed output pins.
+
+Internal test hook: `ReadEqsResultNodeSession.GetSensorVariableNamesForTest()` returns
+the filtered variable names without ImGui, used by `ReadEqsResultNodeDrawerTests`.
+
+---
+
+#### `SpawnEqsSensorNodeDrawer` / `SpawnEqsSensorNodeSession`
+
+```csharp
+public sealed class SpawnEqsSensorNodeDrawer : IBlueprintNodeDrawer
+{
+    public SpawnEqsSensorNodeDrawer(EqsTemplateRegistry eqsTemplates);
+    public bool Handles(Node node);  // true for SpawnEqsSensorNode
+    public INodeEditSession CreateSession(Node node, BlueprintAsset parentAsset);
+}
+```
+
+The session draws:
+- A dispatch guard (Instance only).
+- A template picker combo backed by `EqsTemplateRegistry.EnumerateAll()`.
+- Read-only hints for the five input pins and the `Handle` output pin.
+
+Internal test hook: `SpawnEqsSensorNodeSession.SelectTemplateForTest(Guid)` simulates
+template selection, used by `SpawnEqsSensorNodeDrawerTests`.
+
+---
+
+#### `WhenNodePaletteEntries` (static class)
+
+Factory methods for palette registration. Call at editor startup via
+`NodeKindRegistry.Register(...)`.
+
+```csharp
+public static class WhenNodePaletteEntries
+{
+    // Category: ReactiveGuardVocabulary.CategoryName
+    // Default shape: In (exec-in), Out (exec-out), OnFired (exec-out)
+    public static NodeKindDescriptor WhenNode();
+
+    // Category: "EQS"
+    // Default shape: Handle (in), ResultIndex (in), IsReady/ResultCount/Entity/Position/Score (out)
+    public static NodeKindDescriptor ReadEqsResult();
+
+    // Category: "EQS"
+    // Default shape: In/Out (exec), SearchRadius/FactionFilter/... (in), Handle (out)
+    public static NodeKindDescriptor SpawnEqsSensor();
+}
+```
+
+---
+
+#### `EqsTemplateRegistry` / `EqsTemplateEntry`
+
+```csharp
+public sealed class EqsTemplateRegistry
+{
+    public void Register(EqsTemplateEntry entry);
+    public IReadOnlyList<EqsTemplateEntry> EnumerateAll();
+    public EqsTemplateEntry? TryGet(Guid assetId);
+}
+
+public sealed class EqsTemplateEntry
+{
+    public Guid   AssetId     { get; init; }  // matches SpawnEqsSensorNode.TemplateAssetId
+    public string DisplayName { get; init; }
+}
+```
+
+Editor-side catalog of known EQS template assets. Populated at startup from the project's
+EQS template assets. Distinct from the runtime `IEqsTemplateCatalog` (which is
+compiler-facing and exposes only `bool Contains(Guid)`).
+
+---
+
+### Visuals Namespace
+
+#### `WhenFiringPulseRenderer`
+
+```csharp
+public sealed class WhenFiringPulseRenderer : ICustomCanvasRenderer
+{
+    public string          Id          => "bp.when_firing_pulse";
+    public CanvasRenderPass Pass        => CanvasRenderPass.AfterNodes;
+    public bool            IsActive    { get; }  // false when isDebugMode=false
+
+    // Defaults: true in DEBUG builds, false in RELEASE builds.
+    public WhenFiringPulseRenderer(bool isDebugMode = ...);
+
+    // Call from the host debug event handler when a WhenNode fires.
+    public void OnNodeFired(NodeId nodeId);
+
+    // Test helpers
+    public bool HasPulse(NodeId nodeId);
+    public int  ActivePulseCount { get; }
+}
+```
+
+When active, renders an expanding amber rectangle around a WhenNode for 0.4 seconds after
+it fires. The alpha fades linearly from 1.0 to 0.0; the rect expands by up to 8 px.
+In Release builds (`isDebugMode = false`) the renderer is a permanent no-op: `IsActive`
+is false, `OnNodeFired` is a no-op, and no per-frame allocation occurs.
+
+Registered via `BlueprintEditorBootstrap.CreateCanvasRenderers()`.
+
+---
+
+#### `ConditionSummaryAttachment` / `WhenNodeAttachmentProvider`
+
+```csharp
+public sealed class ConditionSummaryAttachment : IAttachmentModel
+{
+    public string? Glyph    => "⚡";
+    public string? Label    { get; }   // compact summary, max 36 chars
+    public string? Tooltip  { get; }   // "Mode: X  Edges: Y"
+    public AttachmentState State { get; }  // Warning when Edges == None
+
+    public void Refresh(WhenNode node);
+}
+
+public sealed class WhenNodeAttachmentProvider : IAttachmentProvider
+{
+    public bool Handles(Node node);  // true for WhenNode
+    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
+}
+```
+
+The pill label is produced by `PreviewSynthesizer.Synthesize(node, maxLength: 36)`,
+which generates a short human-readable summary such as `"Health ↑"` or
+`"Cover sensor: TopChanged"`. The state is `Warning` when `Edges == WhenEdge.None`.
+
+---
+
+#### `EqsTemplateAttachment` / `EqsTemplateAttachmentProvider`
+
+```csharp
+public sealed class EqsTemplateAttachment : IAttachmentModel
+{
+    public string? Glyph => "📡";
+    public string? Label { get; }   // template DisplayName, or "(no template)" / "(template not found)"
+    public AttachmentState State { get; }  // Warning when template unset or not found
+
+    public void Refresh(SpawnEqsSensorNode node, EqsTemplateRegistry templates);
+}
+
+public sealed class EqsTemplateAttachmentProvider : IAttachmentProvider
+{
+    public EqsTemplateAttachmentProvider(EqsTemplateRegistry templates);
+    public bool Handles(Node node);  // true for SpawnEqsSensorNode
+    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
+}
+```
+
+---
+
+#### `ReadEqsResultAttachment` / `ReadEqsResultAttachmentProvider`
+
+```csharp
+public sealed class ReadEqsResultAttachment : IAttachmentModel
+{
+    public string? Glyph => "📊";
+    public string? Label { get; }   // sensor variable name, or "(no variable)"
+    public AttachmentState State { get; }  // Warning when SensorVariableName is empty
+
+    public void Refresh(ReadEqsResultNode node);
+}
+
+public sealed class ReadEqsResultAttachmentProvider : IAttachmentProvider
+{
+    public bool Handles(Node node);  // true for ReadEqsResultNode
+    public IAttachmentModel? CreateOrRefresh(Node node, IAttachmentModel? existing);
+}
+```
+
+---
+
+## Visual Asset Comparison
+
+`Hrot.Blueprints.Editor` participates in the Visual Asset Comparison feature via two files
+under `Comparison/`:
+
+| File | Purpose |
+|------|---------|
+| `BlueprintComparisonSanitizer` | Sanitizes `.bp.json` files: migrates schema via `IComparisonMigrationAdapter`, walks the JSON DOM to hoist per-node comments and graph-level canvas comments from `EditorMetadata`, strips presentation fields (`X`, `Y`, `Viewport`, etc.), humanizes `CallPeerBlueprint` cross-asset references via the catalog, and re-serializes with alphabetically sorted keys for determinism. |
+| `BlueprintEditorComparisonServiceCollectionExtensions` | `AddBlueprintEditorComparison()` DI extension; registers `BlueprintComparisonSanitizer` and wires it into `SanitizerRegistry`. |
+
+Call `AddBlueprintEditorComparison()` after `AddSharedAiEditor()` in the composition root.
+
+See [Hrot.Editor.AiShared.Comparison.md](../Editor/Hrot.Editor.AiShared.Comparison.md) for the
+full comparison feature architecture.
+
+---
+
 ## Dependencies
 
 ### Project References
 
 | Reference                   | Purpose                                                         |
 |-----------------------------|-----------------------------------------------------------------|
-| `Hrot.Blueprints.Core`      | Asset model (`BlueprintAsset`, `Graph`, `Node`); compiler interfaces (`IBlueprintCompiler`, `CompileOptions`); debug interfaces (`IBlueprintDebugSession`, `IBlueprintProbeSink`, `DebugMap`); catalog helpers (`BlueprintSignatureParser`) |
+| `Hrot.Blueprints.Core`      | Asset model (`BlueprintAsset`, `Graph`, `Node`); compiler interfaces (`IBlueprintCompiler`, `CompileOptions`); debug interfaces (`IBlueprintDebugSession`, `IBlueprintProbeSink`, `DebugMap`); catalog helpers (`BlueprintSignatureParser`); `IEngineDebugTimeController` |
+| `Hrot.Diagnostics.Breakpoints` | `IDataBreakpointManager`, `BreakpointId`, `SearchPredicateDto` hierarchy — consumed by `BlueprintBreakpointMenuPopulator` |
 | `Fdp.Core`                  | Entity type, `ISimulationView`, core primitives                  |
 | `Fdp.Presentation`          | ImGui host (ImGuiNET bindings, render loop integration)          |
 | `Fdp.Toolkits`              | `AiHotReloadCoordinator`, `BlueprintRegistry`, `BehaviorRegistry`, `BlueprintRegistryStaging`, `BlueprintIdHash`, `HsmActionDispatcher`, `MasterSyncController`, time controller types |

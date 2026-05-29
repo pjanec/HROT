@@ -39,6 +39,7 @@ launched on a dedicated machine or isolated by a shell script.
 | `stridemock`     | `StrideMockSubsystem`            | Fake Stride renderer for integration tests |
 | `replaybrowser`  | `ReplayBrowserSubsystem`         | Standalone replay review tool              |
 | `ci`             | `CiSubsystem`                    | Headless deterministic CI harness          |
+| `migrate`        | `MigrateMode` (not a subsystem)  | Batch JSON schema migration of a file tree |
 | `all` / `demo`   | orchestrator+simhost+ig+excon+cgf| Full cluster in one process                |
 
 ### Startup flow (simplified)
@@ -566,6 +567,74 @@ Exit codes: `0` = both entities alive after 600 ticks; `1` = entity died early.
 
 ---
 
+## Batch Migration Mode (`--mode migrate`)
+
+`--mode migrate` is a special non-subsystem execution path. It does not start a DDS cluster,
+open a window, or load subsystem assemblies. Instead it enumerates all `*.json` files under
+`--input-dir`, attempts to migrate each file that has a `$meta` envelope to the current
+registered schema version, and reports progress line-by-line to stdout.
+
+### Activation
+
+When `Program.cs` detects `"migrate"` in `RequestedSubsystems` it branches before the
+normal subsystem bootstrap:
+
+```
+Program.Main()
+  |
+  +-- RequestedSubsystems.Contains("migrate") == true
+        |
+        v
+  HrotMigrationBootstrap.BuildClusterRunnerMigrate()
+        |
+        v
+  MigrateMode(services, inputDirectory, targetVersion, dryRun)
+        |
+        v
+  MigrateMode.RunAsync()  -> returns 0 (success) or 1 (one or more failures)
+        |
+        v
+  Environment.Exit(exitCode)
+```
+
+### `MigrateMode` (internal sealed class)
+
+```
+Hrot/Runner/Hrot.ClusterRunner/Migration/MigrateMode.cs
+```
+
+| Constructor parameter | Type | Description |
+|---|---|---|
+| `services` | `MigrationServices` | From `HrotMigrationBootstrap.BuildClusterRunnerMigrate()`. |
+| `inputDirectory` | `string` | Root directory to scan. Falls back to `cwd` if blank. |
+| `targetVersion` | `int` | Target schema version, or `-1` to use the current registered version. |
+| `dryRun` | `bool` | If true, no files are written; reports only. |
+| `output` | `TextWriter?` | Progress stream. Defaults to `Console.Out`. |
+
+`RunAsync()` enumerates `*.json` files recursively under `inputDirectory`. For each file:
+
+1. Attempts `PersistentMigrationAdapter.LoadAndMigrateAsync`.
+2. If `$meta` is absent or the doc type is unregistered, marks the file as `SKIPPED`.
+3. If already at the target version, marks `SKIPPED (already current)`.
+4. If migration succeeds and `!dryRun`, calls `PersistentMigrationAdapter.SaveAsync`.
+5. Prints `{N}/{total}: {filename} -- MIGRATED v{from}->v{to}` or `FAILED: {message}`.
+
+Returns exit code `0` if no files failed; `1` if one or more files could not be migrated.
+
+### CLI syntax
+
+```
+Hrot.ClusterRunner.exe --mode migrate --input-dir <path> [--dry-run]
+```
+
+```
+Hrot.ClusterRunner.exe --mode migrate --input-dir test-data/scenario-corpus/multi-version/v1_complete --dry-run
+```
+
+The `--dry-run` flag reports what would be migrated without writing any files or sidecars.
+
+---
+
 ## Usage Examples
 
 ### Command Line
@@ -612,6 +681,16 @@ Hrot.ClusterRunner.exe --mode replaybrowser --no-wait
 Run SimHost + IG with the Stride mock renderer:
 ```
 Hrot.ClusterRunner.exe --mode orchestrator,excon,cgf,stridemock --no-wait
+```
+
+Batch-migrate all scenarios in a directory tree to the current schema version:
+```
+Hrot.ClusterRunner.exe --mode migrate --input-dir \\nas\scenarios
+```
+
+Dry-run migration (report only, no files written):
+```
+Hrot.ClusterRunner.exe --mode migrate --input-dir \\nas\scenarios --dry-run
 ```
 
 ### JSON Config File

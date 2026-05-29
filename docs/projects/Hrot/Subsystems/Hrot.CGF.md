@@ -795,6 +795,19 @@ public sealed class FailLoudRecordReplayStub : IClusterOpHandler
 node. Does not throw; the `ClusterSlave` dispatch loop continues. Must be removed when CGF
 acquires a recordable kernel.
 
+**`CanHandle` scope (BATCH-19 fix):** `NodeOpType.PrepareLive` is intentionally excluded
+from `CanHandle`. Prior to BATCH-19 the stub returned `true` for `PrepareLive`,
+intercepting all scenario-load commands and preventing `ScenarioLoadClusterStateHandler`
+from running. After the fix, `CanHandle` returns `true` only for the three unsupported
+recording/replay operations: `FinalizeLive`, `PrepareReplay`, and `FinalizeReplay`.
+
+**Deferred replacement:** Once CGF hosts a recordable `ModuleHostKernel` (Phase 3+ brain
+kernel), this stub must be removed and replaced with a real implementation using the
+shared orchestration handlers (`ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`,
+`ReferenceCheckpointHandler`). Until then, `FinalizeLive`, `PrepareReplay`, and
+`FinalizeReplay` are explicitly unsupported on the CGF node and log an `Error` on
+receipt.
+
 ---
 
 ### `CgfEntityPresentationGizmo`
@@ -1102,3 +1115,24 @@ CPU rendering primitives that no viewer is consuming.
 | `Fdp.Toolkit.Orchestration` | `ClusterSlave`, reference load handlers, `ScenarioEntityCreationRequestSource`. |
 | `Fbt.Compiler` | Fluent BTree compiler used to build BTree definitions registered in `BehaviorRegistry`. |
 | `Hrot.Editor` | Scenario editor that exercises `StagingEntityExtractor` and hot-reloads `Hrot.AI.Behaviors` independently of the CGF node. |
+
+---
+
+## Known Limitations / Deferred Items
+
+### 1. Brain-Side Record/Replay -- Phase 3 Gap
+
+`FailLoudRecordReplayStub` is still registered on `CgfApplication` for
+`FinalizeLive`, `PrepareReplay`, and `FinalizeReplay`. These three cluster operations log
+an `Error` and return without performing any action, because the CGF node does not yet
+host a recordable `ModuleHostKernel`.
+
+The consequence is that HSMs running on the CGF (Brain) node cannot participate in
+recording or replay sessions. The stub is an explicit fail-loud placeholder; it must be
+removed and replaced with `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`, and
+`ReferenceCheckpointHandler` (matching the SimHost architecture) once the Phase 3+ brain
+kernel is introduced.
+
+`NodeOpType.PrepareLive` is correctly excluded from the stub's `CanHandle` (fixed in
+BATCH-19) so that normal scenario loads route to `ScenarioLoadClusterStateHandler` as
+expected.

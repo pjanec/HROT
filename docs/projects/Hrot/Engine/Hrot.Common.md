@@ -785,6 +785,145 @@ Internal members are exposed to these test and sibling assemblies:
 
 ---
 
+## JSON Migration Modules
+
+`Hrot.Common` houses all application-layer JSON migration registrations for the HROT engine.
+These modules register HROT-owned document types into `Fdp.Core.Serialization.Migrations.MigrationRegistry`
+via `HrotMigrationBootstrap`. The generic migration infrastructure lives in
+`Fdp.Core.Serialization.Migrations` (see [Fdp.Core.Serialization.Migrations.md](../../FDP/Core/Fdp.Core.Serialization.Migrations.md)).
+
+### File Layout
+
+```
+Hrot/Engine/Hrot.Common/Scenario/
+|-- HrotDocumentTypes.cs               (doc-type constants for all HROT formats)
++-- Migrations/
+    |-- HrotMigrationBootstrap.cs      (role-driven MigrationServices factory)
+    |-- PassthroughFormatsModule.cs    (stable-schema passthrough registrations)
+    |-- ScenarioMigrationModule.cs     (Hrot.Scenario v1<->v2 migrators)
+    |-- BlueprintMigrationModule.cs    (Hrot.Blueprints -- skeleton, v1 only)
+    |-- BehaviorTreeMigrationModule.cs (Hrot.BehaviorTree -- passthrough v1)
+    |-- TkbMigrationModule.cs          (Hrot.Tkb -- skeleton, v1 only)
+    |-- RoadNetworkMigrationModule.cs  (Fdp.RoadNetwork -- passthrough v1)
+    |-- Helpers/
+    |   |-- CasingPolicy.cs            (PascalCase vs camelCase helpers)
+    |   |-- EntityPatch.cs             (per-entity/per-component iteration helpers)
+    |   +-- NestedJsonPatch.cs         (BehaviorParams / ExtensionJson nested-JSON helpers)
+    +-- Migrators/
+        +-- Scenario/
+            |-- V1ToV2_EntityInfo_AddTags.cs
+            +-- V2ToV1_EntityInfo_RemoveTags.cs
+```
+
+Test coverage lives in `Hrot/Engine/Hrot.Common.Tests/`:
+
+```
+Hrot/Engine/Hrot.Common.Tests/
+|-- Migrations/
+|   |-- ModuleRegistrationTests.cs    (all modules register without error)
+|   +-- ScenarioPhase2Tests.cs        (scenario read/write round-trip with envelope)
++-- Scenario/
+    +-- Migrations/
+        |-- Phase2ConventionTests.cs  (all committed fixtures carry valid $meta)
+        |-- Phase3MigratorTests.cs    (V1->V2->V1 round-trip, notes, warnings)
+        +-- EntityPatchTests.cs       (EntityPatch helper unit tests)
+```
+
+### `HrotDocumentTypes` (static class)
+
+Declares all HROT-owned `$meta.docType` constants. The successor to `HrotSubsystemTypes`
+for migration registration (the original `HrotSubsystemTypes` is kept for backward
+compatibility with non-migration callers).
+
+| Constant | Value | Category |
+|---|---|---|
+| `Scenario` | `"Hrot.Scenario"` | Versioned, customer-facing |
+| `Blueprint` | `"Hrot.Blueprints"` | Versioned, customer-facing |
+| `BehaviorTree` | `"Hrot.BehaviorTree"` | Versioned, customer-facing |
+| `TkbDefinition` | `"Hrot.Tkb"` | Versioned, customer-facing |
+| `StructEdit` | `"Hrot.StructEdit"` | Passthrough |
+| `MapInteractionConfig` | `"Hrot.MapInteractionConfig"` | Passthrough |
+| `OrchestratorContext` | `"Hrot.OrchestratorContext"` | Passthrough at version 2 (C-4: disk files already at v2) |
+| `TestScript` | `"Hrot.TestScript"` | Passthrough |
+| `NodeConfiguration` | `"Hrot.NodeConfiguration"` | Passthrough |
+
+### `HrotMigrationBootstrap` (static class)
+
+Role-driven factory for `MigrationServices`. Each host process calls one method during
+startup. Each method registers only the formats that host actually loads (M-2 principle:
+no unused format registrations).
+
+| Method | Registers | Typical caller |
+|---|---|---|
+| `BuildSimHostCgf(writerIdentifier)` | Scenario, TKB, RoadNetwork + OrchestratorContext passthrough | SimHost, CGF node startup |
+| `BuildIg()` | Scenario, TKB + OrchestratorContext + MapInteractionConfig passthroughs | IG node startup |
+| `BuildEditor()` | All customer-facing formats + all passthrough formats | Hrot.Editor bootstrap |
+| `BuildClusterRunnerMigrate()` | Same as Editor profile | `Hrot.ClusterRunner --mode migrate` |
+| `BuildClusterRunnerCi()` | Scenario, TKB, RoadNetwork (read-only profile) | `Hrot.ClusterRunner --mode ci` |
+
+All overloads call `MigrationBootstrap.BuildForProduction(...)` from `Fdp.Core`.
+
+### `PassthroughFormatsModule` (static class)
+
+Registers all engine-internal HROT document formats as passthrough doc types. These formats
+have stable schemas that never need a migration chain; only the `$meta` envelope wraps them.
+
+Registered doc types and their current schema versions:
+
+| Doc type | Version | Note |
+|---|---|---|
+| `HrotDocumentTypes.StructEdit` | 1 | StructEdit session state |
+| `HrotDocumentTypes.MapInteractionConfig` | 1 | ExCon map interaction state |
+| `HrotDocumentTypes.OrchestratorContext` | 2 | Disk files already at v2 (correction C-4) |
+| `HrotDocumentTypes.TestScript` | 1 | CI/CD test scripts |
+| `HrotDocumentTypes.NodeConfiguration` | 1 | Node `config.json` files |
+
+### `ScenarioMigrationModule` (static class)
+
+Registers `Hrot.Scenario` at version 2 with a v1<->v2 migration chain.
+
+| Constant | Value |
+|---|---|
+| `CurrentVersion` | `2` |
+
+Registered migrators:
+
+| Class | Direction | Schema change |
+|---|---|---|
+| `V1ToV2_EntityInfo_AddTags` | v1 -> v2 | Adds `Tags: []` to each entity's `EntityInfo` component |
+| `V2ToV1_EntityInfo_RemoveTags` | v2 -> v1 | Removes `Tags` from each entity's `EntityInfo` (lossy) |
+
+The down-migration from v2 to v1 is lossy: tag content cannot be recovered from a v1 file.
+The `PersistentMigrationAdapter` writes an unknowns journal to capture removed tags.
+
+### Migrator Helper Classes
+
+#### `EntityPatch` (static class)
+
+Scenario-specific helpers for iterating the `$.entities` dictionary and applying
+per-component transformations. Handles mixed PascalCase/camelCase entity payloads.
+
+| Method | Description |
+|---|---|
+| `OnEachEntity(root, action)` | Iterates every entity in `$.entities`. Snapshots keys before iteration. |
+| `OnComponent(root, componentName, action)` | Iterates entities that have the named component. |
+| `RenameComponent(root, oldName, newName)` | Renames a component key across all entities. Throws if both names coexist on an entity. |
+| `RenameField(root, componentName, oldField, newField)` | Renames a field within a component across all entities. |
+
+#### `CasingPolicy` (static class)
+
+Helpers that handle mixed PascalCase/camelCase property access in entity payloads.
+`FdpAutoSerializer` uses PascalCase; some custom translators (e.g. `MissionPlanTranslator`)
+use camelCase. Migrators that need to locate a field regardless of casing use this class.
+
+#### `NestedJsonPatch` (static class)
+
+Helpers for `BehaviorParams` and `ExtensionJson` fields, which contain stringified JSON
+nested inside the document. Methods handle the unescape-transform-re-escape cycle that
+migrators touching these fields must perform.
+
+---
+
 ## Usage Examples
 
 ### Example 1: Building a headless node with HrotNodeBuilder

@@ -141,8 +141,58 @@ Three Blueprint dispatch kinds are supported:
   +-----------+
   +-----------+      InstanceLowering.Apply      InstanceEmitter.EmitClass
   | Instance  |-->  WaitLowering_Instance    --> (State struct, event methods,
-  |           |     (cursor-based state machine)  Tick method, thunks)
+  |           |     WhenLowering_Instance        Tick method, thunks)
+  |           |     (cursor state machine +
+  |           |      synthesized prev fields)
   +-----------+
+```
+
+### WhenNode compilation
+
+`WhenNode` compiles differently from latent nodes. Instead of injecting coroutine resume
+points it generates **edge-detection checks** that run every event tick.
+
+#### Stage 5 -- IR emission by mode
+
+| Mode | IR operations emitted | Synthesized state |
+|------|----------------------|-------------------|
+| `ValueChanged` | `IrOp_WhenValueChangedCheck` + `IrOp_WhenStorePrev` (appended to `OnFiredBlock`) | `float _when_<id8>_prev` |
+| `EventFired` | `IrOp_WhenEventFiredCheck` | None |
+| `ConditionMet` | `IrOp_WhenConditionMetCheck` (inline goto; no result value) | `bool _when_<id8>_prev` |
+| `EqsResult` | `IrOp_WhenEqsResultCheck` (inline goto; no result value) | Per-trigger synthesized struct |
+
+The `WhenEdge` flags control which of `OnFiredBlock` / `OnEndedBlock` block IDs are
+non-null in the IR operation. The block terminator for `ConditionMet` and `EqsResult`
+must be `IrTerm_Goto(outBlock)` -- NOT `IrTerm_Branch`.
+
+#### Stage 6 -- WhenLowering_Instance
+
+`WhenLowering_Instance.Apply` scans all IR statements for `WhenValueChangedCheck`,
+`WhenConditionMetCheck`, and `WhenEqsResultCheck` operations and appends synthesized
+fields to the asset's `Variables` list:
+
+- `ValueChanged` -- adds a `float` field `_when_<id8>_prev`.
+- `ConditionMet` -- adds a `bool` field `_when_<id8>_prev`.
+- `EqsResult` -- adds a field whose type is the locally generated prev-state struct
+  (e.g., `_WhenEqsTopChanged_<id8>_PrevState`) with `SynthStructSizeBytes` from the
+  IR operation.
+
+Duplicates are suppressed by name; fields are sorted alphabetically for a deterministic
+structure hash contribution. Synthesized fields participate in `FieldLayout` and
+`StructureHashComputation` identically to author-declared variables.
+
+#### Generated code shape (ValueChanged example)
+
+```csharp
+// Stage 7 emit for IrOp_WhenValueChangedCheck (simplified)
+var __t7 = world.GetComponentRO<HealthComponent>(self).ValueRO.Current;
+bool __t8 = Math.Abs(__t7 - state._when_a3f7c218_prev) > 0.001f;
+if (__t8)
+{
+    state._when_a3f7c218_prev = __t7;  // IrOp_WhenStorePrev
+    goto __block_OnFired;
+}
+goto __block_Out;
 ```
 
 ---
@@ -160,7 +210,7 @@ during normalization).
 | `BlueprintAsset.cs` | Root asset object. Holds header, identity, dispatch kind, declarations, and graphs. |
 | `Declarations.cs` | `VariableDecl`, `ParameterDecl`, `EventDispatcherDecl`, `CustomEventDecl`, `BlueprintTypeRef`. |
 | `GraphTypes.cs` | `Graph`, `Pin`, `Link`, `GraphKind`, `NodeMetadata`, `AssetMetadata`, `Header`, `NodeStatus`. |
-| `Nodes.cs` | `Node` hierarchy (21 concrete node types), polymorphic JSON via `[JsonDerivedType]`. |
+| `Nodes.cs` | `Node` hierarchy (26 concrete node types), polymorphic JSON via `[JsonDerivedType]`. |
 
 ### `Compiler/` -- Pipeline root
 
@@ -179,7 +229,7 @@ during normalization).
 | File | Description |
 |------|-------------|
 | `Stage1_Parse.cs` | Deserializes JSON to `BlueprintAsset`; validates non-null result and non-empty identity. |
-| `Stage2_Validate.cs` | Runs 14 sequential validators (see below). Stops on fatal errors. |
+| `Stage2_Validate.cs` | Runs 17 sequential validators (see below). Stops on fatal errors. |
 | `Stage3_Normalize.cs` | Three normalization passes: materialize default pin literals, insert implicit casts, eliminate orphan nodes. |
 | `Stage4_TypeResolve.cs` | Resolves `BlueprintTypeRef` strings to `IrTypeRef` records; two-pass wildcard propagation for array nodes; enforces unmanaged constraint on state fields. |
 | `Stage5_Schedule.cs` | BFS-based basic-block scheduler. Converts the graph's node/link structure into SSA-style `IrBlock` lists via `GraphScheduler`. |
@@ -206,6 +256,9 @@ during normalization).
 | `V_PeerReferences` | BP1300-BP1302 | Peer blueprint Guids appear in `SiblingSignatures`; callee functions are exported. |
 | `V_TypeReferences` | BP1500-BP1503 | All `BlueprintTypeRef` strings resolve in `ITypeRegistry`; unmanaged constraint on state fields. |
 | `V_DeterminismOrdering` | (info only) | Checks that node/pin ordering in the JSON is stable. |
+| `V_WhenNodeRules` | BP2001-BP2015, BP2016, BP2017 | `WhenNode` payload fields are consistent with `Mode`; `BestEffort` events emit BP2016; Brain-targeted Blueprint subscribing to a Muscle-local event emits BP2017. |
+| `V_ReadEqsResultNodeRules` | BP2020, BP2021 | `ReadEqsResultNode` is only valid in Instance Blueprints (`BP2020`); `SensorVariableName` must reference a declared `EqsSensorHandle`-typed variable (`BP2021`). |
+| `V_SpawnEqsSensorNodeRules` | BP2030, BP2031, BP2032 | `SpawnEqsSensorNode` is only valid in Instance Blueprints (`BP2030`); `TemplateAssetId` must be non-empty and present in `IEqsTemplateCatalog` when provided (`BP2031`); `InstanceId` derived from `node.Id.GetHashCode()` must not collide with another sensor in the same graph (`BP2032`). |
 
 ### `Compiler/Ir/` -- Intermediate representation
 
@@ -215,7 +268,7 @@ during normalization).
 | `IrGraph.cs` | `IrGraph` record + `IrGraphKind` enum. |
 | `IrBlock.cs` | `IrBlock` record + all `IrTerminator` subtypes: `Goto`, `Branch`, `Return`, `ReturnStatus`, `Suspend`, `FallThrough`. |
 | `IrStatement.cs` | `IrStatement` record: optional result `IrValue`, `IrOperation`, `IrDebugAnnotation`. |
-| `IrOperation.cs` | 30+ `IrOperation` record subtypes covering constants, variable reads/writes, pure calls, library/peer/AiPrimitive calls, ECS reads/writes, channel commands, wait primitives, and debug probes. |
+| `IrOperation.cs` | 30+ `IrOperation` record subtypes covering constants, variable reads/writes, pure calls, library/peer/AiPrimitive calls, ECS reads/writes, channel commands, wait primitives, WhenNode reactive-check operations (`IrOp_WhenValueChangedCheck`, `IrOp_WhenStorePrev`, `IrOp_WhenEventFiredCheck`, `IrOp_WhenConditionMetCheck`, `IrOp_WhenEqsResultCheck`), EQS reads/spawns (`IrOp_ReadEqsResult`, `IrOp_SpawnEqsSensor`), and debug probes. |
 | `IrTypeRef.cs` | `IrTypeRef` record: fully qualified name, array/element info, unmanaged flag, size in bytes, entity-handle flag. |
 | `IrValue.cs` | `IrValue(Index, Type)` -- SSA value reference. `IrBlockId(Value)` -- block reference. |
 | `IrDebugAnnotation.cs` | `IrDebugAnnotation` -- `GraphId`, optional `NodeId`, optional `PinId`, optional synthesized label. |
@@ -224,12 +277,13 @@ during normalization).
 
 | File | Description |
 |------|-------------|
-| `CatalogInterfaces.cs` | `IEngineEventCatalog`, `IChannelCommandCatalog`, `IWaitPrimitiveCatalog` + their entry record types. |
+| `CatalogInterfaces.cs` | `EventQoS` (Reliable/BestEffort), `ExecutionNodeHint` (Any/Brain/Muscle), `IEngineEventCatalog`, `IChannelCommandCatalog`, `IWaitPrimitiveCatalog` + their entry record types. |
+| `IEqsTemplateCatalog.cs` | `IEqsTemplateCatalog`: `bool Contains(Guid assetId)`. Optional field on `CompileOptions`; used by Stage 2 to validate `SpawnEqsSensorNode.TemplateAssetId`. |
 | `INodeRegistry.cs` | `INodeRegistry` (stub; population deferred to TASK-CP-005). |
 | `ITypeRegistry.cs` | `ITypeRegistry`: `TryResolve(BlueprintTypeRef) -> IrTypeRef` + `TryGetCoercion(from, to) -> string`. |
 | `StaticTypeRegistry.cs` | Default registry: C# primitives, `System.Numerics` vectors, `Fdp.Core.Entity`, common aliases. Coercion table (8 widening numeric rules). |
 | `BuiltInNodeRegistry.cs` | Singleton stub for `INodeRegistry`. |
-| `BuiltInEngineEventCatalog.cs` | Three built-in engine events: `HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`. |
+| `BuiltInEngineEventCatalog.cs` | 11 built-in engine events in three categories: general (`HitEvent`, `BehaviorFinishedEvent`, `TargetVisibleEvent`), animation lifecycle events (`MontageStartedEvent`, `MontageEndedEvent`, `MontageSectionAdvancedEvent`, `StanceChangedEvent`; all Reliable + propagates across nodes), and animation notify events (`FootstepEvent` muscle-local only, `HitWindowOpenedEvent`, `HitWindowClosedEvent`, `HitNotifyEvent`). |
 | `BuiltInChannelCommandCatalog.cs` | Five built-in channel commands: `MoveTo`, `FollowRoute`, `AimAndFire`, `OpenDoor`, `EjectPassengers`. |
 | `BuiltInWaitPrimitiveCatalog.cs` | Five built-in wait primitives for channel and event waits. |
 
@@ -242,6 +296,7 @@ during normalization).
 | `InstanceLowering.cs` | Delegates each graph containing latent ops to `WaitLowering_Instance`. |
 | `WaitLowering_AiPrimitive.cs` | Transforms `IrTerm_Suspend` terminators into a **phase-byte state machine**: a dispatch block switches on `__phase`, branching into per-phase check blocks that test channel/event readiness and loop or resume. |
 | `WaitLowering_Instance.cs` | Transforms `IrTerm_Suspend` terminators into a **cursor-based state machine**: `State.Cursor.ResumeAt` is an integer dispatch index; a chain of comparison blocks dispatches to per-resume check blocks. |
+| `WhenLowering_Instance.cs` | Adds synthesized `_when_<id8>_prev` fields to the `Instance` asset's `Variables` list for each `WhenNode` in `ValueChanged` or `ConditionMet` mode, enabling edge-detection between ticks. `EventFired` mode requires no synthesized state. |
 | `ChannelCommandLowering.cs` | (inside `Emit/`) Emits inline `GetComponentRW` + action field writes + `ActionInstanceId++` for `IrOp_ChannelCommand`. |
 | `FieldLayout.cs` | Assigns `Offset` and `Size` to all `IrField` records using sequential layout with natural alignment (1/2/4/8-byte). `Parameters` starts at offset 0, `WorkingState` at 8, `Variables` at 16. |
 | `StructureHashComputation.cs` | Computes FNV-64 hash over the concatenation of dispatch kind, field names, type full names, offsets, and sizes. Used to detect breaking API changes at hot-reload time. |
@@ -322,7 +377,9 @@ public sealed record CompileOptions(
     IWaitPrimitiveCatalog WaitPrimitives,
     IReadOnlyList<BlueprintSignature> SiblingSignatures,
     bool EmitPdbWithEmbeddedSource = false,
-    string? VirtualSourcePath = null);
+    string? VirtualSourcePath = null,
+    IEqsTemplateCatalog? EqsTemplates = null,
+    ExecutionNodeHint ExecutionNode = ExecutionNodeHint.Any);
 ```
 
 All catalogs and registries are injectable for testing. Pass `BuiltIn*` singletons for

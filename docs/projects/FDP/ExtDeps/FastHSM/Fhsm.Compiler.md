@@ -494,6 +494,29 @@ builder.GlobalTransition("GameOver", "GameOverScreen");
 
 ---
 
+## Known Limitations / Deferred Items
+
+### 1. HsmEmitter.EmitWithDebug -- Binary Blob Serialization Not Implemented
+
+`HsmEmitter.EmitWithDebug` writes only the JSON debug sidecar (`.debug` file) to disk.
+Binary serialization of the `HsmDefinitionBlob` itself is not implemented. The source
+code contains an explicit note:
+
+```csharp
+// Note: Binary serialization of blob is not implemented here,
+// usually you'd serialize the blob structure to bytes.
+// For now, we assume the caller handles blob persistence or we implement a basic serializer.
+// I'll skip binary serialization of blob as it's not provided in the snippet and might be complex.
+```
+
+As a result, `EmitWithDebug` cannot be used to bake compiled blobs to disk for
+offline asset loading or network distribution of state machine definitions. The
+`HsmDefinitionBlob` exists only in memory for the process lifetime. A binary serializer
+(e.g., using `BinaryWriter` or a span-based writer over the fixed-layout ROM arrays) is
+needed before blob caching or asset pipelines can be built on top of this library.
+
+---
+
 ## Related Projects
 
 | Project | Relationship |

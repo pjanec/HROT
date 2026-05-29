@@ -332,6 +332,58 @@ public static class HsmValidator
 }
 ```
 
+### Attributes (`Attributes/`)
+
+```csharp
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class HsmActionAttribute : Attribute
+{
+    public string? Name { get; set; }
+}
+
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class HsmGuardAttribute : Attribute
+{
+    public string? Name { get; set; }
+}
+
+/// <summary>
+/// Marks a static parameterless method that returns HsmDefinitionBlob as a named
+/// HSM asset to be catalogued by HsmAssetContributor.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+public sealed class HsmDefinitionAttribute : Attribute
+{
+    /// <summary>The logical name of the state machine (catalog key).</summary>
+    public string MachineName { get; }
+
+    /// <summary>
+    /// Optional stable asset GUID. If null, the asset ID is derived from MachineName
+    /// via FNV-1a-32 (same as BTree convention).
+    /// </summary>
+    public string? AssetId { get; set; }
+
+    /// <summary>
+    /// When true, signals that this asset uses an editor-managed companion blackboard
+    /// file ({AssetName}.Blackboard.cs). The runtime ignores this flag; it is read by
+    /// the HROT HSM editor. Default is false -- all existing assets are unaffected.
+    /// </summary>
+    public bool BlackboardManaged { get; set; }
+
+    /// <summary>
+    /// When set, the source generator wires BehaviorIngressSystem to provision a
+    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// </summary>
+    public Type? HeavyDtoType { get; set; }
+
+    public HsmDefinitionAttribute(string machineName);
+}
+```
+
+The `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, and `[BlackboardReadWrite]` parameter
+attributes are defined in `Fbt.Kernel` (namespace `Fbt.Kernel`) and apply equally to HSM
+action methods. See the `Fbt.Kernel` documentation for their full API and usage.
+
 ---
 
 ## Data Structures
@@ -392,6 +444,37 @@ public struct TransitionDef
     [FieldOffset(14)] public ushort Cost;              // LCA steps: up + down
 }
 ```
+
+---
+
+## Known Limitations / Deferred Items
+
+### 1. Orthogonal Region Output Arbitration -- Conflict Detection Only (P4)
+
+`HsmKernelCore.ArbitrateOutputLanes` detects when multiple parallel regions write to
+the same actuator lane and suppresses the conflicting region's output by logging the
+conflict to `HsmTraceContext`. The first-wins rule is applied silently (no error is
+raised). Full priority-based arbitration -- where each region carries an explicit
+priority value and the highest-priority region wins -- is explicitly marked as a P4
+(future) enhancement in the source code. Until then, state machine authors must ensure
+that parallel regions do not compete for the same output lane.
+
+### 2. Deep History Restoration into Parallel States -- Tentative Break
+
+`HsmKernelCore.DrillDownToInitial` stops drilling when it encounters a state whose
+`StateFlags.IsParallel` flag is set, with the comment:
+
+```csharp
+// If we hit a Parallel state, we stop?
+// Usually History restores into Parallel means entering Parallel.
+if ((state.Flags & StateFlags.IsParallel) != 0) break;
+```
+
+This means that deep history restoration into a composite parallel (orthogonal) state
+returns the parallel state itself rather than its active sub-region leaf states. The
+correct UML behaviour requires entering all child regions and restoring their individual
+history. This hardening has not been implemented and is a known gap for complex
+concurrent sub-state configurations.
 
 ---
 

@@ -42,7 +42,7 @@ ECS primitives from the layers below:
 | `Diagnostics` | In-sim gizmo overlay system + entity-state extraction |
 | `Geographic` | WGS-84 transforms, geodetic smoothing, terrain-query pipeline |
 | `Lifecycle` | Distributed construction/destruction acknowledgement protocol |
-| `Navigation` | Pathfinding: route planning, path execution, BTree action nodes |
+| `Navigation` | Navigation v2: multi-modal path planning, corridor following, fake/engine-backed providers, BTree action nodes -- see [Fdp.Toolkits.Navigation.md](Fdp.Toolkits.Navigation.md) |
 | `NetworkSpawning` | Entity creation/deletion driven by network messages |
 | `Orchestration` | Cluster state machine: slave, transition planner, reference handlers |
 | `Perception` | Sensor simulation: spatial broadphase, LOS, audio, threat evaluation |
@@ -52,8 +52,9 @@ ECS primitives from the layers below:
 | `Runner` | Subsystem lifecycle host: ISubsystem, SubsystemOrchestrator |
 | `Scenario` | JSON save/load of EntityRepository snapshots |
 | `Serialization` | JSON formatting utilities |
-| `Spatial` | Area-query batch helpers |
+| `Spatial` | Area-query batch helpers; **EQS** (Environment Query System v1.3) -- entity, positional, and path-aware standing queries |
 | `Time` | Distributed time synchronisation: master/slave lockstep, NTP-style sync |
+| `Utility` | **Utility AI** decision-scoring system -- consideration curves, candidate rankers, posture selector, group assignment; consumed by BTree / HSM / Blueprint |
 | `Tkb` | Transient Knowledge Base: entity template database, JSON parser, VFS |
 | `Vis2D` | 2-D map camera view utilities |
 
@@ -465,7 +466,10 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `Position` -- ECS 3-D local-frame position component
 - `PositionGeodetic` -- WGS-84 geodetic position component
 - `Velocity` -- velocity vector component
-- `GroundClampingConfig` / `GroundClampingState` -- terrain clamping parameters
+- `TerrainClampBaseline` -- per-entity jump-rejection baseline: holds `LastValidIgAltitude` and
+  `IgAltitudeBaselineEstablished`; the former `GroundClampingState` visual-offset fields were
+  removed by the 3D Cognitive Spatial Awareness promotion (P3D-101) -- terrain altitude is now
+  authoritative on `SimTransform.Position.Z`
 - `TerrainQueryBatchData` -- singleton holding pending terrain height queries
 
 **File**: `Geographic/Systems/`
@@ -473,7 +477,10 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `GeodeticSmoothingSystem` -- low-pass smoothing of raw geodetic input
 - `SimTransformBridgeSystem` -- writes local `Position` into `SimTransform` for ECS queries
 - `TerrainQueryInitializationSystem` / `TerrainQuerySubmitSystem` /
-  `TerrainQuerySolverSystem` / `TerrainQueryResolutionSystem` -- four-phase async terrain query
+  `TerrainQuerySolverSystem` -- three of the four async terrain query phases
+- `TerrainQueryResolutionSystem` -- final phase; writes the accepted `HitZ` into
+  `SimTransform.Position.Z` (authoritative altitude, P3D-102); jump-rejection filter
+  suppresses pops at geometry seams; first hit always accepted to seed baseline state
 
 ---
 
@@ -497,31 +504,91 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 
 ### Namespace: `Fdp.Toolkit.Navigation`
 
+> Full documentation: [Fdp.Toolkits.Navigation.md](Fdp.Toolkits.Navigation.md)
+
 **File**: `Navigation/NavigationComponents.cs`
-- `NavigationIntent` -- desired navigation action (route, flee, join formation)
-- `PathfindingBatchData` -- singleton holding in-flight pathfinding requests
+- `NavigationIntent` -- CQRS command component (Brain -> Muscle): mode, destination, route handle, flags
+- `NavigationStatus` -- CQRS status component (Muscle -> Brain): result, phase, replan count, ETA
+- `NavigationCorridorMuscle` -- Muscle-internal working state (not replicated): handle, segment index, progress
+- `NavigationCorridorPreview` -- opt-in 8-waypoint corridor window replicated to Brain
+- `NavigationPathDetailsBuffer` -- Brain-internal full-waypoint cache populated from path-details events
+- `NavigationMode`, `NavigationResult`, `NavigationPhase`, `NavigationBackend`,
+  `TraversalKind`, `SurfaceType`, `NavigationFailureReason` -- navigation enums
 
 **File**: `Navigation/NavigationActions.cs`
-- `NavigationAction` -- enum listing available executor types
+- `MoveToParams`, `FleeParams`, `FleeState`, `FollowRouteParams`,
+  `PlanRouteParams`, `FollowPathParams`, `FetchPathDetailsParams`, `ReleasePathParams`
+  -- action parameter structs (unmanaged, <= 32 B)
+
+**File**: `Navigation/NavigationConstants.cs`
+- `NavigationConstants` -- action IDs (1-9), frustration thresholds, default replan limit, flag bit indices
+
+**File**: `Navigation/NavWaypoint.cs`
+- `NavWaypoint` (24 B) -- single planned-path point: `Vector3 Position`, `TraversalKind`, `SurfaceType`, `TimeOffset`
+
+**File**: `Navigation/NavLayerMask.cs`
+- `NavLayerMask` -- `[Flags] uint`: Infantry(1), Vehicle(2), Naval(4), Air(8), All
+
+**File**: `Navigation/NavigationHandleAllocator.cs`
+- `NavigationHandleAllocator` -- thread-safe Muscle-private handle allocator; handles >= `MuscleHandleBase`(0x40000000)
+
+**File**: `Navigation/INavmeshProvider.cs`
+- `INavmeshProvider` -- `IsWalkable`, `ProjectToNavmesh`, `SampleNavmeshPoints`, `PathExists`, `PathCost`, `QueryVersion`, `PlanPath`
+
+**File**: `Navigation/IDtCrowdProvider.cs`, `Navigation/IVolumetricPathProvider.cs`
+- `IDtCrowdProvider` -- dtCrowd integration interface for local infantry avoidance
+- `IVolumetricPathProvider` -- 3D volumetric pather interface for flying/sub-surface agents
+
+**File**: `Navigation/IPathRegistry.cs`
+- `IPathRegistry` -- `IsCached`, `TryGetSummary`, `TryGetWaypoints`, `TryGetWaypointsSlice`
+- `PathSummary` -- lightweight path entry summary (handle, distance, waypoint count, backend, replan count)
+
+**File**: `Navigation/PathfindingEvents.cs`
+- `PathfindingRequestEvent` (EventId 2032) -- Brain -> Solver request
+- `PathfindingResultEvent` (EventId 2033) -- Solver -> Materializer result
+- `MoveStartedEvent` (EventId 2034) -- emitted when corridor-following begins
+- `OffMeshTraversalStartedEvent` (EventId 2035) -- emitted by `OffMeshLinkDetectionSystem`
 
 **File**: `Navigation/Executors/`
-- `MoveToExecutor` -- moves entity to a world-space point
-- `FollowRouteExecutor` -- follows a pre-planned `CustomTrajectory`
-- `FollowRoadGraphExecutor` -- follows a road-graph route (calls `RoadGraphNavigator`)
-- `JoinFormationExecutor` -- joins a formation at the assigned slot
-- `FleeExecutor` -- moves away from a threat entity
+- `MoveToExecutor` (ActionId 1) -- writes `NavigationIntent`; polls `NavigationStatus` for verdict
+- `FleeExecutor` (ActionId 2) -- periodically replans flee direction from a threat entity
+- `FollowRouteExecutor` (ActionId 3) -- follows a pre-planned `CustomTrajectory`
+- `JoinFormationExecutor` (ActionId 5) -- joins a formation slot
+- `PlanRouteExecutor` (ActionId 6) -- plans a path; returns Success when `PathFound`
+- `FollowPathExecutor` (ActionId 7) -- follows a previously planned path by route handle
+- `FetchPathDetailsExecutor` (ActionId 8) -- populates `NavigationPathDetailsBuffer`; optional blocking wait
+- `ReleasePathExecutor` (ActionId 9) -- releases route handle from `TrajectoryPoolManager`
 
 **File**: `Navigation/Systems/`
-- `PathfindingSolverSystem` -- processes `PathfindingBatchData`; calls `RoadGraphNavigator`
-- `PathfindingResultMaterializationSystem` -- writes solved routes back to requesting entities
-- `NavigationIntentBridgeSystem` -- reads `NavigationIntent` and activates the right executor
+- `NavigationIntentBridgeSystem` -- translates `NavigationIntent` -> `NavState`; issues `PathfindingRequestEvent`
+- `PathfindingSolverSystem` -- multi-modal Dijkstra/A*/volumetric solver at 10 Hz on background thread
+- `PathfindingResultMaterializationSystem` -- main-thread materializer of `PathfindingResultEvent`
+- `CrowdAgentUpdateSystem` -- `SimVelocity` update for crowd-managed infantry agents
+- `OffMeshLinkDetectionSystem` -- off-mesh link detection with zero-frame suppression
+- `CorridorPreviewSystem` -- maintains 8-waypoint `NavigationCorridorPreview` window
+- `NavigationPathDetailsUpdateSystem` -- (Brain-tier) materializes path-detail events into `NavigationPathDetailsBuffer`
 
 **File**: `Navigation/Modules/NavigationSolverModule.cs`
-- `NavigationSolverModule` -- `IEcsModule` registering all navigation systems
+- `NavigationSolverModule` -- `IEcsModule` wrapping `PathfindingSolverSystem` at 10 Hz background
+
+**File**: `Navigation/Fake/NavigationFakesModule.cs`
+- `NavigationFakesModule` -- all-in-one module for integration tests; exposes `FakeNavmeshProvider`,
+  `FakeDtCrowdProvider`, `FakeVolumetricPathProvider`, `SharedPathRegistry`
+
+**File**: `Navigation/EngineBacked/EngineBackedNavigationModule.cs`
+- `EngineBackedNavigationModule` -- adapter module wiring new contract to existing `RoadNetworkBlob` /
+  `TrajectoryPoolManager` machinery for demo scenarios
+
+**File**: `Navigation/Fake/`
+- `FakeNavmeshProvider` -- polygon A* over in-memory `FakeNavLayer[]`; test API for `BlockPolygon`/`PatchNavmesh`
+- `FakeDtCrowdProvider` -- velocity-obstacle crowd tick; per-agent `FakeCrowdAgentState`
+- `FakeVolumetricPathProvider` -- 3D direct-line + obstacle avoidance
+- `MusclePathRegistry`, `BrainPathRegistry`, `SharedPathRegistry` -- `IPathRegistry` implementations
+- `NavTestMap`, `NavTestMapBuilder`, `NavTestMapLoader`, `NavTestMaps` -- test-world data format and helpers
 
 **File**: `Navigation/BTreeNodes/`
-- `Action_PlanRoute` -- FastBTree action node: triggers route planning
-- `PathfindingActionNode` -- generic pathfinding action node base
+- `Action_PlanRoute` -- FastBTree action node issuing a `PlanRoute` intent
+- `PathfindingActionNode` -- base class for navigation action nodes
 
 ---
 
@@ -599,6 +666,10 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 **File**: `Perception/Components/`
 - `PerceptionReceptor` -- sensor configuration: vision range, FOV angle, sensor modalities
 - `PerceptionOutput` -- set of currently tracked entities
+- `TargetMemory` -- fixed-size unsafe struct holding up to `MaxTrackedTargets` perceived threats;
+  stores entity IDs, last-known X/Y/Z world-space positions (Z = altitude, Sim Z-up; 3D
+  Cognitive Spatial Awareness promotion P3D-206), threat scores, last-seen ticks, and modality
+  bitmasks; sorted descending by threat score; mutated via `AddOrUpdateTarget`
 - `SensorModality` -- flags enum: `Visual`, `Acoustic`, `Radar`, `Thermal`
 
 **File**: `Perception/Events/PerceptionEvents.cs`
@@ -611,7 +682,9 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `LosRequestBatchingSystem` -- collects LOS requests; batches before expensive solver
 - `ActiveSensorTracksUpdateSystem` -- merges LOS results into `PerceptionOutput`
 - `SensorTrackDebounceSystem` -- debounces flickering contact detection/loss events
-- `ThreatEvaluationSystem` -- ranks contacts by threat level; tags top-N as threats
+- `ThreatEvaluationSystem` -- ranks contacts by threat level; tags top-N as threats; passes
+  real `SimTransform.Position.Z` into `AddOrUpdateTarget` (P3D-206) so `TargetMemory`
+  contacts carry 3D world positions
 - `AudioPerceptionSystem` -- sound-based contact detection (range + terrain occlusion estimate)
 - `LocalGridBuilderSystem` -- populates per-perception-module spatial grid from entity positions
 
@@ -733,6 +806,71 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 **File**: `Replication/Extensions/`
 - `AuthorityExtensions` -- extension methods for querying entity authority state
 - `OwnershipExtensions` -- extension methods for ownership state queries
+
+---
+
+### Namespace: `Fdp.Toolkit.Spatial.Eqs`
+
+> Full reference: [Fdp.Toolkits.Spatial.Eqs.md](Fdp.Toolkits.Spatial.Eqs.md)
+
+**Folder**: `Spatial/Eqs/`
+**Companion namespace**: `FDP.Eqs` (for `EqsSensorHandle`)
+**DDS topics namespace**: `Fdp.Toolkit.Spatial.Eqs.Topics`
+
+Environment Query System v1.3 -- standing AI spatial queries (entity, positional, path-aware)
+over the Brain/Muscle boundary.
+
+#### Core ECS components
+
+- `EqsSensor` -- Brain-authored standing query config; replicated to Muscle via DDS
+- `EqsCognitiveBuffer` -- Brain-side result cache; top-K inline array; read by BTree nodes
+- `EqsResult` -- 32-byte ranked candidate (entity or positional; includes `PositionZ`, `FlagsMeaningful`)
+- `EqsPublishPolicy` -- `AlwaysPush` | `TopChanged` | `ScoreDelta`
+- `SensorEvalState` -- Muscle-side per-sensor cross-tick state machine component
+- `EqsSolverGlobalState` -- Muscle-side singleton: accurate-raycast budget tracking
+
+#### Result pool and events
+
+- `EqsResultPool` -- Muscle singleton: 16384-entry native ring buffer (1024 sensors x 16 TopK)
+- `EqsResultEvent` -- 28-byte unmanaged event with pool handle (Muscle event bus)
+- `EqsResultUpdateEvent` -- managed DDS-bridged event (Brain event bus)
+
+#### Query template system
+
+- `EqsQueryTemplate` -- compiled template: generator + four test phases + `StructureHash`
+- `IEqsGenerator` / `IEqsTest` -- zero-allocation candidate generation and testing interfaces
+- `EqsTestPhase` -- `FilterCheap` | `FilterExpensive` | `ScoreCheap` | `ScoreExpensive`
+- `IEqsTemplateRegistry` -- solver lookup by `BlueprintId`
+- `EqsTemplateAttribute` -- marks a class for the Roslyn source generator
+- `IEqsTemplateBuilder` / `EqsTemplateBuilder` -- no-op builder type for generated `Build()` overloads
+
+#### Generators
+
+- `EntitiesInRadiusGenerator` -- entity-shaped; queries spatial hash grid
+- `CoverPointsGenerator` -- positional; queries `ICoverProvider`
+- `NavmeshSamplesGenerator` -- positional; samples `INavmeshProvider`
+
+#### Tests
+
+- `FactionFilterTest` / `CheapLineOfSightTest` -- `FilterCheap`
+- `NavmeshReachableTest` / `AccurateLineOfSightTest` -- `FilterExpensive` / `ScoreExpensive`
+- `DistanceScoreTest` -- `ScoreCheap`
+- `PathCostScoreTest` -- `ScoreExpensive`
+
+#### Service interfaces
+
+- `ICoverProvider` / `ManualCoverProvider` -- cover database
+- `CoverPoint` -- 28-byte cover node struct (position X/Y/Z, direction, quality, stance)
+- `ILosService` / `BlockedLosService` -- cheap LOS service (stub: always blocked)
+
+#### DDS topics (`Topics/` subfolder)
+
+- `EqsSensorConfigTopic` -- Brain -> Muscle; compound key `(ParentNetworkId, LocalChildIndex)`
+- `EqsResultEntry` / `EqsResultTopic` -- Muscle -> Brain; `[DdsManaged] List<EqsResultEntry>`
+
+#### Handle type
+
+- `EqsSensorHandle` (namespace `FDP.Eqs`) -- typed `Entity` wrapper for child sensor entities
 
 ---
 

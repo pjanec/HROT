@@ -19,7 +19,7 @@ No `README.md` exists in the project folder. This document serves as the primary
 FDP-specific rules at **compile time** and generates **boilerplate registration code** so that
 no runtime reflection or hand-written dispatch tables are needed.
 
-The project contains **one pure diagnostic analyzer** and **four source generators**:
+The project contains **two pure diagnostic analyzers** and **six source generators**:
 
 | Component                    | Kind                   | Primary concern                                          |
 |------------------------------|------------------------|----------------------------------------------------------|
@@ -28,6 +28,9 @@ The project contains **one pure diagnostic analyzer** and **four source generato
 | `BTreeDefinitionGenerator`   | IIncrementalGenerator  | Emit `FbtTreeCatalog.g.cs` for named tree catalog        |
 | `HsmActionGenerator`         | IIncrementalGenerator  | Emit `HsmActionDispatcher/Registrar.g.cs` for HSM        |
 | `GizmoRegistrarGenerator`    | ISourceGenerator       | Emit per-namespace `GizmoRegistrar.g.cs` files           |
+| `UtilityInputGenerator`      | IIncrementalGenerator  | Emit `UtilityInputRegistrar.g.cs` for Utility AI input reader dispatch |
+| `UtilityDecisionGenerator`   | IIncrementalGenerator  | Emit `UtilityDecisionCatalog.g.cs` for Utility AI decision catalog |
+| `UtilityAuthoringAnalyzer`   | DiagnosticAnalyzer     | Enforce `UT####` authoring rules on `[UtilityInput]` and `[UtilityDecision]` types |
 
 ### Why these rules matter
 
@@ -116,16 +119,19 @@ SyntaxProvider.CreateSyntaxProvider
 ### Diagram 1: Project role in the build pipeline
 
 ```
-+---------------------------+     +----------------------------+     +--------------------------+
-|  User project (.csproj)   |     |  Fdp.Toolkits.Analyzers    |     |  C# Compiler (Roslyn)    |
-|                           |     |  (Analyzer reference)      |     |                          |
-|  [BTreeAction] methods    +---->+  BTreeActionGenerator      +---->+  FbtActionRegistrar.g.cs |
-|  [HsmAction]   methods    +---->+  HsmActionGenerator        +---->+  HsmActionRegistrar.g.cs |
-|  [BTreeDefinition] methods+---->+  BTreeDefinitionGenerator  +---->+  FbtTreeCatalog.g.cs     |
-|  [GizmoProjector] classes +---->+  GizmoRegistrarGenerator   +---->+  *_GizmoRegistrar.g.cs   |
-|  [SharedAiAction] methods +---->+  BehaviorParameterSize     +---->+  FDP_001 error if DTO    |
-|                           |     |    Analyzer                |     |  exceeds 100 bytes       |
-+---------------------------+     +----------------------------+     +--------------------------+
++---------------------------+     +----------------------------+     +-------------------------------+
+|  User project (.csproj)   |     |  Fdp.Toolkits.Analyzers    |     |  C# Compiler (Roslyn)         |
+|                           |     |  (Analyzer reference)      |     |                               |
+|  [BTreeAction] methods    +---->+  BTreeActionGenerator      +---->+  FbtActionRegistrar.g.cs      |
+|  [HsmAction]   methods    +---->+  HsmActionGenerator        +---->+  HsmActionRegistrar.g.cs      |
+|  [BTreeDefinition] methods+---->+  BTreeDefinitionGenerator  +---->+  FbtTreeCatalog.g.cs          |
+|  [GizmoProjector] classes +---->+  GizmoRegistrarGenerator   +---->+  *_GizmoRegistrar.g.cs        |
+|  [SharedAiAction] methods +---->+  BehaviorParameterSize     +---->+  FDP_001 error if DTO         |
+|                           |     |    Analyzer                |     |  exceeds 100 bytes            |
+|  [UtilityInput]   methods +---->+  UtilityInputGenerator     +---->+  UtilityInputRegistrar.g.cs   |
+|  [UtilityDecision] classes+---->+  UtilityDecisionGenerator  +---->+  UtilityDecisionCatalog.g.cs  |
+|  Consider(...) call sites +---->+  UtilityAuthoringAnalyzer  +---->+  UT#### errors/warnings       |
++---------------------------+     +----------------------------+     +-------------------------------+
 ```
 
 ### Diagram 2: BrainBlackboard memory layout enforced by FDP_001
@@ -294,6 +300,7 @@ Recognized attributes (all from `Fbt.Kernel` namespace):
 |-----------------------------|------------------------|
 | `[BTreeAction]`             | 4-param or 3-param node logic delegate |
 | `[BTreeCondition]`          | 4-param or 3-param node logic delegate |
+| `[BTreeDeactivator]`        | 4-param `void` companion; paired to an action by `TargetAction` key |
 | `[SharedAiCondition]`       | Shared condition reading a DTO field   |
 | `[SharedAiAction]`          | Shared action writing a DTO field      |
 | `[SharedAiHeavyAction]`     | Shared action with an extra heavy ECS component |
@@ -308,6 +315,13 @@ Recognized attributes (all from `Fbt.Kernel` namespace):
 - **Reusable/Bridge (3-param)**: `NodeStatus Method(ref TValue v, ref BTS st, ref TC ctx)`.
   Registered as a closure that casts the blackboard to `TValue` using `Unsafe.As`.
   Key suffix: `"@0"`.
+
+- **Deactivator**: `void Method(ref TB bb, ref BTS st, ref TC ctx, int pi)` annotated with `[BTreeDeactivator("targetKey")]`.
+  Emits `registry.RegisterDeactivator(targetKey, global::Method)` into `FbtActionRegistrar.g.cs`.
+  For 3-param bridge targets the key uses the `"@0"` compound-key convention; the generator detects this automatically by checking whether the target method is a bridge form.
+  Diagnostics:
+  - `BHU_016`: emitted when `TargetAction` is empty or missing.
+  - `BHU_017`: emitted when `TargetAction` names a method not found in the same compilation as a `[BTreeAction]` or `[BTreeCondition]`.
 
 - **SharedAi**: attribute carries `(dtoType, fieldName)`.  Generator resolves the byte offset
   of `fieldName` inside `dtoType` at compile time, emits a lambda that projects
@@ -448,6 +462,8 @@ Per-entity gizmos are registered via `statelessRegistry.Register(..., new Type[]
 | BHU_001   | Error    | BTreeActionGenerator | SharedAi parameter type mismatch                                   |
 | BHU_002   | Warning  | BTreeActionGenerator | SharedAi method must be static                                     |
 | BHU_003   | Error    | BTreeActionGenerator | SharedAi DTO field not found                                       |
+| BHU_016   | Error    | BTreeActionGenerator | BTreeDeactivator missing or empty TargetAction argument            |
+| BHU_017   | Warning  | BTreeActionGenerator | BTreeDeactivator TargetAction does not match any action in this compilation |
 | BTree002  | Warning  | BTreeSourceGen    | Invalid BTreeDefinition method                                        |
 
 ### FDP_001 -- message format
@@ -484,6 +500,20 @@ or offset cannot be computed
 ```
 Method '{methodName}' annotated with [BTreeDefinition] must be static,
 return BehaviorTreeBlob, and have no parameters
+```
+
+### BHU_016 -- message format
+
+```
+Method '{methodName}': [BTreeDeactivator] has an empty or missing TargetAction argument;
+skipping registration
+```
+
+### BHU_017 -- message format
+
+```
+Method '{methodName}': [BTreeDeactivator] TargetAction '{targetAction}' does not match any
+[BTreeAction] or [BTreeCondition] method in this compilation
 ```
 
 ### FDP_002 -- message format
@@ -850,3 +880,127 @@ intentionally identical in both generators and must be kept in sync if changed.
 ---
 
 *Generated by documentation tooling on 2026-05-23.*
+
+---
+
+### `UtilityInputGenerator.cs`
+
+**Namespace**: `Fdp.Toolkit.Behavior.Analyzers`
+**Kind**: `IIncrementalGenerator`
+**Registered action**: `MethodDeclarationSyntax` with attribute lists
+
+Scans for `static float(in UtilityInputCtx)` methods carrying `[UtilityInput]` and emits
+`UtilityInputRegistrar.g.cs` into each consuming assembly. The generated class carries
+`[UtilityRegistrar]` so `UtilityAutoDiscovery.ScanAndRegister()` finds it at startup.
+
+**Hash formula** (must match `StandardInputIds` constants exactly):
+```csharp
+// Compute FNV-1a-32, then truncate to 16 bits:
+hash ^= c; hash *= 16777619; ...
+ushort id = (ushort)(hash & 0xFFFF);
+```
+This is *not* a native FNV-1a-16; the truncation formula must be identical in the generator
+and at runtime or every dispatch silently misses.
+
+**Diagnostics emitted**:
+
+| Code | Severity | Trigger |
+|---|---|---|
+| `UT0101` | Error | `[UtilityInput]` method has a null or empty `Name` |
+| `UT0102` | Error | Duplicate `Name` across the compilation |
+| `UT0103` | Error | Two input names produce the same FNV-1a-16 hash (collision) |
+| `UT0110` | Error | Method is not `static` |
+| `UT0111` | Error | Method does not return `float` |
+| `UT0112` | Error | Method parameter is not `in UtilityInputCtx` |
+
+**Generated output structure** (`UtilityInputRegistrar.g.cs`):
+```csharp
+[UtilityRegistrar]
+public static class UtilityInputRegistrar
+{
+    public static void RegisterAll()
+    {
+        UtilityInputReaderStore.Register(0x2C39, &Fdp.Toolkit.Utility.StandardInputs.AmmoFraction);
+        UtilityInputReaderStore.Register(0xC96D, &Fdp.Toolkit.Utility.StandardInputs.WeaponHasAmmo);
+        // ... one entry per [UtilityInput] method found in the assembly
+    }
+}
+```
+
+---
+
+### `UtilityDecisionGenerator.cs`
+
+**Namespace**: `Fdp.Toolkit.Behavior.Analyzers`
+**Kind**: `IIncrementalGenerator`
+**Registered action**: `ClassDeclarationSyntax` with attribute lists
+
+Scans for classes carrying `[UtilityDecision]` and implementing `IUtilityDecisionDefinition`
+with a `public static void Build(IUtilityDecisionBuilder)` method. Emits
+`UtilityDecisionCatalog.g.cs` into each consuming assembly. The generated class carries
+`[UtilityRegistrar]`.
+
+**Diagnostics emitted**:
+
+| Code | Severity | Trigger |
+|---|---|---|
+| `UT0140` | Error | `[UtilityDecision]` class does not implement `IUtilityDecisionDefinition` |
+| `UT0141` | Error | `[UtilityDecision]` class is missing `public static void Build(IUtilityDecisionBuilder)` |
+| `UT0150` | Error | Two `[UtilityDecision]` classes share the same `AssetId` string |
+
+**Generated output structure** (`UtilityDecisionCatalog.g.cs`):
+```csharp
+[UtilityRegistrar]
+public static class GeneratedUtilityDecisionCatalog
+{
+    public static void RegisterAll()
+    {
+        var builder = new Fdp.Toolkit.Utility.UtilityDecisionBuilder();
+        Fdp.Toolkit.Utility.CombatPostureDecision.Build(builder);
+        int id = Fdp.Toolkit.Utility.UtilityDecisionBuilder.ComputeId("3c6f9e42-...");
+        Fdp.Toolkit.Utility.UtilityDecisionCatalog.Shared.Register(id, builder.Build(attr), hysteresis);
+        // ... one block per [UtilityDecision] class found in the assembly
+    }
+}
+```
+
+---
+
+### `UtilityAuthoringAnalyzer.cs`
+
+**Namespace**: `Fdp.Toolkit.Behavior.Analyzers`
+**Kind**: `DiagnosticAnalyzer`
+**Registered actions**: `SymbolKind.NamedType` + `SyntaxKind.MethodDeclaration`
+
+Enforces cross-cutting authoring constraints. Runs once per compilation start to build a
+**cross-assembly input catalog** (collects all `[UtilityInput]` `Name` values from the current
+compilation and all referenced assemblies), then validates each `Build` method against it.
+
+**Diagnostics emitted**:
+
+| Code | Severity | Trigger |
+|---|---|---|
+| `UT0120` | Error | `Consider(In.SomeName(), ...)` references an input name not in the cross-assembly catalog |
+| `UT0130` | Error | `Build` method body reads a disallowed runtime type (`EntityRepository`, `ISimulationView`, `DateTime`, `Random`) -- purity violation |
+| `UT0131` | Warning | Weight literal in a `Consider` call is outside [0, 1] |
+| `UT0143` | Error | `PostureSelect` decision defines zero options in its `Build` method |
+
+The `UT0120` check uses the `EqsTemplatePurityAnalyzer` (`EQS_002`) AST-walk pattern.
+Cross-assembly resolution walks `compilation.Assembly.GlobalNamespace` for source-defined types
+and each `compilation.References` assembly for referenced types.
+
+---
+
+### `SharedUtilityDiagnostics.cs`
+
+**Namespace**: `Fdp.Toolkit.Behavior.Analyzers`
+
+Centralizes all `DiagnosticDescriptor` instances for Utility AI diagnostics (`UT0101`--`UT0150`).
+Shared between `UtilityInputGenerator` and `UtilityAuthoringAnalyzer` to avoid RS1019
+duplicate-descriptor warnings when both components share a Roslyn host.
+
+All descriptors use category `"Fdp.UtilityAI"`.
+
+---
+
+*Updated 2026-05-30: added UtilityInputGenerator, UtilityDecisionGenerator, UtilityAuthoringAnalyzer.*

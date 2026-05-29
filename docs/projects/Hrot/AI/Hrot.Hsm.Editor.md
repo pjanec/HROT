@@ -3,7 +3,7 @@
 **Project file**: `Hrot/Subsystems/AI/Hrot.Hsm.Editor/Hrot.Hsm.Editor.csproj`
 **Project folder**: `Hrot/Subsystems/AI/Hrot.Hsm.Editor/`
 **Target framework**: net8.0
-**Date**: 2026-05-23
+**Date**: 2026-05-30
 
 ---
 
@@ -290,10 +290,10 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 
 | File | Class/Type | Description |
 |------|------------|-------------|
-| `Validation/HsmValidator.cs` | `HsmValidator` | Validates an `HsmAsset` and returns a list of `HsmDiagnostic`. Enforces structural rules: initial children, history placement, final state constraints, state depth, dangling event references, and output lane conflicts. |
+| `Validation/HsmValidator.cs` | `HsmValidator` | Validates an `HsmAsset` and returns a list of `HsmDiagnostic`. Enforces structural rules: initial children, history placement, final state constraints, state depth, dangling event references, output lane conflicts, and cross-region blackboard conflicts. |
 | `Validation/HsmAssetValidator.cs` | `HsmAssetValidator` | Adapts `HsmValidator` to `IAssetValidator` so diagnostics appear in the cross-asset `DiagnosticsWindow`. |
 | `Validation/HsmDiagnostic.cs` | `HsmDiagnostic`, `HsmDiagnosticSeverity` | Diagnostic record type (Code, Severity, Message, TargetStableIds). |
-| `Validation/HsmDiagnosticCode.cs` | `HsmDiagnosticCode` | Enum of 15 diagnostic codes covering structural, referential, and performance problems. |
+| `Validation/HsmDiagnosticCode.cs` | `HsmDiagnosticCode` | Enum of 15 diagnostic codes covering structural, referential, performance, and blackboard-conflict problems. |
 | `Validation/HsmOutputLaneMaskInferrer.cs` | `HsmOutputLaneMaskInferrer` | Reflects assemblies for `[HsmAction]` attributes to build an FQN->CommandLane map. Computes and applies `OutputLaneMask` to all states for conflict detection. |
 
 ### Debug
@@ -315,6 +315,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 | `Debug/HsmDebugTypes.cs` | `HsmTimerSlot` | Timer slot state in a snapshot (owner StableId, remaining ticks). |
 | `Debug/HsmDebugTypes.cs` | `HsmHistorySlot` | History slot state in a snapshot (shallow/deep, owner, recorded child). |
 | `Debug/HsmDebugTypes.cs` | `HsmBreakpointHit` | Separate notification raised when a breakpoint fires. |
+| `Debug/HsmBreakpointMenuPopulator.cs` | `HsmBreakpointMenuPopulator` | Static helper that populates the right-click context menu for an HSM state node with Universal Breakpoints items. Synthesises `TraceBufferScanPredicateDto` and `CompoundPredicateDto` conditions over `HsmTraceWorkingMemory1024` and registers them via `IDataBreakpointManager.AddBreakpoint`. Menu items: "Break on Enter" (StateEnter opcode), "Break on Exit" (StateExit opcode), "Break on Guard Evaluated" (GuardEvaluated opcode), "Add Conditional Data Breakpoint..." (compound Enter + user-configured Branch B). The `SourceElementId` of each registered breakpoint is set to `state.StableId` so `HsmBreakpointGutterRenderer` can draw the gutter dot. |
 
 ### Inspector
 
@@ -367,7 +368,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 ### HsmAsset
 
 ```csharp
-public sealed class HsmAsset : IEditableAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -393,6 +394,14 @@ public sealed class HsmAsset : IEditableAsset
     // Canvas layout
     public Vector2 CanvasPanOffset { get; set; }
     public float CanvasZoomLevel { get; set; }
+
+    // Blackboard (IBlackboardManagedAsset)
+    public string BlackboardTypeName { get; set; }
+    public bool IsBlackboardEditorManaged { get; set; }
+    public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; }
+    public BlackboardLoadState LoadState { get; }
+    public string? LoadDiagnosticMessage { get; }
+    // ... AddVariable, RemoveVariable, RenameVariable, etc.
 
     // Identity bridge lookups
     public StateNode? FindStateByStableId(Guid stableId);
@@ -673,8 +682,8 @@ public static class HsmQuickReloadHasher
 }
 ```
 
-Returns `HotReloadTier.Structure`, `HotReloadTier.Parameter`, or
-`HotReloadTier.None` based on `StructureHash`/`ParameterHash` comparison.
+Returns `HotReloadTier.Hard`, `HotReloadTier.Soft`, or
+`HotReloadTier.Cosmetic` based on `StructureHash`/`ParameterHash` comparison.
 
 ### HsmAutoLayout
 
@@ -701,6 +710,7 @@ public enum HsmDiagnosticCode
     UnboundAction,
     UnboundGuard,
     OutputLaneConflict,
+    CrossRegionBlackboardConflict,
     StateDepthExceeded,
     RegionCountExceedsTier,
     TransitionPriorityCycle,
@@ -728,6 +738,24 @@ with no constructor parameters.
 | `HsmGuardPickerAttribute` | field/property | Guard FQN picker |
 | `HsmStateSelectorAttribute` | field/property | State name selector |
 | `HsmSyncGroupPickerAttribute` | field/property | Sync-group ID picker |
+
+---
+
+## Visual Asset Comparison
+
+`Hrot.Hsm.Editor` participates in the Visual Asset Comparison feature via three files
+under `Comparison/`:
+
+| File | Purpose |
+|------|---------|
+| `HsmComparisonSanitizer` | Sanitizes HSM `.cs` files: parses the layout method body for per-element comments (keyed by `stableId` for states/regions and `visualId` for transitions), hoists comments above the matching builder calls, and truncates the layout method. |
+| `HsmComparisonToolbar` | Per-window wrapper that delegates to the shared `ComparisonToolbarAction`. |
+| `HsmEditorComparisonServiceCollectionExtensions` | `AddHsmEditorComparison()` DI extension; registers `HsmComparisonSanitizer` and wires it into `SanitizerRegistry`. |
+
+Call `AddHsmEditorComparison()` after `AddSharedAiEditor()` in the composition root.
+
+See [Hrot.Editor.AiShared.Comparison.md](../Editor/Hrot.Editor.AiShared.Comparison.md) for the
+full comparison feature architecture.
 
 ---
 
@@ -857,13 +885,13 @@ HsmDefinitionBlob newBlob = GetNewBlob(newAssembly);
 var tier = HsmQuickReloadHasher.Classify(oldBlob, newBlob);
 switch (tier)
 {
-    case HotReloadTier.None:
+    case HotReloadTier.Cosmetic:
         // No changes; skip re-projection.
         break;
-    case HotReloadTier.Parameter:
+    case HotReloadTier.Soft:
         // Only parameter values changed; can patch in-place without resetting runtime.
         break;
-    case HotReloadTier.Structure:
+    case HotReloadTier.Hard:
         // State/transition graph changed; full re-projection and runtime reset required.
         contributor.LoadFrom(newAssembly);
         break;

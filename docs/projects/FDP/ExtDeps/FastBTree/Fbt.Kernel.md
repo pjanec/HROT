@@ -79,27 +79,41 @@ Performance measurements (README, Intel i7-7700HQ, .NET 10):
 ```
 Interpreter.Tick()
   |
-  +-- Hot-reload bounds check (RunningNodeIndex vs Nodes.Length)
+  +-- Step 1: Snapshot oldPath (stackalloc ushort[9])
+  |     8 NodeIndexStack slots + RunningNodeIndex
+  |
+  +-- Step 2: Hot-reload bounds check (RunningNodeIndex vs Nodes.Length)
+  |     if out-of-bounds: SweepExitedNodes(oldPath, emptyPath) -> fire deactivators
+  |                        reset RunningNodeIndex/StackPointer, set pathWasReset=true
+  |                        continue to ExecuteNode (no early return)
   |
   +-- Paused check (BehaviorInstanceFlags.Paused)
   |
   +-- ExecuteNode(0, ...)   <- always starts at root (index 0)
-        |
-        +-- switch(node.Type)
-              |
-              +-- Sequence  --> iterate children, skip completed via RunningNodeIndex
-              +-- Selector  --> iterate children, skip failed via RunningNodeIndex
-              +-- Action    --> call cached delegate, return its NodeStatus
-              +-- Condition --> call cached delegate, return its NodeStatus
-              +-- Inverter  --> call child, flip Success<->Failure
-              +-- Wait      --> check elapsed time via AsyncToken, return Running/Success
-              +-- Repeater  --> loop child using LocalRegisters[0] as iteration counter
-              +-- Parallel  --> run all children, use LocalRegisters[3] bitfield for child state
-              +-- Cooldown  --> check last-exec time via AsyncToken, gate child
-              +-- ForceSuccess/ForceFailure --> run child, override result
-              +-- UntilSuccess/UntilFailure --> re-run child each tick until condition
-              |
-              +-- (result != Running) --> clear RunningNodeIndex
+  |     |
+  |     +-- switch(node.Type)
+  |           |
+  |           +-- Sequence  --> iterate children, skip completed via RunningNodeIndex
+  |           +-- Selector  --> iterate children, skip failed via RunningNodeIndex
+  |           +-- Action    --> call cached delegate, return its NodeStatus
+  |           +-- Condition --> call cached delegate, return its NodeStatus
+  |           +-- Inverter  --> call child, flip Success<->Failure
+  |           +-- Wait      --> check elapsed time via AsyncToken, return Running/Success
+  |           +-- Repeater  --> loop child using LocalRegisters[0] as iteration counter
+  |           +-- Parallel  --> run all children, use LocalRegisters[3] bitfield for child state
+  |           +-- Cooldown  --> check last-exec time via AsyncToken, gate child
+  |           +-- ForceSuccess/ForceFailure --> run child, override result
+  |           +-- UntilSuccess/UntilFailure --> re-run child each tick until condition
+  |           |
+  |           +-- (result != Running) --> clear RunningNodeIndex
+  |
+  +-- Step 4: Post-tick delta sweep (skipped when pathWasReset)
+        Snapshot newPath (stackalloc ushort[9])
+        SweepExitedNodes(oldPath, newPath):
+          for each index in oldPath not present in newPath:
+            SweepExitedNode(nodeIndex):
+              if node.IsResourceOwning -> invoke deactivator delegate
+              if node.Type == Parallel -> range-sweep all child subtrees
 ```
 
 ### Resume Semantics (Resumable Execution)
@@ -144,15 +158,19 @@ Field usage by node type:
 ### NodeDefinition Memory Layout
 
 ```
-+-------+--------+---------------+-------------------+
-| Type  | Child  | SubtreeOffset |   PayloadIndex    |
-| 1 byte| 1 byte |    2 bytes    |      4 bytes      |
-+-------+--------+---------------+-------------------+
-   0        1         2   3           4  5  6  7
++-------+--------+---------------+-----------------------------------+
+| Type  | Child  | SubtreeOffset |        RawPayloadIndex            |
+| 1 byte| 1 byte |    2 bytes    |  bit31=IsResourceOwning|bits0-30  |
++-------+--------+---------------+-----------------------------------+
+   0        1         2   3                  4  5  6  7
 Total: 8 bytes
 ```
 
 `SubtreeOffset` encodes the count of nodes in this node's entire subtree (self + all descendants). To jump to the next sibling from index `i`: `nextSibling = i + Nodes[i].SubtreeOffset`.
+
+`RawPayloadIndex` packs two pieces of information into 4 bytes:
+- **Bit 31** (`IsResourceOwning`): set at compile time (V2 blobs) or patched at `Interpreter` construction (V1 blobs) for `Action`/`Condition` nodes that have a registered deactivator. Signals the delta tracker to invoke the deactivator when this node exits the active path.
+- **Bits 0-30** (`PayloadIndex`): index into `MethodNames[]` for Action/Condition nodes, or into `FloatParams[]`/`IntParams[]` for Wait/Repeater/Cooldown/Parallel.
 
 ### Flat Bytecode Layout (Depth-First Order)
 
@@ -183,6 +201,7 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 | `BehaviorTreeBuildException.cs` | `class BehaviorTreeBuildException` | Thrown on compilation failure |
 | `AsyncToken.cs` | `struct AsyncToken` | Packs async request ID + tree version into a ulong for zombie detection |
 | `NodeLogicDelegate.cs` | `delegate NodeLogicDelegate<BB,Ctx>` | Function signature for all action/condition implementations |
+| `NodeDeactivatorDelegate.cs` | `delegate NodeDeactivatorDelegate<BB,Ctx>` | Cleanup callback invoked when BTree execution pointer leaves a resource-owning node |
 | `IAIContext.cs` | `interface IAIContext` | External services: time, raycasts, pathfinding, parameter lookup |
 | `ITreeTracer.cs` | `interface ITreeTracer` | Trace events emitted by the kernel: node evaluated, scope push/pop, wait start/complete |
 | `NodeDebugMetadata.cs` | `class NodeDebugMetadata` | Per-node debug info: label, source file, line, visual ID |
@@ -196,8 +215,8 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 | File | Type | Description |
 |---|---|---|
 | `ITreeRunner.cs` | `interface ITreeRunner<BB,Ctx>` | Single-method contract: `Tick(ref BB, ref State, ref Ctx) : NodeStatus` |
-| `ActionRegistry.cs` | `class ActionRegistry<BB,Ctx>` | Name-to-delegate dictionary; `Register`, `TryGetAction`, `RegisterCondition`, `TryGetCondition` |
-| `Interpreter.cs` | `class Interpreter<BB,Ctx>` | The execution engine; binds delegates at construction, ticks the tree with no GC |
+| `ActionRegistry.cs` | `class ActionRegistry<BB,Ctx>` | Name-to-delegate dictionary; `Register`, `TryGetAction`, `RegisterCondition`, `TryGetCondition`, `RegisterDeactivator`, `TryGetDeactivator` |
+| `Interpreter.cs` | `class Interpreter<BB,Ctx>` | The execution engine; binds delegates at construction, ticks the tree with no GC; performs deactivator delta sweep on path exit |
 
 ### `Fbt.HotReload` namespace (`HotReload/`)
 
@@ -229,8 +248,10 @@ This layout means the interpreter only needs a simple index to navigate: no poin
 |---|---|---|
 | `BTreeActionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable action; consumed by `Fbt.SourceGen` |
 | `BTreeConditionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a static method as an auto-registrable condition; consumed by `Fbt.SourceGen` |
-| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry |
+| `BTreeDefinitionAttribute.cs` | `[AttributeUsage(Method)]` | Marks a method returning `BTreeBuilder` or `BehaviorTreeBlob` as a named tree catalog entry. Carries optional `BlackboardManaged` and `HeavyDtoType` arguments (see Attributes section). |
+| `BTreeDeactivatorAttribute.cs` | `[AttributeUsage(Method)]` | Pairs a static deactivator method with a `[BTreeAction]` or `[BTreeCondition]`; consumed by `Fbt.SourceGen` |
 | `FbtRegistrarAttribute.cs` | `[AttributeUsage(Class)]` | Applied by `Fbt.SourceGen` to the emitted registrar class; used by `FbtAutoDiscovery` for reflection scanning |
+| `BlackboardAnnotations.cs` | `[AttributeUsage(Struct/Parameter)]` | Three editor-only annotation attributes: `[BlackboardDtoStruct]`, `[BlackboardReadOnly]`, `[BlackboardReadWrite]`. Runtime ignores them; the HROT editor schema exporter reads them (see Attributes section). |
 
 ---
 
@@ -282,9 +303,16 @@ public struct NodeDefinition
     public NodeType Type;        // 1 byte
     public byte ChildCount;      // 1 byte
     public ushort SubtreeOffset; // 2 bytes: next sibling = self + SubtreeOffset
-    public int PayloadIndex;     // 4 bytes: index into MethodNames/FloatParams/IntParams
+    public int RawPayloadIndex;  // 4 bytes: bit31=IsResourceOwning, bits0-30=payload index
+
+    // Inline computed properties:
+    public readonly int PayloadIndex          // bits 0-30 of RawPayloadIndex
+    public readonly bool IsResourceOwning     // bit 31 of RawPayloadIndex
+    public void SetResourceOwning()           // sets bit 31
 }
 ```
+
+`IsResourceOwning` is set at compile time for V2 blobs (by `TreeCompiler.FlattenToBlob` via the `isResourceOwning` callback from `BTreeBuilder.Compile`) and patched at `Interpreter` construction time for V1 (legacy JSON-compiled) blobs. It is safe to inspect on any node type because it is only set on Action/Condition nodes.
 
 ### `BehaviorTreeBlob` (class, shared/immutable)
 
@@ -415,8 +443,28 @@ public class ActionRegistry<TBlackboard, TContext>
     public bool TryGetAction(string methodName, out NodeLogicDelegate<...> action);
     public void RegisterCondition(string key, NodeLogicDelegate<...> condition);
     public bool TryGetCondition(string key, out NodeLogicDelegate<...> condition);
+
+    // Deactivator support (Phase 1: BTree Hybrid Lifecycle Hook):
+    public void RegisterDeactivator(string key, NodeDeactivatorDelegate<TBlackboard, TContext> deactivator);
+    public bool TryGetDeactivator(string key, out NodeDeactivatorDelegate<TBlackboard, TContext>? deactivator);
 }
 ```
+
+The deactivator registry is a parallel `Dictionary<string, NodeDeactivatorDelegate<...>>`. The key is the same string used to `Register` the paired action (e.g. `"Ns.Class.Method"` or `"Ns.Class.Method@0"` for 3-param bridge forms). Last-write-wins on duplicate key. Throws `ArgumentNullException` for null key or null delegate.
+
+### `NodeDeactivatorDelegate<TBlackboard, TContext>` (delegate)
+
+```csharp
+public delegate void NodeDeactivatorDelegate<TBlackboard, TContext>(
+    ref TBlackboard blackboard,
+    ref BehaviorTreeState state,
+    ref TContext context,
+    int paramIndex)
+    where TBlackboard : struct
+    where TContext : struct, IAIContext;
+```
+
+Mirrors `NodeLogicDelegate` but returns `void`. Invoked by the interpreter when the BTree execution pointer exits the paired action node. Receives the same live references as the immediately preceding tick call.
 
 ### `AsyncToken` (struct)
 
@@ -481,9 +529,19 @@ public sealed class FbtAssemblyHotReloader : IDisposable
 public static class TreeCompiler
 {
     public static BehaviorTreeBlob CompileFromJson(string jsonText);
-    public static BehaviorTreeBlob FlattenToBlob(BuilderNode root, string treeName);
+
+    // isResourceOwning: optional callback; returns true when the named method
+    // should have NodeDefinition.IsResourceOwning set in the produced blob.
+    // Null = no resource-owning nodes (equivalent to always-false).
+    // Blobs produced by this overload are stamped Version = 2.
+    public static BehaviorTreeBlob FlattenToBlob(
+        BuilderNode root,
+        string treeName,
+        Func<string, bool>? isResourceOwning = null);
 }
 ```
+
+`CompileFromJson` produces **V1** blobs (no `IsResourceOwning` bits). `FlattenToBlob` always stamps **V2**. The `Interpreter` constructor patches V1 blobs in-memory so that deactivators work correctly for both formats.
 
 ### `BinaryTreeSerializer` (static class, in `Fbt.Serialization`)
 
@@ -498,6 +556,27 @@ public static class BinaryTreeSerializer
 ```
 
 Binary format header: `FBT\0` (4 bytes), version (int32), StructureHash (int32), ParamHash (int32), TreeName (length-prefixed string).
+
+**Supported versions:**
+- **V1**: `RawPayloadIndex` stores only the payload index (no `IsResourceOwning` bit). The `Interpreter` constructor patches V1 blobs at load time.
+- **V2** (current): `RawPayloadIndex` bit 31 carries the `IsResourceOwning` flag baked by `TreeCompiler`. No runtime patching needed.
+
+The serializer reads versions 1 and 2; it always writes the current version (2).
+
+### `BTreeDeactivatorAttribute` (attribute)
+
+```csharp
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+public sealed class BTreeDeactivatorAttribute : Attribute
+{
+    public string TargetAction { get; }
+    public BTreeDeactivatorAttribute(string targetAction);
+}
+```
+
+Pairs a static deactivator method with the action identified by `TargetAction`. `TargetAction` must match the registration key used by `ActionRegistry.Register` for the paired action. Consumed by `Fdp.Toolkits.Analyzers.BTreeActionGenerator` which emits `registry.RegisterDeactivator(...)` calls into `FbtActionRegistrar.g.cs` automatically.
+
+For 3-param bridge actions the key uses the `"@0"` compound-key convention (e.g. `"Ns.Class.Method@0"`).
 
 ### `TreeValidator` (static class, in `Fbt.Serialization`)
 
@@ -546,12 +625,72 @@ public sealed class BTreeConditionAttribute : Attribute { }
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class BTreeDefinitionAttribute : Attribute
 {
+    /// <summary>The logical name of the behavior tree (catalog key).</summary>
     public string TreeName { get; }
+
+    /// <summary>
+    /// When true, signals that this asset uses an editor-managed companion blackboard
+    /// file ({AssetName}.Blackboard.cs). The runtime ignores this flag; it is read by
+    /// the HROT BTree editor. Default is false -- all existing assets are unaffected.
+    /// </summary>
+    public bool BlackboardManaged { get; set; }
+
+    /// <summary>
+    /// When set, the source generator wires BehaviorIngressSystem to provision a
+    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// </summary>
+    public Type? HeavyDtoType { get; set; }
+
     public BTreeDefinitionAttribute(string treeName);
 }
 
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class FbtRegistrarAttribute : Attribute { }
+```
+
+### Blackboard annotation attributes (`BlackboardAnnotations.cs`)
+
+Three editor-only attributes in `Fbt.Kernel` (namespace `Fbt.Kernel`). The runtime ignores
+them at all times; they are read by the HROT editor's `IActionSchemaExporter` to record
+access patterns used by the cross-region conflict validator.
+
+```csharp
+/// <summary>
+/// Marks a user-defined struct as a blackboard DTO type that should appear in the
+/// Add-Variable type picker in the HROT BTree and HSM editors, even before any action
+/// method references the struct. Applied to struct declarations only.
+/// </summary>
+[AttributeUsage(AttributeTargets.Struct, Inherited = false, AllowMultiple = false)]
+public sealed class BlackboardDtoStructAttribute : Attribute { }
+
+/// <summary>
+/// Annotates the first ref parameter of an action method as read-only access to the
+/// blackboard field. The editor records the access pattern as ReadOnly, enabling
+/// more precise cross-region conflict diagnostics.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+public sealed class BlackboardReadOnlyAttribute : Attribute { }
+
+/// <summary>
+/// Annotates the first ref parameter of an action method as read-write access.
+/// Unannotated parameters are treated as ReadWrite (conservative default).
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter, Inherited = false, AllowMultiple = false)]
+public sealed class BlackboardReadWriteAttribute : Attribute { }
+```
+
+Usage example:
+
+```csharp
+// Struct available in the editor's Add Variable type picker without a referencing action:
+[BlackboardDtoStruct]
+public struct SharedTargetingParams { public long TargetEntityId; public float AimDot; }
+
+// Action declares read-only access; editor won't flag it as a cross-region writer:
+[BTreeAction]
+public static NodeStatus CheckAmmo(
+    [BlackboardReadOnly] ref WeaponState state,
+    ref BehaviorTreeState bt, ref BTreeContext ctx, int idx) { ... }
 ```
 
 ### `SharedAiConditionAttribute` / `SharedAiActionAttribute` / `SharedAiHeavyActionAttribute`

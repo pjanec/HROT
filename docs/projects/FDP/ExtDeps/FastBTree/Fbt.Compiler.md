@@ -322,7 +322,15 @@ public BTreeBuilder<BB,Ctx> Condition<TValue>(
 // Compiles the tree to a BehaviorTreeBlob (with DebugMetadata).
 // Throws BehaviorTreeBuildException on validation failure.
 // Exactly one root node must be present.
+// Passes registry.TryGetDeactivator as the isResourceOwning callback to TreeCompiler
+// so that Action/Condition nodes with registered deactivators have NodeDefinition.IsResourceOwning set.
+// Produced blobs are stamped Version = 2.
 public BehaviorTreeBlob Compile(string treeName);
+
+// Overload accepting an external isResourceOwning predicate.
+// Falls back to the internal registry when isResourceOwning is null.
+// Used by tooling that builds trees without a typed registry.
+public BehaviorTreeBlob Compile(string treeName, Func<string, bool>? isResourceOwning);
 
 // Returns the accumulated ActionRegistry.
 public ActionRegistry<BB, Ctx> GetRegistry();

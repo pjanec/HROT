@@ -272,8 +272,15 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 | File | Namespace | Type | Description |
 |---|---|---|---|
 | `ArchitectureDiagnosticsWindow.cs` | `Hrot.Presentation.Windows` | `sealed class` | `ManagedWindow` wrapping `ArchitectureDiagnosticsPanel`. Scope: `PerspectiveBound`. Starts closed. Optional title-bar color. |
+| `DataBreakpointManagerWindow.cs` | `Hrot.Presentation.Windows` | `sealed class` | `ManagedWindow` (scope: `PerspectiveBound`) hosting a `DataBreakpointManagerPanel`. Registered once per AI/CGF subsystem perspective so each has its own isolated breakpoint manager UI. Starts closed; opened from the Debug menu. Optional title-bar tint color for visual disambiguation. |
 | `FdpEntityInspectorHelper.cs` | `Hrot.Presentation.Windows` | `static class` | Shared helper: wires `ComponentReflector` settings on an `EntityInspectorPanel` and registers an "Inspect..." context-menu handler that spawns volatile `FdpEntityWatchWindow` instances via the window manager. |
 | `FdpPanelWindows.cs` | `Hrot.Presentation.Windows` | Three `sealed class`es | `FdpEntityInspectorWindow`, `FdpEventBrowserWindow`, `FdpEntityWatchWindow`. All are `ManagedWindow` subclasses; `FdpEntityWatchWindow` is `IsVolatile=true` and `ShowInMenu=false` (spawned on demand). |
+
+### Panels/Breakpoints/
+
+| File | Namespace | Type | Description |
+|---|---|---|---|
+| `DataBreakpointManagerPanel.cs` | `Hrot.Presentation.Panels.Breakpoints` | `sealed class` | Data-grid panel for the Universal Breakpoints manager. Renders a toolbar row (Add / Remove / Enable All / Disable All / JSON clipboard), the breakpoint grid (Enabled checkbox, Scope, Type, Condition Summary, Hit Count), a Details Inspector pane for the selected breakpoint's predicate, and the `TemporalStatusBannerPanel` at the bottom. Consumes `IDataBreakpointManager` and `TemporalStatusBannerState`. UI logic is fully extracted from the panel for unit-testability via internal action seams (`AddBreakpoint`, `RemoveSelected`, `EnableAll`, `DisableAll`). |
 
 ### ScenarioEditor/
 

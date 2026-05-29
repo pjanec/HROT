@@ -3,7 +3,7 @@
 **Project path:** `Hrot/Editor/Hrot.Editor.AiShared/`
 **Project file:** `Hrot/Editor/Hrot.Editor.AiShared/Hrot.Editor.AiShared.csproj`
 **Target framework:** net8.0
-**Date documented:** 2026-05-23
+**Date documented:** 2026-05-30
 
 ---
 
@@ -37,7 +37,9 @@ cross-cutting editor services so that neither subsystem needs to reimplement the
 | **Hot-Reload** | Hash-delta classifier (Cosmetic / Soft / Hard) independent of subsystem topology. |
 | **Validation** | Pluggable `IAssetValidator` interface with `AssetDiagnostic` aggregation. |
 | **Debug / Trace** | Breakpoint model, session lifecycle (`IAiDebugSession`), reference-counted trace observer coordinator, live-entity tracking. |
-| **ImGui Windows** | Seven shared ImGui windows: Asset Browser, Inspector, Runtime Inspector, Trace Timeline, Find Results, Diagnostics, plus their shared registrar. |
+| **Blackboard Authoring** | `IBlackboardManagedAsset` contract; per-asset variable list, alias bindings, sync bindings, and a dedicated `BlackboardAuthoringWindow` with bin-packing budget display. |
+| **ImGui Windows** | Eight shared ImGui windows: Asset Browser, Inspector, Blackboard Variables, Runtime Inspector, Trace Timeline, Find Results, Diagnostics, plus their shared registrar. |
+| **Visual Asset Comparison** | LLM-assisted asset comparison: sanitization pipeline, export builder, response parser, canvas annotation renderer, summary panel, sidebar, and all UI modals. See [Hrot.Editor.AiShared.Comparison.md](Hrot.Editor.AiShared.Comparison.md). |
 | **DI** | Single `AddSharedAiEditor()` extension method that registers all of the above. |
 
 The library has **no dependency on any AI kernel** (no `Hrot.BTree`, `Hrot.Hsm`, or `Hrot.Blueprint`
@@ -158,9 +160,10 @@ their folder.
 | File | Type | Description |
 |------|------|-------------|
 | `Identity/IEditableAsset.cs` | `interface IEditableAsset` | Core asset contract used everywhere. |
-| `Identity/AssetKind.cs` | `enum AssetKind` | Discriminator: Blueprint, BTree, Hsm. |
+| `Identity/AssetKind.cs` | `enum AssetKind` | Discriminator: Blueprint, BTree, Hsm, Blackboard. |
 | `Identity/AssetIdHash.cs` | `static class AssetIdHash` | FNV-1a-32 hash primitive. |
 | `Identity/AssetIdHasher.cs` | `static class AssetIdHasher` | Derives a deterministic `Guid` from an asset name. |
+| `ReactiveGuardVocabulary.cs` | `static class ReactiveGuardVocabulary` | Shared string constants (category name, tooltips) for the Reactive Guards palette concept used across BTree, HSM, and Blueprint editors. |
 
 ### `Hrot.Editor.AiShared.Catalog`
 
@@ -225,6 +228,34 @@ their folder.
 | `HsmEditorLayoutBuilder.cs` | `sealed class HsmEditorLayoutBuilder` | Fluent builder for `HsmEditorLayout`. |
 | `LayoutDiscovery.cs` | `static class LayoutDiscovery` | Reflection scanner: finds attribute-decorated static methods in an assembly and invokes them to obtain layout objects. |
 
+### `Hrot.Editor.AiShared.Blackboard`
+
+Editor-side blackboard variable management shared across BTree and HSM editors.
+
+| File | Type | Description |
+|------|------|-------------|
+| `IBlackboardManagedAsset.cs` | `interface IBlackboardManagedAsset` | Implemented by any asset that carries an editor-managed variable list (`BehaviorTreeAsset`, `HsmAsset`). Exposes `IsBlackboardEditorManaged`, `BlackboardVariables`, mutation helpers (`AddVariable`, `RemoveVariable`, `RenameVariable`, `MoveVariable`, `UpdateVariableComment`, `RemoveVariables`), alias-binding helpers (`GetAliasesFor`, `AddAlias`, `RemoveAlias`), `CountNodesReferencingVariable`, and load-state properties. |
+| `BlackboardVariableEntry.cs` | `record BlackboardVariableEntry` | Immutable: `Name`, `FieldType`, `Comment`. One entry per declared variable. |
+| `BlackboardAliasBinding.cs` | `record BlackboardAliasBinding` | Records a sub-tree requirement bound to a variable: `RequiringAssetId`, `RequiringElementId`, `RequiringAssetName`, `RequiredByPath`, `DtoType`. |
+| `BlackboardLoadState.cs` | `enum BlackboardLoadState` | Load-time health: `Clean`, `SpanCaptureFailed`, `StructParseFailed`, `AssemblyFailed`. Drives banner display and save-gate logic in `BlackboardAuthoringWindow`. |
+| `BlackboardDiagnosticCode.cs` | `enum BlackboardDiagnosticCode` | Three codes: `UnusedVariable` (Info), `VariableTypeNotFound` (Warning), `CrossRegionConflict` (Error). |
+| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Classifies variables into `Inline` vs `Heavy` tiers, computes byte sizes, and emits `PackWarning` when budgets are exceeded. Constants: `MaxInlineBytes = 100`, `MaxHeavyBytes` TBD per tier. |
+| `BlackboardVariableDescriptor.cs` | `record BlackboardVariableDescriptor` | `Name` + `FieldType`; packing input. |
+| `BlackboardFieldClassifier.cs` | `static class BlackboardFieldClassifier` | Maps a CLR type to a `BlackboardFieldKind` for display in the Variables panel. |
+| `BlackboardNameValidator.cs` | `static class BlackboardNameValidator` | Validates that a proposed variable name is a legal C# identifier and does not collide with existing names. |
+| `BlackboardTypeHelper.cs` | `static class BlackboardTypeHelper` | Derives the short display name for a CLR type (e.g. `"int"` for `System.Int32`). |
+| `BlackboardSourceTextParser.cs` | `static class BlackboardSourceTextParser` | Parses an existing companion `.cs` file to extract verbatim field spans for safe round-trip editing. |
+| `BlackboardDtoEmitter.cs` | `sealed class BlackboardDtoEmitter` | Generates the companion `.cs` struct file from `IBlackboardManagedAsset`. Extends `FluentCSharpEmitterBase`. |
+| `IBlackboardAggregator.cs` | `interface IBlackboardAggregator` | Aggregates per-subtree DTO requirements across the catalog for display in the Blackboard Variables window. |
+| `IBTreeSyncableAsset.cs` | `interface IBTreeSyncableAsset` | Implemented by `BehaviorTreeAsset`. Exposes subtree sync bindings and sub-tree DTO metadata needed by the orchestrator emitter. |
+| `SubtreeSyncBinding.cs` | `record SubtreeSyncBinding` | One sync binding: `FieldName`, `SyncIn`, `SyncOut`. |
+| `SubtreeNodeInfo.cs` | `record SubtreeNodeInfo` | Sub-tree identity metadata: `SubtreeName`, `SubDtoTypeName`, `SubDtoTypeNs`. |
+| `BlackboardAliasDropValidator.cs` | `static class BlackboardAliasDropValidator` | Validates drag-and-drop alias assignments in the Variables panel. |
+| `ApproachBSyncGroup.cs` | `sealed record ApproachBSyncGroup` | Groups Approach B sync bindings by sub-tree for orchestrator emission. |
+| `ActionSchemaExporter.cs` | `sealed class ActionSchemaExporter` | Exports action schema JSON for external tool consumption. |
+| `ActionSchemaExporterCatalogWatcher.cs` | `sealed class ActionSchemaExporterCatalogWatcher` | Triggers export on catalog change. |
+| `VariablesPanelControl.cs` | `sealed class VariablesPanelControl` | Renders the variable table within `BlackboardAuthoringWindow` (testable, ImGui-free logic). |
+
 ### `Hrot.Editor.AiShared.HotReload`
 
 | File | Type | Description |
@@ -261,13 +292,14 @@ their folder.
 
 | File | Type | Description |
 |------|------|-------------|
-| `AssetBrowserWindow.cs` | `sealed class AssetBrowserWindow` | Lists all assets; context menus for Find References, Rename (preview), Delete (preview). |
+| `AssetBrowserWindow.cs` | `sealed class AssetBrowserWindow` | Lists all assets; context menus for Find References, Rename (preview), Delete (preview). Shows live-instance count badge when entities are active. |
+| `BlackboardAuthoringWindow.cs` | `sealed class BlackboardAuthoringWindow` | Docked panel for editing the blackboard variable list of the active asset. Renders variable rows with type, byte size, alias badges, and inline rename. Shows inline/heavy byte budget gauges. Delegates to `VariablesPanelControl` and `BlackboardBinPacker`. Window ID: `ai_blackboard_variables`. |
 | `InspectorWindow.cs` | `sealed class InspectorWindow` | Active-asset property panel; context menu for Find References, Rename. |
 | `RuntimeInspectorWindow.cs` | `sealed class RuntimeInspectorWindow` | Shell that delegates to registered `IRuntimeInspectorPane` implementations. |
 | `TraceTimelineWindow.cs` | `sealed class TraceTimelineWindow` | Shell that delegates to registered `ITraceLaneProvider` implementations. |
 | `FindResultsWindow.cs` | `sealed class FindResultsWindow` | Renders find-references results and rename preview diffs. |
 | `DiagnosticsWindow.cs` | `sealed class DiagnosticsWindow` | Runs all registered `IAssetValidator` instances against all catalog assets each frame; displays colored table. |
-| `SharedAiWindowRegistrar.cs` | `sealed class SharedAiWindowRegistrar` | `IWindowRegistrar` that registers all 5 windows with `WindowManager`. |
+| `SharedAiWindowRegistrar.cs` | `sealed class SharedAiWindowRegistrar` | `IWindowRegistrar` that registers all 8 windows with `WindowManager`. |
 
 ### `Hrot.Editor.AiShared.Di`
 
@@ -297,7 +329,7 @@ public interface IEditableAsset
 ### `AssetKind`
 
 ```csharp
-public enum AssetKind { Blueprint, BTree, Hsm }
+public enum AssetKind { Blueprint, BTree, Hsm, Blackboard }
 ```
 
 ### `AssetIdHash` / `AssetIdHasher`
@@ -314,6 +346,48 @@ public static class AssetIdHasher
 {
     public static Guid FromName(string name);
 }
+```
+
+### `IBlackboardManagedAsset`
+
+```csharp
+public interface IBlackboardManagedAsset
+{
+    bool                              IsBlackboardEditorManaged { get; }
+    IReadOnlyList<BlackboardVariableEntry> BlackboardVariables  { get; }
+    BlackboardLoadState               LoadState                 { get; }
+    string?                           LoadDiagnosticMessage     { get; }
+
+    void AddVariable(BlackboardVariableEntry entry);
+    void RemoveVariable(string name);
+    void RemoveVariables(IReadOnlyList<string> names);
+    void UpdateVariableComment(string name, string? comment);
+    void MoveVariable(int sourceIndex, int destIndex);
+    void RenameVariable(string oldName, string newName);
+    int  CountNodesReferencingVariable(string name);
+
+    IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName);
+    void AddAlias(string variableName, BlackboardAliasBinding binding);
+    void RemoveAlias(string variableName, Guid requiringAssetId, Guid requiringElementId);
+}
+```
+
+`BehaviorTreeAsset` and `HsmAsset` both implement this interface. The default implementations
+of `LoadState` and `LoadDiagnosticMessage` return `Clean` and `null` respectively.
+
+### `BlackboardVariableEntry` / `BlackboardAliasBinding` / `BlackboardLoadState`
+
+```csharp
+public record BlackboardVariableEntry(string Name, Type FieldType, string? Comment);
+
+public record BlackboardAliasBinding(
+    Guid   RequiringAssetId,
+    Guid   RequiringElementId,
+    string RequiringAssetName,
+    string RequiredByPath,
+    Type   DtoType);
+
+public enum BlackboardLoadState { Clean, SpanCaptureFailed, StructParseFailed, AssemblyFailed }
 ```
 
 ### `IAssetCatalog`
@@ -728,6 +802,165 @@ public static class SharedAiEditorServiceCollectionExtensions
     public static IServiceCollection AddSharedAiEditor(this IServiceCollection services);
 }
 ```
+
+### `IActionSchemaExporter` / `ActionSchemaEntry`
+
+Reflection-based registry of all action/condition/guard methods across the loaded assembly.
+Populated on editor startup and rebuilt after every hot reload. Used by the Variables panel
+picker and by `IBlackboardAggregator` to resolve DTO types.
+
+```csharp
+public interface IActionSchemaExporter
+{
+    ActionSchemaEntry? Lookup(string actionFqn);
+    IReadOnlyList<ActionSchemaEntry> All { get; }
+    void Rebuild();
+    event Action? Changed;
+}
+
+public sealed record ActionSchemaEntry(
+    string          Fqn,           // "Hrot.Game.Combat.CombatActions.FireAtTarget"
+    string          ShortName,     // "FireAtTarget"
+    Type            DtoType,       // first ref parameter type
+    ActionHosting   Hostings,      // BTreeAction | HsmAction | SharedAi | Heavy
+    BlackboardAccess ParamAccess,  // ReadOnly | ReadWrite | Unknown
+    Type?           HeavyDtoType); // set for [SharedAiHeavyAction]; null otherwise
+
+[Flags]
+public enum ActionHosting
+{
+    BTreeAction    = 1 << 0,
+    BTreeCondition = 1 << 1,
+    BTreeObserver  = 1 << 2,
+    HsmAction      = 1 << 3,
+    HsmGuard       = 1 << 4,
+    Heavy          = 1 << 5,
+}
+
+public enum BlackboardAccess { ReadOnly, ReadWrite, Unknown }
+```
+
+### `IBlackboardAggregator` / `AggregationResult`
+
+Walks an asset and its statically-linked descendants to gather all parameter DTO
+requirements. Used to populate the "Unbound Sub-Tree Requirements" section of
+`BlackboardAuthoringWindow`.
+
+```csharp
+public interface IBlackboardAggregator
+{
+    AggregationResult Aggregate(IEditableAsset rootAsset);
+}
+
+public sealed record AggregationResult(
+    IReadOnlyList<DtoRequirement>   Requirements,
+    IReadOnlyList<AggregationWarning> Warnings);
+
+public sealed record DtoRequirement(
+    Type   DtoType,
+    string RequiredByPath,     // "Shoot_BT -> Action#7 (FireAtTarget)"
+    Guid   RequiringAssetId,
+    Guid   RequiringElementId);
+```
+
+### `IBTreeSyncableAsset`
+
+Implemented by `BehaviorTreeAsset`. Exposes the per-Subtree field-level sync bindings
+(Approach B) and sub-tree DTO metadata used by the orchestrator emitter to generate
+sync-copy code in `{AssetName}.Orchestrators.g.cs`.
+
+```csharp
+public interface IBTreeSyncableAsset
+{
+    IReadOnlyList<SubtreeSyncBinding> GetSyncBindings(Guid subtreeVisualId);
+    void SetSyncBinding(Guid subtreeVisualId, SubtreeSyncBinding binding);
+    void ClearSyncBindings(Guid subtreeVisualId);
+    IReadOnlyList<SubtreeNodeInfo> GetSubtreeNodes();
+}
+
+public sealed record SubtreeSyncBinding(
+    string FieldName,    // field name in the sub-tree's DTO
+    bool   SyncIn,       // copy master -> sub before tick
+    bool   SyncOut);     // copy sub -> master after tick
+
+public sealed record SubtreeNodeInfo(
+    string SubtreeName,
+    string SubDtoTypeName,
+    string SubDtoTypeNs);
+```
+
+### `BlackboardDiagnosticCode`
+
+Diagnostic codes emitted by BTree/HSM validators for blackboard-related issues:
+
+```csharp
+public enum BlackboardDiagnosticCode
+{
+    UnusedVariable,               // Info: variable declared but not referenced
+    VariableTypeNotFound,         // Warning: DTO type dropped from assembly after reload
+    UnboundActionNode,            // Error: action/condition node with null ExpressionTargetField
+    UnboundSubTreeRequirement,    // Warning: sub-tree DTO requirement not aliased or promoted
+    CrossRegionBlackboardConflict, // Warning: concurrent writes to same variable across parallel regions
+    InlineMemoryExceeded,         // Error: master variables exceed 100 B inline budget
+    DuplicateAliasAcrossRegions,  // Error: same variable aliased by sub-trees in concurrent regions
+}
+```
+
+---
+
+## Blackboard Authoring Flow
+
+The blackboard authoring subsystem enables visual DTO editing from within the BTree and HSM
+editors. The following summarizes the key concepts; full detail is in the design document at
+`.dev/ai-hsm-btree-vis-edit/Blackboard_Authoring_Detailed_Design.md`.
+
+### File ownership — two categories
+
+Every blackboard DTO file falls into exactly one category, determined by the
+`HROT_EDITOR_GENERATED` marker at the top of the file:
+
+- **Category 1 (user-owned):** No marker. The editor reflects the struct from the
+  assembly, surfaces fields in the Variables panel as read-only, and never writes
+  the file.
+- **Category 2 (editor-owned):** Marker present plus `OwningAssetId` comment. The
+  editor regenerates the file on every save. User-introduced fields the editor cannot
+  model (non-plain declarations) are captured verbatim and re-emitted unchanged.
+
+Assets opt in to editor ownership by setting `BlackboardManaged = true` on their
+`[BTreeDefinition]` or `[HsmDefinition]` attribute. The editor then creates and
+manages `{AssetName}.Blackboard.cs` alongside the asset file.
+
+### DTO load pipeline
+
+On asset open with `BlackboardManaged = true`:
+1. Locate `{AssetName}.Blackboard.cs` in the same directory.
+2. Reflect the struct from the loaded assembly to get `FieldInfo[]`.
+3. Read source text to extract `///` doc comments and verbatim spans.
+4. Classify each field: *editor-managed* (plain `public {KnownType} {Name};`) or
+   *read-only-passthrough* (anything else — preserved verbatim).
+5. Build the `BlackboardVariable` list that the Variables panel renders.
+
+Load health is reported via `BlackboardLoadState` (`Clean` / `SpanCaptureFailed` /
+`StructParseFailed` / `AssemblyFailed`).
+
+### Recursive aggregation
+
+`IBlackboardAggregator.Aggregate()` walks the asset's Subtree nodes recursively,
+resolving each referenced asset via `IAssetCatalog`, and collects all parameter DTO
+requirements from action nodes. Results populate the "Unbound Sub-Tree Requirements"
+panel section. Designers bind these to master variables via drag-drop (Approach A
+aliasing) or promote them to new standalone variables.
+
+### Memory tier bin-packing
+
+`BlackboardBinPacker` partitions variables between:
+- **Inline tier:** `BrainBlackboard.BehaviorParameters` — 100 bytes max.
+- **Heavy tier:** `Blackboard1024.Memory` — 928 usable bytes, allocated on demand.
+
+Master variables always stay inline. Aggregated sub-tree variables fill remaining
+inline space first, then overflow to heavy. When heavy variables exist, the asset's
+`[BTreeDefinition]` / `[HsmDefinition]` attribute carries `HeavyDtoType = typeof(X)`
+so the source generator wires up the `Blackboard1024` component provisioning.
 
 ---
 
