@@ -1,0 +1,27 @@
+- *
++ FDP
+- FDP/ExtDeps
+- **/docs
+- **/Docs
+- **/.*
+- **/obj
+- **/bin
+- **/build
+- **/artifacts
+- **/Generated/*
+- **/*.png
+- **/*.dll
+- **/*.exe
+- **/*.md
+- **/*.fdp
+- FDP/Kernel/Fdp.Kernel.Examples 
+- scripts
+- TestResults
+- *.txt
+- *.log
+- **/tests
+- **/Tests
+- **/*.Tests*
+- **/*Benchmark*
+- **/*benchmark*
+

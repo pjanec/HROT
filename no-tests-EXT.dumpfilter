@@ -1,5 +1,5 @@
 - *
-+ FDP
++ FDP/ExtDeps
 - **/docs
 - **/Docs
 - **/.*
@@ -13,7 +13,6 @@
 - **/*.exe
 - **/*.md
 - **/*.fdp
-- FDP/Kernel/Fdp.Kernel.Examples 
 - scripts
 - TestResults
 - *.txt

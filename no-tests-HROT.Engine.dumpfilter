@@ -17,13 +17,12 @@
 - **/*.exe
 - **/*.md
 - **/*.fdp
-- FDP/Kernel/Fdp.Kernel.Examples 
-- FDP/ExtDeps
 - scripts
 - TestResults
 - *.txt
 - *.log
 - FDP
+- Hrot/Subsystems
 + Hrot.ClusterRunner.Integration.Tests
 + Hrot.Orchestrator.Integration.Tests
 + Hrot.SimHost.Integration.Tests
