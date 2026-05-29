@@ -170,34 +170,49 @@ namespace Fdp.Toolkit.Perception.Tests
         [Fact]
         public unsafe void AddOrUpdateTarget_PositionZ_MovesInLockstepWithXY()
         {
-            // Fill the table (MaxTrackedTargets+1 entries) with a distinct Z per entity, where
-            // Z is derived from the score so we can verify the Z slot tracks its owning entry
-            // through the descending insertion-sort and the lowest-score eviction.
+            // Fill the table (MaxTrackedTargets entries) with a distinct Z per entity, where
+            // Z == score (easy invariant to check) and X == entityId.
+            // Score = entityId * 10 for entities 1..MaxTrackedTargets.
+            int max = PerceptionConstants.MaxTrackedTargets;
             var mem = new TargetMemory();
-            // entityId, score, and Z chosen so Z == score (easy invariant to check).
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 1f, posY: 1f, scoreBoost: 10f, tick: 0u, posZ: 10f);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 2L, posX: 2f, posY: 2f, scoreBoost: 20f, tick: 0u, posZ: 20f);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 3L, posX: 3f, posY: 3f, scoreBoost: 30f, tick: 0u, posZ: 30f);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 4L, posX: 4f, posY: 4f, scoreBoost: 40f, tick: 0u, posZ: 40f);
+            for (int i = 1; i <= max; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, entityId: i, posX: i, posY: i,
+                    scoreBoost: i * 10f, tick: 0u, posZ: i * 10f);
 
-            // Fifth entry (score 25, Z 25) evicts the lowest (entity 1, score 10).
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 5L, posX: 5f, posY: 5f, scoreBoost: 25f, tick: 0u, posZ: 25f);
-
-            // Sorted descending by score: [40, 30, 25, 20]. We seeded Z == score and X == entityId,
-            // so for every surviving slot Z must equal its score (proving Z rode the sort/eviction
-            // in lockstep) and X must equal its owning entity id.
-            Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count);
+            // After filling: table is full, Z == score for all slots.
+            Assert.Equal(max, mem.Count);
             for (int i = 0; i < mem.Count; i++)
             {
                 Assert.Equal(mem.ThreatScores[i], mem.PositionsZ[i]); // Z == score (lockstep)
                 Assert.Equal((float)mem.EntityIds[i], mem.PositionsX[i]); // X == entityId (lockstep)
             }
 
-            // Spot-check the descending ordering: entity 1 (Z=10) evicted, entity 5 (Z=25) present.
-            Assert.Equal(40f, mem.PositionsZ[0]); // entity 4
-            Assert.Equal(30f, mem.PositionsZ[1]); // entity 3
-            Assert.Equal(25f, mem.PositionsZ[2]); // entity 5
-            Assert.Equal(20f, mem.PositionsZ[3]); // entity 2
+            // Add one more entry (entity max+1, score 55, Z 55) which evicts entity 1 (score 10, lowest).
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: max + 1, posX: max + 1f, posY: max + 1f,
+                scoreBoost: 55f, tick: 0u, posZ: 55f);
+
+            Assert.Equal(max, mem.Count);
+
+            // Lockstep invariant must hold after eviction+re-sort.
+            for (int i = 0; i < mem.Count; i++)
+                Assert.Equal(mem.ThreatScores[i], mem.PositionsZ[i]);
+
+            // Entity 1 (score 10, lowest) evicted; entity max+1 (score 55) present with Z=55.
+            bool entity1Found = false;
+            bool entityNewFound = false;
+            float entityNewZ = 0f;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (mem.EntityIds[i] == 1L) entity1Found = true;
+                if (mem.EntityIds[i] == (long)(max + 1)) { entityNewFound = true; entityNewZ = mem.PositionsZ[i]; }
+            }
+            Assert.False(entity1Found, "Entity 1 (score 10, lowest) should be evicted.");
+            Assert.True(entityNewFound, "New entity (score 55) should be present after eviction.");
+            Assert.Equal(55f, entityNewZ);
+
+            // Spot-check top 2: highest scores are max*10 (entity max) and (max-1)*10 (entity max-1).
+            Assert.Equal(max * 10f, mem.PositionsZ[0]);
+            Assert.Equal((max - 1) * 10f, mem.PositionsZ[1]);
         }
     }
 }

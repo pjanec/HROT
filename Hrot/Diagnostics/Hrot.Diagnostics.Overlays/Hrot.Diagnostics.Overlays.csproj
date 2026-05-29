@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Diagnostics.Overlays.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Diagnostics\Fdp.Diagnostics.Contracts\Fdp.Diagnostics.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\GizmoMap\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

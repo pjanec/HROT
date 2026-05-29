@@ -6,7 +6,8 @@
       "mcp__codebase-memory-mcp__detect_changes",
       "mcp__codebase-memory-mcp__trace_path",
       "mcp__codebase-memory-mcp__get_architecture",
-      "mcp__codebase-memory-mcp__query_graph"
+      "PowerShell(git -C \"d:\\\\Work\\\\IOS-IG-SimHost-FDP-2\" status --short 2>&1)",
+      "Bash(dotnet script *)"
     ]
   }
 }

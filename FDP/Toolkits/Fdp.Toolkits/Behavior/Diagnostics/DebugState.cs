@@ -21,5 +21,6 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     public struct DebugState
     {
         public BehaviorDebugFlags Behavior;
+        public AiOverlayFlags     Ai;
     }
 }

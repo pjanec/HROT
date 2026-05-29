@@ -57,6 +57,19 @@ namespace Fdp.Toolkit.Utility
         }
 
         /// <summary>
+        /// Retrieve the raw control points registered for a PiecewiseLinear curve.
+        /// Returns null when <paramref name="curveId"/> is not registered.
+        /// Intended for editor-side round-tripping (FromResponseCurve).
+        /// </summary>
+        internal static (float x, float y)[]? GetPoints(short curveId)
+        {
+            lock (_table)
+            {
+                return _table.TryGetValue(curveId, out var pts) ? pts : null;
+            }
+        }
+
+        /// <summary>
         /// Remove all registered curves. Intended for use in tests only.
         /// </summary>
         internal static void ClearAll()
