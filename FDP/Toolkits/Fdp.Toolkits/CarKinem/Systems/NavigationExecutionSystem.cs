@@ -152,7 +152,9 @@ namespace CarKinem.Systems
                 else
                 {
                     var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
-                    float dist = Vector2.Distance(pos2D, intent.FinalDestination);
+                    // Arrival check is 2D-projected (§0.2): project the 3D destination to XY.
+                    var destXY = new Vector2(intent.FinalDestination.X, intent.FinalDestination.Y);
+                    float dist = Vector2.Distance(pos2D, destXY);
                     arrived = dist <= intent.ArrivalRadius;
                 }
 
@@ -199,10 +201,7 @@ namespace CarKinem.Systems
                             {
                                 RequestId   = (long)entity.Index << 32 | (uint)status.ReplanCount,
                                 Start       = tf.Position,
-                                End         = new Vector3(
-                                                  intent.FinalDestination.X,
-                                                  intent.FinalDestination.Y,
-                                                  tf.Position.Z),
+                                End         = intent.FinalDestination, // real destination Z (Sim Z-up, P3D-302)
                                 RouteHandle = intent.RouteHandle,
                             });
 

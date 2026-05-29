@@ -16,10 +16,33 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
         // ── Test 1: EqsResult struct size ────────────────────────────────────────
 
         [Fact]
-        public void EqsResult_SizeIs24Bytes()
+        public void EqsResult_SizeIs32Bytes()
         {
-            // 8 (EntityId) + 4 (PositionX) + 4 (PositionY) + 4 (Score) + 2 (Flags) + 2 (FlagsMeaningful) = 24
-            Assert.Equal(24, Marshal.SizeOf<EqsResult>());
+            // 8 (EntityId) + 4 (PositionX) + 4 (PositionY) + 4 (PositionZ) + 4 (Score)
+            // + 2 (Flags) + 2 (FlagsMeaningful) = 28 raw → 32 after 8-byte alignment (long EntityId).
+            Assert.Equal(32, Marshal.SizeOf<EqsResult>());
+        }
+
+        // ── Test 1b: EqsResultArray footprint = 16 × 32 = 512 bytes (8 cache lines) ─
+
+        [Fact]
+        public void EqsResultArray_SizeIs512Bytes()
+        {
+            Assert.Equal(512, Marshal.SizeOf<EqsResultArray>());
+        }
+
+        // ── Test 1c: PositionZ round-trips through the safe span path ────────────
+
+        [Fact]
+        public void EqsCognitiveBuffer_GetSpanRW_PositionZPersists()
+        {
+            var buffer = new EqsCognitiveBuffer();
+            buffer.GetSpanRW()[3] = new EqsResult { EntityId = 7L, PositionX = 1f, PositionY = 2f, PositionZ = 42.5f };
+
+            ref readonly var read = ref buffer.GetSpanRO()[3];
+            Assert.Equal(42.5f, read.PositionZ);
+            Assert.Equal(1f, read.PositionX);
+            Assert.Equal(2f, read.PositionY);
         }
 
         // ── Test 2: GetSpanRW write persists ─────────────────────────────────────

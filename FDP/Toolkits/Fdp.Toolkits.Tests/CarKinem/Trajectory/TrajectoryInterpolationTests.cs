@@ -21,7 +21,7 @@ namespace CarKinem.Tests.Trajectory
             int id = pool.RegisterTrajectory(positions);
             var (pos, tangent, speed) = pool.SampleTrajectory(id, progressS: 0f);
             
-            Assert.Equal(new Vector2(0, 0), pos);
+            Assert.Equal(new Vector3(0, 0, 0), pos);
             Assert.Equal(10f, speed); // Default speed
         }
         
@@ -39,7 +39,7 @@ namespace CarKinem.Tests.Trajectory
             int id = pool.RegisterTrajectory(positions);
             var (pos, tangent, speed) = pool.SampleTrajectory(id, progressS: 1000f); // Beyond end
             
-            Assert.Equal(new Vector2(100, 0), pos);
+            Assert.Equal(new Vector3(100, 0, 0), pos);
         }
         
         [Fact]
@@ -128,7 +128,7 @@ namespace CarKinem.Tests.Trajectory
             
             var (pos, tangent, speed) = pool.SampleTrajectory(999, progressS: 0f);
             
-            Assert.Equal(Vector2.Zero, pos);
+            Assert.Equal(Vector3.Zero, pos);
             Assert.Equal(0f, speed);
         }
         

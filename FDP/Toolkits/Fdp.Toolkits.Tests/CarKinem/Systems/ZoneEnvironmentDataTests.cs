@@ -136,7 +136,7 @@ namespace CarKinem.Tests.Systems
             {
                 Mode        = KinematicsMode.RoadGraph,
                 TargetSpeed = 5f,
-                FinalDestination = new Vector2(10f, 10f),
+                FinalDestination = new Vector3(10f, 10f, 0f),
             });
 
             var ex = Record.Exception(() =>

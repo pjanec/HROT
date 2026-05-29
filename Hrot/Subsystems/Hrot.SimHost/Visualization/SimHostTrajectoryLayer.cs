@@ -113,8 +113,8 @@ namespace Hrot.SimHost.Visualization
             {
                 if (!TestHook_SkipRaylibCalls)
                     Raylib.DrawLineEx(
-                        traj.Waypoints[i].Position,
-                        traj.Waypoints[i + 1].Position,
+                        new System.Numerics.Vector2(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y),
+                        new System.Numerics.Vector2(traj.Waypoints[i + 1].Position.X, traj.Waypoints[i + 1].Position.Y),
                         1.5f, color);
                 TestHook_LineDrawCount++;
             }
@@ -124,7 +124,7 @@ namespace Hrot.SimHost.Visualization
             int idx = System.Math.Clamp((int)(clamped * (traj.Waypoints.Length - 1)), 0, traj.Waypoints.Length - 1);
 
             if (!TestHook_SkipRaylibCalls)
-                Raylib.DrawCircleV(traj.Waypoints[idx].Position, 3f, Color.Orange);
+                Raylib.DrawCircleV(new System.Numerics.Vector2(traj.Waypoints[idx].Position.X, traj.Waypoints[idx].Position.Y), 3f, Color.Orange);
             TestHook_CircleDrawCount++;
         }
 

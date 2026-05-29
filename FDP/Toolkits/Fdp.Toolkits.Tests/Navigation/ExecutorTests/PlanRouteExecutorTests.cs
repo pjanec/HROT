@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             {
                 var p = new PlanRouteParams
                 {
-                    Destination   = destination,
+                    Destination   = new Vector3(destination.X, destination.Y, 0f),
                     ArrivalRadius = arrivalRadius,
                     Speed         = speed,
                 };
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(4u,                        intent.IntentId);
             Assert.Equal(NavigationMode.None,       intent.Mode);
-            Assert.Equal(destination,               intent.FinalDestination);
+            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
             Assert.Equal(NodeStatus.Running,        channel.Status);
         }
 

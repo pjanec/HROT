@@ -24,38 +24,6 @@
           ]
         }
       },
-      "BrainBlackboard": {
-        "TargetAreaEntity": {
-          "Index": 5,
-          "Generation": 1
-        },
-        "StartX": 578.00006,
-        "StartY": 405,
-        "EndX": 584,
-        "EndY": 544.99994,
-        "BaselineStartX": 523.00006,
-        "BaselineStartY": 401,
-        "BaselineEndX": 532.00006,
-        "BaselineEndY": 548,
-        "AttackDirX": 0.99995637,
-        "AttackDirY": 0.009344826,
-        "TankSpacing": 30
-      },
-      "Blackboard1024": {
-        "CachedEqsRequestId": 0,
-        "TotalSlots": 0,
-        "CachedTargetGroupHandle": 0,
-        "ActiveAttackerCount": 0,
-        "BurnedSlotsMask": 0,
-        "WaveUsedSlotsMask": 0,
-        "BaselineReservedMask": 0,
-        "CurrentWave": 0,
-        "EqsRequestTime": 0,
-        "ActiveEntityPacked": [0, 0, 0, 0, 0, 0, 0, 0],
-        "ActiveSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
-        "ReturnBaselineSlotIndex": [0, 0, 0, 0, 0, 0, 0, 0],
-        "HasStartedRun": [0, 0, 0, 0, 0, 0, 0, 0]
-      },
       "SimTransform": {
         "Position": [427.805817, 457.924866, 0],
         "Rotation": [0, 0, 0, 1]
@@ -80,7 +48,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -105,7 +73,7 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,
@@ -134,7 +102,6 @@
         "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
         "Designation": "Wingman"
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [446.316711, 420.903046, 0],
         "Rotation": [0, 0, 0, 1]
@@ -176,7 +143,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [523, 401],
+        "FinalDestination": [523, 401, 0],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -214,7 +181,7 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [523, 401],
+        "FinalDestination": [523, 401, 0],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -248,7 +215,6 @@
         "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
         "Designation": "Wingman"
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [447.768555, 442.317627, 0],
         "Rotation": [0, 0, 0, 1]
@@ -290,7 +256,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [526, 450],
+        "FinalDestination": [526, 450, 0],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -328,7 +294,7 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [526, 450],
+        "FinalDestination": [526, 450, 0],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -362,7 +328,6 @@
         "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
         "Designation": "Wingman"
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [448.857422, 468.087708, 0],
         "Rotation": [0, 0, 0, 1]
@@ -404,7 +369,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [529, 499],
+        "FinalDestination": [529, 499, 0],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -442,7 +407,7 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [529, 499],
+        "FinalDestination": [529, 499, 0],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -476,7 +441,6 @@
         "CommanderGuid": "98e75951-8493-4db9-9197-785b9ba470bc",
         "Designation": "Wingman"
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [448.857422, 490.591187, 0],
         "Rotation": [0, 0, 0, 1]
@@ -518,7 +482,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 15,
-        "FinalDestination": [532, 548],
+        "FinalDestination": [532, 548, 0],
         "ArrivalRadius": 5,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -556,7 +520,7 @@
       "NavigationIntent": {
         "Mode": "DirectPoint",
         "ReverseAllowed": 0,
-        "FinalDestination": [532, 548],
+        "FinalDestination": [532, 548, 0],
         "TargetSpeed": 15,
         "ArrivalRadius": 5,
         "IntentId": 3,
@@ -636,7 +600,6 @@
       "TargetMemory": {
         "Entries": []
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [668, 427, 0],
         "Rotation": [0, 0, 0, 1]
@@ -678,7 +641,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -716,7 +679,7 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,
@@ -746,7 +709,6 @@
       "TargetMemory": {
         "Entries": []
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [668, 522, 0],
         "Rotation": [0, 0, 0, 1]
@@ -788,7 +750,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -826,7 +788,7 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,

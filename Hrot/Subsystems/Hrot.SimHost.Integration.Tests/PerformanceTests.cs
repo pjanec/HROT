@@ -81,7 +81,7 @@ namespace Hrot.SimHost.Integration.Tests
                         // Navigation target: 2 km north-east so vehicles are always moving.
                         var nav = _host.World.GetComponent<NavState>(entity);
                         nav.Mode             = KinematicsMode.Direct;
-                        nav.FinalDestination = new Vector2(pos.X + 2000f, pos.Y + 2000f);
+                        nav.FinalDestination = new Vector3(pos.X + 2000f, pos.Y + 2000f, 0f);
                         nav.TargetSpeed      = 15.0f;
                         nav.ArrivalRadius    = 5.0f;
                         nav.HasArrived       = 0;
@@ -135,7 +135,7 @@ namespace Hrot.SimHost.Integration.Tests
             {
                 var nav = _host.World.GetComponent<NavState>(entity);
                 nav.Mode             = KinematicsMode.Direct;
-                nav.FinalDestination = new Vector2(5000f, 5000f);
+                nav.FinalDestination = new Vector3(5000f, 5000f, 0f);
                 nav.TargetSpeed      = 15.0f;
                 nav.ArrivalRadius    = 5.0f;
                 nav.HasArrived       = 0;

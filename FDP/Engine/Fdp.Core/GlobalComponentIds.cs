@@ -248,7 +248,7 @@
         public const int PathfindingBatchData    = 76;
 
         // IDs 77â€“79 are defined in GeographicComponentIds (Fdp.Toolkit.Geographic).
-        // GroundClampingConfig = 77, GroundClampingState = 78, TerrainQueryBatchData = 79.
+        // GroundClampingConfig = 77, TerrainClampBaseline = 78, TerrainQueryBatchData = 79.
 
         // â”€â”€ FDP.Toolkit.Vis2D (80â€“109) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // 2-D visualisation and map-layer components.

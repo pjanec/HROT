@@ -75,7 +75,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         {
             MoveToParams mp;
             fixed (byte* src = channel.Params) mp = *(MoveToParams*)src;
-            Assert.Equal(new Vector2(10f, 20f), mp.Destination);
+            Assert.Equal(new Vector3(10f, 20f, 0f), mp.Destination);
         }
     }
 

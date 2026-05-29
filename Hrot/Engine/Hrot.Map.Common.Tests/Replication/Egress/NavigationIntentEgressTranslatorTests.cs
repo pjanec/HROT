@@ -97,7 +97,7 @@ public sealed class NavigationIntentEgressTranslatorTests
         {
             IntentId         = 1,
             Mode             = EcsNavMode.DirectPoint,
-            FinalDestination = new Vector2(100f, 200f),
+            FinalDestination = new Vector3(100f, 200f, 0f),
             TargetSpeed      = 15f,
             ArrivalRadius    = 5f,
         });
@@ -170,7 +170,7 @@ public sealed class NavigationIntentEgressTranslatorTests
         // Command 2 (new order from executor).
         world.Tick();
         world.SetComponent(entity, new EcsNavigationIntent { IntentId = 2, Mode = EcsNavMode.DirectPoint,
-            FinalDestination = new Vector2(500f, 600f) });
+            FinalDestination = new Vector3(500f, 600f, 0f) });
         translator.ScanAndPublish(world);
 
         Assert.Equal(2, writer.Publishes.Count);
@@ -264,7 +264,7 @@ public sealed class NavigationIntentEgressTranslatorTests
         {
             IntentId         = 1,
             Mode             = EcsNavMode.DirectPoint,
-            FinalDestination = new Vector2(25f, 35f),
+            FinalDestination = new Vector3(25f, 35f, 0f),
         });
         translator.ScanAndPublish(world);
 

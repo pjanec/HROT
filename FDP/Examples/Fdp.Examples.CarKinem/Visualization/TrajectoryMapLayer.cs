@@ -90,16 +90,19 @@ namespace Fdp.Examples.CarKinem.Visualization
             if (nextIndex != -1)
             {
                 var (currentPos, _, _) = _pool.SampleTrajectory(trajectory.Id, progressS);
-                Raylib.DrawLineEx(currentPos, trajectory.Waypoints[nextIndex].Position, 0.15f, color);
-                
+                Raylib.DrawLineEx(XY(currentPos), XY(trajectory.Waypoints[nextIndex].Position), 0.15f, color);
+
                 for (int i = nextIndex; i < trajectory.Waypoints.Length - 1; i++)
                 {
-                    Vector2 p1 = trajectory.Waypoints[i].Position;
-                    Vector2 p2 = trajectory.Waypoints[i + 1].Position;
+                    Vector2 p1 = XY(trajectory.Waypoints[i].Position);
+                    Vector2 p2 = XY(trajectory.Waypoints[i + 1].Position);
                     Raylib.DrawLineEx(p1, p2, 0.15f, color);
                 }
             }
         }
+
+        // Trajectory rendering is on the 2D map (§0.2): project carried 3D positions to XY.
+        private static Vector2 XY(Vector3 v) => new Vector2(v.X, v.Y);
 
         private void RenderHermiteSmooth(CustomTrajectory trajectory, float progressS, Color color)
         {
@@ -110,7 +113,7 @@ namespace Fdp.Examples.CarKinem.Visualization
             Vector2 prevPos;
             {
                 var (pos, _, _) = _pool.SampleTrajectory(trajectory.Id, currentDist);
-                prevPos = pos;
+                prevPos = XY(pos);
             }
 
             // Limit iterations to prevent freezing on huge paths or bugs
@@ -123,8 +126,8 @@ namespace Fdp.Examples.CarKinem.Visualization
                 if (currentDist > totalLen) currentDist = totalLen;
 
                 var (nextPos, _, _) = _pool.SampleTrajectory(trajectory.Id, currentDist);
-                Raylib.DrawLineEx(prevPos, nextPos, 0.15f, color);
-                prevPos = nextPos;
+                Raylib.DrawLineEx(prevPos, XY(nextPos), 0.15f, color);
+                prevPos = XY(nextPos);
                 
                 steps++;
                 if (currentDist >= totalLen) break;

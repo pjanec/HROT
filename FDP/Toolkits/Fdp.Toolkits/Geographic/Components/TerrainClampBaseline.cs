@@ -4,25 +4,17 @@ using Fdp.Toolkit.Geographic;
 namespace Fdp.Modules.Geographic.Components
 {
     /// <summary>
-    /// Per-entity runtime state written by <c>TerrainQueryResolutionSystem</c>.
-    /// Consumed by <c>TransformSyncSystem</c> to apply a smooth Z-axis correction
-    /// that reconciles simulation altitude (DIS/HLA) with IG terrain height.
+    /// Per-entity terrain-clamp baseline written by <c>TerrainQueryResolutionSystem</c>.
+    ///
+    /// <para>Holds only the jump-rejection baseline state. Since the 3D Cognitive Spatial
+    /// Awareness promotion (P3D-101/102), terrain altitude is authoritative on
+    /// <c>SimTransform.Position.Z</c> — it is no longer carried here as a visual rendering
+    /// offset. The former <c>TargetZOffset</c>/<c>CurrentZOffset</c> visual-correction fields
+    /// have been removed.</para>
     /// </summary>
-    [ComponentId(GeographicComponentIds.GroundClampingState)]
-    public struct GroundClampingState
+    [ComponentId(GeographicComponentIds.TerrainClampBaseline)]
+    public struct TerrainClampBaseline
     {
-        /// <summary>
-        /// Desired visual Z correction computed from the latest terrain query hit.
-        /// <c>TargetZOffset = terrainHitZ − simulationZ</c>.
-        /// </summary>
-        public float TargetZOffset;
-
-        /// <summary>
-        /// Smoothed Z correction actually applied this frame (lerped toward
-        /// <see cref="TargetZOffset"/> by <c>TransformSyncSystem</c>).
-        /// </summary>
-        public float CurrentZOffset;
-
         /// <summary>
         /// IG-space altitude of the last <em>accepted</em> terrain hit.
         /// Used by <c>TerrainQueryResolutionSystem</c> for jump-rejection:
@@ -38,5 +30,10 @@ namespace Fdp.Modules.Geographic.Components
         /// altitude, so "baseline unset" must not be inferred from that field alone.
         /// </summary>
         public byte IgAltitudeBaselineEstablished;
+
+        // Explicit padding to keep the struct a blittable 8-byte unmanaged value type
+        // (4-byte float + 1-byte flag + 3 bytes padding) with 4-byte alignment.
+        private byte _pad0;
+        private ushort _pad1;
     }
 }

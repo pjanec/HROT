@@ -21,22 +21,35 @@ namespace Fdp.Toolkit.Navigation
 
     /// <summary>
     /// Parameters for the <see cref="NavigationConstants.ActionIdMoveTo"/> action.
-    /// Instructs the executor to navigate to a fixed 2-D destination.
+    /// Instructs the executor to navigate to a fixed destination (Sim Z-up).
     /// </summary>
     /// <remarks>
-    /// <b>Size:</b> Vector2 (8) + float (4) + float (4) + byte (1) + 3 pad + int (4) + uint (4) + byte (1) + 3 pad = 32 bytes.
+    /// <b>Size:</b> Vector3 (12) + float (4) + float (4) + int (4) + uint (4) + 4×byte (4) = 32 bytes.
+    /// The destination was widened to <see cref="Vector3"/> for the 3D Cognitive Spatial Awareness
+    /// promotion (P3D-302); the four trailing single-byte fields are packed into the reclaimed
+    /// padding so the struct stays at exactly <see cref="BehaviorConstants.ActionParamsByteSize"/>
+    /// (32) bytes and still fits the LocomotionChannel <c>Params</c> slot.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveToParams
     {
-        /// <summary>Target position on the XY ground plane (metres).</summary>
-        public Vector2 Destination;
+        /// <summary>Target position (metres, Sim Z-up). Z carried; steering remains 2D-projected.</summary>
+        public Vector3 Destination;
 
         /// <summary>Distance (metres) from <see cref="Destination"/> that counts as arrival.</summary>
         public float ArrivalRadius;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float Speed;
+
+        /// <summary>
+        /// Pre-allocated route handle (0 = fire-and-forget; solver allocates its own).
+        /// When non-zero, the Muscle reuses this handle on replan.
+        /// </summary>
+        public int RouteHandle;
+
+        /// <summary>Navmesh layer mask. 0xFFFFFFFF = all layers.</summary>
+        public uint LayerMask;
 
         /// <summary>
         /// When 1, the muscle tier is allowed to drive in reverse to reach the destination.
@@ -59,25 +72,8 @@ namespace Fdp.Toolkit.Navigation
         /// </summary>
         public byte MaxReplans;
 
-        // 1 byte of explicit padding to keep the struct naturally aligned.
-        private byte _pad0;
-
-        /// <summary>
-        /// Pre-allocated route handle (0 = fire-and-forget; solver allocates its own).
-        /// When non-zero, the Muscle reuses this handle on replan.
-        /// </summary>
-        public int RouteHandle;
-
-        /// <summary>Navmesh layer mask. 0xFFFFFFFF = all layers.</summary>
-        public uint LayerMask;
-
         /// <summary>Force a specific backend (0 = Auto, 1 = NavMesh, 2 = RoadGraph, 3 = Volumetric).</summary>
         public byte BackendForce;
-
-        // 3 bytes of explicit padding to reach 32 bytes total.
-        private byte _pad3;
-        private byte _pad4;
-        private byte _pad5;
     }
 
     /// <summary>
@@ -162,13 +158,15 @@ namespace Fdp.Toolkit.Navigation
     /// Requests the nav subsystem v2 solver to plan a path and return a route handle.
     /// </summary>
     /// <remarks>
-    /// <b>Size:</b> Vector2 (8) + float (4) + float (4) + uint (4) + byte (1) + byte (1) + 2 pad + float (4) + uint (4) = 32 bytes.
+    /// <b>Size:</b> Vector3 (12) + float (4) + float (4) + uint (4) + float (4) + byte (1) + byte (1) + 2 pad = 32 bytes.
+    /// Destination widened to <see cref="Vector3"/> (Sim Z-up) for the 3D promotion (P3D-302); the
+    /// reserved trailing word is reclaimed so the struct stays at 32 bytes.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct PlanRouteParams
     {
-        /// <summary>Target position on the XY ground plane (metres).</summary>
-        public Vector2 Destination;
+        /// <summary>Target position (metres, Sim Z-up). Z carried; steering remains 2D-projected.</summary>
+        public Vector3 Destination;
 
         /// <summary>Distance (metres) from <see cref="Destination"/> that counts as arrival.</summary>
         public float ArrivalRadius;
@@ -179,21 +177,18 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Navmesh layer mask. 0xFFFFFFFF = all layers.</summary>
         public uint LayerMask;
 
+        /// <summary>Maximum path cost; 0 = unlimited.</summary>
+        public float MaxCost;
+
         /// <summary>Force a specific backend (0 = Auto, 1 = NavMesh, 2 = RoadGraph, 3 = Volumetric).</summary>
         public byte BackendForce;
 
         /// <summary>When 1, populates <c>NavigationPathDetailsBuffer</c> with full waypoint data.</summary>
         public byte IncludeFullPathDetails;
 
-        // 2 bytes of explicit padding.
+        // 2 bytes of explicit padding to reach 32 bytes total.
         private byte _pad0;
         private byte _pad1;
-
-        /// <summary>Maximum path cost; 0 = unlimited.</summary>
-        public float MaxCost;
-
-        // 4 bytes reserved for future use.
-        private uint _pad2;
     }
 
     /// <summary>

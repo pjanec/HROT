@@ -168,11 +168,12 @@ namespace CarKinem.Systems
                 case KinematicsMode.Direct:
                 case KinematicsMode.None:
                 default:
-                    // If we have a destination and we are not in a specific mode, drive to point
-                    // Simple "Drive to point" logic
-                    if (nav.HasArrived == 0 && nav.TargetSpeed > 0 && Vector2.DistanceSquared(pos2D, nav.FinalDestination) > nav.ArrivalRadius * nav.ArrivalRadius)
+                    // If we have a destination and we are not in a specific mode, drive to point.
+                    // Steering is 2D-projected (§0.2): project the 3D destination to XY.
+                    Vector2 navDestXY = new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y);
+                    if (nav.HasArrived == 0 && nav.TargetSpeed > 0 && Vector2.DistanceSquared(pos2D, navDestXY) > nav.ArrivalRadius * nav.ArrivalRadius)
                     {
-                         Vector2 toDest = nav.FinalDestination - pos2D;
+                         Vector2 toDest = navDestXY - pos2D;
                          targetHeading = Vector2.Normalize(toDest);
                          targetPos = pos2D + targetHeading; // Look ahead
                          targetSpeed = nav.TargetSpeed;
@@ -294,14 +295,22 @@ namespace CarKinem.Systems
                     {
                          var last = traj.Waypoints[traj.Waypoints.Length - 1];
                          // Keep current heading (via last tangent) to avoid spinning
-                         Vector2 t = traj.Waypoints.Length > 1 ? Vector2.Normalize(last.Position - traj.Waypoints[traj.Waypoints.Length-2].Position) : new Vector2(1,0);
-                         return (last.Position, t, 0f);
+                         // Steering is 2D-projected (§0.2); the carried trajectory Z is not fed here.
+                         Vector2 lastXY = new Vector2(last.Position.X, last.Position.Y);
+                         Vector2 prevXY = traj.Waypoints.Length > 1
+                            ? new Vector2(traj.Waypoints[traj.Waypoints.Length-2].Position.X, traj.Waypoints[traj.Waypoints.Length-2].Position.Y)
+                            : lastXY;
+                         Vector2 t = traj.Waypoints.Length > 1 ? Vector2.Normalize(lastXY - prevXY) : new Vector2(1,0);
+                         return (lastXY, t, 0f);
                     }
                 }
             }
 
+            // SampleTrajectory returns the 3D position; project to XY for steering. The trajectory
+            // Z is carried for fidelity/replication but does NOT drive vehicle dynamics or override
+            // SimTransform.Position.Z (owned by TerrainQueryResolutionSystem, P3D-102/303).
             var (pos, tangent, speed) = _trajectoryPool.SampleTrajectory(nav.TrajectoryId, nav.ProgressS);
-            return (pos, tangent, speed);
+            return (new Vector2(pos.X, pos.Y), tangent, speed);
         }
         
         private (Vector2 pos, Vector2 heading, float speed) GetFormationTarget(EntityRepository repo, Entity entity)

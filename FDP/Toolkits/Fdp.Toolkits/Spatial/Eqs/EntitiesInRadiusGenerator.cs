@@ -36,11 +36,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // Exclude the observer entity itself from results.
                 if (neighbors[i].entity == observer) continue;
 
+                // The spatial grid only returns 2D positions, so source the real altitude from
+                // each neighbour's authoritative SimTransform (P3D-203). Defensive: skip neighbours
+                // lacking a SimTransform (their position is unknowable here).
+                if (!repo.HasComponent<SimTransform>(neighbors[i].entity)) continue;
+                ref readonly var neighborTf = ref repo.GetComponentRO<SimTransform>(neighbors[i].entity);
+
                 candidates[validCount++] = new EqsResult
                 {
                     EntityId  = (long)neighbors[i].entity.PackedValue,
                     PositionX = neighbors[i].pos.X,
                     PositionY = neighbors[i].pos.Y,
+                    PositionZ = neighborTf.Position.Z,
                     Score     = 0f,
                     Flags     = 0,
                 };

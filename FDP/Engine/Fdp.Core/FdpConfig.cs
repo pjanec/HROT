@@ -42,8 +42,14 @@ namespace Fdp.Core
         /// - The .fdp file format structure is modified
         /// - Event serialization format changes
         /// Recordings are NOT backwards compatible - version must match exactly.
+        ///
+        /// v6 (3D Cognitive Spatial Awareness promotion, P3D-405): engine-wide break.
+        /// SimTransform.Position.Z is now authoritative altitude (was force-zeroed); EqsResult grew
+        /// PositionZ (24→32 B); TargetMemory gained PositionsZ; NavigationIntent/NavState/MoveToParams
+        /// destinations and TrajectoryWaypoint.Position widened to Vector3. Pre-v6 recordings are
+        /// rejected fast by PlaybackController/PlaybackSystem (version-mismatch), not mis-deserialized.
         /// </summary>
-        public const uint FORMAT_VERSION = 5;
+        public const uint FORMAT_VERSION = 6;
         
         /// <summary>
         /// Calculate chunk capacity for a given element size.

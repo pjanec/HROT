@@ -74,7 +74,7 @@
         "CurrentSegmentId": 0,
         "ProgressS": 0,
         "TargetSpeed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "ArrivalRadius": 0,
         "SpeedErrorInt": 0,
         "LastSteerCmd": 0,
@@ -112,7 +112,7 @@
       "NavigationIntent": {
         "Mode": "None",
         "ReverseAllowed": 0,
-        "FinalDestination": [0, 0],
+        "FinalDestination": [0, 0, 0],
         "TargetSpeed": 0,
         "ArrivalRadius": 0,
         "IntentId": 0,

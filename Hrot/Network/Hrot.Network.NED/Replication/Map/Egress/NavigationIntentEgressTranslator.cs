@@ -138,9 +138,9 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                // Convert Cartesian destination to geodetic (WGS-84) for the wire format.
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(
-                    new Vector3(intent.FinalDestination.X, intent.FinalDestination.Y, 0f));
+                // Convert the 3D Cartesian destination (Sim Z-up) to geodetic (WGS-84) for the
+                // wire format; GeoPoint.Altitude now carries the real destination altitude (P3D-304).
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(intent.FinalDestination);
 
                 _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
                 {

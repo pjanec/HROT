@@ -65,6 +65,7 @@ namespace Hrot.SimHost.Systems
                         EntityId        = evt.Results[i].EntityId,
                         PositionX       = evt.Results[i].PositionX,
                         PositionY       = evt.Results[i].PositionY,
+                        PositionZ       = evt.Results[i].PositionZ,
                         Score           = evt.Results[i].Score,
                         Flags           = (short)evt.Results[i].Flags,
                         FlagsMeaningful = (short)evt.Results[i].FlagsMeaningful,

@@ -101,5 +101,40 @@ namespace Fdp.Toolkit.Perception.Tests
                 if (mem.EntityIds[i] == 5L) entity5Present = true;
             Assert.True(entity5Present, "Entity 5 (score 25) should be in the table after eviction.");
         }
+
+        // ── Test 6 (P3D-206): PositionsZ moves in lockstep through eviction + sort ──
+
+        [Fact]
+        public unsafe void AddOrUpdateTarget_PositionZ_MovesInLockstepWithXY()
+        {
+            // Fill the table (MaxTrackedTargets+1 entries) with a distinct Z per entity, where
+            // Z is derived from the score so we can verify the Z slot tracks its owning entry
+            // through the descending insertion-sort and the lowest-score eviction.
+            var mem = new TargetMemory();
+            // entityId, score, and Z chosen so Z == score (easy invariant to check).
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, posX: 1f, posY: 1f, scoreBoost: 10f, tick: 0u, posZ: 10f);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 2L, posX: 2f, posY: 2f, scoreBoost: 20f, tick: 0u, posZ: 20f);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 3L, posX: 3f, posY: 3f, scoreBoost: 30f, tick: 0u, posZ: 30f);
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 4L, posX: 4f, posY: 4f, scoreBoost: 40f, tick: 0u, posZ: 40f);
+
+            // Fifth entry (score 25, Z 25) evicts the lowest (entity 1, score 10).
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 5L, posX: 5f, posY: 5f, scoreBoost: 25f, tick: 0u, posZ: 25f);
+
+            // Sorted descending by score: [40, 30, 25, 20]. We seeded Z == score and X == entityId,
+            // so for every surviving slot Z must equal its score (proving Z rode the sort/eviction
+            // in lockstep) and X must equal its owning entity id.
+            Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                Assert.Equal(mem.ThreatScores[i], mem.PositionsZ[i]); // Z == score (lockstep)
+                Assert.Equal((float)mem.EntityIds[i], mem.PositionsX[i]); // X == entityId (lockstep)
+            }
+
+            // Spot-check the descending ordering: entity 1 (Z=10) evicted, entity 5 (Z=25) present.
+            Assert.Equal(40f, mem.PositionsZ[0]); // entity 4
+            Assert.Equal(30f, mem.PositionsZ[1]); // entity 3
+            Assert.Equal(25f, mem.PositionsZ[2]); // entity 5
+            Assert.Equal(20f, mem.PositionsZ[3]); // entity 2
+        }
     }
 }

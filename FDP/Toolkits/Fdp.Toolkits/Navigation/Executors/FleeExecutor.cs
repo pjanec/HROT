@@ -125,7 +125,9 @@ namespace Fdp.Toolkit.Navigation.Executors
             var intent = world.GetComponent<NavigationIntent>(entity);
             intent.IntentId++;
             intent.Mode             = NavigationMode.DirectPoint;
-            intent.FinalDestination = myPos + awayVec * p.SafeDistance;
+            // Flee is planar; carry the entity's current altitude as the destination Z (P3D-302).
+            var fleePoint = myPos + awayVec * p.SafeDistance;
+            intent.FinalDestination = new Vector3(fleePoint.X, fleePoint.Y, myTf.Position.Z);
             intent.TargetSpeed      = p.Speed;
             world.SetComponent(entity, intent);
         }

@@ -22,9 +22,9 @@ namespace Fdp.Modules.Geographic.Components
         public float QueryY;
 
         /// <summary>
-        /// Simulation Z of the entity at query time.
-        /// Used by <c>TerrainQueryResolutionSystem</c> to compute
-        /// <c>TargetZOffset = HitZ − ReferenceSimZ</c>.
+        /// Simulation Z of the entity at query time. Retained for the batch wire format;
+        /// since P3D-102 the resolution system writes <c>HitZ</c> directly into the
+        /// authoritative <c>SimTransform.Position.Z</c> rather than deriving a visual offset.
         /// </summary>
         public float ReferenceSimZ;
     }

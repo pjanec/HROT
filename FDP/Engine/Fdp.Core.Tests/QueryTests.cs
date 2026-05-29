@@ -456,11 +456,11 @@ namespace Fdp.Tests
             Assert.Equal(512, FdpConfig.MAX_COMPONENT_TYPES);
         }
 
-        /// <summary>FORMAT_VERSION must be 5 after TASK-E002.</summary>
+        /// <summary>FORMAT_VERSION must be 6 after the 3D Cognitive Spatial Awareness promotion (P3D-405).</summary>
         [Fact]
-        public void FdpConfig_FormatVersion_Is5()
+        public void FdpConfig_FormatVersion_Is6()
         {
-            Assert.Equal(5u, FdpConfig.FORMAT_VERSION);
+            Assert.Equal(6u, FdpConfig.FORMAT_VERSION);
         }
 
         /// <summary>

@@ -100,13 +100,15 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
             int newId = 0;
             if (routePlan.Waypoints.Count >= 2)
             {
-                var positions = new Vector2[routePlan.Waypoints.Count];
+                var positions = new Vector3[routePlan.Waypoints.Count];
                 var speeds    = new float[routePlan.Waypoints.Count];
 
                 for (int i = 0; i < routePlan.Waypoints.Count; i++)
                 {
                     var wp      = routePlan.Waypoints[i];
-                    positions[i] = new Vector2(wp.Position.X, wp.Position.Z);
+                    // RoutePlan waypoints are Recast (Y-up); map to Sim (Z-up): X=east, Y=north(Z),
+                    // Z=altitude(Y) so the carried altitude survives into the trajectory pool (§0.1, P3D-303).
+                    positions[i] = new Vector3(wp.Position.X, wp.Position.Z, wp.Position.Y);
                     speeds[i]    = wp.TargetSpeed > 0f ? wp.TargetSpeed : DefaultSpeed;
                 }
 

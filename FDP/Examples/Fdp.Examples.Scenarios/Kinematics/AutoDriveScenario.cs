@@ -222,7 +222,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             world.AddComponent(e, new NavState
             {
                 Mode             = KinematicsMode.None,
-                FinalDestination = destination,
+                FinalDestination = new Vector3(destination.X, destination.Y, 0f),
                 ArrivalRadius    = ArrivalRadius,
                 TargetSpeed      = DriveSpeed,
                 HasArrived       = 0,

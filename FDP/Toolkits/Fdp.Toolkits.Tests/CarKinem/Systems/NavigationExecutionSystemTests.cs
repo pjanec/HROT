@@ -56,7 +56,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(entity, new NavigationIntent
             {
                 Mode             = NavMode.DirectPoint,
-                FinalDestination = destination,
+                FinalDestination = new Vector3(destination.X, destination.Y, 0f),
                 ArrivalRadius    = arrivalRadius,
                 TargetSpeed      = 15f,
                 IntentId         = intentId,
@@ -153,7 +153,7 @@ namespace CarKinem.Tests.Systems
             // Simulate that the Brain issued a new command by bumping the intent ID.
             var intent = repo.GetComponent<NavigationIntent>(entity);
             intent.IntentId = 7;    // new intent
-            intent.FinalDestination = new Vector2(100f, 0f);
+            intent.FinalDestination = new Vector3(100f, 0f, 0f);
             repo.SetComponent(entity, intent);
 
             // Status still carries old intent id (3) — mismatch.
@@ -258,7 +258,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(entity, new NavigationIntent
             {
                 Mode             = NavMode.FollowRoute,
-                FinalDestination = new Vector2(1000f, 0f),
+                FinalDestination = new Vector3(1000f, 0f, 0f),
                 ArrivalRadius    = 5f,
                 TargetSpeed      = 15f,
                 IntentId         = intentId,

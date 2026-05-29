@@ -314,7 +314,7 @@ namespace Hrot.SimHost
                         : new EcsNavigationIntent();
                     intent.IntentId++;
                     intent.Mode = EcsNavigationMode.DirectPoint;
-                    intent.FinalDestination = pos;
+                    intent.FinalDestination = new Vector3(pos.X, pos.Y, 0f);
                     intent.TargetSpeed = 15f;
                     intent.ArrivalRadius = 3.0f;
                     if (repo.HasComponent<EcsNavigationIntent>(entity))

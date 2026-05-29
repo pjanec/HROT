@@ -228,10 +228,14 @@ namespace Fdp.Toolkit.Navigation.Systems
             }
             nodePath.Reverse();
 
-            // Convert to Vector2 waypoints
-            var waypoints = new Vector2[nodePath.Count];
+            // Convert to 3D waypoints (Sim Z-up). Road nodes are 2D (ground plane), so altitude
+            // is 0 here; the navmesh/volumetric backends below carry real altitude (P3D-303).
+            var waypoints = new Vector3[nodePath.Count];
             for (int k = 0; k < nodePath.Count; k++)
-                waypoints[k] = _roadNetwork.Nodes[nodePath[k]].Position;
+            {
+                var np = _roadNetwork.Nodes[nodePath[k]].Position;
+                waypoints[k] = new Vector3(np.X, np.Y, 0f);
+            }
 
             _trajectoryPool.RegisterTrajectoryWithKey(waypoints, handle);
 
@@ -260,13 +264,17 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (count < 2)
                 return Unreachable(in req, handle, NavigationBackend.Navmesh);
 
-            // Convert NavWaypoint positions (X=east, Z=north in 3-D world-space) to Vector2 XY.
-            var positions = new Vector2[count];
+            // Convert NavWaypoint positions (Recast Y-up: X=east, Y=altitude, Z=north) to Sim
+            // (Z-up) 3D waypoints: X=east, Y=north, Z=altitude (§0.1, P3D-303). Arc length is XY.
+            var positions = new Vector3[count];
             float totalDist = 0f;
             for (int k = 0; k < count; k++)
             {
-                positions[k] = new Vector2(span[k].Position.X, span[k].Position.Z);
-                if (k > 0) totalDist += Vector2.Distance(positions[k - 1], positions[k]);
+                positions[k] = new Vector3(span[k].Position.X, span[k].Position.Z, span[k].Position.Y);
+                if (k > 0)
+                    totalDist += Vector2.Distance(
+                        new Vector2(positions[k - 1].X, positions[k - 1].Y),
+                        new Vector2(positions[k].X, positions[k].Y));
             }
 
             _trajectoryPool.RegisterTrajectoryWithKey(positions, handle);
@@ -296,12 +304,15 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (count < 2)
                 return Unreachable(in req, handle, NavigationBackend.Volumetric);
 
-            var positions = new Vector2[count];
+            var positions = new Vector3[count];
             float totalDist = 0f;
             for (int k = 0; k < count; k++)
             {
-                positions[k] = new Vector2(span[k].Position.X, span[k].Position.Z);
-                if (k > 0) totalDist += Vector2.Distance(positions[k - 1], positions[k]);
+                positions[k] = new Vector3(span[k].Position.X, span[k].Position.Z, span[k].Position.Y);
+                if (k > 0)
+                    totalDist += Vector2.Distance(
+                        new Vector2(positions[k - 1].X, positions[k - 1].Y),
+                        new Vector2(positions[k].X, positions[k].Y));
             }
 
             _trajectoryPool.RegisterTrajectoryWithKey(positions, handle);

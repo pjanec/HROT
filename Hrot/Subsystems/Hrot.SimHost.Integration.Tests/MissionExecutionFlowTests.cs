@@ -59,7 +59,7 @@ namespace Hrot.SimHost.Integration.Tests
             // Target is 1 km away so the vehicle is still moving at the 10-second mark.
             var nav = _host.World.GetComponent<NavState>(entity);
             nav.Mode             = KinematicsMode.Direct;
-            nav.FinalDestination = new Vector2(1000f, 0f);   // 1 km east
+            nav.FinalDestination = new Vector3(1000f, 0f, 0f);   // 1 km east
             nav.TargetSpeed      = 15.0f;                    // ~54 km/h â€” tank sprint
             nav.ArrivalRadius    = 5.0f;
             nav.HasArrived       = 0;

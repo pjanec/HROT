@@ -204,7 +204,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         {
                             RequestId       = reqId,
                             Start           = from,
-                            End             = new Vector3(p.Destination.X, p.Destination.Y, 0f),
+                            End             = p.Destination, // real destination Z (Sim Z-up, P3D-302)
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
                             RouteHandle     = p.RouteHandle,
@@ -234,10 +234,8 @@ namespace Fdp.Toolkit.Navigation.Systems
                             if (!repo.HasComponent<CrowdAgent>(entity))
                                 repo.AddComponent(entity, default(CrowdAgent));
 
-                            // Set the target in the crowd provider.
-                            var destination = new Vector3(
-                                p.Destination.X, p.Destination.Y, 0f);
-                            _dtCrowd.SetAgentTarget(entity, destination);
+                            // Set the target in the crowd provider (carry real Z, P3D-302).
+                            _dtCrowd.SetAgentTarget(entity, p.Destination);
                         }
                         break;
                     }
@@ -265,7 +263,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                         {
                             RequestId       = reqId,
                             Start           = from,
-                            End             = new Vector3(p.Destination.X, p.Destination.Y, 0f),
+                            End             = p.Destination, // real destination Z (Sim Z-up, P3D-302)
                             MobilityProfile = agentProfile.MobilityProfile,
                             BackendForce    = (NavigationBackend)p.BackendForce,
                             RouteHandle     = routeHandle,

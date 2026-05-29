@@ -287,7 +287,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             WriteToLocomotionParams(ref channel, new MoveToParams
             {
-                Destination  = new Vector2(p.X, p.Y),
+                Destination  = new Vector3(p.X, p.Y, 0f), // blueprint-authored 2D destination (§0.2)
                 ArrivalRadius = p.ArrivalRadius,
                 Speed        = p.Speed
             });
@@ -432,7 +432,7 @@ namespace Hrot.AI.Behaviors.Brains
 
                 WriteToLocomotionParams(ref channel, new MoveToParams
                 {
-                    Destination   = new Vector2(x, y),
+                    Destination   = new Vector3(x, y, 0f), // wander target, 2D-authored (§0.2)
                     ArrivalRadius = WanderArrivalRadius,
                     Speed         = WanderSpeed,
                 });

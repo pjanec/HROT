@@ -148,7 +148,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             var intent = world.GetComponent<NavigationIntent>(self);
             Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
-            Assert.NotEqual(Vector2.Zero, intent.FinalDestination);
+            Assert.NotEqual(Vector3.Zero, intent.FinalDestination);
 
             // NavState must be untouched by the executor.
             var navStateAfter = world.GetComponent<NavState>(self);

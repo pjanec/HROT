@@ -21,7 +21,7 @@ namespace Hrot.IG.Modules
     ///   <item><see cref="TerrainQueryInitializationSystem"/> — Input: resets batch counter.</item>
     ///   <item><see cref="TerrainQuerySubmitSystem"/> — Input: fills batch from clamped entities.</item>
     ///   <item><see cref="TerrainQuerySolverSystem"/> — Simulation: calls <see cref="ITerrainProvider.QueryBatch"/>.</item>
-    ///   <item><see cref="TerrainQueryResolutionSystem"/> — PostSimulation: updates <see cref="GroundClampingState"/>.</item>
+    ///   <item><see cref="TerrainQueryResolutionSystem"/> — PostSimulation: writes terrain altitude to <c>SimTransform.Position.Z</c> and updates <see cref="TerrainClampBaseline"/>.</item>
     /// </list>
     /// </para>
     /// </summary>

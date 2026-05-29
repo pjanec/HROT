@@ -10,25 +10,36 @@ using Xunit;
 namespace Fdp.Modules.Geographic.Tests.Systems
 {
     /// <summary>
-    /// Unit tests for <see cref="TerrainQueryResolutionSystem"/>.
+    /// Unit tests for <see cref="TerrainQueryResolutionSystem"/> after the 3D Cognitive Spatial
+    /// Awareness promotion (P3D-102): an accepted terrain hit writes <c>HitZ</c> into the
+    /// authoritative <c>SimTransform.Position.Z</c> (X/Y/rotation preserved) and advances the
+    /// <see cref="TerrainClampBaseline"/> jump-rejection baseline. No visual offset is computed.
     /// </summary>
     public sealed class TerrainQueryResolutionSystemTests : IDisposable
     {
+        private const float InitialX = 3f;
+        private const float InitialY = 4f;
+        private const float InitialZ = 1f;
+
         private readonly EntityRepository _world;
         private Entity _entity;
 
         public TerrainQueryResolutionSystemTests()
         {
             _world = new EntityRepository();
-            _world.RegisterComponent<GroundClampingState>();
+            _world.RegisterComponent<TerrainClampBaseline>();
+            _world.RegisterComponent<SimTransform>();
 
             _entity = _world.CreateEntity();
-            _world.AddComponent(_entity, new GroundClampingState
+            _world.AddComponent(_entity, new TerrainClampBaseline
             {
-                TargetZOffset       = 0f,
-                CurrentZOffset      = 0f,
                 LastValidIgAltitude = 10f, // seed so jump-rejection threshold applies
                 IgAltitudeBaselineEstablished = 1,
+            });
+            _world.AddComponent(_entity, new SimTransform
+            {
+                Position = new Vector3(InitialX, InitialY, InitialZ),
+                Rotation = Quaternion.Identity,
             });
 
             _world.SetSingleton(new TerrainQueryBatchData
@@ -75,95 +86,100 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             };
         }
 
-        /// <summary>
-        /// Jump-rejection: |16 − 10| = 6 > 5 → result must be discarded.
-        /// </summary>
+        private void RunOnce()
+        {
+            var system = new TerrainQueryResolutionSystem();
+            system.Execute((ISimulationView)_world, 0.016f);
+            PlaybackCommands(_world);
+        }
+
+        /// <summary>Jump-rejection: |16 − 10| = 6 > 5 → discarded; Z and baseline unchanged.</summary>
         [Fact]
         public void Execute_RejectsJump_WhenDeltaGreaterThan5m()
         {
-            // LastValidIgAltitude = 10, HitZ = 16 → delta = 6 → reject
             SetBatchEntry(_entity, hitZ: 16f, referenceSimZ: 0f);
+            RunOnce();
 
-            var system = new TerrainQueryResolutionSystem();
-            system.Execute((ISimulationView)_world, 0.016f);
-            PlaybackCommands(_world);
-
-            var state = _world.GetComponent<GroundClampingState>(_entity);
-            Assert.Equal(0f, state.TargetZOffset);          // unchanged
-            Assert.Equal(10f, state.LastValidIgAltitude);   // unchanged
+            var tf = _world.GetComponent<SimTransform>(_entity);
+            var state = _world.GetComponent<TerrainClampBaseline>(_entity);
+            Assert.Equal(InitialZ, tf.Position.Z);        // Z unchanged on rejection
+            Assert.Equal(10f, state.LastValidIgAltitude); // baseline unchanged
         }
 
-        /// <summary>
-        /// Hit within threshold: |13 − 10| = 3 ≤ 5 → result accepted.
-        /// TargetZOffset = HitZ(13) − ReferenceSimZ(10) = 3.
-        /// </summary>
+        /// <summary>Hit within threshold: |13 − 10| = 3 ≤ 5 → accepted; Z := 13, X/Y unchanged.</summary>
         [Fact]
-        public void Execute_AcceptsHit_WhenWithin5m()
+        public void Execute_AcceptsHit_WhenWithin5m_WritesAuthoritativeZ()
         {
-            // LastValidIgAltitude = 10, HitZ = 13 → delta = 3 ≤ 5 → accept
             SetBatchEntry(_entity, hitZ: 13f, referenceSimZ: 10f);
+            RunOnce();
 
-            var system = new TerrainQueryResolutionSystem();
-            system.Execute((ISimulationView)_world, 0.016f);
-            PlaybackCommands(_world);
-
-            var state = _world.GetComponent<GroundClampingState>(_entity);
-            Assert.Equal(3f, state.TargetZOffset);          // 13 - 10 = 3
-            Assert.Equal(13f, state.LastValidIgAltitude);   // updated to new hit
+            var tf = _world.GetComponent<SimTransform>(_entity);
+            var state = _world.GetComponent<TerrainClampBaseline>(_entity);
+            Assert.Equal(13f, tf.Position.Z);             // authoritative altitude written
+            Assert.Equal(InitialX, tf.Position.X);        // X preserved
+            Assert.Equal(InitialY, tf.Position.Y);        // Y preserved
+            Assert.Equal(13f, state.LastValidIgAltitude); // baseline advanced
+            Assert.Equal((byte)1, state.IgAltitudeBaselineEstablished);
         }
 
-        /// <summary>
-        /// First accepted hit: while <c>IgAltitudeBaselineEstablished == 0</c> any hit should be
-        /// accepted regardless of the jump-rejection threshold.
-        /// </summary>
+        /// <summary>First accepted hit (bootstrap): any magnitude accepted while baseline unset.</summary>
         [Fact]
-        public void Execute_AcceptsFirstHit_WhenLastAltitudeIsZero()
+        public void Execute_AcceptsFirstHit_RegardlessOfMagnitude()
         {
-            // Override entity to have LastValidIgAltitude = 0 (first frame)
-            _world.SetComponent(_entity, new GroundClampingState
+            _world.SetComponent(_entity, new TerrainClampBaseline
             {
-                TargetZOffset       = 0f,
-                CurrentZOffset      = 0f,
+                LastValidIgAltitude = 0f,
+                IgAltitudeBaselineEstablished = 0, // bootstrap
+            });
+
+            // HitZ = 50 would fail the ±5 m threshold against baseline 0, but bootstrap accepts it.
+            SetBatchEntry(_entity, hitZ: 50f, referenceSimZ: 45f);
+            RunOnce();
+
+            var tf = _world.GetComponent<SimTransform>(_entity);
+            var state = _world.GetComponent<TerrainClampBaseline>(_entity);
+            Assert.Equal(50f, tf.Position.Z);
+            Assert.Equal(50f, state.LastValidIgAltitude);
+            Assert.Equal((byte)1, state.IgAltitudeBaselineEstablished);
+        }
+
+        /// <summary>Two-step: bootstrap then a within-threshold hit accepted and Z updated.</summary>
+        [Fact]
+        public void Execute_SecondHitWithinThreshold_UpdatesZ()
+        {
+            _world.SetComponent(_entity, new TerrainClampBaseline
+            {
                 LastValidIgAltitude = 0f,
                 IgAltitudeBaselineEstablished = 0,
             });
 
-            // HitZ = 50, would normally fail threshold check against LastValidIgAltitude = 0
-            SetBatchEntry(_entity, hitZ: 50f, referenceSimZ: 45f);
+            SetBatchEntry(_entity, hitZ: 20f, referenceSimZ: 0f); // bootstrap accept
+            RunOnce();
+            Assert.Equal(20f, _world.GetComponent<SimTransform>(_entity).Position.Z);
 
-            var system = new TerrainQueryResolutionSystem();
-            system.Execute((ISimulationView)_world, 0.016f);
-            PlaybackCommands(_world);
-
-            var state = _world.GetComponent<GroundClampingState>(_entity);
-            Assert.Equal(5f, state.TargetZOffset);          // 50 - 45 = 5
-            Assert.Equal(50f, state.LastValidIgAltitude);
+            SetBatchEntry(_entity, hitZ: 23f, referenceSimZ: 0f); // |23-20|=3 ≤ 5 accept
+            RunOnce();
+            Assert.Equal(23f, _world.GetComponent<SimTransform>(_entity).Position.Z);
+            Assert.Equal(23f, _world.GetComponent<TerrainClampBaseline>(_entity).LastValidIgAltitude);
         }
 
-        /// <summary>
-        /// When the result has <c>HasHit = false</c> it must be ignored.
-        /// </summary>
+        /// <summary>When the result has <c>HasHit = false</c> it must be ignored.</summary>
         [Fact]
         public void Execute_IgnoresMissedHit()
         {
             SetBatchEntry(_entity, hitZ: 10f, referenceSimZ: 0f, hasHit: false);
+            RunOnce();
 
-            var system = new TerrainQueryResolutionSystem();
-            system.Execute((ISimulationView)_world, 0.016f);
-            PlaybackCommands(_world);
-
-            var state = _world.GetComponent<GroundClampingState>(_entity);
-            Assert.Equal(0f, state.TargetZOffset);       // unchanged
+            var tf = _world.GetComponent<SimTransform>(_entity);
+            var state = _world.GetComponent<TerrainClampBaseline>(_entity);
+            Assert.Equal(InitialZ, tf.Position.Z);        // unchanged
             Assert.Equal(10f, state.LastValidIgAltitude); // unchanged
         }
 
-        /// <summary>
-        /// When no singleton exists the system should not throw.
-        /// </summary>
+        /// <summary>When no singleton exists the system should not throw.</summary>
         [Fact]
         public void Execute_NoThrow_WhenSingletonAbsent()
         {
-            // Remove singleton
             if (_world.HasSingleton<TerrainQueryBatchData>())
             {
                 ref var b = ref _world.GetSingleton<TerrainQueryBatchData>();

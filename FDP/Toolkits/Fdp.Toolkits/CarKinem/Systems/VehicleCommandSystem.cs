@@ -84,7 +84,7 @@ namespace CarKinem.Systems
                     CurrentSegmentId = -1,
                     ProgressS = 0f,
                     TargetSpeed = 0f,
-                    FinalDestination = cmd.Position,
+                    FinalDestination = new Vector3(cmd.Position.X, cmd.Position.Y, 0f),
                     ArrivalRadius = 2.0f,
                     SpeedErrorInt = 0f,
                     LastSteerCmd = 0f,

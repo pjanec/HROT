@@ -24,8 +24,9 @@ namespace CarKinem.Core
         public float ProgressS;      // Arc-length progress along path (meters)
         public float TargetSpeed;    // Desired cruise/arrival speed (m/s)
         
-        // Destination (for RoadGraph mode: final off-road target)
-        public Vector2 FinalDestination;
+        // Destination (for RoadGraph mode: final off-road target). Vector3 (Sim Z-up): Z is
+        // carried for fidelity/translators; steering math projects to XY (§0.2, P3D-302).
+        public Vector3 FinalDestination;
         public float ArrivalRadius;  // Distance to consider "arrived" (meters)
         
         // Controller internals (for stability)

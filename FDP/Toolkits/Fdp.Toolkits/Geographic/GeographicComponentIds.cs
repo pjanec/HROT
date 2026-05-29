@@ -10,8 +10,8 @@ namespace Fdp.Toolkit.Geographic
         /// <summary>Component ID for <c>GroundClampingConfig</c>.</summary>
         public const byte GroundClampingConfig  = 77;
 
-        /// <summary>Component ID for <c>GroundClampingState</c>.</summary>
-        public const byte GroundClampingState   = 78;
+        /// <summary>Component ID for <c>TerrainClampBaseline</c> (formerly <c>GroundClampingState</c>; same id 78 for wire/save stability).</summary>
+        public const byte TerrainClampBaseline   = 78;
 
         /// <summary>Component ID for <c>TerrainQueryBatchData</c>.</summary>
         public const byte TerrainQueryBatchData = 79;

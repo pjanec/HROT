@@ -184,9 +184,10 @@ namespace Fdp.Toolkit.Navigation
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <see cref="FinalDestination"/> is always a Cartesian <see cref="Vector2"/>
-    /// (metres, FDP flat-earth XY plane).  Geographic conversion is the
-    /// translator's responsibility, never the executor's.
+    /// <see cref="FinalDestination"/> is a Cartesian <see cref="Vector3"/> (metres, Sim Z-up;
+    /// 3D promotion P3D-302). Altitude is carried for fidelity/translators; vehicle steering
+    /// remains 2D-projected (§0.2). Geographic conversion is the translator's responsibility,
+    /// never the executor's.
     /// </para>
     /// <para>
     /// <see cref="Mode"/> defaults to <see cref="NavigationMode.None"/> for a
@@ -222,8 +223,8 @@ namespace Fdp.Toolkit.Navigation
         /// </summary>
         public byte ReverseAllowed;
 
-        /// <summary>Target position in FDP Cartesian metres (XY ground plane).</summary>
-        public Vector2 FinalDestination;
+        /// <summary>Target position in FDP Cartesian metres (Sim Z-up; Z carried, steering 2D-projected).</summary>
+        public Vector3 FinalDestination;
 
         /// <summary>Desired travel speed (m/s).</summary>
         public float TargetSpeed;

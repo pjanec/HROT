@@ -122,7 +122,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             ch.ActionInstanceId = instanceId;
             var p = new MoveToParams
             {
-                Destination   = destination,
+                Destination   = new Vector3(destination.X, destination.Y, 0f),
                 ArrivalRadius = 1.5f,
                 Speed         = 5.0f,
                 Flags         = flags,
@@ -133,7 +133,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             ref var intent = ref Repo.GetComponentRW<NavigationIntent>(e);
             intent.Mode             = NavigationMode.DirectPoint;
-            intent.FinalDestination = destination;
+            intent.FinalDestination = new Vector3(destination.X, destination.Y, 0f);
             intent.IntentId         = instanceId;
             intent.ArrivalRadius    = 1.5f;
             intent.TargetSpeed      = 5.0f;
@@ -163,7 +163,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             ch.ActionInstanceId = instanceId;
             var p = new PlanRouteParams
             {
-                Destination   = destination,
+                Destination   = new Vector3(destination.X, destination.Y, 0f),
                 ArrivalRadius = 1.5f,
                 Speed         = 5.0f,
                 LayerMask     = layerMask,
@@ -206,7 +206,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             // Set DirectPoint directly: bypasses the FollowPathExecutor bug (Mode=None).
             ref var intent = ref Repo.GetComponentRW<NavigationIntent>(e);
             intent.Mode             = NavigationMode.DirectPoint;
-            intent.FinalDestination = destination;
+            intent.FinalDestination = new Vector3(destination.X, destination.Y, 0f);
             intent.IntentId         = instanceId;
             intent.ArrivalRadius    = 1.5f;
             intent.TargetSpeed      = 5.0f;

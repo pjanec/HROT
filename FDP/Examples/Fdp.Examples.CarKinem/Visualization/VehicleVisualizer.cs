@@ -105,7 +105,7 @@ public class VehicleVisualizer
                             // Draw raw waypoints first as dots
                             for (int i = 0; i < traj.Waypoints.Length; i++)
                             {
-                                Raylib.DrawCircleV(traj.Waypoints[i].Position, 0.3f, new Color(255, 215, 0, 150)); // Gold dots
+                                Raylib.DrawCircleV(new Vector2(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y), 0.3f, new Color(255, 215, 0, 150)); // Gold dots
                             }
 
                             // Draw continuous path
@@ -131,10 +131,10 @@ public class VehicleVisualizer
                                     
                                     if (nextIdx != -1)
                                     {
-                                        Raylib.DrawLineEx(currentPos, traj.Waypoints[nextIdx].Position, 0.15f, new Color(50, 200, 255, 100)); // Blue-ish
+                                        Raylib.DrawLineEx(new Vector2(currentPos.X, currentPos.Y), new Vector2(traj.Waypoints[nextIdx].Position.X, traj.Waypoints[nextIdx].Position.Y), 0.15f, new Color(50, 200, 255, 100)); // Blue-ish
                                         for(int i=nextIdx; i<traj.Waypoints.Length-1; i++)
                                         {
-                                            Raylib.DrawLineEx(traj.Waypoints[i].Position, traj.Waypoints[i+1].Position, 0.15f, new Color(50, 200, 255, 100));
+                                            Raylib.DrawLineEx(new Vector2(traj.Waypoints[i].Position.X, traj.Waypoints[i].Position.Y), new Vector2(traj.Waypoints[i+1].Position.X, traj.Waypoints[i+1].Position.Y), 0.15f, new Color(50, 200, 255, 100));
                                         }
                                     }
                                 }
@@ -148,16 +148,19 @@ public class VehicleVisualizer
                                     float startS = nav.ProgressS;
                                     float endS = traj.TotalLength;
                                     
-                                    Vector2 prevPos = trajectoryPool.SampleTrajectory(nav.TrajectoryId, startS).pos;
-                                    
+                                    var prevPos3 = trajectoryPool.SampleTrajectory(nav.TrajectoryId, startS).pos;
+                                    Vector2 prevPos = new Vector2(prevPos3.X, prevPos3.Y);
+
                                     for (float s = startS + step; s <= endS; s += step)
                                     {
-                                        Vector2 currentPos = trajectoryPool.SampleTrajectory(nav.TrajectoryId, s).pos;
+                                        var cp3 = trajectoryPool.SampleTrajectory(nav.TrajectoryId, s).pos;
+                                        Vector2 currentPos = new Vector2(cp3.X, cp3.Y);
                                         Raylib.DrawLineEx(prevPos, currentPos, 0.15f, splineColor);
                                         prevPos = currentPos;
                                     }
                                     // Close final gap
-                                    Vector2 finalPos = trajectoryPool.SampleTrajectory(nav.TrajectoryId, endS).pos;
+                                    var fp3 = trajectoryPool.SampleTrajectory(nav.TrajectoryId, endS).pos;
+                                    Vector2 finalPos = new Vector2(fp3.X, fp3.Y);
                                     Raylib.DrawLineEx(prevPos, finalPos, 0.15f, splineColor);
                                 }
                             }
@@ -167,8 +170,9 @@ public class VehicleVisualizer
                 
                 if (nav.Mode == KinematicsMode.None && !nav.HasArrived.Equals(1)) // Using Equals(1) for byte bool? Or just > 0
                 {
-                    Raylib.DrawLineEx(position, nav.FinalDestination, 0.1f, new Color(0, 255, 255, 100));
-                    Raylib.DrawCircleV(nav.FinalDestination, 0.5f, new Color(0, 255, 255, 100));
+                    var destXY = new System.Numerics.Vector2(nav.FinalDestination.X, nav.FinalDestination.Y);
+                    Raylib.DrawLineEx(position, destXY, 0.1f, new Color(0, 255, 255, 100));
+                    Raylib.DrawCircleV(destXY, 0.5f, new Color(0, 255, 255, 100));
                 }
                 else if (nav.Mode == KinematicsMode.Formation && view.HasComponent<FormationTarget>(entity))
                 {

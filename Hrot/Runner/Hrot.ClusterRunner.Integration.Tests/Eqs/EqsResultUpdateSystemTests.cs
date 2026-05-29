@@ -95,8 +95,8 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
             RefreshTick = 5,
             Results     = new List<EqsResultEntry>
             {
-                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, Score = 0.8f, Flags = 1 },
-                new() { EntityId = 20L, PositionX = 300f, PositionY = 400f, Score = 0.5f, Flags = 2 },
+                new() { EntityId = 10L, PositionX = 100f, PositionY = 200f, PositionZ = 250f, Score = 0.8f, Flags = 1 },
+                new() { EntityId = 20L, PositionX = 300f, PositionY = 400f, PositionZ = 17.5f, Score = 0.5f, Flags = 2 },
             },
         });
         _repo.Bus.SwapBuffers();
@@ -115,7 +115,9 @@ public sealed class EqsResultUpdateSystemTests : IDisposable
         Assert.Equal(10L, span[0].EntityId);
         Assert.Equal(100f, span[0].PositionX);
         Assert.Equal(200f, span[0].PositionY);
+        Assert.Equal(250f, span[0].PositionZ);  // P3D-202: altitude survives the ingress mapping
         Assert.Equal(0.8f, span[0].Score);
+        Assert.Equal(17.5f, span[1].PositionZ);
     }
 
     /// <summary>

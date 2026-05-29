@@ -251,7 +251,7 @@ namespace Fdp.Examples.CarKinem.Core
             var nav = _repository.GetComponent<NavState>(entity);
             nav.Mode             = KinematicsMode.RoadGraph;
             nav.RoadPhase        = RoadGraphPhase.Approaching;
-            nav.FinalDestination = endNode.Position;
+            nav.FinalDestination = new Vector3(endNode.Position.X, endNode.Position.Y, 0f);
             nav.ArrivalRadius    = 5.0f;
             nav.CurrentSegmentId = -1;
             nav.ProgressS        = 0f;
@@ -277,7 +277,7 @@ namespace Fdp.Examples.CarKinem.Core
                 var navRoad = _repository.GetComponent<NavState>(entity);
                 navRoad.Mode             = KinematicsMode.RoadGraph;
                 navRoad.RoadPhase        = RoadGraphPhase.Approaching;
-                navRoad.FinalDestination = endNode.Position;
+                navRoad.FinalDestination = new Vector3(endNode.Position.X, endNode.Position.Y, 0f);
                 navRoad.ArrivalRadius    = 5.0f;
                 navRoad.CurrentSegmentId = -1;
                 navRoad.ProgressS        = 0f;

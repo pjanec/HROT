@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             repo.AddComponent(entity, new NavigationIntent
             {
                 Mode             = NavigationMode.DirectPoint,
-                FinalDestination = dest,
+                FinalDestination = new Vector3(dest.X, dest.Y, 0f),
                 TargetSpeed      = 10f,
                 ArrivalRadius    = 3.0f,
                 IntentId         = 1u,
@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(KinematicsMode.Direct, nav.Mode);
-            Assert.Equal(dest, nav.FinalDestination);
+            Assert.Equal(new Vector3(dest.X, dest.Y, 0f), nav.FinalDestination);
             Assert.Equal(10f, nav.TargetSpeed);
             Assert.Equal(3.0f, nav.ArrivalRadius);
 

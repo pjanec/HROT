@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
             var intent = world.GetComponent<NavigationIntent>(entity);
             Assert.Equal(6u, intent.IntentId);
             Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
-            Assert.Equal(destination, intent.FinalDestination);
+            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination);
             Assert.Equal(12f, intent.TargetSpeed);
             Assert.Equal(20f, intent.ArrivalRadius);
         }

@@ -286,7 +286,7 @@ namespace Fdp.Examples.Scenarios.Replay
             world.AddComponent(e, new NavState
             {
                 Mode             = KinematicsMode.None,
-                FinalDestination = new Vector2(500f, 0f),   // far enough: never arrives in 50 ticks
+                FinalDestination = new Vector3(500f, 0f, 0f),   // far enough: never arrives in 50 ticks
                 ArrivalRadius    = ArrivalRadius,
                 TargetSpeed      = DriveSpeed,
                 HasArrived       = 0,

@@ -7,7 +7,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// <summary>
     /// Phase 4 stub navmesh provider (NAV-P0-T3).
     /// IsWalkable / PathExists: always true.
-    /// PathCost: flat-earth Euclidean distance in the XZ plane (ignores Y).
+    /// PathCost: true 3D Euclidean distance (P3D-301), matching FakeNavmeshProvider.
     /// SampleNavmeshPoints: returns a 3x3 grid of points within radius.
     /// PlanPath: returns two waypoints (start + end).
     /// ProjectToNavmesh: returns the position unchanged.
@@ -48,10 +48,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <inheritdoc/>
         public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF)
         {
-            // Flat-earth: use XZ distance only (ignore Y altitude difference).
+            // True 3D Euclidean distance (P3D-301): the Y term is the Recast altitude delta,
+            // so stairs/ramps to a deck cost more. Matches FakeNavmeshProvider.
             float dx = from.X - to.X;
+            float dy = from.Y - to.Y;
             float dz = from.Z - to.Z;
-            return MathF.Sqrt(dx * dx + dz * dz);
+            return MathF.Sqrt(dx * dx + dy * dy + dz * dz);
         }
 
         /// <inheritdoc/>

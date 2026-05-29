@@ -9,18 +9,22 @@ namespace Fdp.Modules.Geographic.Systems
     /// Runs during <see cref="SystemPhase.PostSimulation"/>.
     ///
     /// <para>
-    /// Consumes the results written by <see cref="TerrainQuerySolverSystem"/> and
-    /// updates each entity's <see cref="GroundClampingState"/> component via the
-    /// command buffer.
+    /// Consumes the results written by <see cref="TerrainQuerySolverSystem"/> and writes the
+    /// accepted terrain height (<c>HitZ</c>) into the entity's authoritative
+    /// <c>SimTransform.Position.Z</c> (3D Cognitive Spatial Awareness promotion, P3D-102).
+    /// Terrain altitude is now part of authoritative simulation state — it is no longer rerouted
+    /// to a render-only visual offset. The jump-rejection baseline is tracked in
+    /// <see cref="TerrainClampBaseline"/>.
     /// </para>
     ///
     /// <para><b>Jump-rejection filter:</b> if the incoming <c>HitZ</c> differs from the
-    /// entity's <see cref="GroundClampingState.LastValidIgAltitude"/> by more than
-    /// <see cref="JumpRejectionThresholdMeters"/>, the result is discarded.
-    /// This prevents visual pops at geometry seams, tunnels, or bridge transitions.
+    /// entity's <see cref="TerrainClampBaseline.LastValidIgAltitude"/> by more than
+    /// <see cref="JumpRejectionThresholdMeters"/>, the result is discarded and
+    /// <c>SimTransform.Position.Z</c> is left unchanged.
+    /// This prevents altitude pops at geometry seams, tunnels, or bridge transitions.
     /// </para>
     ///
-    /// <para><b>First-frame bootstrap:</b> while <see cref="GroundClampingState.IgAltitudeBaselineEstablished"/>
+    /// <para><b>First-frame bootstrap:</b> while <see cref="TerrainClampBaseline.IgAltitudeBaselineEstablished"/>
     /// is 0 the jump-rejection threshold is skipped so the first accepted hit seeds baseline state.
     /// </para>
     /// </summary>
@@ -49,9 +53,10 @@ namespace Fdp.Modules.Geographic.Systems
 
                 if (!res.HasHit) continue;
                 if (!view.IsAlive(req.Entity)) continue;
-                if (!view.HasComponent<GroundClampingState>(req.Entity)) continue;
+                if (!view.HasComponent<TerrainClampBaseline>(req.Entity)) continue;
+                if (!view.HasComponent<SimTransform>(req.Entity)) continue;
 
-                ref readonly var current = ref view.GetComponentRO<GroundClampingState>(req.Entity);
+                ref readonly var current = ref view.GetComponentRO<TerrainClampBaseline>(req.Entity);
 
                 // Jump-rejection: skip results that move the reference altitude too abruptly.
                 // Bootstrap: first accepted hit for this entity is always applied.
@@ -60,18 +65,21 @@ namespace Fdp.Modules.Geographic.Systems
 
                 if (!isBootstrap && !withinThreshold) continue;
 
-                // TargetZOffset is the extra height the entity's visual node must rise to sit on terrain.
-                float newTargetOffset = res.HitZ - req.ReferenceSimZ;
-
-                var updated = new GroundClampingState
+                // Authoritative altitude: write HitZ into SimTransform.Position.Z (Z only,
+                // preserving X/Y/rotation). This replaces the former visual-offset reroute.
+                ref readonly var tf = ref view.GetComponentRO<SimTransform>(req.Entity);
+                cmd.SetComponent(req.Entity, new SimTransform
                 {
-                    TargetZOffset       = newTargetOffset,
-                    CurrentZOffset      = current.CurrentZOffset, // Smoothed by TransformSyncSystem
+                    Position = new System.Numerics.Vector3(tf.Position.X, tf.Position.Y, res.HitZ),
+                    Rotation = tf.Rotation,
+                });
+
+                // Advance the jump-rejection baseline to the accepted altitude.
+                cmd.SetComponent(req.Entity, new TerrainClampBaseline
+                {
                     LastValidIgAltitude = res.HitZ,
                     IgAltitudeBaselineEstablished = 1,
-                };
-
-                cmd.SetComponent(req.Entity, updated);
+                });
             }
         }
     }

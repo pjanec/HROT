@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             {
                 Mode             = mode,
                 IntentId         = 1,
-                FinalDestination = new Vector2(100f, 0f),
+                FinalDestination = new Vector3(100f, 0f, 0f),
                 ArrivalRadius    = 1f,
                 Flags            = intentFlags,
                 MaxReplans       = maxReplans,
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             {
                 Mode             = NavigationMode.DirectPoint,
                 IntentId         = 1,
-                FinalDestination = new Vector2(100f, 0f),
+                FinalDestination = new Vector3(100f, 0f, 0f),
                 ArrivalRadius    = 1f,
                 Flags            = intentFlags,
                 MaxReplans       = maxReplans,
@@ -131,7 +131,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             {
                 Mode             = NavigationMode.DirectPoint,
                 IntentId         = 1,
-                FinalDestination = new Vector2(0.1f, 0f),  // 0.1 m away
+                FinalDestination = new Vector3(0.1f, 0f, 0f),  // 0.1 m away
                 ArrivalRadius    = 1f,                      // radius 1 m > 0.1 m
                 Flags            = 0,
             });

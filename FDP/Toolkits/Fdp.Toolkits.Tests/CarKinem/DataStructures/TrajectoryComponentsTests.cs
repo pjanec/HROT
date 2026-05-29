@@ -19,16 +19,16 @@ namespace CarKinem.Tests.DataStructures
         {
              var wp1 = new TrajectoryWaypoint 
             { 
-                Position = new Vector2(0, 0), 
-                CumulativeDistance = 0 
+                Position = new Vector3(0, 0, 0),
+                CumulativeDistance = 0
             };
-            var wp2 = new TrajectoryWaypoint 
-            { 
-                Position = new Vector2(100, 0), 
-                CumulativeDistance = 100 
+            var wp2 = new TrajectoryWaypoint
+            {
+                Position = new Vector3(100, 0, 0),
+                CumulativeDistance = 100
             };
-            
-            float expected = Vector2.Distance(wp1.Position, wp2.Position);
+
+            float expected = Vector3.Distance(wp1.Position, wp2.Position);
             Assert.Equal(expected, wp2.CumulativeDistance);
         }
 

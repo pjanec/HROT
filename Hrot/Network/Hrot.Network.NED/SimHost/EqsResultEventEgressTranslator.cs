@@ -79,6 +79,7 @@ namespace Hrot.Network.NED.SimHost
                             EntityId       = resolvedNetId,
                             PositionX      = r.PositionX,
                             PositionY      = r.PositionY,
+                            PositionZ      = r.PositionZ,
                             Score          = r.Score,
                             Flags          = (ushort)r.Flags,
                             FlagsMeaningful = (ushort)r.FlagsMeaningful,

@@ -57,7 +57,7 @@ namespace Fdp.Examples.CarKinem.Tests
             var (posLin, _, _) = pool.SampleTrajectory(linId, s);
             var (posSpl, _, _) = pool.SampleTrajectory(splId, s);
             
-            float diff = Vector2.Distance(posLin, posSpl);
+            float diff = Vector3.Distance(posLin, posSpl);
             Assert.True(diff > 0.1f, $"Spline trajectory should differ from Linear trajectory. Diff: {diff}");
         }
         [Fact]

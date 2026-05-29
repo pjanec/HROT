@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 LocomotionChannel* pCh = &ch;
                 *(MoveToParams*)pCh->Params = new MoveToParams
                 {
-                    Destination   = new Vector2(10f, 20f),
+                    Destination   = new Vector3(10f, 20f, 0f),
                     ArrivalRadius = 1f,
                     Speed         = 5f,
                 };
@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 LocomotionChannel* pCh = &ch;
                 *(PlanRouteParams*)pCh->Params = new PlanRouteParams
                 {
-                    Destination = new Vector2(5f, 5f),
+                    Destination = new Vector3(5f, 5f, 0f),
                 };
             }
             _repo.AddComponent(entity, ch);
@@ -152,7 +152,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 LocomotionChannel* pCh = &ch;
                 *(MoveToParams*)pCh->Params = new MoveToParams
                 {
-                    Destination = new Vector2(1f, 1f),
+                    Destination = new Vector3(1f, 1f, 0f),
                 };
             }
             _repo.AddComponent(entity, ch);
@@ -205,7 +205,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             LocomotionChannel* pCh = &ch;
             *(MoveToParams*)pCh->Params = new MoveToParams
             {
-                Destination   = dest,
+                Destination   = new Vector3(dest.X, dest.Y, 0f),
                 ArrivalRadius = 1f,
                 Speed         = speed,
             };
@@ -298,7 +298,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 ActionInstanceId = 1,
             };
             LocomotionChannel* pCh = &ch;
-            *(PlanRouteParams*)pCh->Params = new PlanRouteParams { Destination = new Vector2(5f, 5f) };
+            *(PlanRouteParams*)pCh->Params = new PlanRouteParams { Destination = new Vector3(5f, 5f, 0f) };
             _repo.AddComponent(entity, ch);
 
             _system.Execute(_repo, 0f);

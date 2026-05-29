@@ -56,6 +56,10 @@ namespace Fdp.Toolkit.Perception.Components
         /// <summary>Last-known Y position (meters, ground plane) for each target slot.</summary>
         public fixed float PositionsY[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>Last-known Z position (meters, altitude — Sim Z-up) for each target slot.
+        /// 3D Cognitive Spatial Awareness promotion (P3D-206).</summary>
+        public fixed float PositionsZ[PerceptionConstants.MaxTrackedTargets];
+
         /// <summary>
         /// Accumulated threat score per slot.
         /// Boosted by perception events, decayed every frame by
@@ -89,6 +93,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// <param name="scoreBoost">Score contribution from this perception event.</param>
         /// <param name="tick">Current simulation tick.</param>
         /// <param name="modality">Sensor modality that detected the target (default: <see cref="SensorModality.Visual"/>).</param>
+        /// <param name="posZ">Target Z position (altitude — Sim Z-up). 3D promotion (P3D-206); defaults to 0 for flat callers.</param>
         public static void AddOrUpdateTarget(
             ref TargetMemory mem,
             long entityId,
@@ -96,7 +101,8 @@ namespace Fdp.Toolkit.Perception.Components
             float posY,
             float scoreBoost,
             uint tick,
-            SensorModality modality = SensorModality.Visual)
+            SensorModality modality = SensorModality.Visual,
+            float posZ = 0f)
         {
             // 1. Look for an existing slot with the same entity ID.
             int foundSlot = -1;
@@ -115,6 +121,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.ThreatScores[foundSlot] += scoreBoost;
                 mem.PositionsX[foundSlot]    = posX;
                 mem.PositionsY[foundSlot]    = posY;
+                mem.PositionsZ[foundSlot]    = posZ;
                 mem.LastSeenTick[foundSlot]  = tick;
                 // OR the new modality into the existing modality bitmask.
                 mem.Modalities[foundSlot]   |= (byte)modality;
@@ -126,6 +133,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.EntityIds[slot]    = entityId;
                 mem.PositionsX[slot]   = posX;
                 mem.PositionsY[slot]   = posY;
+                mem.PositionsZ[slot]   = posZ;
                 mem.ThreatScores[slot] = scoreBoost;
                 mem.LastSeenTick[slot] = tick;
                 mem.Modalities[slot]   = (byte)modality;
@@ -150,6 +158,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.EntityIds[lowestIdx]    = entityId;
                     mem.PositionsX[lowestIdx]   = posX;
                     mem.PositionsY[lowestIdx]   = posY;
+                    mem.PositionsZ[lowestIdx]   = posZ;
                     mem.ThreatScores[lowestIdx] = scoreBoost;
                     mem.LastSeenTick[lowestIdx] = tick;
                     // Fresh modality for the new entry (eviction resets the bitmask).
@@ -163,6 +172,7 @@ namespace Fdp.Toolkit.Perception.Components
                 long   idTmp    = mem.EntityIds[i];
                 float  pxTmp    = mem.PositionsX[i];
                 float  pyTmp    = mem.PositionsY[i];
+                float  pzTmp    = mem.PositionsZ[i];
                 float  scoreTmp = mem.ThreatScores[i];
                 uint   tickTmp  = mem.LastSeenTick[i];
                 byte   modTmp   = mem.Modalities[i];
@@ -173,6 +183,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.EntityIds[j + 1]    = mem.EntityIds[j];
                     mem.PositionsX[j + 1]   = mem.PositionsX[j];
                     mem.PositionsY[j + 1]   = mem.PositionsY[j];
+                    mem.PositionsZ[j + 1]   = mem.PositionsZ[j];
                     mem.ThreatScores[j + 1] = mem.ThreatScores[j];
                     mem.LastSeenTick[j + 1] = mem.LastSeenTick[j];
                     mem.Modalities[j + 1]   = mem.Modalities[j];
@@ -182,6 +193,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.EntityIds[j + 1]    = idTmp;
                 mem.PositionsX[j + 1]   = pxTmp;
                 mem.PositionsY[j + 1]   = pyTmp;
+                mem.PositionsZ[j + 1]   = pzTmp;
                 mem.ThreatScores[j + 1] = scoreTmp;
                 mem.LastSeenTick[j + 1] = tickTmp;
                 mem.Modalities[j + 1]   = modTmp;

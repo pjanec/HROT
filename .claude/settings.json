@@ -5,7 +5,8 @@
       "mcp__codebase-memory-mcp__list_projects",
       "mcp__codebase-memory-mcp__detect_changes",
       "mcp__codebase-memory-mcp__trace_path",
-      "mcp__codebase-memory-mcp__get_architecture"
+      "mcp__codebase-memory-mcp__get_architecture",
+      "mcp__codebase-memory-mcp__query_graph"
     ]
   }
 }

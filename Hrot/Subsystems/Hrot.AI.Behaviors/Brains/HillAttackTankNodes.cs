@@ -302,7 +302,7 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.Status = NodeStatus.Running;
                 WriteToLocomotionParams(ref loco, new MoveToParams
                 {
-                    Destination   = destination,
+                    Destination   = new Vector3(destination.X, destination.Y, 0f), // 2D-authored (§0.2)
                     ArrivalRadius = 1f,
                     Speed         = speed,
                 });
@@ -495,7 +495,7 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.ActiveAction = NavigationConstants.ActionIdMoveTo;
                 WriteToLocomotionParams(ref loco, new MoveToParams
                 {
-                    Destination    = new Vector2(p.BaselineX, p.BaselineY),
+                    Destination    = new Vector3(p.BaselineX, p.BaselineY, 0f), // 2D-authored baseline (§0.2)
                     ArrivalRadius  = 5f,
                     Speed          = 12f,
                     ReverseAllowed = 1,

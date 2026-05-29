@@ -8,6 +8,8 @@
     <IsTestProject>true</IsTestProject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>xUnit1030;xUnit1031;xUnit2013;xUnit2020;CS8602;CS8604</NoWarn>
+    <!-- P3D-201: EqsResult now carries PositionZ; activates the flat-terrain Z≈0 parity assertion. -->
+    <DefineConstants>$(DefineConstants);EQS_HAS_POSITIONZ</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

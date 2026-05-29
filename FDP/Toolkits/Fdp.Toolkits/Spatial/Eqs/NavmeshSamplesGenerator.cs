@@ -21,9 +21,11 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             var navmesh = repo.GetSingletonManaged<INavmeshProvider>()!;
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(observer);
-            var center3D = new Vector3(tf.Position.X, 0f, tf.Position.Y);
+            // Sim (Z-up) → Recast (Y-up): East=X, altitude=Z→Y (middle slot), North=Y→Z (§0.1).
+            // Passing the real altitude lets Recast snap to the correct vertical level (P3D-203).
+            var center3D = new Vector3(tf.Position.X, tf.Position.Z, tf.Position.Y);
 
-            // Intermediate stackalloc buffer for raw positions (3D flat-earth, Y=0).
+            // Intermediate stackalloc buffer for raw navmesh points (Recast Y-up).
             Span<Vector3> rawPoints3D = stackalloc Vector3[candidates.Length];
             // TODO NAV-P0-T5: use NavAgentProfile.PreferredLayerMask from ctx.Self
             int rawCount = navmesh.SampleNavmeshPoints(center3D, sensor.SearchRadius, rawPoints3D);
@@ -34,7 +36,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 {
                     EntityId  = 0L, // Positional candidate.
                     PositionX = rawPoints3D[i].X,
-                    PositionY = rawPoints3D[i].Z, // north axis mapped to Z in 3D
+                    PositionY = rawPoints3D[i].Z, // Recast North (Z) → EQS Y
+                    PositionZ = rawPoints3D[i].Y, // Recast altitude (Y) → EQS Z (P3D-203)
                     Score     = 0f,
                     Flags     = 0,
                 };

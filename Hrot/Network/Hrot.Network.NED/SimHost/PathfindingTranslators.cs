@@ -172,7 +172,8 @@ namespace Hrot.Network.NED.SimHost
                 data.BatchOrigin.Latitude,
                 data.BatchOrigin.Longitude,
                 data.BatchOrigin.Altitude);
-            var anchor = new Vector2((float)originCartesian.X, (float)originCartesian.Y);
+            // 3D anchor (Sim Z-up): ToCartesian carries the anchor altitude (P3D-304).
+            var anchor3D = new Vector3((float)originCartesian.X, (float)originCartesian.Y, (float)originCartesian.Z);
 
             foreach (var ddsResult in data.Results)
             {
@@ -182,12 +183,12 @@ namespace Hrot.Network.NED.SimHost
 
                 if (ddsResult.IsReachable && ddsResult.CoarseWaypoints != null && ddsResult.CoarseWaypoints.Count >= 2)
                 {
-                    // Reconstruct absolute 2-D waypoints from the relative ENU offsets.
-                    var positions = new Vector2[ddsResult.CoarseWaypoints.Count];
+                    // Reconstruct absolute 3D waypoints from the relative ENU offsets (Up carried).
+                    var positions = new Vector3[ddsResult.CoarseWaypoints.Count];
                     for (int w = 0; w < ddsResult.CoarseWaypoints.Count; w++)
                     {
                         var rel = ddsResult.CoarseWaypoints[w];
-                        positions[w] = anchor + new Vector2(rel.East, rel.North);
+                        positions[w] = anchor3D + new Vector3(rel.East, rel.North, rel.Up);
                     }
 
                     // Register in the local pool; get a new local handle.
@@ -345,10 +346,11 @@ namespace Hrot.Network.NED.SimHost
                 if (evt.IsReachable && evt.RouteHandle >= 0
                     && _trajectoryPool.TryGetTrajectory(evt.RouteHandle, out var traj))
                 {
-                    // Use first waypoint as coordinate anchor for relative encoding.
+                    // Use first waypoint as coordinate anchor for relative encoding. The waypoint
+                    // Position is now 3D (Sim Z-up); the anchor and per-waypoint Up carry real
+                    // altitude rather than flattening to 0 (P3D-304).
                     var firstPos = traj.Waypoints[0].Position;
-                    var anchorVec3 = new Vector3(firstPos.X, firstPos.Y, 0f);
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(anchorVec3);
+                    var (lat, lon, alt) = _geoTransform.ToGeodetic(firstPos);
                     batchOrigin = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt };
 
                     coarseWaypoints = new List<RelativeVector3>(traj.Waypoints.Length);
@@ -359,7 +361,7 @@ namespace Hrot.Network.NED.SimHost
                         {
                             East  = wp.X - firstPos.X,
                             North = wp.Y - firstPos.Y,
-                            Up    = 0f,
+                            Up    = wp.Z - firstPos.Z,
                         });
                     }
                 }

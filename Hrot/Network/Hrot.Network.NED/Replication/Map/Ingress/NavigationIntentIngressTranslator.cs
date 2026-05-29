@@ -72,7 +72,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                     continue;
                 }
 
-                // Convert wire GeoPosition back to Cartesian Vector2.
+                // Convert wire GeoPosition back to 3D Cartesian (Sim Z-up); ToCartesian already
+                // returns the altitude, so the destination Z survives the round-trip (P3D-304).
                 var cartesian = _geoTransform.ToCartesian(
                     msg.FinalDestination.Latitude,
                     msg.FinalDestination.Longitude,
@@ -82,7 +83,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 {
                     IntentId         = msg.IntentId,
                     Mode             = MapMode(msg.Mode),
-                    FinalDestination = new Vector2(cartesian.X, cartesian.Y),
+                    FinalDestination = cartesian,
                     TargetSpeed      = msg.TargetSpeed,
                     ArrivalRadius    = msg.ArrivalRadius
                 });

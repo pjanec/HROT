@@ -80,17 +80,21 @@ namespace Fdp.Toolkit.Perception.Systems
 
                         for (int i = 0; i < tracksRO.Count; i++)
                         {
-                            // Default to the cached entry position
+                            // Default to the cached entry position (ActiveSensorTracks is 2D; no
+                            // cached altitude, so the flat fallback is Z = 0).
                             float posX = tracksRO.PositionsX[i];
                             float posY = tracksRO.PositionsY[i];
+                            float posZ = 0f;
 
-                            // If we have a live replica of the target, track its real-time position
+                            // If we have a live replica of the target, track its real-time 3D
+                            // position — including the authoritative altitude (P3D-206).
                             var targetEntity = new Entity((ulong)tracksRO.EntityIds[i]);
                             if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
                             {
                                 ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);
                                 posX = targetTf.Position.X;
                                 posY = targetTf.Position.Y;
+                                posZ = targetTf.Position.Z;
                             }
 
                             TargetMemory.AddOrUpdateTarget(
@@ -100,7 +104,8 @@ namespace Fdp.Toolkit.Perception.Systems
                                 posY:       posY,
                                 scoreBoost: continuousBoost,
                                 tick:       tick,
-                                modality:   SensorModality.Visual);
+                                modality:   SensorModality.Visual,
+                                posZ:       posZ);
                         }
                         changed = true;
                     }

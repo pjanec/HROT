@@ -447,10 +447,10 @@ namespace Fdp.Tests
         /// FORMAT_VERSION == 5.
         /// </summary>
         [Fact]
-        public void FormatVersion_WrittenInGlobalHeader_Is5()
+        public void FormatVersion_WrittenInGlobalHeader_Is6()
         {
             // Also verify the constant value directly so any future bump is noticed here.
-            Assert.Equal(5u, FdpConfig.FORMAT_VERSION);
+            Assert.Equal(6u, FdpConfig.FORMAT_VERSION);
 
             string testFilePath = System.IO.Path.Combine(
                 System.IO.Path.GetTempPath(),
@@ -470,7 +470,7 @@ namespace Fdp.Tests
                 fs.Read(versionBytes, 0, 4);
                 uint version = BitConverter.ToUInt32(versionBytes, 0);
 
-                Assert.Equal(5u, version);
+                Assert.Equal(6u, version);
             }
             finally
             {

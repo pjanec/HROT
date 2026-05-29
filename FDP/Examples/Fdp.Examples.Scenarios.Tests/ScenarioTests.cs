@@ -781,9 +781,9 @@ namespace Fdp.Examples.Scenarios.Tests
     public class TerrainClampingScenarioTests
     {
         /// <summary>
-        /// Full scenario run — all 4 phases pass (flat = no clamping, ramp = smoothing
-        /// active, spike = jump rejected, recovery = TargetZOffset ≈ 6.0) and
-        /// exit code is 0 (CI SUCCESS).
+        /// Full scenario run — all 4 phases pass (flat = Z≈0, ramp = Z rising, spike =
+        /// jump rejected, recovery = authoritative Position.Z ≈ 6.0) and exit code is 0
+        /// (CI SUCCESS).
         /// </summary>
         [Fact]
         public void TerrainClamping_RunToCompletion_ExitsZero()
@@ -795,42 +795,37 @@ namespace Fdp.Examples.Scenarios.Tests
 
         /// <summary>
         /// At tick 10 the vehicle is at X ≈ 1.67 m — inside the MockTerrainProvider's
-        /// flat zone (0–20 m, Z=0). No clamping should have been applied:
-        /// <c>CurrentZOffset</c> must be less than 0.01. Changing <see cref="EClampingMode"/>
-        /// to Disabled would cause Phase 1 to always pass trivially; enabling it with a
-        /// non-zero provider would cause it to fail.
+        /// flat zone (0–20 m, Z=0). The authoritative altitude must be ≈0:
+        /// <c>Position.Z</c> must be less than 0.01.
         /// </summary>
         [Fact]
-        public void TerrainClamping_Phase1_NoClampingOnFlatGround()
+        public void TerrainClamping_Phase1_FlatGroundZeroAltitude()
         {
             var scenario = new TerrainClampingScenario();
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
 
             Assert.NotEqual(1, code);
 
-            Assert.True(scenario.Phase1CurrentZOffset < 0.01f,
-                $"Phase 1: CurrentZOffset={scenario.Phase1CurrentZOffset:F4} expected < 0.01 (flat zone)");
+            Assert.True(scenario.Phase1Z < 0.01f,
+                $"Phase 1: Position.Z={scenario.Phase1Z:F4} expected < 0.01 (flat zone)");
         }
 
         /// <summary>
         /// At tick 150 the vehicle is at X ≈ 25 m — on the ramp (slope 0.2), provider
-        /// returns Z ≈ 1.0. <c>TargetZOffset</c> must exceed 0.5 and <c>CurrentZOffset</c>
-        /// must still be lagging behind <c>TargetZOffset</c> (smoothing in progress).
-        /// Removing <see cref="TransformSyncSystem"/> would eliminate the lag and cause
-        /// the second assertion to fail.
+        /// returns Z ≈ 1.0. The authoritative <c>Position.Z</c> must track the terrain and
+        /// exceed 0.5. Removing the HitZ→Position.Z write in
+        /// <see cref="TerrainQueryResolutionSystem"/> would leave Z at 0 and fail this.
         /// </summary>
         [Fact]
-        public void TerrainClamping_Phase2_SmoothingActiveOnRamp()
+        public void TerrainClamping_Phase2_AltitudeRisingOnRamp()
         {
             var scenario = new TerrainClampingScenario();
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
 
             Assert.NotEqual(1, code);
 
-            Assert.True(scenario.Phase2TargetZOffset > 0.5f,
-                $"Phase 2: TargetZOffset={scenario.Phase2TargetZOffset:F4} expected > 0.5");
-            Assert.True(scenario.Phase2CurrentZOffset < scenario.Phase2TargetZOffset,
-                $"Phase 2: CurrentZOffset={scenario.Phase2CurrentZOffset:F4} must lag TargetZOffset={scenario.Phase2TargetZOffset:F4}");
+            Assert.True(scenario.Phase2Z > 0.5f,
+                $"Phase 2: Position.Z={scenario.Phase2Z:F4} expected > 0.5 (ramp)");
         }
 
         /// <summary>
@@ -856,8 +851,8 @@ namespace Fdp.Examples.Scenarios.Tests
         /// <summary>
         /// Exit code 0 confirms the Phase 4 assertion inside
         /// <see cref="TerrainClampingScenario.EvaluateTick"/> passed: at tick 300
-        /// (X ≈ 50 m, ramp Z ≈ 6.0) <c>TargetZOffset</c> is within ±1.0 m of 6.0,
-        /// meaning the vehicle recovered from the anomaly and resumed terrain-following.
+        /// (X ≈ 50 m, ramp Z ≈ 6.0) the authoritative <c>Position.Z</c> is within ±1.0 m of
+        /// 6.0, meaning the vehicle recovered from the anomaly and resumed terrain-following.
         /// </summary>
         [Fact]
         public void TerrainClamping_Phase4_RecoverAfterAnomaly()
@@ -867,8 +862,8 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.Equal(0, code);
 
-            Assert.True(MathF.Abs(scenario.Phase4TargetZOffset - 6.0f) <= 1.0f,
-                $"Phase 4: TargetZOffset={scenario.Phase4TargetZOffset:F4} expected 6.0 ±1.0");
+            Assert.True(MathF.Abs(scenario.Phase4Z - 6.0f) <= 1.0f,
+                $"Phase 4: Position.Z={scenario.Phase4Z:F4} expected 6.0 ±1.0");
         }
     }
 

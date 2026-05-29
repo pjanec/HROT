@@ -47,11 +47,19 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             return e;
         }
 
-        // Helper: create a dummy entity in the grid only (not in repo).
-        // grid is passed by ref so EntityCount is updated on the caller's struct.
-        private static Entity CreateGridEntity(ref SpatialHashGrid grid, int index, Vector2 pos)
+        // Helper: create a real repo entity with a SimTransform (so the generator can source its
+        // authoritative altitude, P3D-203) and register it in the grid. The 'index' parameter is
+        // retained for call-site readability but the real handle comes from the repo. The altitude
+        // is derived from the planar position so tests can assert PositionZ was sourced per-neighbor.
+        private Entity CreateGridEntity(ref SpatialHashGrid grid, int index, Vector2 pos)
         {
-            var e = new Entity(index, 1);
+            float z = pos.X + pos.Y + 100f; // distinct, non-zero altitude per neighbour
+            var e = _repo.CreateEntity();
+            _repo.AddComponent(e, new SimTransform
+            {
+                Position = new Vector3(pos.X, pos.Y, z),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
             grid.Add(e, pos);
             return e;
         }
@@ -118,6 +126,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(1, count);
             // The result should be the entity at distance 3.
             Assert.True(System.Math.Abs(candidates[0].PositionX - 3f) < 0.001f);
+            // P3D-203: the candidate carries the neighbour's authoritative altitude (3 + 0 + 100).
+            Assert.True(System.Math.Abs(candidates[0].PositionZ - 103f) < 0.001f);
         }
     }
 }

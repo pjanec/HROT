@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             {
                 var p = new MoveToParams
                 {
-                    Destination   = destination,
+                    Destination   = new Vector3(destination.X, destination.Y, 0f),
                     ArrivalRadius = arrivalRadius,
                     Speed         = speed,
                 };
@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(6u, intent.IntentId);                        // incremented from 5
             Assert.Equal(NavigationMode.DirectPoint, intent.Mode);    // set to DirectPoint
-            Assert.Equal(destination, intent.FinalDestination);       // raw Cartesian copy
+            Assert.Equal(new Vector3(destination.X, destination.Y, 0f), intent.FinalDestination); // raw Cartesian copy
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(5f,  intent.ArrivalRadius);
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -238,7 +238,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             {
                 var p = new MoveToParams
                 {
-                    Destination   = destination,
+                    Destination   = new Vector3(destination.X, destination.Y, 0f),
                     ArrivalRadius = arrivalRadius,
                     Speed         = speed,
                     RouteHandle   = routeHandle,

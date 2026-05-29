@@ -53,6 +53,6 @@ public static class IgRoleComponentRegistry
         ZoneComponentRegistry.RegisterAll(world);
 
         world.RegisterComponent<GroundClampingConfig>();
-        world.RegisterComponent<GroundClampingState>();
+        world.RegisterComponent<TerrainClampBaseline>();
     }
 }

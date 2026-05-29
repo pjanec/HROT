@@ -16,16 +16,19 @@ using Fdp.ModuleHost.Abstractions;
 namespace Fdp.Examples.Scenarios.Perception
 {
     /// <summary>
-    /// DEM1-D007 — TerrainClamping: prove async terrain batching, Z-height smoothing,
-    /// and jump-rejection via <c>FDP.Toolkit.Geographic</c> pipeline systems.
+    /// DEM1-D007 — TerrainClamping: prove async terrain batching, authoritative altitude, and
+    /// jump-rejection via the <c>FDP.Toolkit.Geographic</c> pipeline systems.
+    ///
+    /// <para>Since the 3D Cognitive Spatial Awareness promotion (P3D-102) the terrain hit is
+    /// written straight into the authoritative <c>SimTransform.Position.Z</c> — there is no visual
+    /// offset. This scenario therefore asserts the authoritative Z directly.</para>
     ///
     /// <para><b>Topology (pipeline driven manually in EvaluateTick):</b></para>
     /// <list type="number">
     ///   <item><see cref="TerrainQueryInitializationSystem"/> — reset batch count.</item>
     ///   <item><see cref="TerrainQuerySubmitSystem"/> — submit queries for clamped entities.</item>
     ///   <item><see cref="TerrainQuerySolverSystem"/> — invoke <see cref="MockTerrainProvider"/>.</item>
-    ///   <item><see cref="TerrainQueryResolutionSystem"/> — apply hits; jump-rejection.</item>
-    ///   <item><see cref="TransformSyncSystem"/> — lerp <c>CurrentZOffset</c> toward <c>TargetZOffset</c>.</item>
+    ///   <item><see cref="TerrainQueryResolutionSystem"/> — write HitZ → Position.Z; jump-rejection.</item>
     /// </list>
     ///
     /// <para><b>MockTerrainProvider height profile:</b></para>
@@ -37,10 +40,10 @@ namespace Fdp.Examples.Scenarios.Perception
     ///
     /// <para><b>Phase table:</b></para>
     /// <list type="table">
-    ///   <item><term>Phase 1 (tick 10)</term><description>X ≈ 1.7 m — flat zone; CurrentZOffset &lt; 0.01.</description></item>
-    ///   <item><term>Phase 2 (tick 150)</term><description>X ≈ 25 m — ramp; TargetZOffset &gt; 0.5 AND CurrentZOffset &lt; TargetZOffset.</description></item>
-    ///   <item><term>Phase 3 (tick 240)</term><description>X ≈ 40 m — spike rejected; LastValidIgAltitude &lt; 10.</description></item>
-    ///   <item><term>Phase 4 (tick 300)</term><description>X ≈ 50 m — recovery; TargetZOffset ≈ 6.0 (±1.0) → success.</description></item>
+    ///   <item><term>Phase 1 (tick 10)</term><description>X ≈ 1.7 m — flat zone; Position.Z &lt; 0.01.</description></item>
+    ///   <item><term>Phase 2 (tick 150)</term><description>X ≈ 25 m — ramp; Position.Z ≈ 1.0 (&gt; 0.5).</description></item>
+    ///   <item><term>Phase 3 (tick 240)</term><description>X ≈ 40 m — spike rejected; LastValidIgAltitude &lt; 10 AND Position.Z &lt; 10.</description></item>
+    ///   <item><term>Phase 4 (tick 300)</term><description>X ≈ 50 m — recovery; Position.Z ≈ 6.0 (±1.0) → success.</description></item>
     /// </list>
     /// </summary>
     public sealed class TerrainClampingScenario : IScenario
@@ -50,24 +53,24 @@ namespace Fdp.Examples.Scenarios.Perception
         private const float VehicleSpeedMs    = 10f;         // m/s along X axis
         private const float FixedDt           = 1f / 60f;    // 60 Hz deterministic step
         private const float PositionAdvanceM  = VehicleSpeedMs * FixedDt; // ≈ 0.167 m/tick
-        private const float SmoothedOffsetTolerance = 1.0f;  // ±1.0 m for Phase 4 assertion
+        private const float AltitudeTolerance = 1.0f;        // ±1.0 m for Phase 4 assertion
 
         // ── Observable state for test assertions ──────────────────────────────
 
-        /// <summary>CurrentZOffset captured at tick 10 (Phase 1).</summary>
-        public float Phase1CurrentZOffset { get; private set; }
+        /// <summary>Authoritative Position.Z captured at tick 10 (Phase 1, flat).</summary>
+        public float Phase1Z { get; private set; }
 
-        /// <summary>TargetZOffset captured at tick 150 (Phase 2).</summary>
-        public float Phase2TargetZOffset { get; private set; }
+        /// <summary>Authoritative Position.Z captured at tick 150 (Phase 2, ramp).</summary>
+        public float Phase2Z { get; private set; }
 
-        /// <summary>CurrentZOffset captured at tick 150 (Phase 2).</summary>
-        public float Phase2CurrentZOffset { get; private set; }
-
-        /// <summary>LastValidIgAltitude captured at tick 240 (Phase 3).</summary>
+        /// <summary>LastValidIgAltitude captured at tick 240 (Phase 3, spike rejected).</summary>
         public float Phase3LastValidIgAltitude { get; private set; }
 
-        /// <summary>TargetZOffset captured at tick 300 (Phase 4).</summary>
-        public float Phase4TargetZOffset { get; private set; }
+        /// <summary>Authoritative Position.Z captured at tick 240 (Phase 3, spike rejected).</summary>
+        public float Phase3Z { get; private set; }
+
+        /// <summary>Authoritative Position.Z captured at tick 300 (Phase 4, recovery).</summary>
+        public float Phase4Z { get; private set; }
 
         // ── Phase latch flags ─────────────────────────────────────────────────
 
@@ -85,7 +88,6 @@ namespace Fdp.Examples.Scenarios.Perception
         private TerrainQuerySubmitSystem?          _submitSystem;
         private TerrainQuerySolverSystem?          _solverSystem;
         private TerrainQueryResolutionSystem?      _resolutionSystem;
-        private TransformSyncSystem?               _transformSync;
 
         // Held to dispose TerrainQueryBatchData NativeArrays on shutdown.
         private EntityRepository? _world;
@@ -104,16 +106,13 @@ namespace Fdp.Examples.Scenarios.Perception
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<GroundClampingConfig>();
-            world.RegisterComponent<GroundClampingState>();
-            world.RegisterComponent<NetworkTransform>();
-            world.RegisterComponent<NetworkAuthority>();
+            world.RegisterComponent<TerrainClampBaseline>();
 
             // ── Build terrain pipeline ─────────────────────────────────────────
             _initSystem       = new TerrainQueryInitializationSystem();
             _submitSystem     = new TerrainQuerySubmitSystem();
             _solverSystem     = new TerrainQuerySolverSystem(new MockTerrainProvider());
             _resolutionSystem = new TerrainQueryResolutionSystem();
-            _transformSync    = new TransformSyncSystem(driveFromNetwork: true);
 
             // ── Entity spawning ────────────────────────────────────────────────
             _vehicle = SpawnVehicle(world);
@@ -124,12 +123,9 @@ namespace Fdp.Examples.Scenarios.Perception
         /// Pipeline order per tick:
         /// <list type="number">
         ///   <item>Advance SimTransform.Position.X manually (bypass CarKinem).</item>
-        ///   <item>Sync NetworkTransform.LastPosition = current position (prevents TransformSyncSystem from lerping toward origin).</item>
         ///   <item>Run terrain pipeline: Init → Submit → Solver → Resolution.</item>
-        ///   <item>Flush ECB (applies GroundClampingState from Resolution).</item>
-        ///   <item>Run TransformSyncSystem to lerp CurrentZOffset.</item>
-        ///   <item>Flush ECB (applies smoothed CurrentZOffset).</item>
-        ///   <item>Assert phase conditions.</item>
+        ///   <item>Flush ECB (applies authoritative Position.Z + TerrainClampBaseline).</item>
+        ///   <item>Assert phase conditions on the authoritative Z.</item>
         /// </list>
         /// </remarks>
         public bool EvaluateTick(uint tick, EntityRepository world)
@@ -140,69 +136,36 @@ namespace Fdp.Examples.Scenarios.Perception
             ref var tf = ref world.GetComponentRW<SimTransform>(_vehicle);
             tf.Position.X += PositionAdvanceM;
 
-            // ── 2. Sync NetworkTransform so TransformSyncSystem lerps to current, not origin ──
-            world.SetComponent(_vehicle, new NetworkTransform
-            {
-                LastPosition = tf.Position,
-                LastRotation = tf.Rotation,
-            });
-
-            // ── 3. Run terrain pipeline ───────────────────────────────────────
+            // ── 2. Run terrain pipeline ───────────────────────────────────────
             _initSystem!.Execute(view, FixedDt);       // Reset/create TerrainQueryBatchData
             _submitSystem!.Execute(view, FixedDt);     // Submit XY query for the vehicle
             _solverSystem!.Execute(view, FixedDt);     // Call MockTerrainProvider
-            _resolutionSystem!.Execute(view, FixedDt); // Write GroundClampingState via ECB
+            _resolutionSystem!.Execute(view, FixedDt); // Write HitZ → SimTransform.Position.Z via ECB
 
-            // ── 4. Flush ECB (applies TargetZOffset + LastValidIgAltitude) ────
+            // ── 3. Flush ECB (applies authoritative Z + baseline) ─────────────
             FlushEcb(world);
 
-            // ── 5. TransformSyncSystem: lerp CurrentZOffset toward TargetZOffset ──
-            _transformSync!.Execute(view, FixedDt);
+            // ── 4. Read final authoritative state for assertions ──────────────
+            var state    = world.GetComponent<TerrainClampBaseline>(_vehicle);
+            float posZ   = world.GetComponent<SimTransform>(_vehicle).Position.Z;
 
-            // ── 6. Flush ECB (applies CurrentZOffset) ─────────────────────────
-            FlushEcb(world);
-
-            // ── 6b. Break Z feedback: TransformSync writes SimTransform.Z from network Z +
-            // CurrentZOffset, but TerrainQuerySubmit uses tf.Position.Z as ReferenceSimZ.
-            // For this 2.5D DEM1 path we keep authoritative sim altitude at Z=0; offsets live
-            // only in GroundClampingState (what the phase assertions inspect).
-            ref var tfLevel = ref world.GetComponentRW<SimTransform>(_vehicle);
-            tfLevel.Position.Z = 0f;
-            world.SetComponent(_vehicle, new NetworkTransform
-            {
-                LastPosition = tfLevel.Position,
-                LastRotation = tfLevel.Rotation,
-            });
-
-            // ── 7. Read final GroundClampingState for assertions ──────────────
-            var state = world.GetComponent<GroundClampingState>(_vehicle);
-
-            // ── Phase 1 (tick 10): flat zone — no clamping ────────────────────
+            // ── Phase 1 (tick 10): flat zone — authoritative Z ≈ 0 ────────────
             if (tick == 10 && !_phase1Passed)
             {
-                Phase1CurrentZOffset = state.CurrentZOffset;
-
-                if (state.CurrentZOffset >= 0.01f)
+                Phase1Z = posZ;
+                if (posZ >= 0.01f)
                     throw new ScenarioFailureException(1,
-                        $"Phase 1 FAILED at tick {tick}: CurrentZOffset={state.CurrentZOffset:F4} expected < 0.01 (flat zone)");
-
+                        $"Phase 1 FAILED at tick {tick}: Position.Z={posZ:F4} expected < 0.01 (flat zone)");
                 _phase1Passed = true;
             }
 
-            // ── Phase 2 (tick 150): ramp zone — smoothing active ──────────────
+            // ── Phase 2 (tick 150): ramp zone — authoritative Z rising ────────
             if (tick == 150 && !_phase2Passed)
             {
-                Phase2TargetZOffset  = state.TargetZOffset;
-                Phase2CurrentZOffset = state.CurrentZOffset;
-
-                if (state.TargetZOffset <= 0.5f)
+                Phase2Z = posZ;
+                if (posZ <= 0.5f)
                     throw new ScenarioFailureException(2,
-                        $"Phase 2 FAILED at tick {tick}: TargetZOffset={state.TargetZOffset:F4} expected > 0.5");
-
-                if (state.CurrentZOffset >= state.TargetZOffset)
-                    throw new ScenarioFailureException(2,
-                        $"Phase 2 FAILED at tick {tick}: CurrentZOffset={state.CurrentZOffset:F4} >= TargetZOffset={state.TargetZOffset:F4} (smoothing should lag)");
-
+                        $"Phase 2 FAILED at tick {tick}: Position.Z={posZ:F4} expected > 0.5 (ramp)");
                 _phase2Passed = true;
             }
 
@@ -210,23 +173,24 @@ namespace Fdp.Examples.Scenarios.Perception
             if (tick == 240 && !_phase3Passed)
             {
                 Phase3LastValidIgAltitude = state.LastValidIgAltitude;
+                Phase3Z = posZ;
 
                 if (state.LastValidIgAltitude >= 10f)
                     throw new ScenarioFailureException(3,
                         $"Phase 3 FAILED at tick {tick}: LastValidIgAltitude={state.LastValidIgAltitude:F4} expected < 10 (spike should have been rejected)");
-
+                if (posZ >= 10f)
+                    throw new ScenarioFailureException(3,
+                        $"Phase 3 FAILED at tick {tick}: Position.Z={posZ:F4} expected < 10 (spike should not have been applied)");
                 _phase3Passed = true;
             }
 
-            // ── Phase 4 (tick 300): post-recovery — TargetZOffset ≈ 6.0 ─────
+            // ── Phase 4 (tick 300): post-recovery — authoritative Z ≈ 6.0 ─────
             if (tick == 300)
             {
-                Phase4TargetZOffset = state.TargetZOffset;
-
-                if (MathF.Abs(state.TargetZOffset - 6.0f) > SmoothedOffsetTolerance)
+                Phase4Z = posZ;
+                if (MathF.Abs(posZ - 6.0f) > AltitudeTolerance)
                     throw new ScenarioFailureException(4,
-                        $"Phase 4 FAILED at tick {tick}: TargetZOffset={state.TargetZOffset:F4} expected 6.0 ±{SmoothedOffsetTolerance}");
-
+                        $"Phase 4 FAILED at tick {tick}: Position.Z={posZ:F4} expected 6.0 ±{AltitudeTolerance}");
                 return true;
             }
 
@@ -271,26 +235,10 @@ namespace Fdp.Examples.Scenarios.Perception
                 BaseRequiresClamping = 1,
             });
 
-            world.AddComponent(e, new GroundClampingState
+            world.AddComponent(e, new TerrainClampBaseline
             {
-                TargetZOffset       = 0f,
-                CurrentZOffset      = 0f,
                 LastValidIgAltitude = 0f, // First-frame bootstrap: accepts first hit unconditionally.
-            });
-
-            // Required by TransformSyncSystem for lerp-toward-network-position and Z-offset smoothing.
-            world.AddComponent(e, new NetworkTransform
-            {
-                LastPosition = Vector3.Zero,
-                LastRotation = Quaternion.Identity,
-            });
-
-            // LocalNodeId == PrimaryOwnerId → would be locally owned, but driveFromNetwork:true
-            // forces SyncRemoteEntities for all entities regardless of ownership.
-            world.AddComponent(e, new NetworkAuthority
-            {
-                LocalNodeId    = 0,
-                PrimaryOwnerId = 0,
+                IgAltitudeBaselineEstablished = 0,
             });
 
             return e;
@@ -300,8 +248,8 @@ namespace Fdp.Examples.Scenarios.Perception
 
         /// <summary>
         /// Plays back the per-thread command buffer into the world so ECB mutations
-        /// (e.g. <see cref="GroundClampingState"/> writes from the terrain pipeline
-        /// and <see cref="TransformSyncSystem"/>) are immediately visible.
+        /// (authoritative <c>SimTransform.Position.Z</c> and <see cref="TerrainClampBaseline"/>
+        /// writes from the terrain pipeline) are immediately visible.
         /// </summary>
         private static void FlushEcb(EntityRepository world)
         {

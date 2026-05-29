@@ -80,7 +80,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
 
             var bestCover = buffer.GetTop();
-            var targetPos = new Vector2(bestCover.PositionX, bestCover.PositionY);
+            var targetPos = new Vector3(bestCover.PositionX, bestCover.PositionY, bestCover.PositionZ);
 
             ref var channel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
 

@@ -43,7 +43,7 @@ namespace Hrot.IG.Gizmos
                         ? "Positional"
                         : res.EntityId.ToString());
                     ImGuiApi.TableSetColumnIndex(2);
-                    ImGuiApi.TextUnformatted(string.Format("({0:F1}, {1:F1})", res.PositionX, res.PositionY));
+                    ImGuiApi.TextUnformatted(string.Format("({0:F1}, {1:F1}, {2:F1})", res.PositionX, res.PositionY, res.PositionZ));
                     ImGuiApi.TableSetColumnIndex(3);
                     ImGuiApi.TextUnformatted(string.Format("{0:F3}", res.Score));
                 }

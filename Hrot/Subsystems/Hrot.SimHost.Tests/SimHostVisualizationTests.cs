@@ -75,7 +75,7 @@ namespace Hrot.SimHost.Tests
 
             var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
             Assert.Equal(EcsNavigationMode.DirectPoint, intent.Mode);
-            Assert.Equal(ClickPos, intent.FinalDestination);
+            Assert.Equal(new Vector3(ClickPos.X, ClickPos.Y, 0f), intent.FinalDestination);
             Assert.Equal(15f, intent.TargetSpeed);
             Assert.Equal(3.0f, intent.ArrivalRadius);
             Assert.Equal(6u, intent.IntentId); // 5 + 1

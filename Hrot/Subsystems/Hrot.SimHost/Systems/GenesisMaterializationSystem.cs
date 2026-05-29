@@ -220,6 +220,7 @@ namespace Hrot.SimHost.Systems
                     ptr->EntityIds[count]    = (long)target.PackedValue;
                     ptr->PositionsX[count]   = entry.PosX;
                     ptr->PositionsY[count]   = entry.PosY;
+                    ptr->PositionsZ[count]   = entry.PosZ;
                     ptr->ThreatScores[count] = entry.Score;
                     ptr->LastSeenTick[count] = entry.LastSeenTick;
                     ptr->Modalities[count]   = entry.Modality;

@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     EntityId  = 0L,
                     PositionX = rawPoints[i].PositionX,
                     PositionY = rawPoints[i].PositionY,
+                    PositionZ = rawPoints[i].PositionZ, // P3D-203: stream cover altitude.
                     Score     = rawPoints[i].Quality, // Seed score with cover quality.
                     Flags     = rawPoints[i].StanceHeight,
                 };

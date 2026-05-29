@@ -234,6 +234,44 @@ namespace Fdp.Toolkit.Perception.Tests
                 "Score must exceed the decay-only value (90) when ActiveSensorTracks is present.");
         }
 
+        // ── Test 6b (P3D-206): boost records the live target's authoritative altitude ──
+
+        /// <summary>
+        /// When a live replica of the tracked target exists, <see cref="ThreatEvaluationSystem"/>
+        /// must record that target's authoritative <c>SimTransform.Position.Z</c> into the
+        /// observer's <see cref="TargetMemory.PositionsZ"/> slot.
+        /// </summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_RecordsLiveTargetAltitude_IntoPositionsZ()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            // Live target at altitude 12.5 m.
+            var target = world.CreateEntity();
+            world.AddComponent(target, new SimTransform { Position = new Vector3(5f, 5f, 12.5f), Rotation = Quaternion.Identity });
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new TargetMemory());
+
+            var tracks = new ActiveSensorTracks();
+            tracks.EntityIds[0]  = (long)target.PackedValue;
+            tracks.PositionsX[0] = 5f;
+            tracks.PositionsY[0] = 5f;
+            tracks.Count = 1;
+            world.AddComponent(observer, tracks);
+
+            sys.Execute(view, 1.0f);
+            FlushEcbAndSwap(view, world);
+
+            var resultMem = world.GetComponent<TargetMemory>(observer);
+            Assert.Equal(1, resultMem.Count);
+            Assert.Equal((long)target.PackedValue, resultMem.EntityIds[0]);
+            Assert.Equal(12.5f, resultMem.PositionsZ[0]); // authoritative altitude recorded
+        }
+
         // ── Test 7 (VisionBroadphaseSystem carries full Entity handle) ───────────────
 
         /// <summary>

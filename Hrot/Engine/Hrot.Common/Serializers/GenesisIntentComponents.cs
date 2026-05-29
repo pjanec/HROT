@@ -91,6 +91,9 @@ namespace Hrot.Common.Serializers
         /// <summary>Last known Y position of the target (world units).</summary>
         public float PosY;
 
+        /// <summary>Last known Z position (altitude — Sim Z-up) of the target. 3D promotion (P3D-206).</summary>
+        public float PosZ;
+
         /// <summary>Threat score assigned to this target by the perception system.</summary>
         public float Score;
 

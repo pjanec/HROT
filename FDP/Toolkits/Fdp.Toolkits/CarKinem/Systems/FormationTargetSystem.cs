@@ -112,31 +112,36 @@ namespace CarKinem.Systems
                 Vector2 pathPos;
                 Vector2 pathTangent;
                 
+                // Formation following is 2D (§0.2): project the sampled 3D trajectory position to XY.
                 if (trajectory.IsLooped == 0)
                 {
                     // Linear Extrapolation for start/end
                     if (targetS < 0)
                     {
                         var (p0, t0, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, 0);
-                        pathPos = p0 + t0 * targetS; // targetS is negative distance
+                        pathPos = new Vector2(p0.X, p0.Y) + t0 * targetS; // targetS is negative distance
                         pathTangent = t0;
                     }
                     else if (targetS > trajectory.TotalLength)
                     {
                         var (pe, te, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, trajectory.TotalLength);
-                        pathPos = pe + te * (targetS - trajectory.TotalLength);
+                        pathPos = new Vector2(pe.X, pe.Y) + te * (targetS - trajectory.TotalLength);
                         pathTangent = te;
                     }
                     else
                     {
                         // On path
-                        (pathPos, pathTangent, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
+                        var (pp, tt, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
+                        pathPos = new Vector2(pp.X, pp.Y);
+                        pathTangent = tt;
                     }
                 }
                 else
                 {
                     // Looped: SampleTrajectory handles wrapping
-                    (pathPos, pathTangent, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
+                    var (pp, tt, _) = _trajectoryPool.SampleTrajectory(trajectory.Id, targetS);
+                    pathPos = new Vector2(pp.X, pp.Y);
+                    pathTangent = tt;
                 }
                 
                 // Apply Lateral Offset

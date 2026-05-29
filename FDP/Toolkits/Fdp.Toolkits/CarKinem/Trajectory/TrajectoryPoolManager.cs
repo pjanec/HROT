@@ -26,60 +26,64 @@ namespace CarKinem.Trajectory
         /// <param name="tangents">Explicit tangents (only for HermiteExplicit mode)</param>
         /// <returns>Unique trajectory ID</returns>
         public int RegisterTrajectory(
-            Vector2[] positions, 
-            float[]? speeds = null, 
+            Vector3[] positions,
+            float[]? speeds = null,
             bool looped = false,
             TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
             Vector2[]? tangents = null)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
-            
+
             if (speeds != null && speeds.Length != positions.Length)
                 throw new ArgumentException("Speeds array must match positions length", nameof(speeds));
-            
+
             if (interpolation == TrajectoryInterpolation.HermiteExplicit && tangents == null)
                 throw new ArgumentException("HermiteExplicit mode requires tangents array", nameof(tangents));
-            
+
             if (tangents != null && tangents.Length != positions.Length)
                 throw new ArgumentException("Tangents array must match positions length", nameof(tangents));
-            
+
             lock (_lock)
             {
                 int id = _nextId++;
-                
+
+                // Project to XY for all arc-length / spline-curvature math (§0.2): the carried Z
+                // (positions[i].Z) is stored on the waypoint but never feeds curvature or heading.
+                Vector2[] posXY = ProjectXY(positions);
+
                 // Precompute waypoints with cumulative distance
                 var waypoints = new NativeArray<TrajectoryWaypoint>(positions.Length, Allocator.Persistent);
                 float cumulativeDistance = 0f;
-                
+
                 for (int i = 0; i < positions.Length; i++)
                 {
-                    // Compute arc length (depends on interpolation mode)
+                    // Compute arc length (depends on interpolation mode) — XY projection only.
                     if (i > 0)
                     {
                         if (interpolation == TrajectoryInterpolation.Linear)
                         {
                             // Linear: Straight line distance
-                            cumulativeDistance += Vector2.Distance(positions[i - 1], positions[i]);
+                            cumulativeDistance += Vector2.Distance(posXY[i - 1], posXY[i]);
                         }
                         else
                         {
                             // Hermite: Sample-based arc length
-                            Vector2 p0 = positions[i - 1];
-                            Vector2 p1 = positions[i];
-                            Vector2 t0 = GetTangent(positions, tangents, i - 1, interpolation);
-                            Vector2 t1 = GetTangent(positions, tangents, i, interpolation);
-                            
+                            Vector2 p0 = posXY[i - 1];
+                            Vector2 p1 = posXY[i];
+                            Vector2 t0 = GetTangent(posXY, tangents, i - 1, interpolation);
+                            Vector2 t1 = GetTangent(posXY, tangents, i, interpolation);
+
                             cumulativeDistance += ComputeHermiteArcLength(p0, t0, p1, t1);
                         }
                     }
-                    
-                    // Compute tangent based on mode
-                    Vector2 tangent = GetTangent(positions, tangents, i, interpolation);
-                    
+
+                    // Compute tangent based on mode (XY projection)
+                    Vector2 tangent = GetTangent(posXY, tangents, i, interpolation);
+
                     waypoints[i] = new TrajectoryWaypoint
                     {
-                        Position = positions[i],
+                        Position = positions[i],   // full 3D position (Sim Z-up); Z carried
                         Tangent = tangent,  // Now actually used!
                         DesiredSpeed = speeds?[i] ?? 10.0f,
                         CumulativeDistance = cumulativeDistance
@@ -101,11 +105,38 @@ namespace CarKinem.Trajectory
         }
 
         /// <summary>
+        /// Backward-compatible 2D overload (lifts each waypoint to altitude 0). Used by
+        /// 2D-authored callers (editor scenarios, tests); the 3D path uses the <see cref="Vector3"/>
+        /// overload so real altitude is carried (P3D-303).
+        /// </summary>
+        public int RegisterTrajectory(
+            Vector2[] positions,
+            float[]? speeds = null,
+            bool looped = false,
+            TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear,
+            Vector2[]? tangents = null)
+            => RegisterTrajectory(Lift(positions), speeds, looped, interpolation, tangents);
+
+        /// <summary>Lifts 2D positions to 3D (Z = 0) for the backward-compatible overloads.</summary>
+        private static Vector3[] Lift(Vector2[] positions)
+        {
+            if (positions == null) return null!;
+            var v3 = new Vector3[positions.Length];
+            for (int i = 0; i < positions.Length; i++)
+                v3[i] = new Vector3(positions[i].X, positions[i].Y, 0f);
+            return v3;
+        }
+
+        /// <summary>
         /// Registers a trajectory under a caller-supplied <paramref name="key"/> (e.g., a
         /// Brain- or Muscle-allocated <c>RouteHandle</c>).  If a trajectory already exists
         /// for that key its <see cref="NativeArray{T}"/> is disposed before being replaced.
         /// </summary>
+        /// <summary>Backward-compatible 2D overload of <see cref="RegisterTrajectoryWithKey(Vector3[],int)"/> (Z = 0).</summary>
         public void RegisterTrajectoryWithKey(Vector2[] positions, int key)
+            => RegisterTrajectoryWithKey(Lift(positions), key);
+
+        public void RegisterTrajectoryWithKey(Vector3[] positions, int key)
         {
             if (positions == null || positions.Length < 2)
                 throw new ArgumentException("Trajectory must have at least 2 waypoints", nameof(positions));
@@ -116,6 +147,9 @@ namespace CarKinem.Trajectory
                 if (_trajectories.TryGetValue(key, out var existing) && existing.Waypoints.IsCreated)
                     existing.Waypoints.Dispose();
 
+                // XY projection for arc length (carried Z does not affect distance, §0.2).
+                Vector2[] posXY = ProjectXY(positions);
+
                 // Build linear waypoints (same path as default RegisterTrajectory).
                 var waypoints = new NativeArray<TrajectoryWaypoint>(positions.Length, Allocator.Persistent);
                 float cumulativeDistance = 0f;
@@ -123,12 +157,12 @@ namespace CarKinem.Trajectory
                 for (int i = 0; i < positions.Length; i++)
                 {
                     if (i > 0)
-                        cumulativeDistance += Vector2.Distance(positions[i - 1], positions[i]);
+                        cumulativeDistance += Vector2.Distance(posXY[i - 1], posXY[i]);
 
                     waypoints[i] = new TrajectoryWaypoint
                     {
-                        Position           = positions[i],
-                        Tangent            = GetTangent(positions, null, i, TrajectoryInterpolation.Linear),
+                        Position           = positions[i],   // full 3D position (Sim Z-up)
+                        Tangent            = GetTangent(posXY, null, i, TrajectoryInterpolation.Linear),
                         DesiredSpeed       = 10.0f,
                         CumulativeDistance = cumulativeDistance,
                     };
@@ -164,11 +198,11 @@ namespace CarKinem.Trajectory
         /// <param name="id">Trajectory ID</param>
         /// <param name="progressS">Progress along trajectory (meters from start)</param>
         /// <returns>Sampled position, tangent direction, and desired speed</returns>
-        public (Vector2 pos, Vector2 tangent, float speed) SampleTrajectory(int id, float progressS)
+        public (Vector3 pos, Vector2 tangent, float speed) SampleTrajectory(int id, float progressS)
         {
             if (!TryGetTrajectory(id, out var traj))
             {
-                return (Vector2.Zero, new Vector2(1, 0), 0f);
+                return (Vector3.Zero, new Vector2(1, 0), 0f);
             }
             
             // Handle looping
@@ -192,46 +226,67 @@ namespace CarKinem.Trajectory
                     float localProgress = progressS - waypoints[i - 1].CumulativeDistance;
                     float t = segmentDist > 0.001f ? localProgress / segmentDist : 0f;
                     
-                    Vector2 pos, tangent;
+                    Vector3 pos;
+                    Vector2 tangent;
                     float speed;
-                    
+
+                    // Z is always linearly interpolated between bracketing waypoints (§0.2);
+                    // X/Y + heading follow the configured 2D interpolation on the projection.
+                    float z0 = waypoints[i - 1].Position.Z;
+                    float z1 = waypoints[i].Position.Z;
+                    float zLerp = z0 + (z1 - z0) * t;
+
+                    Vector2 a = new Vector2(waypoints[i - 1].Position.X, waypoints[i - 1].Position.Y);
+                    Vector2 b = new Vector2(waypoints[i].Position.X, waypoints[i].Position.Y);
+
                     // Interpolation based on mode
                     if (traj.Interpolation == TrajectoryInterpolation.Linear)
                     {
-                        // LINEAR MODE (existing behavior)
-                        pos = Vector2.Lerp(waypoints[i - 1].Position, waypoints[i].Position, t);
-                        Vector2 segmentDir = waypoints[i].Position - waypoints[i - 1].Position;
-                        tangent = segmentDir.LengthSquared() > 0.001f 
-                            ? Vector2.Normalize(segmentDir) 
+                        // LINEAR MODE (existing behavior, XY projection)
+                        Vector2 xy = Vector2.Lerp(a, b, t);
+                        Vector2 segmentDir = b - a;
+                        tangent = segmentDir.LengthSquared() > 0.001f
+                            ? Vector2.Normalize(segmentDir)
                             : new Vector2(1, 0);
-                        speed = waypoints[i - 1].DesiredSpeed + 
+                        speed = waypoints[i - 1].DesiredSpeed +
                                 (waypoints[i].DesiredSpeed - waypoints[i - 1].DesiredSpeed) * t;
+                        pos = new Vector3(xy.X, xy.Y, zLerp);
                     }
                     else
                     {
-                        // HERMITE MODE (new behavior)
-                        Vector2 p0 = waypoints[i - 1].Position;
+                        // HERMITE MODE (XY projection for curvature; Z linear)
                         Vector2 t0 = waypoints[i - 1].Tangent;
-                        Vector2 p1 = waypoints[i].Position;
                         Vector2 t1 = waypoints[i].Tangent;
-                        
-                        pos = EvaluateHermite(t, p0, t0, p1, t1);
-                        tangent = Vector2.Normalize(EvaluateHermiteTangent(t, p0, t0, p1, t1));
-                        speed = waypoints[i - 1].DesiredSpeed + 
+
+                        Vector2 xy = EvaluateHermite(t, a, t0, b, t1);
+                        tangent = Vector2.Normalize(EvaluateHermiteTangent(t, a, t0, b, t1));
+                        speed = waypoints[i - 1].DesiredSpeed +
                                 (waypoints[i].DesiredSpeed - waypoints[i - 1].DesiredSpeed) * t;
+                        pos = new Vector3(xy.X, xy.Y, zLerp);
                     }
-                    
+
                     return (pos, tangent, speed);
                 }
             }
-            
+
             // End of trajectory (or exactly at end)
             var lastWp = waypoints[waypoints.Length - 1];
             Vector2 lastTangent = waypoints.Length > 1
-                ? Vector2.Normalize(lastWp.Position - waypoints[waypoints.Length - 2].Position)
+                ? Vector2.Normalize(
+                    new Vector2(lastWp.Position.X, lastWp.Position.Y)
+                    - new Vector2(waypoints[waypoints.Length - 2].Position.X, waypoints[waypoints.Length - 2].Position.Y))
                 : new Vector2(1, 0);
-            
+
             return (lastWp.Position, lastTangent, lastWp.DesiredSpeed);
+        }
+
+        /// <summary>Projects an array of Sim (Z-up) positions to their XY (ground-plane) components.</summary>
+        private static Vector2[] ProjectXY(Vector3[] positions)
+        {
+            var xy = new Vector2[positions.Length];
+            for (int i = 0; i < positions.Length; i++)
+                xy[i] = new Vector2(positions[i].X, positions[i].Y);
+            return xy;
         }
         
         /// <summary>

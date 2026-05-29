@@ -76,7 +76,7 @@ namespace CarKinem.Tests.Road
             {
                 Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Approaching,
-                FinalDestination = new Vector2(200, 0),
+                FinalDestination = new Vector3(200, 0, 0f),
                 ArrivalRadius = 2.0f
             };
             
@@ -115,7 +115,7 @@ namespace CarKinem.Tests.Road
                 RoadPhase = RoadGraphPhase.Following,
                 CurrentSegmentId = 0,
                 ProgressS = 25f,
-                FinalDestination = new Vector2(200, 0),
+                FinalDestination = new Vector3(200, 0, 0f),
                 ArrivalRadius = 2.0f
             };
             
@@ -151,7 +151,7 @@ namespace CarKinem.Tests.Road
             {
                 Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Leaving,
-                FinalDestination = new Vector2(110, 10),
+                FinalDestination = new Vector3(110, 10, 0f),
                 ArrivalRadius = 2.0f
             };
             
@@ -165,7 +165,7 @@ namespace CarKinem.Tests.Road
             );
             
             // Should target final destination directly
-            Assert.Equal(nav.FinalDestination, targetPos);
+            Assert.Equal(new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y), targetPos);
             
             blob.Dispose();
         }
@@ -187,7 +187,7 @@ namespace CarKinem.Tests.Road
             {
                 Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Leaving,
-                FinalDestination = new Vector2(101, 0),
+                FinalDestination = new Vector3(101, 0, 0f),
                 ArrivalRadius = 2.0f
             };
             

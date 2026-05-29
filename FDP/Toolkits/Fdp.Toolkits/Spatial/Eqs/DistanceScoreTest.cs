@@ -21,7 +21,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
             if (!repo.HasComponent<SimTransform>(observer)) return;
 
             ref readonly var obsTf = ref repo.GetComponentRO<SimTransform>(observer);
-            var obsPos = new Vector2(obsTf.Position.X, obsTf.Position.Y);
+            // Sim (Z-up) 3D distance: altitude differences now affect proximity scoring (P3D-205).
+            var obsPos = new Vector3(obsTf.Position.X, obsTf.Position.Y, obsTf.Position.Z);
 
             float maxDist = sensor.SearchRadius;
             if (maxDist <= 0f) return;
@@ -33,9 +34,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 // Skip rejected candidates.
                 if (candidate.EntityId == -1L) continue;
 
-                // Use the position already packed by the generator.
-                var targetPos = new Vector2(candidate.PositionX, candidate.PositionY);
-                float dist = Vector2.Distance(obsPos, targetPos);
+                // Use the position already packed by the generator (Sim Z-up).
+                var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, candidate.PositionZ);
+                float dist = Vector3.Distance(obsPos, targetPos);
 
                 // Linear falloff: closer = higher score. Additive.
                 float score = 1.0f - Math.Clamp(dist / maxDist, 0f, 1f);

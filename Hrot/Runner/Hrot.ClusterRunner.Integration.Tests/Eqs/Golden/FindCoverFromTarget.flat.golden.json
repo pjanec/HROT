@@ -1,0 +1,32 @@
+{
+  "Name": "FindCoverFromTarget",
+  "BlueprintId": 2134518556,
+  "Count": 3,
+  "Rows": [
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": 5,
+      "Score": 1.8,
+      "Flags": 1,
+      "FlagsMeaningful": 1
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": 10,
+      "Score": 1.6,
+      "Flags": 1,
+      "FlagsMeaningful": 1
+    },
+    {
+      "EntityId": 0,
+      "PositionX": 0,
+      "PositionY": 15,
+      "Score": 1.4,
+      "Flags": 1,
+      "FlagsMeaningful": 1
+    }
+  ],
+  "MaxAbsPositionZ": 0
+}

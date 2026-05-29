@@ -387,7 +387,7 @@ namespace Fdp.Examples.Scenarios.Network
                     // ArrivalRadius is preserved from the TKB template default (2 m).
                     var navState = _muscleWorld!.GetComponent<NavState>(_ghostEntity);
                     navState.Mode             = KinematicsMode.None;
-                    navState.FinalDestination = new Vector2(LocoDestinationX, 0f);
+                    navState.FinalDestination = new Vector3(LocoDestinationX, 0f, 0f);
                     navState.TargetSpeed      = LocoTargetSpeed;
                     _muscleWorld.SetComponent(_ghostEntity, navState);
                     _locoMsgConsumed = true;

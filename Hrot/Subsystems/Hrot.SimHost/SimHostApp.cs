@@ -751,7 +751,7 @@ namespace Hrot.SimHost
                 : new NavigationIntent();
 
             intent.Mode             = NavigationMode.DirectPoint;
-            intent.FinalDestination = destination;
+            intent.FinalDestination = new Vector3(destination.X, destination.Y, 0f);
             intent.TargetSpeed      = speed;
             intent.ArrivalRadius    = 20f;
             unchecked { intent.IntentId++; }

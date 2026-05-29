@@ -59,6 +59,8 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public float PositionX;
         /// <summary>World-space Y coordinate.</summary>
         public float PositionY;
+        /// <summary>World-space altitude (Sim Z-up). 3D Cognitive Spatial Awareness promotion (P3D-202).</summary>
+        public float PositionZ;
         /// <summary>Final computed score.</summary>
         public float Score;
         /// <summary>Result flags (e.g., HasLOSToContext).</summary>

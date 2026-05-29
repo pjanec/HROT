@@ -174,6 +174,9 @@ namespace CarKinem.Road
             Vector2 currentPos,
             RoadNetworkBlob roadNetwork)
         {
+            // Road-graph steering is 2D-projected (§0.2): project the (now 3D) destination to XY.
+            Vector2 destXY = new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y);
+
             switch (nav.RoadPhase)
             {
                 case RoadGraphPhase.Approaching:
@@ -211,8 +214,8 @@ namespace CarKinem.Road
                     ref readonly var segment = ref roadNetwork.Segments[nav.CurrentSegmentId];
                     
                     // Check if close enough to destination to leave road
-                    float distToDest = Vector2.Distance(currentPos, nav.FinalDestination);
-                    var (exitSegId, exitPoint, distToExit) = FindClosestRoadPoint(nav.FinalDestination, roadNetwork);
+                    float distToDest = Vector2.Distance(currentPos, destXY);
+                    var (exitSegId, exitPoint, distToExit) = FindClosestRoadPoint(destXY, roadNetwork);
                     
                     if (distToExit < 5.0f && distToDest < 50.0f)
                     {
@@ -240,8 +243,8 @@ namespace CarKinem.Road
                 case RoadGraphPhase.Leaving:
                 {
                     // Drive directly to final destination
-                    float distToDest = Vector2.Distance(currentPos, nav.FinalDestination);
-                    
+                    float distToDest = Vector2.Distance(currentPos, destXY);
+
                     if (distToDest < nav.ArrivalRadius)
                     {
                         // Arrived!
@@ -249,13 +252,13 @@ namespace CarKinem.Road
                         nav.HasArrived = 1;
                         return (currentPos, new Vector2(1, 0), 0f);
                     }
-                    
-                    Vector2 toDest = nav.FinalDestination - currentPos;
+
+                    Vector2 toDest = destXY - currentPos;
                     Vector2 heading = toDest.LengthSquared() > 0.01f
                         ? Vector2.Normalize(toDest)
                         : new Vector2(1, 0);
-                    
-                    return (nav.FinalDestination, heading, 5.0f);
+
+                    return (destXY, heading, 5.0f);
                 }
                 
                 case RoadGraphPhase.Arrived:

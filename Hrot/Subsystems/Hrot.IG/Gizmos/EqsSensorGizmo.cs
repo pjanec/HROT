@@ -34,7 +34,8 @@ namespace Hrot.IG.Gizmos
             ref readonly var tf     = ref view.GetComponentRO<SimTransform>(entity);
             ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
 
-            var obsPos = new Vector3(tf.Position.X, tf.Position.Y, 0f);
+            // Use the authoritative altitude so the gizmo draws at the real height (P3D-401).
+            var obsPos = new Vector3(tf.Position.X, tf.Position.Y, tf.Position.Z);
 
             // 1. Draw dashed search radius sphere in cyan.
             if (_settings.Read(_hashShowRadius).BoolValue)
@@ -61,7 +62,8 @@ namespace Hrot.IG.Gizmos
             for (int i = 0; i < buffer.Count; i++)
             {
                 var candidate = buffer.GetSpanRO()[i];
-                var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, 0f);
+                // Draw each Top-K candidate at its real altitude (extruded for multi-level debug, P3D-401).
+                var targetPos = new Vector3(candidate.PositionX, candidate.PositionY, candidate.PositionZ);
 
                 // Green = positional candidate (EntityId == 0), yellow = entity-shaped candidate.
                 var lineColor = candidate.EntityId == 0

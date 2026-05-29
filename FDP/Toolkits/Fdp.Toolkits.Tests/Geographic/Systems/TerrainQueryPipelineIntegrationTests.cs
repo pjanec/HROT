@@ -14,8 +14,9 @@ namespace Fdp.Modules.Geographic.Tests.Systems
     /// using a <see cref="FlatEarthTerrainProvider"/> stub that returns a fixed
     /// terrain height of 5.0 m for every query.
     ///
-    /// After 3 frames the entity's <see cref="GroundClampingState.TargetZOffset"/>
-    /// must converge to the expected value computed as <c>providerHeight − simZ</c>.
+    /// After 3 frames the entity's authoritative <c>SimTransform.Position.Z</c> must equal the
+    /// provider's terrain height (P3D-102): the resolution system writes <c>HitZ</c> straight into
+    /// the transform rather than deriving a visual offset.
     /// </summary>
     public sealed class TerrainQueryPipelineIntegrationTests : IDisposable
     {
@@ -56,7 +57,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
             _world.RegisterComponent<SimTransform>();
             _world.RegisterComponent<SimVelocity>();
             _world.RegisterComponent<GroundClampingConfig>();
-            _world.RegisterComponent<GroundClampingState>();
+            _world.RegisterComponent<TerrainClampBaseline>();
 
             _entity = _world.CreateEntity();
             _world.AddComponent(_entity, new SimTransform { Position = new Vector3(0f, 0f, EntitySimZ) });
@@ -65,11 +66,10 @@ namespace Fdp.Modules.Geographic.Tests.Systems
                 Mode                 = EClampingMode.ForceOn,
                 BaseRequiresClamping = 1,
             });
-            _world.AddComponent(_entity, new GroundClampingState
+            _world.AddComponent(_entity, new TerrainClampBaseline
             {
-                TargetZOffset       = 0f,
-                CurrentZOffset      = 0f,
                 LastValidIgAltitude = 0f, // first-frame bootstrap
+                IgAltitudeBaselineEstablished = 0,
             });
 
             var provider = new FlatEarthTerrainProvider(TerrainHeight);
@@ -103,20 +103,21 @@ namespace Fdp.Modules.Geographic.Tests.Systems
         }
 
         /// <summary>
-        /// After 3 frames the <see cref="GroundClampingState.TargetZOffset"/>
-        /// must equal <c>TerrainHeight − EntitySimZ</c> = <c>5 − 2 = 3</c>.
+        /// After 3 frames the authoritative <c>SimTransform.Position.Z</c> must equal the
+        /// provider terrain height (<c>5</c>), and the baseline tracks it.
         /// </summary>
         [Fact]
-        public void Pipeline_TargetOffsetConverges_After3Frames()
+        public void Pipeline_AuthoritativeZConverges_After3Frames()
         {
-            float expectedOffset = TerrainHeight - EntitySimZ; // 3.0 m
-
             TickOnce();
             TickOnce();
             TickOnce();
 
-            var state = _world.GetComponent<GroundClampingState>(_entity);
-            Assert.Equal(expectedOffset, state.TargetZOffset, precision: 4);
+            var tf = _world.GetComponent<SimTransform>(_entity);
+            Assert.Equal(TerrainHeight, tf.Position.Z, precision: 4);
+
+            var state = _world.GetComponent<TerrainClampBaseline>(_entity);
+            Assert.Equal(TerrainHeight, state.LastValidIgAltitude, precision: 4);
         }
 
         /// <summary>

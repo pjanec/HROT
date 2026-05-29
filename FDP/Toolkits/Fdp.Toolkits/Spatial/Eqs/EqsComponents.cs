@@ -5,9 +5,14 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Spatial.Eqs
 {
     /// <summary>
-    /// Single ranked EQS candidate. 24 bytes (StructLayout.Sequential).
+    /// Single ranked EQS candidate. 32 bytes (StructLayout.Sequential).
     /// Handles both entity-shaped queries (EntityId != 0) and positional queries (EntityId == 0).
     /// Rejection sentinel: EntityId == -1L.
+    ///
+    /// <para>Since the 3D Cognitive Spatial Awareness promotion (P3D-201) the candidate carries a
+    /// world-space altitude (<see cref="PositionZ"/>, Sim Z-up). The <c>long EntityId</c> governs
+    /// 8-byte alignment, so 28 raw bytes round to 32 — which packs exactly two candidates per
+    /// 64-byte cache line.</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct EqsResult
@@ -18,6 +23,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public float PositionX;
         /// <summary>World-space Y coordinate (positional queries).</summary>
         public float PositionY;
+        /// <summary>World-space altitude (Sim Z-up). 3D Cognitive Spatial Awareness promotion (P3D-201).</summary>
+        public float PositionZ;
         /// <summary>Final computed score used for Top-K ranking.</summary>
         public float Score;
         /// <summary>Bitfield of result flags (e.g., HasLOSToContext).</summary>
@@ -25,7 +32,6 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>
         /// Parallel bitset indicating which bits in <see cref="Flags"/> were actually computed
         /// by the template's tests. A bit not set here must not be read by consumers.
-        /// Same 2-byte slot as the former _pad field; struct size remains 24 bytes.
         /// </summary>
         public short FlagsMeaningful;
     }
