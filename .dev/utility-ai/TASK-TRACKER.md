@@ -61,7 +61,7 @@
 
 **Goal:** One curve widget, host-agnostic, for both the editor and (Phase-6) the tuning console.
 
-- [ ] **TASK-UAI-P3-01** `CurveWidget.Draw` host-agnostic widget [details](./TASK-DETAIL.md#task-uai-p3-01-curvewidgetdraw-host-agnostic-widget)
+- [x] **TASK-UAI-P3-01** `CurveWidget.Draw` host-agnostic widget [details](./TASK-DETAIL.md#task-uai-p3-01-curvewidgetdraw-host-agnostic-widget) — BATCH-11 (corrective BATCH-12)
 
 ---
 
@@ -69,8 +69,8 @@
 
 **Goal:** Observe→tune loop online with scalar tuning before the visual editor exists.
 
-- [ ] **TASK-UAI-P4-01** `AiOverlayFlags` + per-entity gating [details](./TASK-DETAIL.md#task-uai-p4-01-aioverlayflags--per-entity-gating)
-- [ ] **TASK-UAI-P4-02** Five overlay sources [details](./TASK-DETAIL.md#task-uai-p4-02-five-overlay-sources)
+- [x] **TASK-UAI-P4-01** `AiOverlayFlags` + per-entity gating [details](./TASK-DETAIL.md#task-uai-p4-01-aioverlayflags--per-entity-gating) — BATCH-12
+- [x] **TASK-UAI-P4-02** Five overlay sources [details](./TASK-DETAIL.md#task-uai-p4-02-five-overlay-sources) — BATCH-12
 - [ ] **TASK-UAI-P4-03** `TuningRegistry` + `TuningConsoleGizmo` Slice 1 [details](./TASK-DETAIL.md#task-uai-p4-03-tuningregistry--tuningconsolegizmo-slice-1-scalars)
 
 ---
