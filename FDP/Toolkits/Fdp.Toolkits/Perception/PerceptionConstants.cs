@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Perception
     public static class PerceptionConstants
     {
         /// <summary>Maximum number of tracked targets stored in a single <see cref="Components.TargetMemory"/>.</summary>
-        public const int MaxTrackedTargets = 4;
+        public const int MaxTrackedTargets = 16;
 
         // ── Event IDs ────────────────────────────────────────────────────────────
         // Range 4001–4099 is reserved for FDP.Toolkit.Perception events (see DESIGN.md §4.1).

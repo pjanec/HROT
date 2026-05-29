@@ -762,6 +762,29 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case ScoreDecisionNode sdn:
+            {
+                string id8 = sdn.Id.ToString("N").Substring(0, 8);
+                // Bake the decision ID at compile time using FNV-1a-32.
+                int decisionId = ComputeDecisionId(sdn.AssetId);
+                string decisionIdLiteral = decisionId.ToString();
+
+                var byteType = new IrTypeRef { FullName = "System.Byte", IsUnmanaged = true, SizeBytes = 1 };
+                var optionResult = AllocValue(byteType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = optionResult,
+                    Operation   = new IrOp_ScoreDecision(decisionIdLiteral, id8),
+                    Debug       = DebugOf(sdn),
+                });
+
+                var outPin = sdn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                                 && string.Equals(p.Name, "WinningOptionId", StringComparison.OrdinalIgnoreCase));
+                if (outPin is not null)
+                    _pinValueCache[outPin.Id] = optionResult;
+                break;
+            }
+
             default:
                 // Unknown impure node kind -- emit BP4004 and skip.
                 _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
@@ -1001,6 +1024,47 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case ReadRankedResultNode rrn:
+            {
+                string id8 = rrn.Id.ToString("N").Substring(0, 8);
+                string structTypeName = $"_RankedResultRead_{id8}";
+
+                var resultStructType = new IrTypeRef
+                {
+                    FullName    = structTypeName,
+                    IsUnmanaged = true,
+                    SizeBytes   = 16, // bool(1) + long(8) + float(4) + pad = 16
+                };
+
+                string rankLiteral = rrn.Rank.ToString();
+
+                var helperResult2 = AllocValue(resultStructType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = helperResult2,
+                    Operation   = new IrOp_ReadRankedResult(rankLiteral, id8, structTypeName),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rrn.Id },
+                });
+
+                foreach (var outPin in rrn.Pins.Where(p => !p.IsExec && p.Direction == "Out"))
+                {
+                    if (_pinValueCache.ContainsKey(outPin.Id)) continue;
+                    IrTypeRef fieldType = _typed.PinTypes.TryGetValue(outPin.Id, out var t2)
+                        ? t2 : Stage5_Schedule.UnknownType;
+                    var fieldResult = AllocValue(fieldType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fieldResult,
+                        Operation   = new IrOp_FieldRead(helperResult2, outPin.Name, fieldType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = rrn.Id, PinId = outPin.Id },
+                    });
+                    _pinValueCache[outPin.Id] = fieldResult;
+                }
+
+                result = _pinValueCache.TryGetValue(sourcePinId, out var pinRes2) ? pinRes2 : helperResult2;
+                break;
+            }
+
             default:
             {
                 // Unknown pure source -- dummy value.
@@ -1150,6 +1214,21 @@ internal sealed class GraphScheduler
         if (prop is not null) return prop.PropertyType.FullName ?? "var";
 
         return "var";
+    }
+
+    // -----------------------------------------------------------------------
+    // Decision ID hash (FNV-1a-32 over chars -- matches UtilityDecisionCatalog.ComputeId)
+    // -----------------------------------------------------------------------
+
+    private static int ComputeDecisionId(string assetId)
+    {
+        uint hash = 2166136261u;
+        foreach (char c in assetId)
+        {
+            hash ^= (byte)c;
+            hash *= 16777619u;
+        }
+        return (int)hash;
     }
 
     // -----------------------------------------------------------------------

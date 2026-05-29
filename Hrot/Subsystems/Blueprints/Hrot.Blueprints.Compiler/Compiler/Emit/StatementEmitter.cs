@@ -477,6 +477,20 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_ScoreDecision op:
+            {
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = ScoreDecision_{op.NodeId8}({wv}, self, time);");
+                break;
+            }
+
+            case IrOp_ReadRankedResult op:
+            {
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = ReadRankedResult_{op.NodeId8}({wv}, self);");
+                break;
+            }
+
             case IrOp_SpawnEqsSensor op:
             {
                 // Emit ECB-based spawn pattern per DESIGN §7.8

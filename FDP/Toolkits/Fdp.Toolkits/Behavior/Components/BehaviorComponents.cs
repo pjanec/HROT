@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Toolkit.Behavior;
 using Fdp.Core;
@@ -103,5 +104,14 @@ namespace Fdp.Toolkit.Behavior.Components
     {
         public const int ByteSize = 1024;
         public fixed byte Memory[ByteSize];
+
+        /// <summary>
+        /// Projects the 1024-byte memory block as a reference to an unmanaged struct <typeparamref name="T"/>.
+        /// <typeparamref name="T"/> must fit within <see cref="ByteSize"/> bytes (assert at call site, not here).
+        /// Convention: each subsystem projects at a disjoint byte offset.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe ref T Project<T>(ref Blackboard1024 bb) where T : unmanaged
+            => ref Unsafe.As<Blackboard1024, T>(ref bb);
     }
 }
