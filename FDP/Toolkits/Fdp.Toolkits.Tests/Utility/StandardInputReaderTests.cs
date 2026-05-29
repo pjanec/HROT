@@ -163,6 +163,46 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0f, result);
         }
 
+        // ── Step-1.5: 3D reconciliation — multi-level fixture ─────────────────────
+
+        [Fact]
+        public void DistanceToContext_MultiLevel_PureAltitude_CountsInDistance()
+        {
+            // Contact directly above self (same X/Y, Z = 100 m).
+            // With 2D distance the XY offset is 0 -> old score would be 1.0 (wrong).
+            // With 3D distance the altitude gap = 100 m -> correct score = 1 - 100/200 = 0.5.
+            var self    = _world.SpawnAgent(1f, 1f);
+            var contact = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(contact, new Position { Value = new Vector3(0f, 0f, 100f) });
+            var parms   = new InputParams { MaxRange = 200f };
+            float result = StandardInputs.DistanceToContext(MakeCtx(self, contact, parms));
+            Assert.Equal(0.5f, result, precision: 4);
+        }
+
+        [Fact]
+        public void DistanceToContext_MultiLevel_StreetVsBridge_SameXY_DifferentScores()
+        {
+            // Street contact: (100, 0, 0)  — 3D distance = 100 m       -> score = 0.8
+            // Bridge contact: (100, 0, 40) — 3D distance ~= 107.703 m  -> score ~= 0.7846
+            // On flat terrain (2D) both would have XY distance = 100 m -> identical score = 0.8.
+            // With 3D distance the altitude-separated bridge contact is farther, so it scores lower.
+            var self          = _world.SpawnAgent(1f, 1f);
+            var streetContact = _world.Repo.CreateEntity();
+            var bridgeContact = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(streetContact, new Position { Value = new Vector3(100f, 0f,  0f) });
+            _world.Repo.AddComponent(bridgeContact, new Position { Value = new Vector3(100f, 0f, 40f) });
+            var parms         = new InputParams { MaxRange = 500f };
+            float streetScore = StandardInputs.DistanceToContext(MakeCtx(self, streetContact, parms));
+            float bridgeScore = StandardInputs.DistanceToContext(MakeCtx(self, bridgeContact, parms));
+            // Street: exact 0.8 (100/500)
+            Assert.Equal(0.8f, streetScore, precision: 4);
+            // Bridge: 3D distance computed via Vector3.Distance matches the reader's own formula
+            float expected3D = 1f - Vector3.Distance(Vector3.Zero, new Vector3(100f, 0f, 40f)) / 500f;
+            Assert.Equal(expected3D, bridgeScore, precision: 4);
+            // Altitude-separated contact must score strictly lower than its street-level counterpart.
+            Assert.True(bridgeScore < streetScore);
+        }
+
         // ── SC-P1-06-2: HasLineOfSight ────────────────────────────────────────────
 
         [Fact]
