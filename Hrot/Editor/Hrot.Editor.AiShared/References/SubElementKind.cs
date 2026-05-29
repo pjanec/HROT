@@ -9,4 +9,5 @@ public enum SubElementKind
     AssetReference,
     BlackboardField,
     BlackboardVariable,
+    UtilityInput,
 }

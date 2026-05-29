@@ -5,3 +5,6 @@ public sealed record BTreeNodeSelection(Guid VisualId) : IAssetSubSelection;
 public sealed record HsmStateSelection(Guid StableId) : IAssetSubSelection;
 public sealed record HsmTransitionSelection(Guid VisualId) : IAssetSubSelection;
 public sealed record HsmRegionSelection(Guid StableId, int RegionIndex) : IAssetSubSelection;
+public sealed record UtilityConsiderationSelection(
+    int OptionIndex,
+    int ConsiderationIndex) : IAssetSubSelection;

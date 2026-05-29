@@ -143,6 +143,16 @@ public sealed class InspectorWindow : ManagedWindow
                 }
             }
         }
+
+        // ---- Utility consideration inspector panel ----------------------------
+        if (_store.ActiveSubSelection is UtilityConsiderationSelection utilSel)
+        {
+            ImGuiNET.ImGui.Separator();
+            ImGuiNET.ImGui.Text("UTILITY CONSIDERATION");
+            ImGuiNET.ImGui.TextDisabled(
+                $"Option {utilSel.OptionIndex}, Consideration {utilSel.ConsiderationIndex}");
+            // Curve inspector panel wired in a later phase (P5-02).
+        }
     }
 
     private void DrawSyncBindingsTable(

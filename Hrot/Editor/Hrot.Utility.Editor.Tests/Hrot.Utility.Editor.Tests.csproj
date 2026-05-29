@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Utility.Editor\Hrot.Utility.Editor.csproj" />
+    <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>
 

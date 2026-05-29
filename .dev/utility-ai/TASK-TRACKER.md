@@ -71,7 +71,7 @@
 
 - [x] **TASK-UAI-P4-01** `AiOverlayFlags` + per-entity gating [details](./TASK-DETAIL.md#task-uai-p4-01-aioverlayflags--per-entity-gating) — BATCH-12
 - [x] **TASK-UAI-P4-02** Five overlay sources [details](./TASK-DETAIL.md#task-uai-p4-02-five-overlay-sources) — BATCH-12
-- [ ] **TASK-UAI-P4-03** `TuningRegistry` + `TuningConsoleGizmo` Slice 1 [details](./TASK-DETAIL.md#task-uai-p4-03-tuningregistry--tuningconsolegizmo-slice-1-scalars)
+- [x] **TASK-UAI-P4-03** `TuningRegistry` + `TuningConsoleGizmo` Slice 1 [details](./TASK-DETAIL.md#task-uai-p4-03-tuningregistry--tuningconsolegizmo-slice-1-scalars) — BATCH-13
 
 ---
 
