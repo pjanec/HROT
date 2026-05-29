@@ -20,6 +20,27 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>Muzzle velocity in m/s (copied from behavior at init time).</summary>
         public float MuzzleVelocity;
+
+        /// <summary>Maximum ammo capacity cached from <c>WeaponMountDto.InitialAmmunition</c> at spawn. Never mutated by firing.</summary>
+        public int MaxAmmo;
+    }
+
+    /// <summary>
+    /// Identifies a weapon mount child entity.
+    /// Placed on child entities (index 1+) spawned by <c>CombatTkbTranslator</c> for platforms
+    /// with multiple weapon mounts. The primary mount (index 0) carries <see cref="WeaponState"/>
+    /// on the owner entity directly for back-compatibility with actuators.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.WeaponMountInfo)]
+    public struct WeaponMountInfo
+    {
+        /// <summary>Index into WeaponSuiteDto.Mounts (0 = primary, already on owner entity).</summary>
+        public int   MountIndex;
+        /// <summary>TKB weapon GUID from mount.WeaponGuid.</summary>
+        public ulong WeaponGuid;
+        /// <summary>Effective range in metres, from WeaponCapabilitiesDto if present; else 0.</summary>
+        public float EffectiveRange;
     }
 
     /// <summary>

@@ -28,6 +28,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(WhenNode),           "When")]           // NEW
 [JsonDerivedType(typeof(ReadEqsResultNode),  "ReadEqsResult")]  // NEW
 [JsonDerivedType(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")] // NEW
+[JsonDerivedType(typeof(ScoreDecisionNode),    "ScoreDecision")]
+[JsonDerivedType(typeof(ReadRankedResultNode), "ReadRankedResult")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -226,4 +228,27 @@ public sealed class SpawnEqsSensorNode : Node
     /// to the BlueprintId stored in the spawned EqsSensor component.
     /// </summary>
     public Guid TemplateAssetId { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ScoreDecisionNode (DESIGN §7.3 -- runs a UtilityDecisionDef, outputs WinningOptionId)
+// ──────────────────────────────────────────────────────────────────────────
+
+public sealed class ScoreDecisionNode : Node
+{
+    /// <summary>
+    /// The GUID string of the UtilityDecisionDef asset to evaluate (e.g.
+    /// "3c6f9e42-5d10-6f3a-ac23-posture0000001" for CombatPostureDecision).
+    /// </summary>
+    public string AssetId { get; set; } = string.Empty;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ReadRankedResultNode (DESIGN §7.3 -- reads rank-i entry from UtilityResultBuffer)
+// ──────────────────────────────────────────────────────────────────────────
+
+public sealed class ReadRankedResultNode : Node
+{
+    /// <summary>0-based rank index (0 = top-ranked).</summary>
+    public int Rank { get; set; }
 }

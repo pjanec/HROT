@@ -242,3 +242,27 @@ public sealed record IrOp_SpawnEqsSensor(
     /// <summary>IrValue for Priority input (or null -> literal (byte)0).</summary>
     IrValue? PriorityValue
 ) : IrOperation;
+
+/// <summary>
+/// Emitted by Stage 5 when a ScoreDecisionNode is encountered in the exec chain.
+/// Stage 7 emits an [AggressiveInlining] helper that calls UtilityBlueprintBridge.ScoreDecision.
+/// </summary>
+public sealed record IrOp_ScoreDecision(
+    /// <summary>Baked numeric decision ID literal (FNV-1a hash of the AssetId GUID).</summary>
+    string DecisionIdLiteral,
+    /// <summary>8-char hex prefix of the node ID.</summary>
+    string NodeId8
+) : IrOperation;
+
+/// <summary>
+/// Emitted by Stage 5 when a ReadRankedResultNode output pin is first resolved.
+/// Stage 7 emits an [AggressiveInlining] helper + result struct per node.
+/// </summary>
+public sealed record IrOp_ReadRankedResult(
+    /// <summary>Rank literal (0 = top).</summary>
+    string RankLiteral,
+    /// <summary>8-char hex prefix of the node ID.</summary>
+    string NodeId8,
+    /// <summary>Name of the generated result struct type.</summary>
+    string ResultStructTypeName
+) : IrOperation;

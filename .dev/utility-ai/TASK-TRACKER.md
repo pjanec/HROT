@@ -20,13 +20,13 @@
 
 **Goal:** Land six codebase prerequisites so Phase-1 code compiles against real APIs.
 
-- [ ] **TASK-UAI-P0-01** `WeaponState.MaxAmmo` cache [details](./TASK-DETAIL.md#task-uai-p0-01-weaponstatemaxammo-cache)
-- [ ] **TASK-UAI-P0-02** Multi-mount weapon entities [details](./TASK-DETAIL.md#task-uai-p0-02-multi-mount-weapon-entities)
-- [ ] **TASK-UAI-P0-03** Raise `MaxTrackedTargets` to 16 [details](./TASK-DETAIL.md#task-uai-p0-03-raise-maxtrackedtargets-to-16)
-- [ ] **TASK-UAI-P0-04** `UnitRoster.Add` / `IndexOf` helpers [details](./TASK-DETAIL.md#task-uai-p0-04-unitrosteradd--indexof-helpers)
-- [ ] **TASK-UAI-P0-05** `Blackboard1024.Project<T>` helper [details](./TASK-DETAIL.md#task-uai-p0-05-blackboard1024projectt-helper)
-- [ ] **TASK-UAI-P0-06** `UtilityTestWorld` helper [details](./TASK-DETAIL.md#task-uai-p0-06-utilitytestworld-helper)
-- [ ] **TASK-UAI-P0-07** Phase-0 integration test (gate) [details](./TASK-DETAIL.md#task-uai-p0-07-phase-0-integration-test-gate)
+- [x] **TASK-UAI-P0-01** `WeaponState.MaxAmmo` cache [details](./TASK-DETAIL.md#task-uai-p0-01-weaponstatemaxammo-cache) — BATCH-01
+- [x] **TASK-UAI-P0-02** Multi-mount weapon entities [details](./TASK-DETAIL.md#task-uai-p0-02-multi-mount-weapon-entities) — BATCH-01
+- [x] **TASK-UAI-P0-03** Raise `MaxTrackedTargets` to 16 [details](./TASK-DETAIL.md#task-uai-p0-03-raise-maxtrackedtargets-to-16) — BATCH-01
+- [x] **TASK-UAI-P0-04** `UnitRoster.Add` / `IndexOf` helpers [details](./TASK-DETAIL.md#task-uai-p0-04-unitrosteradd--indexof-helpers) — BATCH-01
+- [x] **TASK-UAI-P0-05** `Blackboard1024.Project<T>` helper [details](./TASK-DETAIL.md#task-uai-p0-05-blackboard1024projectt-helper) — BATCH-01
+- [x] **TASK-UAI-P0-06** `UtilityTestWorld` helper [details](./TASK-DETAIL.md#task-uai-p0-06-utilitytestworld-helper) — BATCH-01
+- [x] **TASK-UAI-P0-07** Phase-0 integration test (gate) [details](./TASK-DETAIL.md#task-uai-p0-07-phase-0-integration-test-gate) — BATCH-01
 
 ---
 
@@ -34,15 +34,15 @@
 
 **Goal:** Scoring core, curve evaluation, aggregator, trace buffer, four starter-pack decisions — headless.
 
-- [ ] **TASK-UAI-P1-01** Scoring core data structures [details](./TASK-DETAIL.md#task-uai-p1-01-scoring-core-data-structures)
-- [ ] **TASK-UAI-P1-02** Curve evaluation [details](./TASK-DETAIL.md#task-uai-p1-02-curve-evaluation-curveevaluate)
-- [ ] **TASK-UAI-P1-03** Aggregator (product-with-compensation + sum) [details](./TASK-DETAIL.md#task-uai-p1-03-aggregator-product-with-compensation--sum)
-- [ ] **TASK-UAI-P1-04** `UtilityResultBuffer` + trace buffer [details](./TASK-DETAIL.md#task-uai-p1-04-utilityresultbuffer-and-trace-buffer)
-- [ ] **TASK-UAI-P1-05** `UtilityScorer` core tick path [details](./TASK-DETAIL.md#task-uai-p1-05-utilityscorer-core-tick-path)
-- [ ] **TASK-UAI-P1-06** Standard input readers catalog [details](./TASK-DETAIL.md#task-uai-p1-06-standard-input-readers-catalog)
-- [ ] **TASK-UAI-P1-07** `ThreatMatrixAssignmentSystem` [details](./TASK-DETAIL.md#task-uai-p1-07-threatmatrixassignmentsystem-squad-greedy-assignment)
-- [ ] **TASK-UAI-P1-08** Starter-pack decisions + integration tests [details](./TASK-DETAIL.md#task-uai-p1-08-starter-pack-decisions--integration-tests)
-- [ ] **TASK-UAI-P1-09** Integration nodes (BTree / HSM / Blueprint) [details](./TASK-DETAIL.md#task-uai-p1-09-integration-nodes-btree--hsm--blueprint)
+- [x] **TASK-UAI-P1-01** Scoring core data structures [details](./TASK-DETAIL.md#task-uai-p1-01-scoring-core-data-structures) — BATCH-02
+- [x] **TASK-UAI-P1-02** Curve evaluation [details](./TASK-DETAIL.md#task-uai-p1-02-curve-evaluation-curveevaluate) — BATCH-02
+- [x] **TASK-UAI-P1-03** Aggregator (product-with-compensation + sum) [details](./TASK-DETAIL.md#task-uai-p1-03-aggregator-product-with-compensation--sum) — BATCH-02
+- [x] **TASK-UAI-P1-04** `UtilityResultBuffer` + trace buffer [details](./TASK-DETAIL.md#task-uai-p1-04-utilityresultbuffer-and-trace-buffer) — BATCH-03
+- [x] **TASK-UAI-P1-05** `UtilityScorer` core tick path [details](./TASK-DETAIL.md#task-uai-p1-05-utilityscorer-core-tick-path) — BATCH-03
+- [x] **TASK-UAI-P1-06** Standard input readers catalog [details](./TASK-DETAIL.md#task-uai-p1-06-standard-input-readers-catalog) — BATCH-04
+- [x] **TASK-UAI-P1-07** `ThreatMatrixAssignmentSystem` [details](./TASK-DETAIL.md#task-uai-p1-07-threatmatrixassignmentsystem-squad-greedy-assignment) — BATCH-05 (corrective in BATCH-06)
+- [x] **TASK-UAI-P1-08** Starter-pack decisions + integration tests [details](./TASK-DETAIL.md#task-uai-p1-08-starter-pack-decisions--integration-tests) — BATCH-05 (corrective in BATCH-06)
+- [x] **TASK-UAI-P1-09** Integration nodes (BTree / HSM / Blueprint) [details](./TASK-DETAIL.md#task-uai-p1-09-integration-nodes-btree--hsm--blueprint) — BATCH-06 (1-A ✅ 1-B ✅ 1-C ✅) + BATCH-07 (1-C steps 4-7)
 
 ---
 
@@ -50,10 +50,10 @@
 
 **Goal:** `In.*` accessors, registrars, and the `UT####` diagnostics.
 
-- [ ] **TASK-UAI-P2-01** `UtilityInputGenerator` [details](./TASK-DETAIL.md#task-uai-p2-01-utilityinputgenerator)
-- [ ] **TASK-UAI-P2-02** `UtilityDecisionGenerator` [details](./TASK-DETAIL.md#task-uai-p2-02-utilitydecisiongenerator)
-- [ ] **TASK-UAI-P2-03** `UtilityAuthoringAnalyzer` [details](./TASK-DETAIL.md#task-uai-p2-03-utilityauthoringanalyzer)
-- [ ] **TASK-UAI-P2-04** Startup handshake [details](./TASK-DETAIL.md#task-uai-p2-04-startup-handshake)
+- [x] **TASK-UAI-P2-01** `UtilityInputGenerator` [details](./TASK-DETAIL.md#task-uai-p2-01-utilityinputgenerator) — BATCH-08
+- [x] **TASK-UAI-P2-02** `UtilityDecisionGenerator` [details](./TASK-DETAIL.md#task-uai-p2-02-utilitydecisiongenerator) — BATCH-09
+- [x] **TASK-UAI-P2-03** `UtilityAuthoringAnalyzer` [details](./TASK-DETAIL.md#task-uai-p2-03-utilityauthoringanalyzer) — BATCH-10
+- [x] **TASK-UAI-P2-04** Startup handshake [details](./TASK-DETAIL.md#task-uai-p2-04-startup-handshake) — BATCH-08
 
 ---
 

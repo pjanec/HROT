@@ -42,31 +42,31 @@ namespace Fdp.Toolkit.Perception.Tests
         [Fact]
         public unsafe void TargetMemory_Eviction_ResetsModality()
         {
-            // Arrange — fill table with 4 entries detected via Radar
+            // Arrange — fill all 16 slots detected via Radar (P0.03: MaxTrackedTargets = 16).
+            // Entity 1 gets the lowest score (10) and will be the eviction candidate.
             var mem = new TargetMemory();
             TargetMemory.AddOrUpdateTarget(ref mem, 1L, 0f, 0f, 10f, 0u, SensorModality.Radar);
-            TargetMemory.AddOrUpdateTarget(ref mem, 2L, 0f, 0f, 20f, 0u, SensorModality.Radar);
-            TargetMemory.AddOrUpdateTarget(ref mem, 3L, 0f, 0f, 30f, 0u, SensorModality.Radar);
-            TargetMemory.AddOrUpdateTarget(ref mem, 4L, 0f, 0f, 40f, 0u, SensorModality.Radar);
+            for (int i = 2; i <= PerceptionConstants.MaxTrackedTargets; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, (long)i, 0f, 0f, (float)(i * 10), 0u, SensorModality.Radar);
             Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count);
 
-            // Act — add a new entity with Thermal that surpasses the lowest score (10)
-            TargetMemory.AddOrUpdateTarget(ref mem, 5L, 1f, 1f, 25f, 1u, SensorModality.Thermal);
+            // Act — add a new entity (ID 100) with Thermal modality that surpasses the lowest score (10, entity 1)
+            TargetMemory.AddOrUpdateTarget(ref mem, 100L, 1f, 1f, 25f, 1u, SensorModality.Thermal);
 
-            // Assert — entity 5 is in the table; its slot carries only Thermal modality
+            // Assert — entity 100 is in the table; its slot carries only Thermal modality
             bool found = false;
             for (int i = 0; i < mem.Count; i++)
             {
-                if (mem.EntityIds[i] == 5L)
+                if (mem.EntityIds[i] == 100L)
                 {
                     found = true;
                     Assert.Equal((byte)SensorModality.Thermal, mem.Modalities[i]);
                     break;
                 }
             }
-            Assert.True(found, "Entity 5 (score 25) should be in the table after evicting entity 1 (score 10).");
+            Assert.True(found, "Entity 100 (score 25) should be in the table after evicting entity 1 (score 10).");
 
-            // Entity 1 must have been evicted
+            // Entity 1 (lowest score 10) must have been evicted
             bool entity1Present = false;
             for (int i = 0; i < mem.Count; i++)
                 if (mem.EntityIds[i] == 1L) entity1Present = true;

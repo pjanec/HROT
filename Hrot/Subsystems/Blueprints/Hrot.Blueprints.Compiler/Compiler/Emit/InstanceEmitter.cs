@@ -48,6 +48,20 @@ internal static class InstanceEmitter
             EmitReadEqsResultHelpers(e, readEqsOps);
         }
 
+        var scoreDecisionOps = CollectScoreDecisionOps(asset);
+        if (scoreDecisionOps.Count > 0)
+        {
+            e.WriteLine();
+            EmitScoreDecisionHelpers(e, scoreDecisionOps);
+        }
+
+        var readRankedResultOps = CollectReadRankedResultOps(asset);
+        if (readRankedResultOps.Count > 0)
+        {
+            e.WriteLine();
+            EmitReadRankedResultHelpers(e, readRankedResultOps);
+        }
+
         e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();");
         e.WriteLine();
 
@@ -451,6 +465,100 @@ internal static class InstanceEmitter
             e.WriteLine("result.Score    = picked.Score;");
             e.WriteLine("return result;");
 
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+    }
+
+    private static List<IrOp_ScoreDecision> CollectScoreDecisionOps(IrAsset asset)
+    {
+        var result = new List<IrOp_ScoreDecision>();
+        var seen   = new HashSet<string>();
+        foreach (var graph in asset.Graphs)
+        foreach (var block in graph.Blocks)
+        foreach (var stmt  in block.Statements)
+        {
+            if (stmt.Operation is not IrOp_ScoreDecision op) continue;
+            if (!seen.Add(op.NodeId8)) continue;
+            result.Add(op);
+        }
+        return result;
+    }
+
+    private static List<IrOp_ReadRankedResult> CollectReadRankedResultOps(IrAsset asset)
+    {
+        var result = new List<IrOp_ReadRankedResult>();
+        var seen   = new HashSet<string>();
+        foreach (var graph in asset.Graphs)
+        foreach (var block in graph.Blocks)
+        foreach (var stmt  in block.Statements)
+        {
+            if (stmt.Operation is not IrOp_ReadRankedResult op) continue;
+            if (!seen.Add(op.NodeId8)) continue;
+            result.Add(op);
+        }
+        return result;
+    }
+
+    private static void EmitScoreDecisionHelpers(CSharpEmitter e, List<IrOp_ScoreDecision> ops)
+    {
+        foreach (var op in ops)
+        {
+            e.WriteLine($"[global::System.Runtime.CompilerServices.MethodImpl(" +
+                        $"global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            e.WriteLine($"private static byte ScoreDecision_{op.NodeId8}(");
+            e.Indent();
+            e.WriteLine($"global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+            e.WriteLine($"global::Fdp.Core.Entity self,");
+            e.WriteLine($"float time)");
+            e.Outdent();
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"uint tick = (uint)(time * 60f);");
+            e.WriteLine($"return global::Fdp.Toolkit.Utility.Integration.UtilityBlueprintBridge" +
+                        $".ScoreDecision(view, self, {op.DecisionIdLiteral}, tick);");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+    }
+
+    private static void EmitReadRankedResultHelpers(CSharpEmitter e, List<IrOp_ReadRankedResult> ops)
+    {
+        foreach (var op in ops)
+        {
+            // Emit the result struct
+            e.WriteLine($"[global::System.Runtime.InteropServices.StructLayout(" +
+                        $"global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+            e.WriteLine($"private struct {op.ResultStructTypeName}");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine("public bool  IsValid;");
+            e.WriteLine("public long  Entity;");
+            e.WriteLine("public float Score;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+
+            // Emit the helper method
+            e.WriteLine($"[global::System.Runtime.CompilerServices.MethodImpl(" +
+                        $"global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            e.WriteLine($"private static {op.ResultStructTypeName} ReadRankedResult_{op.NodeId8}(");
+            e.Indent();
+            e.WriteLine($"global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+            e.WriteLine($"global::Fdp.Core.Entity self)");
+            e.Outdent();
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"var result = default({op.ResultStructTypeName});");
+            e.WriteLine($"var (handle, score, isValid) = " +
+                        $"global::Fdp.Toolkit.Utility.Integration.UtilityBlueprintBridge" +
+                        $".ReadRankedResult(view, self, {op.RankLiteral});");
+            e.WriteLine("result.IsValid = isValid;");
+            e.WriteLine("result.Entity  = handle;");
+            e.WriteLine("result.Score   = score;");
+            e.WriteLine("return result;");
             e.Outdent();
             e.WriteLine("}");
             e.WriteLine();

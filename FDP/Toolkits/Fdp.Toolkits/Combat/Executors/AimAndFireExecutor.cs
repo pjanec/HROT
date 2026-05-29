@@ -57,9 +57,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            // Refactored to use continuous delta time for determinism across variable tick rates.
+            // Drain cooldown continuously each frame; fire only after cooldown reaches zero.
             if (weapon.CooldownSecondsRemaining > 0f)
             {
+                weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
                 return;
             }

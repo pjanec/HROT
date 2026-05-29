@@ -25,10 +25,11 @@ namespace Fdp.Toolkit.Perception.Tests
         // ── Test 2 ───────────────────────────────────────────────────────────────
 
         [Fact]
-        public void MaxTrackedTargets_ConstantValueIsFour()
+        public void MaxTrackedTargets_ConstantValueIsSixteen()
         {
+            // P0.03: raised from 4 to 16 for Utility AI Phase-1.
             // The constant drives all fixed-array sizes; if it ever changes, tests will catch the drift.
-            Assert.Equal(4, PerceptionConstants.MaxTrackedTargets);
+            Assert.Equal(16, PerceptionConstants.MaxTrackedTargets);
         }
 
         // ── Test 3 ───────────────────────────────────────────────────────────────
@@ -77,16 +78,14 @@ namespace Fdp.Toolkit.Perception.Tests
         [Fact]
         public unsafe void AddOrUpdateTarget_WhenTableFull_EvictsLowestScoringSlot()
         {
-            // Arrange — fill with four entries in ascending score order
+            // Arrange — fill all 16 slots in ascending score order (score = entityId * 10)
             var mem = new TargetMemory();
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 1L, 0f, 0f, 10f, 0u);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 2L, 0f, 0f, 20f, 0u);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 3L, 0f, 0f, 30f, 0u);
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 4L, 0f, 0f, 40f, 0u);
+            for (int i = 1; i <= PerceptionConstants.MaxTrackedTargets; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, (float)(i * 10), 0u);
             Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count); // table full
 
-            // Act — add a fifth entry whose score (25) exceeds the current lowest (10)
-            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 5L, 0f, 0f, 25f, 0u);
+            // Act — add a 17th entry whose score (25) exceeds the current lowest (10, entity 1)
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 25f, 0u);
 
             // Assert — count stays at MaxTrackedTargets and entity 1 (score 10) was evicted
             Assert.Equal(PerceptionConstants.MaxTrackedTargets, mem.Count);
@@ -96,10 +95,74 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.False(entity1Present, "Entity 1 (lowest score 10) should have been evicted.");
 
             // Verify the new entry is present
-            bool entity5Present = false;
+            bool entity17Present = false;
             for (int i = 0; i < mem.Count; i++)
-                if (mem.EntityIds[i] == 5L) entity5Present = true;
-            Assert.True(entity5Present, "Entity 5 (score 25) should be in the table after eviction.");
+                if (mem.EntityIds[i] == 17L) entity17Present = true;
+            Assert.True(entity17Present, "Entity 17 (score 25) should be in the table after eviction.");
+        }
+
+        // ── Test 6 (SC-P0-03-3): Fill 16 contacts; Count==16, sorted descending ────────
+
+        [Fact]
+        public unsafe void AddOrUpdateTarget_Fill16_CountIs16AndSortedDescending()
+        {
+            var mem = new TargetMemory();
+            for (int i = 1; i <= 16; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, (float)i, (uint)i);
+
+            Assert.Equal(16, mem.Count);
+            // Highest score should be at index 0, second-highest at index 1
+            Assert.True(mem.ThreatScores[0] >= mem.ThreatScores[1],
+                "Slot 0 must have score >= slot 1 (descending sort).");
+        }
+
+        // ── Test 7 (SC-P0-03-4): 17th with higher score evicts the lowest ─────────────
+
+        [Fact]
+        public unsafe void AddOrUpdateTarget_17thWithHigherScore_EvictsLowest_CountStays16()
+        {
+            var mem = new TargetMemory();
+            for (int i = 1; i <= 16; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, (float)(i * 5), (uint)i);
+            // Lowest score is entity 1 with score 5.
+
+            // Add entity 17 with score higher than the lowest (5)
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 50f, 17u);
+
+            Assert.Equal(16, mem.Count);
+
+            // Entity 1 (score 5) should be evicted
+            bool entity1Found = false;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == 1L) entity1Found = true;
+            Assert.False(entity1Found, "Entity 1 should be evicted after 17th high-score entry.");
+
+            // Entity 17 should be present
+            bool entity17Found = false;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == 17L) entity17Found = true;
+            Assert.True(entity17Found, "Entity 17 should be in the table.");
+        }
+
+        // ── Test 8 (SC-P0-03-5): 17th with lower score than all existing → rejected ───
+
+        [Fact]
+        public unsafe void AddOrUpdateTarget_17thWithLowerScore_IsRejected_TableUnchanged()
+        {
+            var mem = new TargetMemory();
+            for (int i = 1; i <= 16; i++)
+                TargetMemory.AddOrUpdateTarget(ref mem, entityId: (long)i, 0f, 0f, 100f + i, (uint)i);
+            // All scores are >= 101. Add entity 17 with score 1 (lower than all).
+
+            TargetMemory.AddOrUpdateTarget(ref mem, entityId: 17L, 0f, 0f, 1f, 17u);
+
+            Assert.Equal(16, mem.Count);
+
+            // Entity 17 should NOT be present
+            bool entity17Found = false;
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == 17L) entity17Found = true;
+            Assert.False(entity17Found, "Entity 17 (score too low) should be rejected.");
         }
 
         // ── Test 6 (P3D-206): PositionsZ moves in lockstep through eviction + sort ──

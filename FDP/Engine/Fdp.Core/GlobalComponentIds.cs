@@ -411,6 +411,9 @@
         /// <summary><c>IPathRegistry</c> — managed singleton path cache (NAV-P6).</summary>
         public const int IPathRegistry = 215;
 
+        /// <summary><c>WeaponMountInfo</c> — identifies a weapon mount child entity; carries mount index, weapon GUID, and effective range.</summary>
+        public const int WeaponMountInfo = 216;
+
         // ── Animation subsystem (220–249) ────────────────────────────────────────
         // Animation components: replicated channels, internal executors, queues.
         // DD-Fake §11.1 allocation block.

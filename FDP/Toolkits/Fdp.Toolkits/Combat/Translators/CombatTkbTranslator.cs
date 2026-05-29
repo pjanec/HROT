@@ -4,6 +4,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Combat.Translators
@@ -63,19 +64,50 @@ namespace Fdp.Toolkit.Combat.Translators
                 }
             }
 
-            // ── WeaponState (primary mount) ───────────────────────────────────────
+            // ── WeaponState (primary mount) + child mount entities ────────────────
             var suite = template.GetDescriptor<WeaponSuiteDto>();
             if (suite != null && suite.Mounts.Count > 0)
             {
                 var primary = suite.Mounts[0];
+                // Primary mount: WeaponState stays on the owner entity (back-compat with actuators).
                 if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
                     repo.AddComponent(entity, new WeaponState
                     {
                         Ammo           = primary.InitialAmmunition,
+                        MaxAmmo        = primary.InitialAmmunition,
                         MuzzleVelocity = primary.MuzzleVelocity > 0f
                             ? primary.MuzzleVelocity
                             : DefaultMuzzleVelocity
                     });
+
+                // Additional mounts (index 1+): each gets a child entity.
+                if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
+                {
+                    var caps = template.GetDescriptor<WeaponCapabilitiesDto>(); // may be null
+                    for (int i = 1; i < suite.Mounts.Count; i++)
+                    {
+                        var mount = suite.Mounts[i];
+                        var child = repo.CreateEntity();
+                        repo.AddComponent(child, new WeaponState
+                        {
+                            Ammo           = mount.InitialAmmunition,
+                            MaxAmmo        = mount.InitialAmmunition,
+                            MuzzleVelocity = mount.MuzzleVelocity > 0f ? mount.MuzzleVelocity : DefaultMuzzleVelocity
+                        });
+                        repo.AddComponent(child, new WeaponMountInfo
+                        {
+                            MountIndex     = i,
+                            WeaponGuid     = mount.WeaponGuid,
+                            EffectiveRange = caps?.EffectiveRange ?? 0f,
+                        });
+                        repo.AddComponent(child, new PartMetadata
+                        {
+                            ParentEntity      = entity,
+                            InstanceId        = i,
+                            DescriptorOrdinal = 0,
+                        });
+                    }
+                }
             }
         }
     }
