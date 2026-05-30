@@ -43,6 +43,7 @@ public sealed class DemoShell
 
     private string _lastPick = "(none)";
     private readonly Dictionary<float, nint> _fonts;
+    private readonly List<(EditorNotification Notification, float TimeRemaining)> _activeToasts = new();
 
     public DemoShell(Dictionary<float, nint>? fonts = null)
     {
@@ -131,6 +132,7 @@ public sealed class DemoShell
         DrawCanvasWindow();
         DrawDetailsWindow();
         DrawStatusBar();
+        DrawToasts();
     }
 
     // ── menu bar ──────────────────────────────────────────────────────────────
@@ -346,6 +348,64 @@ public sealed class DemoShell
         }
         ImGui.End();
         ImGui.PopStyleVar(2);
+    }
+
+    private void DrawToasts()
+    {
+        while (_host.ToastQueue_.TryDequeue(out var toast))
+        {
+            float duration = (float)(toast.AutoDismiss?.TotalSeconds ?? 3.0);
+            _activeToasts.Add((toast, duration));
+        }
+
+        if (_activeToasts.Count == 0)
+            return;
+
+        var viewport = ImGui.GetMainViewport();
+        Vector2 pos = new(viewport.Pos.X + viewport.Size.X - 20f, viewport.Pos.Y + viewport.Size.Y - 50f);
+
+        for (int i = _activeToasts.Count - 1; i >= 0; i--)
+        {
+            var active = _activeToasts[i];
+            active.TimeRemaining -= (float)_lastElapsed;
+
+            if (active.TimeRemaining <= 0f)
+            {
+                _activeToasts.RemoveAt(i);
+                continue;
+            }
+
+            _activeToasts[i] = active;
+
+            ImGui.SetNextWindowPos(pos, ImGuiCond.Always, new Vector2(1.0f, 1.0f));
+            ImGui.SetNextWindowBgAlpha(0.85f);
+
+            var flags = ImGuiWindowFlags.NoDecoration
+                      | ImGuiWindowFlags.AlwaysAutoResize
+                      | ImGuiWindowFlags.NoSavedSettings
+                      | ImGuiWindowFlags.NoFocusOnAppearing
+                      | ImGuiWindowFlags.NoNav
+                      | ImGuiWindowFlags.NoMove;
+
+            if (ImGui.Begin($"##toast_{i}", flags))
+            {
+                var color = active.Notification.Severity switch
+                {
+                    NotificationSeverity.Info    => new Vector4(0.4f, 0.7f, 1.0f, 1f),
+                    NotificationSeverity.Success => new Vector4(0.4f, 0.9f, 0.4f, 1f),
+                    NotificationSeverity.Warning => new Vector4(1.0f, 0.8f, 0.2f, 1f),
+                    NotificationSeverity.Error   => new Vector4(1.0f, 0.3f, 0.3f, 1f),
+                    _                            => new Vector4(1f, 1f, 1f, 1f),
+                };
+
+                ImGui.TextColored(color, active.Notification.Title);
+                if (!string.IsNullOrEmpty(active.Notification.Body))
+                    ImGui.TextUnformatted(active.Notification.Body);
+            }
+
+            pos.Y -= ImGui.GetWindowHeight() + 10f;
+            ImGui.End();
+        }
     }
 
     // ── scenario management ───────────────────────────────────────────────────

@@ -34,6 +34,16 @@ public sealed class S09_VariablePicker : Scenario
         host.Pickers.Open("demo.variables", ImGui.GetMousePos(), pick =>
         {
             host.Diagnostics?.Log(DiagnosticSeverity.Info, $"Picked variable: {pick}");
+            if (host is FakeHostServices fakeHost)
+            {
+                fakeHost.ToastQueue_.Enqueue(new NodeEditor.Core.Action.EditorNotification(
+                    System.Guid.NewGuid().ToString(),
+                    NodeEditor.Core.Action.NotificationSeverity.Success,
+                    "Variable Picked",
+                    pick?.ToString(),
+                    System.TimeSpan.FromSeconds(3),
+                    null));
+            }
         });
     }
 
