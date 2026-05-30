@@ -1,4 +1,5 @@
 using NodeEditor.Core.Commands;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Demo.FakeBlueprint;
 using NodeEditor.Primitives;
@@ -33,6 +34,9 @@ public abstract class Scenario
 
     /// <summary>Optional debug session exposed by scenarios that set breakpoints.</summary>
     public virtual FakeDebugSession? Session => null;
+
+    /// <summary>Optional ImGui overlay drawn by the host shell.</summary>
+    public virtual void DrawOverlay(IEditorHostServices host) { }
 
     // ── helpers ────────────────────────────────────────────────────────────────
 

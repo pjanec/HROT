@@ -1,3 +1,6 @@
+using ImGuiNET;
+using NodeEditor.Core.Action;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Demo.FakeBlueprint;
 using NodeEditor.Primitives;
@@ -21,5 +24,27 @@ public sealed class S32_HotReloadConflict : Scenario
             fn.Title = "Renamed Node (dirty edit)";
 
         LinkNodes(graph, begin, 0, print, 0);
+    }
+
+    public override void DrawOverlay(IEditorHostServices host)
+    {
+        if (!ImGui.SmallButton("Simulate External Modify"))
+            return;
+
+        if (host is not FakeHostServices fakeHost)
+            return;
+
+        fakeHost.ToastQueue_.Enqueue(new EditorNotification(
+            "hot-reload-conflict",
+            NotificationSeverity.Warning,
+            "External changes detected",
+            "Save or discard your changes to reload.",
+            null,
+            new[]
+            {
+                new NotificationAction("Save",    "editor.save"),
+                new NotificationAction("Discard", "editor.discard"),
+                new NotificationAction("Ignore",  "editor.ignore"),
+            }));
     }
 }

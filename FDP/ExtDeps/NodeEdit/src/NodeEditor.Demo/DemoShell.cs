@@ -272,51 +272,46 @@ public sealed class DemoShell
 
             _canvas.Render(_view, _findBar);
 
-            // Debug scenario overlay
-            if (_debugScenario?.Session is { } session)
+            ImGui.SetCursorPos(new Vector2(10, _graphContainer is not null ? 60 : 30));
+            var overlayFlags = ImGuiWindowFlags.NoTitleBar
+                             | ImGuiWindowFlags.NoBackground
+                             | ImGuiWindowFlags.NoResize
+                             | ImGuiWindowFlags.NoScrollbar
+                             | ImGuiWindowFlags.NoSavedSettings
+                             | ImGuiWindowFlags.NoFocusOnAppearing
+                             | ImGuiWindowFlags.NoNav
+                             | ImGuiWindowFlags.NoDocking;
+            var childFlags = ImGuiChildFlags.AutoResizeX | ImGuiChildFlags.AutoResizeY;
+
+            if (ImGui.BeginChild("##shell_overlay", Vector2.Zero, childFlags, overlayFlags))
             {
-                ImGui.SetCursorPos(new Vector2(10, 30));
-                if (session.IsAttached)
+                _scenarios[_scenarioIndex].DrawOverlay(_host);
+
+                // Debug scenario overlay
+                if (_debugScenario?.Session is { } session)
                 {
-                    if (session.IsPaused)
+                    if (session.IsAttached)
                     {
-                        ImGui.TextColored(new Vector4(1, 0.8f, 0, 1), "PAUSED");
+                        if (session.IsPaused)
+                        {
+                            ImGui.TextColored(new Vector4(1, 0.8f, 0, 1), "PAUSED");
+                            ImGui.SameLine();
+                            if (ImGui.SmallButton("Continue")) session.Continue();
+                        }
+                        else
+                        {
+                            ImGui.TextColored(new Vector4(0, 1, 0.4f, 1), "Attached");
+                        }
                         ImGui.SameLine();
-                        if (ImGui.SmallButton("Continue")) session.Continue();
+                        if (ImGui.SmallButton("Detach")) session.Detach();
                     }
                     else
                     {
-                        ImGui.TextColored(new Vector4(0, 1, 0.4f, 1), "Attached");
+                        if (ImGui.SmallButton("Attach Debugger")) session.Attach();
                     }
-                    ImGui.SameLine();
-                    if (ImGui.SmallButton("Detach")) session.Detach();
-                }
-                else
-                {
-                    if (ImGui.SmallButton("Attach Debugger")) session.Attach();
                 }
             }
-
-            // S32: Simulate External Modify button
-            if (_scenarios[_scenarioIndex] is S32_HotReloadConflict)
-            {
-                ImGui.SetCursorPos(new Vector2(10, _graphContainer is not null ? 60 : 30));
-                if (ImGui.SmallButton("Simulate External Modify"))
-                {
-                    _host.ToastQueue_.Enqueue(new EditorNotification(
-                        "hot-reload-conflict",
-                        NotificationSeverity.Warning,
-                        "External changes detected",
-                        "Save or discard your changes to reload.",
-                        null,
-                        new[]
-                        {
-                            new NotificationAction("Save",    "editor.save"),
-                            new NotificationAction("Discard", "editor.discard"),
-                            new NotificationAction("Ignore",  "editor.ignore"),
-                        }));
-                }
-            }
+            ImGui.EndChild();
         }
         ImGui.End();
         ImGui.PopStyleVar();
