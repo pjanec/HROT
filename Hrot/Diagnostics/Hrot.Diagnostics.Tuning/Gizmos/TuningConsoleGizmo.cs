@@ -1,7 +1,9 @@
 using System;
 using System.Numerics;
+using System.Text.Json;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Utility;
 
 namespace Hrot.Diagnostics.Tuning.Gizmos
 {
@@ -60,8 +62,11 @@ namespace Hrot.Diagnostics.Tuning.Gizmos
                 using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
                 foreach (var prop in doc.RootElement.EnumerateObject())
                 {
-                    if (prop.Value.TryGetSingle(out float v))
+                    if (prop.Value.ValueKind == JsonValueKind.Number
+                        && prop.Value.TryGetSingle(out float v))
                         _registry.Apply(new TuningKey(prop.Name), v);
+                    else if (prop.Value.ValueKind == JsonValueKind.Object)
+                        TryApplyCurveProperty(prop.Name, prop.Value);
                 }
             }
             catch (Exception ex)
@@ -86,8 +91,66 @@ namespace Hrot.Diagnostics.Tuning.Gizmos
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed) { }
         public void Dispose() { }
 
-        private static uint Fnv1a32(string s)
+        private void TryApplyCurveProperty(string keyName, JsonElement element)
         {
+            try
+            {
+                var curve = DeserializeUtilityCurve(element);
+                if (curve.Kind == CurveKind.PiecewiseLinear && curve.Points != null
+                    && curve.Points.Length > TuningRegistry.MaxPiecewisePoints)
+                {
+                    Console.Error.WriteLine(
+                        $"[TuningConsoleGizmo] Piecewise curve '{keyName}' has "
+                        + $"{curve.Points.Length} points; clamped to "
+                        + $"{TuningRegistry.MaxPiecewisePoints}.");
+                    var clamped = new PiecewisePoint[TuningRegistry.MaxPiecewisePoints];
+                    Array.Copy(curve.Points, clamped, TuningRegistry.MaxPiecewisePoints);
+                    curve.Points = clamped;
+                }
+                _registry.ApplyCurve(new TuningKey(keyName), curve);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    $"[TuningConsoleGizmo] Could not apply curve '{keyName}': {ex.Message}");
+            }
+        }
+
+        private static UtilityCurve DeserializeUtilityCurve(JsonElement el)
+        {
+            var curve = new UtilityCurve();
+            if (el.TryGetProperty("Kind", out var kindEl))
+            {
+                if (kindEl.ValueKind == JsonValueKind.Number && kindEl.TryGetInt32(out int ki))
+                    curve.Kind = (CurveKind)ki;
+                else if (kindEl.ValueKind == JsonValueKind.String)
+                    curve.Kind = Enum.Parse<CurveKind>(kindEl.GetString()!);
+            }
+            if (el.TryGetProperty("M", out var mEl) && mEl.TryGetSingle(out float m))
+                curve.M = m;
+            if (el.TryGetProperty("K", out var kEl) && kEl.TryGetSingle(out float k))
+                curve.K = k;
+            if (el.TryGetProperty("B", out var bEl) && bEl.TryGetSingle(out float b))
+                curve.B = b;
+            if (el.TryGetProperty("C", out var cEl) && cEl.TryGetSingle(out float c))
+                curve.C = c;
+            if (el.TryGetProperty("Points", out var ptsEl)
+                && ptsEl.ValueKind == JsonValueKind.Array)
+            {
+                var pts = new System.Collections.Generic.List<PiecewisePoint>();
+                foreach (var pt in ptsEl.EnumerateArray())
+                {
+                    float x = 0f, y = 0f;
+                    if (pt.TryGetProperty("X", out var xEl)) xEl.TryGetSingle(out x);
+                    if (pt.TryGetProperty("Y", out var yEl)) yEl.TryGetSingle(out y);
+                    pts.Add(new PiecewisePoint(x, y));
+                }
+                curve.Points = pts.ToArray();
+            }
+            return curve;
+        }
+
+        private static uint Fnv1a32(string s)        {
             uint hash = 2166136261u;
             foreach (char c in s)
             {

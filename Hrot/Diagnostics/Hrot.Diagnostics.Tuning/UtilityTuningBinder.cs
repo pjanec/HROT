@@ -111,6 +111,23 @@ namespace Hrot.Diagnostics.Tuning
                         old.Params);
                 },
             });
+
+            // curve (whole UtilityCurve including piecewise points)
+            registry.RegisterCurve(new TuningKey($"{prefix}.curve"), new CurveTunable
+            {
+                Scope      = TuningScope.Global,
+                Owner      = TuningOwner.Brain,
+                Provenance = $"decision:{decName}",
+                Read       = () => UtilityCurve.FromResponseCurve(option.Considerations[ci].Curve),
+                Write      = uc =>
+                {
+                    var old  = option.Considerations[ci];
+                    option.Considerations[ci] = new UtilityConsideration(
+                        old.InputId, old.Context, old.Weight,
+                        uc.ToResponseCurve(),
+                        old.Params);
+                },
+            });
         }
     }
 }

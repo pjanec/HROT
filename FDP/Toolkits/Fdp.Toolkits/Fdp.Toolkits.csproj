@@ -20,6 +20,7 @@
     <InternalsVisibleTo Include="Fdp.Presentation.Tests" />
     <InternalsVisibleTo Include="Hrot.Blueprints.Tests" />
     <InternalsVisibleTo Include="Hrot.Utility.Editor" />
+    <InternalsVisibleTo Include="Hrot.Diagnostics.Tuning.Tests" />
     <InternalsVisibleTo Include="Hrot.Utility.Editor.Tests" />
   </ItemGroup>
 

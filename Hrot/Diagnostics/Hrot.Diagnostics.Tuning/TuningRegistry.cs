@@ -1,16 +1,22 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Toolkit.Utility;
 
 namespace Hrot.Diagnostics.Tuning
 {
     // Thread-safe registration; drain must be called on the simulation thread.
     public sealed class TuningRegistry
     {
-        private readonly Dictionary<uint, Tunable>      _tunables  = new();
-        private readonly Queue<(uint id, float value)>  _applyQueue = new();
-        private readonly object                          _queueLock  = new();
+        private readonly Dictionary<uint, Tunable>                  _tunables       = new();
+        private readonly Queue<(uint id, float value)>              _applyQueue     = new();
+        private readonly Dictionary<uint, CurveTunable>             _curveTunables  = new();
+        private readonly Queue<(uint id, UtilityCurve value)>       _curveApplyQueue = new();
+        private readonly object                                      _queueLock      = new();
         // Warnings emitted when out-of-range commits are clamped.
-        private readonly Action<string>?                _warn;
+        private readonly Action<string>?                             _warn;
+
+        // Maximum number of piecewise control points accepted from an incoming TuningChangeEvent.
+        public const int MaxPiecewisePoints = 64;
 
         public TuningRegistry(Action<string>? warn = null) { _warn = warn; }
 
@@ -38,9 +44,8 @@ namespace Hrot.Diagnostics.Tuning
             (uint id, float value)[] pending;
             lock (_queueLock)
             {
-                if (_applyQueue.Count == 0) return;
-                pending = _applyQueue.ToArray();
-                _applyQueue.Clear();
+                if (_applyQueue.Count == 0) { pending = Array.Empty<(uint, float)>(); }
+                else { pending = _applyQueue.ToArray(); _applyQueue.Clear(); }
             }
             foreach (var (id, value) in pending)
             {
@@ -49,6 +54,21 @@ namespace Hrot.Diagnostics.Tuning
                 if (clamped != value)
                     _warn?.Invoke($"Tuning value for '{tunable.Key.Name}' clamped {value} -> {clamped}");
                 tunable.Write(clamped);
+            }
+            (uint id, UtilityCurve value)[] curvePending;
+            lock (_queueLock)
+            {
+                if (_curveApplyQueue.Count == 0) { curvePending = Array.Empty<(uint, UtilityCurve)>(); }
+                else
+                {
+                    curvePending = _curveApplyQueue.ToArray();
+                    _curveApplyQueue.Clear();
+                }
+            }
+            foreach (var (id, curve) in curvePending)
+            {
+                if (!_curveTunables.TryGetValue(id, out var tunable)) continue;
+                tunable.Write(curve);
             }
         }
 
@@ -70,6 +90,26 @@ namespace Hrot.Diagnostics.Tuning
 
         public bool TryGet(TuningKey key, out Tunable? tunable)
             => _tunables.TryGetValue(key.Id, out tunable);
+
+        // Register a curve tunable. Overwrites any existing entry with the same key.
+        public void RegisterCurve(TuningKey key, CurveTunable tunable)
+        {
+            tunable.Key = key;
+            _curveTunables[key.Id] = tunable;
+        }
+
+        // Enqueue a curve value change. Does NOT apply immediately.
+        // Called from any thread (e.g., OnStructUpdate callback from the network layer).
+        public bool ApplyCurve(TuningKey key, UtilityCurve value)
+        {
+            if (!_curveTunables.ContainsKey(key.Id)) return false;
+            lock (_queueLock)
+                _curveApplyQueue.Enqueue((key.Id, value));
+            return true;
+        }
+
+        public bool TryGetCurve(TuningKey key, out CurveTunable? tunable)
+            => _curveTunables.TryGetValue(key.Id, out tunable);
 
         private static string GetGroupPrefix(string name)
         {
