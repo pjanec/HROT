@@ -268,21 +268,38 @@ internal sealed class NodeRenderer
             ImGui.SetCursorScreenPos(editorPos);
             ImGui.PushItemWidth(editorWidthPx);
 
-            var currentValue = pin.Default!.Value;
+            var currentValue = view.Interaction.PinDragOverrides.TryGetValue(pin.Id, out var ovr)
+                ? ovr
+                : pin.Default!.Value;
             var ctx = new DefaultEditorContext(
                 Pin: pin.Id,
                 Type: pin.Type!.Value,
                 MaxWidth: editorWidthPx,
                 IsReadOnly: false,
-                Metadata: pin.Default.Metadata);
+                Metadata: pin.Default!.Metadata);
 
-            editor.Draw(ref currentValue, ctx, out bool committed);
+            bool changed = editor.Draw(ref currentValue, ctx, out bool committed);
 
             ImGui.PopItemWidth();
 
             if (committed)
             {
-                view.Commands.Apply(new GraphCommand.SetPinDefault(pin.Id, currentValue));
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
+                if (!Equals(currentValue, pin.Default!.Value))
+                {
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.SetPinDefault(pin.Id, currentValue);
+                    view.Execute(fwd, inv, "Set Pin Default");
+                }
+            }
+            else if (changed)
+            {
+                view.Interaction.PinDragOverrides[pin.Id] = currentValue;
+            }
+            else if (!ImGui.IsAnyItemActive())
+            {
+                // Clean up orphaned drag overrides if the user cancels via Escape
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
             }
         }
 

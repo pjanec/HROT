@@ -12,11 +12,10 @@ public sealed class IntPinEditor : IPinDefaultValueEditor
     /// <inheritdoc/>
     public bool Draw(ref object? value, DefaultEditorContext ctx, out bool committed)
     {
-        committed = false;
         int current = value is int i ? i : 0;
 
         ImGui.PushItemWidth(ctx.MaxWidth);
-        bool changed = DragFloatWithExpression.Render("##int", ref current,
+        bool changed = DragFloatWithExpression.Render("##int", ref current, out committed,
             speed: (float)(ctx.Metadata.Step ?? 1.0));
         ImGui.PopItemWidth();
 
@@ -30,10 +29,8 @@ public sealed class IntPinEditor : IPinDefaultValueEditor
             }
 
             value = current;
-            committed = ImGui.IsItemDeactivated();
-            return true;
         }
 
-        return false;
+        return changed;
     }
 }

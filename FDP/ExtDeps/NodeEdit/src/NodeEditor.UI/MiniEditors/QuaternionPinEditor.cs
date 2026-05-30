@@ -14,7 +14,6 @@ public sealed class QuaternionPinEditor : IPinDefaultValueEditor
     /// <inheritdoc/>
     public bool Draw(ref object? value, DefaultEditorContext ctx, out bool committed)
     {
-        committed = false;
         var q = value is Quaternion qv ? qv : Quaternion.Identity;
 
         // Convert quaternion to yaw/pitch/roll degrees.
@@ -22,21 +21,20 @@ public sealed class QuaternionPinEditor : IPinDefaultValueEditor
 
         bool changed = false;
         float fieldWidth = ctx.MaxWidth / 3f - 2f;
+        bool cY = false, cP = false, cR = false;
 
         ImGui.PushItemWidth(fieldWidth);
 
-        if (DragFloatWithExpression.Render("##yaw", ref yawDeg, 0.5f, "Y:%.1f")) changed = true;
-        committed |= ImGui.IsItemDeactivated();
+        if (DragFloatWithExpression.Render("##yaw", ref yawDeg, out cY, 0.5f, "Y:%.1f")) changed = true;
         ImGui.SameLine(0f, 2f);
 
-        if (DragFloatWithExpression.Render("##pitch", ref pitchDeg, 0.5f, "P:%.1f")) changed = true;
-        committed |= ImGui.IsItemDeactivated();
+        if (DragFloatWithExpression.Render("##pitch", ref pitchDeg, out cP, 0.5f, "P:%.1f")) changed = true;
         ImGui.SameLine(0f, 2f);
 
-        if (DragFloatWithExpression.Render("##roll", ref rollDeg, 0.5f, "R:%.1f")) changed = true;
-        committed |= ImGui.IsItemDeactivated();
+        if (DragFloatWithExpression.Render("##roll", ref rollDeg, out cR, 0.5f, "R:%.1f")) changed = true;
 
         ImGui.PopItemWidth();
+        committed = cY || cP || cR;
 
         if (changed)
         {

@@ -34,10 +34,11 @@ public static class DragFloatWithExpression
     /// <summary>Render a drag-float widget with expression-aware text editing.</summary>
     /// <param name="label">ImGui widget label (## prefix to suppress display).</param>
     /// <param name="value">Current value — modified when the user changes it.</param>
+    /// <param name="committed">True when the edit gesture commits this frame.</param>
     /// <param name="speed">Drag speed per pixel.</param>
     /// <param name="format">Printf-style display format.</param>
     /// <returns>True when the value changed this frame.</returns>
-    public static bool Render(string label, ref float value, float speed = 0.1f, string format = "%.3f")
+    public static bool Render(string label, ref float value, out bool committed, float speed = 0.1f, string format = "%.3f")
     {
         uint id = ImGui.GetID(label);
         if (!s_states.TryGetValue(id, out var st))
@@ -47,6 +48,7 @@ public static class DragFloatWithExpression
         }
 
         bool changed = false;
+        committed = false;
 
         if (st.IsEditing)
         {
@@ -69,6 +71,7 @@ public static class DragFloatWithExpression
             else if (entered || deactivated)
             {
                 CommitFloat(st, ref value, ref changed);
+                committed = true;
             }
 
             ShowErrorTooltip(st);
@@ -77,6 +80,8 @@ public static class DragFloatWithExpression
         {
             if (ImGui.DragFloat(label, ref value, speed, 0f, 0f, format))
                 changed = true;
+
+            committed = ImGui.IsItemDeactivatedAfterEdit();
 
             if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
@@ -94,6 +99,7 @@ public static class DragFloatWithExpression
                     st.TextBuffer = value.ToString("G6", CultureInfo.InvariantCulture);
                     st.PrevFloatValue = value;
                     st.FocusPending = true;
+                    committed = false; // Suppress commit during transition
                 }
             }
         }
@@ -102,7 +108,7 @@ public static class DragFloatWithExpression
     }
 
     /// <summary>Render a drag-int widget with expression-aware text editing.</summary>
-    public static bool Render(string label, ref int value, float speed = 1.0f)
+    public static bool Render(string label, ref int value, out bool committed, float speed = 1.0f)
     {
         uint id = ImGui.GetID(label);
         if (!s_states.TryGetValue(id, out var st))
@@ -112,6 +118,7 @@ public static class DragFloatWithExpression
         }
 
         bool changed = false;
+        committed = false;
 
         if (st.IsEditing)
         {
@@ -134,6 +141,7 @@ public static class DragFloatWithExpression
             else if (entered || deactivated)
             {
                 CommitInt(st, ref value, ref changed);
+                committed = true;
             }
 
             ShowErrorTooltip(st);
@@ -142,6 +150,8 @@ public static class DragFloatWithExpression
         {
             if (ImGui.DragInt(label, ref value, speed))
                 changed = true;
+
+            committed = ImGui.IsItemDeactivatedAfterEdit();
 
             if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
@@ -159,6 +169,7 @@ public static class DragFloatWithExpression
                     st.TextBuffer = value.ToString(CultureInfo.InvariantCulture);
                     st.PrevIntValue = value;
                     st.FocusPending = true;
+                    committed = false; // Suppress commit during transition
                 }
             }
         }

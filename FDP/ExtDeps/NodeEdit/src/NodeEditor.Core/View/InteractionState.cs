@@ -36,6 +36,8 @@ public sealed class InteractionState
     /// the final positions are flushed via a single MoveNodes command and this dict is cleared.
     /// </summary>
     public Dictionary<NodeId, Vector2> DragOverridePositions { get; } = new();
+    /// <summary>Per-pin override values during an inline editor drag.</summary>
+    public Dictionary<PinId, object?> PinDragOverrides { get; } = new();
 
     /// <summary>Snapshot of nodes that are dragged together with a comment ("contained" set, captured at drag-start).</summary>
     public HashSet<NodeId> CommentDragContents { get; } = new();
@@ -79,6 +81,7 @@ public sealed class InteractionState
         Mode = InteractionMode.Idle;
         DragThresholdCrossed = false;
         DragOverridePositions.Clear();
+        PinDragOverrides.Clear();
         CommentDragContents.Clear();
         CommentDragOverridePositions.Clear();
         RenamingComment = null;
