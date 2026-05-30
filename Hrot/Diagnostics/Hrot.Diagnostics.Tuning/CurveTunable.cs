@@ -14,5 +14,7 @@ namespace Hrot.Diagnostics.Tuning
         public string Provenance = string.Empty;
         public required Func<UtilityCurve>   Read;
         public required Action<UtilityCurve> Write;
+        // Authored default captured at registration time. Used by TuningRegistry.RevertGroup/RevertAll.
+        public UtilityCurve DefaultCurve;
     }
 }

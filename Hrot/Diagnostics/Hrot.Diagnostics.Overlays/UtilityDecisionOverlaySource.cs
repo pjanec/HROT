@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -14,12 +15,21 @@ namespace Hrot.Diagnostics.Overlays
     {
         private readonly EntityRepository _repo;
         private readonly OverlayBudgetArbiter _budget;
+        private readonly Action<string>? _onDecisionSelected;
 
-        public UtilityDecisionOverlaySource(EntityRepository repo, OverlayBudgetArbiter budget)
+        public UtilityDecisionOverlaySource(EntityRepository repo, OverlayBudgetArbiter budget,
+            Action<string>? onDecisionSelected = null)
         {
-            _repo   = repo;
-            _budget = budget;
+            _repo               = repo;
+            _budget             = budget;
+            _onDecisionSelected = onDecisionSelected;
         }
+
+        // Invoked when the operator selects a decision name from the overlay.
+        // Fires onDecisionSelected with "utility.<decisionName>" so callers can open the
+        // tuning console focused on the matching group.
+        internal void SelectDecision(string decisionName)
+            => _onDecisionSelected?.Invoke("utility." + decisionName);
 
         public void Emit(float deltaTime, IGizmoDrawBuilder draw)
         {

@@ -23,7 +23,8 @@ namespace Hrot.Diagnostics.Tuning
         // Register a tunable. Overwrites any existing entry with the same key.
         public void Register(TuningKey key, Tunable tunable)
         {
-            tunable.Key = key;
+            tunable.Key     = key;
+            tunable.Default = tunable.Read(); // capture authored default
             _tunables[key.Id] = tunable;
         }
 
@@ -94,7 +95,8 @@ namespace Hrot.Diagnostics.Tuning
         // Register a curve tunable. Overwrites any existing entry with the same key.
         public void RegisterCurve(TuningKey key, CurveTunable tunable)
         {
-            tunable.Key = key;
+            tunable.Key          = key;
+            tunable.DefaultCurve = tunable.Read(); // capture authored default
             _curveTunables[key.Id] = tunable;
         }
 
@@ -110,6 +112,37 @@ namespace Hrot.Diagnostics.Tuning
 
         public bool TryGetCurve(TuningKey key, out CurveTunable? tunable)
             => _curveTunables.TryGetValue(key.Id, out tunable);
+
+        // Enqueue restore of all float and curve tunables whose group prefix matches groupPrefix.
+        // Changes are applied at next BeginFrame (frame-top discipline preserved).
+        public void RevertGroup(string groupPrefix)
+        {
+            lock (_queueLock)
+            {
+                foreach (var t in _tunables.Values)
+                {
+                    if (GetGroupPrefix(t.Key.Name) == groupPrefix)
+                        _applyQueue.Enqueue((t.Key.Id, t.Default));
+                }
+                foreach (var ct in _curveTunables.Values)
+                {
+                    if (GetGroupPrefix(ct.Key.Name) == groupPrefix)
+                        _curveApplyQueue.Enqueue((ct.Key.Id, ct.DefaultCurve));
+                }
+            }
+        }
+
+        // Enqueue restore of ALL registered float and curve tunables to their authored defaults.
+        public void RevertAll()
+        {
+            lock (_queueLock)
+            {
+                foreach (var t in _tunables.Values)
+                    _applyQueue.Enqueue((t.Key.Id, t.Default));
+                foreach (var ct in _curveTunables.Values)
+                    _curveApplyQueue.Enqueue((ct.Key.Id, ct.DefaultCurve));
+            }
+        }
 
         private static string GetGroupPrefix(string name)
         {

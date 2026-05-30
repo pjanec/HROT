@@ -92,7 +92,7 @@
 
 **Goal:** Visual curve editing in-world + editor↔console bridge + snapshot/restore.
 
-- [ ] **TASK-UAI-P6-01** `UtilityCurveFieldEditor` + `UtilityCurveFieldDrawer` [details](./TASK-DETAIL.md#task-uai-p6-01-utilitycurvefieldeditor--utilitycurvefielddrawer)
-- [ ] **TASK-UAI-P6-02** Piecewise translate-on-apply [details](./TASK-DETAIL.md#task-uai-p6-02-piecewise-translate-on-apply)
+- [x] **TASK-UAI-P6-01** `UtilityCurveFieldEditor` + `UtilityCurveFieldDrawer` [details](./TASK-DETAIL.md#task-uai-p6-01-utilitycurvefieldeditor--utilitycurvefieldrawer) — BATCH-18
+- [x] **TASK-UAI-P6-02** Piecewise translate-on-apply [details](./TASK-DETAIL.md#task-uai-p6-02-piecewise-translate-on-apply) — BATCH-18
 - [ ] **TASK-UAI-P6-03** Editor ↔ console bridge [details](./TASK-DETAIL.md#task-uai-p6-03-editor--console-bridge)
 - [ ] **TASK-UAI-P6-04** Snapshot / restore [details](./TASK-DETAIL.md#task-uai-p6-04-snapshot--restore-revert-group--revert-all)

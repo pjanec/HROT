@@ -388,5 +388,30 @@ namespace Hrot.Diagnostics.Overlays.Tests
             Assert.False(channelsAllowed);
             Assert.True(arbiter.IsPermitted(AiOverlayFlags.UtilityDecision));
         }
+
+        // ── SC-P6-3: Editor/console bridge ───────────────────────────────────────
+
+        [Fact]
+        public void SelectDecision_NullCallback_DoesNotThrow()
+        {
+            using var repo = CreateTestRepo();
+            var arbiter = new OverlayBudgetArbiter(float.MaxValue);
+            var source  = new UtilityDecisionOverlaySource(repo, arbiter); // no callback
+            source.SelectDecision("CombatPosture"); // must not throw
+        }
+
+        [Fact]
+        public void SelectDecision_InvokesCallback_WithGroupPrefix()
+        {
+            using var repo = CreateTestRepo();
+            var arbiter    = new OverlayBudgetArbiter(float.MaxValue);
+            string? received = null;
+            var source = new UtilityDecisionOverlaySource(repo, arbiter,
+                onDecisionSelected: g => received = g);
+
+            source.SelectDecision("CombatPosture");
+
+            Assert.Equal("utility.CombatPosture", received);
+        }
     }
 }

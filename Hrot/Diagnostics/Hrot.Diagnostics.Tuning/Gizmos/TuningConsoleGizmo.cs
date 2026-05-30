@@ -26,10 +26,14 @@ namespace Hrot.Diagnostics.Tuning.Gizmos
 
         private readonly TuningRegistry _registry;
         private bool _isEditing;
+        private string? _focusedGroup;
 
         public bool RequiresExclusiveFocus => false;
         public bool IsFocused { get; private set; }
         public void SetFocus(bool isFocused) => IsFocused = isFocused;
+
+        public bool IsEditing => _isEditing;
+        public string? FocusedGroup => _focusedGroup;
 
         public TuningConsoleGizmo(TuningRegistry registry)
         {
@@ -38,6 +42,14 @@ namespace Hrot.Diagnostics.Tuning.Gizmos
 
         // Exposes the toggle so integration tests can drive the editing state directly.
         public void ToggleEditor() => _isEditing = !_isEditing;
+
+        // Opens the tuning console and focuses it on the named group.
+        // Called by the editor/console bridge (P6-03, SC-P6-3).
+        public void OpenForGroup(string groupPrefix)
+        {
+            _isEditing    = true;
+            _focusedGroup = groupPrefix;
+        }
 
         public void UpdateAndDraw(float deltaTime, IGizmoDrawBuilder draw)
         {

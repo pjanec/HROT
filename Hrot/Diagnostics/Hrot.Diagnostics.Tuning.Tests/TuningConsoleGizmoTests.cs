@@ -147,5 +147,33 @@ namespace Hrot.Diagnostics.Tuning.Tests
             // EmitRawCount must still be 1 (no new emission).
             Assert.Equal(1, draw.EmitRawCount);
         }
+
+        // ── SC-P6-3: OpenForGroup ─────────────────────────────────────────────────
+
+        [Fact]
+        public void OpenForGroup_SetsIsEditingTrue()
+        {
+            var gizmo = new TuningConsoleGizmo(new TuningRegistry());
+            Assert.False(gizmo.IsEditing);
+            gizmo.OpenForGroup("utility.CombatPosture");
+            Assert.True(gizmo.IsEditing);
+        }
+
+        [Fact]
+        public void OpenForGroup_SetsFocusedGroup()
+        {
+            var gizmo = new TuningConsoleGizmo(new TuningRegistry());
+            gizmo.OpenForGroup("utility.CombatPosture");
+            Assert.Equal("utility.CombatPosture", gizmo.FocusedGroup);
+        }
+
+        [Fact]
+        public void OpenForGroup_OverridesPreviousFocusedGroup()
+        {
+            var gizmo = new TuningConsoleGizmo(new TuningRegistry());
+            gizmo.OpenForGroup("utility.Alpha");
+            gizmo.OpenForGroup("utility.Beta");
+            Assert.Equal("utility.Beta", gizmo.FocusedGroup);
+        }
     }
 }
