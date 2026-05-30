@@ -123,11 +123,20 @@ namespace Hrot.SimHost.Systems
                 evalState = new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch };
 
             // Reset on epoch change (sensor parameters changed -> discard in-flight raycasts).
-            // Preserve CurrentStructureHash so a soft reset does not trigger a spurious hard reset.
+            // Preserve CurrentStructureHash so a soft reset does not trigger a spurious hard reset,
+            // and preserve LastPublishedTopK so the ScoreDelta publish policy is not defeated on the
+            // first tick after a parameter tweak (a soft reset must keep publish-suppression state).
             if (evalState.CurrentEpoch != sensor.Epoch)
             {
                 ulong savedHash = evalState.CurrentStructureHash;
-                evalState = new SensorEvalState { Phase = EqsEvalPhase.Idle, CurrentEpoch = sensor.Epoch, CurrentStructureHash = savedHash };
+                var   savedTopK = evalState.LastPublishedTopK;
+                evalState = new SensorEvalState
+                {
+                    Phase                = EqsEvalPhase.Idle,
+                    CurrentEpoch         = sensor.Epoch,
+                    CurrentStructureHash = savedHash,
+                    LastPublishedTopK    = savedTopK,
+                };
             }
 
             // Try to look up the template from the registry singleton.
@@ -201,15 +210,24 @@ namespace Hrot.SimHost.Systems
                 foreach (var test in template.FilterExpensive)
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
 
-            // 4. Top-K reduction: compact and truncate.
-            activeCandidates = ReduceTopK(activeCandidates, EqsResultPool.MaxTopK);
+            // 4. Compact rejected (-1L) candidates BEFORE cheap scoring so scoring tests never
+            //    see rejection sentinels. Do NOT truncate here: no scoring has run yet, so the
+            //    Score field is meaningless and a score-ordered truncation at this point would
+            //    discard candidates effectively at random (bypassing DistanceScoreTest et al.
+            //    for the Top-K selection).
+            activeCandidates = CompactRejected(activeCandidates);
 
             // 5. ScoreCheap.
             if (template.ScoreCheap != null)
                 foreach (var test in template.ScoreCheap)
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
 
-            // 6. ScoreExpensive.
+            // 6. Top-K reduction: now that cheap scores exist, rank by Score and truncate to
+            //    MaxTopK so the expensive phase (raycasts, path cost) runs only on the viable
+            //    survivors (Design §5.2 reduce-between-phases / §9.3 two-pass strategy).
+            activeCandidates = TruncateTopK(activeCandidates, EqsResultPool.MaxTopK);
+
+            // 7. ScoreExpensive.
             if (template.ScoreExpensive != null)
                 foreach (var test in template.ScoreExpensive)
                     test.ExecuteBatch(entity, ref Unsafe.AsRef(in sensor), _currentView, activeCandidates);
@@ -242,16 +260,17 @@ namespace Hrot.SimHost.Systems
             evalState.CurrentStructureHash = template.ComputeStructureHash();
             evalState.Phase = EqsEvalPhase.Idle;
 
-            // 7. Sort descending by Score.
+            // 9. Final sort descending by Score.
             MemoryExtensions.Sort(activeCandidates, (a, b) => b.Score.CompareTo(a.Score));
 
-            // 8. Write to pool and publish (persists evalState, including LastPublishedTopK update).
+            // 10. Write to pool and publish (persists evalState, including LastPublishedTopK update).
             WriteResultsToPoolAndPublish(entity, parentNetworkId, localChildIndex, sensor.Epoch, ref evalState, in sensor, activeCandidates);
         }
 
-        // Returns a compacted + top-K truncated span.
-        // Checks EntityId != -1L (NOT != 0) to preserve valid positional candidates (EntityId=0).
-        private static Span<EqsResult> ReduceTopK(Span<EqsResult> candidates, int maxTopK)
+        // Compacts the span in place by removing rejection sentinels (EntityId == -1L),
+        // preserving valid positional candidates (EntityId == 0). Does NOT sort or truncate —
+        // truncation must wait until cheap scores have been computed (see TruncateTopK).
+        private static Span<EqsResult> CompactRejected(Span<EqsResult> candidates)
         {
             int validCount = 0;
             for (int i = 0; i < candidates.Length; i++)
@@ -260,16 +279,22 @@ namespace Hrot.SimHost.Systems
                     candidates[validCount++] = candidates[i];
             }
 
-            var validSpan = candidates.Slice(0, validCount);
+            return candidates.Slice(0, validCount);
+        }
 
-            if (validSpan.Length > maxTopK)
+        // Ranks the (already-compacted, already cheap-scored) span descending by Score and
+        // truncates to maxTopK. Must run AFTER ScoreCheap so the truncation reflects real scores
+        // rather than the zero-initialised Score field, and BEFORE ScoreExpensive so costly tests
+        // run only on the viable survivors.
+        private static Span<EqsResult> TruncateTopK(Span<EqsResult> candidates, int maxTopK)
+        {
+            if (candidates.Length > maxTopK)
             {
-                // Pre-sort to find best candidates before truncating.
-                MemoryExtensions.Sort(validSpan, (a, b) => b.Score.CompareTo(a.Score));
-                return validSpan.Slice(0, maxTopK);
+                MemoryExtensions.Sort(candidates, (a, b) => b.Score.CompareTo(a.Score));
+                return candidates.Slice(0, maxTopK);
             }
 
-            return validSpan;
+            return candidates;
         }
 
         private void WriteResultsToPoolAndPublish(

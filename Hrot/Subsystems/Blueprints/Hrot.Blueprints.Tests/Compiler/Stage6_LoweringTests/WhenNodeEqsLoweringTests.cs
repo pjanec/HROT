@@ -198,7 +198,12 @@ public sealed class WhenNodeEqsLoweringTests
 
         Assert.NotNull(src);
         Assert.Contains("top.EntityId != 0L", src);
-        Assert.Contains("HashCode.Combine(top.PositionX, top.PositionY)", src);
+        // Positional identity must be DETERMINISTIC across nodes and hot-reloads:
+        // System.HashCode.Combine is per-process randomized and must NOT be used. The
+        // emitter bit-packs the two float coordinates into the tracking id instead.
+        Assert.DoesNotContain("HashCode.Combine", src);
+        Assert.Contains("SingleToInt32Bits(top.PositionX)", src);
+        Assert.Contains("SingleToInt32Bits(top.PositionY)", src);
     }
 
     [Fact]

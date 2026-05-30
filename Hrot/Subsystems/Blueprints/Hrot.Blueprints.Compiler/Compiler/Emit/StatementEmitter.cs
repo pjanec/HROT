@@ -561,9 +561,14 @@ internal static class StatementEmitter
         e.WriteLine("{");
         e.Indent();
         e.WriteLine($"var top = results[0];");
+        // Positional candidates (EntityId == 0) need a stable identity for change detection.
+        // System.HashCode.Combine is seeded per-process in .NET Core, so it produces different
+        // values on different Brain/IG nodes and across hot-reloads — firing spurious TopChanged
+        // events. Pack the two float bit-patterns into the long instead: fully deterministic and
+        // collision-free for distinct (X, Y) pairs.
         e.WriteLine($"long currentTopId = top.EntityId != 0L");
         e.WriteLine($"    ? top.EntityId");
-        e.WriteLine($"    : (long)global::System.HashCode.Combine(top.PositionX, top.PositionY);");
+        e.WriteLine($"    : unchecked((long)(((ulong)(uint)global::System.BitConverter.SingleToInt32Bits(top.PositionX) << 32) | (uint)global::System.BitConverter.SingleToInt32Bits(top.PositionY)));");
         e.WriteLine();
         e.WriteLine($"if (currentTopId != prev.PrevTopId && prev.LastEvaluatedEpoch != 0)");
         e.WriteLine("{");
