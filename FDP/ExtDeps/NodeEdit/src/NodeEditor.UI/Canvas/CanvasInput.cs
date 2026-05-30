@@ -661,31 +661,73 @@ internal sealed class CanvasInput
                     {
                         if (pick is NodeCatalogEntry entry)
                         {
-                            var (nodeFwd, nodeInv) = cb.AddNode(entry.Kind, pw.CursorGraph, null);
-                            view.Execute(nodeFwd, nodeInv, "Add Node");
-
-                            var newNodeId = ((GraphCommand.AddNode)nodeFwd).AssignedId;
-                            var newNode = view.Model.FindNode(newNodeId);
-                            var currentSrcPin = view.Model.FindPin(pw.SourcePin);
-
-                            if (newNode != null && currentSrcPin != null)
+                            var srcPinModel = view.Model.FindPin(pw.SourcePin);
+                            if (srcPinModel != null)
                             {
-                                var targetDir = currentSrcPin.Direction == PinDirection.Output
-                                    ? PinDirection.Input
-                                    : PinDirection.Output;
-
-                                var compatiblePin = newNode.Pins.FirstOrDefault(p =>
-                                    p.Direction == targetDir &&
-                                    p.Kind == currentSrcPin.Kind &&
-                                    (currentSrcPin.Kind == PinKind.Exec || p.Type == currentSrcPin.Type));
-
-                                if (compatiblePin != null)
+                                // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
+                                var pinIds = new List<PinId>();
+                                int totalPins = entry.Inputs.Count + entry.Outputs.Count;
+                                for (int i = 0; i < totalPins; i++)
                                 {
-                                    var fromId = currentSrcPin.Direction == PinDirection.Output ? currentSrcPin.Id : compatiblePin.Id;
-                                    var toId = currentSrcPin.Direction == PinDirection.Output ? compatiblePin.Id : currentSrcPin.Id;
-                                    var (linkFwd, linkInv) = cb.AddLink(fromId, toId);
-                                    view.Execute(linkFwd, linkInv, "Connect Pins");
+                                    pinIds.Add(IdGenerator.NewPinId());
                                 }
+
+                                var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
+                                var newNodeId = IdGenerator.NewNodeId();
+
+                                var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
+                                var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
+
+                                var fwds = new List<GraphCommand> { nodeFwd };
+                                var invs = new List<GraphCommand> { nodeInv };
+
+                                // 2. Find a compatible pin using the catalog entry signatures
+                                var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
+                                PinId? compatiblePinId = null;
+                                int pinIdx = 0;
+
+                                foreach (var sig in entry.Inputs)
+                                {
+                                    if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
+                                        (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                    {
+                                        compatiblePinId = pinIds[pinIdx];
+                                        break;
+                                    }
+                                    pinIdx++;
+                                }
+
+                                if (compatiblePinId == null)
+                                {
+                                    foreach (var sig in entry.Outputs)
+                                    {
+                                        if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
+                                            (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                        {
+                                            compatiblePinId = pinIds[pinIdx];
+                                            break;
+                                        }
+                                        pinIdx++;
+                                    }
+                                }
+
+                                // 3. Form the link command targeting the deterministic PinId
+                                if (compatiblePinId.HasValue)
+                                {
+                                    var linkId = IdGenerator.NewLinkId();
+                                    var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
+                                    var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
+
+                                    fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
+                                    invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
+                                }
+
+                                // 4. Execute as a single atomic batch (inverses must be reversed)
+                                invs.Reverse();
+                                var batchFwd = new GraphCommand.Batch("Add Node", fwds);
+                                var batchInv = new GraphCommand.Batch("Add Node", invs);
+
+                                view.Execute(batchFwd, batchInv, "Add Node");
                             }
                         }
                         view.Interaction.ResetToIdle();
