@@ -29,7 +29,6 @@ internal sealed class HitTester
     internal const int ZLayerAfterWires        = 60;
     internal const int ZLayerNodeElement       = 70; // Node bodies, pins, attachments
     internal const int ZLayerCommentHeader     = 80;
-    internal const int ZLayerReroute           = 90;
     internal const int ZLayerAfterNodes        = 100;
     internal const int ZLayerTopMost           = 110;
 
@@ -193,16 +192,18 @@ internal sealed class HitTester
             rerouteIndex++;
             for (int wi = 0; wi < link.Waypoints.Count; wi++)
             {
-                var pt = view.Viewport.GraphToScreen(link.Waypoints[wi]);
+                var rr = new RerouteRef(link.Id, wi);
+                var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : link.Waypoints[wi];
+                var pt = view.Viewport.GraphToScreen(wpGraph);
                 if (Vector2.Distance(mouse, pt) <= RerouteHitRadiusPx)
                 {
                     SubmitHit(
                         new HoverInfo
                         {
                             Kind = HoverKind.Reroute,
-                            Reroute = new RerouteRef(link.Id, wi),
+                            Reroute = rr,
                         },
-                        ZLayerReroute, rerouteIndex, 1);
+                        ZLayerWire, rerouteIndex, 0);
                 }
             }
         }

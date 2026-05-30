@@ -182,10 +182,7 @@ public sealed class CanvasRenderer
         // 9. Comment boxes — foreground layer (header text on top of nodes).
         DrawComments(dl, view, foreground: true, visibleGraphRect);
 
-        // 10. Reroute waypoints.
-        ReroutesRenderer.Render(view, visibleNodeIds, visibleGraphRect);
-
-        // 10b. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
+        // 10. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterNodes);
 
         // 11. Pending wire being dragged.
