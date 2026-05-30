@@ -25,7 +25,6 @@ public static class UtilityAssetHasher
                 hc.Add(con.VisualId);
                 hc.Add(con.InputName);
                 hc.Add(con.Context);
-                hc.Add(con.Curve.Kind);
             }
         }
         return hc.ToHashCode();
@@ -45,6 +44,7 @@ public static class UtilityAssetHasher
             hc.Add(con.Curve.K);
             hc.Add(con.Curve.B);
             hc.Add(con.Curve.C);
+            hc.Add(con.Curve.Kind);
         }
         return hc.ToHashCode();
     }
