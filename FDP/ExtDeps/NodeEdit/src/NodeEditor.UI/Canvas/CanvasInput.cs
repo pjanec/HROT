@@ -140,11 +140,24 @@ internal sealed class CanvasInput
                     {
                         var linksToRemove = view.Model.Links
                             .Where(l => l.FromPin == hover.Pin || l.ToPin == hover.Pin)
-                            .Select(l => l.Id)
                             .ToList();
 
                         if (linksToRemove.Count > 0)
-                            view.Commands.Apply(new GraphCommand.RemoveLinks(linksToRemove));
+                        {
+                            var fwds = new List<GraphCommand>();
+                            var invs = new List<GraphCommand>();
+                            fwds.Add(new GraphCommand.RemoveLinks(linksToRemove.Select(l => l.Id).ToList()));
+                            foreach (var l in linksToRemove)
+                            {
+                                invs.Add(new GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                            }
+                            invs.Reverse();
+
+                            view.Execute(
+                                new GraphCommand.Batch("Break Links", fwds),
+                                new GraphCommand.Batch("Break Links", invs),
+                                "Break Links");
+                        }
                         return;
                     }
 
@@ -210,15 +223,27 @@ internal sealed class CanvasInput
                 case HoverKind.Link:
                     if (alt)
                     {
-                        view.Commands.Apply(new GraphCommand.RemoveLinks(new[] { hover.Link }));
+                        var link = view.Model.FindLink(hover.Link);
+                        if (link != null)
+                        {
+                            var fwd = new GraphCommand.RemoveLinks(new[] { hover.Link });
+                            var inv = new GraphCommand.AddLink(link.Id, link.FromPin, link.ToPin);
+                            view.Execute(fwd, inv, "Break Link");
+                        }
                         return;
                     }
 
-                    if (ctrl)
+                    if (ctrl || input.IsMouseDoubleClicked(MouseButton.Left))
                     {
-                        // Ctrl+click wire → insert reroute
+                        // Ctrl+click or double-click wire → insert reroute
                         var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
-                        view.Commands.Apply(new GraphCommand.InsertReroute(hover.Link, graphPos));
+                        var link = view.Model.FindLink(hover.Link);
+                        if (link != null)
+                        {
+                            var fwd = new GraphCommand.InsertReroute(hover.Link, graphPos);
+                            var inv = new GraphCommand.RemoveReroute(hover.Link, link.Waypoints.Count);
+                            view.Execute(fwd, inv, "Insert Reroute");
+                        }
                     }
                     else
                     {

@@ -433,7 +433,13 @@ public sealed class CanvasRenderer
 
                 if (ImGui.MenuItem("Insert Reroute Node Here"))
                 {
-                    view.Commands.Apply(new Core.Commands.GraphCommand.InsertReroute(linkId, _contextMenuGraphPos));
+                    var link = view.Model.FindLink(linkId);
+                    if (link != null)
+                    {
+                        var fwd = new Core.Commands.GraphCommand.InsertReroute(linkId, _contextMenuGraphPos);
+                        var inv = new Core.Commands.GraphCommand.RemoveReroute(linkId, link.Waypoints.Count);
+                        view.Execute(fwd, inv, "Insert Reroute");
+                    }
                 }
 
                 ImGui.BeginDisabled();
