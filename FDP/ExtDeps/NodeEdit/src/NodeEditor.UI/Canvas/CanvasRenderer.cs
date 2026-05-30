@@ -43,6 +43,7 @@ public sealed class CanvasRenderer
     private IGraphModel? _subscribedModel;
     private bool         _spatialDirty          = true;
     private int          _lastDragOverrideCount = -1;
+    private Vector2      _contextMenuGraphPos;
 
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
@@ -204,6 +205,7 @@ public sealed class CanvasRenderer
         if (view.Interaction.ContextMenuScreen.HasValue)
         {
             ImGui.SetNextWindowPos(view.Interaction.ContextMenuScreen.Value);
+            _contextMenuGraphPos = view.Viewport.ScreenToGraph(view.Interaction.ContextMenuScreen.Value);
             ImGui.OpenPopup("##canvas_ctx");
             view.Interaction.ContextMenuScreen = null;
         }
@@ -351,7 +353,7 @@ public sealed class CanvasRenderer
         dl.AddRect(min, max, ImGui.GetColorU32(theme.SelectionAccent), 0f, ImDrawFlags.None, 1.5f);
     }
 
-    private static void DrawContextMenu(GraphView view)
+    private void DrawContextMenu(GraphView view)
     {
         var target = view.Interaction.ContextMenuTarget;
         switch (target.Kind)
@@ -434,8 +436,7 @@ public sealed class CanvasRenderer
 
                 if (ImGui.MenuItem("Insert Reroute Node Here"))
                 {
-                    var graphPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
-                    view.Commands.Apply(new Core.Commands.GraphCommand.InsertReroute(linkId, graphPos));
+                    view.Commands.Apply(new Core.Commands.GraphCommand.InsertReroute(linkId, _contextMenuGraphPos));
                 }
 
                 ImGui.BeginDisabled();
