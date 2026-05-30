@@ -9,4 +9,8 @@ public sealed class InputParamsModel
     public float MaxRange;
     // Zero-based weapon mount index -- per-mount weapon readers.
     public int   MountIndex;
+    // Template name string for EQS inputs (e.g., "CoverQuery").
+    // Stored alongside BlueprintId so the emitter can reconstruct In.EqsTopScore("CoverQuery").
+    // Empty for non-EQS inputs.
+    public string TemplateName = string.Empty;
 }
