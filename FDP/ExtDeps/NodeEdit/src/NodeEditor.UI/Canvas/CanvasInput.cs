@@ -604,11 +604,12 @@ internal sealed class CanvasInput
         if (input.IsMouseReleased(MouseButton.Left))
         {
             var dropHover = view.Interaction.Hover;
+            var cb = new CommandBuilder(view.Model);
 
             if (pw.CandidateTarget.HasValue && pw.CandidateValid)
             {
-                var newId = LinkId.NewId();
-                view.Commands.Apply(new GraphCommand.AddLink(newId, pw.SourcePin, pw.CandidateTarget.Value));
+                var (fwd, inv) = cb.AddLink(pw.SourcePin, pw.CandidateTarget.Value);
+                view.Execute(fwd, inv, "Connect Pins");
                 view.Interaction.ResetToIdle();
             }
             else if (dropHover.Kind == HoverKind.Pin)
@@ -619,7 +620,9 @@ internal sealed class CanvasInput
             else if (dropHover.Kind == HoverKind.Node)
             {
                 var node = view.Model.FindNode(dropHover.Node);
-                if (node != null)
+                var srcPin = view.Model.FindPin(pw.SourcePin);
+
+                if (node != null && srcPin != null)
                 {
                     var compatiblePin = node.Pins.FirstOrDefault(p =>
                         p.Id != pw.SourcePin
@@ -627,8 +630,10 @@ internal sealed class CanvasInput
 
                     if (compatiblePin != null)
                     {
-                        var linkId = LinkId.NewId();
-                        view.Commands.Apply(new GraphCommand.AddLink(linkId, pw.SourcePin, compatiblePin.Id));
+                        var fromId = srcPin.Direction == PinDirection.Output ? srcPin.Id : compatiblePin.Id;
+                        var toId = srcPin.Direction == PinDirection.Output ? compatiblePin.Id : srcPin.Id;
+                        var (fwd, inv) = cb.AddLink(fromId, toId);
+                        view.Execute(fwd, inv, "Connect Pins");
                     }
                 }
 
@@ -656,29 +661,30 @@ internal sealed class CanvasInput
                     {
                         if (pick is NodeCatalogEntry entry)
                         {
-                            var newId = IdGenerator.NewNodeId();
-                            view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, pw.CursorGraph, null));
+                            var (nodeFwd, nodeInv) = cb.AddNode(entry.Kind, pw.CursorGraph, null);
+                            view.Execute(nodeFwd, nodeInv, "Add Node");
 
-                            var newNode = view.Model.FindNode(newId);
-                            var srcPin = view.Model.FindPin(pw.SourcePin);
+                            var newNodeId = ((GraphCommand.AddNode)nodeFwd).AssignedId;
+                            var newNode = view.Model.FindNode(newNodeId);
+                            var currentSrcPin = view.Model.FindPin(pw.SourcePin);
 
-                            if (newNode != null && srcPin != null)
+                            if (newNode != null && currentSrcPin != null)
                             {
-                                var targetDir = srcPin.Direction == PinDirection.Output
+                                var targetDir = currentSrcPin.Direction == PinDirection.Output
                                     ? PinDirection.Input
                                     : PinDirection.Output;
 
                                 var compatiblePin = newNode.Pins.FirstOrDefault(p =>
                                     p.Direction == targetDir &&
-                                    p.Kind == srcPin.Kind &&
-                                    (srcPin.Kind == PinKind.Exec || p.Type == srcPin.Type));
+                                    p.Kind == currentSrcPin.Kind &&
+                                    (currentSrcPin.Kind == PinKind.Exec || p.Type == currentSrcPin.Type));
 
                                 if (compatiblePin != null)
                                 {
-                                    var linkId = LinkId.NewId();
-                                    var fromPin = srcPin.Direction == PinDirection.Output ? srcPin.Id : compatiblePin.Id;
-                                    var toPin = srcPin.Direction == PinDirection.Output ? compatiblePin.Id : srcPin.Id;
-                                    view.Commands.Apply(new GraphCommand.AddLink(linkId, fromPin, toPin));
+                                    var fromId = currentSrcPin.Direction == PinDirection.Output ? currentSrcPin.Id : compatiblePin.Id;
+                                    var toId = currentSrcPin.Direction == PinDirection.Output ? compatiblePin.Id : currentSrcPin.Id;
+                                    var (linkFwd, linkInv) = cb.AddLink(fromId, toId);
+                                    view.Execute(linkFwd, linkInv, "Connect Pins");
                                 }
                             }
                         }
