@@ -175,7 +175,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             var hashed     = new List<KeyValuePair<ushort, UtilityInputInfo>>();
             foreach (var m in deduped)
             {
-                ushort hash = Fnv1a16(m.Name);
+                ushort hash = ComputeHash(m.Name);
                 if (hashToInfo.TryGetValue(hash, out var first))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
@@ -239,8 +239,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
         // ---- Hash function (§3.3) -----------------------------------------------
 
-        // 32-bit FNV-1a, return low 16 bits. Matches StandardInputIds hash constants exactly.
-        internal static ushort Fnv1a16(string s)
+        // 32-bit FNV-1a, return low 16 bits.
+        // IMPORTANT: uses the 32-bit basis (2166136261) and 32-bit prime (16777619), then
+        // masks to 16 bits. This is NOT a native FNV-1a16 (which uses basis 40291, prime 933
+        // and produces different values). Must stay byte-identical with BTreeActionGenerator.ComputeHash
+        // and HsmActionGenerator.ComputeHash — any divergence silently breaks dispatch.
+        internal static ushort ComputeHash(string s)
         {
             uint hash = 2166136261u;
             foreach (char c in s)

@@ -138,16 +138,20 @@ truncate the low 16 bits:
 
 ```csharp
 // The ONE hash both gen-time and runtime must use, verbatim. Any divergence = silent dispatch miss.
-static ushort Fnv1a16(string s)
+// Name matches BTreeActionGenerator.ComputeHash / HsmActionGenerator.ComputeHash exactly.
+// WARNING: this is NOT a native FNV-1a16 (which uses basis 40291 and prime 933 and produces
+// entirely different values). It is a standard 32-bit FNV-1a truncated to 16 bits.
+static ushort ComputeHash(string s)
 {
-    uint hash = 2166136261u;            // FNV offset basis (32-bit)
-    foreach (char c in s) { hash ^= c; hash *= 16777619u; }  // FNV prime
-    return (ushort)(hash & 0xFFFF);     // truncate to 16 bits — matches BTree/HSM exactly
+    uint hash = 2166136261u;            // FNV-1a 32-bit offset basis
+    foreach (char c in s) { hash ^= c; hash *= 16777619u; }  // FNV-1a 32-bit prime
+    return (ushort)(hash & 0xFFFF);     // truncate to low 16 bits — matches BTree/HSM exactly
 }
 ```
 
-Using true FNV-1a16 (16-bit basis/prime) here would produce different bytes than the rest of the AI
-subsystem and break the §10 parity test; the generator copies the existing 32-bit-then-mask code.
+Using a native FNV-1a16 (16-bit basis `40291`, prime `933`) would produce completely different
+values than the BTree/HSM generators and silently break every dispatch; the generator copies the
+existing 32-bit-then-mask code.
 
 ```csharp
 // UtilityInputRegistrar.g.cs   (generated)
