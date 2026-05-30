@@ -475,7 +475,7 @@ public sealed class BlueprintAssetBuilder
             CustomEvents = new List<CustomEventDecl>(_customEvents),
             CallablePeers = new List<Guid>(_callablePeers),
             Graphs = new List<Graph>(_graphs),
-            Header = new Header { SubsystemType = "Hrot.Blueprints", SchemaVersion = "1.0" },
+            Header = new Header(),
         };
     }
 

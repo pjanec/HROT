@@ -143,7 +143,7 @@ public sealed class Stage3_NormalizationTests
             Parameters = new(), WorkingState = new(), Variables = new(),
             EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
             Graphs = new List<Graph> { graph },
-            Header = new Header { SubsystemType = "Hrot.Blueprints", SchemaVersion = "1.0" },
+            Header = new Header(),
         };
 
         var sink = new DiagnosticSink();

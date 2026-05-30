@@ -148,13 +148,4 @@ public sealed class BlueprintAssetBuilderTests
         Assert.Empty(asset.Primitive.Hostings);
     }
 
-    // Extra: Header is always set correctly.
-    [Fact]
-    public void Build_HeaderIsSetCorrectly()
-    {
-        var asset = BlueprintAssetBuilder.Library("Any").Build();
-
-        Assert.Equal("Hrot.Blueprints", asset.Header.SubsystemType);
-        Assert.Equal("1.0", asset.Header.SchemaVersion);
-    }
 }

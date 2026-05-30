@@ -130,7 +130,7 @@ public sealed class GoldenIrTests
             Parameters = new(), WorkingState = new(), Variables = new(),
             EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
             Graphs = new() { graph },
-            Header = new Hrot.Blueprints.Core.Assets.Header { SubsystemType = "Hrot.Blueprints", SchemaVersion = "1.0" },
+            Header = new Hrot.Blueprints.Core.Assets.Header(),
         };
 
         var opts   = DefaultOptions();
@@ -205,7 +205,7 @@ public sealed class GoldenIrTests
             Parameters = new(), WorkingState = new(), Variables = new(),
             EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
             Graphs = new() { graph },
-            Header = new Hrot.Blueprints.Core.Assets.Header { SubsystemType = "Hrot.Blueprints", SchemaVersion = "1.0" },
+            Header = new Hrot.Blueprints.Core.Assets.Header(),
         };
 
         var opts  = DefaultOptions();

@@ -67,7 +67,7 @@ public sealed class V_PeerReferencesTests
                     },
                 },
             },
-            Header = new Header { SubsystemType = "Hrot.Blueprints", SchemaVersion = "1.0" },
+            Header = new Header(),
         };
     }
 
