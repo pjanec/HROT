@@ -52,6 +52,12 @@ present unless marked ⚠.
 - `WeaponChannelTranslator` was **deleted** in `cgf-scn-2`. DD-2 assumes "existing channel intent/status translator precedent." Confirm the current channel-replication mechanism (SmartEgress / descriptor egress) before implementing DD-2 translators.
 - DD code uses `channel.ActionParams`/`ActionState`; real fields are `Params`/`State`. All codegen and test helpers must use the real names.
 
+⚠ **DD-1 §17 phase-mapping vs. v239 engine** — DD-1 uses the architectural altitude name `PreSimulation` for dispatchers, but the v239 `SystemPhase` enum has no such value. Valid phases are `Input`, `BeforeSync`, `Simulation`, `PostSimulation`, `Export`, `Manual`. The canonical precedent `LocomotionDispatcherSystem` uses `[UpdateInPhase(SystemPhase.Simulation)]` with ordering by registration order in the module. **All animation dispatchers and the capability reactor correctly mirror this** — they go in `Simulation`, **not** `Input`. Reviewer claim to move to `Input` is rejected (DEBT D-25). The reporter / cleanup remain in `PostSimulation` per DD-1 §17.
+
+⚠ **DD-1 §20.5 `PendingDestroy` → `DestructionOrder`** — DD-1 §20.5 described entity cleanup via a `PendingDestroy` tag component. The v239 engine uses the `DestructionOrder` lifecycle event instead (same mechanism `LocomotionDispatcherSystem` and `AnimationDispatcherSystem` already drain). `AnimationBackendCleanupSystem` correctly uses `DestructionOrder` (DEBT D-30).
+
+⚠ **DD-1 §13 capability reactor "extend existing" mandate** — There is no longer a central engine-level capability reactor to extend; `HsmDamageBridgeSystem` (the closest predecessor) was deleted in `btree-hsm-unif/BHU-010`. `AnimationCapabilityChangeReactorSystem` stands as the canonical reactor for the new bits (DEBT D-26). Reviewer claim to fold it is rejected.
+
 ---
 
 # Phase 0 — Foundations & shared contracts

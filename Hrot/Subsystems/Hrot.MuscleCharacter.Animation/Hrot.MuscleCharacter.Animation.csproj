@@ -13,4 +13,12 @@
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>
 
+  <!-- DEBT D-20: Expose internals to integration tests so BakingUtils.BakeForTest
+       (marked internal) is semantically accessible. Used by the Animation
+       integration test fixture (Hrot.Animation.Integration.Tests). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Animation.Integration.Tests" />
+    <InternalsVisibleTo Include="Hrot.MuscleCharacter.Animation.Tests" />
+  </ItemGroup>
+
 </Project>

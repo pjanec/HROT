@@ -3,19 +3,30 @@ using Fdp.Core;
 using Fbt;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 
 namespace Hrot.MuscleCharacter.Animation.Systems
 {
     /// <summary>
-    /// Handles mid-action capability loss for animation capabilities.
-    /// Detects high→low transitions in CanPlayAnimations, CanAim, CanChangeStance
-    /// and takes corrective action to prevent orphaned play state.
-    /// Runs early in Simulation, before dispatchers, so they see consistent state.
+    /// Handles mid-action capability loss for animation-specific capabilities
+    /// (CanPlayAnimations, CanAim, CanChangeStance), detecting high→low
+    /// transitions and taking corrective action to prevent orphaned play state.
     /// (ANC-P3-09, DD-1 §13, §20.6)
+    ///
+    /// <para>
+    /// Runs in <see cref="SystemPhase.Input"/> per the v241 architect ruling.
+    /// <b>Must</b> run before <see cref="CognitiveInterruptSystem"/>, which is
+    /// the single canonical writer of <see cref="PreviousCapabilities"/> — this
+    /// system reads the shadow component to detect transitions but
+    /// <b>must not</b> mutate it. The <see cref="UpdateBeforeAttribute"/>
+    /// dependency below enforces the ordering inside the Input phase and
+    /// prevents the data race the architect flagged in v240.
+    /// </para>
     /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
+    [UpdateInPhase(SystemPhase.Input)]
+    [UpdateBefore(typeof(CognitiveInterruptSystem))]
     public sealed class AnimationCapabilityChangeReactorSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

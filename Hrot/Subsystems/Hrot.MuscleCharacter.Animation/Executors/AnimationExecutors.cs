@@ -32,6 +32,22 @@ namespace Hrot.MuscleCharacter.Animation.Executors
             fixed (byte* src = channel.Params)
                 p = *(PlayMontageParams*)src;
 
+            // DEBT D-21: A zero MontageId at this point is almost always a bug
+            // (uninitialised Params blob, forgotten WriteParams, or test fixture that
+            // bumps ActionInstanceId without filling the params struct). Without this
+            // guard, the executor would silently stage a play of "montage 0" and
+            // downstream tests would pass vacuously while no real montage played.
+            // Fail the channel to surface the bug.
+            System.Diagnostics.Debug.Assert(
+                p.MontageId != 0,
+                $"PlayMontageExecutor.OnEnter: entity {entity.Index} has MontageId=0. " +
+                "Likely cause: Params blob not written, or written without WriteParams<PlayMontageParams>(...).");
+            if (p.MontageId == 0)
+            {
+                channel.Status = NodeStatus.Failure;
+                return;
+            }
+
             // Validate montage ID against baked data (uses BackendHandle as classId)
             if (world.HasComponent<CharacterAnimationDefRuntime>(entity))
             {

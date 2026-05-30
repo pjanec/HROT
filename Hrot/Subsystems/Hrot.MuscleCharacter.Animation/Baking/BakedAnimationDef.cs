@@ -199,7 +199,15 @@ namespace Hrot.MuscleCharacter.Animation.Baking
                 };
             }
 
-            // 2. Fill in marker kinds from the NotifyMarkers registry
+            // 2. Fill in marker kinds from the NotifyMarkers registry.
+            //    DEBT D-13: NotifyMarkerDefDto carries both `Kind` and `Hash`. The
+            //    baker computes the *runtime* hash from the name (see line above);
+            //    the DTO's `Hash` field is purely **informational** (editor display
+            //    of the precomputed hash, when the import pipeline includes one).
+            //    The runtime never trusts it — `StableIdHasher.ComputeMarkerHash(name)`
+            //    is authoritative for `AnimNotifyEvent.MarkerHash` routing. This
+            //    resolves the D-13 question ("is the field dead or should be
+            //    respected") in favour of "informational, kept for editor UX".
             var markerDict = new Dictionary<string, AnimNotifyCategory>();
             foreach (var marker in dto.NotifyMarkers)
             {

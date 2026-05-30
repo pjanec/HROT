@@ -30,9 +30,21 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// available in the same frame.  Ordering maintained by array position in
     /// <see cref="Modules.CognitiveRuntimeModule"/>.
     /// </para>
+    ///
+    /// <para>
+    /// Runs in <see cref="SystemPhase.Input"/> per the v241 architect ruling. This
+    /// system is the **single canonical writer** of
+    /// <see cref="PreviousCapabilities"/> in the engine — subsystem-specific
+    /// capability reactors (e.g. animation) read transitions but MUST NOT
+    /// mutate the shadow component, and MUST be ordered before this system
+    /// via <see cref="UpdateBeforeAttribute"/>.
+    /// </para>
     /// </summary>
-    [UpdateInPhase(SystemPhase.Simulation)]
-    internal sealed class CognitiveInterruptSystem : IEcsModuleSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    // v241: promoted from internal → public so cross-assembly UpdateBefore
+    // (e.g. AnimationCapabilityChangeReactorSystem in the animation project)
+    // can reference this type via `typeof(...)`.
+    public sealed class CognitiveInterruptSystem : IEcsModuleSystem
     {
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).

@@ -314,12 +314,22 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
 
     private void LoadFromNode()
     {
-        // Placeholder: In full implementation, would extract PlayMontageChainNode
-        // params struct from the node using reflection or direct field access.
-        // For now, initialize to empty chain.
+        // Initialize to empty before any reflection attempt.
         _chainCount = 0;
         Array.Clear(_chainedMontages, 0, 8);
         IsDirty = false;
+
+        // Storage-agnostic read: locate ChainCount + ChainedMontages on the node
+        // (direct fields) or on a nested params struct (e.g. `Params`/`Body`),
+        // accepting both managed `int[]` and `[InlineArray(8)] int _e0`
+        // (DEBT D-18). Read via Span<int> so both storages work uniformly.
+        var (countAccess, montagesAccess) = ResolveChainAccess(_node);
+        if (countAccess is null || montagesAccess is null) return;
+
+        _chainCount = countAccess.Read();
+        var srcSpan = montagesAccess.AsSpan();
+        int n = Math.Min(_chainCount, Math.Min(srcSpan.Length, _chainedMontages.Length));
+        for (int i = 0; i < n; i++) _chainedMontages[i] = srcSpan[i];
     }
 
     private void DrawChainUI(string currentClass)
@@ -411,20 +421,121 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
 
     private void WriteBackToNode()
     {
-        // Storage-agnostic write-back:
-        // Whether ChainedMontages is int[] or [InlineArray(8)], we update via Span.
-        // This pattern works for both managed arrays and unmanaged inline arrays.
-        //
-        // In full implementation:
-        // 1. Get the node's ChainedMontages field via reflection
-        // 2. Create a Span<int> from it
-        // 3. Copy working copy into it
-        // 4. Update node.ChainCount
-        // 5. Call IEditService to mark asset dirty
-        
-        // For now: just mark the asset dirty as a placeholder
+        // Storage-agnostic write-back (Addendum A 08b, DEBT D-18):
+        // Whether ChainedMontages is `int[]` (current) or `[InlineArray(8)] int _e0`
+        // (future), we mutate via Span<int>. Tail entries beyond ChainCount are zeroed
+        // to keep the component state clean (matches DD-5 §3.5 ClearMontageQueueNode
+        // convention).
+        var (countAccess, montagesAccess) = ResolveChainAccess(_node);
+        if (countAccess is null || montagesAccess is null)
+        {
+            // Container shape unknown — at minimum signal the asset is dirty so the
+            // editor's save-on-close still fires, and surface a no-op rather than
+            // silently losing the edit.
+            _editService.MarkDirty(_parent);
+            return;
+        }
+
+        // 1. Copy the working chain into the node's storage via Span<int>.
+        var dst = montagesAccess.AsSpan();
+        int n = Math.Min(_chainCount, Math.Min(dst.Length, _chainedMontages.Length));
+        for (int i = 0; i < n; i++) dst[i] = _chainedMontages[i];
+        // Zero the tail (don't leak old entries past the new ChainCount).
+        for (int i = n; i < dst.Length; i++) dst[i] = 0;
+
+        // 2. Update ChainCount.
+        countAccess.Write(_chainCount);
+
+        // 3. Mark the asset dirty for save propagation.
         _editService.MarkDirty(_parent);
     }
+
+    // ── Reflection-backed accessors (storage-agnostic) ────────────────────────────
+
+    /// <summary>
+    /// Locate ChainCount and ChainedMontages on the node, looking first at the node
+    /// directly and then at a nested params/body struct field. Works for both
+    /// `int[] ChainedMontages` (current) and `[InlineArray(8)] int _e0` (DEBT D-18 future).
+    /// Returns (null, null) if the container shape is unknown — callers fall back
+    /// to a MarkDirty-only path.
+    /// </summary>
+    private static (IChainCountAccess?, IChainMontagesAccess?) ResolveChainAccess(object container)
+    {
+        if (container is null) return (null, null);
+
+        // Try direct fields on the container first.
+        var (cnt, mont) = TryResolveOn(container);
+        if (cnt is not null && mont is not null) return (cnt, mont);
+
+        // Then try common nested wrappers (Params/Body/Node/Primitive). Only
+        // reference-type nesteds propagate writes naturally; value-type nesteds
+        // would need a box-and-restore step (left as a TODO until a real
+        // container of that shape appears in the codebase).
+        foreach (var nestedName in new[] { "Params", "Body", "Node", "Primitive", "Inner" })
+        {
+            var nestedField = container.GetType().GetField(nestedName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (nestedField is null || nestedField.FieldType.IsValueType) continue;
+            var nested = nestedField.GetValue(container);
+            if (nested is null) continue;
+            var (c2, m2) = TryResolveOn(nested);
+            if (c2 is not null && m2 is not null) return (c2, m2);
+        }
+
+        return (null, null);
+    }
+
+    private static (IChainCountAccess?, IChainMontagesAccess?) TryResolveOn(object obj)
+    {
+        var t = obj.GetType();
+        var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+
+        var countField = t.GetField("ChainCount", bf);
+        var montagesField = t.GetField("ChainedMontages", bf);
+        if (countField is null || montagesField is null) return (null, null);
+
+        IChainCountAccess countAccess = new FieldCountAccess(obj, countField);
+
+        // Currently PlayMontageChainNode declares `int[] ChainedMontages`.
+        // If/when DEBT D-18 converts to `[InlineArray(8)] int _e0`, add a
+        // dedicated InlineArrayMontagesAccess here (Pattern A — Span-cast).
+        if (montagesField.FieldType != typeof(int[])) return (null, null);
+        IChainMontagesAccess montagesAccess = new ManagedArrayMontagesAccess(obj, montagesField);
+        return (countAccess, montagesAccess);
+    }
+
+    private interface IChainCountAccess { byte Read(); void Write(byte v); }
+    private interface IChainMontagesAccess { Span<int> AsSpan(); }
+
+    private sealed class FieldCountAccess : IChainCountAccess
+    {
+        private readonly object _owner; private readonly System.Reflection.FieldInfo _f;
+        public FieldCountAccess(object o, System.Reflection.FieldInfo f) { _owner = o; _f = f; }
+        public byte Read() => Convert.ToByte(_f.GetValue(_owner));
+        public void Write(byte v)
+        {
+            // Coerce to the field's declared type (byte / int / uint).
+            object boxed = _f.FieldType == typeof(byte) ? v
+                          : _f.FieldType == typeof(int)  ? (object)(int)v
+                          : _f.FieldType == typeof(uint) ? (object)(uint)v
+                          : v;
+            _f.SetValue(_owner, boxed);
+        }
+    }
+
+    private sealed class ManagedArrayMontagesAccess : IChainMontagesAccess
+    {
+        private readonly object _owner; private readonly System.Reflection.FieldInfo _f;
+        public ManagedArrayMontagesAccess(object o, System.Reflection.FieldInfo f) { _owner = o; _f = f; }
+        public Span<int> AsSpan()
+        {
+            var arr = (int[]?)_f.GetValue(_owner);
+            if (arr is null) { arr = new int[8]; _f.SetValue(_owner, arr); }
+            else if (arr.Length < 8) { var grown = new int[8]; Array.Copy(arr, grown, arr.Length); arr = grown; _f.SetValue(_owner, arr); }
+            return arr.AsSpan();
+        }
+    }
+
 
     private void DrawValidationFeedback(string currentClass)
     {

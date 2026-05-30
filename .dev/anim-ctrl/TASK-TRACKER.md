@@ -36,7 +36,7 @@ slice (independently shippable / verifiable). Phase 6 (replication) and Phase 8
 - [x] **ANC-P1-06** Tick algorithm (slot/aim/stance advance) [details](./TASK-DETAIL.md#anc-p1-06--tick-algorithm-slotaimstance-advance)
 - [x] **ANC-P1-07** Synthetic footstep emission [details](./TASK-DETAIL.md#anc-p1-07--synthetic-footstep-emission)
 - [x] **ANC-P1-08** Layer-1 unit test suite [details](./TASK-DETAIL.md#anc-p1-08--layer-1-unit-test-suite)
-- [x] **ANC-P1-09** Diagnostic ImGui window [details](./TASK-DETAIL.md#anc-p1-09--diagnostic-imgui-window)
+- [x] **ANC-P1-09** Diagnostic ImGui window [details](./TASK-DETAIL.md#anc-p1-09--diagnostic-imgui-window) ✓ post-audit fix (DEBT D-27)
 - [x] **ANC-P1-10** JSON snapshot export + AAR integration [details](./TASK-DETAIL.md#anc-p1-10--json-snapshot-export--aar-integration)
 
 ## Phase 2 — TKB animation descriptor (DD-4)
@@ -61,7 +61,7 @@ slice (independently shippable / verifiable). Phase 6 (replication) and Phase 8
 - [x] **ANC-P3-05** `AnimationRuntimeBridgeSystem` [details](./TASK-DETAIL.md#anc-p3-05--animationruntimebridgesystem)
 - [x] **ANC-P3-06** `NotifyEventEmitterSystem` [details](./TASK-DETAIL.md#anc-p3-06--notifyeventemittersystem)
 - [x] **ANC-P3-07** `AnimationStateReporterSystem` [details](./TASK-DETAIL.md#anc-p3-07--animationstatereportersystem)
-- [x] **ANC-P3-08** `AnimationBackendCleanupSystem` [details](./TASK-DETAIL.md#anc-p3-08--animationbackendcleanupsystem)
+- [x] **ANC-P3-08** `AnimationBackendCleanupSystem` [details](./TASK-DETAIL.md#anc-p3-08--animationbackendcleanupsystem) ✓ post-audit fix (DEBT D-30)
 - [x] **ANC-P3-09** Capability-change reactor extension [details](./TASK-DETAIL.md#anc-p3-09--capability-change-reactor-extension)
 - [x] **ANC-P3-10** Phase-ordering registration [details](./TASK-DETAIL.md#anc-p3-10--phase-ordering-registration)
 - [x] **ANC-P3-11** Layer-2 system test suite [details](./TASK-DETAIL.md#anc-p3-11--layer-2-system-test-suite)
@@ -86,7 +86,7 @@ slice (independently shippable / verifiable). Phase 6 (replication) and Phase 8
 - [x] **ANC-P5-07** AiPrimitive registration + cross-subsystem reuse [details](./TASK-DETAIL.md#anc-p5-07--aiprimitive-registration--cross-subsystem-reuse) ✓ BATCH-10
 - [ ] **ANC-P5-08** `PlayMontageChainNode` custom drawer (editor) [details](./TASK-DETAIL.md#anc-p5-08--playmontagechainnode-custom-drawer-editor) · plan: [Addendum A](./TASK-DETAIL.md#addendum-a--anc-p5-08-implementation-plan-playmontagechainnode-custom-drawer)
   - [ ] **ANC-P5-08a** Drawer + session skeleton (confirm dispatch route)
-  - [ ] **ANC-P5-08b** Dynamic chain-entry UI + `ChainCount` management
+  - [x] **ANC-P5-08b** Dynamic chain-entry UI + `ChainCount` management ✓ post-audit fix (DEBT D-28)
   - [ ] **ANC-P5-08c** In-drawer validation feedback (ANIM005 / ANIM012)
   - [ ] **ANC-P5-08d** Registration + wiring tests
 

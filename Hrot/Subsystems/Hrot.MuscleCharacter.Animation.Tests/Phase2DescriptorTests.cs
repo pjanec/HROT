@@ -600,5 +600,158 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 IsStanceTransition = isStanceTransition,
             };
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // DEBT D-07: Pinned FNV-1a hash vectors (verified against external
+        //   FNV reference). Pre-existing determinism tests would still pass
+        //   with a wrong multiplier/basis — these vectors lock the algorithm.
+        // ─────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void StableIdHasher_ComputeMarkerHash_MatchesCanonicalFnv1a32_Vectors()
+        {
+            // Canonical FNV-1a 32-bit reference vectors.
+            Assert.Equal(0xe40c292cu, StableIdHasher.ComputeMarkerHash("a"));
+            Assert.Equal(0xbf9cf968u, StableIdHasher.ComputeMarkerHash("foobar"));
+        }
+
+        [Fact]
+        public void StableIdHasher_ComputeMontageAssetId_MatchesCanonicalFnv1a64_Vectors_Masked()
+        {
+            // FNV-1a 64-bit reference vectors, then masked to 31 bits per DD-4 §3.1.
+            //   FNV1a64("a")      = 0xaf63dc4c8601ec8c → & 0x7FFFFFFF = 0x0601ec8c
+            //   FNV1a64("foobar") = 0x85944171f73967e8 → & 0x7FFFFFFF = 0x773967e8
+            Assert.Equal(0x0601ec8c, StableIdHasher.ComputeMontageAssetId("a"));
+            Assert.Equal(0x773967e8, StableIdHasher.ComputeMontageAssetId("foobar"));
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // DEBT D-08: NotifyInfo.Kind population from CharacterAnimationDefDto.NotifyMarkers.
+        //   The baker patches each notify's Kind from a markerName→Kind dict built
+        //   from dto.NotifyMarkers. A regression here silently defaults every notify
+        //   to Generic, breaking FootstepEvent / HitWindow event routing.
+        // ─────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void BakingUtils_BakeDef_PopulatesNotifyInfoKind_FromNotifyMarkersRegistry()
+        {
+            var dto = new CharacterAnimationDefDto
+            {
+                Slots = new[] { CreateSlot(0, "FullBody", 100) },
+                Montages = new[]
+                {
+                    new MontageDefDto
+                    {
+                        Name = "Walk_Loop", AssetRef = "test", Slot = 0,
+                        DefaultBlendInTime = 0.1f, DefaultBlendOutTime = 0.1f,
+                        DurationSeconds = 1.0f, Sections = Array.Empty<string>(),
+                        Notifies = new[]
+                        {
+                            new MontageNotifyRefDto { MarkerName = "Footstep_Left",  TimeSeconds = 0.3f },
+                            new MontageNotifyRefDto { MarkerName = "Footstep_Right", TimeSeconds = 0.7f },
+                            new MontageNotifyRefDto { MarkerName = "Wave",           TimeSeconds = 0.9f },
+                        },
+                    },
+                },
+                SupportedStances  = new[] { (StanceId)0 },
+                StanceTransitions = Array.Empty<StanceTransitionDto>(),
+                NotifyMarkers = new[]
+                {
+                    new NotifyMarkerDefDto { Name = "Footstep_Left",  Hash = StableIdHasher.ComputeMarkerHash("Footstep_Left"),  Kind = AnimNotifyCategory.Footstep },
+                    new NotifyMarkerDefDto { Name = "Footstep_Right", Hash = StableIdHasher.ComputeMarkerHash("Footstep_Right"), Kind = AnimNotifyCategory.Footstep },
+                    new NotifyMarkerDefDto { Name = "Wave",           Hash = StableIdHasher.ComputeMarkerHash("Wave"),           Kind = AnimNotifyCategory.Generic },
+                },
+            };
+
+            var baked = BakingUtils.BakeDef(dto);
+            var assetId = StableIdHasher.ComputeMontageAssetId("Walk_Loop");
+            Assert.True(baked.MontageDict.TryGetValue(assetId, out var montage));
+            var kindByName = montage!.Notifies.ToDictionary(n => n.Name, n => n.Kind);
+            Assert.Equal(AnimNotifyCategory.Footstep, kindByName["Footstep_Left"]);
+            Assert.Equal(AnimNotifyCategory.Footstep, kindByName["Footstep_Right"]);
+            Assert.Equal(AnimNotifyCategory.Generic,  kindByName["Wave"]);
+        }
+
+        [Fact]
+        public void BakingUtils_BakeDef_NotifyKindDefaultsToGeneric_WhenMarkerMissingFromRegistry()
+        {
+            // Notify referenced on a montage but absent from the NotifyMarkers
+            // registry stays at the initialised default (Generic).
+            var dto = new CharacterAnimationDefDto
+            {
+                Slots = new[] { CreateSlot(0, "FullBody", 100) },
+                Montages = new[]
+                {
+                    new MontageDefDto
+                    {
+                        Name = "M", AssetRef = "x", Slot = 0,
+                        DefaultBlendInTime = 0.1f, DefaultBlendOutTime = 0.1f,
+                        DurationSeconds = 1.0f, Sections = Array.Empty<string>(),
+                        Notifies = new[] { new MontageNotifyRefDto { MarkerName = "Orphan", TimeSeconds = 0.5f } },
+                    },
+                },
+                SupportedStances  = new[] { (StanceId)0 },
+                StanceTransitions = Array.Empty<StanceTransitionDto>(),
+                NotifyMarkers     = Array.Empty<NotifyMarkerDefDto>(),
+            };
+
+            var baked = BakingUtils.BakeDef(dto);
+            var montage = baked.MontageDict[StableIdHasher.ComputeMontageAssetId("M")];
+            Assert.Single(montage.Notifies);
+            Assert.Equal(AnimNotifyCategory.Generic, montage.Notifies[0].Kind);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // DEBT D-13 (resolved): NotifyMarkerDefDto.Hash is **informational only**.
+        //   The runtime always computes the AnimNotifyEvent.MarkerHash via
+        //   StableIdHasher.ComputeMarkerHash(name). The DTO's Hash field is kept
+        //   for editor display (showing the precomputed hash, when available) but
+        //   is not consulted by the baker. These tests lock that contract: any
+        //   value — placeholder, stale, or computed — bakes successfully.
+        // ─────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void BakingUtils_BakeDef_TreatsNotifyMarkerDtoHash_AsInformationalOnly()
+        {
+            // Three markers, three Hash values: placeholder, zero, and the real hash.
+            // All three bake without exception; runtime uses StableIdHasher uniformly.
+            var dto = new CharacterAnimationDefDto
+            {
+                Slots = new[] { CreateSlot(0, "F", 100) },
+                Montages = new[]
+                {
+                    new MontageDefDto
+                    {
+                        Name = "M", AssetRef = "x", Slot = 0,
+                        DefaultBlendInTime = 0.1f, DefaultBlendOutTime = 0.1f,
+                        DurationSeconds = 1.0f, Sections = Array.Empty<string>(),
+                        Notifies = new[]
+                        {
+                            new MontageNotifyRefDto { MarkerName = "Placeholder", TimeSeconds = 0.1f },
+                            new MontageNotifyRefDto { MarkerName = "Zero",        TimeSeconds = 0.2f },
+                            new MontageNotifyRefDto { MarkerName = "Real",        TimeSeconds = 0.3f },
+                        },
+                    },
+                },
+                SupportedStances  = new[] { (StanceId)0 },
+                StanceTransitions = Array.Empty<StanceTransitionDto>(),
+                NotifyMarkers = new[]
+                {
+                    new NotifyMarkerDefDto { Name = "Placeholder", Hash = 0xDEADBEEFu, Kind = AnimNotifyCategory.Generic },
+                    new NotifyMarkerDefDto { Name = "Zero",        Hash = 0u,          Kind = AnimNotifyCategory.Generic },
+                    new NotifyMarkerDefDto { Name = "Real",        Hash = StableIdHasher.ComputeMarkerHash("Real"),
+                                                                   Kind = AnimNotifyCategory.Footstep },
+                },
+            };
+
+            var baked = BakingUtils.BakeDef(dto);
+            var montage = baked.MontageDict[StableIdHasher.ComputeMontageAssetId("M")];
+            var hashByName = montage.Notifies.ToDictionary(n => n.Name, n => n.MarkerHash);
+
+            // Every NotifyInfo.MarkerHash comes from StableIdHasher, NOT from the DTO's Hash field.
+            Assert.Equal(StableIdHasher.ComputeMarkerHash("Placeholder"), hashByName["Placeholder"]);
+            Assert.Equal(StableIdHasher.ComputeMarkerHash("Zero"),        hashByName["Zero"]);
+            Assert.Equal(StableIdHasher.ComputeMarkerHash("Real"),        hashByName["Real"]);
+        }
     }
 }
