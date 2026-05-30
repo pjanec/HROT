@@ -95,6 +95,15 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true);
 
+        // UT0151: ManeuverSelect decision references a Candidate or Target context binding
+        internal static readonly DiagnosticDescriptor UT0151_ManeuverSelectInvalidContext = new DiagnosticDescriptor(
+            id: "UT0151",
+            title: "ManeuverSelect decision uses invalid context binding",
+            messageFormat: "Class ''{0}'' is a ManeuverSelect decision but accesses ''{1}''; ManeuverSelect decisions must not bind Candidate or Target context — use squad-leader self-inputs only",
+            category: "Fdp.UtilityAI",
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
         // ---- Catalog-aware consideration diagnostics ----------------------------
 
         // UT0120: consideration references an unknown input name (not in catalog)

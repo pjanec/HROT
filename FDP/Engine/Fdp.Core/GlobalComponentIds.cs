@@ -19,8 +19,7 @@
     ///   <item><term>110â€“139</term><description>IG components</description></item>
     ///   <item><term>140â€“159</term><description>ModuleHost network components (Cyclone)</description></item>
     ///   <item><term>160â€“199</term><description>Application-level descriptor components</description></item>
-    ///   <item><term>200â€“255</term><description>Reserved â€” examples and future use</description></item>
-    /// </list>
+    ///   <item><term>200â€“255</term><description>Reserved â€” examples and future use</description></item>    ///   <item><term>256â€"299</term><description>Squad coordination components</description></item>    /// </list>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -449,5 +448,22 @@
         public const int FakeAnimBackendState = 240;
 
         // IDs 215–219, 226–236, 241–255 are reserved for future animation/toolkit components.
+
+        // ---- Squad coordination components (256–299) ----------------------------
+
+        /// <summary><c>SquadStateMarker</c> — zero-data ECS tag marking an entity whose
+        /// <see cref="Blackboard1024"/> is projected as a <c>SquadCognitiveState</c> (Squad P0).</summary>
+        public const int SquadStateMarker = 256;
+
+        /// <summary><c>DangerAreaSensor</c> — standing query config on a sensor child entity
+        /// (squad danger-area pipeline, §5.1).</summary>
+        public const int DangerAreaSensor = 257;
+
+        /// <summary><c>DangerAreaCognitiveBuffer</c> — Brain-side result cache written by
+        /// <c>DangerAreaRefreshSystem</c> (squad danger-area pipeline, §5.2).</summary>
+        public const int DangerAreaCognitiveBuffer = 258;
+
+        /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).</summary>
+        public const int MovementModeIntent = 259;
     }
 }

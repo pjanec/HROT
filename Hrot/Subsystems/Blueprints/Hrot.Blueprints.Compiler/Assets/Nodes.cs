@@ -30,6 +30,10 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(SpawnEqsSensorNode), "SpawnEqsSensor")] // NEW
 [JsonDerivedType(typeof(ScoreDecisionNode),    "ScoreDecision")]
 [JsonDerivedType(typeof(ReadRankedResultNode), "ReadRankedResult")]
+[JsonDerivedType(typeof(PartitionElementsNode), "PartitionElements")]
+[JsonDerivedType(typeof(AssignRolesNode),        "AssignRoles")]
+[JsonDerivedType(typeof(AdvancePhaseNode),       "AdvancePhase")]
+[JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -251,4 +255,49 @@ public sealed class ReadRankedResultNode : Node
 {
     /// <summary>0-based rank index (0 = top-ranked).</summary>
     public int Rank { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Squad Primitive Nodes (TASK-SQD-P6-02 -- Blueprint host for squad logic)
+// These nodes wrap the five squad coordination primitives (Phase 1 library).
+// The node carries only authoring-time configuration; execution is delegated
+// to the corresponding FDP primitive at IR stage.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Partition squad members into N elements (wraps ElementPartitionPrimitive.Partition).
+/// </summary>
+public sealed class PartitionElementsNode : Node
+{
+    /// <summary>Number of elements to partition into (e.g. 2 for Lead/Overwatch).</summary>
+    public int ElementCount { get; set; } = 2;
+}
+
+/// <summary>
+/// Assign roles to squad members via greedy matrix (wraps RoleSlotAssignmentPrimitive.AssignRoles).
+/// </summary>
+public sealed class AssignRolesNode : Node
+{
+    /// <summary>The ManeuverKind whose StandardCandidates table to use (e.g. 2 for BoundingOverwatch).</summary>
+    public ushort ManeuverKind { get; set; }
+}
+
+/// <summary>
+/// Advance the phase sequencer one step (wraps PhaseSequencer.Advance).
+/// </summary>
+public sealed class AdvancePhaseNode : Node
+{
+    /// <summary>Phase ID to jump to if dwell timeout elapses. Use the terminal Aborted phase.</summary>
+    public ushort AbortPhaseId { get; set; }
+    /// <summary>Dwell timeout in simulation ticks (0 = never timeout).</summary>
+    public uint DwellTimeoutTicks { get; set; }
+}
+
+/// <summary>
+/// Acquire the next available slot from the slot rotation ring (wraps SlotRotation.AcquireSlot).
+/// </summary>
+public sealed class AcquireSlotNode : Node
+{
+    /// <summary>Total number of slots in the ring.</summary>
+    public int TotalSlots { get; set; } = 1;
 }

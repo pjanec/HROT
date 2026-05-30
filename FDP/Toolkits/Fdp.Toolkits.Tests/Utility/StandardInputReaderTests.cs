@@ -7,6 +7,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Utility;
 using Xunit;
 
@@ -340,7 +341,7 @@ namespace Fdp.Toolkit.Tests.Utility
 
             // Write assignment into leader's blackboard
             ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
@@ -359,7 +360,7 @@ namespace Fdp.Toolkit.Tests.Utility
 
             // Assign target1, query for target2
             ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target1.PackedValue;
@@ -399,7 +400,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var target = _world.Repo.CreateEntity();
 
             ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;

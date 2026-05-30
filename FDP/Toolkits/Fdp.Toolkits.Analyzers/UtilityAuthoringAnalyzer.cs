@@ -34,7 +34,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 SharedUtilityDiagnostics.UT0120_UnknownInput,
                 SharedUtilityDiagnostics.UT0130_ImpureBuild,
                 SharedUtilityDiagnostics.UT0131_WeightOutOfRange,
-                SharedUtilityDiagnostics.UT0143_ZeroOptions);
+                SharedUtilityDiagnostics.UT0143_ZeroOptions,
+                SharedUtilityDiagnostics.UT0151_ManeuverSelectInvalidContext);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -139,6 +140,9 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
             // UT0143: PostureSelect with zero options.
             CheckZeroOptions(context, type, buildMethod, buildSyntax);
+
+            // UT0151: ManeuverSelect must not bind Candidate or Target context.
+            CheckManeuverSelectContextBinding(context, type, buildMethod, buildSyntax);
         }
 
         // ---- SyntaxNodeAction: semantic checks (SemanticModel available) ---------
@@ -447,6 +451,58 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             var memberAccess = inv.Expression as MemberAccessExpressionSyntax;
             if (memberAccess != null) return memberAccess.Name.Identifier.Text == "Consider";
             return false;
+        }
+
+        // ---- UT0151: ManeuverSelect must not bind Candidate or Target context ----
+
+        private static bool IsManeuverSelectDecision(INamedTypeSymbol type)
+        {
+            foreach (var attr in type.GetAttributes())
+            {
+                if (attr.AttributeClass == null) continue;
+                if (attr.AttributeClass.Name != "UtilityDecisionAttribute") continue;
+
+                // Kind is the third constructor argument (DecisionKind.ManeuverSelect == 3).
+                if (attr.ConstructorArguments.Length >= 3)
+                {
+                    var kindArg = attr.ConstructorArguments[2];
+                    if (kindArg.Value is byte bv && bv == 3) return true;
+                    if (kindArg.Value is int iv && iv == 3) return true;
+                    if (kindArg.Value is short sv && sv == 3) return true;
+                    if (kindArg.Value != null && kindArg.Value.ToString() == "3") return true;
+                }
+            }
+            return false;
+        }
+
+        private static void CheckManeuverSelectContextBinding(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol type,
+            IMethodSymbol buildMethod,
+            SyntaxNode buildSyntax)
+        {
+            if (!IsManeuverSelectDecision(type)) return;
+
+            // Look for any member-access expression whose receiver is "Candidate" or "Target".
+            var memberAccesses = buildSyntax.DescendantNodes()
+                .OfType<MemberAccessExpressionSyntax>();
+
+            foreach (var ma in memberAccesses)
+            {
+                var receiver = ma.Expression as IdentifierNameSyntax;
+                if (receiver == null) continue;
+
+                string receiverName = receiver.Identifier.Text;
+                if (receiverName == "Candidate" || receiverName == "Target")
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SharedUtilityDiagnostics.UT0151_ManeuverSelectInvalidContext,
+                        ma.GetLocation(),
+                        type.Name,
+                        receiverName + "." + ma.Name.Identifier.Text));
+                    return;
+                }
+            }
         }
     }
 }

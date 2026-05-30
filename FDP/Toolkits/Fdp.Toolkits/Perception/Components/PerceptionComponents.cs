@@ -76,6 +76,14 @@ namespace Fdp.Toolkit.Perception.Components
         /// </summary>
         public fixed byte Modalities[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>
+        /// Incremented each time a contact is added or evicted.
+        /// Does NOT increment on score updates to existing contacts.
+        /// Consumers (e.g. SquadPerceptionMergeSystem) XOR this value to detect
+        /// structural changes without iterating the table on every tick.
+        /// </summary>
+        public uint ChangeEpoch;
+
         // ── Mutation API ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -138,6 +146,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.LastSeenTick[slot] = tick;
                 mem.Modalities[slot]   = (byte)modality;
                 mem.Count++;
+                mem.ChangeEpoch++;
             }
             else
             {
@@ -163,6 +172,7 @@ namespace Fdp.Toolkit.Perception.Components
                     mem.LastSeenTick[lowestIdx] = tick;
                     // Fresh modality for the new entry (eviction resets the bitmask).
                     mem.Modalities[lowestIdx]   = (byte)modality;
+                    mem.ChangeEpoch++;
                 }
             }
 

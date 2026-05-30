@@ -11,6 +11,7 @@ using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
 
 namespace Fdp.Toolkit.Utility
 {
@@ -286,7 +287,7 @@ namespace Fdp.Toolkit.Utility
             int idx = UnitRoster.IndexOf(ref roster, (long)ctx.Self.PackedValue);
             if (idx < 0) return 1f;
             ref var bb = ref repo.GetComponentRW<Blackboard1024>(commander);
-            ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
             long assignedHandle = state.GetAssignedTarget(idx);
             if (assignedHandle == 0L) return 1f;
             float result = assignedHandle == (long)ctx.Context.PackedValue ? 1f : 0f;

@@ -9,6 +9,7 @@ using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Utility;
 
 namespace Fdp.Toolkit.Tests.Utility
@@ -288,7 +289,7 @@ namespace Fdp.Toolkit.Tests.Utility
         public long AssignmentFor(Entity leader, Entity member)
         {
             ref var bb = ref Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             return idx >= 0 ? state.GetAssignedTarget(idx) : -1L;

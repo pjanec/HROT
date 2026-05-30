@@ -44,7 +44,8 @@ namespace Fdp.Toolkit.Utility
     {
         ThreatRanking,
         WeaponSelection,
-        PostureSelect
+        PostureSelect,
+        ManeuverSelect
     }
 
     // ── ResponseCurve — 16 bytes ─────────────────────────────────────────────────

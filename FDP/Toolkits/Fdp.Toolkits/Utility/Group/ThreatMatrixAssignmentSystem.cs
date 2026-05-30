@@ -2,6 +2,8 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Squad;
+using Fdp.Toolkit.Squad.Primitives;
 
 namespace Fdp.Toolkit.Utility
 {
@@ -53,21 +55,17 @@ namespace Fdp.Toolkit.Utility
             ref readonly var roster    = ref repo.GetComponentRO<UnitRoster>(leader);
             ref readonly var leaderMem = ref repo.GetComponentRO<TargetMemory>(leader);
             ref var bb                 = ref repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state              = ref ThreatMatrixAssignmentState.Project(ref bb);
+            ref var state              = ref SquadCognitiveState.Project(ref bb).Assignment;
 
             int memberCount = roster.Count;
             if (memberCount <= 0) return;
             int targetCount = leaderMem.Count;
             if (targetCount <= 0) return;
 
-            // Per-target focus-fire accumulator (stack-allocated, max 16 targets).
             int maxTargets = targetCount < 16 ? targetCount : 16;
-            int* focusCount = stackalloc int[maxTargets];
-            for (int i = 0; i < maxTargets; i++)
-                focusCount[i] = 0;
+            int maxMembers = memberCount < 16 ? memberCount : 16;
 
             // Clear previous assignments.
-            int maxMembers = memberCount < 16 ? memberCount : 16;
             for (int i = 0; i < maxMembers; i++)
             {
                 ref var slot = ref state.GetSlot(i);
@@ -76,38 +74,41 @@ namespace Fdp.Toolkit.Utility
                 slot.FocusFireCount       = 0;
             }
 
+            // Build flat score matrix on the stack.
+            float* matrixBuf = stackalloc float[maxMembers * maxTargets];
             var tmpBuffer = new UtilityResultBuffer();
-
             for (int memberIdx = 0; memberIdx < maxMembers; memberIdx++)
             {
                 var member = new Entity((ulong)roster.SubordinateEntities[memberIdx]);
-
-                float bestScore    = -1f;
-                int   bestTgtIdx   = -1;
-
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
-                    if (focusCount[tIdx] >= _maxFocusFireCount) continue;
-
                     var target = new Entity((ulong)leaderMem.EntityIds[tIdx]);
-
                     // Score this (member, target) pair directly via the static scorer.
                     // EvaluateOption will call readers with ctx.Self=member, ctx.Context=target.
                     UtilityScorer.Evaluate(repo, member, in def, target, ref tmpBuffer, null);
-
-                    float score = tmpBuffer.Count > 0 ? tmpBuffer.GetSpanRO()[0].Score : 0f;
-                    if (score > bestScore)
-                    {
-                        bestScore  = score;
-                        bestTgtIdx = tIdx;
-                    }
+                    matrixBuf[memberIdx * maxTargets + tIdx] =
+                        tmpBuffer.Count > 0 ? tmpBuffer.GetSpanRO()[0].Score : 0f;
                 }
+            }
 
-                if (bestTgtIdx >= 0 && bestScore > 0f)
+            // Greedy assignment via shared helper.
+            int* assignmentsBuf = stackalloc int[maxMembers];
+            var assignmentsSpan = new System.Span<int>(assignmentsBuf, maxMembers);
+            GreedyMatrixAssigner.Assign(
+                new System.ReadOnlySpan<float>(matrixBuf, maxMembers * maxTargets),
+                maxMembers, maxTargets, _maxFocusFireCount, assignmentsSpan);
+
+            // Write back results.
+            int* focusCount = stackalloc int[maxTargets];
+            for (int c = 0; c < maxTargets; c++) focusCount[c] = 0;
+            for (int memberIdx = 0; memberIdx < maxMembers; memberIdx++)
+            {
+                int bestTgtIdx = assignmentsSpan[memberIdx];
+                if (bestTgtIdx >= 0)
                 {
                     ulong targetHandle = (ulong)leaderMem.EntityIds[bestTgtIdx];
                     state.SetAssignment(memberIdx, targetHandle);
-                    state.GetSlot(memberIdx).AssignmentScore = bestScore;
+                    state.GetSlot(memberIdx).AssignmentScore = matrixBuf[memberIdx * maxTargets + bestTgtIdx];
                     focusCount[bestTgtIdx]++;
                 }
             }

@@ -1,0 +1,54 @@
+{
+  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "AssetId": "00000000-bbbb-0001-0000-000000000001",
+  "Name": "BoundingOverwatchSwap",
+  "Dispatch": 2,
+  "TierHint": 0,
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "b6000001-0001-0001-0001-000000000001",
+      "Name": "SwapOnBound",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "c6000001-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "AdvancePhase",
+          "Id": "c6000001-0002-0002-0002-000000000002",
+          "AbortPhaseId": 2,
+          "DwellTimeoutTicks": 0,
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "AssignRoles",
+          "Id": "c6000001-0003-0003-0003-000000000003",
+          "ManeuverKind": 2,
+          "Pins": [],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "c6000001-0004-0004-0004-000000000004",
+          "Status": 1,
+          "Pins": [],
+          "EditorMetadata": {}
+        }
+      ]
+    }
+  ]
+}
