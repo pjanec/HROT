@@ -31,7 +31,7 @@ public static class EditCommands
             isEnabled: () => view.Undo.CanRedo,
             description: "Redo the next operation.",
             iconKey: "icon.redo",
-            defaultKey: new KeyBinding(EditorKey.Z, KeyModifiers.Ctrl | KeyModifiers.Shift));
+            defaultKey: new KeyBinding(EditorKey.Y, KeyModifiers.Ctrl));
 
         reg.Add(
             CommandCatalog.DeleteSelection, "Delete", "Edit",

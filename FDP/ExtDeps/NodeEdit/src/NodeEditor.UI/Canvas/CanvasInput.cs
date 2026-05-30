@@ -380,6 +380,9 @@ internal sealed class CanvasInput
     private static void CommitNodeDrop(GraphView view, IInputSource input)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
+        var moves = new List<(NodeId Id, Vector2 NewPos)>();
+        var changeParents = new List<ChangeParentMove>();
+        var inverseChangeParents = new List<ChangeParentMove>();
 
         foreach (var nid in view.Selection.Nodes)
         {
@@ -415,13 +418,13 @@ internal sealed class CanvasInput
                 {
                     newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
                 }
-                view.Commands.Apply(new GraphCommand.ChangeParent(nid, newParentId, null, newLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, newParentId, null, newLocalPos));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
             }
             else if (n.ParentContainerId == null)
             {
                 // Root-level node staying at root: regular move.
-                view.Commands.Apply(new GraphCommand.MoveNodes(
-                    new List<NodeMove> { new NodeMove(nid, canvasPos) }));
+                moves.Add((nid, canvasPos));
             }
             else
             {
@@ -435,9 +438,40 @@ internal sealed class CanvasInput
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
                     var localPos = canvasPos - interiorOrigin;
-                    view.Commands.Apply(new GraphCommand.ChangeParent(nid, n.ParentContainerId, null, localPos));
+                    changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, localPos));
+                    inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
                 }
             }
+        }
+
+        var forwards = new List<GraphCommand>();
+        var inverses = new List<GraphCommand>();
+
+        if (moves.Count > 0)
+        {
+            var cb = new CommandBuilder(view.Model);
+            var (f, i) = cb.MoveNodes(moves);
+            forwards.Add(f);
+            inverses.Add(i);
+        }
+
+        if (changeParents.Count > 0)
+        {
+            forwards.Add(new GraphCommand.ChangeParentMultiple(changeParents));
+            inverses.Add(new GraphCommand.ChangeParentMultiple(inverseChangeParents));
+        }
+
+        if (forwards.Count == 1)
+        {
+            view.Execute(forwards[0], inverses[0], "Move Nodes");
+        }
+        else if (forwards.Count > 1)
+        {
+            inverses.Reverse();
+            view.Execute(
+                new GraphCommand.Batch("Move Nodes", forwards),
+                new GraphCommand.Batch("Move Nodes", inverses),
+                "Move Nodes");
         }
     }
 
