@@ -249,7 +249,7 @@ Confirmations of Part 1: **BPF-002** (debug-map omissions) is re-confirmed and e
 - **Fix:** add/emit a cursor-read op (`s.Cursor.WaitUntilTime`) on the Instance resume path.
 
 ### BPF-015 -- `DebugProbe.NodeEnter`/`PinValue` emitted as a C# comment, not a call (compiler) [found by 2 clusters]
-- **Lens:** SC-anchor / integration-seam | **Design:** Compiler DD §10.7 & §15.8; Debug Protocol DD §3.1, §3.3
+- **Lens:** SC-anchor / integration-seam | **Design:** Compiler DD §15 emit table (`.dev/blueprints-1` line ~2202) + §15.8 / §16 walkthroughs (the `docs/blueprints` copy numbers this §10.7); Debug Protocol DD §3.1, §3.3 — **SPOT-CHECKED & CONFIRMED**
 - **Code:** `Hrot.Blueprints.Compiler/Compiler/Emit/StatementEmitter.cs` `EmitOp` cases `IrOp_DebugProbe_NodeEnter` / `IrOp_DebugProbe_PinValue` (~L292-300)
 - **Gap:** Emits `// [DebugProbe] NodeEnter {id} ...` instead of `DebugProbe.NodeEnter(self, "{id}");`. Generated code never calls the probe, so **every breakpoint/step/watch/history feature is dead at runtime**. Tests pass because they call `OnNodeEnter` directly, bypassing generated code. This is the runtime root cause behind much of the Part-1 Debug findings.
 - **Fix:** emit the real call per §10.7 (and PinValue analogously); add a Stage-7 golden test asserting the call text.
