@@ -104,10 +104,7 @@ public sealed class CanvasRenderer
         ImGui.SetNextItemAllowOverlap();
         ImGui.InvisibleButton("##canvas_bg", size);
         bool isCanvasBgActive = ImGui.IsItemActive();
-        bool isCanvasHovered = ImGui.IsWindowHovered(
-            ImGuiHoveredFlags.AllowWhenBlockedByActiveItem
-            | ImGuiHoveredFlags.AllowWhenBlockedByPopup
-            | ImGuiHoveredFlags.ChildWindows);
+        bool isCanvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
         bool isCanvasDirectlyFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.None);
 
         // Subscribe to model changes so we know when to rebuild the spatial index.
@@ -366,10 +363,24 @@ public sealed class CanvasRenderer
                 {
                     var linksToRemove = view.Model.Links
                         .Where(l => l.FromPin == pinId || l.ToPin == pinId)
-                        .Select(l => l.Id)
                         .ToList();
+
                     if (linksToRemove.Count > 0)
-                        view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(linksToRemove));
+                    {
+                        var fwds = new List<Core.Commands.GraphCommand>();
+                        var invs = new List<Core.Commands.GraphCommand>();
+                        fwds.Add(new Core.Commands.GraphCommand.RemoveLinks(linksToRemove.Select(l => l.Id).ToList()));
+                        foreach (var l in linksToRemove)
+                        {
+                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                        }
+                        invs.Reverse();
+
+                        view.Execute(
+                            new Core.Commands.GraphCommand.Batch("Break Links", fwds),
+                            new Core.Commands.GraphCommand.Batch("Break Links", invs),
+                            "Break Links");
+                    }
                 }
 
                 ImGui.Separator();
@@ -397,7 +408,15 @@ public sealed class CanvasRenderer
             {
                 var linkId = target.Link;
                 if (ImGui.MenuItem("Break Link"))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(new[] { linkId }));
+                {
+                    var link = view.Model.FindLink(linkId);
+                    if (link != null)
+                    {
+                        var fwd = new Core.Commands.GraphCommand.RemoveLinks(new[] { linkId });
+                        var inv = new Core.Commands.GraphCommand.AddLink(link.Id, link.FromPin, link.ToPin);
+                        view.Execute(fwd, inv, "Break Link");
+                    }
+                }
 
                 if (ImGui.MenuItem("Select Connected Nodes"))
                 {
