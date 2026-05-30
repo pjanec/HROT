@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Architecture Document (Slice 1) — v1.2
 
-> **Status:** Architect-blessed v1.1 baseline + Q-OPEN-A/B/C resolutions + AI Primitives, channel-command authoring, and engine-direct interface model.
+> **Status:** Architect-blessed v1.1 baseline + Q-OPEN-A/B/C resolutions + AI Primitives, channel-command authoring, and engine-direct interface model. All inline patches and Final Resolutions integrated; Q-OPEN-D and Q-OPEN-E resolved.
 > **Audience:** Senior engineer (rationale paragraphs); implementation agent (spec subsections).
 > **Scope:** Slice 1 architecture only. Detailed designs of compiler internals, codegen, runtime adapter, test harness, and editor follow as separate documents after this is approved.
 > **Engine:** Hrot (game) on FDP (ECS toolkit).
@@ -91,6 +91,7 @@ Demonstrated by passing automated unit tests and a working ImGui session:
 10. Two Instance Blueprints on the same entity call each other synchronously via `callablePeers`; state is isolated in distinct partition slots.
 11. World-singleton Instance Blueprint runs against `SetSingletonUnmanaged<BlueprintBlackboard1024>` storage.
 12. ImGui editor lists assets, edits via StructEdit, triggers compile-and-reload, displays diagnostics, shows runtime instance state per-slot, exposes step/breakpoint controls.
+13. The MoveToAndFire AiPrimitive demo runs end-to-end under both BTree and HSM hostings from a single authored asset, demonstrating channel commands + latent waits + dual-hosting.
 
 ---
 
@@ -235,8 +236,6 @@ Fdp.Toolkits.Blueprints              — net8.0 library  (consolidates the engin
                [BlueprintExposedChannelCommand] attribute (declared for Slice 2 use)
                EngineEventCatalog, ChannelCommandCatalog, WaitPrimitiveCatalog
                (hand-curated entries for Slice 1)
-               BlueprintAiWorkingStateAccess (Blackboard1024 helpers,
-                 single-slot in Slice 1)
 
 Hrot.Blueprints.Editor               — net8.0 library
   references:  Hrot.Blueprints.Core
@@ -431,15 +430,39 @@ public static class HasVisibleTarget_Bp
 
     // BTree thunk — exact NodeLogicDelegate signature
     public static NodeStatus BTreeTick(
-        ref BrainBlackboard bb,
-        ref BehaviorTreeState state,
-        ref BTreeContext ctx,
-        int paramIndex)
+        ref BrainBlackboard bb, ref BehaviorTreeState state,
+        ref BTreeContext ctx, int paramIndex)
     {
-        ref var p = ref Unsafe.As<byte, Params>(ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
-        ref var ws = ref BlueprintAiWorkingStateAccess.GetOrAttach<WorkingState>(
-            ctx.World, ctx.Self, BlueprintId, StructureHash);
-        return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.Time);
+        // Parameters: project from BrainBlackboard.BehaviorParameters slice
+        ref var p = ref Unsafe.As<byte, Params>(
+            ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
+
+        // Working state: inline projection over Blackboard1024 with hash check
+        ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+        unsafe
+        {
+            fixed (byte* memory = bb1024.Memory)
+            {
+                // Header at first 8 bytes
+                ulong storedHash = *(ulong*)memory;
+                if (storedHash != StructureHash)
+                {
+                    // Hard reset: zero everything, write our hash, run init
+                    Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
+                    *(ulong*)memory = StructureHash;
+                    InitDefaultWorkingState((WorkingState*)(memory + 8));
+                }
+
+                ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
+                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
+            }
+        }
+    }
+
+    private static unsafe void InitDefaultWorkingState(WorkingState* dst)
+    {
+        *dst = default;  // or per-asset specific init
+        // ... any non-zero default initialization
     }
 
     // HSM thunk — unmanaged pointers, void return
@@ -448,9 +471,19 @@ public static class HasVisibleTarget_Bp
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         ref var p = ref *(Params*)instance;
-        ref var ws = ref BlueprintAiWorkingStateAccess.GetOrAttach<WorkingState>(
-            world, bridge->Self, BlueprintId, StructureHash);
-        TickCore(ref p, ref ws, bridge->Self, world, world.Time);  // Status discarded
+
+        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
+        fixed (byte* memory = bb1024.Memory)
+        {
+            if (*(ulong*)memory != StructureHash)
+            {
+                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
+                *(ulong*)memory = StructureHash;
+                InitDefaultWorkingState((WorkingState*)(memory + 8));
+            }
+            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
+            TickCore(ref p, ref ws, bridge->Self, world, world.Time);  // status discarded
+        }
     }
 
     // HSM guard thunk — bool return
@@ -459,9 +492,19 @@ public static class HasVisibleTarget_Bp
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         ref var p = ref *(Params*)instance;
-        ref var ws = ref BlueprintAiWorkingStateAccess.GetOrAttach<WorkingState>(
-            world, bridge->Self, BlueprintId, StructureHash);
-        return TickCore(ref p, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
+
+        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
+        fixed (byte* memory = bb1024.Memory)
+        {
+            if (*(ulong*)memory != StructureHash)
+            {
+                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
+                *(ulong*)memory = StructureHash;
+                InitDefaultWorkingState((WorkingState*)(memory + 8));
+            }
+            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
+            return TickCore(ref p, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
+        }
     }
 
     // BlueprintCall — for direct invocation from other Blueprint code
@@ -965,33 +1008,23 @@ public static unsafe class BlueprintBlackboardPartitions
 
 Fast path (per-tick lookup) is a linear scan over ≤16 slot entries — cache-friendly, sub-microsecond, JIT-inlined.
 
-### 6.5 Spec — `Blackboard1024` access for AiPrimitives
+### 6.5 Spec — `Blackboard1024` memory layout for AiPrimitive working state
 
-Slice 1: a single Blueprint per entity uses `Blackboard1024` for working state. The helper API is intentionally shaped to extend to multi-slot in Slice 2.
+AiPrimitive working state is accessed via **inline projection** in each generated thunk — no separate helper class.
 
-```csharp
-namespace Fdp.Toolkit.Blueprints;
+**Memory layout (compile-time documented):**
 
-public static unsafe class BlueprintAiWorkingStateAccess
-{
-    /// <summary>
-    /// Returns ref to the working-state region of the entity's Blackboard1024
-    /// for the given Blueprint. If the entity does not have Blackboard1024
-    /// or it was not previously typed for this Blueprint, attaches it (deferred
-    /// via ECB on first use during Simulation phase; immediate during BeforeSync).
-    ///
-    /// Slice 1: assumes one Blueprint per entity's Blackboard1024. If a second
-    /// AiPrimitive Blueprint tries to attach working state to an entity that
-    /// already has one, throws InvalidOperationException with diagnostic.
-    /// Slice 2: adds partition allocator to Blackboard1024, lifting this restriction.
-    /// </summary>
-    public static ref T GetOrAttach<T>(EntityRepository world, Entity self,
-                                         int blueprintId, ulong structureHash)
-        where T : unmanaged;
-}
+```
+Blackboard1024.Memory layout when hosting an AiPrimitive working state:
+  Offset 0..7   : ulong  StructureHash    (8 bytes)
+  Offset 8..    : T      WorkingState     (struct of the asset's declared working-state fields)
 ```
 
-The implementation in Slice 1 stores a small descriptor inside `Blackboard1024` (matching the slot-entry shape we use elsewhere, just for one slot), enabling the structure-hash reconciliation. The signature is forward-compatible with the Slice 2 multi-slot variant: same call, same return.
+The first 8 bytes are reserved for the StructureHash header. The working-state struct projects starting at offset 8. Each thunk checks and resets the header inline (see §4.4 for the generated thunk pattern).
+
+**Implicit Slice 1 constraint:** Only one AiPrimitive working-state Blueprint can occupy an entity's `Blackboard1024` at a time, because the StructureHash header is at a fixed location. If two AiPrimitives with working state are attached to the same entity, the second one's first invocation will overwrite the first's hash and zero the working memory. Slice 2 lifts this via the `Blackboard1024` partition allocator.
+
+**Detection:** The compiler can detect static conflicts (one BTree references two AiPrimitives with `WorkingState != null` and both can target the same entity) and emit a warning diagnostic. Runtime detection is not free; documenting it as authoring discipline for Slice 1.
 
 ### 6.6 Spec — `BlueprintRegistry`
 
@@ -1044,6 +1077,9 @@ public delegate void EventHandlerDelegate(Span<byte> stateBytes, ISimulationView
 namespace Fdp.Toolkit.Blueprints.Systems;
 
 [UpdateInPhase(SystemPhase.Simulation)]
+[UpdateBefore(typeof(LocomotionDispatcherSystem))]
+[UpdateBefore(typeof(WeaponDispatcherSystem))]
+[UpdateBefore(typeof(InteractionDispatcherSystem))]
 public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 {
     public string ProfileName => "BlueprintTickSystem";
@@ -1363,7 +1399,7 @@ hard (changed hash):
   - slot.InstanceVersion++.  (invalidates any latent cursors)
 ```
 
-For AiPrimitive working state: same mechanism, except the "slot" is the single entry inside `Blackboard1024` (Slice 1) and gets reconciled by `BlueprintAiWorkingStateAccess.GetOrAttach` on first tick after reload.
+For AiPrimitive working state: same mechanism, except the "slot" is the single entry inside `Blackboard1024` (Slice 1), with the StructureHash header at offset 0 and the working-state struct at offset 8. The thunk checks the hash inline on every invocation and performs a hard reset if it differs (see §4.4 for the generated thunk pattern; §6.5 for the memory layout).
 
 ### 8.3 Managed-delegates-only rule
 
@@ -1420,10 +1456,26 @@ This is one of the few interfaces Blueprint *does* define — because it's a Blu
 
 Per-asset JSON sidecar mapping `nodeId` ↔ `(generated file, line range)` and `pinId` ↔ value-access expression. Same as v1.1.
 
-### 9.4 PDB caveats (clarified from v1.1)
+### 9.4 Compile modes and PDB emission (clarified from v1.1)
 
-- **File locks during rebuild**: an attached debugger can lock PDB files. PDB loading is option-gated; off by default in production, on in dev. Toggle off when actively rebuilding with debugger attached.
-- **Debugger diagnostic stack growth**: many reload cycles with PDB loading on can grow the debugger's diagnostic memory unboundedly. Same gating handles it.
+Two distinct compilation paths both require PDB and EmbeddedSource support:
+
+- **Path A — MSBuild Full Rebuild**: `<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>` + `<DebugType>portable</DebugType>` produce on-disk `.g.cs` files and a portable PDB. Debuggers resolve source from the on-disk `.g.cs` files via PDB path references.
+- **Path B — Quick Reload (in-memory)**: the in-process compiler library calls `CSharpCompilation.Emit` directly with `EmbeddedText.FromSource(virtualSourcePath, sourceText)` + `EmitOptions(debugInformationFormat: DebugInformationFormat.PortablePdb)`. Debuggers find source embedded inside the PDB.
+
+Updated compile modes table (both paths apply the same compile modes):
+
+| Mode    | Probes emitted | PDB              | Source on disk (Full)   | Source embedded (Quick) |
+|---------|----------------|------------------|-------------------------|-------------------------|
+| Release | No             | Yes (Portable)   | Yes (for symbol resolve)| Yes                     |
+| Debug   | At node enter  | Yes              | Yes                     | Yes                     |
+| Trace   | + pin values   | Yes              | Yes                     | Yes                     |
+
+The difference between paths is purely *where the source comes from when the debugger asks*: Full Rebuild — on-disk file via PDB path reference; Quick Reload — embedded text inside the PDB.
+
+**File locks during rebuild**: an attached debugger can lock PDB files. PDB loading is option-gated; off by default in production, on in dev. Toggle off when actively rebuilding with debugger attached.
+
+**Debugger diagnostic stack growth**: many reload cycles with PDB loading on can grow the debugger's diagnostic memory unboundedly. Same gating handles it.
 
 ---
 
@@ -2023,9 +2075,9 @@ For library peer calls: trivial static method invocation (no slot lookup).
 
 After three rounds of review + Q-OPEN-A/B/C resolutions + v1.2 review feedback, the open list is short:
 
-**Q-OPEN-D**: Does the architect concur with the Slice 1 constraint *"one AiPrimitive working-state Blueprint per entity"*? Confirmation that this is acceptable for an initial release (with Slice 2 lifting via partition allocator on `Blackboard1024`) closes the matter.
+**Q-OPEN-D**: (resolved — see Final Resolutions addendum)
 
-**Q-OPEN-E**: Should the Slice 1 demo include the **"MoveToAndFire" AiPrimitive** scenario (uses channel commands + waits, hosts as both BTreeAction and HsmAction)? This is the demo that best showcases the new authoring ergonomics. Worth confirming inclusion before the Implementation Roadmap.
+**Q-OPEN-E**: (resolved — see Final Resolutions addendum)
 
 That's it. No structural questions remain. The architecture is implementable.
 
@@ -2078,6 +2130,8 @@ That's it. No structural questions remain. The architecture is implementable.
 - `ChannelCommandNode`, `WaitForChannelNode`, `WaitForEventNode` node kinds.
 - Wait lowering is dispatch-aware: AiPrimitive emits `Running` return; Instance emits `BlueprintLatentCursor` switch.
 - Each AiPrimitive Wait costs one tick in the host kernel (no within-tick fall-through optimization in Slice 1).
+- Q-OPEN-D resolved: one AiPrimitive working-state Blueprint per entity in Slice 1; `Blackboard1024` partition allocator deferred to Slice 2.
+- Q-OPEN-E resolved: MoveToAndFire AiPrimitive scenario is a required Slice 1 acceptance demo.
 - **No `IBlueprint*` wrapper interfaces.** Generated code uses Fdp.Core types directly.
 - **`Hrot.Blueprints.Core` references `Fdp.Core`.** Decoupling rule: core uses Fdp.Core schema/interfaces only, never Fdp.Toolkits runtime.
 - **`Hrot.Blueprints.Engine` adapter assembly dropped.** Runtime systems live in `Fdp.Toolkits.Blueprints`.

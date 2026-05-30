@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Editor Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD (+ Inline Patches v1, v2) + Runtime DD (+ Inline Patches) + Test Harness DD (+ Inline Patches) + Hot Reload DD (+ Inline Patches) + Debug Protocol DD (+ Inline Patches).
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD (+ Inline Patches v1, v2) + Runtime DD (+ Inline Patches) + Test Harness DD (+ Inline Patches) + Hot Reload DD (+ Inline Patches) + Debug Protocol DD (+ Inline Patches). All Editor DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestone M13 (editor windows + Quick Reload pipeline + StructEdit drawers).
 > **Doesn't cover:** Compiler internals, runtime systems, test harness, hot reload coordinator, debug protocol — all owned by their respective DDs. This DD wires their public surfaces to user-facing UI.
@@ -46,7 +46,7 @@ The editor is the user-facing surface for authoring Blueprints. It owns:
 
 - **Compiler internals** — the editor calls `IBlueprintCompiler.Compile(asset, options)` and consumes the result; it doesn't know about IR or stages.
 - **Runtime systems** — the editor reads `BlueprintRegistry` for asset listings and slot inspection; it doesn't tick anything.
-- **Hot reload coordination** — the editor calls `coordinator.ApplyQuickReload(alc, assembly)`; the coordinator owns the swap.
+- **Hot reload coordination** — the editor reflects the patch ALC for `[BlueprintRegistrar]` classes, invokes them into staging registries, registers the debug map, then calls `coordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging)`; the coordinator owns the atomic commit and ALC swap.
 - **Debug session implementation** — the editor consumes `IBlueprintDebugSession`; the session knows about probes and breakpoints.
 
 The editor is the integrator. Every other DD's public surface is consumed here.
@@ -437,6 +437,19 @@ public static class BlueprintEditorModuleRegistration
             sp.GetRequiredService<BlueprintDebugSession>());
 
         // Time controller adapter — see §13
+        // Quick reload service (depends on catalog + signature parser per Editor DD Inline Patches)
+        services.AddSingleton<BlueprintSignatureParser>();   // from Hrot.Blueprints.Generators
+
+        services.AddSingleton<QuickReloadService>(sp => new QuickReloadService(
+            compiler: sp.GetRequiredService<IBlueprintCompiler>(),
+            roslyn: sp.GetRequiredService<InMemoryRoslynCompiler>(),
+            coordinator: sp.GetRequiredService<AiHotReloadCoordinator>(),
+            debugSession: sp.GetRequiredService<IBlueprintDebugSession>(),
+            dirtyTracker: sp.GetRequiredService<DirtyTracker>(),
+            output: sp.GetRequiredService<IOutputConsole>(),
+            catalog: sp.GetRequiredService<IAssetCatalog>(),                       // added
+            signatureParser: sp.GetRequiredService<BlueprintSignatureParser>()));   // added
+
         services.AddSingleton<IBlueprintTimeController, EngineTimeControllerAdapter>();
 
         // Preferences
@@ -2250,10 +2263,12 @@ sequenceDiagram
         Note over RC: Stage 8 — produces PE + PDB bytes
         RC->>ED: (peBytes, pdbBytes)
         ED->>ALC: new + LoadFromStream(pe, pdb)
-        ED->>HRC: ApplyQuickReload(alc, assembly)
-        Note over HRC: ScanForRegistrars + ApplyReload<br/>(per Hot Reload DD §10)
-        HRC->>ED: OnReloadCompleted
-        ED->>DM: Register debug map for asset
+        ED->>ED: HsmActionDispatcher.ClearAll()
+        ED->>ED: InvokeAllRegistrars(assembly, blueprintStaging, behaviorStaging)
+        ED->>DM: RegisterDebugMap(assetId, debugMap)  -- BEFORE handoff
+        ED->>HRC: ApplyQuickReload(alc, behaviorStaging, blueprintStaging)
+        Note over HRC: CommitStaging + BehaviorRegistry merge<br/>+ ALC swap + OnReloadCompleted<br/>(per Hot Reload DD Patch 3)
+        HRC->>ED: OnReloadCompleted (QuickReloadViaApi)
         ED->>GE: Mark asset clean; show success toast
     end
 ```
@@ -2279,7 +2294,7 @@ public sealed class QuickReloadService
         var sw = Stopwatch.StartNew();
 
         // Stage 1-7: generate source
-        var siblingSignatures = BuildSiblingSignatures();   // §10.5
+        var siblingSignatures = BuildSiblingSignatures(asset);   // §10.5
         var compileOptions = new CompileOptions(
             Mode: mode,
             NodeRegistry: BuiltInNodeRegistry.Instance,
@@ -2342,21 +2357,39 @@ public sealed class QuickReloadService
             return QuickReloadResult.LoadFailed(ex);
         }
 
-        // Hand off to the coordinator (per Hot Reload DD §10.3)
+        // Hand off to the coordinator (per Hot Reload DD Patch 3 and Editor DD Patches 2+3)
+        // Step A: invoke registrars into staging buffers
+        var behaviorStaging = new BehaviorRegistry();   // fresh empty staging
+        var blueprintStaging = _coordinator.Registry.BeginStaging();
         try
         {
-            _coordinator.ApplyQuickReload(alc, assembly);
+            // CRITICAL: clear HSM dispatcher before registrars do their static RegisterAction calls
+            HsmActionDispatcher.ClearAll();
+            InvokeAllRegistrars(assembly, blueprintStaging, behaviorStaging);
         }
         catch (Exception ex)
         {
-            // Coordinator already unloaded the failed ALC; we just log.
-            _output.LogError($"Coordinator apply failed: {ex.Message}");
+            _output.LogError($"Registrar invocation failed: {ex.Message}");
+            try { alc.Unload(); } catch { /* swallow */ }
             return QuickReloadResult.ApplyFailed(ex);
         }
 
-        // Register the new debug map with the session
+        // Step B: register the debug map BEFORE coordinator handoff (per Editor DD Patch 2)
         if (result.DebugMap is not null)
             _debugSession.RegisterDebugMap(asset.AssetId, result.DebugMap);
+
+        // Step C: hand off to coordinator for atomic commit + ALC swap
+        try
+        {
+            _coordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging);
+        }
+        catch (Exception ex)
+        {
+            // Roll back debug map registration
+            _debugSession.UnregisterDebugMap(asset.AssetId);
+            _output.LogError($"Coordinator apply failed: {ex.Message}");
+            return QuickReloadResult.ApplyFailed(ex);
+        }
 
         // Mark asset clean in dirty tracker
         _dirtyTracker.MarkClean(asset.AssetId);
@@ -2389,31 +2422,51 @@ Slice 2 may move the Stage 1-7 compile to a background task and dispatch the res
 
 ### 10.5 Sibling signatures
 
-Per Compiler DD Inline Patches v1 Patch 1, the compiler's `SiblingSignatures` parameter needs to include all currently-loaded Blueprints. The editor builds this list from the live registry plus the in-memory edited asset (in case other assets call the edited one):
+Per Compiler DD Inline Patches v1 Patch 1, `SiblingSignatures` must be built from `.bp.json` file-system parsing via `BlueprintSignatureParser`, not from the runtime registry. The registry holds compiled runtime metadata; it lacks the authoring-time fields the compiler needs (callable peers, exported function names, hostings list, original asset Guid).
 
 ```csharp
-private IReadOnlyList<BlueprintSignature> BuildSiblingSignatures()
+private IReadOnlyList<BlueprintSignature> BuildSiblingSignatures(BlueprintAsset editedAsset)
 {
     var signatures = new List<BlueprintSignature>();
+    var addedAssetIds = new HashSet<Guid> { editedAsset.AssetId };
 
-    // All registered Blueprints — their signatures
-    foreach (var (id, def) in _coordinator.Registry.GetAll())
+    // First pass: for dirty assets use in-memory signature (stale on-disk version ignored)
+    foreach (var dirtyId in _dirtyTracker.DirtyAssets)
     {
-        signatures.Add(new BlueprintSignature
+        if (dirtyId == editedAsset.AssetId) continue;
+        var dirty = _editorState.GetInMemoryAsset(dirtyId);
+        if (dirty is not null)
         {
-            AssetId = ReverseLookupAssetIdFromBlueprintId(id),
-            BlueprintId = id,
-            Name = def.Name,
-            Dispatch = def.Kind,
-            // ... other signature fields ...
-        });
+            signatures.Add(BlueprintSignatureBuilder.FromInMemoryAsset(dirty));
+            addedAssetIds.Add(dirtyId);
+        }
     }
+
+    // Second pass: non-dirty assets -- parse from on-disk .bp.json
+    foreach (var entry in _catalog.EnumerateAll())
+    {
+        if (addedAssetIds.Contains(entry.AssetId)) continue;
+        try
+        {
+            var json = File.ReadAllText(entry.Path);
+            signatures.Add(_signatureParser.Parse(entry.Path, json));
+        }
+        catch (Exception ex)
+        {
+            _output.LogWarning(
+                $"Failed to parse signature from {entry.Path}: {ex.Message}. " +
+                "Callable-peer references to this asset may fail to resolve.");
+        }
+    }
+
+    // Always add the edited asset's current in-memory signature
+    signatures.Add(BlueprintSignatureBuilder.FromInMemoryAsset(editedAsset));
 
     return signatures;
 }
 ```
 
-`ReverseLookupAssetIdFromBlueprintId` uses the editor's asset catalog to map back from runtime `BlueprintId` to authoring `AssetId`.
+`_catalog.EnumerateAll()` reads the file system on every call. For Slice 1 this is fine (typical projects have <=50 `.bp.json` files; header-only parse is fast). Slice 2 may add caching with file-modification-time checks.
 
 ### 10.6 Multi-asset Quick Reload
 
@@ -2651,7 +2704,7 @@ The editor calls `session.Attach()` at editor open, `session.Detach()` at editor
 
 ### 12.3 Registering debug maps from Quick Reload
 
-Per §10.3, after Quick Reload succeeds, the editor calls `session.RegisterDebugMap(assetId, debugMap)`:
+Per Editor DD Inline Patches Patch 2, the debug map is registered **before** `coordinator.ApplyQuickReload` is called. This ensures that when `OnReloadCompleted` fires (synchronously inside `ApplyQuickReload`), the in-memory map is already live in the session:
 
 ```csharp
 public void RegisterDebugMap(Guid assetId, BlueprintDebugMap rawMap)
@@ -2662,16 +2715,36 @@ public void RegisterDebugMap(Guid assetId, BlueprintDebugMap rawMap)
 }
 ```
 
+If the coordinator's `ApplyQuickReload` throws, the service calls `_debugSession.UnregisterDebugMap(assetId)` to roll back (see §10.3).
+
 ### 12.4 Registering debug maps from MSBuild builds
 
-When the coordinator's `OnReloadCompleted` fires (file-watcher-driven path), the editor walks the now-installed assembly's accompanying `.dbgmap.json` files (sibling to the DLL) and registers each:
+When the coordinator's `OnReloadCompleted` fires, the editor must discriminate the reload source (per Editor DD Inline Patches Patch 2). Quick Reload debug maps are already registered (see §12.3). Full Rebuild debug maps come from on-disk `.dbgmap.json` files sibling to the installed DLL:
 
 ```csharp
-private void OnFullRebuildReloadCompleted()
+private void OnReloadCompleted(ReloadCompletedInfo info)
 {
-    var dllPath = _coordinator.CurrentDllPath;
-    var dllDir = Path.GetDirectoryName(dllPath);
-    foreach (var dbgmapPath in Directory.EnumerateFiles(dllDir!, "*.dbgmap.json"))
+    switch (info.Source)
+    {
+        case ReloadSource.FullRebuildViaFileWatcher:
+            HandleFullRebuildReload(info);
+            break;
+
+        case ReloadSource.QuickReloadViaApi:
+            // Debug map already registered before ApplyQuickReload was called.
+            // Do NOT read disk -- there is no .dbgmap.json for in-memory assemblies.
+            _output.LogDebug("Reload completed (Quick Reload); in-memory debug map already registered.");
+            break;
+    }
+}
+
+private void HandleFullRebuildReload(ReloadCompletedInfo info)
+{
+    if (info.DllPath is null) return;
+    var dllDir = Path.GetDirectoryName(info.DllPath);
+    if (dllDir is null || !Directory.Exists(dllDir)) return;
+
+    foreach (var dbgmapPath in Directory.EnumerateFiles(dllDir, "*.dbgmap.json"))
     {
         try
         {
