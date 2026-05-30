@@ -27,7 +27,7 @@ internal sealed class CanvasInput
     /// Process one frame of input for the given view.
     /// Must be called after the canvas child window is active.
     /// </summary>
-    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, SpatialIndex spatialIndex)
+    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, bool isCanvasDirectlyFocused, SpatialIndex spatialIndex)
     {
         bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive);
 
@@ -45,7 +45,7 @@ internal sealed class CanvasInput
         switch (mode)
         {
             case InteractionMode.Idle:
-                HandleIdle(view, canProcess, input);
+                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input);
                 break;
 
             case InteractionMode.Panning:
@@ -87,13 +87,13 @@ internal sealed class CanvasInput
 
     // ── Idle ──────────────────────────────────────────────────────────────────
 
-    private static void HandleIdle(GraphView view, bool canvasHovered, IInputSource input)
+    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input)
     {
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
 
         // Tab on canvas opens the generic node picker.
-        if (canvasHovered && input.IsKeyPressed(EditorKey.Tab))
+        if (canProcess && isCanvasDirectlyFocused && input.IsKeyPressed(EditorKey.Tab))
         {
             view.Interaction.Mode = InteractionMode.PickerOpen;
             var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
@@ -114,7 +114,7 @@ internal sealed class CanvasInput
         }
 
         // Right-mouse → pan
-        if (canvasHovered && input.IsMousePressed(MouseButton.Right))
+        if (canProcess && input.IsMousePressed(MouseButton.Right))
         {
             view.Interaction.Mode = InteractionMode.Panning;
             view.Interaction.DragStartScreen = input.MousePosition;
@@ -123,7 +123,7 @@ internal sealed class CanvasInput
         }
 
         // Left-mouse pressed
-        if (canvasHovered && input.IsMousePressed(MouseButton.Left))
+        if (canProcess && input.IsMousePressed(MouseButton.Left))
         {
             bool ctrl  = (modifiers & KeyModifiers.Ctrl)  != 0;
             bool shift = (modifiers & KeyModifiers.Shift) != 0;

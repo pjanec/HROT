@@ -106,7 +106,9 @@ public sealed class CanvasRenderer
         bool isCanvasBgActive = ImGui.IsItemActive();
         bool isCanvasHovered = ImGui.IsWindowHovered(
             ImGuiHoveredFlags.AllowWhenBlockedByActiveItem
-            | ImGuiHoveredFlags.AllowWhenBlockedByPopup);
+            | ImGuiHoveredFlags.AllowWhenBlockedByPopup
+            | ImGuiHoveredFlags.ChildWindows);
+        bool isCanvasDirectlyFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.None);
 
         // Subscribe to model changes so we know when to rebuild the spatial index.
         // Unsubscribe from the previous model if the view was switched.
@@ -172,7 +174,7 @@ public sealed class CanvasRenderer
         _attachments.DrawAll(view, dl, _layout.AttachmentLayouts, _layout.NodeScreenRects);
 
         // 4. Process input after widgets are submitted, using snapshotted hover.
-        _input.Handle(view, isCanvasHovered, isCanvasBgActive, _spatialIndex);
+        _input.Handle(view, isCanvasHovered, isCanvasBgActive, isCanvasDirectlyFocused, _spatialIndex);
         if ((view.Host.Input.Modifiers & KeyModifiers.Alt) != 0
             && view.Interaction.Hover.Kind == HoverKind.Link)
         {
