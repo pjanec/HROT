@@ -20,16 +20,17 @@ public sealed class QuaternionPinEditor : IPinDefaultValueEditor
         ToYawPitchRoll(q, out float yawDeg, out float pitchDeg, out float rollDeg);
 
         bool changed = false;
-        float fieldWidth = ctx.MaxWidth / 3f - 2f;
+        float gap = MathF.Max(1f, 4f * ImGui.GetIO().FontGlobalScale);
+        float fieldWidth = (ctx.MaxWidth - (gap * 2f)) / 3f;
         bool cY = false, cP = false, cR = false;
 
-        ImGui.PushItemWidth(fieldWidth);
+        ImGui.PushItemWidth(MathF.Max(fieldWidth, 1f));
 
         if (DragFloatWithExpression.Render("##yaw", ref yawDeg, out cY, 0.5f, "Y:%.1f")) changed = true;
-        ImGui.SameLine(0f, 2f);
+        ImGui.SameLine(0f, gap);
 
         if (DragFloatWithExpression.Render("##pitch", ref pitchDeg, out cP, 0.5f, "P:%.1f")) changed = true;
-        ImGui.SameLine(0f, 2f);
+        ImGui.SameLine(0f, gap);
 
         if (DragFloatWithExpression.Render("##roll", ref rollDeg, out cR, 0.5f, "R:%.1f")) changed = true;
 

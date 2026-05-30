@@ -26,25 +26,26 @@ public sealed class VectorPinEditor : IPinDefaultValueEditor
     {
         var v = Decode(value);
         bool changed = false;
-        float fieldWidth = ctx.MaxWidth / _dimension - 2f;
+        float gap = MathF.Max(1f, 4f * ImGui.GetIO().FontGlobalScale);
+        float fieldWidth = (ctx.MaxWidth - (gap * (_dimension - 1))) / _dimension;
 
-        ImGui.PushItemWidth(fieldWidth);
+        ImGui.PushItemWidth(MathF.Max(fieldWidth, 1f));
         bool cX = false, cY = false, cZ = false, cW = false;
 
         if (DragFloatWithExpression.Render("##x", ref v.X, out cX)) changed = true;
-        ImGui.SameLine(0f, 2f);
+        ImGui.SameLine(0f, gap);
 
         if (DragFloatWithExpression.Render("##y", ref v.Y, out cY)) changed = true;
 
         if (_dimension >= 3)
         {
-            ImGui.SameLine(0f, 2f);
+            ImGui.SameLine(0f, gap);
             if (DragFloatWithExpression.Render("##z", ref v.Z, out cZ)) changed = true;
         }
 
         if (_dimension >= 4)
         {
-            ImGui.SameLine(0f, 2f);
+            ImGui.SameLine(0f, gap);
             if (DragFloatWithExpression.Render("##w", ref v.W, out cW)) changed = true;
         }
 

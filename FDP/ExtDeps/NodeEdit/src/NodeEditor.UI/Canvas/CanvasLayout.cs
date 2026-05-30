@@ -53,7 +53,7 @@ internal sealed class CanvasLayoutBuilder
     // Layout constants — all in graph units.
     public const float NodeMinWidthGu   = 160f;
     public const float NodeHorizPadGu   = 12f;
-    public const float PinRowHeightGu   = 22f;
+    public const float PinRowHeightGu   = 24f;
     public const float PinTopPadGu      = 6f;
     public const float PinBottomPadGu   = 8f;
     public const float EditorWidthGu    = 80f;
@@ -97,7 +97,7 @@ internal sealed class CanvasLayoutBuilder
                 if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
 
                 float labelWidthGu = string.IsNullOrEmpty(p.Label) ? 0f : ImGui.CalcTextSize(p.Label).X;
-                float pinWidthGu = 18f + labelWidthGu; // glyph + label spacing budget
+                float pinWidthGu = 20f + labelWidthGu; // glyph + label spacing budget
 
                 if (p.Direction == PinDirection.Input)
                 {
@@ -108,7 +108,16 @@ internal sealed class CanvasLayoutBuilder
                                            && view.TypeSystem.GetDefaultEditor(p.Type.Value) != null;
 
                     if (hasInlineEditor)
-                        pinWidthGu += EditorWidthGu + (EditorHorizPadGu * 2f);
+                    {
+                        float reqWidth = EditorWidthGu;
+                        var t = p.Type?.Id;
+                        if (t == "System.Numerics.Vector2") reqWidth = 120f;
+                        else if (t == "System.Numerics.Vector3" || t == "System.Numerics.Quaternion") reqWidth = 180f;
+                        else if (t == "System.Numerics.Vector4") reqWidth = 240f;
+                        else if (t == "System.Guid") reqWidth = 260f;
+
+                        pinWidthGu += reqWidth + (EditorHorizPadGu * 2f);
+                    }
 
                     maxInputWidthGu = Math.Max(maxInputWidthGu, pinWidthGu);
                     inputPins.Add(p);

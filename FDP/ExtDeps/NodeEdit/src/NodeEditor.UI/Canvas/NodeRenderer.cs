@@ -227,7 +227,6 @@ internal sealed class NodeRenderer
             .ToList();
         if (visibleInputPins.Count == 0) return;
 
-        float editorWidthPx = EditorWidthGu * zoom;
         float targetFontSize = ImGui.GetFontSize() * zoom;
         nint fontPtr = view.Host.Theme.GetFontForSize(targetFontSize);
         bool useFont = fontPtr != 0;
@@ -239,21 +238,34 @@ internal sealed class NodeRenderer
 
         float pinCenterX = nodeRect.Min.X + CanvasLayoutBuilder.NodeHorizPadGu * zoom;
         float maxLabelWidthPx = 0f;
+        float maxOutputWidthPx = 0f;
         var font = ImGui.GetFont();
 
-        foreach (var p in node.Pins.Where(x => x.Direction == PinDirection.Input && (!x.IsAdvanced || node.ShowAdvancedPins)))
+        foreach (var p in node.Pins)
         {
-            if (pinPositions.TryGetValue(p.Id, out var pos))
-                pinCenterX = pos.X;
+            if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
 
-            if (string.IsNullOrEmpty(p.Label)) continue;
-            float labelWidth = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, p.Label).X;
-            if (labelWidth > maxLabelWidthPx) maxLabelWidthPx = labelWidth;
+            float labelWidth = 0f;
+            if (!string.IsNullOrEmpty(p.Label))
+                labelWidth = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, p.Label).X;
+
+            if (p.Direction == PinDirection.Input)
+            {
+                if (pinPositions.TryGetValue(p.Id, out var pos))
+                    pinCenterX = pos.X;
+
+                if (labelWidth > maxLabelWidthPx) maxLabelWidthPx = labelWidth;
+            }
+            else
+            {
+                float outWidth = (20f * zoom) + labelWidth; // 20f matches layout glyph budget
+                if (outWidth > maxOutputWidthPx) maxOutputWidthPx = outWidth;
+            }
         }
 
-        float editorX = pinCenterX + (8f * zoom) + maxLabelWidthPx + (EditorHorizPadGu * zoom);
-        float maxEditorX = nodeRect.Min.X + nodeRect.Size.X - (CanvasLayoutBuilder.NodeHorizPadGu * zoom) - editorWidthPx;
-        if (editorX > maxEditorX) editorX = maxEditorX;
+        float editorX = pinCenterX + (10f * zoom) + maxLabelWidthPx + (CanvasLayoutBuilder.EditorHorizPadGu * zoom);
+        float rightLimitX = nodeRect.Max.X - (CanvasLayoutBuilder.NodeHorizPadGu * zoom) - maxOutputWidthPx - (12f * zoom);
+        float editorWidthPx = MathF.Max(rightLimitX - editorX, 40f * zoom);
 
         foreach (var pin in visibleInputPins)
         {
