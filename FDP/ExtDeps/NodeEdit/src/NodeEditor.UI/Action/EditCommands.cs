@@ -75,13 +75,24 @@ public static class EditCommands
             }
         }
 
+        var nodes = sel.Nodes.ToList();
+        var explicitLinks = sel.Links.ToList();
+
+        // Identify implicitly deleted links (connected to nodes being deleted)
+        var implicitLinks = view.Model.Links
+            .Where(l => nodes.Any(nid =>
+                view.Model.FindPin(l.FromPin)?.OwnerNodeId == nid ||
+                view.Model.FindPin(l.ToPin)?.OwnerNodeId == nid))
+            .Select(l => l.Id);
+
+        var allLinksToRemove = explicitLinks.Union(implicitLinks).ToList();
+
         // 2. Links
-        var links = sel.Links.ToList();
-        if (links.Count > 0)
+        if (allLinksToRemove.Count > 0)
         {
-            fwds.Add(new GraphCommand.RemoveLinks(links));
+            fwds.Add(new GraphCommand.RemoveLinks(allLinksToRemove));
             var addLinks = new List<GraphCommand>();
-            foreach (var lid in links)
+            foreach (var lid in allLinksToRemove)
             {
                 var l = view.Model.FindLink(lid);
                 if (l != null) addLinks.Add(new GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
@@ -90,7 +101,6 @@ public static class EditCommands
         }
 
         // 3. Nodes
-        var nodes = sel.Nodes.ToList();
         if (nodes.Count > 0)
         {
             fwds.Add(new GraphCommand.RemoveNodes(nodes));
@@ -98,7 +108,14 @@ public static class EditCommands
             foreach (var nid in nodes)
             {
                 var n = view.Model.FindNode(nid);
-                if (n != null) addNodes.Add(new GraphCommand.AddNode(n.Id, n.Kind, n.Position, null));
+                if (n != null)
+                {
+                    var props = new Dictionary<string, object?>
+                    {
+                        ["PinIds"] = n.Pins.Select(p => p.Id).ToList()
+                    };
+                    addNodes.Add(new GraphCommand.AddNode(n.Id, n.Kind, n.Position, props));
+                }
             }
             if (addNodes.Count > 0) invs.Add(new GraphCommand.Batch("Restore Nodes", addNodes));
         }

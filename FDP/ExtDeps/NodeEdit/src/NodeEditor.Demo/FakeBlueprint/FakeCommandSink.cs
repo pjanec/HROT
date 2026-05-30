@@ -118,10 +118,21 @@ public sealed class FakeCommandSink : IGraphCommandSink
 
         if (entry is not null)
         {
+            var pinIds = add.InitialProperties?.GetValueOrDefault("PinIds") as List<PinId>;
+            int pinIdx = 0;
+
             foreach (var sig in entry.Inputs)
-                node.AddPin(sig.Label, PinDirection.Input, sig.Kind, sig.Type, ResolveShape(sig));
+            {
+                var pId = (pinIds != null && pinIdx < pinIds.Count) ? pinIds[pinIdx] : (PinId?)null;
+                node.AddPin(sig.Label, PinDirection.Input, sig.Kind, sig.Type, ResolveShape(sig), pId);
+                pinIdx++;
+            }
             foreach (var sig in entry.Outputs)
-                node.AddPin(sig.Label, PinDirection.Output, sig.Kind, sig.Type, ResolveShape(sig));
+            {
+                var pId = (pinIds != null && pinIdx < pinIds.Count) ? pinIds[pinIdx] : (PinId?)null;
+                node.AddPin(sig.Label, PinDirection.Output, sig.Kind, sig.Type, ResolveShape(sig), pId);
+                pinIdx++;
+            }
         }
     }
 
