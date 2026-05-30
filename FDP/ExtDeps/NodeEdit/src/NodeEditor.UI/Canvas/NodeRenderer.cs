@@ -267,64 +267,53 @@ internal sealed class NodeRenderer
         float rightLimitX = nodeRect.Max.X - (CanvasLayoutBuilder.NodeHorizPadGu * zoom) - maxOutputWidthPx - (12f * zoom);
         float editorWidthPx = MathF.Max(rightLimitX - editorX, 40f * zoom);
 
-        ImGui.SetCursorScreenPos(new Vector2(editorX, nodeRect.Min.Y));
-        bool inNodeEditorScope = ImGui.BeginChild(
-            $"##editors_{node.Id.GetHashCode()}",
-            new Vector2(editorWidthPx, nodeRect.Size.Y),
-            ImGuiChildFlags.None,
-            ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
-
-        if (inNodeEditorScope)
+        foreach (var pin in visibleInputPins)
         {
-            foreach (var pin in visibleInputPins)
+            if (!pinPositions.TryGetValue(pin.Id, out var pinScreenPos)) continue;
+
+            var editor = view.TypeSystem.GetDefaultEditor(pin.Type!.Value);
+            if (editor == null) continue;
+
+            var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFontSize() * 0.5f);
+
+            using var scope = new ImGuiPushIdScope(pin.Id.GetHashCode());
+            ImGui.SetCursorScreenPos(editorPos);
+            ImGui.PushItemWidth(editorWidthPx);
+
+            var currentValue = view.Interaction.PinDragOverrides.TryGetValue(pin.Id, out var ovr)
+                ? ovr
+                : pin.Default!.Value;
+            var ctx = new DefaultEditorContext(
+                Pin: pin.Id,
+                Type: pin.Type!.Value,
+                MaxWidth: editorWidthPx,
+                IsReadOnly: false,
+                Metadata: pin.Default!.Metadata);
+
+            bool changed = editor.Draw(ref currentValue, ctx, out bool committed);
+
+            ImGui.PopItemWidth();
+
+            if (committed)
             {
-                if (!pinPositions.TryGetValue(pin.Id, out var pinScreenPos)) continue;
-
-                var editor = view.TypeSystem.GetDefaultEditor(pin.Type!.Value);
-                if (editor == null) continue;
-
-                var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFontSize() * 0.5f);
-
-                using var scope = new ImGuiPushIdScope(pin.Id.GetHashCode());
-                ImGui.SetCursorScreenPos(editorPos);
-                ImGui.PushItemWidth(editorWidthPx);
-
-                var currentValue = view.Interaction.PinDragOverrides.TryGetValue(pin.Id, out var ovr)
-                    ? ovr
-                    : pin.Default!.Value;
-                var ctx = new DefaultEditorContext(
-                    Pin: pin.Id,
-                    Type: pin.Type!.Value,
-                    MaxWidth: editorWidthPx,
-                    IsReadOnly: false,
-                    Metadata: pin.Default!.Metadata);
-
-                bool changed = editor.Draw(ref currentValue, ctx, out bool committed);
-
-                ImGui.PopItemWidth();
-
-                if (committed)
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
+                if (!Equals(currentValue, pin.Default!.Value))
                 {
-                    view.Interaction.PinDragOverrides.Remove(pin.Id);
-                    if (!Equals(currentValue, pin.Default!.Value))
-                    {
-                        var cb = new CommandBuilder(view.Model);
-                        var (fwd, inv) = cb.SetPinDefault(pin.Id, currentValue);
-                        view.Execute(fwd, inv, "Set Pin Default");
-                    }
-                }
-                else if (changed)
-                {
-                    view.Interaction.PinDragOverrides[pin.Id] = currentValue;
-                }
-                else if (!ImGui.IsAnyItemActive())
-                {
-                    // Clean up orphaned drag overrides if the user cancels via Escape
-                    view.Interaction.PinDragOverrides.Remove(pin.Id);
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.SetPinDefault(pin.Id, currentValue);
+                    view.Execute(fwd, inv, "Set Pin Default");
                 }
             }
+            else if (changed)
+            {
+                view.Interaction.PinDragOverrides[pin.Id] = currentValue;
+            }
+            else if (!ImGui.IsAnyItemActive())
+            {
+                // Clean up orphaned drag overrides if the user cancels via Escape
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
+            }
         }
-        ImGui.EndChild();
 
         if (useFont)
             ImGui.PopFont();

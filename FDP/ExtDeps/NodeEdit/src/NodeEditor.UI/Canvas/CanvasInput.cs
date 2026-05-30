@@ -92,8 +92,10 @@ internal sealed class CanvasInput
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
 
-        // Tab on canvas opens the generic node picker.
-        if (canProcess && isCanvasDirectlyFocused && input.IsKeyPressed(EditorKey.Tab))
+        // Strict constraint: only open the picker if hovering empty canvas (HoverKind.None).
+        // This prevents Tab/Space from opening the picker while navigating widgets or hovering nodes.
+        if (canProcess && isCanvasDirectlyFocused && hover.Kind == HoverKind.None
+            && (input.IsKeyPressed(EditorKey.Tab) || input.IsKeyPressed(EditorKey.Space)))
         {
             view.Interaction.Mode = InteractionMode.PickerOpen;
             var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
@@ -104,8 +106,9 @@ internal sealed class CanvasInput
                 {
                     if (pick is NodeCatalogEntry entry)
                     {
-                        var newId = IdGenerator.NewNodeId();
-                        view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, graphPos, null));
+                        var cb = new CommandBuilder(view.Model);
+                        var (fwd, inv) = cb.AddNode(entry.Kind, graphPos, null);
+                        view.Execute(fwd, inv, "Add Node");
                     }
                     view.Interaction.ResetToIdle();
                 },
