@@ -62,4 +62,36 @@ public sealed class CompilerDeterminismTests
 
         Assert.NotEqual(r1.GeneratedSource, r2.GeneratedSource);
     }
+
+    /// <summary>
+    /// Per design §17.8: concurrent compilations of the same blueprint must produce
+    /// byte-identical emitted source.  This test runs N=4 compilations in parallel and
+    /// asserts all outputs are equal to the sequential reference output.
+    /// </summary>
+    [Theory]
+    [InlineData(TestData.SampleAssets.LibraryMath)]
+    [InlineData(TestData.SampleAssets.InstanceCounter)]
+    [InlineData(TestData.SampleAssets.MoveToAndFire)]
+    public void FullPipeline_IsParallelDeterministic(string assetName)
+    {
+        const int N = 4;
+
+        // Sequential reference.
+        var reference = Compile(assetName);
+        Assert.True(reference.Succeeded, $"Reference compile failed for {assetName}.");
+
+        // N concurrent compilations.
+        var results = new CompileResult[N];
+        System.Threading.Tasks.Parallel.For(0, N, i =>
+        {
+            results[i] = Compile(assetName);
+        });
+
+        for (int i = 0; i < N; i++)
+        {
+            Assert.True(results[i].Succeeded,
+                $"Parallel compile {i} failed for {assetName}.");
+            Assert.Equal(reference.GeneratedSource, results[i].GeneratedSource);
+        }
+    }
 }

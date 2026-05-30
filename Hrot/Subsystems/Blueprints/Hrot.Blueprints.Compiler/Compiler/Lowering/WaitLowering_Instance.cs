@@ -183,7 +183,7 @@ internal static class WaitLowering_Instance
                 {
                     Stmt(null,      new IrOp_CheckCursorVersion()),
                     Stmt(timeV,     new IrOp_Time()),
-                    Stmt(waitUntilV, new IrOp_ReadWorkingStateWaitUntilTime()),
+                    Stmt(waitUntilV, new IrOp_ReadCursorWaitUntilTime()),
                     Stmt(isLessV,   new IrOp_PureCall("op_LessThan_Single",
                                         new[] { timeV, waitUntilV }, BoolType)),
                 };

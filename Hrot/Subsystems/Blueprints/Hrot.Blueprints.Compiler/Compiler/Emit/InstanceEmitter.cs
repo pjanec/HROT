@@ -135,7 +135,7 @@ internal static class InstanceEmitter
 
     private static void EmitEventMethod(CSharpEmitter e, IrAsset asset, IrGraph evtGraph)
     {
-        // Q-18.3: includes float deltaTime; extra parameters come from graph Inputs
+        // Extra parameters come from graph Inputs (event payload fields).
         var extraParams = evtGraph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}");
         var extraParamStr = evtGraph.Inputs.Count > 0 ? ", " + string.Join(", ", extraParams) : "";
 
@@ -145,8 +145,7 @@ internal static class InstanceEmitter
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
-        e.WriteLine("float time,");
-        e.WriteLine($"float deltaTime{extraParamStr})");
+        e.WriteLine($"float time{extraParamStr})");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
@@ -220,8 +219,11 @@ internal static class InstanceEmitter
         e.Indent();
         e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
         e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(bytes));");
-        // Slice 1: call event handler with no custom args (payload deserialization deferred)
-        e.WriteLine($"Event_{evtGraph.Name}(ref s, view, ecb, self, time, deltaTime);");
+        // Payload deserialization is deferred; pass default values for each input parameter.
+        var defaultArgs = evtGraph.Inputs.Count > 0
+            ? ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"default({CSharpType(f.Type)})"))
+            : "";
+        e.WriteLine($"Event_{evtGraph.Name}(ref s, view, ecb, self, time{defaultArgs});");
         e.Outdent();
         e.WriteLine("}");
     }

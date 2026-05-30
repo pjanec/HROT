@@ -123,7 +123,7 @@ internal static class Stage5_Schedule
                 dict.Remove(id);
             }
         }
-        result.AddRange(dict.Values);
+        result.AddRange(dict.Values.OrderBy(f => f.Id));
         return result;
     }
 
@@ -241,7 +241,7 @@ internal sealed class GraphScheduler
                     continue;
 
                 case ReturnNode rn:
-                    bb.Terminator = BuildReturnTerminator(rn);
+                    bb.Terminator = BuildReturnTerminator(rn, bb);
                     return;
 
                 case BranchNode bn:
@@ -831,7 +831,7 @@ internal sealed class GraphScheduler
     // Return terminator builder
     // -----------------------------------------------------------------------
 
-    private IrTerminator BuildReturnTerminator(ReturnNode rn)
+    private IrTerminator BuildReturnTerminator(ReturnNode rn, BlockBuilder currentBlock)
     {
         if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
             || _typed.Asset.Dispatch == AssetDispatchKind.Library)
@@ -844,7 +844,7 @@ internal sealed class GraphScheduler
         var outPin = rn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
         IrValue? retVal = null;
         if (outPin is not null)
-            retVal = ResolveDataPin(rn.Id, outPin.Id, _blockBuilders[_blockBuilders.Count - 1].Statements);
+            retVal = ResolveDataPin(rn.Id, outPin.Id, currentBlock.Statements);
 
         return new IrTerm_Return(retVal) { Debug = DebugOf(rn) };
     }

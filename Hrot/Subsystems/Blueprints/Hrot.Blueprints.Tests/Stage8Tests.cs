@@ -64,7 +64,7 @@ public sealed class Stage8Tests
         Assert.True(result.PortablePdb!.Length > 0, "PDB should be non-empty");
     }
 
-    // SC2: PDB contains embedded source text (verified by size)
+    // SC2: PDB contains embedded source (verified by extracting and comparing content)
     [Fact]
     public void Stage8_PdbContainsEmbeddedSource()
     {
@@ -73,8 +73,71 @@ public sealed class Stage8Tests
 
         Assert.True(result.Succeeded);
         Assert.NotNull(result.PortablePdb);
-        Assert.True(result.PortablePdb!.Length > 500,
-            "PDB with embedded source should be substantial in size");
+        Assert.NotNull(result.GeneratedSource);
+
+        // Extract embedded source from the portable PDB and compare to generated source.
+        var embeddedSource = ExtractEmbeddedSourceFromPdb(result.PortablePdb!);
+        Assert.NotNull(embeddedSource);
+        Assert.Equal(result.GeneratedSource, embeddedSource);
+    }
+
+    /// <summary>
+    /// Reads the first document's embedded source from a portable PDB byte array.
+    /// Returns null if no embedded source is found.
+    /// </summary>
+    private static string? ExtractEmbeddedSourceFromPdb(byte[] pdbBytes)
+    {
+        // EmbeddedSource custom debug information GUID (defined by the Portable PDB spec).
+        var embeddedSourceGuid = new Guid("0E8A571B-6926-466E-B4AD-8AB04611F5FE");
+
+        using var ms = new MemoryStream(pdbBytes);
+        using var provider = System.Reflection.Metadata.MetadataReaderProvider.FromPortablePdbStream(ms);
+        var reader = provider.GetMetadataReader();
+
+        foreach (var docHandle in reader.Documents)
+        {
+            foreach (var cdiHandle in reader.GetCustomDebugInformation(docHandle))
+            {
+                var cdi  = reader.GetCustomDebugInformation(cdiHandle);
+                var kind = reader.GetGuid(cdi.Kind);
+                if (kind != embeddedSourceGuid)
+                    continue;
+
+                var blob = reader.GetBlobBytes(cdi.Value);
+                if (blob.Length < 4) continue;
+
+                // First 4 bytes are the uncompressed length; 0 means data is stored raw.
+                int uncompressedLen = BitConverter.ToInt32(blob, 0);
+                byte[] sourceBytes;
+                if (uncompressedLen == 0)
+                {
+                    // Raw (not compressed).
+                    sourceBytes = blob[4..];
+                }
+                else
+                {
+                    // Deflate-compressed.
+                    using var compressed   = new MemoryStream(blob, 4, blob.Length - 4);
+                    using var deflate      = new System.IO.Compression.DeflateStream(
+                        compressed, System.IO.Compression.CompressionMode.Decompress);
+                    using var decompressed = new MemoryStream();
+                    deflate.CopyTo(decompressed);
+                    sourceBytes = decompressed.ToArray();
+                }
+
+                // Strip UTF-8 BOM if present.
+                if (sourceBytes.Length >= 3
+                    && sourceBytes[0] == 0xEF
+                    && sourceBytes[1] == 0xBB
+                    && sourceBytes[2] == 0xBF)
+                {
+                    sourceBytes = sourceBytes[3..];
+                }
+
+                return System.Text.Encoding.UTF8.GetString(sourceBytes);
+            }
+        }
+        return null;
     }
 
     // SC3: InMemoryRoslynCompiler throws BlueprintCompileException for invalid C#

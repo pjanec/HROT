@@ -97,6 +97,7 @@ public sealed record IrOp_WriteCursorResumeAt(int ResumeAtValue) : IrOperation;
 public sealed record IrOp_ReadCursorResumeAt : IrOperation;
 public sealed record IrOp_WriteCursorInstanceVersion : IrOperation;
 public sealed record IrOp_WriteCursorWaitUntilTime(IrValue Seconds) : IrOperation;
+public sealed record IrOp_ReadCursorWaitUntilTime : IrOperation;
 
 // Field read from a component ref (Stage 6 lowering)
 public sealed record IrOp_FieldRead(IrValue Source, string FieldName, IrTypeRef ResultType) : IrOperation;

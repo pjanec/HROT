@@ -23,6 +23,7 @@ public sealed class MetadataReferenceResolver
     {
         var refs = assemblies
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .OrderBy(a => a.Location, StringComparer.Ordinal)
             .Select(a => MetadataReference.CreateFromFile(a.Location))
             .ToList<MetadataReference>();
         return new MetadataReferenceResolver(refs);

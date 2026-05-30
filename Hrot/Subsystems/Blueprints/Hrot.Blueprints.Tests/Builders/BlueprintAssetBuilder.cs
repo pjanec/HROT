@@ -209,6 +209,15 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>Adds a CallCustomEventNode referencing the named custom event by name (name-based lookup).</summary>
+    public GraphBuilder CallCustomEvent(string eventName)
+    {
+        var nodeId = MakeNodeId("CallCustomEvent", _nodes.Count);
+        var node = new CallCustomEventNode { Id = nodeId, EventId = eventName };
+        RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
     /// <summary>Adds a WaitForChannelNode.</summary>
     public GraphBuilder WaitForChannel(string channelType)
     {

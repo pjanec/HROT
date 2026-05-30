@@ -125,7 +125,8 @@ internal static class StatementEmitter
             {
                 var evtName = ctx.CustomEventName(op.CustomEventIndex);
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
-                e.WriteLine($"// RaiseCustomEvent: {evtName}({argList})");
+                var extraArgs = argList.Length > 0 ? $", {argList}" : "";
+                e.WriteLine($"Event_{evtName}(ref {sv}, view, ecb, self, time{extraArgs});");
                 break;
             }
 
@@ -148,7 +149,10 @@ internal static class StatementEmitter
                 {
                     e.WriteLine($"if (__e_{n}.{op.TargetFieldName} != self) continue;");
                 }
-                e.WriteLine($"Event_{graphName}(ref s, view, ecb, self, time, deltaTime);");
+                var payloadArgs = op.PayloadFields.Count > 0
+                    ? ", " + string.Join(", ", op.PayloadFields.Select(f => $"__e_{n}.{f.Name}"))
+                    : "";
+                e.WriteLine($"Event_{graphName}(ref s, view, ecb, self, time{payloadArgs});");
                 e.Outdent();
                 e.WriteLine("}");
                 break;
@@ -277,6 +281,10 @@ internal static class StatementEmitter
                 e.WriteLine($"s.Cursor.WaitUntilTime = __t{op.Seconds.Index};");
                 break;
 
+            case IrOp_ReadCursorWaitUntilTime:
+                if (idx >= 0) e.WriteLine($"float __t{idx} = s.Cursor.WaitUntilTime;");
+                break;
+
             // ------------------------------------------------------------------
             // Field read from a component ref (Stage 6 lowering)
             // ------------------------------------------------------------------
@@ -291,12 +299,12 @@ internal static class StatementEmitter
 
             case IrOp_DebugProbe_NodeEnter op:
                 if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
-                    e.WriteLine($"// [DebugProbe] NodeEnter {op.NodeId} ({op.NodeKind})");
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, \"{op.NodeId:N}\");");
                 break;
 
             case IrOp_DebugProbe_PinValue op:
                 if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
-                    e.WriteLine($"// [DebugProbe] PinValue {op.PinId} = __t{op.Value.Index} ({op.PinName})");
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.PinValueChanged(self, \"{op.PinId:N}\", __t{op.Value.Index});");
                 break;
 
             // ------------------------------------------------------------------
