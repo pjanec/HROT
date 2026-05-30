@@ -45,6 +45,9 @@ public sealed class InteractionState
     /// <summary>Per-comment graph-space position overrides while a comment drag is in progress.</summary>
     public Dictionary<CommentId, Vector2> CommentDragOverridePositions { get; } = new();
 
+    /// <summary>Per-reroute graph-space position overrides while a drag is in progress.</summary>
+    public Dictionary<RerouteRef, Vector2> RerouteDragOverridePositions { get; } = new();
+
     /// <summary>The comment currently being inline-renamed; null when not renaming.</summary>
     public CommentId? RenamingComment { get; set; }
 
@@ -84,6 +87,7 @@ public sealed class InteractionState
         PinDragOverrides.Clear();
         CommentDragContents.Clear();
         CommentDragOverridePositions.Clear();
+        RerouteDragOverridePositions.Clear();
         RenamingComment = null;
         MarqueeGraph = default;
         MarqueeTouchMode = false;

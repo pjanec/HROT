@@ -18,14 +18,15 @@ internal static class ReroutesRenderer
 
     /// <summary>Draw all reroute waypoints for all links.</summary>
     public static void Render(
-        IGraphModel       model,
-        SelectionState    selection,
-        ViewportState     viewport,
-        ITypeSystem       typeSystem,
+        GraphView         view,
         HashSet<NodeId>   visibleNodes,
         RectF             visibleGraphRect)
     {
         var dl = ImGui.GetWindowDrawList();
+        var model = view.Model;
+        var selection = view.Selection;
+        var viewport = view.Viewport;
+        var typeSystem = view.TypeSystem;
 
         foreach (var link in model.Links)
         {
@@ -48,9 +49,9 @@ internal static class ReroutesRenderer
 
             for (int i = 0; i < link.Waypoints.Count; i++)
             {
-                var waypoint   = link.Waypoints[i];
-                var screenPos  = viewport.GraphToScreen(waypoint);
                 var rerouteRef = new RerouteRef(link.Id, i);
+                var waypoint = view.Interaction.RerouteDragOverridePositions.TryGetValue(rerouteRef, out var ovr) ? ovr : link.Waypoints[i];
+                var screenPos = viewport.GraphToScreen(waypoint);
                 bool selected  = selection.Contains(SelectionEntry.OfReroute(rerouteRef));
 
                 // Filled inner circle

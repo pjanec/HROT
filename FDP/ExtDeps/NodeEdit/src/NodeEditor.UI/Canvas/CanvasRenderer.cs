@@ -182,7 +182,7 @@ public sealed class CanvasRenderer
         DrawComments(dl, view, foreground: true, visibleGraphRect);
 
         // 10. Reroute waypoints.
-        ReroutesRenderer.Render(view.Model, view.Selection, view.Viewport, view.TypeSystem, visibleNodeIds, visibleGraphRect);
+        ReroutesRenderer.Render(view, visibleNodeIds, visibleGraphRect);
 
         // 10b. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterNodes);

@@ -483,19 +483,60 @@ internal sealed class CanvasInput
 
     private static void HandleDraggingReroutes(GraphView view, IInputSource input)
     {
-        if (input.IsMouseReleased(MouseButton.Left))
-        {
-            // Commit reroute move
-            foreach (var reroute in view.Selection.Reroutes)
-            {
-                var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
-                view.Commands.Apply(new GraphCommand.MoveReroute(reroute.LinkId, reroute.WaypointIndex, graphPos));
-            }
-            view.Interaction.ResetToIdle();
-        }
-        else if (view.Interaction.DragThresholdCrossed || input.MouseDelta.Length() > 0)
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+
+        if (!view.Interaction.DragThresholdCrossed && delta.Length() > TimingConstants.DragThresholdPixels)
         {
             view.Interaction.DragThresholdCrossed = true;
+        }
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            var deltaGraph = delta / view.Viewport.Zoom;
+            foreach (var reroute in view.Selection.Reroutes)
+            {
+                var link = view.Model.FindLink(reroute.LinkId);
+                if (link != null && reroute.WaypointIndex >= 0 && reroute.WaypointIndex < link.Waypoints.Count)
+                {
+                    var startPos = link.Waypoints[reroute.WaypointIndex];
+                    view.Interaction.RerouteDragOverridePositions[reroute] = startPos + deltaGraph;
+                }
+            }
+        }
+
+        if (input.IsMouseReleased(MouseButton.Left))
+        {
+            if (view.Interaction.DragThresholdCrossed && view.Interaction.RerouteDragOverridePositions.Count > 0)
+            {
+                var fwds = new List<GraphCommand>();
+                var invs = new List<GraphCommand>();
+
+                foreach (var kvp in view.Interaction.RerouteDragOverridePositions)
+                {
+                    var link = view.Model.FindLink(kvp.Key.LinkId);
+                    if (link != null && kvp.Key.WaypointIndex >= 0 && kvp.Key.WaypointIndex < link.Waypoints.Count)
+                    {
+                        var oldPos = link.Waypoints[kvp.Key.WaypointIndex];
+                        fwds.Add(new GraphCommand.MoveReroute(kvp.Key.LinkId, kvp.Key.WaypointIndex, kvp.Value));
+                        invs.Add(new GraphCommand.MoveReroute(kvp.Key.LinkId, kvp.Key.WaypointIndex, oldPos));
+                    }
+                }
+
+                if (fwds.Count == 1)
+                {
+                    view.Execute(fwds[0], invs[0], "Move Reroute");
+                }
+                else if (fwds.Count > 1)
+                {
+                    invs.Reverse();
+                    view.Execute(
+                        new GraphCommand.Batch("Move Reroutes", fwds),
+                        new GraphCommand.Batch("Move Reroutes", invs),
+                        "Move Reroutes");
+                }
+            }
+
+            view.Interaction.ResetToIdle();
         }
     }
 
