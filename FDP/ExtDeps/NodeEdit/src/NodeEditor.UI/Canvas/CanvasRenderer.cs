@@ -168,13 +168,13 @@ public sealed class CanvasRenderer
         InvokeCustomRenderers(view, CanvasRenderPass.AfterWires);
 
         // 8. Nodes + inline editors — only the culled visible subset.
-        _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
+        bool isNodeBgActive = _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
 
         // 8b. Attachment pills (or low-zoom bars) above host nodes.
         _attachments.DrawAll(view, dl, _layout.AttachmentLayouts, _layout.NodeScreenRects);
 
         // 4. Process input after widgets are submitted, using snapshotted hover.
-        _input.Handle(view, isCanvasHovered, isCanvasBgActive, isCanvasDirectlyFocused, _spatialIndex);
+        _input.Handle(view, isCanvasHovered, isCanvasBgActive, isNodeBgActive, isCanvasDirectlyFocused, _spatialIndex);
         if ((view.Host.Input.Modifiers & KeyModifiers.Alt) != 0
             && view.Interaction.Hover.Kind == HoverKind.Link)
         {

@@ -20,8 +20,8 @@ internal sealed class NodeRenderer
 
     private readonly PinRenderer _pins = new();
 
-    /// <summary>Draw the culled visible nodes and their inline editors.</summary>
-    public void DrawAll(
+    /// <summary>Draw the culled visible nodes and their inline editors. Returns true if a node body was clicked.</summary>
+    public bool DrawAll(
         GraphView view,
         ImDrawListPtr dl,
         Dictionary<NodeId, RectF> nodeScreenRects,
@@ -33,6 +33,7 @@ internal sealed class NodeRenderer
         float zoom  = view.Viewport.Zoom;
         float corner = theme.NodeCornerRadius * zoom;
         float border = theme.NodeBorderThickness * zoom;
+        bool isNodeBgActive = false;
 
         // Pass 1: draw unselected, resting nodes in stable model order.
         foreach (var node in view.Model.Nodes)
@@ -43,7 +44,7 @@ internal sealed class NodeRenderer
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);
             if (isSelected || isDragged) continue;
-            RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
+            isNodeBgActive |= RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
                 theme, zoom, corner, border);
         }
 
@@ -56,14 +57,16 @@ internal sealed class NodeRenderer
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);
             if (!isSelected && !isDragged) continue;
-            RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
+            isNodeBgActive |= RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
                 theme, zoom, corner, border);
         }
+
+        return isNodeBgActive;
     }
 
     // -- private ----------------------------------------------------------------
 
-    private void RenderSingleNode(
+    private bool RenderSingleNode(
         GraphView view,
         ImDrawListPtr dl,
         NodeId nodeId,
@@ -76,14 +79,23 @@ internal sealed class NodeRenderer
         float border)
     {
         var node = view.Model.FindNode(nodeId);
-        if (node == null) return;
-        if (!nodeScreenRects.TryGetValue(nodeId, out var rect)) return;
+        if (node == null) return false;
+        if (!nodeScreenRects.TryGetValue(nodeId, out var rect)) return false;
 
         var pMin = rect.Min;
         var pMax = rect.Min + rect.Size;
 
         // Body background
         dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(new Vector4(0.18f, 0.18f, 0.18f, 0.95f)), corner);
+
+        // Submit an interaction blocker for this node body.
+        // SetNextItemAllowOverlap permits widgets submitted after this (this node's own inline
+        // editors) to capture input, while still occluding widgets rendered in prior passes
+        // (editors of nodes underneath).
+        ImGui.SetCursorScreenPos(pMin);
+        ImGui.SetNextItemAllowOverlap();
+        ImGui.InvisibleButton($"##node_bg_{nodeId.Value}", pMax - pMin);
+        bool isBgActive = ImGui.IsItemActive();
 
         // Header strip
         float headerH = theme.NodeHeaderHeight * zoom;
@@ -110,6 +122,8 @@ internal sealed class NodeRenderer
         // Inline default-value editors
         if (!view.Viewport.IsLowZoom)
             DrawInlineEditors(view, node, nodeScreenRects, pinPositions, connectedInputPins, zoom);
+
+        return isBgActive;
     }
 
     private static void DrawTitle(
@@ -276,7 +290,7 @@ internal sealed class NodeRenderer
 
             var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFontSize() * 0.5f);
 
-            using var scope = new ImGuiPushIdScope(pin.Id.GetHashCode());
+            using var scope = new ImGuiPushIdScope(pin.Id.Value.ToString());
             ImGui.SetCursorScreenPos(editorPos);
             ImGui.PushItemWidth(editorWidthPx);
 

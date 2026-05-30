@@ -27,9 +27,10 @@ internal sealed class CanvasInput
     /// Process one frame of input for the given view.
     /// Must be called after the canvas child window is active.
     /// </summary>
-    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, bool isCanvasDirectlyFocused, SpatialIndex spatialIndex)
+    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, bool isNodeBgActive, bool isCanvasDirectlyFocused, SpatialIndex spatialIndex)
     {
-        bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive);
+        // Allow canvas processing if either the canvas itself OR a node background was clicked.
+        bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive || isNodeBgActive);
 
         var input = view.Host.Input;
         var mode  = view.Interaction.Mode;
