@@ -83,7 +83,7 @@
 - [ ] **TASK-UAI-P5-02** Input catalog browser + curve inspector [details](./TASK-DETAIL.md#task-uai-p5-02-input-catalog-browser--curve-inspector-calls-task-uai-p3-01)
 - [ ] **TASK-UAI-P5-03** Live preview + in-editor debug [details](./TASK-DETAIL.md#task-uai-p5-03-live-preview--in-editor-debug-reads-phase-1-trace-throttled-10-hz)
 - [x] **TASK-UAI-P5-04** `UtilityFluentEmitter` [details](./TASK-DETAIL.md#task-uai-p5-04-utilityfluentemitter-lossless-round-trip) — BATCH-15
-- [ ] **TASK-UAI-P5-05** Comparison integration [details](./TASK-DETAIL.md#task-uai-p5-05-comparison-integration-sanitizer--tuning-diff-fast-lane)
+- [x] **TASK-UAI-P5-05** Comparison integration [details](./TASK-DETAIL.md#task-uai-p5-05-comparison-integration-sanitizer--tuning-diff-fast-lane) — BATCH-16
 - [x] **TASK-UAI-P5-06** Shared-infra extensions [details](./TASK-DETAIL.md#task-uai-p5-06-shared-infra-extensions-4-small-touches) — BATCH-14
 
 ---

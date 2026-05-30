@@ -29,7 +29,7 @@ public sealed class UtilityDecisionAsset : IEditableAsset
     }
 
     // True iff the source file contains the HROT_EDITOR_GENERATED marker.
-    public bool IsEditorOwned { get; set; }
+    public bool IsEditorOwned { get; set; } = true;
 
     public event Action? Changed;
 
