@@ -113,7 +113,7 @@ public enum ScoringMode : byte
 public enum InputContext : byte { Self, Target, Leader, Candidate }
 
 // DecisionKind -- drives evaluation path in UtilityScorer
-public enum DecisionKind : byte { ThreatRanking, WeaponSelection, PostureSelect }
+public enum DecisionKind : byte { ThreatRanking, WeaponSelection, PostureSelect, ManeuverSelect }
 ```
 
 ### ResponseCurve (16 bytes, Sequential)
@@ -780,6 +780,7 @@ Utility/
     ThreatMatrixAssignmentState.cs   -- AssignmentSlot, ThreatMatrixAssignmentState
     ThreatMatrixAssignmentSystem.cs  -- ThreatMatrixAssignmentSystem (greedy squad assignment)
   Inputs/
+    SquadInputs.cs                   -- SquadInputIds constants + 9 squad-tier readers
     StandardInputs.cs                -- StandardInputIds constants + 17 standard readers
     UtilityInputAttribute.cs         -- [UtilityInput] attribute
   Integration/
@@ -811,16 +812,63 @@ Utility/
 
 ---
 
+## Squad-Tier Input Readers
+
+In addition to the 17 standard inputs in `StandardInputs.cs`, a second set of input readers
+targets squad-commander entities. These are defined in `Inputs/SquadInputs.cs`.
+
+### SquadInputIds constants
+
+FNV-1a-16 identifiers for squad-tier input readers:
+
+| Constant | ID | Source |
+|---|---|---|
+| `SquadKnowsContact` | `0xBA51` | merged contact pool in commander `Blackboard1024` |
+| `SquadContactThreatLevel` | `0x2457` | threat score for Context in the squad pool |
+| `SquadStrengthRatio` | `0x6EDF` | live-member count / (live-member + contact count) |
+| `SquadAmmoRollup` | `0x8501` | fraction of squad members with ammo > 0 |
+| `ActiveFeatureThreatRating` | `0xE922` | threat rating of the active danger-area feature |
+| `ActiveFeatureKindIs` | `0x6679` | 1f if active feature kind matches `Params.BlueprintId` |
+| `SquadPoolThreatAggregate` | `0x0426` | aggregate threat score across all pool contacts |
+| `AssignedRole` | `0x3FD1` | role byte from member assignment state |
+| `AssignedSlot` | `0x8BC9` | slot index from member assignment state |
+
+Register via `SquadInputs.RegisterAll()` (alongside `StandardInputs.RegisterAll()`).
+
+### ManeuverSelectStarterDecision
+
+A squad-commander starter decision (`Kind: ManeuverSelect`) ships in
+`FDP/Toolkits/Fdp.Toolkits/Squad/StarterPack/ManeuverSelectStarterDecision.cs`.
+It uses squad inputs to choose among three maneuver options:
+
+| Option | Key inputs |
+|---|---|
+| `DangerAreaCross` (0) | SquadStrengthRatio (Linear), ActiveFeatureKindIs (StreetCrossing), SquadAmmoRollup (Step) |
+| `BoundOverwatch` (1) | SquadStrengthRatio (Linear), ActiveFeatureKindIs (OpenGround), ActiveFeatureThreatRating (Logistic) |
+| `Hold` (2) | ActiveFeatureThreatRating (Linear), SquadAmmoRollup (InverseLinear) |
+
+---
+
+## Related Projects
+
+| Project | Doc | Relation |
+|---|---|---|
+| `Hrot.Utility.Editor` | [Hrot.Utility.Editor.md](../../Hrot/Editor/Hrot.Utility.Editor.md) | Visual card-table editor, curve widget, live preview, emitter |
+| `Hrot.Diagnostics.Tuning` | [Hrot.Diagnostics.Tuning.md](../../Hrot/Diagnostics/Hrot.Diagnostics.Tuning.md) | TuningRegistry, TuningConsoleGizmo, binder, snapshot/restore |
+| `Hrot.Diagnostics.Overlays` | [Hrot.Diagnostics.Overlays.md](../../Hrot/Diagnostics/Hrot.Diagnostics.Overlays.md) | AiOverlayFlags, five overlay sources, budget arbiter |
+
+---
+
 ## Implementation Status
 
-Phases completed as of 2026-05-30:
+All phases complete as of 2026-05-30:
 
 | Phase | Status | Content |
 |---|---|---|
-| Phase 0 (BATCH-01) | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, `Blackboard1024.Project<T>`, `UtilityTestWorld`, gate test |
-| Phase 1 (BATCH-02 to BATCH-07) | Complete | Scoring core, curve evaluation, aggregator, trace buffer, `UtilityScorer`, 17 standard inputs, `ThreatMatrixAssignmentSystem`, 4 starter-pack decisions, BTree/HSM/Blueprint integration nodes |
-| Phase 2 (BATCH-08 to BATCH-10) | Complete | `UtilityInputGenerator`, `UtilityDecisionGenerator`, `UtilityAuthoringAnalyzer`, `UtilityAutoDiscovery` startup handshake |
-| Phase 3 | Planned | `CurveWidget.Draw` -- host-agnostic curve editing widget |
-| Phase 4 | Planned | AI overlays (`AiOverlayFlags`), five overlay sources, `TuningRegistry` + `TuningConsoleGizmo` slice 1 |
-| Phase 5 | Planned | Utility editor card-table (`UtilityDecisionAsset`, live preview, `UtilityFluentEmitter` round-trip) |
-| Phase 6 | Planned | Visual curve editing, editor-console bridge, snapshot/restore |
+| Phase 0 | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, `Blackboard1024.Project<T>`, `UtilityTestWorld`, gate test |
+| Phase 1 | Complete | Scoring core, curve evaluation, aggregator, trace buffer, `UtilityScorer`, 17 standard inputs, `ThreatMatrixAssignmentSystem`, 4 starter-pack decisions, BTree/HSM/Blueprint integration nodes |
+| Phase 2 | Complete | `UtilityInputGenerator`, `UtilityDecisionGenerator`, `UtilityAuthoringAnalyzer`, `UtilityAutoDiscovery` startup handshake |
+| Phase 3 | Complete | `CurveWidget.Draw` host-agnostic curve widget (`Hrot.Utility.Editor`) |
+| Phase 4 | Complete | `AiOverlayFlags`, five overlay sources, `TuningRegistry` + `TuningConsoleGizmo` slice 1 |
+| Phase 5 | Complete | `UtilityDecisionAsset` editor model, `UtilityFluentEmitter`, `UtilityPreviewRunner`, `UtilityDecisionWindow` |
+| Phase 6 | Complete | `UtilityCurveFieldDrawer`/`Editor`, editor-console bridge via `UtilityDecisionOverlaySource.SelectDecision`, snapshot/restore |

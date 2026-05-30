@@ -2,9 +2,7 @@
 
 **Design reference:** `.dev/group-maneuvers/Squad_Coordination_Design_v1_1.md`
 **Date:** 2026-05-30
-**Implementation status:** Design phase — not yet implemented. All phases (P0–P6)
-are pending. The pre-step gates (Utility AI P0–P6 and the 3D Cognitive Spatial
-Awareness Promotion) must be green before implementation begins.
+**Implementation status:** Fully implemented. All phases (P0-P7) complete.
 
 ---
 
@@ -314,57 +312,97 @@ behavior — including the "resume-trap" avoidance.
 
 ---
 
-## Planned Project Layout
-
-Code for this system does not yet exist. The planned home for each component:
+## Actual Project Layout
 
 ```
 FDP/Toolkits/Fdp.Toolkits/Squad/
+    SquadHsmShell.cs                     -- lightweight HSM authoring shell over PhaseSequencer
     State/
-        SquadCognitiveState.cs       -- single projection onto Blackboard1024
+        SquadCognitiveState.cs           -- single 1024 B projection onto Blackboard1024
     Primitives/
-        ElementPartitionPrimitive.cs
-        TacticalFeatureRef.cs
-        RoleSlotAssignmentPrimitive.cs   -- calls ThreatMatrixAssignmentSystem adapter
-        PhaseSequencer.cs
-        SlotRotation.cs
+        ElementPartitionPrimitive.cs     -- hysteresis-guarded member->element mapping
+        TacticalFeatureHandles.cs        -- handles on danger areas / tactical features
+        RoleSlotAssignmentPrimitive.cs   -- allocation-matrix role/slot assignment
+        PhaseSequencer.cs                -- turn-taking phase sequencer (squad-HSM substrate)
+        SlotRotation.cs                  -- burn/reuse exposed-slot rotation
+        GreedyMatrixAssigner.cs          -- allocation matrix helper reused by primitives
+    Components/
+        MovementModeIntentComponent.cs   -- squad posture bit -> Muscle MovementMode
     DangerArea/
         DangerAreaDescriptor.cs          -- 3D-native, 2.5D extent (OBB + Z band)
-        DangerAreaSensor.cs              -- child component
-        DangerAreaCognitiveBuffer.cs     -- child component (InlineArray<8>)
-        DangerAreaRefreshSystem.cs
+        DangerAreaSensorComponent.cs     -- child entity sensor component
+        DangerAreaCognitiveBuffer.cs     -- child entity cognitive buffer (InlineArray<8>)
+        IDangerAreaProvider.cs           -- interface for real + fake providers
         Fake/
             FakeDangerAreaProvider.cs    -- hand-authored descriptors (mirrors FakeNavmeshProvider)
     Inputs/
         SquadInputs.cs                   -- SquadKnowsContact, SquadStrengthRatio,
-                                         --   ActiveFeatureKindIs, AssignedRole, ...
+                                         --   ActiveFeatureKindIs, AssignedRole, AssignedSlot, ...
     Mappers/
-        ForceManeuverMapper.cs           -- ITacticalOrderMapper for mission override (§8.0)
+        ForceManeuverMapper.cs           -- ITacticalOrderMapper for mission override
     StarterPack/
-        ManeuverSelectStarterDecision.cs
+        ManeuverSelectStarterDecision.cs -- worked example ManeuverSelect decision
+    Maneuvers/
+        DangerAreaCrossingManeuver.cs    -- §8.1 danger-area crossing
+        BoundingOverwatchManeuver.cs     -- §8.2 bounding overwatch (open-field + urban)
+        SuppressAndManeuverManeuver.cs   -- §8.3 suppress-and-maneuver
+        HillCrestHullDownManeuver.cs     -- §8.4 hill-crest hull-down (parity proof)
+        StackAndRoomEntryManeuver.cs     -- §8.6a stack-and-room-entry
+        TravellingOverwatchManeuver.cs   -- §8.6b travelling overwatch
+    Systems/
+        SquadPerceptionMergeSystem.cs        -- perception merge (10 Hz + event-driven)
+        CommanderUtilityTickSystem.cs        -- commander-tier ManeuverSelect scoring
+        SquadVetoDetectionSystem.cs          -- broken-rotation detection
+        SquadEventIngressSystem.cs           -- hybrid event/timer rotation engine
+        SquadMovementModeBroadcastSystem.cs  -- squad posture bit -> Muscle MovementMode
+        DangerAreaRefreshSystem.cs           -- danger-area sensor lifecycle
 
-Hrot/Subsystems/Hrot.AI.Brain/Squad/
-    SquadPerceptionMergeSystem.cs        -- perception merge (10 Hz + event-driven)
-    CommanderUtilityTickSystem.cs        -- commander-tier ManeuverSelect scoring
-    SquadVetoDetectionSystem.cs          -- broken-rotation detection
-    SquadEventIngressSystem.cs           -- hybrid event/timer rotation engine
-    SquadMovementModeBroadcastSystem.cs  -- squad posture bit -> Muscle MovementMode
-
-Hrot/Subsystems/Hrot.AI.Behaviors/Squad/Maneuvers/
-    DangerAreaCrossingManeuver.cs        -- §8.1
-    BoundingOverwatchManeuver.cs         -- §8.2
-    SuppressAndManeuverManeuver.cs       -- §8.3
-    HillCrestHullDownManeuver.cs         -- §8.4 (parity with HillAttackCommanderNodes)
-    StackAndRoomEntryManeuver.cs         -- §8.6a
-    TravellingOverwatchManeuver.cs       -- §8.6b
+FDP/Toolkits/Fdp.Toolkits.Tests/Squad/
+    SquadCognitiveStateLayoutTests.cs    -- P0 layout gate
+    AssignmentSlotLayoutTests.cs         -- AssignmentSlot 16 B size check
+    SquadPhase0IntegrationTests.cs       -- P0 integration gate
+    Phase2IntegrationTests.cs            -- P2 perception-merge + sensor gate
+    Phase3IntegrationTests.cs            -- P3 maneuver-selection gate
+    DangerAreaProviderTests.cs
+    DedicatedScriptParityTests.cs        -- P6 dedicated-script / PlatoonHillAttack parity
+    SquadHsmShellTests.cs
+    Primitives/
+        ElementPartitionPrimitiveTests.cs
+        PhaseSequencerTests.cs
+        RoleSlotAssignmentPrimitiveTests.cs
+        SlotRotationTests.cs
+        TacticalFeatureHandlesTests.cs
+    Systems/
+        SquadPerceptionMergeSystemTests.cs
+        CommanderUtilityTickSystemTests.cs
+        SquadVetoDetectionSystemTests.cs
+        SquadEventIngressSystemTests.cs
+        SquadMovementModeBroadcastSystemTests.cs
+        DangerAreaRefreshSystemTests.cs
+    Inputs/
+        SquadInputsTests.cs
+        SquadInputsP3Tests.cs
+        SquadInputsP4Tests.cs
+    Mappers/
+        ForceManeuverMapperTests.cs
+    Maneuvers/
+        DangerAreaCrossingManeuverTests.cs
+        BoundingOverwatchManeuverTests.cs
+        SuppressAndManeuverManeuverTests.cs
+        HillCrestHullDownManeuverTests.cs
+        BrieferCatalogManeuverTests.cs   -- StackAndRoomEntry + TravellingOverwatch
 
 Hrot/Diagnostics/Hrot.Diagnostics.Overlays/
     SquadCoordinationOverlaySource.cs    -- §10 overlay (extends SquadAssignmentOverlaySource)
 ```
 
-The `SquadState` / `SquadAwareEngagement` Blueprint recipes already exist in
+The `SquadState` / `SquadAwareEngagement` Blueprint recipes live in
 `Hrot.AI.Behaviors/Blueprints/Recipes/` as the authorable-surface prototype (see
 `Hrot.AI.Behaviors` doc, Blueprint Recipes section).
+
+Note: the systems and maneuver catalog files landed in `Fdp.Toolkits/Squad/` rather
+than in `Hrot.AI.Behaviors` or a separate `Hrot.AI.Brain` project, keeping all squad
+primitives co-located in the toolkit layer alongside the Utility AI machinery they reuse.
 
 ---
 
@@ -444,13 +482,14 @@ distinguishes altitude-separated contacts.
 
 | Phase | Goal | Status |
 |---|---|---|
-| P0 | State layout: shrink `AssignmentSlot`, define `SquadCognitiveState`, `ManeuverSelect` kind, `FakeDangerAreaProvider` scaffolding | Not started |
-| P1 | Primitives library: `ElementPartition`, `TacticalFeatureRef`, `RoleSlotAssignment`, `PhaseSequencer`, `SlotRotation` | Not started |
-| P2 | Shared awareness: `SquadPerceptionMergeSystem`, `SquadKnowsContact` input reader, `DangerAreaSensor` + `DangerAreaCognitiveBuffer` | Not started |
-| P3 | Maneuver selection: commander-tier Utility scorer pipeline, squad-level considerations, mission-override mapper, `ManeuverSelect` starter-pack worked example | Not started |
-| P4 | Authority + rotation engine: `AssignedRole`/`AssignedSlot` member considerations, veto detection, hybrid event/timer rotation, `MovementMode` intent | Not started |
-| P5 | Maneuver catalog: 8.1 danger-area crossing, 8.2 bounding overwatch, 8.3 suppress-and-maneuver, 8.4 hill-crest parity, 8.6 briefer entries | Not started |
-| P6 | Three-way authoring shells: squad HSM, Blueprint host, dedicated-script parity with `PlatoonHillAttack` | Not started |
+| P0 | State layout: shrink `AssignmentSlot` (64->16 B), define `SquadCognitiveState`, `ManeuverSelect` kind, `FakeDangerAreaProvider` scaffolding | Complete (BATCH-20) |
+| P1 | Primitives library: `ElementPartition`, `TacticalFeatureHandles`, `RoleSlotAssignment`, `PhaseSequencer`, `SlotRotation` | Complete (BATCH-21) |
+| P2 | Shared awareness: `SquadPerceptionMergeSystem`, `SquadKnowsContact` + `SquadContactThreatLevel` input readers, `DangerAreaSensor` + `DangerAreaCognitiveBuffer` | Complete (BATCH-22/23) |
+| P3 | Maneuver selection: commander-tier Utility scorer pipeline, squad-level considerations, mission-override mapper, `ManeuverSelectDecision` starter-pack | Complete (BATCH-24) |
+| P4 | Authority + rotation engine: `AssignedRole`/`AssignedSlot` member considerations, veto detection, hybrid event/timer rotation, `MovementMode` intent | Complete (BATCH-25/26) |
+| P5 | Maneuver catalog: 8.1 danger-area crossing, 8.2 bounding overwatch, 8.3 suppress-and-maneuver, 8.4 hill-crest hull-down parity, 8.6 briefer entries | Complete (BATCH-27..31) |
+| P6 | Three-way authoring shells: `SquadHsmShell` (FastHSM), Blueprint host (`SquadState`/`SquadAwareEngagement` recipes), dedicated-script parity with `PlatoonHillAttack` | Complete (BATCH-32/33) |
+| P7 | Debug overlays: `SquadCoordinationOverlaySource` (element coloring, role/slot, OBB+Z danger area), divergence lines + veto labels, phase + dwell timer + contact-pool markers | Complete (BATCH-34) |
 
 ---
 

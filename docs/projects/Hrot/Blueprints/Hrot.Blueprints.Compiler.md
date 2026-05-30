@@ -58,7 +58,7 @@ Three Blueprint dispatch kinds are supported:
            |
            v
   +------------------+     +-----------------+
-  | Stage2_Validate  |---->| DiagnosticSink  |  BP1xxx series (14 validators)
+  | Stage2_Validate  |---->| DiagnosticSink  |  BP1xxx + BP20xx series (17 validators)
   +------------------+     +-----------------+
            |
            v
@@ -296,7 +296,7 @@ during normalization).
 | `InstanceLowering.cs` | Delegates each graph containing latent ops to `WaitLowering_Instance`. |
 | `WaitLowering_AiPrimitive.cs` | Transforms `IrTerm_Suspend` terminators into a **phase-byte state machine**: a dispatch block switches on `__phase`, branching into per-phase check blocks that test channel/event readiness and loop or resume. |
 | `WaitLowering_Instance.cs` | Transforms `IrTerm_Suspend` terminators into a **cursor-based state machine**: `State.Cursor.ResumeAt` is an integer dispatch index; a chain of comparison blocks dispatches to per-resume check blocks. |
-| `WhenLowering_Instance.cs` | Adds synthesized `_when_<id8>_prev` fields to the `Instance` asset's `Variables` list for each `WhenNode` in `ValueChanged` or `ConditionMet` mode, enabling edge-detection between ticks. `EventFired` mode requires no synthesized state. |
+| `WhenLowering_Instance.cs` | Adds synthesized `_when_<id8>_prev` fields to the `Instance` asset's `Variables` list for each `WhenNode` that requires edge-detection state: `ValueChanged` (typed scalar/vector prev-value field), `ConditionMet` (bool prev-value field), and `EqsResult` (per-trigger prev-state struct sized 4-16 bytes, e.g., `WhenEqsTopChanged_<id8>_PrevState`). `EventFired` mode synthesizes no state. Fields are sorted by name for a deterministic `StructureHash` contribution. |
 | `ChannelCommandLowering.cs` | (inside `Emit/`) Emits inline `GetComponentRW` + action field writes + `ActionInstanceId++` for `IrOp_ChannelCommand`. |
 | `FieldLayout.cs` | Assigns `Offset` and `Size` to all `IrField` records using sequential layout with natural alignment (1/2/4/8-byte). `Parameters` starts at offset 0, `WorkingState` at 8, `Variables` at 16. |
 | `StructureHashComputation.cs` | Computes FNV-64 hash over the concatenation of dispatch kind, field names, type full names, offsets, and sizes. Used to detect breaking API changes at hot-reload time. |

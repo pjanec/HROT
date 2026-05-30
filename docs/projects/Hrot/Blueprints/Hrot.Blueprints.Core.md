@@ -1025,7 +1025,7 @@ checks (`BP0010`, `BP0011`).
 
 ### Stage 2 -- Validate
 
-Runs 14 independent `IValidator` implementations sequentially.  Stops early on fatal
+Runs 17 independent `IValidator` implementations sequentially.  Stops early on fatal
 errors.  Validators cover:
 
 - `V_AssetStructure` -- non-empty `AssetId`, `Name`, valid `Dispatch`
@@ -1042,6 +1042,9 @@ errors.  Validators cover:
 - `V_PeerReferences` -- declared peer Guids present in `SiblingSignatures`
 - `V_TypeReferences` -- all pin type IDs resolvable
 - `V_DeterminismOrdering` -- (reserved)
+- `V_WhenNodeRules` -- WhenNode payload/mode/edge consistency; BestEffort and cross-node event warnings
+- `V_ReadEqsResultNodeRules` -- ReadEqsResultNode dispatch check and sensor variable lookup
+- `V_SpawnEqsSensorNodeRules` -- SpawnEqsSensorNode dispatch check, template lookup, instance-id collision
 
 ### Stage 3 -- Normalize
 

@@ -258,6 +258,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 | `Model/HsmAsset.cs` | `TransitionKind` | Enum: External, Internal, Local. |
 | `Model/HsmAssetProjector.cs` | `HsmAssetProjector` | Static factory: `Project(blob, metadata, layout, ...)` -> `HsmAsset`. Applies layout positions/IDs if provided; runs auto-layout otherwise. |
 | `Model/HsmGraphModel.cs` | `HsmGraphModel` | Adapts `HsmAsset` to NodeEditor's `IGraphModel`. Exposes states as nodes, transitions as links. |
+| `Model/HsmAttachment.cs` | `HsmAttachment` (internal) | Internal implementation of `IAttachmentModel` for HSM state nodes. Created by `HsmCommandSink` on `GraphCommand.AddAttachment`. Stores category, glyph, label, tooltip, stack index, and mutable `AttachmentState`. |
 | `Model/HsmPinModel.cs` | `HsmPinModel` | Hidden pin model (internal). One output pin + one input pin per state, both invisible on canvas. |
 | `Model/HsmTransitionLink.cs` | `HsmTransitionLink` | Adapts `TransitionNode` to NodeEditor's `ILinkModel`. Solid for External, Dashed for Internal. |
 
@@ -266,7 +267,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 | File | Class | Description |
 |------|-------|-------------|
 | `Host/HsmEditorHostServices.cs` | `HsmEditorHostServices` | Implements `IEditorHostServices`. Aggregates all per-asset services for one NodeEditor canvas instance. Provides viewport-reset signaling. |
-| `Host/HsmCommandSink.cs` | `HsmCommandSink` (internal) | Implements `IGraphCommandSink`. Dispatches graph commands (add/remove node, link, region, etc.) to per-command handlers. Marks the asset dirty after each successful command. Most command handlers are stubs pending later implementation slices. |
+| `Host/HsmCommandSink.cs` | `HsmCommandSink` (internal) | Implements `IGraphCommandSink`. Dispatches graph commands (add/remove state, link/transition, region, attachment, etc.) to per-command handlers. Marks the asset dirty after each successful command. All handlers are fully implemented including `GraphCommand.AddAttachment`, `GraphCommand.RemoveAttachments`, `GraphCommand.ChangeParent`, and all parallel-region mutations. |
 | `Host/HsmNodeCatalog.cs` | `HsmNodeCatalog` (internal) | Implements `INodeCatalog`. Static catalog of six state kind entries (Simple, Composite, Parallel, Final, History, DeepHistory). |
 | `Host/HsmTypeSystem.cs` | `HsmTypeSystem` (internal) | Implements `ITypeSystem`. HSM states have no typed pins; all type queries return negative answers. |
 | `Host/HsmLinkValidator.cs` | `HsmLinkValidator` (internal) | Implements `ILinkValidator`. Validates that a new transition is legal: pins must resolve to known states; Final states cannot be sources; History pseudo-states cannot be targets. |
@@ -342,7 +343,7 @@ All types live under the root namespace `Hrot.Hsm.Editor`.
 |------|-------|-------------|-------------|
 | `Renderers/HsmRuntimeOverlayRenderer.cs` | `HsmRuntimeOverlayRenderer` | AfterNodes | Teal glow on active leaf states; gold diamond at last-fired transition source. |
 | `Renderers/HsmHeatmapRenderer.cs` | `HsmHeatmapRenderer` | BeforeContent | Blue-green-yellow-red fill behind state bodies by visit frequency. Requires `HeatmapModeActive = true`. |
-| `Renderers/HsmBreakpointGutterRenderer.cs` | `HsmBreakpointGutterRenderer` | AfterNodes | Small red filled circle in the gutter of states with active breakpoints. |
+| `Renderers/HsmBreakpointGutterRenderer.cs` | `HsmBreakpointGutterRenderer` | AfterNodes | Small red filled circle in the gutter of states with active breakpoints. Also draws a red affordance dot on transition labels for transitions that have breakpoints set. |
 | `Renderers/HsmHistoryGlyphsRenderer.cs` | `HsmHistoryGlyphsRenderer` | AfterNodes | H / H* / F circle glyphs at the center of pseudo-states. |
 | `Renderers/HsmInitialArrowRenderer.cs` | `HsmInitialArrowRenderer` | AfterNodes | Gold outline around the LCA composite when a transition is selected. |
 | `Renderers/HsmRegionConflictsRenderer.cs` | `HsmRegionConflictsRenderer` | AfterNodes | Yellow line + "!" between conflicting parallel-region states. Driven by `HsmDiagnostic` list from last validation run. |

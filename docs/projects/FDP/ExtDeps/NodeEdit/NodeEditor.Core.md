@@ -141,7 +141,7 @@ NodeEditor.Core/
 |   +-- Bookmark.cs                 -- single bookmark record
 |   +-- BookmarkStore.cs            -- 9-slot + unbound bookmark collection
 +-- Canvas/
-|   +-- CanvasRenderPass.cs         -- render pass enum (Pre/Main/Post/Overlay)
+|   +-- CanvasRenderPass.cs         -- render pass enum (BeforeContent/AfterWires/AfterNodes/TopMost)
 +-- Commands/
 |   +-- CommandBuilder.cs           -- fluent helpers for building commands
 |   +-- GraphCommand.cs             -- discriminated union of all mutations
@@ -263,6 +263,12 @@ Selected members -- all are `sealed record` nested inside `GraphCommand`:
 | `PromoteToVariable` | Refactoring: promote pin default to variable |
 | `CollapseToFunction` | Refactoring: collapse selection to function |
 | `CollapseToMacro` | Refactoring: collapse selection to macro |
+| `AddAttachment` | Add an attachment pill to a host node |
+| `RemoveAttachments` | Remove one or more attachments by ID |
+| `SetAttachmentProperty` | Set a host-defined key/value on an attachment |
+| `ReorderAttachments` | Reorder attachment stack for a host node |
+| `MoveAttachment` | Move an attachment to a different host node |
+| `ChangeParent` | Reparent a node into or out of a container node |
 | `Batch` | Wraps a list of commands for atomic application |
 
 ### INodeModel
@@ -453,6 +459,320 @@ public interface INodeCatalog
     IReadOnlyList<NodeCatalogEntry> QueryForPinContext(PinContextQuery q);
 }
 ```
+
+---
+
+## Extension API Reference
+
+Three post-v1 canvas extensions were added to NodeEditor.Core as part of the HROT AI
+editor work. All interfaces live in `NodeEditor.Core.Interfaces` alongside the original
+contracts. Support types are in `NodeEditor.Primitives` and `NodeEditor.Core.Spatial`.
+
+---
+
+### NodeAttachments Extension
+
+Attachment pills are small, parameterized, visually-attached annotations whose lifetime
+is tied to a host node. They render as horizontal rows of rounded rectangles above the
+host node header.
+
+Primary motivating uses: BTree decorator pills (Inverter, Repeater, Cooldown, etc.)
+stacked above a composite or leaf node; HSM state-flag badges (deferred-event chips,
+conflict markers) shown on states.
+
+#### AttachmentId
+
+```csharp
+// In NodeEditor.Primitives
+public readonly record struct AttachmentId(Guid Value)
+{
+    public static AttachmentId Empty  => default;
+    public static AttachmentId NewId() => new(Guid.NewGuid());
+}
+```
+
+#### IAttachmentModel
+
+```csharp
+// In NodeEditor.Core.Interfaces
+public interface IAttachmentModel
+{
+    AttachmentId      Id         { get; }
+    NodeId            HostNodeId { get; }
+    AttachmentCategory Category  { get; }
+    string?           Glyph      { get; }   // 1-2 char glyph, or null
+    string?           Label      { get; }   // one-line label, or null
+    string?           Tooltip    { get; }
+    AttachmentState   State      { get; }
+    int               StackIndex { get; }   // lower = left; ties broken by Id
+}
+
+public enum AttachmentCategory { Decorator, Flag, Pure, Custom }
+
+[Flags]
+public enum AttachmentState
+{
+    Normal           = 0,
+    Disabled         = 1 << 0,
+    Error            = 1 << 1,
+    Warning          = 1 << 2,
+    Executing        = 1 << 3,
+    RecentlyExecuted = 1 << 4,
+    Selected         = 1 << 5,   // managed by editor; do not set from host
+}
+```
+
+#### IGraphModel attachment members
+
+`IGraphModel` was extended with default-interface-method members:
+
+```csharp
+IReadOnlyCollection<IAttachmentModel> Attachments => Array.Empty<IAttachmentModel>();
+IAttachmentModel?                     FindAttachment(AttachmentId id) => null;
+IReadOnlyList<IAttachmentModel>       GetAttachmentsForNode(NodeId hostId) => ...;
+```
+
+Host implementations that support attachments override all three members.
+
+#### AttachmentLayoutEngine (Spatial)
+
+Pure math for computing pill positions. Called by the canvas before rendering.
+
+```csharp
+public static class AttachmentLayoutEngine
+{
+    public const float PillHeight         = 20f;
+    public const float PillMinWidth       = 24f;
+    public const float PillPaddingH       = 6f;   // each side
+    public const float InterAttachmentGap = 4f;
+    public const float InterRowGap        = 3f;
+    public const float GapAboveHost       = 6f;
+
+    public static AttachmentLayout Compute(
+        IReadOnlyList<IAttachmentModel> attachments,
+        float hostWidth,
+        Func<IAttachmentModel, float> measureContentWidth);
+}
+
+public sealed class AttachmentLayout
+{
+    public IReadOnlyDictionary<AttachmentId, AttachmentPlacement> Placements { get; }
+    public float TotalHeightAboveHost { get; }
+    public static AttachmentLayout Empty { get; }
+}
+
+public readonly record struct AttachmentPlacement(
+    AttachmentId Id,
+    Vector2 TopLeft,     // relative to host node top-left; Y is negative (above)
+    Vector2 Size);
+```
+
+#### IAttachmentContextMenuProvider
+
+```csharp
+public interface IAttachmentContextMenuProvider
+{
+    IReadOnlyList<ContextMenuItem> GetItemsFor(AttachmentId id);
+}
+```
+
+Register via `IEditorHostServices.AttachmentContextMenu`.
+
+#### Attachment GraphCommands
+
+| Command | Primary fields | Purpose |
+|---|---|---|
+| `AddAttachment` | `NewId`, `HostNodeId`, `Category`, `Glyph`, `Label`, `Tooltip`, `StackIndex` | Create a new attachment on a host node |
+| `RemoveAttachments` | `AttachmentIds` | Delete one or more attachments |
+| `SetAttachmentProperty` | `Id`, `Key`, `Value` | Change a host-defined string property on an attachment |
+| `ReorderAttachments` | `HostNodeId`, `NewOrder` | Reorder the stack for a host |
+| `MoveAttachment` | `Id`, `NewHostNodeId`, `NewStackIndex` | Move an attachment to a different host |
+
+---
+
+### ContainerNodes Extension
+
+Container nodes visually and logically enclose child nodes. The container's bounds
+auto-resize to fit its children. Children's positions are stored in the container's
+interior coordinate space (parent-local), not in canvas space.
+
+Primary use: HSM composite states (nested state machines), HSM parallel states with
+orthogonal regions, Blueprint composite-node groupings.
+
+#### IContainerNodeModel
+
+```csharp
+// In NodeEditor.Core.Interfaces -- extends INodeModel
+public interface IContainerNodeModel : INodeModel
+{
+    bool                          IsContainer        { get; }
+    IReadOnlyList<NodeId>         ChildNodeIds       { get; }
+    IReadOnlyList<RegionDescriptor> Regions          { get; }  // empty for non-parallel
+    int                           GetRegionIndexForChild(NodeId childId);
+    ContainerPadding              Padding            { get; }
+    Vector2                       MinimumInteriorSize { get; }
+}
+
+public sealed record RegionDescriptor(
+    int Index, string Name, int Priority, Vector4? CustomColor);
+
+public sealed record ContainerPadding(
+    float Top, float Right, float Bottom, float Left)
+{
+    public static ContainerPadding Default { get; } = new(8f, 12f, 12f, 12f);
+}
+
+// Extension methods on INodeModel:
+public static bool IsContainerNode(this INodeModel node);
+public static IContainerNodeModel? AsContainer(this INodeModel node);
+```
+
+`INodeModel.ParentContainerId` (already on `INodeModel`) stores the parent container
+ID for nodes inside a container, or null for root-level nodes.
+
+#### ContainerBoundsComputer (Spatial)
+
+```csharp
+public static class ContainerBoundsComputer
+{
+    public const float OutlineWidth = 1f;
+
+    public static Vector2 ComputeOuterSize(
+        IContainerNodeModel container,
+        IGraphModel model,
+        Func<NodeId, Vector2?> getChildGraphSize,
+        float headerHeight);
+}
+```
+
+#### ContainerCycleDetector (Spatial)
+
+```csharp
+// Detects cyclic parent relationships before applying ChangeParent commands.
+public static class ContainerCycleDetector
+{
+    public static bool WouldCreateCycle(
+        NodeId candidate,
+        NodeId? proposedParent,
+        IGraphModel model);
+}
+```
+
+#### Container GraphCommand
+
+| Command | Primary fields | Purpose |
+|---|---|---|
+| `ChangeParent` | `NodeId`, `NewParentContainerId`, `NewLocalPosition` | Reparent a node into (`NewParentContainerId != null`) or out of (`null`) a container, updating its local position |
+
+---
+
+### CustomCanvasRenderer Extension
+
+Host-provided renderers that draw into the canvas at specific named passes, using the
+same ImGui draw list NodeEditor uses but without owning the canvas.
+
+#### CanvasRenderPass
+
+```csharp
+// In NodeEditor.Core.Canvas
+public enum CanvasRenderPass
+{
+    BeforeContent,  // after background/grid; before any graph content
+    AfterWires,     // after wires; before nodes -- use for wire decorations
+    AfterNodes,     // after nodes/attachments/reroutes; before selection outlines
+    TopMost,        // after all selection/hover feedback -- last layer
+}
+```
+
+#### ICustomCanvasRenderer
+
+```csharp
+// In NodeEditor.Core.Interfaces
+public interface ICustomCanvasRenderer : IDisposable
+{
+    string           Id     { get; }   // e.g. "hsm.transition_labels"
+    CanvasRenderPass Pass   { get; }
+    bool             IsActive => true;
+    void             Render(ICanvasRenderContext ctx);
+    void IDisposable.Dispose() { }    // default no-op
+}
+```
+
+Registered via `IEditorHostServices.CustomCanvasRenderers`. Order in the list
+determines draw order within a pass; across passes the pass order is fixed.
+
+#### ICanvasRenderContext
+
+```csharp
+public interface ICanvasRenderContext
+{
+    ImDrawListPtr        DrawList       { get; }   // screen-coordinate ImGui draw list
+    ViewportState        Viewport       { get; }
+    CanvasRenderPass     Pass           { get; }
+    IEditorTheme         Theme          { get; }
+    IGraphModel          Graph          { get; }
+    SelectionState       Selection      { get; }
+    IReadOnlySet<NodeId> VisibleNodes   { get; }   // for culling
+    IReadOnlySet<LinkId> VisibleLinks   { get; }   // for culling
+    float                Zoom           { get; }
+    bool                 IsLowZoom      { get; }   // Zoom < 0.5
+    IDebugSession?       DebugSession   { get; }
+    IDictionary<string, object?> FrameScratch { get; }  // per-frame; cleared each frame
+
+    Vector2 CanvasToScreen(Vector2 canvasPoint);
+    Vector2 ScreenToCanvas(Vector2 screenPoint);
+    RectF   CanvasToScreen(RectF canvasRect);
+}
+```
+
+#### ICustomCanvasHitTester
+
+Optional companion interface for hit-testable custom content. Implement on the same
+class as the renderer.
+
+```csharp
+public interface ICustomCanvasHitTester
+{
+    CustomElementHit? HitTest(Vector2 canvasPoint, IHitTestContext ctx);
+}
+
+public readonly record struct CustomElementHit(
+    string ElementKey,
+    CustomElementKind Kind,
+    RectF Bounds);
+
+public enum CustomElementKind
+{
+    LinkDecoration,   // decoration on a link (e.g., transition label)
+    StateAnnotation,  // annotation on a state (e.g., HSM history glyph)
+    CanvasAnnotation, // freestanding annotation (e.g., region-conflict line)
+    Custom,
+}
+```
+
+#### ICustomCanvasSelectable
+
+Optional companion for custom elements that participate in the selection model.
+
+```csharp
+public interface ICustomCanvasSelectable
+{
+    void OnElementSelected(string elementKey, CustomElementHit hit);
+    void OnElementDeselected(string elementKey);
+}
+```
+
+#### ICustomElementContextMenuProvider
+
+```csharp
+public interface ICustomElementContextMenuProvider
+{
+    string RendererId { get; }   // must match ICustomCanvasRenderer.Id
+    IReadOnlyList<ContextMenuItem> GetItemsFor(string elementKey, CustomElementHit hit);
+}
+```
+
+Register via `IEditorHostServices.CustomElementContextMenu`.
 
 ---
 

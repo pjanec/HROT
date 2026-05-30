@@ -914,9 +914,10 @@ public sealed class QuickReloadService
 6. Invoke `BlueprintRegistrarAttribute` methods into staging registries.
 7. Register debug map then call `AiHotReloadCoordinator.ApplyQuickReload`.
 
-Registrar parameter injection enforces two invariants:
+Registrar parameter injection rules:
 - `BlueprintRegistry` is **forbidden** (violates RCU contract).
 - `HsmActionDispatcher` is **forbidden** (static class -- must be called directly).
+- `BehaviorRegistry`, `IPredicateCompiler`, and `ISearchPredicateRegistry` are **supported** injection types. `IPredicateCompiler` and `ISearchPredicateRegistry` were added by the blueprints-3 When-Node iteration to support `Condition Met` mode `WhenNode` blueprints that call `InitializePredicates` in their registrar.
 
 ---
 

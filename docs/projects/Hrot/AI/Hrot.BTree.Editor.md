@@ -170,6 +170,10 @@ hierarchy:
     +----------------------------+  pass: AfterWires
     | ObserverGuardBadgeRenderer |  "OBSERVES" badge on guard links
     +----------------------------+
+    +----------------------------+  pass: AfterNodes
+    | VariableBindingBadgeRenderer| green/red BB binding badge on
+    |                            |  Action/Condition leaf nodes
+    +----------------------------+
 ```
 
 ### Node Type Taxonomy
@@ -358,7 +362,7 @@ Custom `ICustomCanvasRenderer` implementations drawn by the NodeEditor canvas.
 | `SubtreeBoundaryRenderer.cs` | `SubtreeBoundaryRenderer` | `BeforeContent` | Draws a dashed blue rectangle around the AABB of the subtree root when the stack pointer is > 0 (paused inside a subtree). |
 | `BTreeBreakpointGutterRenderer.cs` | `BTreeBreakpointGutterRenderer` | `AfterNodes` | Draws a red filled circle in the top-left gutter of each node that has an active, enabled breakpoint. |
 | `ObserverGuardBadgeRenderer.cs` | `ObserverGuardBadgeRenderer` | `AfterWires` | Draws "OBSERVES" badges at 30% along links from `ObserverSelector` to their `Condition` guard children. Hidden at low zoom. |
-
+| `VariableBindingBadgeRenderer.cs` | `VariableBindingBadgeRenderer` | `AfterNodes` | Green (bound) or red (unbound) badge drawn on Action and Condition leaf nodes that carry a blackboard expression-target field binding (`ExpressionTargetField`). Renderer ID: `"btree.variable_binding_badges"`. Hidden at low zoom. |
 ---
 
 ## Public API Reference

@@ -133,7 +133,7 @@ rawFiles  (Path, Text)
         | BlueprintAsset
         v
 +--------------------+
-| Stage 2 Validate   |  14 validators (V_AssetStructure, V_NodeStructure, ...)
+| Stage 2 Validate   |  17 validators (V_AssetStructure, V_NodeStructure, ..., V_WhenNodeRules, V_ReadEqsResultNodeRules, V_SpawnEqsSensorNodeRules)
 +--------+-----------+
          | validated asset
          v

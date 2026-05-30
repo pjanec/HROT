@@ -24,19 +24,35 @@ in the project documentation under `docs/projects/`.
 
 ### Blueprints Subsystem
 
-- [ ] **blueprints-1** — Blueprint Subsystem initial implementation (core, compiler, editor, generators, hot reload)
+- [x] **blueprints-1** — Blueprint Subsystem initial implementation (core, compiler, editor, generators, hot reload)
   - Source: `.dev/blueprints-1/`
-  - Key docs: `TASK-DETAIL.md`, `PHASES.md`, `HotReloadPrePhase4.md`
-  - Affected docs: `docs/projects/Hrot/Blueprints/`
+  - Key design docs: `Blueprint_Subsystem_Architecture_v1.2.md`,
+    `Blueprint_Subsystem_Runtime_Detailed_Design.md`,
+    `Blueprint_Subsystem_Compiler_Detailed_Design.md`,
+    `Blueprint_Subsystem_Editor_Detailed_Design.md`,
+    `Blueprint_Subsystem_Hot_Reload_Detailed_Design.md`,
+    `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md`,
+    `Blueprint_Subsystem_Test_Harness_Detailed_Design.md`
+  - Affected docs: `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Core.md`,
+    `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Compiler.md`,
+    `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Editor.md`,
+    `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Generators.md`
 
-- [ ] **blueprints-2** — AI Editor (HSM/BTree visual editors, lane/stableId/visualId extensions)
+- [x] **blueprints-2** — AI Editor (HSM/BTree visual editors, NodeEditor extensions, shared infrastructure)
   - Source: `.dev/blueprints-2/`
-  - Key docs: `TASK-DETAIL.md`
-  - Affected docs: `docs/projects/Hrot/AI/Hrot.BTree.Editor.md`, `docs/projects/Hrot/AI/Hrot.Hsm.Editor.md`
+  - Key design docs: `AI_Editor_Shared_Infrastructure.md`,
+    `BTree_Editor_NodeEditor_Host_Design.md`,
+    `HSM_Editor_NodeEditor_Host_Design.md`,
+    `NodeEditor_Extension_NodeAttachments.md`,
+    `NodeEditor_Extension_ContainerNodes.md`,
+    `NodeEditor_Extension_CustomCanvasRenderer.md`
+  - Affected docs: `docs/projects/Hrot/AI/Hrot.BTree.Editor.md`,
+    `docs/projects/Hrot/AI/Hrot.Hsm.Editor.md`,
+    `docs/projects/Hrot/Editor/` (shared infra)
 
-- [ ] **blueprints-3-when-node** — When-Node Reactivity Iteration (lowering templates, validator diagnostics)
+- [x] **blueprints-3-when-node** — When-Node Reactivity Iteration (WhenNode, ReadEqsResultNode, SpawnEqsSensorNode lowering)
   - Source: `.dev/blueprints-3-when-node/`
-  - Key docs: `TASK-DETAIL.md`
+  - Key design docs: `When_Reactivity_Iteration_Design_v2_2.md`
   - Affected docs: `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Core.md`,
     `docs/projects/Hrot/Blueprints/Hrot.Blueprints.Compiler.md`
 
@@ -59,10 +75,11 @@ in the project documentation under `docs/projects/`.
   - Key docs: `design-talk.md`
   - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.AI.Behaviors.md`
 
-- [ ] **group-maneuvers** — Squad Coordination / Group Maneuvers
+- [x] **group-maneuvers** — Squad Coordination / Group Maneuvers (7 phases: primitives, perception, maneuver selection, authority, catalog, authoring shells, debug overlays)
   - Source: `.dev/group-maneuvers/`
-  - Key docs: `Squad_Coordination_Design_v1_1.md`, `Step_1_5_TargetMemory_3D_Reconciliation.md`, `TASK-DETAIL.md`
-  - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.AI.Behaviors.md`
+  - Key design docs: `Squad_Coordination_Design_v1_1.md`,
+    `Step_1_5_TargetMemory_3D_Reconciliation.md`
+  - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.SquadCoordination.md`
 
 ### Environment Query System
 
@@ -73,11 +90,14 @@ in the project documentation under `docs/projects/`.
 
 ### Utility AI
 
-- [ ] **utility-ai** — Utility AI (scoring, editor, source generator, tuning overlays)
+- [x] **utility-ai** — Utility AI (scoring runtime, source generator, curve widget, overlays, visual editor, tuning console)
   - Source: `.dev/utility-ai/`
-  - Key docs: `Utility_AI_Design_v1_1.md`, `Utility_AI_SourceGenerator_Design_v1_1.md`,
-    `Utility_AI_Editor_Design_v1_2.md`, `Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md`
-  - Affected docs: `docs/projects/Hrot/Subsystems/` (new UtilityAI doc may be needed)
+  - Key design docs: `Utility_AI_Design_v1_1.md`,
+    `Utility_AI_SourceGenerator_Design_v1_1.md`,
+    `Utility_AI_Editor_Design_v1_2.md`,
+    `Runtime_Tuning_Console_and_AI_Overlays_Design_v1_0.md`,
+    `Curve_Editor_in_StructEdit_Guide_v1_1.md`
+  - Affected docs: `docs/projects/Hrot/Subsystems/Hrot.AI.Behaviors.md` and/or new UtilityAI doc
 
 ### Navigation
 
