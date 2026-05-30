@@ -189,11 +189,11 @@ public sealed class BreakpointTests
         Assert.False(session.IsAnyBreakpointActive);
     }
 
-    // ---- SC6: Structure-hash mismatch clears breakpoints for affected asset ---
+    // ---- SC6: Structure-hash mismatch marks breakpoints stale (BPF-003) ------
 
     /// <summary>
-    /// Registering a map with a different structure hash must clear breakpoints for
-    /// that asset and fire OnBreakpointListChanged.
+    /// Registering a map with a different structure hash must mark breakpoints for
+    /// that asset as stale (not clear them) and fire OnBreakpointListChanged.
     /// </summary>
     [Fact]
     public void StructureHashMismatch_ClearsBreakpoints()
@@ -213,7 +213,9 @@ public sealed class BreakpointTests
             new DebugMapEntry(NodeId1, GraphId1, 1, 2));
         session.RegisterDebugMap(mapV2);
 
-        Assert.False(session.IsAnyBreakpointActive);
+        // BPF-003: breakpoints are marked stale, not cleared.
+        Assert.True(session.IsAnyBreakpointActive);
+        Assert.True(session.GetBreakpoints().All(b => b.IsStale));
         Assert.Equal(AssetIdA, firedId);
     }
 

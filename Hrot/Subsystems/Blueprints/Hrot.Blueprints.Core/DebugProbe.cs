@@ -20,11 +20,11 @@ public static class DebugProbe
         where T : unmanaged
         => Sink?.OnPinValueChanged(self, pinId, value);
 
-    public static void PeerCallEnter(Entity self, string targetAssetName, string targetGraphName)
-        => Sink?.OnPeerCallEnter(self, targetAssetName, targetGraphName);
+    public static void PeerCallEnter(Entity self, string peerAssetIdString, string methodName)
+        => Sink?.OnPeerCallEnter(self, peerAssetIdString, methodName);
 
-    public static void PeerCallExit(Entity self)
-        => Sink?.OnPeerCallExit(self);
+    public static void PeerCallExit(Entity self, string peerAssetIdString, string methodName)
+        => Sink?.OnPeerCallExit(self, peerAssetIdString, methodName);
 }
 
 /// <summary>No-op sink used when a non-null sink is required but no session is attached.</summary>
@@ -34,6 +34,6 @@ public sealed class NullProbeSink : IBlueprintProbeSink
     private NullProbeSink() { }
     public void OnNodeEnter(Entity self, string nodeId) { }
     public void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged { }
-    public void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName) { }
-    public void OnPeerCallExit(Entity entity) { }
+    public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName) { }
+    public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName) { }
 }

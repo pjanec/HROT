@@ -10,8 +10,8 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
 
     public void OnNodeEnter(Entity self, string nodeId) { }
     public void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged { }
-    public void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName) { }
-    public void OnPeerCallExit(Entity entity) { }
+    public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName) { }
+    public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName) { }
 
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
@@ -75,6 +75,7 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
 
     public void OnHotReloadBegin() { }
     public void OnHotReloadCompleted(Guid[] reloadedAssetIds) { }
+    public void OnNewTick() { }
 
     // ---- IBlueprintDebugSession -- events -----------------------------------
 

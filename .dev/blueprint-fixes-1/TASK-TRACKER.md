@@ -56,15 +56,15 @@ All adversarially re-verified (Sonnet hunt + refute, graph tools only). Severity
 Details + design/code refs: [TASK-DETAIL.md PART 2](./TASK-DETAIL.md#part-2----deep-correctness-audit-workflow-confirmed).
 
 ## CRITICAL
-- [ ] **BPF-014** (Critical, compiler) -- Instance LatentDelay resume reads `ws.__waitUntilTime` instead of `s.Cursor.WaitUntilTime` -> [details](./TASK-DETAIL.md#bpf-014----instance-latentdelay-resume-reads-workingstate-field-instead-of-the-cursor-compiler)
-- [ ] **BPF-015** (Critical, compiler) -- `DebugProbe.NodeEnter`/`PinValue` emitted as a comment -> all runtime breakpoints/steps/watches dead -> [details](./TASK-DETAIL.md#bpf-015----debugprobenodeenterpinvalue-emitted-as-a-c-comment-not-a-call-compiler-found-by-2-clusters)
-- [ ] **BPF-016** (Critical, compiler) -- event-poll call site omits payload args (+stray deltaTime) -> CS1501 uncompilable -> [details](./TASK-DETAIL.md#bpf-016----event-poll-call-site-omits-payload-args---uncompilable-generated-c-compiler)
+- [x] **BPF-014** (Critical, compiler) -- Instance LatentDelay resume reads `ws.__waitUntilTime` instead of `s.Cursor.WaitUntilTime` -> [details](./TASK-DETAIL.md#bpf-014----instance-latentdelay-resume-reads-workingstate-field-instead-of-the-cursor-compiler)
+- [x] **BPF-015** (Critical, compiler) -- `DebugProbe.NodeEnter`/`PinValue` emitted as a comment -> all runtime breakpoints/steps/watches dead -> [details](./TASK-DETAIL.md#bpf-015----debugprobenodeenterpinvalue-emitted-as-a-c-comment-not-a-call-compiler-found-by-2-clusters)
+- [x] **BPF-016** (Critical, compiler) -- event-poll call site omits payload args (+stray deltaTime) -> CS1501 uncompilable -> [details](./TASK-DETAIL.md#bpf-016----event-poll-call-site-omits-payload-args---uncompilable-generated-c-compiler)
 - [ ] **BPF-017** (Critical, hsm) -- `ActionNames` positional-indexed vs blob hash IDs -> all action/guard names garbled -> [details](./TASK-DETAIL.md#bpf-017----hsm-actionnames-keyed-by-positional-index-but-blob-stores-hashes---all-actionguard-names-garbled-hsm-host)
 - [ ] **BPF-018** (Critical, btree) -- `SubtreeAssetIds` never populated -> projection `IndexOutOfRangeException`; emitter writes Guid not tree name -> [details](./TASK-DETAIL.md#bpf-018----btree-subtreeassetids-never-populated---projection-indexoutofrangeexception-emitter-writes-a-guid-where-a-tree-name-is-required-btree-host)
 
 ## HIGH
-- [ ] **BPF-019** (High, compiler) -- `BuildReturnTerminator` resolves into last-allocated block, not current -> use-before-define -> [details](./TASK-DETAIL.md#bpf-019----buildreturnterminator-resolves-return-value-into-the-last-allocated-block-not-the-current-block-compiler)
-- [ ] **BPF-020** (High, compiler) -- `IrOp_RaiseCustomEvent` emitted as a comment -> custom-event dispatch dropped -> [details](./TASK-DETAIL.md#bpf-020----irop_raisecustomevent-emitted-as-a-comment---custom-event-dispatch-silently-dropped-compiler)
+- [x] **BPF-019** (High, compiler) -- `BuildReturnTerminator` resolves into last-allocated block, not current -> use-before-define -> [details](./TASK-DETAIL.md#bpf-019----buildreturnterminator-resolves-return-value-into-the-last-allocated-block-not-the-current-block-compiler)
+- [x] **BPF-020** (High, compiler) -- `IrOp_RaiseCustomEvent` emitted as a comment -> custom-event dispatch dropped -> [details](./TASK-DETAIL.md#bpf-020----irop_raisecustomevent-emitted-as-a-comment---custom-event-dispatch-silently-dropped-compiler)
 - [ ] **BPF-021** (High, compiler) -- DebugMap NodeKind/DisplayName never populated; RecordPin/GeneratedSourcePath absent (extends BPF-002) -> [details](./TASK-DETAIL.md#bpf-021----debugmap-nodekinddisplayname-never-populated-recordpin--generatedsourcepath-absent-compiler-extends-bpf-002)
 - [ ] **BPF-022** (High, hsm) -- `HsmFluentEmitter` never emits `DeferEvent()` -> deferred events dropped on save -> [details](./TASK-DETAIL.md#bpf-022----hsmfluentemitter-never-emits-deferevent---deferred-event-lists-dropped-every-save-hsm-host)
 - [ ] **BPF-023** (High, hsm) -- `HsmDebugSession.Update` hardcodes empty active-leaf/event/timer/history (localizes BPF-010) -> [details](./TASK-DETAIL.md#bpf-023----hsmdebugsessionupdate-hardcodes-empty-active-leafeventtimerhistory-arrays-hsm-host-localizes-bpf-010)
@@ -85,9 +85,9 @@ Details + design/code refs: [TASK-DETAIL.md PART 2](./TASK-DETAIL.md#part-2----d
 - [ ] **BPF-036** (Medium, debug) -- `OnHotReloadCompleted` clears `Watch.IsStale` unconditionally -> frozen deleted-pin watches -> [details](./TASK-DETAIL.md#bpf-036----onhotreloadcompleted-clears-watchisstale-unconditionally---deleted-pin-watches-show-frozen-values-debug)
 - [ ] **BPF-037** (Medium, shared-infra) -- `AtomicMultiFileWriter` mid-move rollback path untested (ACCEPTANCE Q7-03 unmet) -> [details](./TASK-DETAIL.md#bpf-037----atomicmultifilewriter-rollbackpartial-apply-path-has-no-non-vacuous-test-shared-infra)
 - [ ] **BPF-038** (Medium, runtime) -- HardReload test never asserts `InstanceVersion` bump (needs BPF-008) -> [details](./TASK-DETAIL.md#bpf-038----hardreload-integration-test-never-asserts-instanceversion-bump-it-claims-to-cover-runtime)
-- [ ] **BPF-039** (Medium, compiler) -- `GetOrdered` appends residual fields via `dict.Values` (non-deterministic, M-1) -> [details](./TASK-DETAIL.md#bpf-039----getordered-appends-residual-fields-via-dictvalues-non-deterministic-compiler)
-- [ ] **BPF-040** (Medium, compiler) -- `MetadataReferenceResolver` doesn't sort references (M-9) -> [details](./TASK-DETAIL.md#bpf-040----metadatareferenceresolver-does-not-sort-references-determinism-m-9-compiler)
-- [ ] **BPF-041** (Medium, compiler) -- Stage8 PDB embedded-source test is a size heuristic, not content check -> [details](./TASK-DETAIL.md#bpf-041----stage8-pdb-embedded-source-test-is-a-size-heuristic-not-content-verification-compiler)
+- [x] **BPF-039** (Medium, compiler) -- `GetOrdered` appends residual fields via `dict.Values` (non-deterministic, M-1) -> [details](./TASK-DETAIL.md#bpf-039----getordered-appends-residual-fields-via-dictvalues-non-deterministic-compiler)
+- [x] **BPF-040** (Medium, compiler) -- `MetadataReferenceResolver` doesn't sort references (M-9) -> [details](./TASK-DETAIL.md#bpf-040----metadatareferenceresolver-does-not-sort-references-determinism-m-9-compiler)
+- [x] **BPF-041** (Medium, compiler) -- Stage8 PDB embedded-source test is a size heuristic, not content check -> [details](./TASK-DETAIL.md#bpf-041----stage8-pdb-embedded-source-test-is-a-size-heuristic-not-content-verification-compiler)
 - [ ] **BPF-042** (Medium, hot-reload) -- `ApplyReload` injects live `BehaviorRegistry`; partial failure corrupts it, no rollback -> [details](./TASK-DETAIL.md#bpf-042----fdptoolkits-applyreload-injects-the-live-behaviorregistry-into-registrars-partial-failure-corrupts-it-with-no-rollback-hot-reload)
 - [ ] **BPF-043** (Medium, hot-reload) -- `Hrot.Editor` `DrainPendingCallbacks` drains whole queue per frame -> [details](./TASK-DETAIL.md#bpf-043----hroteditor-drainpendingcallbacks-drains-the-whole-queue-per-frame-violating-one-reload-per-frame-bound-hot-reload)
 - [ ] **BPF-044** (Medium, hot-reload) -- `DoLoadAndScan` swallows all background scan failures (no log/event) -> [details](./TASK-DETAIL.md#bpf-044----fdptoolkits-doloadandscan-silently-swallows-all-background-scan-failures-hot-reload)
@@ -98,7 +98,7 @@ Details + design/code refs: [TASK-DETAIL.md PART 2](./TASK-DETAIL.md#part-2----d
 - [ ] **BPF-049** (Medium, runtime) -- `GetAll()` returns values only, drops id (re-confirms BPF-007) -> [details](./TASK-DETAIL.md#bpf-049----blueprintregistrygetall-returns-values-only-dropping-the-id-runtime-re-confirms-bpf-007)
 
 ## LOW
-- [ ] **BPF-050** (Low, compiler) -- parallel-determinism test (§17.8) not implemented -> [details](./TASK-DETAIL.md#bpf-050----parallel-determinism-compiler-test-178-not-implemented-compiler)
+- [x] **BPF-050** (Low, compiler) -- parallel-determinism test (§17.8) not implemented -> [details](./TASK-DETAIL.md#bpf-050----parallel-determinism-compiler-test-178-not-implemented-compiler)
 
 > Part-1 items re-confirmed by Part 2: **BPF-002** (extended by BPF-021), **BPF-006** (IReloadLogSink; now VERIFIED via runtime-allocator finding), **BPF-007** (= BPF-049), **BPF-010** (localized by BPF-023). Clusters with **zero** surviving findings: breakpoints-substrate, breakpoints-orchestration (universal-breakpoints P1-P12 held up).
 

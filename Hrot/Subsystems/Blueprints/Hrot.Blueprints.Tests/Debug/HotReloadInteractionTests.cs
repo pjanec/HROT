@@ -142,10 +142,14 @@ public sealed class HotReloadInteractionTests
         session.SetBreakpoint(AssetIdB, GraphId1, NodeId3);
         Assert.Equal(3, session.GetBreakpoints().Count);
 
-        // Register new map for AssetIdA with different hash -- triggers BP clear for AssetIdA.
+        // Register new map for AssetIdA with different hash -- marks AssetIdA BPs stale (BPF-003).
         session.RegisterDebugMap(MakeMap(AssetIdA, structureHash: 2));
 
-        Assert.Equal(1, session.GetBreakpoints().Count);
-        Assert.Equal(AssetIdB, session.GetBreakpoints()[0].AssetId);
+        // BPF-003: breakpoints are marked stale, not removed. All 3 remain, 2 are stale.
+        Assert.Equal(3, session.GetBreakpoints().Count);
+        var assetABps = session.GetBreakpoints().Where(b => b.AssetId == AssetIdA).ToList();
+        Assert.All(assetABps, b => Assert.True(b.IsStale));
+        var assetBBp = session.GetBreakpoints().Single(b => b.AssetId == AssetIdB);
+        Assert.False(assetBBp.IsStale);
     }
 }

@@ -28,8 +28,8 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
         where T : unmanaged
         => _pinValues.Add(new PinValueRecord(self, pinId, value));
 
-    public void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName) { }
-    public void OnPeerCallExit(Entity entity) { }
+    public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName) { }
+    public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName) { }
 
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
@@ -113,6 +113,9 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
 
     public void OnHotReloadBegin() { }
     public void OnHotReloadCompleted(Guid[] reloadedAssetIds) { }
+
+    // BPF-003: tick boundary reset (no-op in test double; tests invoke directly)
+    public void OnNewTick() { }
 
     // ---- Inspection helpers -------------------------------------------------
 

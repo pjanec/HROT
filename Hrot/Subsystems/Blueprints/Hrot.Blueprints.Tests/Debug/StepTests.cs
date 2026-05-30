@@ -40,7 +40,7 @@ public sealed class StepTests
             => throw new NotImplementedException();
         public T GetManagedComponentRO<T>(Entity e) where T : class
             => throw new NotImplementedException();
-        public bool IsAlive(Entity e) => throw new NotImplementedException();
+        public bool IsAlive(Entity e) => true;
         public bool HasComponent<T>(Entity e) where T : unmanaged => throw new NotImplementedException();
         public bool HasManagedComponent<T>(Entity e) where T : class => throw new NotImplementedException();
         public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged => throw new NotImplementedException();
@@ -132,7 +132,7 @@ public sealed class StepTests
         Assert.False(session.IsPaused);
 
         // Exit the call frame: depth drops to 0.
-        ((IBlueprintProbeSink)session).OnPeerCallExit(E1);
+        ((IBlueprintProbeSink)session).OnPeerCallExit(E1, "some-asset", "some-graph");
 
         // Next node at depth 0 (strictly shallower than 1) -- must pause.
         ((IBlueprintProbeSink)session).OnNodeEnter(E1, "shallow-node");

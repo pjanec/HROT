@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Compiler.Emit;
 
@@ -20,6 +21,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints    = new();
     private readonly Dictionary<string, Breakpoint>       _bpByNodeString = new(StringComparer.Ordinal);
     private int _nextBpId = 1;
+
+    // Per-frame dedup set: cleared by OnNewTick. Prevents double-pause for multiple entities
+    // hitting the same breakpoint in the same tick (BPF-003 section 9.2).
+    private readonly HashSet<BreakpointId> _firedBreakpointsThisTick = new();
 
     // Watch storage: indexed by WatchId for management, by pin-id string for fast probe lookup.
     private readonly Dictionary<WatchId, Watch>   _watches            = new();
@@ -50,17 +55,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private StepMode _stepMode      = StepMode.None;
     private Entity   _stepFromEntity;
     private int      _stepFromDepth;
+    private uint     _stepFromTick;  // used by StepOut at depth 0 (BPF-005)
 
     // Entity filter: when set, only events from this entity are processed.
     private Entity? _entityFilter;
 
-    // Optional data-breakpoint manager. When set, external hits from Blueprint probes
-    // are routed through it (triggers triple-buffer rewind + OnBreakpointHit) instead
-    // of requesting a raw pause via _timeController.
+    // Optional data-breakpoint manager.
     private Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? _dataBreakpointManager;
 
-    // Tracks the manager-side BreakpointId for each session-side BreakpointId so we
-    // can clean up ExternalHitTag registrations when a breakpoint is cleared.
+    // Tracks the manager-side BreakpointId for each session-side BreakpointId.
     private readonly Dictionary<BreakpointId, Hrot.Diagnostics.Breakpoints.BreakpointId> _mgrBpIds = new();
 
     public BlueprintDebugSession(
@@ -77,38 +80,70 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void OnNodeEnter(Entity self, string nodeId)
     {
-        // Entity filter: skip events from entities that are not the filtered entity.
         if (_entityFilter.HasValue && self != _entityFilter.Value) return;
 
-        // Record execution history for this entity.
         if (!_history.TryGetValue(self, out var hist))
             _history[self] = hist = new ExecutionHistory();
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
 
-        // Fire OnNodeExecuted so subscribers (e.g., Callstack window) can update the trail.
         _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
 
-        // Check breakpoints: re-entrant guard prevents extra RequestPause when already paused.
-        if (!_isPaused && _bpByNodeString.TryGetValue(nodeId, out var bp))
-            HandleBreakpointHit(self, bp, nodeId);
-
-        // Check step mode (only when not already paused from the BP check above).
-        if (_stepMode != StepMode.None && !_isPaused && self == _stepFromEntity)
+        if (_bpByNodeString.TryGetValue(nodeId, out var bp))
         {
-            int depth = _currentCallDepth.GetValueOrDefault(self, 0);
-            bool matched = _stepMode switch
+            if (bp.Enabled && !bp.IsStale)
             {
-                StepMode.Into => true,                     // any next node for this entity
-                StepMode.Over => depth <= _stepFromDepth,  // same or shallower depth
-                StepMode.Out  => depth < _stepFromDepth,   // strictly shallower
-                _             => false,
-            };
-            if (matched)
+                bool hashOk = true;
+                if (bp.AssetStructureHashAtSetTime != 0 &&
+                    _debugMaps.TryGetValue(bp.AssetId, out var mapIdx) &&
+                    mapIdx.StructureHash != bp.AssetStructureHashAtSetTime)
+                {
+                    hashOk = false;
+                    var stale = bp with { IsStale = true };
+                    _breakpoints[bp.Id]        = stale;
+                    _bpByNodeString[bp.NodeId] = stale;
+                }
+
+                if (hashOk)
+                {
+                    if (_firedBreakpointsThisTick.Add(bp.Id))
+                    {
+                        if (!_isPaused)
+                            HandleBreakpointHit(self, bp, nodeId);
+                    }
+                    // Second hit in same tick: silently skip (per-frame dedup).
+                }
+            }
+        }
+
+        if (_stepMode != StepMode.None && !_isPaused)
+        {
+            // BPF-005: entity-death abandonment.
+            if (_stepFromEntity != default && !_view.IsAlive(_stepFromEntity))
             {
-                _stepMode = StepMode.None;
-                // Pseudo-breakpoint: no real BP entry; step hit uses same event as breakpoint.
-                var pseudoBp = new Breakpoint(default, Guid.Empty, Guid.Empty, nodeId, 0, true);
-                HandleBreakpointHit(self, pseudoBp, nodeId);
+                _stepMode       = StepMode.None;
+                _stepFromEntity = default;
+                _stepFromDepth  = 0;
+                return;
+            }
+
+            if (self == _stepFromEntity)
+            {
+                int depth = _currentCallDepth.GetValueOrDefault(self, 0);
+                bool matched = _stepMode switch
+                {
+                    StepMode.Into => true,
+                    StepMode.Over => depth <= _stepFromDepth,
+                    // BPF-005: StepOut at depth 0 re-pauses on next tick boundary.
+                    StepMode.Out  => depth < _stepFromDepth ||
+                                     (depth == 0 && _stepFromDepth == 0 && _view.Tick > _stepFromTick),
+                    _             => false,
+                };
+                if (matched)
+                {
+                    _stepMode = StepMode.None;
+                    var pseudoBp = new Breakpoint(default, Guid.Empty, Guid.Empty, nodeId, 0, true);
+                    HandleBreakpointHit(self, pseudoBp, nodeId);
+                }
             }
         }
     }
@@ -116,59 +151,49 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void OnPinValueChanged<T>(Entity self, string pinId, T value)
         where T : unmanaged
     {
-        // Entity filter: skip events from entities that are not the filtered entity.
         if (_entityFilter.HasValue && self != _entityFilter.Value) return;
 
         if (!_watchesByPinString.TryGetValue(pinId, out var watch))
-            return;  // no watch for this pin -- zero allocation path
+            return;
 
         watch.WriteValue(value, self, _view.Tick);
 
-        // Fire event only if there are listeners (avoid ToArray() allocation when no listeners).
         var evt = _onPinValueChangedEvent;
         if (evt != null)
         {
             evt.Invoke(new PinValueChanged(
                 self,
                 pinId,
-                watch.LastValueBytes.ToArray(),    // 1 allocation only when listener present
+                watch.LastValueBytes.ToArray(),
                 watch.ExpectedType,
                 _view.Tick));
         }
     }
 
-    public void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName)
+    // BPF-004: peerAssetIdString is a Guid in "D" format.
+    public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName)
     {
-        int prevDepth = _currentCallDepth.GetValueOrDefault(entity, 0);
-        _currentCallDepth[entity] = prevDepth + 1;
+        int prevDepth = _currentCallDepth.GetValueOrDefault(self, 0);
+        _currentCallDepth[self] = prevDepth + 1;
         if (prevDepth == 0)
         {
-            // Entity entering first-level call; find asset by name or use Guid.Empty as fallback.
-            var assetId = Guid.Empty;
-            foreach (var kv in _debugMaps)
-            {
-                if (kv.Value.AssetName == targetAssetName)
-                {
-                    assetId = kv.Key;
-                    break;
-                }
-            }
+            var assetId = Guid.TryParse(peerAssetIdString, out var parsed) ? parsed : Guid.Empty;
             if (!_activeEntities.TryGetValue(assetId, out var set))
                 _activeEntities[assetId] = set = new HashSet<Entity>();
-            set.Add(entity);
+            set.Add(self);
         }
     }
 
-    public void OnPeerCallExit(Entity entity)
+    // BPF-004: peerAssetIdString is a Guid in "D" format.
+    public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName)
     {
-        int current = _currentCallDepth.GetValueOrDefault(entity, 0);
+        int current = _currentCallDepth.GetValueOrDefault(self, 0);
         int next    = Math.Max(0, current - 1);
-        _currentCallDepth[entity] = next;
+        _currentCallDepth[self] = next;
         if (next == 0)
         {
-            // Entity exiting last call; remove from all active sets.
             foreach (var set in _activeEntities.Values)
-                set.Remove(entity);
+                set.Remove(self);
         }
     }
 
@@ -182,6 +207,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         DebugProbe.Sink = NullProbeSink.Instance;
         _breakpoints.Clear();
         _bpByNodeString.Clear();
+        _firedBreakpointsThisTick.Clear();
         _watches.Clear();
         _watchesByPinString.Clear();
         _activeEntities.Clear();
@@ -197,13 +223,19 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
     {
         var nodeIdStr = nodeId.ToString("D");
-        var id = new BreakpointId(_nextBpId++);
-        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true);
-        _breakpoints[id]          = bp;
+        var id        = new BreakpointId(_nextBpId++);
+
+        ulong hash = 0;
+        if (_debugMaps.TryGetValue(assetId, out var mapIdx))
+            hash = mapIdx.StructureHash;
+
+        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true)
+        {
+            AssetStructureHashAtSetTime = hash,
+        };
+        _breakpoints[id]           = bp;
         _bpByNodeString[nodeIdStr] = bp;
 
-        // Register a matching tag predicate in the data-breakpoint manager so that
-        // OnExternalHit(nodeIdStr, entity) finds a registered BP and triggers OnHit.
         if (_dataBreakpointManager != null)
         {
             var mgrId = _dataBreakpointManager.AddBreakpoint(
@@ -221,6 +253,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         {
             _breakpoints.Remove(id);
             _bpByNodeString.Remove(bp.NodeId);
+            _firedBreakpointsThisTick.Remove(id);
 
             if (_dataBreakpointManager != null && _mgrBpIds.TryGetValue(id, out var mgrId))
             {
@@ -240,6 +273,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _mgrBpIds.Clear();
         _breakpoints.Clear();
         _bpByNodeString.Clear();
+        _firedBreakpointsThisTick.Clear();
     }
 
     public IReadOnlyList<Breakpoint> GetBreakpoints()
@@ -253,7 +287,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     {
         var id    = new WatchId(_nextWatchId++);
         var watch = new Watch(id, assetId, graphId, pinId, displayName, expectedType);
-        _watches[id]                       = watch;
+        _watches[id]                           = watch;
         _watchesByPinString[watch.PinIdString] = watch;
         return id;
     }
@@ -283,15 +317,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void SetEntityFilter(Entity? entity) => _entityFilter = entity;
     public Entity? GetEntityFilter() => _entityFilter;
 
-    /// <summary>
-    /// Wires in the data-breakpoint manager so that Blueprint probe hits are routed
-    /// through the triple-buffer rewind path instead of the raw time-controller pause.
-    /// Any session breakpoints that were registered before this call are registered
-    /// retroactively so <c>OnExternalHit</c> can find them.
-    /// </summary>
     public void SetDataBreakpointManager(Hrot.Diagnostics.Breakpoints.IDataBreakpointManager? manager)
     {
-        // Unregister old manager registrations.
         if (_dataBreakpointManager != null)
         {
             foreach (var mgrId in _mgrBpIds.Values)
@@ -301,7 +328,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
         _dataBreakpointManager = manager;
 
-        // Register existing session BPs with the new manager.
         if (_dataBreakpointManager != null)
         {
             foreach (var bp in _breakpoints.Values)
@@ -335,6 +361,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _pausedAt       = null;
         _pausedOnEntity = null;
         _stepMode       = StepMode.None;
+        // Clear dedup set so the next hit after Continue() is treated as a fresh event.
+        _firedBreakpointsThisTick.Clear();
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
     }
@@ -348,10 +376,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void StepOver()
     {
-        var fromEntity = _pausedOnEntity ?? default;
+        var fromEntity  = _pausedOnEntity ?? default;
         _stepMode       = StepMode.Over;
         _stepFromEntity = fromEntity;
         _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _stepFromTick   = _view.Tick;
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
@@ -361,10 +390,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void StepInto()
     {
-        var fromEntity = _pausedOnEntity ?? default;
+        var fromEntity  = _pausedOnEntity ?? default;
         _stepMode       = StepMode.Into;
         _stepFromEntity = fromEntity;
         _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _stepFromTick   = _view.Tick;
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
@@ -372,12 +402,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         OnSessionStateChanged?.Invoke();
     }
 
+    // BPF-005: StepOut tracks _stepFromTick so depth-0 step can re-pause at next tick boundary.
     public void StepOut()
     {
-        var fromEntity = _pausedOnEntity ?? default;
+        var fromEntity  = _pausedOnEntity ?? default;
         _stepMode       = StepMode.Out;
         _stepFromEntity = fromEntity;
         _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
+        _stepFromTick   = _view.Tick;
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
@@ -387,10 +419,98 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
+    // BPF-001: Implement fully populated state snapshot.
     public BlueprintStateSnapshot? GetCurrentStateSnapshot()
-        => _isPaused && _pausedOnEntity.HasValue
-            ? new BlueprintStateSnapshot(_pausedOnEntity.Value, Guid.Empty)  // assetId stub until DBG-004
-            : null;
+    {
+        if (!_isPaused || !_pausedOnEntity.HasValue || _pausedAt is null) return null;
+        return CaptureStateSnapshot(_pausedOnEntity.Value, _pausedAt.AssetId);
+    }
+
+    private BlueprintStateSnapshot? CaptureStateSnapshot(Entity self, Guid assetId)
+    {
+        _debugMaps.TryGetValue(assetId, out var mapIndex);
+        var assetName = mapIndex?.AssetName ?? assetId.ToString("D");
+
+        var bpId = BlueprintIdHash.Compute(assetId);
+        _registry.TryGetById(bpId, out var def);
+
+        if (def != null)
+            assetName = def.Name;
+
+        var dispatch = def?.Kind ?? BlueprintDispatchKind.Library;
+        var fields   = new Dictionary<string, object>();
+        BlueprintLatentCursor? cursor = null;
+
+        if (def != null)
+        {
+            switch (def.Kind)
+            {
+                case BlueprintDispatchKind.AiPrimitive:
+                    CaptureAiPrimitiveState(self, def, mapIndex, fields);
+                    break;
+                case BlueprintDispatchKind.Instance:
+                    CaptureInstanceStateFromDefinition(self, def, fields, out cursor);
+                    break;
+            }
+        }
+
+        return new BlueprintStateSnapshot(
+            Self:        self,
+            AssetId:     assetId,
+            AssetName:   assetName,
+            Dispatch:    dispatch,
+            FieldValues: fields,
+            Cursor:      cursor);
+    }
+
+    // Reads AiPrimitive working-state fields from Blackboard1024 (BPF-001 section 8.6).
+    private void CaptureAiPrimitiveState(
+        Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
+        Dictionary<string, object> outFields)
+    {
+        if (!_view.HasComponent<Blackboard1024>(self)) return;
+        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(self);
+
+        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+
+        if (bytes.Length < 8) return;
+
+        ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
+        if (storedHash != def.StructureHash) return;
+
+        var layoutFields = mapIndex?.StateLayout.Fields;
+        if (layoutFields != null && layoutFields.Count > 0)
+        {
+            foreach (var field in layoutFields)
+            {
+                int start = 8 + field.OffsetBytes;
+                if (start + field.SizeBytes > bytes.Length) continue;
+                var fieldType = ResolveType(field.Type);
+                if (fieldType is null) continue;
+                var raw = MarshalFromBytes(bytes.Slice(start, field.SizeBytes).ToArray(), fieldType);
+                if (raw != null) outFields[field.Name] = raw;
+            }
+        }
+        else
+        {
+            foreach (var (name, descriptor) in def.StateFields)
+            {
+                int start = 8 + descriptor.OffsetBytes;
+                if (start + descriptor.SizeBytes > bytes.Length) continue;
+                var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
+                if (raw != null) outFields[name] = raw;
+            }
+        }
+    }
+
+    // Instance state byte access requires the partition allocator, not wired in here.
+    private static void CaptureInstanceStateFromDefinition(
+        Entity self, BlueprintDefinition def,
+        Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
+    {
+        cursor = null;
+    }
 
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
     {
@@ -400,14 +520,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             foreach (var entry in hist.GetRecent(maxCount))
                 all.Add(new NodeExecuted(entity, Guid.Empty, Guid.Empty, entry.NodeId, entry.SimTime, entry.Tick));
         }
-        // Return the most recent maxCount entries across all entities.
         if (all.Count > maxCount)
             all.Sort((a, b) => b.Tick.CompareTo(a.Tick));
         return all.Count <= maxCount ? all.AsReadOnly() : all.Take(maxCount).ToList().AsReadOnly();
     }
 
-    // Non-interface overload: returns per-entity execution history.
-    // Per-entity view is the primary entry point; GetRecentNodeHistory (no entity) deferred to DBG-005.
     public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)
     {
         if (!_history.TryGetValue(entity, out var hist))
@@ -423,15 +540,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (_debugMaps.TryGetValue(map.AssetId, out var existing) &&
             existing.StructureHash != map.StructureHash)
         {
-            // Structure changed: clear breakpoints for this asset and notify.
-            var toRemove = _breakpoints.Values
-                .Where(bp => bp.AssetId == map.AssetId)
-                .Select(bp => bp.Id)
-                .ToList();
-            foreach (var id in toRemove)
-                ClearBreakpoint(id);
+            // BPF-003: mark breakpoints stale instead of clearing them.
+            foreach (var bp in _breakpoints.Values.Where(b => b.AssetId == map.AssetId).ToList())
+            {
+                var stale = bp with { IsStale = true };
+                _breakpoints[bp.Id]        = stale;
+                _bpByNodeString[bp.NodeId] = stale;
+            }
             OnBreakpointListChanged?.Invoke(map.AssetId);
-            // Mark watches stale for this asset (structure changed; cached values are invalid).
             foreach (var watch in _watches.Values.Where(w => w.AssetId == map.AssetId))
                 watch.IsStale = true;
         }
@@ -449,7 +565,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public event Action? OnSessionStateChanged;
     public event Action<Guid>? OnBreakpointListChanged;
 
-    // Explicit implementations for events not yet raised (stubs for DBG-002 / DBG-003 / DBG-004).
     private Action<NodeExecuted>? _onNodeExecuted;
     event Action<NodeExecuted>? IBlueprintDebugSession.OnNodeExecuted
     {
@@ -474,7 +589,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void OnHotReloadBegin()
     {
         if (_isPaused) Continue();
-        // Mark all watches as stale (reload invalidates runtime state).
         foreach (var watch in _watches.Values)
             watch.IsStale = true;
         OnSessionStateChanged?.Invoke();
@@ -482,22 +596,20 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public void OnHotReloadCompleted(Guid[] reloadedAssetIds)
     {
-        // Re-validate watches: if watch's asset was reloaded and is now in _debugMaps, clear stale flag.
         foreach (var assetId in reloadedAssetIds)
         {
             foreach (var watch in _watches.Values.Where(w => w.AssetId == assetId))
-                watch.IsStale = false;  // map was reloaded; watch is valid again
-            // Fire breakpoint list changed for affected assets.
+                watch.IsStale = false;
             OnBreakpointListChanged?.Invoke(assetId);
         }
         OnSessionStateChanged?.Invoke();
     }
 
+    // BPF-003: reset per-frame dedup set at tick boundary.
+    public void OnNewTick() => _firedBreakpointsThisTick.Clear();
+
     // ---- Private helpers ----------------------------------------------------
 
-    // Handles a breakpoint hit (or pseudo-breakpoint from step matching).
-    // Soft-pause per Patch 1: sets _isPaused, requests pause at next frame boundary,
-    // fires events, and returns immediately without blocking the thread.
     private void HandleBreakpointHit(Entity self, Breakpoint bp, string nodeId)
     {
         _isPaused        = true;
@@ -507,14 +619,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _stepFromEntity  = default;
         _stepFromDepth   = 0;
 
-        // Increment hit count for real breakpoints (pseudo-BPs have Id.Value == 0).
-        // Pseudo-breakpoints (step hits) have default BreakpointId (Value == 0); skip hit count.
         if (bp.Id.Value != 0 && _breakpoints.ContainsKey(bp.Id))
         {
             var updated = bp with { HitCount = bp.HitCount + 1 };
-            _breakpoints[bp.Id]          = updated;
-            _bpByNodeString[bp.NodeId]   = updated;
-            _pausedAt                    = updated;
+            _breakpoints[bp.Id]        = updated;
+            _bpByNodeString[bp.NodeId] = updated;
+            _pausedAt                  = updated;
 
             var assetId = updated.AssetId;
 
@@ -542,7 +652,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         OnSessionStateChanged?.Invoke();
     }
 
-    // Resolve source file path for a node hit via PDB locator + debug map lookup.
     private string? ResolveSourceFilePath(Guid assetId, string nodeId)
     {
         if (!_pdbLocators.TryGetValue(assetId, out var locator)) return null;
@@ -552,7 +661,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         return locator();
     }
 
-    // Resolve source start line for a node hit via debug map lookup.
     private int? ResolveSourceLine(Guid assetId, string nodeId)
     {
         if (!_debugMaps.TryGetValue(assetId, out var index)) return null;
@@ -561,7 +669,20 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         return entry.SourceStartLine;
     }
 
-    // UI/inspection helper: decode a raw byte buffer into a typed value (not on probe path).
+    private static Type? ResolveType(string typeFullName) => typeFullName switch
+    {
+        "System.Int32"   => typeof(int),
+        "System.Single"  => typeof(float),
+        "System.Boolean" => typeof(bool),
+        "System.UInt32"  => typeof(uint),
+        "System.Int64"   => typeof(long),
+        "System.Double"  => typeof(double),
+        "System.UInt64"  => typeof(ulong),
+        "System.Int16"   => typeof(short),
+        "System.Byte"    => typeof(byte),
+        _                => Type.GetType(typeFullName),
+    };
+
     public static object? MarshalFromBytes(byte[] bytes, Type type)
     {
         if (bytes == null || bytes.Length == 0) return null;
@@ -571,7 +692,6 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (type == typeof(uint))   return System.Runtime.InteropServices.MemoryMarshal.Read<uint>(bytes);
         if (type == typeof(long))   return System.Runtime.InteropServices.MemoryMarshal.Read<long>(bytes);
         if (type == typeof(double)) return System.Runtime.InteropServices.MemoryMarshal.Read<double>(bytes);
-        // Fallback for unrecognized types: return raw bytes as-is.
         return bytes;
     }
 }

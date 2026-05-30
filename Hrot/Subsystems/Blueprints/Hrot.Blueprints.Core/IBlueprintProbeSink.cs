@@ -9,6 +9,8 @@ public interface IBlueprintProbeSink
 {
     void OnNodeEnter(Entity self, string nodeId);
     void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged;
-    void OnPeerCallEnter(Entity entity, string targetAssetName, string targetGraphName);
-    void OnPeerCallExit(Entity entity);
+    /// <summary>Called when generated code enters a peer Blueprint call. peerAssetIdString is a Guid in "D" format.</summary>
+    void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName);
+    /// <summary>Called when generated code exits a peer Blueprint call. peerAssetIdString is a Guid in "D" format.</summary>
+    void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName);
 }

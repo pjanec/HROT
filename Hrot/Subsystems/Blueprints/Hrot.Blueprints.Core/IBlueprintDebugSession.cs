@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Compiler.Emit;
 
 namespace Hrot.Blueprints.Core.Debug;
@@ -48,7 +49,13 @@ public sealed record Breakpoint(
     Guid GraphId,
     string NodeId,
     int HitCount,
-    bool Enabled);
+    bool Enabled)
+{
+    /// <summary>Structure hash captured when this breakpoint was set. 0 = wildcard (matches any hash).</summary>
+    public ulong AssetStructureHashAtSetTime { get; init; } = 0;
+    /// <summary>True when the asset structure changed and this breakpoint may no longer be valid.</summary>
+    public bool IsStale { get; init; } = false;
+}
 
 public sealed class Watch
 {
@@ -99,7 +106,13 @@ public sealed class Watch
     }
 }
 
-public sealed record BlueprintStateSnapshot(Entity Self, Guid AssetId);
+public sealed record BlueprintStateSnapshot(
+    Entity Self,
+    Guid AssetId,
+    string AssetName,
+    BlueprintDispatchKind Dispatch,
+    IReadOnlyDictionary<string, object> FieldValues,
+    BlueprintLatentCursor? Cursor);
 
 // ---- Main interface --------------------------------------------------------
 
@@ -161,6 +174,10 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     // -- Hot reload --
     void OnHotReloadBegin();
     void OnHotReloadCompleted(Guid[] reloadedAssetIds);
+
+    // -- Tick boundary (called by coordinator at start of each tick) --
+    /// <summary>Resets per-frame breakpoint dedup set. Call once at the start of every simulation tick.</summary>
+    void OnNewTick();
 
     // -- Events --
     event Action<BreakpointHit>? OnBreakpointHit;
