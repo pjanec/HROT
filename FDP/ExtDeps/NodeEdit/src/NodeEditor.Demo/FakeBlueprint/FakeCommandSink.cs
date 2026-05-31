@@ -184,6 +184,9 @@ public sealed class FakeCommandSink : IGraphCommandSink
             case GraphCommand.CollapseToMacro ctm:
                 return ApplyCollapseToMacro(ctm);
 
+            case GraphCommand.ExpandNode exp:
+                return ApplyExpandNode(exp);
+
             case GraphCommand.Batch batch:
                 foreach (var inner in batch.Commands) Apply(inner);
                 return new GraphCommandResult(true, null);
@@ -490,6 +493,49 @@ public sealed class FakeCommandSink : IGraphCommandSink
         // 5. Inject the base execution pins expected by S23 validation
         callNode.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
         callNode.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+
+        _graph.NotifyChanged(GraphChangeKind.Wholesale);
+        return new GraphCommandResult(true, null);
+    }
+
+    private GraphCommandResult ApplyExpandNode(GraphCommand.ExpandNode exp)
+    {
+        var node = _graph.FindNode(exp.Node) as FakeNodeModel;
+        if (node == null) return new GraphCommandResult(false, "Node not found");
+
+        var pos = node.Position;
+
+        // 1. Snapshot the external links attached to the node boundary
+        var inA = _graph.Links.FirstOrDefault(l => l.ToPin == node.Pins.ElementAtOrDefault(0)?.Id);
+        var inB = _graph.Links.FirstOrDefault(l => l.ToPin == node.Pins.ElementAtOrDefault(1)?.Id);
+        var outR = _graph.Links.FirstOrDefault(l => l.FromPin == node.Pins.ElementAtOrDefault(2)?.Id);
+
+        // 2. Delete the call node and tear down its old boundary links
+        if (inA != null) _graph.RemoveLink(inA.Id);
+        if (inB != null) _graph.RemoveLink(inB.Id);
+        if (outR != null) _graph.RemoveLink(outR.Id);
+        _graph.RemoveNode(node.Id);
+
+        // 3. Instantiate the "unpacked" internal body using deterministic IDs.
+        var n1Id = IdGenerator.DeterministicNodeId(exp.Node.Value.ToString() + "_exp1");
+        var n1 = _graph.AddNode(n1Id, new NodeKindKey("Math.Multiply"), "Multiply", pos + new Vector2(-80, 0));
+        var p1A = n1.AddPin("A", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        var p1B = n1.AddPin("B", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        var p1R = n1.AddPin("Result", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+
+        var n2Id = IdGenerator.DeterministicNodeId(exp.Node.Value.ToString() + "_exp2");
+        var n2 = _graph.AddNode(n2Id, new NodeKindKey("Math.Add"), "Add", pos + new Vector2(120, 0));
+        var p2A = n2.AddPin("A", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        var p2B = n2.AddPin("B", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        var p2R = n2.AddPin("Result", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+
+        // 4. Dynamically re-route all execution and data flow
+        _graph.AddLink(IdGenerator.NewLinkId(), p1R.Id, p2A.Id); // Internal sequence wire
+
+        // Restore preserved external wires to the new expanded boundary
+        if (inA != null) _graph.AddLink(IdGenerator.NewLinkId(), inA.FromPin, p1A.Id);
+        if (inB != null) _graph.AddLink(IdGenerator.NewLinkId(), inB.FromPin, p1B.Id);
+        if (outR != null) _graph.AddLink(IdGenerator.NewLinkId(), p2R.Id, outR.ToPin);
 
         _graph.NotifyChanged(GraphChangeKind.Wholesale);
         return new GraphCommandResult(true, null);

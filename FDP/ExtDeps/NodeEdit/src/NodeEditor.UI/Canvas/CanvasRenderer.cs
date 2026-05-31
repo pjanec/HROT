@@ -667,6 +667,47 @@ public sealed class CanvasRenderer
                     _editorCommands?.Invoke(CommandCatalog.GoToDefinition);
                 }
 
+                bool canExpand = node != null &&
+                                 (node.Kind.Id == "Function.Call" ||
+                                  node.Kind.Id == "Macro.Call" ||
+                                  node.Title == "ScaleBy");
+
+                if (ImGui.MenuItem("Expand Node", null, false, canExpand))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+
+                    var callNode = view.Model.FindNode(target.Node);
+                    if (callNode != null)
+                    {
+                        // 1. Snapshot the external links attached to the call node before destruction.
+                        var externalLinks = view.Model.Links
+                            .Where(l => view.Model.FindPin(l.FromPin)?.OwnerNodeId == target.Node ||
+                                        view.Model.FindPin(l.ToPin)?.OwnerNodeId == target.Node)
+                            .ToList();
+
+                        var invs = new List<Core.Commands.GraphCommand>();
+
+                        // 2. Predict IDs of internal nodes the backend will spawn.
+                        var n1Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp1");
+                        var n2Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp2");
+                        invs.Add(new Core.Commands.GraphCommand.RemoveNodes(new[] { n1Id, n2Id }));
+
+                        // 3. Restore the original call node with precise pin IDs.
+                        var props = new Dictionary<string, object?> { ["PinIds"] = callNode.Pins.Select(p => p.Id).ToList() };
+                        invs.Add(new Core.Commands.GraphCommand.AddNode(callNode.Id, callNode.Kind, callNode.Position, props));
+
+                        // 4. Restore external wires.
+                        foreach (var l in externalLinks)
+                        {
+                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                        }
+
+                        // 5. Dispatch command with exact inverse.
+                        var fwd = new Core.Commands.GraphCommand.ExpandNode(target.Node);
+                        view.Execute(fwd, new Core.Commands.GraphCommand.Batch("Undo Expand", invs), "Expand Node");
+                    }
+                }
+
                 ImGui.Separator();
 
                 if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
