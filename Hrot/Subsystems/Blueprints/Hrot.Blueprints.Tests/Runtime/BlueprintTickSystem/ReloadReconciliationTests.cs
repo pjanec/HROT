@@ -37,6 +37,9 @@ public sealed class ReloadReconciliationTests
         Assert.True(before!.Value.TryGetField<int>("TickCount", out var tcBefore));
         Assert.Equal(2, tcBefore);
 
+        // BPF-038: capture InstanceVersion before reload.
+        uint versionBefore = fixture.GetSlotEntry(asset, entity).InstanceVersion;
+
         // Commit new staging with SAME id but DIFFERENT StructureHash
         var staging = fixture.Registry.BeginStaging();
         staging.Add(FakeInstanceBp.BlueprintId,
@@ -66,6 +69,11 @@ public sealed class ReloadReconciliationTests
         Assert.NotNull(after);
         Assert.True(after!.Value.TryGetField<int>("TickCount", out var tcAfter));
         Assert.Equal(1, tcAfter);
+
+        // BPF-038: InstanceVersion must be bumped after hard reload (Runtime DD §9.1 / §11.4 SC4).
+        uint versionAfter = fixture.GetSlotEntry(asset, entity).InstanceVersion;
+        Assert.True(versionAfter > versionBefore,
+            $"Expected InstanceVersion to bump after hard reload; was {versionBefore}, now {versionAfter}.");
     }
 
     // SC4 soft: Same structure hash -> state is preserved.

@@ -37,6 +37,26 @@ public sealed class HotReloadInteractionTests
             Entries       = Array.Empty<DebugMapEntry>(),
         };
 
+    private static DebugMap MakeMapWithPin(Guid assetId, Guid pinId, ulong structureHash = 1)
+        => new DebugMap
+        {
+            AssetId       = assetId,
+            BlueprintId   = 1,
+            StructureHash = structureHash,
+            Entries       = Array.Empty<DebugMapEntry>(),
+            Pins          = new[]
+            {
+                new DebugPinInfo(
+                    PinId:                 pinId,
+                    NodeId:                Guid.NewGuid(),
+                    PinName:               "pin",
+                    PinDirection:          "Output",
+                    PinKind:               "Data",
+                    TypeFullName:          "System.Int32",
+                    ValueAccessExpression: ""),
+            },
+        };
+
     private sealed class StubSimulationView : ISimulationView
     {
         public uint  Tick => 0;
@@ -99,6 +119,8 @@ public sealed class HotReloadInteractionTests
     /// <summary>
     /// OnHotReloadCompleted(assetIds) must clear IsStale only for watches belonging
     /// to the listed asset IDs; other watches must remain stale.
+    /// A debug map containing the pin must be registered for the watch to be cleared
+    /// (BPF-036: cleared only when pin still exists in the new map).
     /// </summary>
     [Fact]
     public void OnHotReloadCompleted_OnlyClears_ReloadedAssetWatches()
@@ -111,6 +133,9 @@ public sealed class HotReloadInteractionTests
 
         // Mark both stale via hot reload begin.
         session.OnHotReloadBegin();
+
+        // Register a new debug map for AssetIdA that contains pinIdA (BPF-036).
+        session.RegisterDebugMap(MakeMapWithPin(AssetIdA, pinIdA, structureHash: 2));
 
         // Reload only AssetIdA.
         session.OnHotReloadCompleted(new[] { AssetIdA });
@@ -151,5 +176,54 @@ public sealed class HotReloadInteractionTests
         Assert.All(assetABps, b => Assert.True(b.IsStale));
         var assetBBp = session.GetBreakpoints().Single(b => b.AssetId == AssetIdB);
         Assert.False(assetBBp.IsStale);
+    }
+
+    // ---- BPF-036: pin-existence check for watch staleness clearing -----------
+
+    /// <summary>
+    /// BPF-036: After a hot reload, a watch whose pin still exists in the new debug
+    /// map must have IsStale cleared.  A watch whose pin was removed from the new map
+    /// must remain stale so the UI shows it as frozen rather than falsely live.
+    /// </summary>
+    [Fact]
+    public void OnHotReloadCompleted_WatchForDeletedPin_RemainsStale()
+    {
+        var session      = MakeSession();
+        var existingPin  = Guid.NewGuid();
+        var deletedPin   = Guid.NewGuid();
+        var watchIdKept  = session.AddWatch(AssetIdA, GraphId1, existingPin, "kept",    typeof(int));
+        var watchIdGone  = session.AddWatch(AssetIdA, GraphId1, deletedPin,  "deleted", typeof(int));
+
+        session.OnHotReloadBegin();
+
+        // New debug map contains existingPin but NOT deletedPin.
+        session.RegisterDebugMap(MakeMapWithPin(AssetIdA, existingPin, structureHash: 2));
+        session.OnHotReloadCompleted(new[] { AssetIdA });
+
+        var watches   = session.GetWatches();
+        var watchKept = watches.First(w => w.Id == watchIdKept);
+        var watchGone = watches.First(w => w.Id == watchIdGone);
+
+        Assert.False(watchKept.IsStale, "Watch for a surviving pin must be cleared after reload.");
+        Assert.True(watchGone.IsStale,  "Watch for a deleted pin must remain stale after reload.");
+    }
+
+    /// <summary>
+    /// BPF-036: When no debug map has been registered for a reloaded asset,
+    /// all watches for that asset must remain stale (no spurious live signal).
+    /// </summary>
+    [Fact]
+    public void OnHotReloadCompleted_NoDebugMapRegistered_AllWatchesRemainStale()
+    {
+        var session = MakeSession();
+        var pinId   = Guid.NewGuid();
+        session.AddWatch(AssetIdA, GraphId1, pinId, "w", typeof(int));
+
+        session.OnHotReloadBegin();
+
+        // Do NOT register any debug map for AssetIdA.
+        session.OnHotReloadCompleted(new[] { AssetIdA });
+
+        Assert.All(session.GetWatches(), w => Assert.True(w.IsStale));
     }
 }

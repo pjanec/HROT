@@ -119,6 +119,16 @@ namespace Hrot.Editor
         /// <summary>Test seam: fires <see cref="OnReloadBegin"/> without performing an actual reload.</summary>
         internal void RaiseReloadBeginForTest() => OnReloadBegin?.Invoke();
 
+        /// <summary>
+        /// Test seam: enqueues a minimal pending reload so unit tests can verify
+        /// the one-reload-per-frame guarantee without loading a physical DLL.
+        /// </summary>
+        internal void EnqueueReloadForTest(
+            IReadOnlyList<ResolvedRegistrar> registrars,
+            AssemblyLoadContext alc,
+            string dllPath = "test.dll")
+            => _pendingReloads.Enqueue(new PendingReload(registrars, alc, dllPath));
+
         // ---- Dependencies ----
         private readonly EntityRepository              _world;
         private readonly BehaviorRegistry              _liveRegistry;
@@ -227,82 +237,83 @@ namespace Hrot.Editor
             while (_pendingFailures.TryDequeue(out var failCb))
                 failCb();
 
-            while (_pendingReloads.TryDequeue(out var pending))
+            // BPF-043: apply at most one reload per frame (Hot Reload DD §4.2 one-reload-per-frame bound).
+            if (!_pendingReloads.TryDequeue(out var pending))
+                return;
+
+            try
             {
-                try
+                // Step 1: clear stale HSM function pointers FIRST.
+                HsmActionDispatcher.ClearAll();
+
+                // Step 2: invoke all discovered registrars with resolved staging params.
+                var behaviorStaging  = new BehaviorRegistry();
+                var blueprintStaging = _blueprintRegistry.BeginStaging();
+
+                foreach (var registrar in pending.Registrars)
                 {
-                    // Step 1: clear stale HSM function pointers FIRST.
-                    HsmActionDispatcher.ClearAll();
-
-                    // Step 2: invoke all discovered registrars with resolved staging params.
-                    var behaviorStaging  = new BehaviorRegistry();
-                    var blueprintStaging = _blueprintRegistry.BeginStaging();
-
-                    foreach (var registrar in pending.Registrars)
-                    {
-                        var args = registrar.Parameters
-                            .OrderBy(p => p.OrdinalIndex)
-                            .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
-                            .ToArray();
-                        registrar.RegisterMethod.Invoke(null, args);
-                    }
-
-                    // Step 3: atomic commit of BlueprintRegistry.
-                    _blueprintRegistry.CommitStaging(blueprintStaging);
-
-                    // Step 4: apply staging behavior registry -> live registry.
-                    foreach (var name in behaviorStaging.GetRegisteredNames())
-                    {
-                        if (behaviorStaging.TryGetId(name, out int id) &&
-                            behaviorStaging.TryGetDefinition(id, out var def))
-                        {
-                            _liveRegistry.Register(id, name, def);
-                        }
-                    }
-
-                    // Step 5: hot-reload live HSM instances per-chunk.
-                    foreach (var name in behaviorStaging.GetRegisteredNames())
-                    {
-                        if (!behaviorStaging.TryGetId(name, out int docId))
-                            continue;
-                        if (!behaviorStaging.TryGetDefinition(docId, out var def))
-                            continue;
-                        if (def.BrainTier != BehaviorConstants.BrainTierHsm)
-                            continue;
-                        if (def.HsmDefinition == null)
-                            continue;
-
-                        var blob = def.HsmDefinition;
-                        ReloadHsmChunks<BrainHsm64>(blob);
-                        ReloadHsmChunks<BrainHsm128>(blob);
-                    }
-
-                    // Step 5.5: notify before the swap so pending mutations are flushed.
-                    OnReloadBegin?.Invoke();
-
-                    // Step 6: swap _currentAlc and release the old ALC.
-                    // This happens ONLY after all staging commits succeed,
-                    // so a failure above leaves _currentAlc (and running code) untouched.
-                    var oldAlc = _currentAlc;
-                    _currentAlc = pending.NewAlc;
-
-                    if (oldAlc != null)
-                    {
-                        PreviousAlcRef = new WeakReference<AssemblyLoadContext>(oldAlc);
-                        oldAlc.Unload();
-                    }
-
-                    // Step 7: fire completion event.
-                    OnReloadCompleted?.Invoke(new ReloadCompletedInfo(
-                        ReloadSource.FullRebuildViaFileWatcher,
-                        pending.NewAlc,
-                        pending.DllPath));
+                    var args = registrar.Parameters
+                        .OrderBy(p => p.OrdinalIndex)
+                        .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
+                        .ToArray();
+                    registrar.RegisterMethod.Invoke(null, args);
                 }
-                catch (Exception ex)
+
+                // Step 3: atomic commit of BlueprintRegistry.
+                _blueprintRegistry.CommitStaging(blueprintStaging);
+
+                // Step 4: apply staging behavior registry -> live registry.
+                foreach (var name in behaviorStaging.GetRegisteredNames())
                 {
-                    // _currentAlc is NOT updated; simulation keeps running with previous assembly.
-                    OnReloadFailed?.Invoke(pending.DllPath, ex);
+                    if (behaviorStaging.TryGetId(name, out int id) &&
+                        behaviorStaging.TryGetDefinition(id, out var def))
+                    {
+                        _liveRegistry.Register(id, name, def);
+                    }
                 }
+
+                // Step 5: hot-reload live HSM instances per-chunk.
+                foreach (var name in behaviorStaging.GetRegisteredNames())
+                {
+                    if (!behaviorStaging.TryGetId(name, out int docId))
+                        continue;
+                    if (!behaviorStaging.TryGetDefinition(docId, out var def))
+                        continue;
+                    if (def.BrainTier != BehaviorConstants.BrainTierHsm)
+                        continue;
+                    if (def.HsmDefinition == null)
+                        continue;
+
+                    var blob = def.HsmDefinition;
+                    ReloadHsmChunks<BrainHsm64>(blob);
+                    ReloadHsmChunks<BrainHsm128>(blob);
+                }
+
+                // Step 5.5: notify before the swap so pending mutations are flushed.
+                OnReloadBegin?.Invoke();
+
+                // Step 6: swap _currentAlc and release the old ALC.
+                // This happens ONLY after all staging commits succeed,
+                // so a failure above leaves _currentAlc (and running code) untouched.
+                var oldAlc = _currentAlc;
+                _currentAlc = pending.NewAlc;
+
+                if (oldAlc != null)
+                {
+                    PreviousAlcRef = new WeakReference<AssemblyLoadContext>(oldAlc);
+                    oldAlc.Unload();
+                }
+
+                // Step 7: fire completion event.
+                OnReloadCompleted?.Invoke(new ReloadCompletedInfo(
+                    ReloadSource.FullRebuildViaFileWatcher,
+                    pending.NewAlc,
+                    pending.DllPath));
+            }
+            catch (Exception ex)
+            {
+                // _currentAlc is NOT updated; simulation keeps running with previous assembly.
+                OnReloadFailed?.Invoke(pending.DllPath, ex);
             }
         }
 

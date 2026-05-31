@@ -125,10 +125,18 @@ public sealed class MockContractTests
         var entity = fixture.CreateEntity();
         fixture.AttachBlueprint(asset, entity);
 
-        // Manually add BB4096 to signal the tier upgrade.
-        fixture.World.AddComponent(entity, default(BlueprintBlackboard4096));
+        // BPF-046: queue BB4096 addition via ECB (the production path), not direct world mutation.
+        fixture.Ecb.AddEmptyComponent<BlueprintBlackboard4096>(entity);
 
-        fixture.TickFrame(0.016f);
+        // BB4096 is NOT observable during Simulation (ECB not yet played back).
+        Assert.False(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
+
+        // Play back ECB: BB4096 is now in the world (models BeforeSync ECB flush).
+        fixture.Ecb.Playback(fixture.World);
+        Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));
+
+        // MaintenanceSystem (BeforeSync phase) copies BB1024->BB4096 and removes BB1024.
+        fixture.MaintenanceSystem.Execute(fixture.World, 0.016f);
 
         // After maintenance: BB4096 present, BB1024 promoted and removed.
         Assert.True(fixture.World.HasComponent<BlueprintBlackboard4096>(entity));

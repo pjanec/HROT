@@ -613,8 +613,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     {
         foreach (var assetId in reloadedAssetIds)
         {
+            // BPF-036: only clear stale for watches whose pin still exists in the new debug map.
+            // Watches for pins that were deleted in the new version remain stale so the UI
+            // shows them as frozen rather than falsely "live".
+            _debugMaps.TryGetValue(assetId, out var newMapIndex);
+
             foreach (var watch in _watches.Values.Where(w => w.AssetId == assetId))
-                watch.IsStale = false;
+            {
+                if (newMapIndex != null && newMapIndex.TryGetPinById(watch.PinId) != null)
+                    watch.IsStale = false;
+                // else: pin no longer in map -> leave IsStale = true
+            }
             OnBreakpointListChanged?.Invoke(assetId);
         }
         OnSessionStateChanged?.Invoke();

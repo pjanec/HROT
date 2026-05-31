@@ -4,6 +4,11 @@ public sealed class BuiltInChannelCommandCatalog : IChannelCommandCatalog
 {
     public static readonly BuiltInChannelCommandCatalog Instance = new();
 
+    // Action names are short unqualified strings (e.g. "MoveTo", "AimAndFire") rather than
+    // the hierarchical paths in the design doc (e.g. "Locomotion/MoveTo", "Weapon/AimAndFire").
+    // This is intentional: the short names are the authoritative ActionId strings stored in
+    // Blueprint JSON assets and matched by the runtime validator. Changing to hierarchical paths
+    // would require a coordinated migration of all authored assets. (DEBT-023)
     public IReadOnlyList<ChannelCommandCatalogEntry> GetEntries() =>
         new List<ChannelCommandCatalogEntry>
         {

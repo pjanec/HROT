@@ -17,13 +17,13 @@ Confidence: `V` = verified against code; `R` = reported, re-confirm against the 
 
 ## B. Runtime (blueprints-1)
 
-- [ ] **BPF-006** (V, Medium) -- `IReloadLogSink` reduced; restore `OnSoftReload` + entity/hash context (Runtime DD §9.7) -> [details](./TASK-DETAIL.md#bpf-006----ireloadlogsink-interface-reduced-vs-design-no-onsoftreload-no-entityhash-context)
-- [ ] **BPF-007** (R, Low) -- `BlueprintRegistry.GetAll()` drops `(Id, Def)` tuple (Runtime DD §2.2/2.3) -> [details](./TASK-DETAIL.md#bpf-007----blueprintregistrygetall-drops-the-id-def-tuple)
+- [x] **BPF-006** (V, Medium) -- `IReloadLogSink` reduced; restore `OnSoftReload` + entity/hash context (Runtime DD §9.7) -> [details](./TASK-DETAIL.md#bpf-006----ireloadlogsink-interface-reduced-vs-design-no-onsoftreload-no-entityhash-context)
+- [x] **BPF-007** (R, Low) -- `BlueprintRegistry.GetAll()` drops `(Id, Def)` tuple (Runtime DD §2.2/2.3) -> [details](./TASK-DETAIL.md#bpf-007----blueprintregistrygetall-drops-the-id-def-tuple)
 
 ## C. Test Harness (blueprints-1)
 
-- [ ] **BPF-008** (V, Medium) -- fixture missing `SnapshotAllBlackboards`/`SetChannelStatus<T>`/`GetSlotEntry` (TH DD §2.4/5.4/5.6/5.7; DEBT-006/007/008) -> [details](./TASK-DETAIL.md#bpf-008----fixture-missing-snapshotallblackboards-setchannelstatust-getslotentry)
-- [ ] **BPF-009** (V, Medium) -- `InvokeHsmAction`/`InvokeHsmGuard` still `NotImplementedException` stubs (TH DD §12.1-12.3) -> [details](./TASK-DETAIL.md#bpf-009----invokehsmaction--invokehsmguard-remain-notimplementedexception-stubs)
+- [x] **BPF-008** (V, Medium) -- fixture missing `SnapshotAllBlackboards`/`SetChannelStatus<T>`/`GetSlotEntry` (TH DD §2.4/5.4/5.6/5.7; DEBT-006/007/008) -> [details](./TASK-DETAIL.md#bpf-008----fixture-missing-snapshotallblackboards-setchannelstatust-getslotentry)
+- [x] **BPF-009** (V, Medium) -- `InvokeHsmAction`/`InvokeHsmGuard` still `NotImplementedException` stubs (TH DD §12.1-12.3) -> [details](./TASK-DETAIL.md#bpf-009----invokehsmaction--invokehsmguard-remain-notimplementedexception-stubs)
 
 ## D. AI Editor hosts (blueprints-2)
 
@@ -75,11 +75,11 @@ Details + design/code refs: [TASK-DETAIL.md PART 2](./TASK-DETAIL.md#part-2----d
 - [x] **BPF-028** (High, nodeeditor) -- drag node ops bypass undo stack (`Commands.Apply` not `Execute`) -> [details](./TASK-DETAIL.md#bpf-028----drag-based-node-ops-call-viewcommandsapply-directly-bypassing-the-undo-stack-nodeeditor)
 - [x] **BPF-029** (High, nodeeditor) -- multi-select drag emits N `ChangeParent` not one `ChangeParentMultiple` -> [details](./TASK-DETAIL.md#bpf-029----multi-selection-drag-emits-n-separate-changeparent-commands-instead-of-one-changeparentmultiple-nodeeditor)
 - [x] **BPF-030** (High, nodeeditor) -- missing ancestor-suppression -> child of selected container moves twice as far -> [details](./TASK-DETAIL.md#bpf-030----missing-ancestor-in-selection-suppression---child-of-a-selected-container-moves-twice-as-far-nodeeditor)
-- [ ] **BPF-031** (High, editor) -- `HotReloadLogWindow` never subscribed to coordinator -> permanently empty -> [details](./TASK-DETAIL.md#bpf-031----hotreloadlogwindow-never-subscribed-to-coordinator-events---permanently-empty-at-runtime-editor)
-- [ ] **BPF-032** (High, editor) -- HotReloadLogWindow tests call methods directly -> subscription contract untested -> [details](./TASK-DETAIL.md#bpf-032----hotreloadlogwindow-tests-call-methods-directly---subscription-contract-untested-editor)
-- [ ] **BPF-033** (High, editor) -- `IsAttached` hardcoded true; no `Attach()`; editor never routes `DebugProbe.Sink` -> [details](./TASK-DETAIL.md#bpf-033----blueprintdebugsessionisattached-hardcoded-true-no-attach-editor-never-routes-debugprobesink-editor)
-- [ ] **BPF-034** (High, editor) -- Debug/Watch/Callstack `DrawUI()` are empty stubs -> [details](./TASK-DETAIL.md#bpf-034----debugwatchcallstack-window-drawui-bodies-are-empty-stubs-editor)
-- [ ] **BPF-035** (High, editor) -- `IWindowRegistrar` mismatch; registrar/DI absent; windows never registered -> [details](./TASK-DETAIL.md#bpf-035----iwindowregistrar-contract-mismatch-blueprintwindowregistrardi-registration-absent-windows-never-registered-editor)
+- [x] **BPF-031** (High, editor) -- `HotReloadLogWindow` never subscribed to coordinator -> permanently empty -> [details](./TASK-DETAIL.md#bpf-031----hotreloadlogwindow-never-subscribed-to-coordinator-events---permanently-empty-at-runtime-editor)
+- [x] **BPF-032** (High, editor) -- HotReloadLogWindow tests call methods directly -> subscription contract untested -> [details](./TASK-DETAIL.md#bpf-032----hotreloadlogwindow-tests-call-methods-directly---subscription-contract-untested-editor)
+- [x] **BPF-033** (High, editor) -- `IsAttached` hardcoded true; no `Attach()`; editor never routes `DebugProbe.Sink` -> [details](./TASK-DETAIL.md#bpf-033----blueprintdebugsessionisattached-hardcoded-true-no-attach-editor-never-routes-debugprobesink-editor)
+- [x] **BPF-034** (High, editor) -- Debug/Watch/Callstack `DrawUI()` are empty stubs -> [details](./TASK-DETAIL.md#bpf-034----debugwatchcallstack-window-drawui-bodies-are-empty-stubs-editor)
+- [x] **BPF-035** (High, editor) -- `IWindowRegistrar` mismatch; registrar/DI absent; windows never registered -> [details](./TASK-DETAIL.md#bpf-035----iwindowregistrar-contract-mismatch-blueprintwindowregistrardi-registration-absent-windows-never-registered-editor)
 
 ## MEDIUM
 - [ ] **BPF-036** (Medium, debug) -- `OnHotReloadCompleted` clears `Watch.IsStale` unconditionally -> frozen deleted-pin watches -> [details](./TASK-DETAIL.md#bpf-036----onhotreloadcompleted-clears-watchisstale-unconditionally---deleted-pin-watches-show-frozen-values-debug)

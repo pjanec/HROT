@@ -36,6 +36,26 @@ public sealed class MultiEntityTests
             Entries       = Array.Empty<DebugMapEntry>(),
         };
 
+    private static DebugMap MakeMapWithPin(Guid assetId, ulong structureHash, Guid pinId)
+        => new DebugMap
+        {
+            AssetId       = assetId,
+            BlueprintId   = 1,
+            StructureHash = structureHash,
+            Entries       = Array.Empty<DebugMapEntry>(),
+            Pins          = new[]
+            {
+                new DebugPinInfo(
+                    PinId:                 pinId,
+                    NodeId:                Guid.NewGuid(),
+                    PinName:               "pin",
+                    PinDirection:          "Output",
+                    PinKind:               "Data",
+                    TypeFullName:          "System.Int32",
+                    ValueAccessExpression: ""),
+            },
+        };
+
     private sealed class StubSimulationView : ISimulationView
     {
         public uint  Tick => 0;
@@ -129,6 +149,9 @@ public sealed class MultiEntityTests
 
         var watch = session.GetWatches()[0];
         Assert.True(watch.IsStale);
+
+        // Register the new map that contains the watched pin so OnHotReloadCompleted can clear it.
+        session.RegisterDebugMap(MakeMapWithPin(AssetIdA, 0x2222, pinId));
 
         // Simulate hot reload completing for AssetIdA.
         session.OnHotReloadCompleted(new[] { AssetIdA });

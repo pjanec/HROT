@@ -116,4 +116,38 @@ public sealed class AtomicMultiFileWriterTests
         afterFiles.ExceptWith(beforeFiles);
         Assert.Empty(afterFiles);
     }
+
+    /// <summary>
+    /// BPF-037: When the MOVE phase fails (temp file written successfully, but
+    /// File.Move to the final path throws), the writer must:
+    ///   - return Success = false with a non-null FailureReason
+    ///   - leave no .tmp files in the directory
+    /// This differs from the write-phase failure tests above which force an error
+    /// during File.WriteAllText by targeting an invalid directory.
+    /// Here the write succeeds but the move fails because the final path is a
+    /// pre-existing directory (File.Move cannot overwrite a directory on Windows).
+    /// </summary>
+    [Fact]
+    public void Write_MidMoveFails_ReturnsFalse_AndLeavesNoTempFiles()
+    {
+        var baseDir = Directory.CreateTempSubdirectory("atomic_bpf037_").FullName;
+        try
+        {
+            var writer = new AtomicMultiFileWriter();
+
+            // Create a directory at the final path so File.Move into it as a file fails.
+            var finalPath = Path.Combine(baseDir, "output.txt");
+            Directory.CreateDirectory(finalPath);
+
+            var result = writer.Write(new Dictionary<string, string> { [finalPath] = "data" });
+
+            Assert.False(result.Success);
+            Assert.NotNull(result.FailureReason);
+            Assert.Empty(Directory.GetFiles(baseDir, "*.tmp", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            Directory.Delete(baseDir, recursive: true);
+        }
+    }
 }

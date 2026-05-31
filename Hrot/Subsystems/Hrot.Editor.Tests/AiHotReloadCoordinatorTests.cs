@@ -362,6 +362,59 @@ namespace Hrot.Editor.Tests
             coordinator.DrainPendingCallbacks();
             Assert.False(completed);
         }
+
+        // ---- Unit tests for BPF-043: at most one reload per DrainPendingCallbacks call ----
+
+        /// <summary>
+        /// BPF-043: When two reloads are enqueued, the first DrainPendingCallbacks call
+        /// must apply exactly one reload.  The second call applies the remaining one.
+        /// (Hot Reload DD section 4.2 one-reload-per-frame bound.)
+        /// </summary>
+        [Fact]
+        public void DrainPendingCallbacks_AtMostOneReloadPerCall_WhenTwoEnqueued()
+        {
+            using var coordinator = CreateCoordinator();
+
+            // Enqueue two no-op reloads (empty registrar lists).
+            var alc1 = new AssemblyLoadContext("test-bpf043-1", isCollectible: true);
+            var alc2 = new AssemblyLoadContext("test-bpf043-2", isCollectible: true);
+            coordinator.EnqueueReloadForTest(Array.Empty<ResolvedRegistrar>(), alc1);
+            coordinator.EnqueueReloadForTest(Array.Empty<ResolvedRegistrar>(), alc2);
+
+            var applied = new List<ReloadCompletedInfo>();
+            coordinator.OnReloadCompleted += info => applied.Add(info);
+
+            // First drain: exactly one reload applied.
+            coordinator.DrainPendingCallbacks();
+            Assert.Single(applied);
+
+            // Second drain: the remaining reload is now applied.
+            coordinator.DrainPendingCallbacks();
+            Assert.Equal(2, applied.Count);
+        }
+
+        /// <summary>
+        /// BPF-043: A single DrainPendingCallbacks call must not process more than
+        /// one reload even when the queue holds many entries.
+        /// </summary>
+        [Fact]
+        public void DrainPendingCallbacks_DoesNotDrainAllReloadsInOnCall()
+        {
+            using var coordinator = CreateCoordinator();
+
+            var alc1 = new AssemblyLoadContext("test-bpf043-many-1", isCollectible: true);
+            var alc2 = new AssemblyLoadContext("test-bpf043-many-2", isCollectible: true);
+            var alc3 = new AssemblyLoadContext("test-bpf043-many-3", isCollectible: true);
+            coordinator.EnqueueReloadForTest(Array.Empty<ResolvedRegistrar>(), alc1);
+            coordinator.EnqueueReloadForTest(Array.Empty<ResolvedRegistrar>(), alc2);
+            coordinator.EnqueueReloadForTest(Array.Empty<ResolvedRegistrar>(), alc3);
+
+            int drainCount = 0;
+            coordinator.OnReloadCompleted += _ => drainCount++;
+
+            coordinator.DrainPendingCallbacks();
+            Assert.Equal(1, drainCount);
+        }
     }
 
     // ---- Stub registrar classes used by ScanForRegistrars tests ----

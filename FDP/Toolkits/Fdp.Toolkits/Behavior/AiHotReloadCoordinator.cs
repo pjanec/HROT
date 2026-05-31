@@ -81,7 +81,9 @@ public sealed class AiHotReloadCoordinator : IDisposable
     private AssemblyLoadContext? _currentAlc;
 
     // ---- Queues ------------------------------------------------------------
-    private readonly ConcurrentQueue<PendingReload> _pendingReloads = new();
+    private readonly ConcurrentQueue<PendingReload> _pendingReloads  = new();
+    // BPF-044: background failures are enqueued here and drained on the main thread.
+    private readonly ConcurrentQueue<Exception>     _pendingFailures  = new();
 
     // ---- File watcher (optional) -------------------------------------------
     private FileSystemWatcher? _watcher;
@@ -142,6 +144,10 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// </summary>
     public void DrainPendingCallbacks()
     {
+        // BPF-044: drain background scan failures before success reloads.
+        while (_pendingFailures.TryDequeue(out var failEx))
+            OnReloadFailed?.Invoke(failEx);
+
         if (!_pendingReloads.TryDequeue(out var pending)) return;
 
         try
@@ -200,6 +206,31 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// <summary>Internal for test access; verifies ALC identity after reload.</summary>
     internal AssemblyLoadContext? GetCurrentAlc() => _currentAlc;
 
+    /// <summary>
+    /// Test seam: enqueues a set of registrars as a pending reload so unit tests can
+    /// exercise <see cref="DrainPendingCallbacks"/> without loading a physical DLL.
+    /// The <paramref name="alc"/> is used as the new ALC (pass a dummy collectible context).
+    /// </summary>
+    [System.Runtime.CompilerServices.MethodImpl(
+        System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    internal void EnqueueReloadForTest(IReadOnlyList<ResolvedRegistrar> registrars, AssemblyLoadContext alc)
+    {
+        // Use the alc itself as the "assembly" placeholder; ScanForRegistrars is not called.
+        _pendingReloads.Enqueue(new PendingReload
+        {
+            NewAlc      = alc,
+            NewAssembly = alc.Assemblies.FirstOrDefault() ?? typeof(object).Assembly,
+            Registrars  = registrars,
+        });
+    }
+
+    /// <summary>
+    /// Test seam: enqueues a pre-built exception so unit tests can verify
+    /// <see cref="OnReloadFailed"/> is fired from <see cref="DrainPendingCallbacks"/>
+    /// without needing a real background scan.
+    /// </summary>
+    internal void EnqueueFailureForTest(Exception ex) => _pendingFailures.Enqueue(ex);
+
     // ---- IDisposable -------------------------------------------------------
 
     // NoInlining: prevents the JIT from inlining this into the caller's frame,
@@ -223,39 +254,48 @@ public sealed class AiHotReloadCoordinator : IDisposable
         // Step 1: Patch 2 — static call, no instance needed.
         HsmActionDispatcher.ClearAll();
 
-        // Step 2: begin staging.
-        var staging = _blueprintRegistry.BeginStaging();
+        // Step 2: begin staging for both blueprint and behavior registries.
+        // BPF-042: use a fresh staging BehaviorRegistry so that a throwing registrar
+        // cannot partially mutate the live _behaviorRegistry.
+        var blueprintStaging  = _blueprintRegistry.BeginStaging();
+        var behaviorStaging   = new BehaviorRegistry();
 
-        // Step 3: invoke each registrar.
+        // Step 3: invoke each registrar into the staging registries.
         foreach (var registrar in pending.Registrars)
-            InvokeRegistrar(registrar, staging);
+            InvokeRegistrar(registrar, blueprintStaging, behaviorStaging);
 
-        // Step 4: atomic commit.
-        _blueprintRegistry.CommitStaging(staging);
+        // Step 4: atomic commit of BlueprintRegistry.
+        _blueprintRegistry.CommitStaging(blueprintStaging);
 
-        // Step 5: swap _currentAlc — ONLY after successful commit (Patch 1).
+        // Step 5: merge staging BehaviorRegistry -> live registry (only on full success).
+        _behaviorRegistry.MergeFrom(behaviorStaging);
+
+        // Step 6: swap _currentAlc — ONLY after successful commits (Patch 1).
         var oldAlc = _currentAlc;
         _currentAlc = pending.NewAlc;
         oldAlc?.Unload();
     }
 
-    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging staging)
+    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
     {
         var args = registrar.Parameters
             .OrderBy(p => p.OrdinalIndex)
-            .Select(p => ResolveRegistrarArgument(p.ParameterType, staging))
+            .Select(p => ResolveRegistrarArgument(p.ParameterType, blueprintStaging, behaviorStaging))
             .ToArray();
         registrar.RegisterMethod.Invoke(null, args);
     }
 
     /// <summary>
     /// Resolves a registrar parameter type to its argument value.
+    /// BPF-042: returns the staging BehaviorRegistry (not the live one) so that a
+    /// throwing registrar cannot partially corrupt the live registry.
     /// Throws <see cref="HotReloadRegistrarException"/> for forbidden or unknown types (Patch 2, Patch 4).
     /// </summary>
-    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging staging)
+    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
     {
-        if (paramType == typeof(BlueprintRegistryStaging)) return staging;
-        if (paramType == typeof(BehaviorRegistry))         return _behaviorRegistry;
+        if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
+        // BPF-042: inject the staging registry, not the live one.
+        if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
 
         // Patch 4: explicitly forbidden — would bypass the atomic RCU contract.
         if (paramType == typeof(BlueprintRegistry))
@@ -352,10 +392,11 @@ public sealed class AiHotReloadCoordinator : IDisposable
                 Registrars  = registrars,
             });
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Background failures: logged by caller; old ALC remains live.
+            // BPF-044: enqueue failure for main-thread reporting via OnReloadFailed.
             // Do not propagate — background thread must not crash.
+            _pendingFailures.Enqueue(ex);
         }
     }
 
