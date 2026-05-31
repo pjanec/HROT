@@ -479,6 +479,62 @@ public sealed class CanvasRenderer
                 }
                 break;
 
+            case HoverKind.Comment:
+            {
+                var commentId = target.Comment;
+                var comment = view.Model.Comments.FirstOrDefault(c => c.Id == commentId);
+                if (comment == null) break;
+
+                if (ImGui.MenuItem("Rename", "F2"))
+                {
+                    view.Interaction.RenamingComment = commentId;
+                }
+
+                ImGui.Separator();
+                if (ImGui.BeginMenu("Color"))
+                {
+                    if (ImGui.MenuItem("Blue"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.29f, 0.56f, 0.88f, 1f), null, null));
+                    if (ImGui.MenuItem("Green"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.49f, 0.82f, 0.13f, 1f), null, null));
+                    if (ImGui.MenuItem("Yellow")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.97f, 0.90f, 0.11f, 1f), null, null));
+                    if (ImGui.MenuItem("Orange")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.96f, 0.65f, 0.14f, 1f), null, null));
+                    if (ImGui.MenuItem("Red"))    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.81f, 0.01f, 0.11f, 1f), null, null));
+                    if (ImGui.MenuItem("Purple")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.56f, 0.07f, 0.99f, 1f), null, null));
+                    if (ImGui.MenuItem("Cyan"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.31f, 0.89f, 0.76f, 1f), null, null));
+                    if (ImGui.MenuItem("Brown"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.54f, 0.34f, 0.16f, 1f), null, null));
+                    ImGui.EndMenu();
+                }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Bring to Front"))
+                {
+                    int maxZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Max(c => c.ZOrder) : 0;
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null));
+                }
+                if (ImGui.MenuItem("Send to Back"))
+                {
+                    int minZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Min(c => c.ZOrder) : 0;
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null));
+                }
+
+                ImGui.Separator();
+                ImGui.BeginDisabled();
+                ImGui.MenuItem("Resize to Fit Contents");
+                ImGui.EndDisabled();
+
+                bool mwc = comment.MoveWithContents;
+                if (ImGui.MenuItem("Move with Contents", null, ref mwc))
+                {
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc));
+                }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Delete", "Del"))
+                {
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveComment(commentId));
+                }
+                break;
+            }
+
             case HoverKind.CustomElement:
             {
                 var ceRef    = target.CustomElement;
