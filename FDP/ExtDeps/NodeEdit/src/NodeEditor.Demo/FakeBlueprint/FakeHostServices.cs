@@ -40,9 +40,9 @@ public sealed class FakeHostServices : IEditorHostServices
         NodeCatalog_   = new FakeNodeCatalog();
         EditorRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
         TypeSystem_    = new FakeTypeSystem(EditorRegistry);
-        CommandSink_   = new FakeCommandSink(graph, NodeCatalog_, TypeSystem_);
         Validator      = new FakeLinkValidator(graph);
         MyBlueprint    = new FakeMyBlueprintModel();
+        CommandSink_   = new FakeCommandSink(graph, NodeCatalog_, TypeSystem_, MyBlueprint);
         Input_         = new FakeInputSource();
         PickerRegistry_ = new PickerRegistry();
         PickerRegistry_.SetServices(new FakeIconProvider(), new FakeEditorTheme());
@@ -63,7 +63,11 @@ public sealed class FakeHostServices : IEditorHostServices
     }
 
     /// <summary>Replace the My Blueprint model (used by multi-graph scenarios).</summary>
-    public void OverrideMyBlueprint(FakeMyBlueprintModel model) => MyBlueprint = model;
+    public void OverrideMyBlueprint(FakeMyBlueprintModel model)
+    {
+        MyBlueprint = model;
+        CommandSink_.SetMyBlueprint(model);
+    }
 
     // ---- Custom canvas renderers (registered by scenarios that need them) ----
 

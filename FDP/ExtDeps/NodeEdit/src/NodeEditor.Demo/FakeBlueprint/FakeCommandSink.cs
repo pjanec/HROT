@@ -11,13 +11,17 @@ public sealed class FakeCommandSink : IGraphCommandSink
     private readonly FakeGraphModel _graph;
     private readonly FakeNodeCatalog _catalog;
     private readonly ITypeSystem _typeSystem;
+    private FakeMyBlueprintModel _myBlueprint;
 
-    public FakeCommandSink(FakeGraphModel graph, FakeNodeCatalog catalog, ITypeSystem typeSystem)
+    public FakeCommandSink(FakeGraphModel graph, FakeNodeCatalog catalog, ITypeSystem typeSystem, FakeMyBlueprintModel myBlueprint)
     {
         _graph   = graph;
         _catalog = catalog;
         _typeSystem = typeSystem;
+        _myBlueprint = myBlueprint;
     }
+
+    public void SetMyBlueprint(FakeMyBlueprintModel myBlueprint) => _myBlueprint = myBlueprint;
 
     public GraphCommandResult Apply(GraphCommand command)
     {
@@ -173,6 +177,9 @@ public sealed class FakeCommandSink : IGraphCommandSink
                 ApplyPromoteToVariable(promote);
                 _graph.NotifyChanged(GraphChangeKind.VariablesChanged);
                 return new GraphCommandResult(true, null);
+
+            case GraphCommand.CollapseToFunction ctf:
+                return ApplyCollapseToFunction(ctf);
 
             case GraphCommand.Batch batch:
                 foreach (var inner in batch.Commands) Apply(inner);
@@ -383,6 +390,58 @@ public sealed class FakeCommandSink : IGraphCommandSink
             if (toPin is not null)
                 _graph.AddLink(IdGenerator.NewLinkId(), targetPin.Id, toPin.Id);
         }
+    }
+
+    private GraphCommandResult ApplyCollapseToFunction(GraphCommand.CollapseToFunction ctf)
+    {
+        if (ctf.Nodes.Count == 0) return new GraphCommandResult(false, "No nodes selected");
+
+        // 1. Add Function to the My Blueprint panel
+        string fnId = $"fn.{Guid.NewGuid():N}";
+        _myBlueprint.AddFunction(fnId, ctf.FunctionName);
+
+        // 2. Find the center position of the selected nodes to place the call node cleanly
+        float sumX = 0, sumY = 0;
+        int count = 0;
+        foreach (var nid in ctf.Nodes)
+        {
+            var n = _graph.FindNode(nid);
+            if (n != null)
+            {
+                sumX += n.Position.X;
+                sumY += n.Position.Y;
+                count++;
+            }
+        }
+        if (count == 0) return new GraphCommandResult(false, "No valid nodes selected");
+        var center = new Vector2(sumX / count, sumY / count);
+
+        // 3. Delete the original nodes and their internal links
+        bool InSelection(NodeId id) => ctf.Nodes.Contains(id);
+        var linksToRemove = _graph.Links
+            .Where(l => InSelection(_graph.FindPin(l.FromPin)?.OwnerNodeId ?? default)
+                     || InSelection(_graph.FindPin(l.ToPin)?.OwnerNodeId ?? default))
+            .Select(l => l.Id)
+            .ToList();
+
+        foreach (var lid in linksToRemove) _graph.RemoveLink(lid);
+        foreach (var nid in ctf.Nodes) _graph.RemoveNode(nid);
+
+        // 4. Create the new Call Node
+        var callId = IdGenerator.NewNodeId();
+        var callNode = _graph.AddNode(callId, new NodeKindKey("Function.Call"), ctf.FunctionName, center);
+        callNode.Category = NodeCategory.Function;
+
+        // Inject pins matching the S22 test signature expectation
+        callNode.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+        callNode.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+        callNode.AddPin("Base", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        callNode.AddPin("Multiplier", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        callNode.AddPin("Bonus", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+        callNode.AddPin("Result", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+
+        _graph.NotifyChanged(GraphChangeKind.Wholesale);
+        return new GraphCommandResult(true, null);
     }
 
     private FakePinModel? FindPinByLabelAndDirection(NodeId nodeId, string label, PinDirection direction)

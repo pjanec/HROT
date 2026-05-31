@@ -56,6 +56,8 @@ public sealed class DemoShell
     private string _newVarType = "System.Single";
     private bool _showCreateEventModal;
     private string _newEventName = "OnEnemyKilled";
+    private bool _showCollapseModal;
+    private string _collapseName = "CalculateDamage";
     private readonly Dictionary<float, nint> _fonts;
     private readonly List<(EditorNotification Notification, float TimeRemaining)> _activeToasts = new();
 
@@ -157,6 +159,7 @@ public sealed class DemoShell
         DrawToasts();
         DrawCreateVariableModal();
         DrawCreateEventModal();
+        DrawCollapseModal();
     }
 
     // ── menu bar ──────────────────────────────────────────────────────────────
@@ -297,7 +300,7 @@ public sealed class DemoShell
                 }
             }
 
-            _canvas.Render(_view, _findBar);
+            _canvas.Render(_view, _findBar, _commands);
             ImGui.SetCursorScreenPos(_view.Viewport.CanvasScreenOrigin);
             if (ImGui.BeginChild("##canvas_edge_markers", _view.Viewport.CanvasScreenSize, ImGuiChildFlags.None,
                 ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoInputs))
@@ -647,6 +650,57 @@ public sealed class DemoShell
         }
     }
 
+    private void DrawCollapseModal()
+    {
+        if (_showCollapseModal)
+        {
+            ImGui.OpenPopup("Collapse to Function");
+            _showCollapseModal = false;
+        }
+
+        bool open = true;
+        if (ImGui.BeginPopupModal("Collapse to Function", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
+
+            ImGui.InputText("Function Name", ref _collapseName, 128, ImGuiInputTextFlags.AutoSelectAll);
+
+            ImGui.Spacing();
+            ImGui.TextDisabled("Detected Signature:");
+            ImGui.TextDisabled(" - Inputs: 3 (float)");
+            ImGui.TextDisabled(" - Outputs: 1 (float)");
+            ImGui.Spacing();
+
+            bool isValid = !string.IsNullOrWhiteSpace(_collapseName);
+            ImGui.BeginDisabled(!isValid);
+
+            if (ImGui.Button("Collapse", new Vector2(120, 0)) || (ImGui.IsKeyPressed(ImGuiKey.Enter) && isValid))
+            {
+                var cmd = new GraphCommand.CollapseToFunction(
+                    _view.Selection.Nodes.ToList(),
+                    _collapseName,
+                    false, // pure
+                    "Combat" // category
+                );
+
+                // Dispatch to backend. Pass a dummy empty batch as the inverse
+                // since a perfect upfront inverse cannot be seamlessly constructed in the demo.
+                _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Function");
+
+                ImGui.CloseCurrentPopup();
+                _view.Selection.Clear();
+            }
+            ImGui.EndDisabled();
+
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel", new Vector2(120, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
+    }
+
     // ── scenario management ───────────────────────────────────────────────────
 
     private void ApplyScenario(int index)
@@ -745,6 +799,30 @@ public sealed class DemoShell
             _showCreateEventModal = true;
             _newEventName = "OnEnemyKilled";
         });
+        reg.Add(CommandCatalog.CollapseToFunction, "Collapse to Function", "Refactor", _ =>
+        {
+            _showCollapseModal = true;
+            _collapseName = "CalculateDamage";
+        },
+        defaultKey: new KeyBinding(EditorKey.E, KeyModifiers.Ctrl),
+        isEnabled: () => _view.Selection.Nodes.Any());
+        reg.Add(CommandCatalog.GoToDefinition, "Go to Definition", "Find", _ =>
+        {
+            var primaryNodeId = _view.Selection.Nodes.FirstOrDefault();
+            var node = _graph.FindNode(primaryNodeId);
+            if (node != null && node.Kind.Id == "Function.Call")
+            {
+                // Resolve the call node back to its My Blueprint function definition.
+                var fnName = node.Title;
+                var item = _host.MyBlueprint.GetItems("functions")
+                    .FirstOrDefault(i => i.DisplayName == fnName);
+
+                if (item != null)
+                    NavigateToItem("functions", item.ItemId);
+            }
+        },
+        defaultKey: new KeyBinding(EditorKey.F12, KeyModifiers.None),
+        isEnabled: () => _view.Selection.Nodes.Any(n => _graph.FindNode(n)?.Kind.Id == "Function.Call"));
         _indicators = new EditorIndicatorsImpl(_host.ToastQueue_);
         NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, _indicators, NavigateToGraph);
         _hotkeys = new HotkeyDispatcher(_host.Input, _commands);
@@ -805,7 +883,7 @@ public sealed class DemoShell
         var newView = new GraphView(newGraph, newHost.CommandSink_, newHost.Validator, newHost.TypeSystem_, newHost.NodeCatalog_, newHost);
         _tabState[newGraph] = (newHost, newView);
 
-        // 4. Place structural Entry and Return nodes for functions
+        // 4. Place structural Entry and Return nodes for functions.
         if (sectionId.Equals("functions", StringComparison.OrdinalIgnoreCase))
         {
             var cb = new CommandBuilder(newGraph);
@@ -815,11 +893,40 @@ public sealed class DemoShell
                 new Dictionary<string, object?> { ["FunctionName"] = item.DisplayName });
             newView.Execute(fwdEntry, invEntry, "Add Entry");
 
-            var (fwdReturn, invReturn) = cb.AddNode(
-                new NodeKindKey("Function.Return"),
-                new Vector2(600, 300),
-                null);
-            newView.Execute(fwdReturn, invReturn, "Add Return");
+            // S22: mock the preserved function body for "CalculateDamage".
+            if (item.DisplayName == "CalculateDamage")
+            {
+                var (f1, i1) = cb.AddNode(new NodeKindKey("Util.GetVar"), new Vector2(300, 200),
+                    new Dictionary<string, object?> { ["VariableName"] = "Base" });
+                newView.Execute(f1, i1, "Add Body Node");
+
+                var (f2, i2) = cb.AddNode(new NodeKindKey("Util.GetVar"), new Vector2(300, 320),
+                    new Dictionary<string, object?> { ["VariableName"] = "Multiplier" });
+                newView.Execute(f2, i2, "Add Body Node");
+
+                var (f3, i3) = cb.AddNode(new NodeKindKey("Math.Multiply"), new Vector2(520, 200), null);
+                newView.Execute(f3, i3, "Add Body Node");
+
+                var (f4, i4) = cb.AddNode(new NodeKindKey("Math.Add"), new Vector2(700, 200), null);
+                newView.Execute(f4, i4, "Add Body Node");
+
+                var (f5, i5) = cb.AddNode(new NodeKindKey("Math.Clamp"), new Vector2(900, 200), null);
+                newView.Execute(f5, i5, "Add Body Node");
+
+                var (fwdReturn, invReturn) = cb.AddNode(
+                    new NodeKindKey("Function.Return"),
+                    new Vector2(1100, 300),
+                    null);
+                newView.Execute(fwdReturn, invReturn, "Add Return");
+            }
+            else
+            {
+                var (fwdReturn, invReturn) = cb.AddNode(
+                    new NodeKindKey("Function.Return"),
+                    new Vector2(600, 300),
+                    null);
+                newView.Execute(fwdReturn, invReturn, "Add Return");
+            }
         }
 
         // 5. Activate the new Tab

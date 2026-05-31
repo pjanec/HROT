@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Commands;
@@ -55,6 +56,7 @@ public sealed class CanvasRenderer
     private bool _showPromoteVariableModal;
     private string _promoteVariableName = "NewVariable";
     private string _promoteVariableCategoryPath = "";
+    private IEditorCommands? _editorCommands;
 
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
@@ -64,7 +66,7 @@ public sealed class CanvasRenderer
     /// <param name="view">The graph view to render.</param>
     public void Render(GraphView view)
     {
-        Render(view, findBar: null);
+        Render(view, findBar: null, commands: null);
     }
 
     /// <summary>
@@ -74,8 +76,10 @@ public sealed class CanvasRenderer
     /// </summary>
     /// <param name="view">The graph view to render.</param>
     /// <param name="findBar">Optional find bar; overlays are only drawn when <see cref="FindBar.IsVisible"/> is true.</param>
-    public void Render(GraphView view, FindBar? findBar)
+    /// <param name="commands">Optional command dispatcher used by context-menu actions.</param>
+    public void Render(GraphView view, FindBar? findBar, IEditorCommands? commands = null)
     {
+        _editorCommands = commands;
         // Draw find bar above the canvas
         findBar?.Draw();
 
@@ -650,6 +654,20 @@ public sealed class CanvasRenderer
                 // If right-clicking an unselected node, target just that node.
                 // If right-clicking a selected node, target the whole group.
                 var targetNodes = isHoveredSelected ? selectedNodes : new List<NodeId> { target.Node };
+                var node = view.Model.FindNode(target.Node);
+
+                bool canNavigate = node != null &&
+                                   (node.Kind.Id == "Function.Call" ||
+                                    node.Kind.Id == "Macro.Call" ||
+                                    node.Kind.Id == "Event.CallCustom");
+
+                if (ImGui.MenuItem("Go to Definition", "F12", false, canNavigate))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.GoToDefinition);
+                }
+
+                ImGui.Separator();
 
                 if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
                 {
