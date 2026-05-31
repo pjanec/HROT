@@ -41,6 +41,11 @@ public sealed record PinValueChanged(
 
 public readonly record struct NodeHistoryEntry(string NodeId, uint Tick, float SimTime);
 
+/// <summary>
+/// Represents a single peer-call frame on the active call stack (Editor DD §8.7).
+/// </summary>
+public readonly record struct CallFrame(string PeerAssetIdString, string MethodName, int Depth);
+
 // ---- Stub support types (filled in by DBG-002 through DBG-004) ------------
 
 public sealed record Breakpoint(
@@ -164,6 +169,12 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     // -- Inspection --
     BlueprintStateSnapshot? GetCurrentStateSnapshot();
     IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100);
+    /// <summary>
+    /// Returns the peer-call frame stack for the currently paused entity, ordered shallowest-first
+    /// (index 0 = outermost call, last = innermost). Returns an empty list when not paused or when
+    /// no call stack has been recorded for the paused entity. (Editor DD §8.7)
+    /// </summary>
+    IReadOnlyList<CallFrame> GetCurrentCallStack();
 
     // -- Map registration --
     void RegisterDebugMap(DebugMap map);

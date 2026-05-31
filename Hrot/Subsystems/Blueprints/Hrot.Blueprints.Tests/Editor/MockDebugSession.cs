@@ -62,6 +62,7 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
 
     public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100) => Array.Empty<NodeExecuted>();
+    public IReadOnlyList<CallFrame> GetCurrentCallStack() => Array.Empty<CallFrame>();
 
     // ---- IBlueprintDebugSession -- map registration ------------------------
 

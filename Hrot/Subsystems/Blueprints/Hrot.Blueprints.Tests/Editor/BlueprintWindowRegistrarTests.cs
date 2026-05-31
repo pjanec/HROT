@@ -1,3 +1,5 @@
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Debug;
@@ -72,5 +74,32 @@ public sealed class BlueprintWindowRegistrarTests
 
         foreach (var name in expected)
             Assert.Contains(name, registry.RegisteredNames);
+    }
+
+    // FIX2-005: engine IWindowRegistrar path must register all 7 windows in WindowManager.
+    [Fact]
+    public void BlueprintWindowRegistrar_RegistersAllSevenWindows_ViaEngineInterface()
+    {
+        var registrar       = MakeRegistrar();
+        var engineRegistrar = (Fdp.Toolkit.Runner.IWindowRegistrar)registrar;
+        var atlas           = new IconAtlas(IntPtr.Zero, 16f, 16f);
+        var wm              = new WindowManager(atlas);
+
+        engineRegistrar.RegisterWindows(wm);
+
+        var expected = new[]
+        {
+            "Asset Browser",
+            "Graph Editor",
+            "Inspector",
+            "Debug Panel",
+            "Watch Panel",
+            "Callstack",
+            "Hot Reload Log",
+        };
+
+        foreach (var name in expected)
+            Assert.True(wm.TryGetWindow(name, out _),
+                $"Expected window '{name}' to be registered in WindowManager.");
     }
 }

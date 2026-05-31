@@ -1,15 +1,18 @@
+using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.Inspector;
 using Hrot.Blueprints.Editor.Reload;
+using EngineWindowRegistrar = Fdp.Toolkit.Runner.IWindowRegistrar;
 
 namespace Hrot.Blueprints.Editor;
 
 /// <summary>
 /// Registers all Blueprint editor windows with the supplied <see cref="IBlueprintWindowRegistry"/>.
-/// Call <see cref="RegisterWindows"/> from the editor bootstrap / DI composition root.
+/// Also implements the engine <see cref="Fdp.Toolkit.Runner.IWindowRegistrar"/> interface so the
+/// subsystem orchestrator can register blueprint windows into the application <see cref="WindowManager"/>.
 /// </summary>
-public sealed class BlueprintWindowRegistrar
+public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
 {
     private readonly IAssetCatalog _catalog;
     private readonly EditorSelectionStore _selectionStore;
@@ -71,5 +74,27 @@ public sealed class BlueprintWindowRegistrar
 
         registry.Register("Hot Reload Log",
             () => new HotReloadLogWindow(_coordinator));
+    }
+
+    // ---- Fdp.Toolkit.Runner.IWindowRegistrar --------------------------------
+
+    /// <summary>
+    /// Engine interface entry point. Creates a <see cref="BlueprintManagedWindowAdapter"/> for
+    /// each blueprint window and registers it with the application <see cref="WindowManager"/>.
+    /// </summary>
+    void EngineWindowRegistrar.RegisterWindows(WindowManager wm)
+    {
+        if (wm is null) throw new ArgumentNullException(nameof(wm));
+        RegisterWindows(new WindowManagerRegistry(wm));
+    }
+
+    // Bridges IBlueprintWindowRegistry to the engine WindowManager.
+    private sealed class WindowManagerRegistry : IBlueprintWindowRegistry
+    {
+        private readonly WindowManager _wm;
+        public WindowManagerRegistry(WindowManager wm) => _wm = wm;
+
+        public void Register(string name, Func<IBlueprintEditorWindow> factory)
+            => _wm.RegisterWindow(new BlueprintManagedWindowAdapter(name, factory));
     }
 }

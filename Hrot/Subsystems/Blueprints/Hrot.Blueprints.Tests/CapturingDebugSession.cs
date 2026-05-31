@@ -86,6 +86,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
         => throw new NotImplementedException();
+    public IReadOnlyList<CallFrame> GetCurrentCallStack() => Array.Empty<CallFrame>();
 
     // ---- IBlueprintDebugSession -- events -----------------------------------
 

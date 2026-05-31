@@ -39,8 +39,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // Per-entity execution history ring-buffers.
     private readonly Dictionary<Entity, ExecutionHistory> _history = new();
 
-    // Per-entity call depth counter for step semantics.
+    // Per-entity active call depth counter for step semantics.
     private readonly Dictionary<Entity, int> _currentCallDepth = new();
+
+    // Per-entity call frame stack for GetCurrentCallStack() (Editor DD §8.7).
+    private readonly Dictionary<Entity, List<CallFrame>> _callStacks = new();
 
     // Per-asset active entity tracking (entities with call depth > 0).
     private readonly Dictionary<Guid, HashSet<Entity>> _activeEntities = new();
@@ -190,6 +193,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 _activeEntities[assetId] = set = new HashSet<Entity>();
             set.Add(self);
         }
+
+        if (!_callStacks.TryGetValue(self, out var stack))
+            _callStacks[self] = stack = new List<CallFrame>();
+        stack.Add(new CallFrame(peerAssetIdString, methodName, prevDepth));
     }
 
     // BPF-004: peerAssetIdString is a Guid in "D" format.
@@ -203,6 +210,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             foreach (var set in _activeEntities.Values)
                 set.Remove(self);
         }
+
+        if (_callStacks.TryGetValue(self, out var stack) && stack.Count > 0)
+            stack.RemoveAt(stack.Count - 1);
     }
 
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
@@ -230,6 +240,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _activeEntities.Clear();
         _history.Clear();
         _currentCallDepth.Clear();
+        _callStacks.Clear();
         _debugMaps.Clear();
         _pdbLocators.Clear();
         OnSessionStateChanged?.Invoke();
@@ -590,6 +601,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (all.Count > maxCount)
             all.Sort((a, b) => b.Tick.CompareTo(a.Tick));
         return all.Count <= maxCount ? all.AsReadOnly() : all.Take(maxCount).ToList().AsReadOnly();
+    }
+
+    public IReadOnlyList<CallFrame> GetCurrentCallStack()
+    {
+        // Return the call stack for the currently paused entity (Editor DD §8.7).
+        if (_pausedOnEntity.HasValue &&
+            _callStacks.TryGetValue(_pausedOnEntity.Value, out var stack) &&
+            stack.Count > 0)
+        {
+            return stack.AsReadOnly();
+        }
+        return Array.Empty<CallFrame>();
     }
 
     public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)

@@ -13,6 +13,13 @@ public static class BlueprintEditorServiceCollectionExtensions
         services.AddSingleton<EditorSelectionStore>();
         services.AddSingleton<EditorState>();
         services.AddSingleton<IAssetCatalog>(_ => new FileSystemAssetCatalog(assetRootDirectory));
+
+        // Register BlueprintWindowRegistrar as both its concrete type and the engine IWindowRegistrar
+        // so the subsystem orchestrator can call RegisterWindows(WindowManager) to wire the panels.
+        services.AddSingleton<BlueprintWindowRegistrar>();
+        services.AddSingleton<Fdp.Toolkit.Runner.IWindowRegistrar>(
+            sp => sp.GetRequiredService<BlueprintWindowRegistrar>());
+
         services.AddSingleton<BlueprintEditorModule>(sp =>
             new BlueprintEditorModule(
                 sp.GetRequiredService<IWindowRegistrar>(),
