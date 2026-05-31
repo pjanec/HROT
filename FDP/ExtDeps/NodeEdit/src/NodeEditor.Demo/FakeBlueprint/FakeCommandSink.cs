@@ -260,6 +260,49 @@ public sealed class FakeCommandSink : IGraphCommandSink
             node.AddPin("Completed", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
             return;
         }
+        else if (add.Kind.Id == "Event.CallDispatcher")
+        {
+            node.Category = NodeCategory.Event;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("DispatcherName", out var dName))
+                node.Title = $"Call {dName}";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("NewValue", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+            return;
+        }
+        else if (add.Kind.Id == "Event.BindDispatcher")
+        {
+            node.Category = NodeCategory.Custom;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("DispatcherName", out var dName))
+                node.Title = $"Bind Event to {dName}";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Event", PinDirection.Input, PinKind.Data, new TypeKey("System.Object"), PinShape.Square);
+            return;
+        }
+        else if (add.Kind.Id == "Event.UnbindDispatcher")
+        {
+            node.Category = NodeCategory.Custom;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("DispatcherName", out var dName))
+                node.Title = $"Unbind Event from {dName}";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Event", PinDirection.Input, PinKind.Data, new TypeKey("System.Object"), PinShape.Square);
+            return;
+        }
+        else if (add.Kind.Id == "Event.UnbindAllDispatcher")
+        {
+            node.Category = NodeCategory.Custom;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("DispatcherName", out var dName))
+                node.Title = $"Unbind All Events from {dName}";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            return;
+        }
 
         if (entry is not null)
         {

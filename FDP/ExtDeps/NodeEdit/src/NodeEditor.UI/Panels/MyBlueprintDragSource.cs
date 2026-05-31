@@ -80,7 +80,7 @@ public static class MyBlueprintDragSource
         "functions"         => Function,
         "macros"            => Macro,
         "customevents"      => CustomEvent,
-        "eventdispatchers"  => EventDispatcher,
+        "dispatchers"       => EventDispatcher,
         "graphs"            => GraphEntry,
         _                   => Variable,
     };

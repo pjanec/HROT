@@ -179,6 +179,22 @@ public sealed class CanvasRenderer
                     view.Execute(fwd, inv, "Call Macro");
                 }
             }
+
+            var dispPayload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.EventDispatcher);
+            unsafe
+            {
+                if (dispPayload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var dispId = MyBlueprintDragSource.CurrentItemId;
+                    var dispName = MyBlueprintDragSource.CurrentDisplayName ?? dispId;
+
+                    // Reuse pending drop fields to pass data to the dispatcher popup.
+                    _pendingVariableDropId = dispId;
+                    _pendingVariableDropName = dispName;
+                    _pendingVariableDropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+                    ImGui.OpenPopup("##canvas_drop_dispatcher");
+                }
+            }
             ImGui.EndDragDropTarget();
         }
         bool isCanvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
@@ -297,7 +313,8 @@ public sealed class CanvasRenderer
             _showPromoteVariableModal = false;
         }
 
-        if (ImGui.BeginPopup("##canvas_drop_var"))
+        bool varPopupOpen = ImGui.BeginPopup("##canvas_drop_var");
+        if (varPopupOpen)
         {
             ImGui.TextDisabled("Variable Action");
             ImGui.Separator();
@@ -315,7 +332,40 @@ public sealed class CanvasRenderer
             }
             ImGui.EndPopup();
         }
-        else
+
+        bool dispPopupOpen = ImGui.BeginPopup("##canvas_drop_dispatcher");
+        if (dispPopupOpen)
+        {
+            ImGui.TextDisabled("Dispatcher Action");
+            ImGui.Separator();
+            if (ImGui.MenuItem("Call"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.CallDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Bind"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.BindDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Unbind"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Unbind All"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindAllDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            ImGui.EndPopup();
+        }
+
+        if (!varPopupOpen && !dispPopupOpen)
         {
             _pendingVariableDropId = null;
             _pendingVariableDropName = null;
@@ -332,6 +382,15 @@ public sealed class CanvasRenderer
         var cb = new CommandBuilder(view.Model);
         var (fwd, inv) = cb.AddNode(kind, graphPos, props);
         view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
+    }
+
+    private void PlaceDispatcherNode(GraphView view, string dispatcherId, string dispatcherName, Vector2 graphPos, string kindId)
+    {
+        var kind = new NodeKindKey(kindId);
+        var props = new Dictionary<string, object?> { ["DispatcherId"] = dispatcherId, ["DispatcherName"] = dispatcherName };
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, graphPos, props);
+        view.Execute(fwd, inv, $"Add {kindId.Split('.').Last()}");
     }
 
     // Invokes active custom renderers for the given pass, in registration order.
