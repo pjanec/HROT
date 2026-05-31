@@ -409,6 +409,70 @@ public sealed class CanvasRenderer
         var target = view.Interaction.ContextMenuTarget;
         switch (target.Kind)
         {
+            case HoverKind.None:
+            {
+                if (ImGui.MenuItem("Add Node...", "Tab"))
+                {
+                    view.Interaction.Mode = InteractionMode.PickerOpen;
+                    var graphPos = _contextMenuGraphPos;
+                    view.Host.Pickers.Open(
+                        "nodes.all",
+                        ImGui.GetMousePos(),
+                        pick =>
+                        {
+                            if (pick is NodeCatalogEntry entry)
+                            {
+                                var cb = new CommandBuilder(view.Model);
+                                var (fwd, inv) = cb.AddNode(entry.Kind, graphPos, null);
+                                view.Execute(fwd, inv, "Add Node");
+                            }
+                            view.Interaction.ResetToIdle();
+                        },
+                        () => view.Interaction.ResetToIdle());
+                }
+
+                if (ImGui.MenuItem("Add Return Node"))
+                {
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.AddNode(new NodeKindKey("Function.Return"), _contextMenuGraphPos, null);
+                    view.Execute(fwd, inv, "Add Return");
+                }
+
+                bool hasSelection = view.Selection.Nodes.Any();
+                if (ImGui.MenuItem("Add Comment", "C", false, hasSelection))
+                {
+                    CanvasCommands.AddCommentAroundSelection(view);
+                }
+
+                ImGui.Separator();
+                ImGui.MenuItem("Paste", "Ctrl+V", false, false);
+                ImGui.Separator();
+
+                if (ImGui.MenuItem("Frame All", "Home"))
+                {
+                    if (view.Model.Nodes.Count > 0)
+                    {
+                        float minX = float.MaxValue, minY = float.MaxValue;
+                        float maxX = float.MinValue, maxY = float.MinValue;
+                        foreach (var n in view.Model.Nodes)
+                        {
+                            var size = n.SizeOverride ?? new Vector2(160, 64);
+                            if (n.Position.X < minX) minX = n.Position.X;
+                            if (n.Position.Y < minY) minY = n.Position.Y;
+                            if (n.Position.X + size.X > maxX) maxX = n.Position.X + size.X;
+                            if (n.Position.Y + size.Y > maxY) maxY = n.Position.Y + size.Y;
+                        }
+                        view.Viewport.FrameRect(new RectF(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY)));
+                    }
+                }
+
+                if (ImGui.MenuItem("Reset Zoom", "Ctrl+0"))
+                {
+                    view.Viewport.Reset();
+                }
+                break;
+            }
+
             case HoverKind.Pin:
             {
                 var pinId = target.Pin;
