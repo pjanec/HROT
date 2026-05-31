@@ -174,6 +174,28 @@ namespace Hrot.SimHost.Systems
                 }
             }
 
+            // Phase skip-guard: avoid re-generating candidates on the same tick that raycasts were
+            // submitted, and reset to Idle on subsequent ticks so the next EQS cycle picks up the
+            // ring-buffer results.  A pure early-return (no reset) would strand the sensor in
+            // _AwaitingRaycasts indefinitely because nothing else resets the phase.
+            if (evalState.Phase == EqsEvalPhase._AwaitingRaycasts)
+            {
+                if (evalState.AwaitingSinceTick == _currentTick)
+                {
+                    // Same tick as submission -- state already saved, just skip.
+                    return;
+                }
+
+                // Subsequent tick: reset to Idle so the full pipeline re-runs and reads
+                // ring-buffer results that arrived since the original submission.
+                evalState.Phase = EqsEvalPhase.Idle;
+                if (repo.HasComponent<SensorEvalState>(entity))
+                    _currentCmd.SetComponent(entity, evalState);
+                else
+                    _currentCmd.AddComponent(entity, evalState);
+                return;
+            }
+
             // 1. Generation.
             Span<EqsResult> candidates = stackalloc EqsResult[template.MaxCandidates];
             int count = template.Generator.Generate(entity, ref Unsafe.AsRef(in sensor), repo, candidates);

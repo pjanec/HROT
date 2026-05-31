@@ -308,4 +308,91 @@ public sealed class ComparisonAnnotationRendererTests
 
         Assert.Empty(renderer.LastFrameAnnotations);
     }
+
+    // ---- OFX-008: Dashed stroke helper computation ---------------------------
+
+    [Fact]
+    public void ComputeDashParams_AtNativeZoom_ReturnBaseValues()
+    {
+        // At zoom=1 the dash and gap sizes should match the design constants.
+        ComparisonAnnotationRenderer.ComputeDashParams(1.0f, out float dashPx, out float gapPx);
+
+        Assert.Equal(6f, dashPx, precision: 5);
+        Assert.Equal(4f, gapPx,  precision: 5);
+    }
+
+    [Fact]
+    public void ComputeDashParams_DoubleZoom_HalvesDashAndGap()
+    {
+        // At zoom=2 the dash and gap are halved (inverse-zoom-stable: same apparent size).
+        ComparisonAnnotationRenderer.ComputeDashParams(2.0f, out float dashPx, out float gapPx);
+
+        Assert.Equal(3f, dashPx, precision: 5);
+        Assert.Equal(2f, gapPx,  precision: 5);
+    }
+
+    [Fact]
+    public void ComputeDashParams_HalfZoom_DoublesDashAndGap()
+    {
+        // At zoom=0.5 the dash and gap are doubled.
+        ComparisonAnnotationRenderer.ComputeDashParams(0.5f, out float dashPx, out float gapPx);
+
+        Assert.Equal(12f, dashPx, precision: 5);
+        Assert.Equal(8f,  gapPx,  precision: 5);
+    }
+
+    // ---- OFX-020: EdgeMidpoint geometric midpoint ---------------------------
+
+    [Fact]
+    public void ComputeEdgeMidpointScreenPos_TwoKnownNodes_ReturnsMidpoint()
+    {
+        // With default ViewportState (Pan=Zero, Zoom=1, CanvasScreenOrigin=Zero),
+        // GraphToScreen(p) == p.  So screen midpoint == graph midpoint.
+        var guidA = Guid.NewGuid();
+        var guidB = Guid.NewGuid();
+
+        var graph = new StubGraphAR();
+        var nodeA = new StubNodeAR(new NodeId(guidA));
+        var nodeB = new StubNodeAR(new NodeId(guidB));
+        nodeA.Position = new Vector2(100f, 100f);
+        nodeB.Position = new Vector2(200f, 200f);
+        graph.Add(nodeA);
+        graph.Add(nodeB);
+
+        var ctx       = new StubRenderCtxAR(graph);
+        var elementId = $"{guidA}->{guidB}";
+
+        Vector2? midPoint = ComparisonAnnotationRenderer.ComputeEdgeMidpointScreenPos(ctx, elementId);
+
+        Assert.NotNull(midPoint);
+        Assert.Equal(150f, midPoint!.Value.X, precision: 4);
+        Assert.Equal(150f, midPoint!.Value.Y, precision: 4);
+    }
+
+    [Fact]
+    public void ComputeEdgeMidpointScreenPos_MissingNode_ReturnsNull()
+    {
+        var guidA   = Guid.NewGuid();
+        var guidB   = Guid.NewGuid(); // not in graph
+
+        var graph = new StubGraphAR();
+        graph.Add(new StubNodeAR(new NodeId(guidA)));
+
+        var ctx       = new StubRenderCtxAR(graph);
+        var elementId = $"{guidA}->{guidB}";
+
+        Vector2? midPoint = ComparisonAnnotationRenderer.ComputeEdgeMidpointScreenPos(ctx, elementId);
+
+        Assert.Null(midPoint);
+    }
+
+    [Fact]
+    public void ComputeEdgeMidpointScreenPos_MalformedElementId_ReturnsNull()
+    {
+        var ctx = new StubRenderCtxAR(new StubGraphAR());
+
+        Vector2? midPoint = ComparisonAnnotationRenderer.ComputeEdgeMidpointScreenPos(ctx, "not-an-edge");
+
+        Assert.Null(midPoint);
+    }
 }

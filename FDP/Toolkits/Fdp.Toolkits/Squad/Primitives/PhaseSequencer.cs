@@ -100,7 +100,10 @@ namespace Fdp.Toolkit.Squad.Primitives
             }
 
             // Then check dwell timeout.
-            if (currentTick - state.PhaseEnteredTick >= dwellTimeoutTicks)
+            // 0 means "never timeout" (configures a phase that only exits via events).
+            if (dwellTimeoutTicks == 0) return false;
+            // Strict > to avoid off-by-one: the phase is still current at exactly the dwell boundary.
+            if (currentTick - state.PhaseEnteredTick > dwellTimeoutTicks)
             {
                 state.PhaseId          = recoveryPhaseId;
                 state.PhaseEnteredTick = currentTick;

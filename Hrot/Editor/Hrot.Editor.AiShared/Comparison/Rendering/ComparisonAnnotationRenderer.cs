@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -185,18 +186,104 @@ public sealed class ComparisonAnnotationRenderer : ICustomCanvasRenderer
 
     // ---- Draw helpers -------------------------------------------------------
 
+    private const float DashBaseLength = 6f;
+    private const float GapBaseLength  = 4f;
+
+    /// <summary>
+    /// Computes inverse-zoom-stable dash and gap sizes for the annotation outline.
+    /// Exposed internal for unit testing.
+    /// </summary>
+    /// <param name="zoomLevel">Current canvas zoom level (1.0 = native).</param>
+    /// <param name="dashPx">Dash length in screen pixels.</param>
+    /// <param name="gapPx">Gap length in screen pixels.</param>
+    internal static void ComputeDashParams(float zoomLevel, out float dashPx, out float gapPx)
+    {
+        float invZoom = 1f / zoomLevel;
+        dashPx = DashBaseLength * invZoom;
+        gapPx  = GapBaseLength  * invZoom;
+    }
+
+    /// <summary>
+    /// Draws a dashed rectangular outline by walking all 4 sides and emitting
+    /// <c>AddLine</c> segments for each dash period.
+    /// </summary>
+    private static void DrawDashedRect(
+        ImDrawListPtr dl,
+        Vector2 min,
+        Vector2 max,
+        uint color,
+        float thickness,
+        float dashPx,
+        float gapPx)
+    {
+        Vector2[] corners =
+        {
+            min,
+            new Vector2(max.X, min.Y),
+            max,
+            new Vector2(min.X, max.Y),
+        };
+
+        float period = dashPx + gapPx;
+        for (int side = 0; side < 4; side++)
+        {
+            Vector2 a   = corners[side];
+            Vector2 b   = corners[(side + 1) % 4];
+            float   len = Vector2.Distance(a, b);
+            if (len <= 0f) continue;
+            Vector2 dir = (b - a) / len;
+
+            float t = 0f;
+            while (t < len)
+            {
+                float dashEnd = MathF.Min(t + dashPx, len);
+                dl.AddLine(a + dir * t, a + dir * dashEnd, color, thickness);
+                t += period;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Computes the screen-space midpoint between the two nodes identified by
+    /// <paramref name="elementId"/> (format: "nodeAId-&gt;nodeBId").
+    /// Returns null if either node is not found or the ID format is invalid.
+    /// Exposed internal for unit testing.
+    /// </summary>
+    internal static Vector2? ComputeEdgeMidpointScreenPos(ICanvasRenderContext ctx, string elementId)
+    {
+        var sep = elementId.IndexOf("->", StringComparison.Ordinal);
+        if (sep < 0) return null;
+        var nodeA = TryFindNode(ctx, elementId[..sep].Trim());
+        var nodeB = TryFindNode(ctx, elementId[(sep + 2)..].Trim());
+        if (nodeA == null || nodeB == null) return null;
+        var posA = ctx.Viewport.GraphToScreen(nodeA.Position);
+        var posB = ctx.Viewport.GraphToScreen(nodeB.Position);
+        return (posA + posB) / 2f;
+    }
+
     private static void DrawAnnotation(ImDrawListPtr dl, ICanvasRenderContext ctx, AnnotationRecord record)
     {
+        if (record.Placement == AnnotationPlacement.EdgeMidpoint)
+        {
+            // Badge floats at the geometric midpoint of the edge; no bounding-box outline.
+            var midPos = ComputeEdgeMidpointScreenPos(ctx, record.ElementId);
+            if (midPos == null) return;
+            var edgeBadgePos = new Vector2(midPos.Value.X - 8f, midPos.Value.Y - 8f);
+            dl.AddText(edgeBadgePos, ImGui.GetColorU32(record.Color), record.Glyph);
+            return;
+        }
+
         INodeModel? node = ResolveDrawNode(ctx, record);
         if (node == null) return;
 
         var screenPos = ctx.Viewport.GraphToScreen(node.Position);
         var size = node.SizeOverride ?? new Vector2(120f, 40f);
 
-        // Dashed 2px outline, 3px outside the node bounding box.
+        // Dashed 2px outline, 3px outside the node bounding box (design section 6.4).
         var outlineMin = screenPos - new Vector2(3f, 3f);
         var outlineMax = screenPos + size + new Vector2(3f, 3f);
-        dl.AddRect(outlineMin, outlineMax, ImGui.GetColorU32(record.Color), 0f, ImDrawFlags.None, 2f);
+        ComputeDashParams(ctx.Viewport.Zoom, out float dashPx, out float gapPx);
+        DrawDashedRect(dl, outlineMin, outlineMax, ImGui.GetColorU32(record.Color), 2f, dashPx, gapPx);
 
         // Glyph badge at upper-right corner.
         var badgePos = new Vector2(outlineMax.X - 16f, outlineMin.Y + 2f);
@@ -205,14 +292,6 @@ public sealed class ComparisonAnnotationRenderer : ICustomCanvasRenderer
 
     private static INodeModel? ResolveDrawNode(ICanvasRenderContext ctx, AnnotationRecord record)
     {
-        if (record.Placement == AnnotationPlacement.EdgeMidpoint)
-        {
-            // Draw at the first endpoint for midpoint annotations.
-            var sep = record.ElementId.IndexOf("->", StringComparison.Ordinal);
-            if (sep < 0) return null;
-            return TryFindNode(ctx, record.ElementId[..sep].Trim());
-        }
-
         if (record.Placement == AnnotationPlacement.SurvivingEndpoint &&
             record.ElementId.Contains("->"))
         {

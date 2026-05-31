@@ -25,7 +25,7 @@ namespace Hrot.Network.NED.CGF
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
-        private readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
+        internal readonly Dictionary<(long ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsResult;
@@ -51,7 +51,14 @@ namespace Hrot.Network.NED.CGF
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
-                if (!sample.IsValid) continue;
+                if (!sample.IsValid)
+                {
+                    // NotAliveDisposed: evict the stale cache entry so the next live sample
+                    // triggers a fresh entity scan rather than resolving to a dead entity.
+                    var keyData         = DdsTypeSupport.FromNative<EqsResultTopic>(sample.NativePtr);
+                    RemoveCacheEntry(keyData.ParentNetworkId, keyData.LocalChildIndex);
+                    continue;
+                }
 
                 ReceivedSampleCount++;
                 var data = sample.Data;
@@ -110,6 +117,15 @@ namespace Hrot.Network.NED.CGF
 
         /// <inheritdoc/>
         public void Dispose(long networkEntityId) { }
+
+        // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
+
+        /// <summary>
+        /// Removes a cache entry for the given composite key.
+        /// Called when a NotAliveDisposed DDS sample is received.
+        /// </summary>
+        internal void RemoveCacheEntry(long parentNetworkId, int localChildIndex)
+            => _childEntityCache.Remove((parentNetworkId, localChildIndex));
     }
 }
 

@@ -57,6 +57,8 @@ namespace Fdp.Toolkit.Squad.Primitives
             GreedyMatrixAssigner.Assign(scoreMatrix, memberCount, candidates.Length, maxFocusFire: 1, assignments);
 
             var rolesSpan = RolesSpan(ref state);
+            // Clear all slots first so unassigned members get RoleId=0, not a stale previous value.
+            rolesSpan.Slice(0, memberCount).Clear();
             for (int i = 0; i < memberCount; i++)
             {
                 if (assignments[i] >= 0)

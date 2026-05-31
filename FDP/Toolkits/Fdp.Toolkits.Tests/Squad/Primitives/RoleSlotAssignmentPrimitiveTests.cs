@@ -93,5 +93,39 @@ namespace Fdp.Toolkit.Squad.Primitives.Tests
             var roles = RolesReadOnly(ref state);
             Assert.Equal(7, roles[0].RoleId);
         }
+
+        // ── OFX-013: Stale role slots must be cleared before greedy assignment ───
+
+        [Fact]
+        public void AssignRoles_UnassignableMember_RoleIdClearedToZero()
+        {
+            // 2 members, 1 candidate.
+            // Member 0 scores 0.8 -> gets RoleId 5.
+            // Member 1 scores 0.0 -> unassignable (GreedyMatrixAssigner requires > 0).
+            // Member 1's slot is pre-filled with a stale RoleId=7 from a previous phase.
+            // After AssignRoles the stale value must be cleared to 0.
+            SquadCognitiveState state = default;
+
+            // Pre-seed stale role on member 1.
+            var roleSpan = MemoryMarshal.CreateSpan<RoleSlot>(
+                ref Unsafe.As<RoleAssignmentArray, RoleSlot>(ref state.Roles), 16);
+            roleSpan[1].RoleId = 7;
+
+            var candidates = new RoleSlotCandidate[]
+            {
+                new RoleSlotCandidate { RoleId = 5 },
+            };
+            var scoreMatrix = new float[]
+            {
+                0.8f,  // member 0 -> assignable
+                0.0f,  // member 1 -> unassignable (score not > 0)
+            };
+
+            RoleSlotAssignmentPrimitive.AssignRoles(ref state, candidates, scoreMatrix, memberCount: 2);
+
+            var roles = RolesReadOnly(ref state);
+            Assert.Equal(5, roles[0].RoleId);
+            Assert.Equal(0, roles[1].RoleId); // stale value cleared, not left as 7
+        }
     }
 }

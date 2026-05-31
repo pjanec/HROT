@@ -226,5 +226,39 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
 
             Assert.True(contacts[0].ThreatScore >= 5.0f, $"Top contact score {contacts[0].ThreatScore} < 5.0f");
         }
+
+        // ── OFX-007: Newer lower-threat sighting must update position ────────────
+
+        [Fact]
+        public void MergeContact_NewerLowerThreat_UpdatesPosition()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+
+            // Member 0: older sighting with higher threat score.
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.AddOrUpdateTarget(ref mem0, 100L, 1f, 2f, 0.9f, tick: 10, posZ: 3f);
+
+            // Member 1: newer sighting with lower threat score.
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.AddOrUpdateTarget(ref mem1, 100L, 5f, 6f, 0.3f, tick: 20, posZ: 7f);
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(
+                repo, commander, currentTick: 25, mergeIntervalTicks: 1);
+
+            ref var state = ref GetState(commander);
+            Assert.Equal(1, state.Contacts.Count);
+
+            int idx = FindContactIndex(commander, 100L);
+            Assert.True(idx >= 0, "Contact 100 not found");
+
+            ref var contact = ref GetContact(commander, idx);
+            Assert.Equal(0.9f, contact.ThreatScore, precision: 5);
+            Assert.Equal(20u, contact.LastSeenTick);
+            // Position must come from the newer tick-20 sighting (member 1), not the
+            // older higher-threat tick-10 sighting (member 0).
+            Assert.Equal(5f, contact.PositionX, precision: 5);
+            Assert.Equal(6f, contact.PositionY, precision: 5);
+            Assert.Equal(7f, contact.PositionZ, precision: 5);
+        }
     }
 }

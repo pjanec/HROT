@@ -123,5 +123,46 @@ namespace My.Templates
 
             Assert.Contains(diagnostics, d => d.Id == "EQS_001");
         }
+
+        // T-EPA4 (OFX-016): EQS_002 diagnostic location must be at the impure identifier
+        // in the method body, not at the method declaration.
+        [Fact]
+        public void PurityAnalyzer_EQS002_ReportsLocationAtImpureIdentifier_NotMethodDeclaration()
+        {
+            const string userSource = @"
+using Fdp.Toolkit.Spatial.Eqs;
+namespace My.Templates
+{
+    [EqsTemplate(""some-guid"")]
+    public class MyTemplate
+    {
+        private static int _hitCache;
+
+        public static EqsQueryTemplate Build(IEqsTemplateBuilder b)
+        {
+            var x = _hitCache;
+            return default;
+        }
+    }
+}
+";
+            // Build the same combined source that RunAnalyzer uses, then get the syntax
+            // tree so we can extract the text at the diagnostic's reported span.
+            string combined  = userSource + "\n" + CommonStubs;
+            var syntaxTree   = CSharpSyntaxTree.ParseText(combined);
+            var sourceText   = syntaxTree.GetText().ToString();
+
+            var diagnostics = RunAnalyzer(userSource);
+
+            var eqs002 = diagnostics.FirstOrDefault(d => d.Id == "EQS_002");
+            Assert.NotNull(eqs002);
+
+            // Extract the source text at the diagnostic's span.
+            var span           = eqs002.Location.SourceSpan;
+            var identifierText = sourceText.Substring(span.Start, span.Length);
+
+            // With the fix the location points to the impure identifier, not to "Build".
+            Assert.Equal("_hitCache", identifierText);
+        }
     }
 }

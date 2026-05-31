@@ -129,18 +129,21 @@ namespace Fdp.Toolkit.Squad.Systems
             {
                 if (span[i].EntityId != entityId) continue;
 
-                // Found: update with max threat score and position, OR modalities and mask.
+                // Found: update max threat score; update position/lastSeenTick independently.
                 if (threatScore > span[i].ThreatScore)
                 {
                     span[i].ThreatScore = threatScore;
+                }
+                span[i].SourceMembersMask = (ushort)(span[i].SourceMembersMask | sourceMemberBit);
+                span[i].Flags             = (ushort)(span[i].Flags | modalities);
+                // Position is pinned to the most-recent sighting, independent of threat score.
+                if (lastSeenTick > span[i].LastSeenTick)
+                {
+                    span[i].LastSeenTick = lastSeenTick;
                     span[i].PositionX   = posX;
                     span[i].PositionY   = posY;
                     span[i].PositionZ   = posZ;
                 }
-                span[i].SourceMembersMask = (ushort)(span[i].SourceMembersMask | sourceMemberBit);
-                span[i].Flags             = (ushort)(span[i].Flags | modalities);
-                if (lastSeenTick > span[i].LastSeenTick)
-                    span[i].LastSeenTick = lastSeenTick;
                 return;
             }
 

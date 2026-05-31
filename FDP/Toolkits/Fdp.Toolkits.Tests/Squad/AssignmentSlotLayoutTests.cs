@@ -30,10 +30,12 @@ namespace Fdp.Toolkit.Squad.Tests
             arr.GetSlot(3).AssignedTargetHandle = unchecked((long)0xDEADBEEF_CAFEBABE);
             arr.GetSlot(3).AssignmentScore      = 0.75f;
             arr.GetSlot(3).FocusFireCount       = 2;
+            arr.GetSlot(3).Flags                = 0x05;
 
             Assert.Equal(unchecked((long)0xDEADBEEF_CAFEBABE), arr.GetSlot(3).AssignedTargetHandle);
             Assert.Equal(0.75f, arr.GetSlot(3).AssignmentScore);
             Assert.Equal(2, arr.GetSlot(3).FocusFireCount);
+            Assert.Equal(0x05, arr.GetSlot(3).Flags);
         }
     }
 }

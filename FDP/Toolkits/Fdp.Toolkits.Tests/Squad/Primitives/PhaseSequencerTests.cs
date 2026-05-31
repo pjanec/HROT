@@ -77,5 +77,62 @@ namespace Fdp.Toolkit.Squad.Primitives.Tests
             // VetoDetected must dominate — recovery phase wins.
             Assert.Equal(99, state.PhaseId);
         }
+
+        // ── OFX-014: Off-by-one and zero-guard fixes ─────────────────────────────
+
+        [Fact]
+        public void Advance_AtExactDwellTick_DoesNotAdvance()
+        {
+            // Phase entered at tick 0; dwell = 100. At tick 100 the phase is still
+            // current (strict > comparison, not >=).
+            SquadCognitiveState state = default;
+            state.PhaseId          = 0;
+            state.PhaseEnteredTick = 0;
+
+            var table  = ReadOnlySpan<PhaseTransitionEntry>.Empty;
+            var events = ReadOnlySpan<PhaseEvent>.Empty;
+
+            bool transitioned = PhaseSequencer.Advance(ref state, events, table,
+                currentTick: 100u, dwellTimeoutTicks: 100u, recoveryPhaseId: 99);
+
+            Assert.False(transitioned);
+            Assert.Equal(0, state.PhaseId);
+        }
+
+        [Fact]
+        public void Advance_OneTick_AfterDwell_DoesAdvance()
+        {
+            // Phase entered at tick 0; dwell = 100. At tick 101 the dwell is exceeded.
+            SquadCognitiveState state = default;
+            state.PhaseId          = 0;
+            state.PhaseEnteredTick = 0;
+
+            var table  = ReadOnlySpan<PhaseTransitionEntry>.Empty;
+            var events = ReadOnlySpan<PhaseEvent>.Empty;
+
+            bool transitioned = PhaseSequencer.Advance(ref state, events, table,
+                currentTick: 101u, dwellTimeoutTicks: 100u, recoveryPhaseId: 99);
+
+            Assert.True(transitioned);
+            Assert.Equal(99, state.PhaseId);
+        }
+
+        [Fact]
+        public void Advance_DwellTimeoutZero_NeverAdvances()
+        {
+            // dwellTimeoutTicks == 0 means "no timeout; only exit via events".
+            SquadCognitiveState state = default;
+            state.PhaseId          = 0;
+            state.PhaseEnteredTick = 0;
+
+            var table  = ReadOnlySpan<PhaseTransitionEntry>.Empty;
+            var events = ReadOnlySpan<PhaseEvent>.Empty;
+
+            bool transitioned = PhaseSequencer.Advance(ref state, events, table,
+                currentTick: 99999u, dwellTimeoutTicks: 0u, recoveryPhaseId: 99);
+
+            Assert.False(transitioned);
+            Assert.Equal(0, state.PhaseId);
+        }
     }
 }

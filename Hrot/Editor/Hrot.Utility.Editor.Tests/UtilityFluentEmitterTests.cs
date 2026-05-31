@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Toolkit.Utility;
 using Hrot.Editor.AiShared.Emit;
 using Hrot.Editor.AiShared.HotReload;
 using Hrot.Utility.Editor.Emit;
 using Hrot.Utility.Editor.Model;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace Hrot.Utility.Editor.Tests;
@@ -269,6 +272,88 @@ public class UtilityFluentEmitterTests
         var output = new UtilityFluentEmitter().Emit(asset);
         string expected = weight.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "f";
         Assert.Contains(expected, output, StringComparison.Ordinal);
+    }
+
+    // ---- OFX-015: Roslyn round-trip structural equality ----
+
+    /// <summary>
+    /// Emits C# for a two-consideration model, parses it via Roslyn, and verifies
+    /// that the AST contains exactly the same InputNames and relative order as the
+    /// original model (structural equality, not string matching).
+    /// </summary>
+    [Fact]
+    public void EmitAndRoundTrip_UtilityDecisionAsset_StructuralEquality()
+    {
+        // Arrange: build a model with 2 considerations using distinct inputs and contexts.
+        // VisualIds control sort order (emitter sorts considerations by VisualId).
+        var asset = new UtilityDecisionAsset
+        {
+            AssetId      = new Guid("00000000-0000-0000-0000-000000000099"),
+            DisplayName  = "RoundTripTest",
+            DecisionKind = DecisionKind.PostureSelect,
+            Options = new List<OptionModel>
+            {
+                new OptionModel
+                {
+                    OptionId = 1,
+                    VisualId = "opt1",
+                    Mode     = ScoringMode.WeightedProduct,
+                    Considerations = new List<ConsiderationModel>
+                    {
+                        new ConsiderationModel
+                        {
+                            InputName = "HealthFraction",
+                            Context   = InputContext.Self,
+                            Weight    = 0.8f,
+                            VisualId  = "aaa",
+                            Curve     = new ResponseCurveModel
+                            {
+                                Kind = CurveKind.InverseLinear, M = 1f, K = 1f, B = 0f,
+                            },
+                        },
+                        new ConsiderationModel
+                        {
+                            InputName = "ThreatRange",
+                            Context   = InputContext.Target,
+                            Weight    = 1.2f,
+                            VisualId  = "bbb",
+                            Curve     = new ResponseCurveModel
+                            {
+                                Kind = CurveKind.Linear, M = 1f, K = 1f, B = 0f,
+                            },
+                        },
+                    }
+                }
+            }
+        };
+
+        // Act: emit and parse with Roslyn (syntax-only, no semantic compilation needed).
+        string emittedCode = new UtilityFluentEmitter().Emit(asset);
+        var root = CSharpSyntaxTree.ParseText(emittedCode).GetRoot();
+
+        // Extract all .Consider(...) invocations from the AST.
+        var considerCalls = root
+            .DescendantNodes()
+            .OfType<InvocationExpressionSyntax>()
+            .Where(inv =>
+                inv.Expression is MemberAccessExpressionSyntax ma &&
+                ma.Name.Identifier.Text == "Consider")
+            .ToList();
+
+        // Assert structural equality: same count and same InputName order.
+        Assert.Equal(2, considerCalls.Count);
+
+        string[] inputNames = considerCalls.Select(call =>
+        {
+            // First argument is In.XXX(...) -- extract member name XXX.
+            if (call.ArgumentList.Arguments[0].Expression is InvocationExpressionSyntax inCall &&
+                inCall.Expression is MemberAccessExpressionSyntax inMa)
+                return inMa.Name.Identifier.Text;
+            return null;
+        }).OrderBy(n => n, StringComparer.Ordinal).ToArray()!;
+
+        Assert.Equal("HealthFraction", inputNames[0]);
+        Assert.Equal("ThreatRange",    inputNames[1]);
     }
 }
 

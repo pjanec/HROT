@@ -120,7 +120,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         EQS002_ImpureAccess,
-                        generatorOverload.Locations.FirstOrDefault(),
+                        id.GetLocation(),
                         generatorOverload.Name));
                     return;
                 }
