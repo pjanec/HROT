@@ -175,6 +175,30 @@ public sealed class FakeCommandSink : IGraphCommandSink
 
         var node  = _graph.AddNode(add.AssignedId, add.Kind, title, add.Position);
 
+        if (add.Kind.Id == "Event.CustomEntry")
+        {
+            node.Category = NodeCategory.Event;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("EventName", out var evName))
+                node.Title = evName?.ToString() ?? "Custom Event";
+
+            node.AddPin("Then", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("EnemyId", PinDirection.Output, PinKind.Data, new TypeKey("System.Int32"));
+            node.AddPin("Killer", PinDirection.Output, PinKind.Data, new TypeKey("System.String"));
+            return;
+        }
+        else if (add.Kind.Id == "Event.CallCustom")
+        {
+            node.Category = NodeCategory.Custom;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("EventName", out var evName))
+                node.Title = $"Call {evName}";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            node.AddPin("EnemyId", PinDirection.Input, PinKind.Data, new TypeKey("System.Int32"));
+            node.AddPin("Killer", PinDirection.Input, PinKind.Data, new TypeKey("System.String"));
+            return;
+        }
+
         if (entry is not null)
         {
             var pinIds = add.InitialProperties?.GetValueOrDefault("PinIds") as List<PinId>;

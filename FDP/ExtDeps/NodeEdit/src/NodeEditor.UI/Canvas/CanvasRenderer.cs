@@ -145,6 +145,23 @@ public sealed class CanvasRenderer
                     }
                 }
             }
+
+            var evtPayload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.CustomEvent);
+            unsafe
+            {
+                if (evtPayload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var evtId = MyBlueprintDragSource.CurrentItemId;
+                    var evtName = MyBlueprintDragSource.CurrentDisplayName ?? evtId;
+                    var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+
+                    var kind = new NodeKindKey("Event.CallCustom");
+                    var props = new Dictionary<string, object?> { ["EventName"] = evtName };
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.AddNode(kind, dropPos, props);
+                    view.Execute(fwd, inv, "Call Custom Event");
+                }
+            }
             ImGui.EndDragDropTarget();
         }
         bool isCanvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);

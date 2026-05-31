@@ -54,6 +54,8 @@ public sealed class DemoShell
     private bool _showCreateVarModal;
     private string _newVarName = "NewVariable";
     private string _newVarType = "System.Single";
+    private bool _showCreateEventModal;
+    private string _newEventName = "OnEnemyKilled";
     private readonly Dictionary<float, nint> _fonts;
     private readonly List<(EditorNotification Notification, float TimeRemaining)> _activeToasts = new();
 
@@ -154,6 +156,7 @@ public sealed class DemoShell
         DrawStatusBar();
         DrawToasts();
         DrawCreateVariableModal();
+        DrawCreateEventModal();
     }
 
     // ── menu bar ──────────────────────────────────────────────────────────────
@@ -566,6 +569,84 @@ public sealed class DemoShell
         }
     }
 
+    private void DrawCreateEventModal()
+    {
+        if (_showCreateEventModal)
+        {
+            ImGui.OpenPopup("Create Custom Event");
+            _showCreateEventModal = false;
+        }
+
+        bool open = true;
+        if (ImGui.BeginPopupModal("Create Custom Event", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (ImGui.IsWindowAppearing())
+                ImGui.SetKeyboardFocusHere();
+
+            var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
+            bool inputEnter = ImGui.InputText("Name", ref _newEventName, 128, inputFlags);
+
+            ImGui.Spacing();
+            ImGui.TextDisabled("Parameters (Mocked for S17)");
+
+            bool isValid = !string.IsNullOrWhiteSpace(_newEventName);
+            bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+
+            ImGui.BeginDisabled(!isValid);
+            if (ImGui.Button("Create Event", new Vector2(120, 0)) || ((inputEnter || globalEnter) && isValid))
+            {
+                string eventName = _newEventName.Trim();
+
+                // 1. Add to My Blueprint Panel
+                string eventId = $"evt.{Guid.NewGuid():N}";
+                _host.MyBlueprint.AddCustomEvent(eventId, eventName);
+
+                // 2. Create the New Graph Tab
+                var newGraph = new FakeGraphModel(GraphId.NewId(), eventName);
+
+                if (_graphContainer == null)
+                {
+                    // Promote single-graph view to multi-tab view
+                    _graphContainer = new FakeGraphContainer(_graph, newGraph);
+                    _tabState[_graph] = (_host, _view); // Ensure current graph is tracked
+                }
+                else
+                {
+                    _graphContainer.AddGraph(newGraph);
+                }
+
+                // 3. Initialize Host Services for the new tab
+                var newHost = new FakeHostServices(newGraph, _fonts);
+                newHost.OverrideMyBlueprint(_host.MyBlueprint); // Share the global MyBlueprint
+                var newView = new GraphView(newGraph, newHost.CommandSink_, newHost.Validator, newHost.TypeSystem_, newHost.NodeCatalog_, newHost);
+                _tabState[newGraph] = (newHost, newView);
+
+                // 4. Place the Entry Node
+                var cb = new CommandBuilder(newGraph);
+                var props = new Dictionary<string, object?> { ["EventName"] = eventName };
+                var (fwd, inv) = cb.AddNode(new NodeKindKey("Event.CustomEntry"), new Vector2(400, 300), props);
+                newView.Execute(fwd, inv, "Add Event Entry");
+
+                // 5. Activate the new Tab
+                _graphContainer.Activate(_graphContainer.Graphs.Count - 1);
+                _graph = _graphContainer.Active;
+                _host = newHost;
+                _view = newView;
+                RebuildPanels();
+
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndDisabled();
+
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel", new Vector2(120, 0)) || !open || ImGui.IsKeyPressed(ImGuiKey.Escape))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
+    }
+
     // ── scenario management ───────────────────────────────────────────────────
 
     private void ApplyScenario(int index)
@@ -658,6 +739,11 @@ public sealed class DemoShell
         {
             _showCreateVarModal = true;
             _newVarName = "NewVariable";
+        });
+        reg.Add(CommandCatalog.CreateCustomEvent, "Create Custom Event", "Add", _ =>
+        {
+            _showCreateEventModal = true;
+            _newEventName = "OnEnemyKilled";
         });
         _indicators = new EditorIndicatorsImpl(_host.ToastQueue_);
         NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, _indicators, NavigateToGraph);
