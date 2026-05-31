@@ -229,6 +229,8 @@ namespace Hrot.Editor
         private BlueprintRegistry          _blueprintRegistry = new();
         private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
+        // FIX3-001: engine IWindowRegistrar bridge for blueprint editor windows.
+        private Fdp.Toolkit.Runner.IWindowRegistrar? _blueprintWindowRegistrar;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -357,6 +359,17 @@ namespace Hrot.Editor
 
         /// <summary>Internal test hook: exposes the AI hot-reload coordinator (UBP-P10T10).</summary>
         internal AiHotReloadCoordinator? AiCoordinator => _aiCoordinator;
+
+        /// <summary>
+        /// Blueprint editor window registrar wired during <see cref="Initialize"/>.
+        /// Settable in tests (via InternalsVisibleTo) to inject a pre-built registrar without
+        /// calling the full Initialize path.
+        /// </summary>
+        internal Fdp.Toolkit.Runner.IWindowRegistrar? BlueprintWindowRegistrar
+        {
+            get => _blueprintWindowRegistrar;
+            set => _blueprintWindowRegistrar = value;
+        }
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _camera?.GetCameraView();
@@ -685,6 +698,8 @@ namespace Hrot.Editor
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             _blueprintDebugSession = bpBlueprintSession;
+            // FIX3-001: create the blueprint editor window registrar now that the debug session is ready.
+            _blueprintWindowRegistrar = CreateBlueprintWindowRegistrar();
             // ─────────────────────────────────────────────────────────────────────────────────
 
             // ── WHEN-M11: Wire Blueprint Editor Bootstrap (Corrective) ──────────────────────
@@ -1449,6 +1464,11 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
+            // FIX3-001: register blueprint editor windows before the legacy editor guard so
+            // they are available even when _editorLogic is null (e.g. in tests that inject
+            // BlueprintWindowRegistrar directly without calling Initialize).
+            _blueprintWindowRegistrar?.RegisterWindows(windowManager);
+
             if (_editorLogic == null) return;
 
             // ?? Legacy editor-specific windows ????????????????????????????????
@@ -1659,6 +1679,33 @@ namespace Hrot.Editor
         }
 
         // ?? Private helpers ???????????????????????????????????????????????????
+
+        // FIX3-001: build the blueprint editor window registrar from scratch using the
+        // already-initialized _blueprintDebugSession and a fresh set of blueprint editor
+        // services.  Called from Initialize() after _blueprintDebugSession is set.
+        private Fdp.Toolkit.Runner.IWindowRegistrar CreateBlueprintWindowRegistrar()
+        {
+            var bpRootDir   = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+            var catalog     = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpRootDir);
+            var store       = new Hrot.Blueprints.Editor.EditorSelectionStore();
+            var dirty       = new Hrot.Blueprints.Editor.DirtyTracker();
+            var state       = new Hrot.Blueprints.Editor.EditorState();
+            var coordinator = new Hrot.Blueprints.Editor.NullBlueprintEditorCoordinator();
+            var console     = new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
+            // A dedicated Fdp AiHotReloadCoordinator for blueprint quick-reload (separate from
+            // _aiCoordinator which drives Hrot.AI.Behaviors hot-swap).
+            var bpFdpCoord  = new Fdp.Toolkit.Behavior.AiHotReloadCoordinator(
+                                  new BehaviorRegistry(), _blueprintRegistry, new Fdp.Toolkit.Behavior.AiHotReloadCoordinatorOptions());
+            var qrs         = new Hrot.Blueprints.Editor.Reload.QuickReloadService(
+                                  catalog, state, console,
+                                  new Hrot.Blueprints.Core.Compiler.BlueprintCompiler(), bpFdpCoord,
+                                  _blueprintDebugSession);
+            var frs         = new Hrot.Blueprints.Editor.Reload.FullRebuildService(console);
+            var drawers     = new Hrot.Blueprints.Editor.Inspector.DrawerRegistry();
+
+            return new Hrot.Blueprints.Editor.BlueprintWindowRegistrar(
+                catalog, store, dirty, state, _blueprintDebugSession!, coordinator, qrs, frs, drawers);
+        }
 
         /// <summary>
         /// Drains <see cref="ActivateEditorToolEvent"/> from the bus and routes each

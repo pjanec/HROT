@@ -30,6 +30,8 @@
     <ProjectReference Include="..\..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <!-- BATCH-03: Reference Hrot.Editor.AiShared for comparison sanitizer types -->
     <ProjectReference Include="..\..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <!-- FIX3-001: Reference Hrot.Editor so tests can exercise EditorSubsystem.RegisterWindows -->
+    <ProjectReference Include="..\..\Hrot.Editor\Hrot.Editor.csproj" />
   </ItemGroup>
 
   <ItemGroup>

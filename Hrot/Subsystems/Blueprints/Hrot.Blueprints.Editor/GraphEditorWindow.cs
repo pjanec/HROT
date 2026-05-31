@@ -104,6 +104,9 @@ public sealed class GraphEditorWindow : BlueprintEditorWindowBase
         ImGui.Separator();
 
         // -- Canvas placeholder --
+        // TODO(D-BP-04): wire PopulateNodeMenu into the canvas right-click handler once
+        // canvas rendering is implemented.  Right-click on a node should call
+        // BlueprintBreakpointMenuPopulator.PopulateNodeMenu(nodeId, assetId, builder, _bpManager).
         ImGui.BeginChild("##canvas", new System.Numerics.Vector2(0, 0), ImGuiChildFlags.None,
             ImGuiWindowFlags.HorizontalScrollbar);
         ImGui.TextDisabled($"Graph: {CurrentAsset!.Name}");
