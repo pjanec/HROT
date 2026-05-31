@@ -25,6 +25,10 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     private BehaviorTreeStateSnapshot? _currentSnapshot;
     private ushort _lastReadPos;
 
+    // BPF-026/BPF-045: debug metadata for node index -> VisualId symbolication.
+    private NodeDebugMetadata[]? _debugMetadata;
+    private Guid _assetId = Guid.Empty;
+
     private enum StepMode { None, Over, Into, Out }
     private StepMode _stepMode = StepMode.None;
     private int  _stepFromStackDepth;
@@ -69,6 +73,33 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
 
     public void ResetAggregateCounters() => _aggregateCounters.Clear();
 
+    /// <summary>
+    /// Stores the per-node debug metadata so that node indices can be symbolicated
+    /// to VisualIds in snapshots and trace events.  Call once after loading the asset.
+    /// </summary>
+    public void SetDebugMetadata(NodeDebugMetadata[]? metadata, Guid assetId)
+    {
+        _debugMetadata = metadata;
+        _assetId       = assetId;
+    }
+
+    /// <summary>Returns the VisualId for the given node index, or null when unavailable.</summary>
+    private Guid? GetVisualId(int nodeIndex)
+    {
+        if (_debugMetadata == null || nodeIndex < 0 || nodeIndex >= _debugMetadata.Length)
+            return null;
+        string raw = _debugMetadata[nodeIndex].VisualId;
+        if (string.IsNullOrEmpty(raw)) return null;
+        return Guid.TryParse(raw, out var g) ? g : (Guid?)null;
+    }
+
+    /// <summary>
+    /// Converts a node index to its VisualId using the stored debug metadata.
+    /// Returns null when metadata is not set or the index is out of range.
+    /// Exposed as internal for testability.
+    /// </summary>
+    internal Guid? TrySymbolicateIndex(int nodeIndex) => GetVisualId(nodeIndex);
+
     // ---- ECS snapshot + trace polling (called once per frame) ---------------
 
     /// <summary>
@@ -101,8 +132,13 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             for (int i = 0; i < 4; i++)        regs[i]    = statePtr->LocalRegisters[i];
             for (int i = 0; i < 3; i++)        handles[i] = statePtr->AsyncHandles[i];
 
+            // BPF-026: symbolicate running node index and stack entries to VisualIds.
+            Guid? runningElementId = GetVisualId(runningNodeIndex);
+            for (int i = 0; i < stackLen; i++)
+                stackIds[i] = GetVisualId(stack[i]);
+
             _currentSnapshot = new BehaviorTreeStateSnapshot(
-                entity, Guid.Empty, runningNodeIndex, null,
+                entity, _assetId, runningNodeIndex, runningElementId,
                 sp, stack, stackIds, regs, handles, treeVersion);
         }
 
@@ -125,18 +161,20 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             {
                 case BTreeTraceOpCode.NodeEvaluated:
                     _nodeProcessedSinceStep = true;
+                    // BPF-045: use node index to look up the VisualId.
                     RecordNodeExecuted(new BTreeNodeExecuted(
-                        entity, Guid.Empty, Guid.Empty,
+                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
                         rec->Status, 0f, rec->Timestamp));
                     break;
                 case BTreeTraceOpCode.WaitStarted:
+                    // BPF-045: use node index to look up the VisualId.
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, Guid.Empty, Guid.Empty,
+                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Issued, 0f));
                     break;
                 case BTreeTraceOpCode.WaitCompleted:
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, Guid.Empty, Guid.Empty,
+                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Resolved, 0f));
                     break;
             }

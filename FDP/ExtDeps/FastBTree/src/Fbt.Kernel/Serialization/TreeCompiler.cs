@@ -115,8 +115,9 @@ namespace Fbt.Serialization
             var methodNames = new List<string>();
             var floatParams = new List<float>();
             var intParams = new List<int>();
+            var subtreeAssetIds = new List<string>();
 
-            FlattenRecursive(root, nodes, methodNames, floatParams, intParams, isResourceOwning);
+            FlattenRecursive(root, nodes, methodNames, floatParams, intParams, subtreeAssetIds, isResourceOwning);
             
             return new BehaviorTreeBlob
             {
@@ -124,7 +125,8 @@ namespace Fbt.Serialization
                 Nodes = nodes.ToArray(),
                 MethodNames = methodNames.ToArray(),
                 FloatParams = floatParams.ToArray(),
-                IntParams = intParams.ToArray()
+                IntParams = intParams.ToArray(),
+                SubtreeAssetIds = subtreeAssetIds.ToArray()
             };
         }
         
@@ -134,6 +136,7 @@ namespace Fbt.Serialization
             List<string> methodNames,
             List<float> floatParams,
             List<int> intParams,
+            List<string> subtreeAssetIds,
             Func<string, bool>? isResourceOwning)
         {
             int currentIndex = nodes.Count;
@@ -167,6 +170,10 @@ namespace Fbt.Serialization
             {
                 payloadIndex = GetOrAddInt(intParams, node.Policy);
             }
+            else if (node.Type == NodeType.Subtree)
+            {
+                payloadIndex = GetOrAddSubtreeId(subtreeAssetIds, node.MethodName);
+            }
             
             // Add this node
             var nodeDef = new NodeDefinition
@@ -186,10 +193,22 @@ namespace Fbt.Serialization
             // Recursively flatten children
             foreach (var child in node.Children)
             {
-                FlattenRecursive(child, nodes, methodNames, floatParams, intParams, isResourceOwning);
+                FlattenRecursive(child, nodes, methodNames, floatParams, intParams, subtreeAssetIds, isResourceOwning);
             }
         }
-        
+
+        private static int GetOrAddSubtreeId(List<string> ids, string name)
+        {
+            if (string.IsNullOrEmpty(name)) return 0;
+            int index = ids.IndexOf(name);
+            if (index == -1)
+            {
+                index = ids.Count;
+                ids.Add(name);
+            }
+            return index;
+        }
+
         private static int GetOrAddMethodName(List<string> names, string name)
         {
             if (string.IsNullOrEmpty(name)) return -1;

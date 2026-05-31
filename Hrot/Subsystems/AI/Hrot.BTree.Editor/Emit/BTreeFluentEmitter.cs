@@ -155,29 +155,30 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
     private static void BuildNodeContent(
         StringBuilder sb, BehaviorTreeAsset asset,
-        BTreeEditorNode node, int depth, bool isLast)
+        BTreeEditorNode node, int depth, bool isLast,
+        string methodPrefix = ".")
     {
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
 
         switch (node.KernelType)
         {
             case NodeType.Sequence:
-                EmitComposite(sb, asset, node, "Sequence", "seq", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Sequence", "seq", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Selector:
-                EmitComposite(sb, asset, node, "Selector", "sel", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Selector", "sel", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Parallel:
-                EmitComposite(sb, asset, node, "Parallel", "par", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Parallel", "par", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.ObserverSelector:
-                EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Action:
             case NodeType.Condition:
             case NodeType.Wait:
             case NodeType.Subtree:
-                EmitLeafWithPills(sb, asset, node, depth, isLast);
+                EmitLeafWithPills(sb, asset, node, depth, isLast, methodPrefix);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unsupported node type: {node.KernelType}");
@@ -188,7 +189,8 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
     private static void EmitComposite(
         StringBuilder sb, BehaviorTreeAsset asset,
         BTreeEditorNode node, string methodName, string lambdaArg,
-        string pad, int depth, bool isLast)
+        string pad, int depth, bool isLast,
+        string methodPrefix = ".")
     {
         // Build pill prefix/suffix lines.
         var pills = asset.Pills
@@ -199,38 +201,44 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         // Opening lines for each pill (from outermost to innermost).
         string innerPad = pad;
         var pillDepth = depth;
+        // For the first pill, use the incoming methodPrefix so nested composites chain correctly.
+        string nextPillPrefix = methodPrefix;
         foreach (var pill in pills)
         {
-            sb.Append(BuildDecoratorOpen(pill, innerPad, pillDepth));
+            sb.Append(BuildDecoratorOpen(pill, innerPad, pillDepth, nextPillPrefix));
+            nextPillPrefix = ".";
             pillDepth++;
             innerPad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
         }
 
         string visualIdArg = $"visualId: new Guid(\"{node.VisualId:D}\")";
+        // After pills, the composite's own method call chains on the last pill's lambda var.
+        string compositeMethodPrefix = pills.Count > 0 ? "." : methodPrefix;
+        string childPrefix = $"{lambdaArg}.";
 
         int childCount = node.ChildVisualIds.Count;
         if (childCount == 0)
         {
             // Empty composite.
-            sb.AppendLine($"{innerPad}.{methodName}({lambdaArg} => {{ }},");
+            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({lambdaArg} => {{ }},");
             sb.AppendLine($"{innerPad}{Indent}{visualIdArg}){(isLast ? ";" : ",")}");
         }
         else
         {
-            sb.AppendLine($"{innerPad}.{methodName}({lambdaArg} => {lambdaArg}");
+            // Statement lambda form avoids the invalid separator problem that arises with
+            // expression chaining when multiple children need to be emitted.
+            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({lambdaArg} =>");
+            sb.AppendLine($"{innerPad}{{");
             for (int i = 0; i < childCount; i++)
             {
                 var childId = node.ChildVisualIds[i];
                 var child = asset.FindNode(childId);
                 if (child != null)
-                {
-                    bool lastChild = i == childCount - 1;
-                    EmitChildNode(sb, asset, child, pillDepth + 1, lastChild);
-                }
+                    EmitChildNode(sb, asset, child, pillDepth + 1, isLast: true, methodPrefix: childPrefix);
             }
             bool hasPills = pills.Count > 0;
             string closeSuffix = (hasPills || !isLast) ? "," : ";";
-            sb.AppendLine($"{innerPad}{Indent},");
+            sb.AppendLine($"{innerPad}}},");
             sb.AppendLine($"{innerPad}{Indent}{visualIdArg}){closeSuffix}");
         }
 
@@ -247,29 +255,30 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
     private static void EmitChildNode(
         StringBuilder sb, BehaviorTreeAsset asset,
-        BTreeEditorNode node, int depth, bool isLast)
+        BTreeEditorNode node, int depth, bool isLast,
+        string methodPrefix = ".")
     {
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
 
         switch (node.KernelType)
         {
             case NodeType.Sequence:
-                EmitComposite(sb, asset, node, "Sequence", "seq", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Sequence", "seq", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Selector:
-                EmitComposite(sb, asset, node, "Selector", "sel", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Selector", "sel", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Parallel:
-                EmitComposite(sb, asset, node, "Parallel", "par", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "Parallel", "par", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.ObserverSelector:
-                EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast);
+                EmitComposite(sb, asset, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix);
                 break;
             case NodeType.Action:
             case NodeType.Condition:
             case NodeType.Wait:
             case NodeType.Subtree:
-                EmitLeafWithPills(sb, asset, node, depth, isLast);
+                EmitLeafWithPills(sb, asset, node, depth, isLast, methodPrefix);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unknown node type: {node.KernelType}");
@@ -277,18 +286,18 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         }
     }
 
-    private static string BuildDecoratorOpen(BTreeEditorPill pill, string pad, int pillDepth)
+    private static string BuildDecoratorOpen(BTreeEditorPill pill, string pad, int pillDepth, string methodPrefix = ".")
     {
         string v = $"d{pillDepth}";
         return pill.DecoratorType switch
         {
-            NodeType.Inverter     => $"{pad}.Inverter({v} => {v}\n",
-            NodeType.Repeater     => $"{pad}.Repeater({pill.IntParam ?? 1}, {v} => {v}\n",
-            NodeType.Cooldown     => $"{pad}.Cooldown({FloatLiteral(pill.FloatParam ?? 0f)}, {v} => {v}\n",
-            NodeType.ForceSuccess => $"{pad}.ForceSuccess({v} => {v}\n",
-            NodeType.ForceFailure => $"{pad}.ForceFailure({v} => {v}\n",
-            NodeType.UntilSuccess => $"{pad}.UntilSuccess({v} => {v}\n",
-            NodeType.UntilFailure => $"{pad}.UntilFailure({v} => {v}\n",
+            NodeType.Inverter     => $"{pad}{methodPrefix}Inverter({v} => {v}\n",
+            NodeType.Repeater     => $"{pad}{methodPrefix}Repeater({pill.IntParam ?? 1}, {v} => {v}\n",
+            NodeType.Cooldown     => $"{pad}{methodPrefix}Cooldown({FloatLiteral(pill.FloatParam ?? 0f)}, {v} => {v}\n",
+            NodeType.ForceSuccess => $"{pad}{methodPrefix}ForceSuccess({v} => {v}\n",
+            NodeType.ForceFailure => $"{pad}{methodPrefix}ForceFailure({v} => {v}\n",
+            NodeType.UntilSuccess => $"{pad}{methodPrefix}UntilSuccess({v} => {v}\n",
+            NodeType.UntilFailure => $"{pad}{methodPrefix}UntilFailure({v} => {v}\n",
             _                     => string.Empty,
         };
     }
@@ -303,7 +312,8 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
     // Emits a leaf node wrapped with any decorator pills it owns.
     private static void EmitLeafWithPills(
         StringBuilder sb, BehaviorTreeAsset asset,
-        BTreeEditorNode node, int depth, bool isLast)
+        BTreeEditorNode node, int depth, bool isLast,
+        string methodPrefix = ".")
     {
         var pills = asset.Pills
             .Where(p => p.HostNodeVisualId == node.VisualId)
@@ -312,23 +322,27 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
         int pillDepth = depth;
+        // For the first pill, use the incoming methodPrefix so nested leaves chain correctly.
+        string nextPillPrefix = methodPrefix;
 
         foreach (var pill in pills)
         {
-            sb.Append(BuildDecoratorOpen(pill, pad, pillDepth));
+            sb.Append(BuildDecoratorOpen(pill, pad, pillDepth, nextPillPrefix));
+            nextPillPrefix = ".";
             pillDepth++;
             pad = string.Concat(Enumerable.Repeat(Indent, pillDepth));
         }
 
-        // When wrapped by pills, the leaf itself is never the final terminator.
+        // When wrapped by pills, the leaf itself chains on the pill's lambda var via ".".
         bool innerIsLast = pills.Count == 0 && isLast;
+        string leafMethodPrefix = pills.Count > 0 ? "." : methodPrefix;
 
         switch (node.KernelType)
         {
-            case NodeType.Action:    EmitAction(sb, node, pad, innerIsLast);    break;
-            case NodeType.Condition: EmitCondition(sb, node, pad, innerIsLast); break;
-            case NodeType.Wait:      EmitWait(sb, node, pad, innerIsLast);      break;
-            case NodeType.Subtree:   EmitSubtree(sb, node, pad, innerIsLast);   break;
+            case NodeType.Action:    EmitAction(sb, node, pad, innerIsLast, leafMethodPrefix);    break;
+            case NodeType.Condition: EmitCondition(sb, node, pad, innerIsLast, leafMethodPrefix); break;
+            case NodeType.Wait:      EmitWait(sb, node, pad, innerIsLast, leafMethodPrefix);      break;
+            case NodeType.Subtree:   EmitSubtree(sb, node, pad, innerIsLast, leafMethodPrefix);   break;
             default:
                 sb.AppendLine($"{pad}// Unknown leaf type: {node.KernelType}");
                 break;
@@ -347,7 +361,7 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
     private static string FloatLiteral(float f) =>
         f.ToString("R", CultureInfo.InvariantCulture) + "f";
 
-    private static void EmitAction(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast)
+    private static void EmitAction(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast, string methodPrefix = ".")
     {
         var p = node.Action;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -355,7 +369,7 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
         if (p == null)
         {
-            sb.AppendLine($"{pad}.Action({visualId}){term}");
+            sb.AppendLine($"{pad}{methodPrefix}Action({visualId}){term}");
             return;
         }
 
@@ -363,17 +377,17 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         if (p.DelegateShape == BTreeActionDelegateShape.ThreeParamReusable &&
             !string.IsNullOrEmpty(p.ExpressionTargetField))
         {
-            sb.AppendLine($"{pad}.Action(dto => dto.{p.ExpressionTargetField}, {methodRef},");
+            sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{p.ExpressionTargetField}, {methodRef},");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
         else
         {
-            sb.AppendLine($"{pad}.Action({methodRef},");
+            sb.AppendLine($"{pad}{methodPrefix}Action({methodRef},");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
     }
 
-    private static void EmitCondition(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast)
+    private static void EmitCondition(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast, string methodPrefix = ".")
     {
         var p = node.Condition;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -381,7 +395,7 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 
         if (p == null)
         {
-            sb.AppendLine($"{pad}.Condition({visualId}){term}");
+            sb.AppendLine($"{pad}{methodPrefix}Condition({visualId}){term}");
             return;
         }
 
@@ -389,35 +403,36 @@ public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
         if (p.DelegateShape == BTreeActionDelegateShape.ThreeParamReusable &&
             !string.IsNullOrEmpty(p.ExpressionTargetField))
         {
-            sb.AppendLine($"{pad}.Condition(dto => dto.{p.ExpressionTargetField}, {methodRef},");
+            sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{p.ExpressionTargetField}, {methodRef},");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
         else
         {
-            sb.AppendLine($"{pad}.Condition({methodRef},");
+            sb.AppendLine($"{pad}{methodPrefix}Condition({methodRef},");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
     }
 
-    private static void EmitWait(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast)
+    private static void EmitWait(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast, string methodPrefix = ".")
     {
         var p = node.Wait;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
         float duration = p?.Duration ?? 0f;
-        sb.AppendLine($"{pad}.Wait({duration.ToString("R", CultureInfo.InvariantCulture)}f,");
+        sb.AppendLine($"{pad}{methodPrefix}Wait({duration.ToString("R", CultureInfo.InvariantCulture)}f,");
         sb.AppendLine($"{pad}{Indent}{visualId}){term}");
     }
 
-    private static void EmitSubtree(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast)
+    private static void EmitSubtree(StringBuilder sb, BTreeEditorNode node, string pad, bool isLast, string methodPrefix = ".")
     {
         var p = node.Subtree;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
-        string subtreeRef = p != null ? $"\"{p.SubtreeAssetId:D}\"" : "\"\"";
-        sb.AppendLine($"{pad}.Subtree({subtreeRef},");
+        // BPF-018: emit the tree name (not the Guid) because BTreeBuilder.Subtree expects a name string.
+        string subtreeRef = p != null ? $"\"{p.SubtreeName}\"" : "\"\"";
+        sb.AppendLine($"{pad}{methodPrefix}Subtree({subtreeRef},");
         sb.AppendLine($"{pad}{Indent}{visualId}){term}");
     }
 

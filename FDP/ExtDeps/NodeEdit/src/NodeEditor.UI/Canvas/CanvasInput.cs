@@ -376,69 +376,82 @@ internal sealed class CanvasInput
         view.Interaction.DropTargetCycleDetected = cycleDetected;
     }
 
-    // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
-    private static void CommitNodeDrop(GraphView view, IInputSource input)
+    // Commits the drop: emits a single ChangeParentMultiple command (undo-recorded).
+    internal static void CommitNodeDrop(GraphView view, IInputSource input)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
+        // BPF-030: build a set of selected node IDs for ancestor suppression.
+        var selectedSet = view.Selection.Nodes.ToHashSet();
+
+        var forwardMoves = new List<ChangeParentMove>();
+        var inverseMoves = new List<ChangeParentMove>();
 
         foreach (var nid in view.Selection.Nodes)
         {
+            // BPF-030: skip nodes whose ancestor is also being dragged (it would move with the ancestor).
+            if (HasSelectedAncestor(nid, selectedSet, view.Model)) continue;
+
             var n = view.Model.FindNode(nid);
             if (n == null) continue;
 
-            bool reparenting = n.ParentContainerId != newParentId;
-            var  canvasPos   = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
+            var canvasPos = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
                 ? ovr
                 : view.NodeCanvasPosition(nid);
 
-            if (reparenting)
+            // Compute position relative to the target parent's interior origin.
+            Vector2 newLocalPos;
+            if (newParentId.HasValue)
             {
-                // Compute position relative to the new parent's interior origin.
-                Vector2 newLocalPos;
-                if (newParentId.HasValue)
-                {
-                    var container = view.Model.FindNode(newParentId.Value)?.AsContainer();
-                    if (container != null)
-                    {
-                        var containerCanvas = view.NodeCanvasPosition(newParentId.Value);
-                        var interiorOrigin  = containerCanvas + new Vector2(
-                            container.Padding.Left,
-                            view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
-                        newLocalPos = canvasPos - interiorOrigin;
-                    }
-                    else
-                    {
-                        newLocalPos = canvasPos;
-                    }
-                }
-                else
-                {
-                    newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
-                }
-                view.Commands.Apply(new GraphCommand.ChangeParent(nid, newParentId, null, newLocalPos));
-            }
-            else if (n.ParentContainerId == null)
-            {
-                // Root-level node staying at root: regular move.
-                view.Commands.Apply(new GraphCommand.MoveNodes(
-                    new List<NodeMove> { new NodeMove(nid, canvasPos) }));
-            }
-            else
-            {
-                // Container child staying in same parent: move within parent.
-                // Compute parent-local position from canvas-absolute override.
-                var container = view.Model.FindNode(n.ParentContainerId.Value)?.AsContainer();
+                var container = view.Model.FindNode(newParentId.Value)?.AsContainer();
                 if (container != null)
                 {
-                    var containerCanvas = view.NodeCanvasPosition(n.ParentContainerId.Value);
+                    var containerCanvas = view.NodeCanvasPosition(newParentId.Value);
                     var interiorOrigin  = containerCanvas + new Vector2(
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
-                    var localPos = canvasPos - interiorOrigin;
-                    view.Commands.Apply(new GraphCommand.ChangeParent(nid, n.ParentContainerId, null, localPos));
+                    newLocalPos = canvasPos - interiorOrigin;
+                }
+                else
+                {
+                    newLocalPos = canvasPos;
                 }
             }
+            else
+            {
+                newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
+            }
+
+            // Snapshot original state for undo BEFORE the forward command is applied.
+            Vector2 originalLocalPos = n.Position;
+            NodeId? originalParentId = n.ParentContainerId;
+
+            // BPF-029: accumulate all moves into a single ChangeParentMultiple.
+            forwardMoves.Add(new ChangeParentMove(nid, newParentId, null, newLocalPos));
+            inverseMoves.Add(new ChangeParentMove(nid, originalParentId, null, originalLocalPos));
         }
+
+        if (forwardMoves.Count == 0) return;
+
+        // BPF-028: route through Execute so the move lands on the undo stack.
+        var forward = new GraphCommand.ChangeParentMultiple(forwardMoves);
+        var inverse = new GraphCommand.ChangeParentMultiple(inverseMoves);
+        view.Execute(forward, inverse, "Move nodes");
+    }
+
+    // Returns true if any ancestor of nodeId is present in selectedSet.
+    internal static bool HasSelectedAncestor(NodeId nodeId, HashSet<NodeId> selectedSet, IGraphModel model)
+    {
+        var node = model.FindNode(nodeId);
+        if (node == null) return false;
+        var parentId = node.ParentContainerId;
+        while (parentId.HasValue)
+        {
+            if (selectedSet.Contains(parentId.Value)) return true;
+            var parent = model.FindNode(parentId.Value);
+            if (parent == null) break;
+            parentId = parent.ParentContainerId;
+        }
+        return false;
     }
 
     // ── Dragging reroutes ─────────────────────────────────────────────────────
