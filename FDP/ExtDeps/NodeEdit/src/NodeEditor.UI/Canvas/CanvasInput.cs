@@ -252,7 +252,12 @@ internal sealed class CanvasInput
                     break;
 
                 case HoverKind.Comment:
-                    if (hover.CommentZone == CommentHoverZone.ResizeHandle)
+                    if (input.IsMouseDoubleClicked(MouseButton.Left) && hover.CommentZone == CommentHoverZone.Header)
+                    {
+                        view.Interaction.RenamingComment = hover.Comment;
+                        view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+                    }
+                    else if (hover.CommentZone == CommentHoverZone.ResizeHandle)
                     {
                         view.Interaction.Mode = InteractionMode.ResizingComment;
                         view.Interaction.DragStartScreen = input.MousePosition;
@@ -261,22 +266,26 @@ internal sealed class CanvasInput
                     }
                     else if (hover.CommentZone == CommentHoverZone.Header)
                     {
-                        view.Interaction.Mode = InteractionMode.DraggingComment;
-                        view.Interaction.DragStartScreen = input.MousePosition;
-                        view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
-
-                        // Snapshot fully enclosed nodes for the "Move with contents" behavior
-                        view.Interaction.CommentDragContents.Clear();
-                        var comment = view.Model.Comments.FirstOrDefault(c => c.Id == hover.Comment);
-                        if (comment != null && comment.MoveWithContents)
+                        // Prevent drag interception when the active rename box is being clicked.
+                        if (view.Interaction.RenamingComment != hover.Comment)
                         {
-                            var commentRect = new RectF(comment.Position, comment.Size);
-                            foreach (var node in view.Model.Nodes)
+                            view.Interaction.Mode = InteractionMode.DraggingComment;
+                            view.Interaction.DragStartScreen = input.MousePosition;
+                            view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+
+                            // Snapshot fully enclosed nodes for the "Move with contents" behavior
+                            view.Interaction.CommentDragContents.Clear();
+                            var comment = view.Model.Comments.FirstOrDefault(c => c.Id == hover.Comment);
+                            if (comment != null && comment.MoveWithContents)
                             {
-                                var nodeBounds = new RectF(node.Position, node.SizeOverride ?? new Vector2(160, 64));
-                                if (commentRect.FullyContains(nodeBounds))
+                                var commentRect = new RectF(comment.Position, comment.Size);
+                                foreach (var node in view.Model.Nodes)
                                 {
-                                    view.Interaction.CommentDragContents.Add(node.Id);
+                                    var nodeBounds = new RectF(node.Position, node.SizeOverride ?? new Vector2(160, 64));
+                                    if (commentRect.FullyContains(nodeBounds))
+                                    {
+                                        view.Interaction.CommentDragContents.Add(node.Id);
+                                    }
                                 }
                             }
                         }

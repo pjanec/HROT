@@ -19,6 +19,7 @@ internal static class CommentsRenderer
     private const float BodyAlpha         = 0.15f;
     private const float SelectedThickness = 2.5f;
     private const float NormalThickness   = 1.0f;
+    private static CommentId? s_lastRenamingComment;
 
     /// <summary>
     /// Draw comment bodies (filled rects) for the back pass (behind nodes).
@@ -73,7 +74,8 @@ internal static class CommentsRenderer
             bool isRenaming = view.Interaction.RenamingComment == comment.Id;
             if (isRenaming)
             {
-                RenderRenameField(view, comment, min, headerMax);
+                bool justStarted = s_lastRenamingComment != comment.Id;
+                RenderRenameField(view, comment, min, headerMax, justStarted);
             }
             else
             {
@@ -82,6 +84,8 @@ internal static class CommentsRenderer
                     ImGui.GetColorU32(textColor), comment.Text.Split('\n')[0]);
             }
         }
+
+        s_lastRenamingComment = view.Interaction.RenamingComment;
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -113,32 +117,46 @@ internal static class CommentsRenderer
         }
     }
 
-    private static void RenderRenameField(GraphView view, ICommentModel comment, Vector2 min, Vector2 headerMax)
+    private static void RenderRenameField(GraphView view, ICommentModel comment, Vector2 min, Vector2 headerMax, bool justStarted)
     {
         // Position the InputText over the header strip
         ImGui.SetCursorScreenPos(min + new Vector2(4f, 2f));
         ImGui.PushItemWidth(headerMax.X - min.X - 8f);
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, 0);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(2f, 0f));
 
         using (new ImGuiPushIdScope(comment.Id.Value.ToString()))
         {
+            if (justStarted)
+            {
+                ImGui.SetKeyboardFocusHere();
+            }
+
             var buf = comment.Text;
-            if (ImGui.InputText("##rename", ref buf, 512,
-                ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
+            bool enterPressed = ImGui.InputText("##rename", ref buf, 512,
+                ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+            bool deactivated = ImGui.IsItemDeactivated();
+            bool escaped = ImGui.IsKeyPressed(ImGuiKey.Escape);
+
+            if (escaped)
             {
-                // Commit: dispatch UpdateComment
                 view.Interaction.RenamingComment = null;
             }
-            else if (!ImGui.IsItemActive() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+            else if (enterPressed || deactivated)
             {
-                // Focus lost → commit
-                view.Interaction.RenamingComment = null;
-            }
-            if (ImGui.IsKeyPressed(ImGuiKey.Escape))
-            {
+                if (buf != comment.Text)
+                {
+                    view.Execute(
+                        new NodeEditor.Core.Commands.GraphCommand.UpdateComment(comment.Id, buf, null, null, null, null, null),
+                        new NodeEditor.Core.Commands.GraphCommand.UpdateComment(comment.Id, comment.Text, null, null, null, null, null),
+                        "Rename Comment");
+                }
                 view.Interaction.RenamingComment = null;
             }
         }
 
+        ImGui.PopStyleVar();
+        ImGui.PopStyleColor();
         ImGui.PopItemWidth();
     }
 
