@@ -127,6 +127,30 @@ public class HsmGraphModelTests
         ids.Should().HaveCount(2);
     }
 
+    // FIX3-003: child-order determinism on the production StateNode (NEC-10 canonical order).
+    // StateNode.ChildNodeIds is a LINQ projection over the mutable Children list; assert it
+    // iterates in insertion order (not Guid/hash order) and is stable across repeated reads.
+    [Fact]
+    public void State_ChildNodeIds_PreserveInsertionOrder()
+    {
+        var parent = new StateNode("Parent");
+        var c1 = new StateNode("C1");
+        var c2 = new StateNode("C2");
+        var c3 = new StateNode("C3");
+        parent.Children.Add(c1);
+        parent.Children.Add(c2);
+        parent.Children.Add(c3);
+
+        // Order must match insertion order exactly (Equal is order-sensitive).
+        parent.ChildNodeIds.Should().Equal(
+            new NodeId(c1.StableId), new NodeId(c2.StableId), new NodeId(c3.StableId));
+
+        // ChildNodeIds re-projects on every read; successive reads must be identical.
+        var first  = parent.ChildNodeIds.ToList();
+        var second = parent.ChildNodeIds.ToList();
+        first.Should().Equal(second);
+    }
+
     [Fact]
     public void Top_level_state_ParentContainerId_is_null()
     {
