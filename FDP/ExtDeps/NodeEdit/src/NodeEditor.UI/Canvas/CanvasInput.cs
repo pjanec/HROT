@@ -479,16 +479,17 @@ internal sealed class CanvasInput
     private static void CommitNodeDrop(GraphView view, IInputSource input)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
-        var moves = new List<(NodeId Id, Vector2 NewPos)>();
-        var changeParents = new List<ChangeParentMove>();
-        var inverseChangeParents = new List<ChangeParentMove>();
-        var rawLocalPositions = new Dictionary<NodeId, Vector2>();
-        var containerShifts = new Dictionary<NodeId, Vector2>();
+        var finalLocalPositions = new Dictionary<NodeId, Vector2>();
+        var targetParents = new Dictionary<NodeId, NodeId?>();
+        var affectedContainers = new HashSet<NodeId>();
 
         foreach (var nid in view.Selection.Nodes)
         {
             var n = view.Model.FindNode(nid);
             if (n == null) continue;
+
+            if (n.ParentContainerId.HasValue) affectedContainers.Add(n.ParentContainerId.Value);
+            if (newParentId.HasValue) affectedContainers.Add(newParentId.Value);
 
             var canvasPos = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
                 ? ovr
@@ -496,6 +497,7 @@ internal sealed class CanvasInput
 
             bool reparenting = n.ParentContainerId != newParentId;
             NodeId? targetContainer = reparenting ? newParentId : n.ParentContainerId;
+            targetParents[nid] = targetContainer;
 
             Vector2 rawLocalPos = canvasPos;
             if (targetContainer.HasValue)
@@ -503,86 +505,111 @@ internal sealed class CanvasInput
                 var container = view.Model.FindNode(targetContainer.Value)?.AsContainer();
                 if (container != null)
                 {
-                    var containerCanvas = view.NodeCanvasPosition(targetContainer.Value);
+                    var containerCanvas = view.Interaction.DragOverridePositions.TryGetValue(targetContainer.Value, out var cOvr)
+                        ? cOvr
+                        : view.NodeCanvasPosition(targetContainer.Value);
+
                     var interiorOrigin  = containerCanvas + new Vector2(
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
                     rawLocalPos = canvasPos - interiorOrigin;
-
-                    var currentShift = containerShifts.GetValueOrDefault(targetContainer.Value, Vector2.Zero);
-                    currentShift.X = Math.Min(currentShift.X, rawLocalPos.X);
-                    currentShift.Y = Math.Min(currentShift.Y, rawLocalPos.Y);
-                    containerShifts[targetContainer.Value] = currentShift;
                 }
             }
-            rawLocalPositions[nid] = rawLocalPos;
+            finalLocalPositions[nid] = rawLocalPos;
         }
 
-        foreach (var nid in view.Selection.Nodes)
+        foreach (var cid in affectedContainers)
         {
+            var containerNode = view.Model.FindNode(cid);
+            if (containerNode?.AsContainer() is not { } containerModel) continue;
+
+            float minX = float.MaxValue;
+            float minY = float.MaxValue;
+            bool hasChildren = false;
+
+            var futureChildren = new Dictionary<NodeId, Vector2>();
+
+            foreach (var childId in containerModel.ChildNodeIds)
+            {
+                if (view.Selection.Nodes.Contains(childId)) continue;
+                var childNode = view.Model.FindNode(childId);
+                if (childNode != null)
+                {
+                    var pos = finalLocalPositions.TryGetValue(childId, out var fPos) ? fPos : childNode.Position;
+                    futureChildren[childId] = pos;
+                    minX = Math.Min(minX, pos.X);
+                    minY = Math.Min(minY, pos.Y);
+                    hasChildren = true;
+                }
+            }
+
+            foreach (var nid in view.Selection.Nodes)
+            {
+                if (targetParents[nid] == cid)
+                {
+                    var pos = finalLocalPositions[nid];
+                    futureChildren[nid] = pos;
+                    minX = Math.Min(minX, pos.X);
+                    minY = Math.Min(minY, pos.Y);
+                    hasChildren = true;
+                }
+            }
+
+            if (hasChildren && (Math.Abs(minX) > 0.01f || Math.Abs(minY) > 0.01f))
+            {
+                var shift = new Vector2(minX, minY);
+
+                foreach (var childKvp in futureChildren)
+                {
+                    finalLocalPositions[childKvp.Key] = childKvp.Value - shift;
+                    if (!targetParents.ContainsKey(childKvp.Key))
+                        targetParents[childKvp.Key] = cid;
+                }
+
+                var currentContainerPos = finalLocalPositions.TryGetValue(cid, out var cPos)
+                    ? cPos
+                    : containerNode.Position;
+                finalLocalPositions[cid] = currentContainerPos + shift;
+
+                if (!targetParents.ContainsKey(cid))
+                    targetParents[cid] = containerNode.ParentContainerId;
+            }
+        }
+
+        var moves = new List<(NodeId Id, Vector2 NewPos)>();
+        var changeParents = new List<ChangeParentMove>();
+        var inverseChangeParents = new List<ChangeParentMove>();
+
+        foreach (var kvp in finalLocalPositions)
+        {
+            var nid = kvp.Key;
+            var newLocalPos = kvp.Value;
+
+            newLocalPos.X = (float)Math.Round(newLocalPos.X, 2);
+            newLocalPos.Y = (float)Math.Round(newLocalPos.Y, 2);
+
             var n = view.Model.FindNode(nid);
             if (n == null) continue;
 
-            bool reparenting = n.ParentContainerId != newParentId;
-            NodeId? targetContainer = reparenting ? newParentId : n.ParentContainerId;
-            Vector2 finalLocalPos = rawLocalPositions[nid];
+            var newParent = targetParents[nid];
+            bool reparenting = n.ParentContainerId != newParent;
 
-            if (targetContainer.HasValue && containerShifts.TryGetValue(targetContainer.Value, out var shift))
-            {
-                finalLocalPos -= shift;
-            }
+            if (!reparenting && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
+                continue;
 
             if (reparenting)
             {
-                changeParents.Add(new ChangeParentMove(nid, targetContainer, null, finalLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, newParent, null, newLocalPos));
                 inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
             }
             else if (n.ParentContainerId == null)
             {
-                moves.Add((nid, finalLocalPos));
+                moves.Add((nid, newLocalPos));
             }
             else
             {
-                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, finalLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, newLocalPos));
                 inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
-            }
-        }
-
-        foreach (var kvp in containerShifts)
-        {
-            var containerId = kvp.Key;
-            var shift = kvp.Value;
-            if (shift.X >= 0 && shift.Y >= 0) continue;
-
-            var containerNode = view.Model.FindNode(containerId);
-            if (containerNode == null) continue;
-
-            if (!view.Selection.Nodes.Contains(containerId))
-            {
-                if (containerNode.ParentContainerId.HasValue)
-                {
-                    changeParents.Add(new ChangeParentMove(containerId, containerNode.ParentContainerId, null, containerNode.Position + shift));
-                    inverseChangeParents.Add(new ChangeParentMove(containerId, containerNode.ParentContainerId, null, containerNode.Position));
-                }
-                else
-                {
-                    moves.Add((containerId, containerNode.Position + shift));
-                }
-            }
-
-            if (containerNode.AsContainer() is { } containerModel)
-            {
-                foreach (var childId in containerModel.ChildNodeIds)
-                {
-                    if (view.Selection.Nodes.Contains(childId)) continue;
-                    var childNode = view.Model.FindNode(childId);
-                    if (childNode != null)
-                    {
-                        var newChildPos = childNode.Position - shift;
-                        changeParents.Add(new ChangeParentMove(childId, containerId, null, newChildPos));
-                        inverseChangeParents.Add(new ChangeParentMove(childId, containerId, null, childNode.Position));
-                    }
-                }
             }
         }
 
