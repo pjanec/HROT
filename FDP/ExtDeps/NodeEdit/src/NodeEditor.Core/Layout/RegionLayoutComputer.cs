@@ -27,6 +27,8 @@ public static class RegionLayoutComputer
     /// Returns an empty list if the container has fewer than 2 regions (no dividers needed).
     /// </summary>
     /// <param name="container">The container whose regions are being laid out.</param>
+    /// <param name="model">Graph model used to look up child nodes.</param>
+    /// <param name="getChildGraphSize">Returns a child node's graph-space size by ID.</param>
     /// <param name="outerBounds">The container's outer bounding rect in the target coordinate space.</param>
     /// <param name="headerHeight">Header height in the target coordinate space.</param>
     /// <param name="outlineWidth">Outline half-width in the target coordinate space.</param>
@@ -36,6 +38,8 @@ public static class RegionLayoutComputer
     /// </param>
     public static IReadOnlyList<RegionStrip> Compute(
         IContainerNodeModel container,
+        IGraphModel model,
+        Func<NodeId, Vector2?> getChildGraphSize,
         RectF outerBounds,
         float headerHeight,
         float outlineWidth,
@@ -54,17 +58,49 @@ public static class RegionLayoutComputer
         if (innerW <= 0 || innerH <= 0)
             return System.Array.Empty<RegionStrip>();
 
-        int count    = container.Regions.Count;
-        float stripH = innerH / count;
+        int count = container.Regions.Count;
+        float[] regionH = new float[count];
+        float minH = 60f * paddingScale;
+        for (int i = 0; i < count; i++) regionH[i] = minH;
+
+        foreach (var childId in container.ChildNodeIds)
+        {
+            var childNode = model.FindNode(childId);
+            var childSize = getChildGraphSize(childId);
+            if (childNode == null || !childSize.HasValue) continue;
+
+            int rIdx = container.GetRegionIndexForChild(childId);
+            if (rIdx >= 0 && rIdx < count)
+            {
+                float extentY = (childNode.Position.Y + childSize.Value.Y) * paddingScale;
+                regionH[rIdx] = Math.Max(regionH[rIdx], extentY);
+            }
+        }
+
+        float sumH = 0f;
+        foreach (var h in regionH) sumH += h;
+
+        if (innerH > sumH + 0.1f)
+        {
+            float extra = (innerH - sumH) / count;
+            for (int i = 0; i < count; i++) regionH[i] += extra;
+        }
+        else if (sumH > innerH + 0.1f && sumH > 0f)
+        {
+            float scale = innerH / sumH;
+            for (int i = 0; i < count; i++) regionH[i] *= scale;
+        }
 
         var result = new List<RegionStrip>(count);
+        float currentY = 0f;
         for (int i = 0; i < count; i++)
         {
             result.Add(new RegionStrip(
-                Min:         interiorMin + new Vector2(0f, stripH * i),
-                Size:        new Vector2(innerW, stripH),
+                Min:         interiorMin + new Vector2(0f, currentY),
+                Size:        new Vector2(innerW, regionH[i]),
                 Descriptor:  container.Regions[i],
                 RegionIndex: i));
+            currentY += regionH[i];
         }
         return result;
     }

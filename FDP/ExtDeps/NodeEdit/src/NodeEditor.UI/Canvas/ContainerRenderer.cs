@@ -130,7 +130,7 @@ internal sealed class ContainerRenderer
 
         // Region dividers and headers (only when container has multiple regions).
         if (container.Regions.Count > 0 && !container.IsCollapsed)
-            DrawRegions(view, dl, container, rect, catColor, headerHt, zoom);
+            DrawRegions(view, dl, container, layout, rect, catColor, headerHt, zoom);
 
         // Title and collapse indicator.
         DrawCollapseIndicator(dl, container, pMin, headerHt, zoom);
@@ -145,6 +145,7 @@ internal sealed class ContainerRenderer
         GraphView view,
         ImDrawListPtr dl,
         IContainerNodeModel container,
+        CanvasLayout layout,
         RectF rect,
         Vector4 catColor,
         float headerHt,
@@ -152,6 +153,8 @@ internal sealed class ContainerRenderer
     {
         var strips = RegionLayoutComputer.Compute(
             container,
+            view.Model,
+            id => layout.NodeGraphSizes.TryGetValue(id, out var s) ? s : (Vector2?)null,
             new RectF(rect.Min, rect.Size),
             headerHt,
             OutlinePx,

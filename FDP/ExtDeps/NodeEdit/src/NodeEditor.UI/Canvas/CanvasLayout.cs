@@ -82,7 +82,7 @@ internal sealed class CanvasLayoutBuilder
 
             // Compute the real-time visual position accounting for active drags
             // of the node or any of its parents.
-            Vector2 graphPos = GetVisualCanvasPosition(view, node.Id);
+            Vector2 graphPos = GetVisualCanvasPosition(view, layout, node.Id);
 
             var inputPins = new List<IPinModel>();
             var outputPins = new List<IPinModel>();
@@ -199,7 +199,7 @@ internal sealed class CanvasLayoutBuilder
             if (IsHiddenByCollapsedParent(view, node.Id)) continue;
             if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
             // Respect drag overrides recursively so descendants move visually during drag.
-            var canvasPos = GetVisualCanvasPosition(view, node.Id);
+            var canvasPos = GetVisualCanvasPosition(view, layout, node.Id);
             var screenPos = view.Viewport.GraphToScreen(canvasPos);
             layout.NodeScreenRects[node.Id] = new RectF(screenPos, graphSize * zoom);
         }
@@ -213,7 +213,7 @@ internal sealed class CanvasLayoutBuilder
                 if (node.AsContainer() is not { } container) continue;
                 if (IsHiddenByCollapsedParent(view, node.Id)) continue;
                 if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
-                var canvasPos = GetVisualCanvasPosition(view, node.Id);
+                var canvasPos = GetVisualCanvasPosition(view, layout, node.Id);
                 spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
             }
         }
@@ -248,7 +248,7 @@ internal sealed class CanvasLayoutBuilder
         layout.NodeGraphSizes[container.Id] = outerSize;
     }
 
-    private static Vector2 GetVisualCanvasPosition(GraphView view, NodeId id)
+    private static Vector2 GetVisualCanvasPosition(GraphView view, CanvasLayout layout, NodeId id)
     {
         // If the node itself is actively being dragged, use its override.
         if (view.Interaction.DragOverridePositions.TryGetValue(id, out var over))
@@ -266,12 +266,39 @@ internal sealed class CanvasLayoutBuilder
             return node.Position;
 
         // Recursively resolve the parent's visual position to inherit active drags.
-        var parentCanvas = GetVisualCanvasPosition(view, parent.Id);
+        var parentCanvas = GetVisualCanvasPosition(view, layout, parent.Id);
         var interiorOrigin = parentCanvas + new Vector2(
             container.Padding.Left,
             view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
 
-        return interiorOrigin + node.Position;
+        float regionOffsetY = 0f;
+        if (container.Regions.Count > 0)
+        {
+            int rIdx = container.GetRegionIndexForChild(id);
+            if (rIdx > 0)
+            {
+                float[] regionHeights = new float[container.Regions.Count];
+                for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
+
+                foreach (var childId in container.ChildNodeIds)
+                {
+                    var childNode = view.Model.FindNode(childId);
+                    if (childNode == null) continue;
+                    int cRIdx = container.GetRegionIndexForChild(childId);
+                    if (cRIdx >= 0 && cRIdx < regionHeights.Length)
+                    {
+                        var size = layout.NodeGraphSizes.TryGetValue(childId, out var s)
+                            ? s
+                            : (childNode.SizeOverride ?? new Vector2(160, 64));
+                        regionHeights[cRIdx] = Math.Max(regionHeights[cRIdx], childNode.Position.Y + size.Y);
+                    }
+                }
+
+                for (int i = 0; i < rIdx; i++) regionOffsetY += regionHeights[i];
+            }
+        }
+
+        return interiorOrigin + new Vector2(node.Position.X, node.Position.Y + regionOffsetY);
     }
 
     private static bool IsHiddenByCollapsedParent(GraphView view, NodeId id)

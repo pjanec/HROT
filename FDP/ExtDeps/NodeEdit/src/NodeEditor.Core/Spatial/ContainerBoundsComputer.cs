@@ -35,17 +35,45 @@ public static class ContainerBoundsComputer
         float maxX = container.MinimumInteriorSize.X;
         float maxY = container.MinimumInteriorSize.Y;
 
-        foreach (var childId in container.ChildNodeIds)
+        if (container.Regions.Count > 0)
         {
-            var childNode  = model.FindNode(childId);
-            var childSize  = getChildGraphSize(childId);
-            if (childNode == null || !childSize.HasValue) continue;
+            float[] regionHeights = new float[container.Regions.Count];
+            for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
 
-            // child.Position is parent-local (interior-coordinate-space)
-            float extentX = childNode.Position.X + childSize.Value.X;
-            float extentY = childNode.Position.Y + childSize.Value.Y;
-            maxX = Math.Max(maxX, extentX);
-            maxY = Math.Max(maxY, extentY);
+            foreach (var childId in container.ChildNodeIds)
+            {
+                var childNode = model.FindNode(childId);
+                var childSize = getChildGraphSize(childId);
+                if (childNode == null || !childSize.HasValue) continue;
+
+                float extentX = childNode.Position.X + childSize.Value.X;
+                maxX = Math.Max(maxX, extentX);
+
+                int rIdx = container.GetRegionIndexForChild(childId);
+                if (rIdx >= 0 && rIdx < regionHeights.Length)
+                {
+                    float extentY = childNode.Position.Y + childSize.Value.Y;
+                    regionHeights[rIdx] = Math.Max(regionHeights[rIdx], extentY);
+                }
+            }
+
+            float totalRegionH = 0f;
+            foreach (var h in regionHeights) totalRegionH += h;
+            maxY = Math.Max(maxY, totalRegionH);
+        }
+        else
+        {
+            foreach (var childId in container.ChildNodeIds)
+            {
+                var childNode = model.FindNode(childId);
+                var childSize = getChildGraphSize(childId);
+                if (childNode == null || !childSize.HasValue) continue;
+
+                float extentX = childNode.Position.X + childSize.Value.X;
+                float extentY = childNode.Position.Y + childSize.Value.Y;
+                maxX = Math.Max(maxX, extentX);
+                maxY = Math.Max(maxY, extentY);
+            }
         }
 
         float outerWidth  = maxX + container.Padding.Left + container.Padding.Right  + 2f * OutlineWidth;

@@ -486,6 +486,8 @@ internal sealed class CanvasInput
                 {
                     var strips = RegionLayoutComputer.Compute(
                         containerModel,
+                        view.Model,
+                        id => spatialIndex.GetBounds(id)?.Size,
                         bounds.Value,
                         view.Host.Theme.NodeHeaderHeight,
                         1f,
@@ -543,6 +545,35 @@ internal sealed class CanvasInput
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
                     rawLocalPos = canvasPos - interiorOrigin;
+
+                    if (container.Regions.Count > 0)
+                    {
+                        int rIdx = reparenting
+                            ? (view.Interaction.DropTargetRegionIndex ?? -1)
+                            : container.GetRegionIndexForChild(nid);
+                        if (rIdx > 0)
+                        {
+                            float[] regionHeights = new float[container.Regions.Count];
+                            for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
+
+                            foreach (var childId in container.ChildNodeIds)
+                            {
+                                if (view.Selection.Nodes.Contains(childId)) continue;
+                                var childNode = view.Model.FindNode(childId);
+                                if (childNode == null) continue;
+                                int cRIdx = container.GetRegionIndexForChild(childId);
+                                if (cRIdx >= 0 && cRIdx < regionHeights.Length)
+                                {
+                                    var size = childNode.SizeOverride ?? new Vector2(160, 64);
+                                    regionHeights[cRIdx] = Math.Max(regionHeights[cRIdx], childNode.Position.Y + size.Y);
+                                }
+                            }
+
+                            float offset = 0f;
+                            for (int i = 0; i < rIdx; i++) offset += regionHeights[i];
+                            rawLocalPos.Y -= offset;
+                        }
+                    }
                 }
             }
             finalLocalPositions[nid] = rawLocalPos;
@@ -593,7 +624,9 @@ internal sealed class CanvasInput
                     var pos = finalLocalPositions.TryGetValue(childId, out var fPos) ? fPos : childNode.Position;
                     futureChildren[childId] = pos;
                     minX = Math.Min(minX, pos.X);
-                    minY = Math.Min(minY, pos.Y);
+                    int rIdx = containerModel.GetRegionIndexForChild(childId);
+                    if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
+                        minY = Math.Min(minY, pos.Y);
                     hasChildren = true;
                 }
             }
@@ -605,14 +638,21 @@ internal sealed class CanvasInput
                     var pos = finalLocalPositions[nid];
                     futureChildren[nid] = pos;
                     minX = Math.Min(minX, pos.X);
-                    minY = Math.Min(minY, pos.Y);
+                    int rIdx = containerModel.GetRegionIndexForChild(nid);
+                    if (view.Selection.Nodes.Contains(nid) && targetParents[nid] == cid)
+                        rIdx = view.Interaction.DropTargetRegionIndex ?? -1;
+                    if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
+                        minY = Math.Min(minY, pos.Y);
                     hasChildren = true;
                 }
             }
 
-            if (hasChildren && (Math.Abs(minX) > 0.01f || Math.Abs(minY) > 0.01f))
+            float shiftX = minX == float.MaxValue ? 0f : minX;
+            float shiftY = minY == float.MaxValue ? 0f : minY;
+
+            if (hasChildren && (Math.Abs(shiftX) > 0.01f || Math.Abs(shiftY) > 0.01f))
             {
-                var shift = new Vector2(minX, minY);
+                var shift = new Vector2(shiftX, shiftY);
 
                 foreach (var childKvp in futureChildren)
                 {
