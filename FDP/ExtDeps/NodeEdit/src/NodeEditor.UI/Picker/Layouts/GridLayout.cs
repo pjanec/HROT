@@ -85,6 +85,13 @@ internal static class GridLayout
                 state.KeyboardFocusIndex = i;
             }
 
+            // Architecturally critical: explicitly capture the double-click 
+            // to confirm selection and close the picker.
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                state.Confirmed = true;
+            }
+
             ImGui.PopID();
 
             col++;
