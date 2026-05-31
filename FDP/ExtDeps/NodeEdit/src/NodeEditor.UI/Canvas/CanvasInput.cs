@@ -518,7 +518,32 @@ internal sealed class CanvasInput
             finalLocalPositions[nid] = rawLocalPos;
         }
 
+        var allAffected = new HashSet<NodeId>(affectedContainers);
         foreach (var cid in affectedContainers)
+        {
+            var curr = view.Model.FindNode(cid);
+            while (curr?.ParentContainerId.HasValue == true)
+            {
+                allAffected.Add(curr.ParentContainerId.Value);
+                curr = view.Model.FindNode(curr.ParentContainerId.Value);
+            }
+        }
+
+        int GetDepth(NodeId id)
+        {
+            int depth = 0;
+            var curr = view.Model.FindNode(id);
+            while (curr?.ParentContainerId.HasValue == true)
+            {
+                depth++;
+                curr = view.Model.FindNode(curr.ParentContainerId.Value);
+            }
+            return depth;
+        }
+
+        var orderedContainers = allAffected.OrderByDescending(GetDepth).ToList();
+
+        foreach (var cid in orderedContainers)
         {
             var containerNode = view.Model.FindNode(cid);
             if (containerNode?.AsContainer() is not { } containerModel) continue;
