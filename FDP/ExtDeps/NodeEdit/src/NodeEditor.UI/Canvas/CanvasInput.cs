@@ -688,17 +688,38 @@ internal sealed class CanvasInput
 
             var newParent = targetParents[nid];
             bool reparenting = n.ParentContainerId != newParent;
-            int? targetRegion = (newParent == view.Interaction.DropTargetContainerId)
-                ? view.Interaction.DropTargetRegionIndex
-                : null;
+            int? targetRegion = null;
+            int currentRegion = -1;
 
-            if (!reparenting && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
+            if (n.ParentContainerId.HasValue)
+            {
+                var oldContainer = view.Model.FindNode(n.ParentContainerId.Value)?.AsContainer();
+                currentRegion = oldContainer?.GetRegionIndexForChild(nid) ?? -1;
+            }
+
+            if (newParent == view.Interaction.DropTargetContainerId)
+            {
+                if (view.Selection.Nodes.Contains(nid))
+                {
+                    targetRegion = view.Interaction.DropTargetRegionIndex;
+                }
+                else if (newParent.HasValue)
+                {
+                    var newContainer = view.Model.FindNode(newParent.Value)?.AsContainer();
+                    int rIdx = newContainer?.GetRegionIndexForChild(nid) ?? -1;
+                    targetRegion = rIdx >= 0 ? rIdx : null;
+                }
+            }
+
+            bool regionChanged = targetRegion.HasValue && targetRegion.Value != currentRegion;
+
+            if (!reparenting && !regionChanged && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
                 continue;
 
-            if (reparenting)
+            if (reparenting || regionChanged)
             {
                 changeParents.Add(new ChangeParentMove(nid, newParent, targetRegion, newLocalPos));
-                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
             }
             else if (n.ParentContainerId == null)
             {
@@ -707,7 +728,7 @@ internal sealed class CanvasInput
             else
             {
                 changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, targetRegion, newLocalPos));
-                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
             }
         }
 
