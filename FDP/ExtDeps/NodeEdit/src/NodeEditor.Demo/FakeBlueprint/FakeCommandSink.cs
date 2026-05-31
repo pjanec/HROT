@@ -434,7 +434,7 @@ public sealed class FakeCommandSink : IGraphCommandSink
         foreach (var nid in ctf.Nodes) _graph.RemoveNode(nid);
 
         // 4. Create the new Call Node
-        var callId = IdGenerator.NewNodeId();
+        var callId = IdGenerator.DeterministicNodeId(ctf.FunctionName + "_call");
         var callNode = _graph.AddNode(callId, new NodeKindKey("Function.Call"), ctf.FunctionName, center);
         callNode.Category = NodeCategory.Function;
 
@@ -486,7 +486,7 @@ public sealed class FakeCommandSink : IGraphCommandSink
         foreach (var nid in ctm.Nodes) _graph.RemoveNode(nid);
 
         // 4. Create the new Macro Call Node
-        var callId = IdGenerator.NewNodeId();
+        var callId = IdGenerator.DeterministicNodeId(ctm.MacroName + "_call");
         var callNode = _graph.AddNode(callId, new NodeKindKey("Macro.Call"), ctm.MacroName, center);
         callNode.Category = NodeCategory.Macro;
 

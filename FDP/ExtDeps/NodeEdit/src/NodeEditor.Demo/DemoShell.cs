@@ -699,15 +699,48 @@ public sealed class DemoShell
 
             if (ImGui.Button("Collapse", new Vector2(120, 0)) || (ImGui.IsKeyPressed(ImGuiKey.Enter) && isValid))
             {
+                var selectedNodes = _view.Selection.Nodes.ToList();
+
+                // 1. Snapshot all links attached to the nodes being collapsed.
+                var incidentLinks = _graph.Links
+                    .Where(l => selectedNodes.Contains(_graph.FindPin(l.FromPin)?.OwnerNodeId ?? NodeId.Empty)
+                             || selectedNodes.Contains(_graph.FindPin(l.ToPin)?.OwnerNodeId ?? NodeId.Empty))
+                    .ToList();
+
+                var invs = new List<Core.Commands.GraphCommand>();
+
+                // 2. Predict the ID of the new call node so undo can delete it.
+                var callId = IdGenerator.DeterministicNodeId(_collapseName + "_call");
+                invs.Add(new Core.Commands.GraphCommand.RemoveNodes(new[] { callId }));
+
+                // 3. Restore selected nodes with exact Pin IDs.
+                foreach (var nid in selectedNodes)
+                {
+                    var n = _graph.FindNode(nid);
+                    if (n != null)
+                    {
+                        var props = new Dictionary<string, object?> { ["PinIds"] = n.Pins.Select(p => p.Id).ToList() };
+                        invs.Add(new Core.Commands.GraphCommand.AddNode(n.Id, n.Kind, n.Position, props));
+                    }
+                }
+
+                // 4. Restore incident wires.
+                foreach (var l in incidentLinks)
+                {
+                    invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                }
+
+                var inverseBatch = new Core.Commands.GraphCommand.Batch("Undo Collapse", invs);
+
                 if (effectiveMode == 1)
                 {
-                    var cmd = new GraphCommand.CollapseToMacro(_view.Selection.Nodes.ToList(), _collapseName, "Default");
-                    _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Macro");
+                    var cmd = new GraphCommand.CollapseToMacro(selectedNodes, _collapseName, "Default");
+                    _view.Execute(cmd, inverseBatch, "Collapse to Macro");
                 }
                 else
                 {
-                    var cmd = new GraphCommand.CollapseToFunction(_view.Selection.Nodes.ToList(), _collapseName, false, "Default");
-                    _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Function");
+                    var cmd = new GraphCommand.CollapseToFunction(selectedNodes, _collapseName, false, "Default");
+                    _view.Execute(cmd, inverseBatch, "Collapse to Function");
                 }
 
                 ImGui.CloseCurrentPopup();
