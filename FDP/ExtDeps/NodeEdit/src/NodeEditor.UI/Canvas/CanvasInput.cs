@@ -256,6 +256,7 @@ internal sealed class CanvasInput
                     {
                         view.Interaction.Mode = InteractionMode.ResizingComment;
                         view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.ActiveCommentResizeHandle = hover.CommentResizeHandle;
                         view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
                     }
                     else if (hover.CommentZone == CommentHoverZone.Header)
@@ -684,29 +685,79 @@ internal sealed class CanvasInput
 
     private static void HandleResizingComment(GraphView view, IInputSource input)
     {
-        var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
+        int handle = view.Interaction.ActiveCommentResizeHandle;
+        if (handle < 0) return;
 
-        // Per-frame transient override
+        var deltaGraph = (input.MousePosition - view.Interaction.DragStartScreen) / view.Viewport.Zoom;
+
+        bool modLeft   = handle == 0 || handle == 3 || handle == 5;
+        bool modRight  = handle == 2 || handle == 4 || handle == 7;
+        bool modTop    = handle == 0 || handle == 1 || handle == 2;
+        bool modBottom = handle == 5 || handle == 6 || handle == 7;
+
         foreach (var cid in view.Selection.Comments)
         {
             var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
             if (comment == null) continue;
 
-            var newSize = graphPos - comment.Position;
-            newSize = Vector2.Max(newSize, new Vector2(80, 40));
+            var newPos = comment.Position;
+            var newSize = comment.Size;
+
+            if (modLeft)
+            {
+                newPos.X += deltaGraph.X;
+                newSize.X -= deltaGraph.X;
+                if (newSize.X < 80f) { newPos.X -= (80f - newSize.X); newSize.X = 80f; }
+            }
+            else if (modRight)
+            {
+                newSize.X += deltaGraph.X;
+                if (newSize.X < 80f) newSize.X = 80f;
+            }
+
+            if (modTop)
+            {
+                newPos.Y += deltaGraph.Y;
+                newSize.Y -= deltaGraph.Y;
+                if (newSize.Y < 40f) { newPos.Y -= (40f - newSize.Y); newSize.Y = 40f; }
+            }
+            else if (modBottom)
+            {
+                newSize.Y += deltaGraph.Y;
+                if (newSize.Y < 40f) newSize.Y = 40f;
+            }
+
+            view.Interaction.CommentDragOverridePositions[cid] = newPos;
             view.Interaction.CommentSizeOverrides[cid] = newSize;
         }
 
-        // Commit on drop
         if (input.IsMouseReleased(MouseButton.Left))
         {
+            var fwds = new List<GraphCommand>();
+            var invs = new List<GraphCommand>();
+
             foreach (var cid in view.Selection.Comments)
             {
-                if (view.Interaction.CommentSizeOverrides.TryGetValue(cid, out var finalSize))
+                var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
+                if (comment == null) continue;
+
+                if (view.Interaction.CommentSizeOverrides.TryGetValue(cid, out var finalSize) &&
+                    view.Interaction.CommentDragOverridePositions.TryGetValue(cid, out var finalPos))
                 {
-                    view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, null, finalSize, null, null, null));
+                    fwds.Add(new GraphCommand.UpdateComment(cid, null, finalPos, finalSize, null, null, null));
+                    invs.Add(new GraphCommand.UpdateComment(cid, null, comment.Position, comment.Size, null, null, null));
                 }
             }
+
+            if (fwds.Count > 0)
+            {
+                invs.Reverse();
+                view.Execute(
+                    new GraphCommand.Batch("Resize Comment", fwds),
+                    new GraphCommand.Batch("Resize Comment", invs),
+                    "Resize Comment");
+            }
+
             view.Interaction.ResetToIdle();
         }
     }

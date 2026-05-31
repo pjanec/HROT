@@ -72,12 +72,30 @@ internal sealed class HitTester
             var bodyRect   = new RectF(
                 comment.Position + new Vector2(0f, headerHt),
                 new Vector2(comment.Size.X, comment.Size.Y - headerHt));
-            var resizeRect = new RectF(
-                comment.Position + comment.Size - new Vector2(12f, 12f),
-                new Vector2(12f, 12f));
 
-            if (resizeRect.Contains(mouseGraph))
-                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.ResizeHandle }, ZLayerCommentHeader, subLayer, 1);
+            var min = view.Viewport.GraphToScreen(comment.Position);
+            var max = view.Viewport.GraphToScreen(comment.Position + comment.Size);
+            var cx = (min.X + max.X) * 0.5f;
+            var cy = (min.Y + max.Y) * 0.5f;
+            Vector2[] handles =
+            {
+                new(min.X, min.Y), new(cx,    min.Y), new(max.X, min.Y),
+                new(min.X, cy),                       new(max.X, cy),
+                new(min.X, max.Y), new(cx,    max.Y), new(max.X, max.Y),
+            };
+
+            int hitHandleIndex = -1;
+            for (int i = 0; i < handles.Length; i++)
+            {
+                if (Vector2.Distance(mouse, handles[i]) <= 8f)
+                {
+                    hitHandleIndex = i;
+                    break;
+                }
+            }
+
+            if (hitHandleIndex >= 0)
+                SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.ResizeHandle, CommentResizeHandle = hitHandleIndex }, ZLayerCommentHeader, subLayer, 1);
             else if (headerRect.Contains(mouseGraph))
                 SubmitHit(new HoverInfo { Kind = HoverKind.Comment, Comment = comment.Id, CommentZone = CommentHoverZone.Header }, ZLayerCommentHeader, subLayer, 2);
             else if (bodyRect.Contains(mouseGraph))

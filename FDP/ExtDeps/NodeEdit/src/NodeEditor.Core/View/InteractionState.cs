@@ -46,6 +46,8 @@ public sealed class InteractionState
     public Dictionary<CommentId, Vector2> CommentDragOverridePositions { get; } = new();
     /// <summary>Per-comment graph-space size overrides while resizing.</summary>
     public Dictionary<CommentId, Vector2> CommentSizeOverrides { get; } = new();
+    /// <summary>Index of the grab handle (0-7) currently being dragged to resize a comment.</summary>
+    public int ActiveCommentResizeHandle { get; set; } = -1;
 
     /// <summary>Per-reroute graph-space position overrides while a drag is in progress.</summary>
     public Dictionary<RerouteRef, Vector2> RerouteDragOverridePositions { get; } = new();
@@ -111,6 +113,7 @@ public sealed class InteractionState
         CommentDragContents.Clear();
         CommentDragOverridePositions.Clear();
         CommentSizeOverrides.Clear();
+        ActiveCommentResizeHandle = -1;
         RerouteDragOverridePositions.Clear();
         RenamingComment = null;
         MarqueeGraph = default;
