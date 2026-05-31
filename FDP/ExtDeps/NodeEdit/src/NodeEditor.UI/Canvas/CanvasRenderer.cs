@@ -609,8 +609,13 @@ public sealed class CanvasRenderer
             var max   = view.Viewport.GraphToScreen(node.Position + size);
             bool isActive = (i == findBar.ActiveIndex);
 
+            // Apply a 2 Hz sine pulse for the active match.
+            float pulseAlpha = isActive
+                ? 0.5f + 0.5f * MathF.Sin((float)ImGui.GetTime() * MathF.PI * 4f)
+                : 1f;
+
             var outlineColor = isActive
-                ? new Vector4(1f, 0.9f, 0.1f, 1f)
+                ? new Vector4(1f, 0.9f, 0.1f, pulseAlpha)
                 : new Vector4(1f, 0.85f, 0.0f, 0.7f);
             float thickness = isActive ? 3.0f : 1.5f;
             dl.AddRect(min, max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);

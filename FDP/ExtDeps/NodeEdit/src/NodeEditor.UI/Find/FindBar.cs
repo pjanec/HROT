@@ -101,8 +101,10 @@ public sealed class FindBar
             RefreshResults();
         }
 
-        // Esc handling
-        if (ImGui.IsItemFocused() && ImGui.IsKeyPressed(ImGuiKey.Escape))
+        // Esc handling.
+        // We check window focus instead of item focus because ImGui.InputText instantly
+        // drops its active focus state on the frame Escape is pressed.
+        if (ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
             if (!string.IsNullOrEmpty(_searchText))
             {
