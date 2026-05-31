@@ -198,27 +198,47 @@ internal sealed class NodeRenderer
         IEditorTheme theme)
     {
         var debug = view.Host.Debug;
+        bool isExecuting = (node.State & NodeState.Executing) != 0 || debug?.CurrentlyExecutingNode == node.Id;
+        bool isRecentlyExecuted = (node.State & NodeState.RecentlyExecuted) != 0 || debug?.RecentlyExecutedNodes.Contains(node.Id) == true;
 
-        if ((node.State & NodeState.Executing) != 0 || (debug?.CurrentlyExecutingNode == node.Id) == true)
+        if (isExecuting)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, 1f)),
-                corner, ImDrawFlags.None, border + 2f);
+            // Architecturally critical: 2 Hz sine pulse for currently executing node
+            float time = (float)ImGui.GetTime();
+            float pulseAlpha = 0.5f + 0.5f * MathF.Sin(time * MathF.PI * 4f);
+            
+            // Header glow overlay
+            float headerH = theme.NodeHeaderHeight * view.Viewport.Zoom;
+            dl.AddRectFilled(pMin, new Vector2(pMax.X, pMin.Y + headerH), ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, pulseAlpha * 0.4f)), corner, ImDrawFlags.RoundCornersTop);
+            
+            // Pulsing outline
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, pulseAlpha)), corner, ImDrawFlags.None, border + 2f);
+        }
+        else if (isRecentlyExecuted)
+        {
+            // Recently executed afterglow
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.6f, 0.1f, 0.8f)), corner, ImDrawFlags.None, border + 1.5f);
         }
         else if ((node.State & NodeState.Error) != 0)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.ErrorColor),
-                corner, ImDrawFlags.None, border + 1f);
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.ErrorColor), corner, ImDrawFlags.None, border + 1f);
         }
         else if ((node.State & NodeState.Warning) != 0)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.WarningColor),
-                corner, ImDrawFlags.None, border + 1f);
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.WarningColor), corner, ImDrawFlags.None, border + 1f);
         }
 
         if ((node.State & NodeState.Disabled) != 0)
         {
-            dl.AddRectFilled(pMin, pMax,
-                ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.5f)), corner);
+            dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.5f)), corner);
+        }
+
+        // Breakpoint marker (16x16 red circle on the left edge of the header)
+        if (debug?.Breakpoints.Contains(node.Id) == true)
+        {
+            float headerH = theme.NodeHeaderHeight * view.Viewport.Zoom;
+            var bpCenter = pMin + new Vector2(0f, headerH * 0.5f);
+            dl.AddCircleFilled(bpCenter, 8f * view.Viewport.Zoom, ImGui.GetColorU32(new Vector4(0.9f, 0.1f, 0.1f, 1f)));
         }
     }
 
