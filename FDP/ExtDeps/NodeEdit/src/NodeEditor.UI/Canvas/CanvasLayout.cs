@@ -200,7 +200,10 @@ internal sealed class CanvasLayoutBuilder
         {
             if (node.AsContainer() is not { } container) continue;
             if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
-            var canvasPos = view.NodeCanvasPosition(node.Id);
+            // Respect drag overrides for containers so they move visually during drag.
+            var canvasPos = view.Interaction.DragOverridePositions.TryGetValue(node.Id, out var over)
+                ? over
+                : view.NodeCanvasPosition(node.Id);
             var screenPos = view.Viewport.GraphToScreen(canvasPos);
             layout.NodeScreenRects[node.Id] = new RectF(screenPos, graphSize * zoom);
         }

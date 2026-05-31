@@ -75,7 +75,11 @@ public sealed class FakeGraphModel : IGraphModel
 
     public void SetNodePosition(NodeId id, Vector2 pos)
     {
-        if (_nodes.TryGetValue(id, out var n) && n is FakeNodeModel fn) fn.SetPosition(pos);
+        if (_nodes.TryGetValue(id, out var n))
+        {
+            if (n is FakeNodeModel fn) fn.SetPosition(pos);
+            else if (n is FakeContainerModel cn) cn.Position = pos;
+        }
     }
 
     public FakeLinkModel AddLink(LinkId id, PinId from, PinId to)

@@ -68,6 +68,11 @@ public sealed class FakeCommandSink : IGraphCommandSink
                 }
                 return new GraphCommandResult(true, null);
 
+            case GraphCommand.SetContainerCollapsed scc:
+                if (_graph.FindNode(scc.ContainerId) is FakeContainerModel fcm)
+                    fcm.IsCollapsed = scc.IsCollapsed;
+                return new GraphCommandResult(true, null);
+
             case GraphCommand.SetPinDefault spd:
                 if (_graph.FindPin(spd.Pin) is FakePinModel pm && pm.Default is FakePinDefaultValue def)
                     def.Value = spd.NewValue;
