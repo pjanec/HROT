@@ -40,6 +40,7 @@ public sealed class DemoShell
     private FakeGraphContainer?              _graphContainer;
     private double                           _timeAccum;
     private double                           _lastElapsed;
+    private readonly Dictionary<FakeGraphModel, (FakeHostServices Host, GraphView View)> _tabState = new();
 
     private string _lastPick = "(none)";
     private readonly Dictionary<float, nint> _fonts;
@@ -119,6 +120,11 @@ public sealed class DemoShell
                     _graphContainer.ActivatePrev();
                 else
                     _graphContainer.ActivateNext();
+
+                _graph = _graphContainer.Active;
+                _host  = _tabState[_graph].Host;
+                _view  = _tabState[_graph].View;
+                RebuildPanels();
             }
         }
 
@@ -261,8 +267,8 @@ public sealed class DemoShell
                             {
                                 _graphContainer.Activate(i);
                                 _graph = _graphContainer.Active;
-                                _host  = new FakeHostServices(_graph, _fonts);
-                                _view  = CreateView();
+                                _host  = _tabState[_graph].Host;
+                                _view  = _tabState[_graph].View;
                                 RebuildPanels();
                             }
                             ImGui.EndTabItem();
@@ -414,6 +420,7 @@ public sealed class DemoShell
     {
         _scenarioIndex = index;
         _debugScenario = null;
+        _tabState.Clear();
 
         var scenario = _scenarios[index];
 
@@ -425,10 +432,20 @@ public sealed class DemoShell
         if (container is not null)
         {
             _graphContainer = container;
-            _graph          = container.Active;
-            _host           = new FakeHostServices(_graph, _fonts);
-            if (customMbModel is not null) _host.OverrideMyBlueprint(customMbModel);
-            _view           = CreateView();
+            foreach (var g in container.Graphs)
+            {
+                var h = new FakeHostServices(g, _fonts);
+                if (customMbModel is not null) h.OverrideMyBlueprint(customMbModel);
+                var v = new GraphView(g, h.CommandSink_, h.Validator, h.TypeSystem_, h.NodeCatalog_, h);
+                scenario.SetupHost(h);
+                scenario.Setup(h.MyBlueprint);
+                _tabState[g] = (h, v);
+            }
+            _graph = container.Active;
+            _host  = _tabState[_graph].Host;
+            _view  = _tabState[_graph].View;
+
+            scenario.Build(_view, _graph, _host.CommandSink_, _host.NodeCatalog_);
         }
         else
         {
