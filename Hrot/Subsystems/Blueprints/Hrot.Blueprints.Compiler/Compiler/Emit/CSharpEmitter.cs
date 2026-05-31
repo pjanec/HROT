@@ -43,7 +43,8 @@ internal sealed class CSharpEmitter
     public void EmitNodeStart(IrDebugAnnotation? debug)
     {
         if (debug?.NodeId is null) return;
-        _debugMap.RecordNodeStart(debug.NodeId.Value, debug.GraphId, _currentLine);
+        _debugMap.RecordNodeStart(debug.NodeId.Value, debug.GraphId, _currentLine,
+            debug.NodeKind, debug.DisplayName);
     }
 
     public void EmitNodeEnd(IrDebugAnnotation? debug)
@@ -54,6 +55,31 @@ internal sealed class CSharpEmitter
 
     public (string Source, DebugMap DebugMap) Emit(IrAsset asset)
     {
+        _debugMap.SetAssetName(asset.Name);
+        _debugMap.SetGeneratedSourcePath($"generated/{asset.SanitizedName}_{asset.BlueprintId:X8}.cs");
+
+        foreach (var graph in asset.Graphs)
+        {
+            _debugMap.AddGraph(new DebugGraphInfo(graph.Id, graph.Name, graph.Kind.ToString()));
+            foreach (var field in graph.Inputs)
+                _debugMap.AddPin(new DebugPinInfo(field.Id, graph.Id, field.Name, "Input", "Data",
+                    StatementEmitter.TypeRefToCSharp(field.Type), field.Name));
+            foreach (var field in graph.Outputs)
+                _debugMap.AddPin(new DebugPinInfo(field.Id, graph.Id, field.Name, "Output", "Data",
+                    StatementEmitter.TypeRefToCSharp(field.Type), field.Name));
+        }
+
+        if (asset.Dispatch == AssetDispatch.Instance)
+        {
+            foreach (var field in asset.Variables)
+            {
+                _debugMap.AddPin(new DebugPinInfo(field.Id, Guid.Empty, field.Name, "Output", "Variable",
+                    StatementEmitter.TypeRefToCSharp(field.Type), $"s.{field.Name}"));
+                _debugMap.AddStateLayoutField(new StateLayoutField(
+                    field.Name, field.Type.FullName, field.Offset, field.Size));
+            }
+        }
+
         EmitFileHeader(asset);
         EmitUsings();
         WriteLine();

@@ -23,12 +23,13 @@ internal static class DebugProbeInsertion
         var firstStmt = block.Statements[0];
         if (firstStmt.Debug?.NodeId is null) return block;
 
+        var probeOp = new IrOp_DebugProbe_NodeEnter(
+            firstStmt.Debug.NodeId.Value,
+            firstStmt.Debug.NodeId.Value.ToString());
         var probe = new IrStatement
         {
-            Operation = new IrOp_DebugProbe_NodeEnter(
-                firstStmt.Debug.NodeId.Value,
-                firstStmt.Debug.NodeId.Value.ToString()),
-            Debug = firstStmt.Debug,
+            Operation = probeOp,
+            Debug = firstStmt.Debug with { NodeKind = probeOp.NodeKind },
         };
 
         var newStatements = new List<IrStatement> { probe };

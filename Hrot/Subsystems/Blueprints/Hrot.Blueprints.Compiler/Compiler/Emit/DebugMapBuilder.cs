@@ -59,7 +59,7 @@ internal sealed class DebugMapBuilder
     private readonly List<DebugGraphInfo>   _graphs      = new();
     private readonly List<DebugPinInfo>     _pins        = new();
     private readonly List<StateLayoutField> _stateFields = new();
-    private readonly Dictionary<Guid, (Guid GraphId, int StartLine)> _openNodes = new();
+    private readonly Dictionary<Guid, (Guid GraphId, int StartLine, string NodeKind, string DisplayName)> _openNodes = new();
     private readonly Guid  _assetId;
     private readonly int   _blueprintId;
     private readonly ulong _structureHash;
@@ -87,17 +87,22 @@ internal sealed class DebugMapBuilder
     public void Record(Guid nodeId, Guid graphId, int startLine, int endLine)
         => _entries.Add(new DebugMapEntry(nodeId, graphId, startLine, endLine));
 
-    public void RecordNodeStart(Guid nodeId, Guid graphId, int line)
+    public void RecordNodeStart(Guid nodeId, Guid graphId, int line,
+        string? nodeKind = null, string? displayName = null)
     {
         if (!_openNodes.ContainsKey(nodeId))
-            _openNodes[nodeId] = (graphId, line);
+            _openNodes[nodeId] = (graphId, line, nodeKind ?? string.Empty, displayName ?? string.Empty);
     }
 
     public void RecordNodeEnd(Guid nodeId, int line)
     {
         if (!_openNodes.TryGetValue(nodeId, out var info)) return;
         _openNodes.Remove(nodeId);
-        Record(nodeId, info.GraphId, info.StartLine, line);
+        _entries.Add(new DebugMapEntry(nodeId, info.GraphId, info.StartLine, line)
+        {
+            NodeKind    = info.NodeKind,
+            DisplayName = info.DisplayName,
+        });
     }
 
     public DebugMap Build() => new DebugMap

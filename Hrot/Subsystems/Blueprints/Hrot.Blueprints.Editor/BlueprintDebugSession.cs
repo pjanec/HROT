@@ -2,6 +2,8 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Core.Compiler.Emit;
 
 namespace Hrot.Blueprints.Core.Debug;
@@ -464,7 +466,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                     CaptureAiPrimitiveState(self, def, mapIndex, fields);
                     break;
                 case BlueprintDispatchKind.Instance:
-                    CaptureInstanceStateFromDefinition(self, def, fields, out cursor);
+                    CaptureInstanceStateFromDefinition(self, bpId, mapIndex, fields, out cursor);
                     break;
             }
         }
@@ -520,11 +522,61 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     }
 
     // Instance state byte access requires the partition allocator, not wired in here.
-    private static void CaptureInstanceStateFromDefinition(
-        Entity self, BlueprintDefinition def,
+    private unsafe void CaptureInstanceStateFromDefinition(
+        Entity self, int blueprintId, DebugMapIndex? mapIndex,
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
+
+        if (_view.HasComponent<BlueprintBlackboard1024>(self))
+        {
+            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard1024>(self);
+            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+        }
+        else if (_view.HasComponent<BlueprintBlackboard4096>(self))
+        {
+            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard4096>(self);
+            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+        }
+        else if (_view.HasComponent<BlueprintBlackboard16384>(self))
+        {
+            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard16384>(self);
+            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+        }
+    }
+
+    private static unsafe void ReadInstanceState(
+        ReadOnlySpan<byte> bytes, int blueprintId, DebugStateLayout? stateLayout,
+        Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
+    {
+        cursor = null;
+        fixed (byte* memory = bytes)
+        {
+            if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
+                return;
+
+            if (payloadOffset + 16 > bytes.Length) return;
+            cursor = System.Runtime.InteropServices.MemoryMarshal.Read<BlueprintLatentCursor>(
+                bytes.Slice(payloadOffset, 16));
+
+            if (stateLayout == null || stateLayout.Fields.Count == 0) return;
+
+            foreach (var field in stateLayout.Fields)
+            {
+                int fieldStart = payloadOffset + field.OffsetBytes;
+                if (fieldStart + field.SizeBytes > bytes.Length || field.SizeBytes <= 0) continue;
+                var fieldType = ResolveType(field.Type);
+                if (fieldType == null) continue;
+                var raw = MarshalFromBytes(bytes.Slice(fieldStart, field.SizeBytes).ToArray(), fieldType);
+                if (raw != null) outFields[field.Name] = raw;
+            }
+        }
     }
 
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
