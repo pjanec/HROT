@@ -263,6 +263,22 @@ internal sealed class CanvasInput
                         view.Interaction.Mode = InteractionMode.DraggingComment;
                         view.Interaction.DragStartScreen = input.MousePosition;
                         view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+
+                        // Snapshot fully enclosed nodes for the "Move with contents" behavior
+                        view.Interaction.CommentDragContents.Clear();
+                        var comment = view.Model.Comments.FirstOrDefault(c => c.Id == hover.Comment);
+                        if (comment != null && comment.MoveWithContents)
+                        {
+                            var commentRect = new RectF(comment.Position, comment.Size);
+                            foreach (var node in view.Model.Nodes)
+                            {
+                                var nodeBounds = new RectF(node.Position, node.SizeOverride ?? new Vector2(160, 64));
+                                if (commentRect.FullyContains(nodeBounds))
+                                {
+                                    view.Interaction.CommentDragContents.Add(node.Id);
+                                }
+                            }
+                        }
                     }
                     break;
 
@@ -569,18 +585,97 @@ internal sealed class CanvasInput
 
     private static void HandleDraggingComment(GraphView view, IInputSource input)
     {
-        if (input.IsMouseReleased(MouseButton.Left))
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+
+        if (!view.Interaction.DragThresholdCrossed && delta.Length() > TimingConstants.DragThresholdPixels)
         {
-            var delta = view.Viewport.ScreenToGraph(input.MousePosition)
-                      - view.Viewport.ScreenToGraph(view.Interaction.DragStartScreen);
+            view.Interaction.DragThresholdCrossed = true;
+        }
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            var deltaGraph = delta / view.Viewport.Zoom;
+            bool moveComment = (input.Modifiers & KeyModifiers.Alt) == 0;
+            bool moveContents = (input.Modifiers & KeyModifiers.Shift) == 0;
 
             foreach (var cid in view.Selection.Comments)
             {
                 var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
                 if (comment == null) continue;
-                var newPos = comment.Position + delta;
-                view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, newPos, null, null, null, null));
+
+                if (moveComment)
+                {
+                    view.Interaction.CommentDragOverridePositions[cid] = comment.Position + deltaGraph;
+                }
+
+                if (moveContents && comment.MoveWithContents)
+                {
+                    foreach (var nid in view.Interaction.CommentDragContents)
+                    {
+                        var node = view.Model.FindNode(nid);
+                        if (node != null)
+                        {
+                            view.Interaction.DragOverridePositions[nid] = node.Position + deltaGraph;
+                        }
+                    }
+                }
             }
+        }
+
+        if (input.IsMouseReleased(MouseButton.Left))
+        {
+            if (view.Interaction.DragThresholdCrossed)
+            {
+                var deltaGraph = delta / view.Viewport.Zoom;
+                bool moveComment = (input.Modifiers & KeyModifiers.Alt) == 0;
+                bool moveContents = (input.Modifiers & KeyModifiers.Shift) == 0;
+
+                var fwds = new List<GraphCommand>();
+                var invs = new List<GraphCommand>();
+
+                foreach (var cid in view.Selection.Comments)
+                {
+                    var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
+                    if (comment == null) continue;
+
+                    if (moveComment)
+                    {
+                        var newPos = comment.Position + deltaGraph;
+                        fwds.Add(new GraphCommand.UpdateComment(cid, null, newPos, null, null, null, null));
+                        invs.Add(new GraphCommand.UpdateComment(cid, null, comment.Position, null, null, null, null));
+                    }
+
+                    if (moveContents && comment.MoveWithContents && view.Interaction.CommentDragContents.Count > 0)
+                    {
+                        var nodeMovesFwd = new List<NodeMove>();
+                        var nodeMovesInv = new List<NodeMove>();
+                        foreach (var nid in view.Interaction.CommentDragContents)
+                        {
+                            var node = view.Model.FindNode(nid);
+                            if (node != null)
+                            {
+                                nodeMovesFwd.Add(new NodeMove(nid, node.Position + deltaGraph));
+                                nodeMovesInv.Add(new NodeMove(nid, node.Position));
+                            }
+                        }
+                        if (nodeMovesFwd.Count > 0)
+                        {
+                            fwds.Add(new GraphCommand.MoveNodes(nodeMovesFwd));
+                            invs.Add(new GraphCommand.MoveNodes(nodeMovesInv));
+                        }
+                    }
+                }
+
+                if (fwds.Count > 0)
+                {
+                    invs.Reverse();
+                    view.Execute(
+                        new GraphCommand.Batch("Move Comment", fwds),
+                        new GraphCommand.Batch("Move Comment", invs),
+                        "Move Comment");
+                }
+            }
+
             view.Interaction.ResetToIdle();
         }
     }

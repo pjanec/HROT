@@ -189,7 +189,7 @@ public sealed class CanvasRenderer
         InvokeCustomRenderers(view, CanvasRenderPass.BeforeContent);
 
         // 6a. Comment boxes — background layer (below nodes).
-        DrawComments(dl, view, foreground: false, visibleGraphRect);
+        CommentsRenderer.RenderBackground(dl, view, visibleGraphRect);
 
         // 6b. Container fills, headers, and outlines — drawn before wires so wires
         //     render on top of the container background but under child nodes.
@@ -216,7 +216,7 @@ public sealed class CanvasRenderer
         }
 
         // 9. Comment boxes — foreground layer (header text on top of nodes).
-        DrawComments(dl, view, foreground: true, visibleGraphRect);
+        CommentsRenderer.RenderForeground(dl, view, visibleGraphRect);
 
         // 10. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterNodes);
@@ -326,52 +326,6 @@ public sealed class CanvasRenderer
     }
 
     // ── Comments ──────────────────────────────────────────────────────────────
-
-    private static void DrawComments(ImDrawListPtr dl, GraphView view, bool foreground, RectF visibleGraphRect)
-    {
-        var theme = view.Host.Theme;
-        var comments = view.Model.Comments.ToList();
-        comments.Sort((a, b) => a.ZOrder.CompareTo(b.ZOrder));
-
-        foreach (var comment in comments)
-        {
-            var commentRect = new RectF(comment.Position, comment.Size);
-            if (!commentRect.Intersects(visibleGraphRect))
-                continue;
-
-            var min = view.Viewport.GraphToScreen(comment.Position);
-            var max = view.Viewport.GraphToScreen(comment.Position + comment.Size);
-            float headerH = 20f * view.Viewport.Zoom;
-
-            bool selected = view.Selection.Contains(SelectionEntry.OfComment(comment.Id));
-
-            if (!foreground)
-            {
-                // Body fill (semi-transparent)
-                var bodyColor = comment.Color with { W = 0.15f };
-                dl.AddRectFilled(min, max, ImGui.GetColorU32(bodyColor), 4f);
-
-                // Header strip
-                var headerMax = new Vector2(max.X, min.Y + headerH);
-                dl.AddRectFilled(min, headerMax, ImGui.GetColorU32(comment.Color with { W = 0.65f }), 4f,
-                    ImDrawFlags.RoundCornersTop);
-
-                // Border
-                uint borderColor = selected
-                    ? ImGui.GetColorU32(theme.SelectionAccent)
-                    : ImGui.GetColorU32(comment.Color);
-                dl.AddRect(min, max, borderColor, 4f, ImDrawFlags.None, selected ? 2f : 1f);
-            }
-            else
-            {
-                // Header text
-                uint textColor = ImGui.GetColorU32(theme.TextDefault);
-                dl.AddText(min + new Vector2(6f, 4f), textColor, comment.Text.Split('\n')[0]);
-            }
-        }
-    }
-
-    // ── Pending wire ──────────────────────────────────────────────────────────
 
     private void DrawPendingWire(GraphView view, ImDrawListPtr dl)
     {
