@@ -833,19 +833,39 @@ public sealed class DemoShell
         {
             var primaryNodeId = _view.Selection.Nodes.FirstOrDefault();
             var node = _graph.FindNode(primaryNodeId);
-            if (node != null && node.Kind.Id == "Function.Call")
+            if (node != null)
             {
-                // Resolve the call node back to its My Blueprint function definition.
-                var fnName = node.Title;
-                var item = _host.MyBlueprint.GetItems("functions")
-                    .FirstOrDefault(i => i.DisplayName == fnName);
+                if (node.Kind.Id == "Function.Call")
+                {
+                    // Resolve the call node back to its My Blueprint function definition.
+                    var fnName = node.Title;
+                    var item = _host.MyBlueprint.GetItems("functions")
+                        .FirstOrDefault(i => i.DisplayName == fnName);
 
-                if (item != null)
-                    NavigateToItem("functions", item.ItemId);
+                    if (item != null)
+                        NavigateToItem("functions", item.ItemId);
+                }
+                else if (node.Kind.Id == "Macro.Call")
+                {
+                    // Strip wildcard resolution suffix, e.g. "ForEachWithBreak <Single>".
+                    string title = node.Title;
+                    int genericIdx = title.IndexOf(" <", StringComparison.Ordinal);
+                    string baseName = genericIdx >= 0 ? title[..genericIdx] : title;
+
+                    var item = _host.MyBlueprint.GetItems("macros")
+                        .FirstOrDefault(i => i.DisplayName == baseName);
+
+                    if (item != null)
+                        NavigateToItem("macros", item.ItemId);
+                }
             }
         },
         defaultKey: new KeyBinding(EditorKey.F12, KeyModifiers.None),
-        isEnabled: () => _view.Selection.Nodes.Any(n => _graph.FindNode(n)?.Kind.Id == "Function.Call"));
+        isEnabled: () => _view.Selection.Nodes.Any(n =>
+        {
+            var kind = _graph.FindNode(n)?.Kind.Id;
+            return kind == "Function.Call" || kind == "Macro.Call";
+        }));
         _indicators = new EditorIndicatorsImpl(_host.ToastQueue_);
         NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, _indicators, NavigateToGraph);
         _hotkeys = new HotkeyDispatcher(_host.Input, _commands);
