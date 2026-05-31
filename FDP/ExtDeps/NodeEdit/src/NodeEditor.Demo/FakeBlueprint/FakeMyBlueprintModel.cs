@@ -39,10 +39,10 @@ public sealed class FakeMyBlueprintModel : IMyBlueprintModel
             new("var.active",  "variables", "IsActive",   null, null, null, new Vector4(0.60f,0.00f,0.00f,1f), null, true, true, false, "Active state flag"),
         };
 
-        _sections["events"] = new List<MyBlueprintItem>
+        _sections["customevents"] = new List<MyBlueprintItem>
         {
-            new("evt.begin", "events", "BeginPlay", null, null, null, null, null, false, false, true, null),
-            new("evt.tick",  "events", "Tick",      null, null, null, null, null, false, false, true, null),
+            new("evt.begin", "customevents", "BeginPlay", null, null, null, null, null, false, false, true, null),
+            new("evt.tick",  "customevents", "Tick",      null, null, null, null, null, false, false, true, null),
         };
 
         _sections["dispatchers"] = new List<MyBlueprintItem>();
@@ -54,7 +54,7 @@ public sealed class FakeMyBlueprintModel : IMyBlueprintModel
         new("functions",   "Functions",   1, null, true,  true,  "editor.create-function"),
         new("macros",      "Macros",      2, null, true,  true,  "editor.create-macro"),
         new("variables",   "Variables",   3, null, true,  true,  "editor.create-variable"),
-        new("events",      "Events",      4, null, true,  true,  "editor.create-custom-event"),
+        new("customevents","Events",      4, null, true,  true,  "editor.create-custom-event"),
         new("dispatchers", "Dispatchers", 5, null, true,  true,  "editor.create-event-dispatcher"),
     };
 
@@ -120,15 +120,15 @@ public sealed class FakeMyBlueprintModel : IMyBlueprintModel
     /// <summary>Add a custom event item to the Events section.</summary>
     public void AddCustomEvent(string id, string name)
     {
-        EnsureSection("events");
-        _sections["events"].Add(new MyBlueprintItem(id, "events", name, null, null, null, null, null, true, true, false, null));
+        EnsureSection("customevents");
+        _sections["customevents"].Add(new MyBlueprintItem(id, "customevents", name, null, null, null, null, null, true, true, false, null));
         NotifyChanged();
     }
 
     /// <summary>Remove a custom event by item id.</summary>
     public void RemoveCustomEvent(string id)
     {
-        if (_sections.TryGetValue("events", out var list) && list.RemoveAll(x => x.ItemId == id) > 0)
+        if (_sections.TryGetValue("customevents", out var list) && list.RemoveAll(x => x.ItemId == id) > 0)
             NotifyChanged();
     }
 

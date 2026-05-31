@@ -12,12 +12,12 @@ namespace NodeEditor.UI.Panels;
 public static class MyBlueprintDragSource
 {
     /// <summary>Payload type strings per item kind.</summary>
-    public const string Variable       = "NodeEditor.MyBlueprint.Variable";
-    public const string Function       = "NodeEditor.MyBlueprint.Function";
-    public const string Macro          = "NodeEditor.MyBlueprint.Macro";
-    public const string CustomEvent    = "NodeEditor.MyBlueprint.CustomEvent";
-    public const string EventDispatcher = "NodeEditor.MyBlueprint.EventDispatcher";
-    public const string GraphEntry     = "NodeEditor.MyBlueprint.GraphEntry";
+    public const string Variable        = "MyBP.Variable";
+    public const string Function        = "MyBP.Function";
+    public const string Macro           = "MyBP.Macro";
+    public const string CustomEvent     = "MyBP.CustomEvent";
+    public const string EventDispatcher = "MyBP.Dispatcher";
+    public const string GraphEntry      = "MyBP.GraphEntry";
 
     [ThreadStatic]
     private static string? _currentPayloadType;
