@@ -451,10 +451,8 @@ public sealed class DemoShell
             else
                 ImGui.Dummy(new Vector2(0, ImGui.GetTextLineHeight()));
 
-            ImGui.AlignTextToFramePadding();
-            ImGui.Text("Type");
-            ImGui.SameLine(60f);
-            if (ImGui.Button($"{_newVarType} \u25bc##pick_type", new Vector2(180, 0)))
+            float inputWidth = ImGui.CalcItemWidth();
+            if (ImGui.Button($"{_newVarType} \u25bc##pick_type", new Vector2(inputWidth, 0)))
             {
                 ImGui.CloseCurrentPopup();
 
@@ -467,6 +465,9 @@ public sealed class DemoShell
                     _showCreateVarModal = true;
                 });
             }
+            ImGui.SameLine();
+            ImGui.AlignTextToFramePadding();
+            ImGui.Text("Type");
 
             ImGui.Spacing();
 
