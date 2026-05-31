@@ -30,6 +30,19 @@ public static class CanvasCommands
             defaultKey: new KeyBinding(EditorKey.F, Primitives.KeyModifiers.Ctrl));
 
         reg.Add(
+            CommandCatalog.FindInAsset, "Find in Asset", "Find",
+            _ =>
+            {
+                if (findBar is not null)
+                {
+                    findBar.Scope = FindScope.Asset;
+                    findBar.Open();
+                }
+            },
+            description: "Open the find bar in asset scope.",
+            defaultKey: new KeyBinding(EditorKey.F, Primitives.KeyModifiers.Ctrl | Primitives.KeyModifiers.Shift));
+
+        reg.Add(
             CommandCatalog.FindNext, "Find Next", "Find",
             _ => findBar?.Next(),
             isEnabled: () => findBar?.Results.Count > 0,

@@ -33,6 +33,7 @@ public sealed class DemoShell
     private          MyBlueprintPanel?       _mbPanel;
     private          DetailsPanel?           _details;
     private          FindBar?                _findBar;
+    private          FindResultsPanel?       _findResults;
     private          EditorCommandsImpl      _commands = new();
     private          EditorIndicatorsImpl    _indicators = null!;
     private          HotkeyDispatcher?       _hotkeys;
@@ -145,6 +146,7 @@ public sealed class DemoShell
         DrawMyBlueprintWindow();
         DrawCanvasWindow();
         DrawDetailsWindow();
+        DrawFindResultsWindow();
         DrawStatusBar();
         DrawToasts();
         DrawCreateVariableModal();
@@ -201,6 +203,7 @@ public sealed class DemoShell
         if (ImGui.BeginMenu("Find"))
         {
             DrawCommandMenuItem(CommandCatalog.FindInGraph);
+            DrawCommandMenuItem(CommandCatalog.FindInAsset);
             DrawCommandMenuItem(CommandCatalog.FindNext);
             DrawCommandMenuItem(CommandCatalog.FindPrev);
             ImGui.EndMenu();
@@ -347,6 +350,27 @@ public sealed class DemoShell
         if (ImGui.Begin("Details"))
             _details?.Draw();
         ImGui.End();
+    }
+
+    private void DrawFindResultsWindow()
+    {
+        if (_findBar != null && _findResults != null)
+        {
+            bool shouldShow = _findBar.IsVisible && _findBar.Scope != FindScope.CurrentGraph;
+            _findResults.IsVisible = shouldShow;
+
+            if (shouldShow)
+            {
+                _findResults.Results = _findBar.Results;
+
+                ImGui.SetNextWindowSize(new Vector2(350, 500), ImGuiCond.FirstUseEver);
+                if (ImGui.Begin("Find Results"))
+                {
+                    _findResults.Draw();
+                }
+                ImGui.End();
+            }
+        }
     }
 
     private void DrawStatusBar()
@@ -558,6 +582,17 @@ public sealed class DemoShell
     {
         _commands = new EditorCommandsImpl();
         _findBar = new FindBar(_view, new FindEngine(_view.Model, null));
+        _findResults = new FindResultsPanel((graphId, nodeId) =>
+        {
+            // Basic navigation: pan the camera to the node when clicked in the results.
+            if (nodeId.HasValue && _graph.FindNode(nodeId.Value) is { } n)
+            {
+                var canvasCenter = _view.Viewport.ScreenToGraph(
+                    _view.Viewport.CanvasScreenOrigin + _view.Viewport.CanvasScreenSize * 0.5f);
+                var delta = canvasCenter - n.Position;
+                _view.Viewport.Pan(-delta);
+            }
+        });
         _mbPanel = new MyBlueprintPanel(
             _host.MyBlueprint, _host, _commands,
             NavigateToGraph, NavigateToItem);
