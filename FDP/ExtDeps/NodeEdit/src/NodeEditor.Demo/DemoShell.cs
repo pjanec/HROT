@@ -765,7 +765,69 @@ public sealed class DemoShell
 
     private void NavigateToItem(string sectionId, string itemId)
     {
-        // No-op in demo
+        var item = _host.MyBlueprint.GetItems(sectionId).FirstOrDefault(i => i.ItemId == itemId);
+        if (item == null) return;
+
+        // 1. Check if the tab is already open (matching by name for the demo)
+        if (_graphContainer != null)
+        {
+            for (int i = 0; i < _graphContainer.Graphs.Count; i++)
+            {
+                if (_graphContainer.Graphs[i].DisplayName == item.DisplayName)
+                {
+                    _graphContainer.Activate(i);
+                    _graph = _graphContainer.Active;
+                    _host = _tabState[_graph].Host;
+                    _view = _tabState[_graph].View;
+                    RebuildPanels();
+                    return;
+                }
+            }
+        }
+
+        // 2. Spawn the new graph
+        var newGraph = new FakeGraphModel(GraphId.NewId(), item.DisplayName);
+
+        if (_graphContainer == null)
+        {
+            // Promote single-graph view to multi-tab view
+            _graphContainer = new FakeGraphContainer(_graph, newGraph);
+            _tabState[_graph] = (_host, _view);
+        }
+        else
+        {
+            _graphContainer.AddGraph(newGraph);
+        }
+
+        // 3. Initialize services for the new tab
+        var newHost = new FakeHostServices(newGraph, _fonts);
+        newHost.OverrideMyBlueprint(_host.MyBlueprint);
+        var newView = new GraphView(newGraph, newHost.CommandSink_, newHost.Validator, newHost.TypeSystem_, newHost.NodeCatalog_, newHost);
+        _tabState[newGraph] = (newHost, newView);
+
+        // 4. Place structural Entry and Return nodes for functions
+        if (sectionId.Equals("functions", StringComparison.OrdinalIgnoreCase))
+        {
+            var cb = new CommandBuilder(newGraph);
+            var (fwdEntry, invEntry) = cb.AddNode(
+                new NodeKindKey("Function.Entry"),
+                new Vector2(100, 300),
+                new Dictionary<string, object?> { ["FunctionName"] = item.DisplayName });
+            newView.Execute(fwdEntry, invEntry, "Add Entry");
+
+            var (fwdReturn, invReturn) = cb.AddNode(
+                new NodeKindKey("Function.Return"),
+                new Vector2(600, 300),
+                null);
+            newView.Execute(fwdReturn, invReturn, "Add Return");
+        }
+
+        // 5. Activate the new Tab
+        _graphContainer.Activate(_graphContainer.Graphs.Count - 1);
+        _graph = _graphContainer.Active;
+        _host = newHost;
+        _view = newView;
+        RebuildPanels();
     }
 
     // ── details context proxy ─────────────────────────────────────────────────

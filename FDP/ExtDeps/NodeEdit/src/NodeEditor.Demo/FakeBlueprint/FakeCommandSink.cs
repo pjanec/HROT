@@ -198,6 +198,28 @@ public sealed class FakeCommandSink : IGraphCommandSink
             node.AddPin("Killer", PinDirection.Input, PinKind.Data, new TypeKey("System.String"));
             return;
         }
+        else if (add.Kind.Id == "Function.Entry")
+        {
+            node.Category = NodeCategory.Function;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("FunctionName", out var fnName))
+                node.Title = fnName?.ToString() ?? "Entry";
+
+            node.AddPin("Then", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            // S18 specific signature: (base: float, mult: float)
+            node.AddPin("Base", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+            node.AddPin("Mult", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+            return;
+        }
+        else if (add.Kind.Id == "Function.Return")
+        {
+            node.Category = NodeCategory.Function;
+            node.Title = "Return";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            // S18 specific return: -> float
+            node.AddPin("Result", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+            return;
+        }
 
         if (entry is not null)
         {
