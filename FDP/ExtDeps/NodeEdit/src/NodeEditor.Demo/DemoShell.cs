@@ -32,6 +32,7 @@ public sealed class DemoShell
     private          DetailsPanel?           _details;
     private          FindBar?                _findBar;
     private          EditorCommandsImpl      _commands = new();
+    private          EditorIndicatorsImpl    _indicators = null!;
     private          HotkeyDispatcher?       _hotkeys;
 
     private readonly List<Scenario>          _scenarios = new();
@@ -281,6 +282,13 @@ public sealed class DemoShell
             }
 
             _canvas.Render(_view, _findBar);
+            ImGui.SetCursorScreenPos(_view.Viewport.CanvasScreenOrigin);
+            if (ImGui.BeginChild("##canvas_edge_markers", _view.Viewport.CanvasScreenSize, ImGuiChildFlags.None,
+                ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoInputs))
+            {
+                NodeEditor.UI.Bookmarks.BookmarkEdgeMarkerRenderer.Render(_view, _bookmarks, _host.Theme);
+            }
+            ImGui.EndChild();
 
             ImGui.SetCursorPos(new Vector2(10, _graphContainer is not null ? 60 : 30));
             var overlayFlags = ImGuiWindowFlags.NoTitleBar
@@ -295,7 +303,6 @@ public sealed class DemoShell
 
             if (ImGui.BeginChild("##shell_overlay", Vector2.Zero, childFlags, overlayFlags))
             {
-                NodeEditor.UI.Bookmarks.BookmarkEdgeMarkerRenderer.Render(_view, _bookmarks, _host.Theme);
                 _scenarios[_scenarioIndex].DrawOverlay(_host);
 
                 // Debug scenario overlay
@@ -479,7 +486,8 @@ public sealed class DemoShell
 
         _commands = new EditorCommandsImpl();
         BuiltinCommandHandlers.RegisterAll(_commands, _view, _findBar);
-        NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, NavigateToGraph);
+        _indicators = new EditorIndicatorsImpl(_host.ToastQueue_);
+        NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, _indicators, NavigateToGraph);
         _hotkeys = new HotkeyDispatcher(_host.Input, _commands);
     }
 
