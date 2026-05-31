@@ -45,6 +45,7 @@ public sealed class DemoShell
     private FakeGraphContainer?              _graphContainer;
     private double                           _timeAccum;
     private double                           _lastElapsed;
+    private int?                             _pendingTabSwitch;
     private readonly Dictionary<FakeGraphModel, (FakeHostServices Host, GraphView View)> _tabState = new();
     private readonly NodeEditor.Core.Bookmarks.BookmarkStore _bookmarks = new();
     private int _lastSelectionCount = -1;
@@ -283,7 +284,15 @@ public sealed class DemoShell
                     for (int i = 0; i < _graphContainer.Graphs.Count; i++)
                     {
                         bool isActive = i == _graphContainer.ActiveIndex;
-                        if (ImGui.BeginTabItem(_graphContainer.Graphs[i].DisplayName))
+                        var flags = ImGuiTabItemFlags.None;
+                        if (_pendingTabSwitch == i)
+                        {
+                            flags |= ImGuiTabItemFlags.SetSelected;
+                            _pendingTabSwitch = null;
+                        }
+
+                        bool isOpen = true;
+                        if (ImGui.BeginTabItem(_graphContainer.Graphs[i].DisplayName, ref isOpen, flags))
                         {
                             if (!isActive)
                             {
@@ -854,6 +863,7 @@ public sealed class DemoShell
                 if (_graphContainer.Graphs[i].DisplayName == item.DisplayName)
                 {
                     _graphContainer.Activate(i);
+                    _pendingTabSwitch = i;
                     _graph = _graphContainer.Active;
                     _host = _tabState[_graph].Host;
                     _view = _tabState[_graph].View;
@@ -930,7 +940,9 @@ public sealed class DemoShell
         }
 
         // 5. Activate the new Tab
-        _graphContainer.Activate(_graphContainer.Graphs.Count - 1);
+        int newIndex = _graphContainer.Graphs.Count - 1;
+        _graphContainer.Activate(newIndex);
+        _pendingTabSwitch = newIndex;
         _graph = _graphContainer.Active;
         _host = newHost;
         _view = newView;
