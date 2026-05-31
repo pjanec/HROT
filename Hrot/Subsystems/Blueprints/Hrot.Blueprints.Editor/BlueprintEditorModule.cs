@@ -1,3 +1,5 @@
+using Hrot.Blueprints.Core.Debug;
+
 namespace Hrot.Blueprints.Editor;
 
 /// <summary>
@@ -12,6 +14,7 @@ public sealed class BlueprintEditorModule
     private readonly EditorState _editorState;
     private readonly IAssetCatalog _catalog;
     private readonly IOutputConsole _outputConsole;
+    private readonly IBlueprintDebugSession? _session;
 
     private readonly List<IBlueprintEditorWindow> _windows = new();
     private bool _activated;
@@ -22,7 +25,8 @@ public sealed class BlueprintEditorModule
         EditorSelectionStore selectionStore,
         EditorState editorState,
         IAssetCatalog catalog,
-        IOutputConsole outputConsole)
+        IOutputConsole outputConsole,
+        IBlueprintDebugSession? session = null)
     {
         _windowRegistrar = windowRegistrar ?? throw new ArgumentNullException(nameof(windowRegistrar));
         _dirtyTracker    = dirtyTracker    ?? throw new ArgumentNullException(nameof(dirtyTracker));
@@ -30,12 +34,15 @@ public sealed class BlueprintEditorModule
         _editorState     = editorState     ?? throw new ArgumentNullException(nameof(editorState));
         _catalog         = catalog         ?? throw new ArgumentNullException(nameof(catalog));
         _outputConsole   = outputConsole   ?? throw new ArgumentNullException(nameof(outputConsole));
+        _session         = session;
     }
 
     public void OnEditorActivated()
     {
         if (_activated) return;
         _activated = true;
+
+        _session?.Attach();
 
         // Register menu entries for each window via IWindowRegistrar.
         foreach (var window in _windows)
@@ -49,6 +56,8 @@ public sealed class BlueprintEditorModule
     {
         if (!_activated) return;
         _activated = false;
+
+        _session?.Detach();
 
         foreach (var window in _windows)
             window.OnDeactivated();

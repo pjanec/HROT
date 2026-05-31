@@ -26,6 +26,12 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
     private EntityQuery? _query4096;
     private EntityQuery? _query16384;
 
+    /// <summary>
+    /// Optional frame-start hook -- wire from a higher-level module at startup (e.g. DebugProbe.NewTick).
+    /// Per Debug DD §9.2: called at the start of each tick before any blueprint is ticked.
+    /// </summary>
+    public static Action? FrameStartCallback { get; set; }
+
     public string ProfileName => "BlueprintTickSystem";
 
     public BlueprintTickSystem(BlueprintRegistry registry)
@@ -39,6 +45,9 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
+        // Per Debug DD §9.2: notify the debug session of the tick boundary before running blueprints.
+        FrameStartCallback?.Invoke();
+
         var repo = (EntityRepository)view;
         var ecb  = view.GetCommandBuffer();
 

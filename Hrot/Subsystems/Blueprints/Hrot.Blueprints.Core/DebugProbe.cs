@@ -25,6 +25,14 @@ public static class DebugProbe
 
     public static void PeerCallExit(Entity self, string peerAssetIdString, string methodName)
         => Sink?.OnPeerCallExit(self, peerAssetIdString, methodName);
+
+    /// <summary>
+    /// Called at the start of each simulation tick by the frame loop / fixture coordinator.
+    /// Forwards to IBlueprintDebugSession.OnNewTick() when the current sink is a session.
+    /// Resets the per-frame breakpoint dedup set (Debug DD §9.2).
+    /// </summary>
+    public static void NewTick()
+        => (Sink as IBlueprintDebugSession)?.OnNewTick();
 }
 
 /// <summary>No-op sink used when a non-null sink is required but no session is attached.</summary>

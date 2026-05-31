@@ -299,7 +299,7 @@ internal static class StatementEmitter
 
             case IrOp_DebugProbe_NodeEnter op:
                 if (e.Ctx.Mode != Hrot.Blueprints.Core.Compiler.CompilerMode.Release)
-                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, \"{op.NodeId:N}\");");
+                    e.WriteLine($"global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, \"{op.NodeId:D}\");");
                 break;
 
             case IrOp_DebugProbe_PinValue op:
