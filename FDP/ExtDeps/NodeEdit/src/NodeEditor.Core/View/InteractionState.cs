@@ -75,6 +75,27 @@ public sealed class InteractionState
     public void BeginViewportTween(Vector2 targetPan, float targetZoom, double durationMs)
         => ActiveTween = new ViewportTween(targetPan, targetZoom, durationMs);
 
+    public void UpdateTween(double deltaSeconds, ViewportState viewport)
+    {
+        if (ActiveTween == null) return;
+        var tween = ActiveTween;
+
+        // Capture origin state lazily on the first frame of execution
+        if (tween.StartPan == null || !tween.StartZoom.HasValue)
+        {
+            tween.StartPan = viewport.PanGraph;
+            tween.StartZoom = viewport.Zoom;
+        }
+
+        float t = tween.Advance(deltaSeconds * 1000.0);
+
+        viewport.PanGraph = Vector2.Lerp(tween.StartPan!.Value, tween.TargetPan, t);
+        viewport.SetZoom(tween.StartZoom!.Value + (tween.TargetZoom - tween.StartZoom.Value) * t);
+
+        if (tween.IsComplete)
+            ActiveTween = null;
+    }
+
     /// <summary>Clear the active tween (called by renderer once the tween completes or is interrupted).</summary>
     public void ClearTween() => ActiveTween = null;
 
@@ -96,6 +117,7 @@ public sealed class InteractionState
         ContextMenuTarget = HoverInfo.None;
         DropTargetContainerId = null;
         DropTargetCycleDetected = false;
+        ActiveTween = null;
     }
 }
 
@@ -106,6 +128,9 @@ public sealed class ViewportTween
     public float   TargetZoom { get; }
     public double  DurationMs { get; }
     public double  ElapsedMs  { get; private set; }
+
+    public Vector2? StartPan  { get; set; }
+    public float?   StartZoom { get; set; }
 
     public ViewportTween(Vector2 targetPan, float targetZoom, double durationMs)
     {

@@ -41,6 +41,7 @@ public sealed class DemoShell
     private double                           _timeAccum;
     private double                           _lastElapsed;
     private readonly Dictionary<FakeGraphModel, (FakeHostServices Host, GraphView View)> _tabState = new();
+    private readonly NodeEditor.Core.Bookmarks.BookmarkStore _bookmarks = new();
 
     private string _lastPick = "(none)";
     private readonly Dictionary<float, nint> _fonts;
@@ -103,6 +104,7 @@ public sealed class DemoShell
         _lastElapsed = elapsedSeconds;
         _timeAccum  += elapsedSeconds;
         _host.Input_.BeginFrame();
+        _view.Interaction.UpdateTween(elapsedSeconds, _view.Viewport);
 
         // Update debug session if active
         if (_debugScenario?.Session is { IsAttached: true } s)
@@ -293,6 +295,7 @@ public sealed class DemoShell
 
             if (ImGui.BeginChild("##shell_overlay", Vector2.Zero, childFlags, overlayFlags))
             {
+                NodeEditor.UI.Bookmarks.BookmarkEdgeMarkerRenderer.Render(_view, _bookmarks, _host.Theme);
                 _scenarios[_scenarioIndex].DrawOverlay(_host);
 
                 // Debug scenario overlay
@@ -476,6 +479,7 @@ public sealed class DemoShell
 
         _commands = new EditorCommandsImpl();
         BuiltinCommandHandlers.RegisterAll(_commands, _view, _findBar);
+        NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, NavigateToGraph);
         _hotkeys = new HotkeyDispatcher(_host.Input, _commands);
     }
 

@@ -55,6 +55,12 @@ public sealed class ViewportState
         PanGraph += anchorGraphBefore - anchorGraphAfter;
     }
 
+    /// <summary>Explicitly sets the zoom level clamped to bounds (used by camera tweening).</summary>
+    public void SetZoom(float zoom)
+    {
+        Zoom = Math.Clamp(zoom, MinZoom, MaxZoom);
+    }
+
     /// <summary>Reset the viewport to identity (zoom=1, pan=0).</summary>
     public void Reset()
     {
