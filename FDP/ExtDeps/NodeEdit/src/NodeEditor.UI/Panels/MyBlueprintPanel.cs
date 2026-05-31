@@ -172,9 +172,9 @@ public sealed class MyBlueprintPanel
     {
         bool expanded = _sectionExpanded.GetValueOrDefault(section.Id, true);
         string label  = $"{section.DisplayName} ({items.Count})##sec_{section.Id}";
-        bool isOpen = ImGui.CollapsingHeader(label, expanded
-            ? ImGuiTreeNodeFlags.DefaultOpen
-            : ImGuiTreeNodeFlags.None);
+        var flags = expanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+        flags |= ImGuiTreeNodeFlags.AllowOverlap;
+        bool isOpen = ImGui.CollapsingHeader(label, flags);
 
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {
