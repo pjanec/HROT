@@ -65,28 +65,52 @@ internal static class TreeLayout
     }
 
     private static void DrawGroupedItems(PickerState state, IPickerRenderContext ctx,
-                                         string parentCategory,
-                                         List<(int idx, RankedEntry re)> items)
+        string parentCategoryPath,
+        List<(int idx, RankedEntry re)> items)
     {
-        foreach (var (idx, re) in items)
+        var bySubRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
+        var leaves = new List<(int idx, RankedEntry re)>();
+
+        string prefix = parentCategoryPath + "/";
+
+        foreach (var item in items)
         {
-            // Check if this item has a sub-category beyond the parent.
-            string? cat = re.Entry.Category;
-            if (cat is not null && cat.Length > parentCategory.Length + 1)
+            string? cat = item.re.Entry.Category;
+            
+            // If the category path extends beyond the current parent, group it by the next segment.
+            if (cat != null && cat.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                // There's a deeper segment; nest one more level.
-                string subCat = cat[(parentCategory.Length + 1)..];
-                string subRoot = subCat.Contains('/') ? subCat[..subCat.IndexOf('/')] : subCat;
-                if (ImGui.TreeNode(subRoot))
+                string remainder = cat[prefix.Length..];
+                string subRoot = remainder.Contains('/') ? remainder[..remainder.IndexOf('/')] : remainder;
+
+                if (!bySubRoot.TryGetValue(subRoot, out var list))
                 {
-                    DrawLeafItem(state, ctx, idx, re);
-                    ImGui.TreePop();
+                    list = new List<(int idx, RankedEntry re)>();
+                    bySubRoot[subRoot] = list;
                 }
+                list.Add(item);
             }
             else
             {
-                DrawLeafItem(state, ctx, idx, re);
+                // The item belongs exactly to the current parent category.
+                leaves.Add(item);
             }
+        }
+
+        // 1. Draw sub-category folders recursively
+        foreach (var (subRoot, subItems) in bySubRoot)
+        {
+            if (ImGui.TreeNode(subRoot))
+            {
+                DrawGroupedItems(state, ctx, prefix + subRoot, subItems);
+                ImGui.TreePop();
+            }
+        }
+
+        // 2. Draw leaf items at this depth
+        foreach (var (idx, re) in leaves)
+        {
+            DrawLeafItem(state, ctx, idx, re);
         }
     }
 
