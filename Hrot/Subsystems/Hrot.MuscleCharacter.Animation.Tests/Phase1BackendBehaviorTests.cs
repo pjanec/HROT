@@ -358,6 +358,61 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 "FakeAnimBackendState component must be removed after ResetWorld");
         }
 
+        // ─── FIX2-014: Tick mirrors state to FakeAnimBackendState ────────────
+
+        [Fact]
+        public void FakeAnimBackend_Tick_MirrorsStateToEcsComponent()
+        {
+            // After Tick(), FakeAnimBackendState.TotalTicks must be incremented
+            // to prove the managed-state path is mirrored to the ECS component (FIX2-014).
+            var backend = new FakeAnimationBackend(); // no class data: minimal backend
+
+            var repo = new EntityRepository();
+            var entity = repo.CreateEntity();
+
+            backend.SetEntityRepository(repo);
+            backend.RegisterEntity((uint)entity.Index, 0L);
+
+            // State before tick: TotalTicks == 0.
+            ref readonly var before = ref repo.GetComponentRO<FakeAnimBackendState>(entity);
+            Assert.Equal(0L, before.TotalTicks);
+
+            backend.Tick(1.0f);
+
+            // State after one tick: TotalTicks == 1.
+            ref readonly var after = ref repo.GetComponentRO<FakeAnimBackendState>(entity);
+            Assert.Equal(1L, after.TotalTicks);
+
+            // Two ticks total.
+            backend.Tick(1.0f);
+            ref readonly var after2 = ref repo.GetComponentRO<FakeAnimBackendState>(entity);
+            Assert.Equal(2L, after2.TotalTicks);
+        }
+
+        // ─── FIX2-014: UnregisterEntity removes from entityIndex map ─────────
+
+        [Fact]
+        public void FakeAnimBackend_UnregisterEntity_RemovesFromEntityIndexMap()
+        {
+            // After UnregisterEntity(), the entity must be absent from the internal
+            // _entityIndexToEntity map to prevent a dead-entity leak (FIX2-014).
+            var backend = new FakeAnimationBackend();
+
+            var repo = new EntityRepository();
+            var entity = repo.CreateEntity();
+
+            backend.SetEntityRepository(repo);
+            var handle = backend.RegisterEntity((uint)entity.Index, 0L);
+
+            // Map must contain the entity after registration.
+            Assert.Equal(1, backend.EntityIndexMapCount);
+
+            backend.UnregisterEntity(handle);
+
+            // Map must be empty after unregistration.
+            Assert.Equal(0, backend.EntityIndexMapCount);
+        }
+
         // ─── OFX-004: StopMontageOnSlot blend-out ────────────────────────────
 
         [Fact]

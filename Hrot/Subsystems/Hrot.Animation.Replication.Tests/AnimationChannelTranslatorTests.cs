@@ -359,4 +359,43 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         Assert.Equal(2, translator.SentSampleCount);
         Assert.Equal(1, translator.DirtyFalsePositiveCount);
     }
+
+    // ── SC-11: FIX2-008: LookAt re-publishes when same ActionInstanceId but Params blob changed ──
+
+    [Fact]
+    public unsafe void LookAtChannelIntentEgress_PublishesOnActionParamsChange_WhenSameInstanceId()
+    {
+        // FIX2-008: The dirty check on LookAtChannelIntentEgressTranslator must compare
+        // the 32-byte Params blob as well as ActionInstanceId. If only the Params change
+        // (same ActionInstanceId), a second publish must be issued.
+        var writer = new CapturingWriter<DdsLookAtChannelIntent>();
+        var translator = new LookAtChannelIntentEgressTranslator(writer, _entityMap);
+        var entity = SpawnEntity(700L);
+
+        var ch = new LookAtChannel
+        {
+            ActiveAction = 7,
+            ActionInstanceId = 99,
+        };
+        // Params bytes are all-zero by default (struct zero-init).
+        _world.AddComponent(entity, ch);
+
+        translator.ScanAndPublish(_world); // First scan -- publishes
+        Assert.Equal(1, translator.SentSampleCount);
+
+        // Mutate only the Params blob; ActionInstanceId stays at 99.
+        {
+            ref var chRef = ref _world.GetComponentRW<LookAtChannel>(entity);
+            fixed (byte* p = chRef.Params)
+                p[0] = 0xAB; // change first byte
+        }
+
+        translator.ScanAndPublish(_world); // Second scan -- must publish again (Params changed)
+        Assert.Equal(2, translator.SentSampleCount);
+
+        // A third scan with no changes must NOT publish.
+        translator.ScanAndPublish(_world);
+        Assert.Equal(2, translator.SentSampleCount);
+        Assert.Equal(1, translator.DirtyFalsePositiveCount);
+    }
 }

@@ -23,6 +23,8 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
     private readonly IAnimDdsWriter<DdsLookAtChannelIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
     private readonly Dictionary<Entity, uint> _lastPublishedActionInstanceId = new();
+    // Tracks the ActionParams blob per entity (4 x ulong covers the 32-byte fixed array).
+    private readonly Dictionary<Entity, (ulong p0, ulong p1, ulong p2, ulong p3)> _lastPublishedActionParams = new();
 
     public string TopicName => TopicNameConst;
     public TranslatorDirection Direction => TranslatorDirection.Egress;
@@ -58,8 +60,19 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
 
             ref readonly var channel = ref view.GetComponentRO<LookAtChannel>(entity);
 
+            // Fine-grained dirty filter: only publish when ActionInstanceId or ActionParams blob changes.
+            var ch = channel; // local copy so we can safely take pointer
+            (ulong p0, ulong p1, ulong p2, ulong p3) currentParams;
+            unsafe
+            {
+                // ch is a local value-type variable (stack-allocated); no fixed statement needed.
+                ulong* u = (ulong*)ch.Params;
+                currentParams = (u[0], u[1], u[2], u[3]);
+            }
             if (_lastPublishedActionInstanceId.TryGetValue(entity, out uint lastId)
-                && lastId == channel.ActionInstanceId)
+                && lastId == channel.ActionInstanceId
+                && _lastPublishedActionParams.TryGetValue(entity, out var lastParams)
+                && lastParams == currentParams)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -67,7 +80,6 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
 
             ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-            var ch = channel;
             var msg = new DdsLookAtChannelIntent
             {
                 EntityId = netId.Value,
@@ -82,6 +94,7 @@ internal sealed class LookAtChannelIntentEgressTranslator : INetworkTranslator
             _writer.Write(msg);
             SentSampleCount++;
             _lastPublishedActionInstanceId[entity] = ch.ActionInstanceId;
+            _lastPublishedActionParams[entity] = currentParams;
         }
     }
 }

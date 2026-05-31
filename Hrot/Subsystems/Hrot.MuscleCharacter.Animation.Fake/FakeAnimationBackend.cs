@@ -48,6 +48,12 @@ public sealed class FakeAnimationBackend : IAnimationBackend
     private uint _nextHandleIndex = 1;
 
     /// <summary>
+    /// Number of live entries in the entityIndex -> Entity map.
+    /// Exposed for test verification of the UnregisterEntity leak fix (FIX2-014).
+    /// </summary>
+    public int EntityIndexMapCount => _entityIndexToEntity.Count;
+
+    /// <summary>
     /// Create a minimal backend with no montage data (smoke tests).
     /// </summary>
     public FakeAnimationBackend()
@@ -112,6 +118,7 @@ public sealed class FakeAnimationBackend : IAnimationBackend
 
         _handleSlots.Remove(handle.Index);
         _entityStates.Remove(slot.EntityId);
+        _entityIndexToEntity.Remove(slot.EntityId);
     }
 
     public bool TryResolve(AnimationBackendHandle handle, out nint state)
@@ -254,13 +261,44 @@ public sealed class FakeAnimationBackend : IAnimationBackend
 
     public void Tick(float deltaTime)
     {
-        foreach (var state in _entityStates.Values)
+        foreach (var (entityId, state) in _entityStates)
         {
             AdvanceSlots(state, deltaTime);
             AdvanceAim(state, deltaTime);
             AdvanceStance(state, deltaTime);
             AdvanceFootsteps(state, deltaTime);
+
+            // Mirror per-tick state to FakeAnimBackendState ECS component (OFX-003 / FIX2-014).
+            if (_repo != null && _entityIndexToEntity.TryGetValue(entityId, out var entity))
+                MirrorToEcs(entity, state);
         }
+    }
+
+    private void MirrorToEcs(Entity entity, EntityBehavioralState state)
+    {
+        ref readonly var existing = ref _repo!.GetComponentRO<FakeAnimBackendState>(entity);
+        var newState = new FakeAnimBackendState
+        {
+            Generation = existing.Generation,
+            TotalTicks = existing.TotalTicks + 1,
+            Aim = state.Aim,
+            Stance = state.Stance,
+            HorizontalSpeed = MathF.Sqrt(
+                state.HorizontalVelX * state.HorizontalVelX +
+                state.HorizontalVelZ * state.HorizontalVelZ),
+            LocalHorizontalVelocity = new System.Numerics.Vector2(state.HorizontalVelX, state.HorizontalVelZ),
+            VerticalVelocity = state.VerticalVelocity,
+            IsGrounded = (byte)(state.IsGrounded ? 1 : 0),
+            DistanceSinceLastFootstep = state.DistanceSinceLastFootstep,
+            NextFootIndex = state.NextFootIndex,
+            PendingNotifyCount = (byte)Math.Min(state.PendingNotifies.Count, 16),
+        };
+        for (int i = 0; i < 8; i++)
+            newState.Slots[i] = state.Slots[i];
+        int notifyCount = Math.Min(state.PendingNotifies.Count, 16);
+        for (int i = 0; i < notifyCount; i++)
+            newState.PendingNotifies[i] = state.PendingNotifies[i];
+        _repo!.SetComponent(entity, newState);
     }
 
     private void AdvanceSlots(EntityBehavioralState state, float deltaTime)
