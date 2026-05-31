@@ -77,6 +77,9 @@ internal sealed class CanvasLayoutBuilder
 
         foreach (var node in view.Model.Nodes)
         {
+            // Cull nodes hidden inside a collapsed parent.
+            if (IsHiddenByCollapsedParent(view, node.Id)) continue;
+
             // Compute the real-time visual position accounting for active drags
             // of the node or any of its parents.
             Vector2 graphPos = GetVisualCanvasPosition(view, node.Id);
@@ -193,6 +196,7 @@ internal sealed class CanvasLayoutBuilder
         foreach (var node in view.Model.Nodes)
         {
             if (node.AsContainer() is not { } container) continue;
+            if (IsHiddenByCollapsedParent(view, node.Id)) continue;
             if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
             // Respect drag overrides recursively so descendants move visually during drag.
             var canvasPos = GetVisualCanvasPosition(view, node.Id);
@@ -207,6 +211,7 @@ internal sealed class CanvasLayoutBuilder
             foreach (var node in view.Model.Nodes)
             {
                 if (node.AsContainer() is not { } container) continue;
+                if (IsHiddenByCollapsedParent(view, node.Id)) continue;
                 if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
                 var canvasPos = GetVisualCanvasPosition(view, node.Id);
                 spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
@@ -222,6 +227,10 @@ internal sealed class CanvasLayoutBuilder
         float headerHt,
         float zoom)
     {
+        // If collapsed, leave its size as the default header box and do not
+        // calculate bounding boxes of its children.
+        if (container.IsCollapsed) return;
+
         // Recurse into child containers before this one.
         foreach (var childId in container.ChildNodeIds)
         {
@@ -263,5 +272,16 @@ internal sealed class CanvasLayoutBuilder
             view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
 
         return interiorOrigin + node.Position;
+    }
+
+    private static bool IsHiddenByCollapsedParent(GraphView view, NodeId id)
+    {
+        var parentId = view.GetParentContainer(id);
+        if (parentId == null) return false;
+
+        var parent = view.Model.FindNode(parentId.Value);
+        if (parent?.AsContainer() is { IsCollapsed: true }) return true;
+
+        return IsHiddenByCollapsedParent(view, parentId.Value);
     }
 }

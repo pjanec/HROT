@@ -129,7 +129,7 @@ internal sealed class ContainerRenderer
         dl.AddRect(pMin, pMax, ImGui.GetColorU32(outlineColor), corner, ImDrawFlags.None, OutlinePx);
 
         // Region dividers and headers (only when container has multiple regions).
-        if (container.Regions.Count > 0)
+        if (container.Regions.Count > 0 && !container.IsCollapsed)
             DrawRegions(dl, container, rect, catColor, headerHt, zoom);
 
         // Title and collapse indicator.
