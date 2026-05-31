@@ -146,6 +146,13 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        public StateBuilder DeferEvent(ushort eventId)
+        {
+            if (!_state.DeferredEventIds.Contains(eventId))
+                _state.DeferredEventIds.Add(eventId);
+            return this;
+        }
+
         public StateBuilder Child(string childName, Action<StateBuilder> configure, Guid stableId = default)
         {
             var child = new StateNode(childName, stableId == default ? null : (Guid?)stableId);

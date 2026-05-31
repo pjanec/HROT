@@ -93,9 +93,9 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
             snap = new HsmInstanceSnapshot(
                 entity, _metadataAssetId,
                 DecodeLeaves64(comp.State, 2),
-                Array.Empty<HsmEventQueueEntry>(),
-                Array.Empty<HsmTimerSlot>(),
-                Array.Empty<HsmHistorySlot>(),
+                DecodeEventQueue64(comp.State),
+                DecodeTimerSlots64(comp.State),
+                DecodeHistorySlots64(comp.State),
                 comp.State.Header.Phase,
                 comp.State.Header.MicroStep,
                 0,
@@ -109,9 +109,9 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
             snap = new HsmInstanceSnapshot(
                 entity, _metadataAssetId,
                 DecodeLeaves128(comp.State, 4),
-                Array.Empty<HsmEventQueueEntry>(),
-                Array.Empty<HsmTimerSlot>(),
-                Array.Empty<HsmHistorySlot>(),
+                DecodeEventQueue128(comp.State),
+                DecodeTimerSlots128(comp.State),
+                DecodeHistorySlots128(comp.State),
                 comp.State.Header.Phase,
                 comp.State.Header.MicroStep,
                 0,
@@ -296,6 +296,110 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
             if (id == 0xFFFF) continue;
             if (_metadata != null && _metadata.StateStableIds.TryGetValue(id, out var sid))
                 result.Add(sid);
+        }
+        return result;
+    }
+
+    // ---- BPF-010: event-queue, timer-slot and history-slot decode helpers ----
+
+    private unsafe IReadOnlyList<HsmEventQueueEntry> DecodeEventQueue64(HsmInstance64 state)
+    {
+        int count = state.EventCount;
+        if (count <= 0) return Array.Empty<HsmEventQueueEntry>();
+
+        var result = new List<HsmEventQueueEntry>(count);
+        // HsmInstance64 uses a single shared queue; EventBuffer holds up to 1 event (24 bytes).
+        // Clamp to the capacity of one event.
+        int actual = Math.Min(count, 1);
+        for (int i = 0; i < actual; i++)
+        {
+            var ev = (HsmEvent*)(state.EventBuffer + i * sizeof(HsmEvent));
+            string name = _metadata != null
+                ? _metadata.GetEventName(ev->EventId)
+                : ev->EventId.ToString();
+            result.Add(new HsmEventQueueEntry(ev->EventId, name, ev->Flags, ev->Priority, i));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmEventQueueEntry> DecodeEventQueue128(HsmInstance128 state)
+    {
+        int count = state.InterruptSlotUsed + state.EventCount;
+        if (count <= 0) return Array.Empty<HsmEventQueueEntry>();
+
+        var result = new List<HsmEventQueueEntry>(count);
+        // EventBuffer layout: [0-23] interrupt slot, [24-67] shared ring (up to 2 events).
+        int pos = 0;
+        if (state.InterruptSlotUsed != 0)
+        {
+            var ev = (HsmEvent*)(state.EventBuffer);
+            string name = _metadata != null
+                ? _metadata.GetEventName(ev->EventId)
+                : ev->EventId.ToString();
+            result.Add(new HsmEventQueueEntry(ev->EventId, name, ev->Flags, ev->Priority, pos));
+            pos++;
+        }
+        int ringCount = Math.Min((int)state.EventCount, 2);
+        for (int i = 0; i < ringCount; i++)
+        {
+            var ev = (HsmEvent*)(state.EventBuffer + 24 + i * sizeof(HsmEvent));
+            string name = _metadata != null
+                ? _metadata.GetEventName(ev->EventId)
+                : ev->EventId.ToString();
+            result.Add(new HsmEventQueueEntry(ev->EventId, name, ev->Flags, ev->Priority, pos));
+            pos++;
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmTimerSlot> DecodeTimerSlots64(HsmInstance64 state)
+    {
+        var result = new List<HsmTimerSlot>(2);
+        for (int i = 0; i < 2; i++)
+        {
+            uint deadline = state.TimerDeadlines[i];
+            if (deadline == 0) continue;
+            result.Add(new HsmTimerSlot(i, OwningStateStableId: null, RemainingTicks: (float)deadline));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmTimerSlot> DecodeTimerSlots128(HsmInstance128 state)
+    {
+        var result = new List<HsmTimerSlot>(4);
+        for (int i = 0; i < 4; i++)
+        {
+            uint deadline = state.TimerDeadlines[i];
+            if (deadline == 0) continue;
+            result.Add(new HsmTimerSlot(i, OwningStateStableId: null, RemainingTicks: (float)deadline));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmHistorySlot> DecodeHistorySlots64(HsmInstance64 state)
+    {
+        var result = new List<HsmHistorySlot>(2);
+        for (int i = 0; i < 2; i++)
+        {
+            ushort childId = state.HistorySlots[i];
+            if (childId == 0xFFFF) continue;
+            Guid? childSid = (_metadata != null && _metadata.StateStableIds.TryGetValue(childId, out var sg))
+                ? sg : (Guid?)null;
+            result.Add(new HsmHistorySlot(i, OwningCompositeStableId: null, childSid, IsDeepHistory: false));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmHistorySlot> DecodeHistorySlots128(HsmInstance128 state)
+    {
+        var result = new List<HsmHistorySlot>(8);
+        for (int i = 0; i < 8; i++)
+        {
+            ushort childId = state.HistorySlots[i];
+            if (childId == 0xFFFF) continue;
+            Guid? childSid = (_metadata != null && _metadata.StateStableIds.TryGetValue(childId, out var sg))
+                ? sg : (Guid?)null;
+            result.Add(new HsmHistorySlot(i, OwningCompositeStableId: null, childSid, IsDeepHistory: false));
         }
         return result;
     }

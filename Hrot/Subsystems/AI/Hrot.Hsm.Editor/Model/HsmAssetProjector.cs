@@ -58,6 +58,13 @@ internal static class HsmAssetProjector
             if (def.ActivityActionId != 0xFFFF) node.ActivityAction = metadata.GetActionName(def.ActivityActionId);
             if (def.TimerActionId    != 0xFFFF) node.TimerAction    = metadata.GetActionName(def.TimerActionId);
 
+            // BPF-011: populate deferred event IDs from metadata (keyed by flat index).
+            if (metadata.DeferredEventsByState.TryGetValue((ushort)i, out var deferredIds))
+            {
+                foreach (var id in deferredIds)
+                    node.DeferredEventIds.Add(id);
+            }
+
             stateNodes[i] = node;
         }
 
@@ -142,18 +149,23 @@ internal static class HsmAssetProjector
             transitionNodes.Add(tn);
         }
 
-        // Apply transition layout (VisualIds + waypoints + comments)
+        // Apply transition layout (VisualIds + waypoints + comments).
+        // BPF-012: use metadata.TransitionVisualIds to match index to stable VisualId
+        // so that deleting a transition does not shift IDs for surviving transitions.
+        for (int i = 0; i < transitionNodes.Count; i++)
+        {
+            if (metadata.TransitionVisualIds.TryGetValue((ushort)i, out var vid))
+                transitionNodes[i].VisualId = vid;
+        }
         if (layout != null)
         {
-            var layoutTransKeys = new List<Guid>(layout.Transitions.Keys);
-            layoutTransKeys.Sort();
-            for (int i = 0; i < Math.Min(layoutTransKeys.Count, transitionNodes.Count); i++)
+            for (int i = 0; i < transitionNodes.Count; i++)
             {
-                var key = layoutTransKeys[i];
-                var entry = layout.Transitions[key];
-                transitionNodes[i].VisualId = key;
-                transitionNodes[i].Waypoints.AddRange(entry.Waypoints);
-                transitionNodes[i].Comment = entry.Comment;
+                if (layout.Transitions.TryGetValue(transitionNodes[i].VisualId, out var entry))
+                {
+                    transitionNodes[i].Waypoints.AddRange(entry.Waypoints);
+                    transitionNodes[i].Comment = entry.Comment;
+                }
             }
         }
 
@@ -176,18 +188,24 @@ internal static class HsmAssetProjector
             regionNodes.Add(rn);
         }
 
-        // Apply region layout
+        // Apply region layout.
+        // BPF-012: use RegionIndex stored in each layout entry to match by structural
+        // position rather than sorted Guid order, so IDs survive region deletion.
         if (layout != null)
         {
-            var layoutRegionKeys = new List<Guid>(layout.Regions.Keys);
-            layoutRegionKeys.Sort();
-            for (int i = 0; i < Math.Min(layoutRegionKeys.Count, regionNodes.Count); i++)
+            var regionIndexToStableId = new Dictionary<int, Guid>(layout.Regions.Count);
+            foreach (var (key, entry) in layout.Regions)
+                regionIndexToStableId[entry.RegionIndex] = key;
+
+            for (int i = 0; i < regionNodes.Count; i++)
             {
-                var key = layoutRegionKeys[i];
-                var entry = layout.Regions[key];
-                regionNodes[i].StableId = key;
-                regionNodes[i].Comment = entry.Comment;
-                regionNodes[i].ColorOverride = entry.Color;
+                if (!regionIndexToStableId.TryGetValue(i, out var sid)) continue;
+                regionNodes[i].StableId = sid;
+                if (layout.Regions.TryGetValue(sid, out var entry))
+                {
+                    regionNodes[i].Comment = entry.Comment;
+                    regionNodes[i].ColorOverride = entry.Color;
+                }
             }
         }
 

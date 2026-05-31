@@ -194,4 +194,30 @@ public class HsmFluentEmitterTests
 
         code.Should().NotContain(".DeferEvent(");
     }
+
+    // ---- BPF-011: deferred events round-trip (builder -> blob -> projector) ----
+
+    [Fact]
+    public void HsmDeferredEvents_RoundTrip_BlobToProjectorToEmit()
+    {
+        // Build a machine with a state that defers two events.
+        var builder = new HsmBuilder("M");
+        builder.Event("Tick",  1);
+        builder.Event("Fire",  2);
+        builder.State("Idle").Initial().DeferEvent(1).DeferEvent(2);
+
+        var asset = BuildAndProject(builder);
+
+        // Projector must populate DeferredEventIds from metadata.DeferredEventsByState.
+        var idle = asset.AllStates.First(s => s.Name == "Idle");
+        idle.DeferredEventIds.Should().BeEquivalentTo(new ushort[] { 1, 2 });
+
+        // Emitter must emit the DeferEvent calls in ascending order.
+        string code = EmitAsset(asset);
+        code.Should().Contain(".DeferEvent(1)");
+        code.Should().Contain(".DeferEvent(2)");
+        var idx1 = code.IndexOf(".DeferEvent(1)", StringComparison.Ordinal);
+        var idx2 = code.IndexOf(".DeferEvent(2)", StringComparison.Ordinal);
+        idx1.Should().BeLessThan(idx2, "lower event ID must be emitted first");
+    }
 }

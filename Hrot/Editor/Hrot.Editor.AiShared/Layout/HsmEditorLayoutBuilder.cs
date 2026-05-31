@@ -64,8 +64,7 @@ public sealed class HsmEditorLayoutBuilder
         bool collapsed = false,
         string? color = null)
     {
-        // Region key is stableId; regionIndex is stored for disambiguation when multiple
-        // regions share the same stableId parent (parallel regions).
+        // Region key is stableId; regionIndex is stored for stable lookup after deletion.
         var id = Guid.Parse(stableId);
         _regions[id] = new RegionLayoutEntry
         {
@@ -74,6 +73,7 @@ public sealed class HsmEditorLayoutBuilder
             Comment = comment,
             Collapsed = collapsed,
             Color = color,
+            RegionIndex = regionIndex,
         };
         return this;
     }

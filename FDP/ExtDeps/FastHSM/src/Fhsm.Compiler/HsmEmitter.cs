@@ -60,6 +60,14 @@ namespace Fhsm.Compiler
                 meta.TransitionVisualIds[transIdx++] = gt.VisualId;
             }
 
+            // Deferred event IDs per state, keyed by flat index.
+            foreach (var state in graph.States.Values)
+            {
+                if (state.FlatIndex == 0xFFFF) continue;
+                if (state.DeferredEventIds.Count > 0)
+                    meta.DeferredEventsByState[state.FlatIndex] = state.DeferredEventIds.ToArray();
+            }
+
             return meta;
         }
 

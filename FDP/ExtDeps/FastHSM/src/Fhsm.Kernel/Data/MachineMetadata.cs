@@ -14,6 +14,8 @@ namespace Fhsm.Kernel.Data
         public Dictionary<ushort, string> ActionNames { get; set; } = new();
         public Dictionary<ushort, Guid> StateStableIds { get; set; } = new();
         public Dictionary<ushort, Guid> TransitionVisualIds { get; set; } = new();
+        // Per-state deferred event IDs, keyed by state flat index.
+        public Dictionary<ushort, ushort[]> DeferredEventsByState { get; set; } = new();
         
         public string GetStateName(ushort id) => StateNames.TryGetValue(id, out var name) ? name : $"State_{id}";
         public string GetEventName(ushort id) => EventNames.TryGetValue(id, out var name) ? name : $"Event_{id}";

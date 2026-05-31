@@ -493,6 +493,58 @@ public sealed class HsmDebugSessionTests
 
         spy.PauseRequested.Should().BeTrue();
     }
+
+    // ---- BPF-010: event-queue, timer-slot and history-slot decoding ------
+
+    [Fact]
+    public unsafe void HsmSnapshot_DecodeEventQueueTimerSlotsHistorySlots_FromHsmInstance64()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var childSid = new Guid("ee000000-0000-0000-0000-000000000007");
+        var assetId  = new Guid("ff000000-0000-0000-0000-000000000001");
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Activity;
+
+        // One event in the shared queue
+        brain.State.EventCount = 1;
+        var ev = new HsmEvent { EventId = 99, Priority = EventPriority.Normal };
+        *(HsmEvent*)brain.State.EventBuffer = ev;
+
+        // One timer slot active, one empty
+        brain.State.TimerDeadlines[0] = 150u;
+        brain.State.TimerDeadlines[1] = 0u;
+
+        // One history slot with recorded child (flat index 7), one empty
+        brain.State.HistorySlots[0] = 7;
+        brain.State.HistorySlots[1] = 0xFFFF;
+
+        world.AddComponent(entity, brain);
+
+        var metadata = new MachineMetadata();
+        metadata.StateStableIds[7] = childSid;
+
+        var sut = new HsmDebugSession();
+        sut.SetMetadata(assetId, metadata);
+        sut.Update(world, entity);
+
+        var snap = sut.GetCurrentStateSnapshot();
+        snap.Should().NotBeNull();
+
+        snap!.EventQueue.Should().HaveCount(1);
+        snap.EventQueue[0].EventId.Should().Be(99);
+        snap.EventQueue[0].QueuePosition.Should().Be(0);
+
+        snap.TimerSlots.Should().HaveCount(1);
+        snap.TimerSlots[0].SlotIndex.Should().Be(0);
+        snap.TimerSlots[0].RemainingTicks.Should().Be(150f);
+
+        snap.HistorySlots.Should().HaveCount(1);
+        snap.HistorySlots[0].SlotIndex.Should().Be(0);
+        snap.HistorySlots[0].RecordedChildStableId.Should().Be(childSid);
+    }
 }
 
 file sealed class SpyCoordinator : AiTracerCoordinator

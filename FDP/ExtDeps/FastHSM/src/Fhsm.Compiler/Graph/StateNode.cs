@@ -39,6 +39,9 @@ namespace Fhsm.Compiler.Graph
         public byte Depth { get; set; }
         public byte OutputLaneMask { get; set; } // Added for Task 8
         
+        // Event IDs that this state defers (populated by HsmBuilder.StateBuilder.DeferEvent).
+        public List<ushort> DeferredEventIds { get; } = new();
+
         public StateNode(string name, Guid? stableId = null)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));

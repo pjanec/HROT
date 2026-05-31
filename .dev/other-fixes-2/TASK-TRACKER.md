@@ -23,9 +23,9 @@ the new code AND a test drives the production path.
 
 ## B. Partial implementations (still diverge from design)
 - [x] **FIX2-009** (Medium, BPF-001) -- Instance-dispatch state inspection still a stub (`CaptureInstanceStateFromDefinition` empty) -> [details](./TASK-DETAIL.md#fix2-009----instance-dispatch-state-inspection-is-still-a-stub-source-bpf-001)
-- [ ] **FIX2-010** (Medium, BPF-010) -- HSM snapshot EventQueue/TimerSlots/HistorySlots still empty; add decode helpers -> [details](./TASK-DETAIL.md#fix2-010----hsm-snapshot-eventqueue--timerslots--historyslots-still-empty-source-bpf-010)
-- [ ] **FIX2-011** (Medium, BPF-022) -- HSM deferred events: projector never populates; no blob storage; vacuous test -> [details](./TASK-DETAIL.md#fix2-011----hsm-deferred-events-projector-never-populates-them-no-blob-storage-vacuous-test-source-bpf-022)
-- [ ] **FIX2-012** (Medium, BPF-025) -- HSM projector transitions & regions still positional-sort; use `TransitionVisualIds` -> [details](./TASK-DETAIL.md#fix2-012----hsm-projector-transitions--regions-still-use-positional-sort-identity-source-bpf-025)
+- [x] **FIX2-010** (Medium, BPF-010) -- HSM snapshot EventQueue/TimerSlots/HistorySlots still empty; add decode helpers -> [details](./TASK-DETAIL.md#fix2-010----hsm-snapshot-eventqueue--timerslots--historyslots-still-empty-source-bpf-010)
+- [x] **FIX2-011** (Medium, BPF-022) -- HSM deferred events: projector never populates; no blob storage; vacuous test -> [details](./TASK-DETAIL.md#fix2-011----hsm-deferred-events-projector-never-populates-them-no-blob-storage-vacuous-test-source-bpf-022)
+- [x] **FIX2-012** (Medium, BPF-025) -- HSM projector transitions & regions still positional-sort; use `TransitionVisualIds` -> [details](./TASK-DETAIL.md#fix2-012----hsm-projector-transitions--regions-still-use-positional-sort-identity-source-bpf-025)
 - [x] **FIX2-013** (Medium, BPF-045) -- BTree async-badge overlay render path still missing (§12.4 step 4) -> [details](./TASK-DETAIL.md#fix2-013----btree-async-badge-overlay-still-missing-source-bpf-045)
 - [ ] **FIX2-014** (Medium, OFX-003) -- FakeAnimationBackend still runs off managed Dictionary; only Generation mirrored; + `_entityIndexToEntity` leak -> [details](./TASK-DETAIL.md#fix2-014----fakeanimationbackend-still-runs-off-the-managed-dictionary-only-generation-is-mirrored-source-ofx-003)
 

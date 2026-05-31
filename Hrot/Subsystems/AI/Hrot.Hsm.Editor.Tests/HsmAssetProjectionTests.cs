@@ -333,4 +333,45 @@ public class HsmAssetProjectionTests
         asset.AllStates.First(s => s.Name == "Idle").Position.Should().Be(new Vector2(100f, 200f));
         asset.AllStates.First(s => s.Name == "Busy").Position.Should().Be(new Vector2(300f, 400f));
     }
+
+    // ---- BPF-012: transition VisualId stability (keyed by metadata, not sorted Guid) ------
+
+    [Fact]
+    public void HsmProjector_TransitionVisualId_StableAfterDeletion()
+    {
+        // Build a machine with two transitions.
+        var builder = new HsmBuilder("VisMachine");
+        builder.Event("Tick", 1);
+        builder.Event("Boom", 2);
+        builder.State("Active");
+        builder.State("Done").Final();
+        var idle = builder.State("Idle").Initial();
+        idle.On("Tick").GoTo("Active");
+        idle.On("Boom").GoTo("Done");
+        var (blob, metadata) = Compile(builder);
+
+        // Override the VisualIds so that metadata[0] is the *larger* GUID
+        // and metadata[1] is the *smaller* one. Old (sorted) code would assign
+        // them in the wrong order (small first); new code uses metadata order.
+        var vid0 = new Guid("ff000000-0000-0000-0000-000000000001"); // large
+        var vid1 = new Guid("00000000-0000-0000-0000-000000000002"); // small
+        metadata.TransitionVisualIds[0] = vid0;
+        metadata.TransitionVisualIds[1] = vid1;
+
+        var layout = new HsmEditorLayoutBuilder()
+            .Transition(vid0.ToString("D"), waypoints: Array.Empty<Vector2>(), comment: "transition-zero")
+            .Transition(vid1.ToString("D"), waypoints: Array.Empty<Vector2>(), comment: "transition-one")
+            .Build();
+
+        var asset = HsmAssetProjector.Project(blob, metadata, layout,
+            Guid.NewGuid(), "VisMachine", "", false, "");
+
+        // Transition at index 0 must have vid0 and its comment.
+        asset.AllTransitions[0].VisualId.Should().Be(vid0);
+        asset.AllTransitions[0].Comment.Should().Be("transition-zero");
+
+        // Transition at index 1 must have vid1 and its comment.
+        asset.AllTransitions[1].VisualId.Should().Be(vid1);
+        asset.AllTransitions[1].Comment.Should().Be("transition-one");
+    }
 }
