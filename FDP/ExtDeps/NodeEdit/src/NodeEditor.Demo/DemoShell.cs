@@ -441,7 +441,11 @@ public sealed class DemoShell
         bool open = true;
         if (ImGui.BeginPopupModal("Create Variable", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
-            ImGui.InputText("Name", ref _newVarName, 128);
+            if (ImGui.IsWindowAppearing())
+                ImGui.SetKeyboardFocusHere();
+
+            var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
+            bool inputEnter = ImGui.InputText("Name", ref _newVarName, 128, inputFlags);
 
             bool nameExists = _host.MyBlueprint.GetItems("variables")
                 .Any(v => v.DisplayName.Equals(_newVarName, StringComparison.OrdinalIgnoreCase));
@@ -471,8 +475,11 @@ public sealed class DemoShell
 
             ImGui.Spacing();
 
-            ImGui.BeginDisabled(nameExists || string.IsNullOrWhiteSpace(_newVarName));
-            if (ImGui.Button("Create", new Vector2(120, 0)))
+            bool isValid = !nameExists && !string.IsNullOrWhiteSpace(_newVarName);
+            bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+
+            ImGui.BeginDisabled(!isValid);
+            if (ImGui.Button("Create", new Vector2(120, 0)) || ((inputEnter || globalEnter) && isValid))
             {
                 var tk = new TypeKey(_newVarType);
                 var color = _host.TypeSystem_.GetPinColor(tk);
@@ -489,7 +496,7 @@ public sealed class DemoShell
 
             ImGui.SameLine();
 
-            if (ImGui.Button("Cancel", new Vector2(120, 0)))
+            if (ImGui.Button("Cancel", new Vector2(120, 0)) || !open || ImGui.IsKeyPressed(ImGuiKey.Escape))
             {
                 ImGui.CloseCurrentPopup();
             }
