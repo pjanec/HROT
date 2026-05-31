@@ -9,6 +9,7 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Find;
 using NodeEditor.UI.Panels;
 using NodeEditor.UI.Util;
+using NodeEditor.UI.Action;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -472,12 +473,33 @@ public sealed class CanvasRenderer
             }
 
             case HoverKind.Node:
-                if (ImGui.MenuItem("Delete Node"))
+            {
+                var selectedNodes = view.Selection.Nodes.ToList();
+                bool isHoveredSelected = selectedNodes.Contains(target.Node);
+
+                // If right-clicking an unselected node, target just that node.
+                // If right-clicking a selected node, target the whole group.
+                var targetNodes = isHoveredSelected ? selectedNodes : new List<NodeId> { target.Node };
+
+                if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
                 {
-                    var nodeId = target.Node;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(new[] { nodeId }));
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(targetNodes));
+                }
+
+                ImGui.Separator();
+
+                if (ImGui.MenuItem("Add Comment", "C"))
+                {
+                    if (!isHoveredSelected)
+                    {
+                        view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    }
+
+                    CanvasCommands.AddCommentAroundSelection(view);
                 }
                 break;
+            }
 
             case HoverKind.Comment:
             {
