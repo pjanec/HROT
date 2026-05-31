@@ -233,7 +233,7 @@ public sealed class CanvasRenderer
 
         // 13. Find overlay (match highlights + dim pass).
         if (findBar?.IsVisible == true && findBar.Results.Count > 0)
-            DrawFindOverlay(view, dl, findBar);
+            DrawFindOverlay(view, dl, findBar, _layout.NodeScreenRects);
 
         // 14. Context menu popup request/dispatch.
         if (view.Interaction.ContextMenuScreen.HasValue)
@@ -579,7 +579,7 @@ public sealed class CanvasRenderer
 
     // ── Find overlay ─────────────────────────────────────────────────────────
 
-    private static void DrawFindOverlay(GraphView view, ImDrawListPtr dl, FindBar findBar)
+    private static void DrawFindOverlay(GraphView view, ImDrawListPtr dl, FindBar findBar, Dictionary<NodeId, RectF> nodeScreenRects)
     {
         var matchNodeIds = new HashSet<NodeId>();
         foreach (var r in findBar.Results)
@@ -589,11 +589,9 @@ public sealed class CanvasRenderer
         foreach (var node in view.Model.Nodes)
         {
             if (matchNodeIds.Contains(node.Id)) continue;
-            var pos  = node.Position;
-            var size = node.SizeOverride ?? new Vector2(160, 64);
-            var min  = view.Viewport.GraphToScreen(pos);
-            var max  = view.Viewport.GraphToScreen(pos + size);
-            dl.AddRectFilled(min, max, ImGui.GetColorU32(new Vector4(0, 0, 0, 0.6f)), 4f);
+            if (!nodeScreenRects.TryGetValue(node.Id, out var rect)) continue;
+
+            dl.AddRectFilled(rect.Min, rect.Max, ImGui.GetColorU32(new Vector4(0, 0, 0, 0.6f)), 4f);
         }
 
         // Yellow outline for matching nodes
@@ -603,10 +601,7 @@ public sealed class CanvasRenderer
             if (!result.Node.HasValue) continue;
             var node = view.Model.FindNode(result.Node.Value);
             if (node is null) continue;
-
-            var size  = node.SizeOverride ?? new Vector2(160, 64);
-            var min   = view.Viewport.GraphToScreen(node.Position);
-            var max   = view.Viewport.GraphToScreen(node.Position + size);
+            if (!nodeScreenRects.TryGetValue(node.Id, out var rect)) continue;
             bool isActive = (i == findBar.ActiveIndex);
 
             // Apply a 2 Hz sine pulse for the active match.
@@ -618,7 +613,7 @@ public sealed class CanvasRenderer
                 ? new Vector4(1f, 0.9f, 0.1f, pulseAlpha)
                 : new Vector4(1f, 0.85f, 0.0f, 0.7f);
             float thickness = isActive ? 3.0f : 1.5f;
-            dl.AddRect(min, max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
+            dl.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
     }
 
