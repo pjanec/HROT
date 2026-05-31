@@ -13,6 +13,8 @@ using NodeEditor.UI.Find;
 using NodeEditor.UI.MiniEditors;
 using NodeEditor.UI.Panels;
 using NodeEditor.UI.Picker;
+using System;
+using System.Linq;
 using System.Numerics;
 
 namespace NodeEditor.Demo;
@@ -441,18 +443,34 @@ public sealed class DemoShell
         {
             ImGui.InputText("Name", ref _newVarName, 128);
 
-            if (ImGui.BeginCombo("Type", _newVarType))
+            bool nameExists = _host.MyBlueprint.GetItems("variables")
+                .Any(v => v.DisplayName.Equals(_newVarName, StringComparison.OrdinalIgnoreCase));
+
+            if (nameExists)
+                ImGui.TextColored(_host.Theme.ErrorColor, "A variable with this name already exists.");
+            else
+                ImGui.Dummy(new Vector2(0, ImGui.GetTextLineHeight()));
+
+            ImGui.AlignTextToFramePadding();
+            ImGui.Text("Type");
+            ImGui.SameLine(60f);
+            if (ImGui.Button($"{_newVarType} \u25bc##pick_type", new Vector2(180, 0)))
             {
-                string[] types = { "System.Boolean", "System.Int32", "System.Single", "System.String", "System.Numerics.Vector3", "NodeEditor.Color" };
-                foreach (var t in types)
+                ImGui.CloseCurrentPopup();
+
+                var request = S10_TypePicker.CreateTypePickerRequest();
+                _host.PickerRegistry_.OpenPicker(request, result =>
                 {
-                    if (ImGui.Selectable(t, _newVarType == t)) _newVarType = t;
-                }
-                ImGui.EndCombo();
+                    if (!result.Cancelled && result.First?.Tag is TypeKey chosenType)
+                        _newVarType = chosenType.Id;
+
+                    _showCreateVarModal = true;
+                });
             }
 
             ImGui.Spacing();
 
+            ImGui.BeginDisabled(nameExists || string.IsNullOrWhiteSpace(_newVarName));
             if (ImGui.Button("Create", new Vector2(120, 0)))
             {
                 var tk = new TypeKey(_newVarType);
@@ -466,6 +484,7 @@ public sealed class DemoShell
 
                 ImGui.CloseCurrentPopup();
             }
+            ImGui.EndDisabled();
 
             ImGui.SameLine();
 
