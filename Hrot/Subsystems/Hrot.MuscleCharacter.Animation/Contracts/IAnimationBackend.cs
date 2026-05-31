@@ -299,5 +299,19 @@ namespace Hrot.MuscleCharacter.Animation.Contracts
         /// Used by AnimationStateReporterSystem to detect natural single-montage completion.
         /// </summary>
         bool IsAnySlotActive(AnimationBackendHandle handle);
+
+        /// <summary>
+        /// Returns true if any playback slot for this entity has entered its blend-out window
+        /// (InBlendOutWindow == 1). Used by MontageQueueAdvanceSystem to trigger crossfade
+        /// before the slot goes fully silent (OFX-009, DD-1 §7).
+        /// </summary>
+        bool IsAnySlotInBlendOut(AnimationBackendHandle handle);
+
+        /// <summary>
+        /// Crossfade-replace the current montage on the slot with a new one.
+        /// Semantically identical to PlayMontageOnSlot but signals the queue
+        /// advance path (chaining, not a fresh play). (OFX-009, DD-1 §7)
+        /// </summary>
+        void CrossfadeMontageOnSlot(AnimationBackendHandle handle, in PlayMontageParams @params);
     }
 }

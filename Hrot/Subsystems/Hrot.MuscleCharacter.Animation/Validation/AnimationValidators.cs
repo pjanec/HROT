@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.MuscleCharacter.Animation.Descriptors;
+using Hrot.MuscleCharacter.Animation.Nodes;
 
 namespace Hrot.MuscleCharacter.Animation.Validation
 {
@@ -165,5 +166,180 @@ namespace Hrot.MuscleCharacter.Animation.Validation
         {
             return dto != null && dto.AimConfig != null;
         }
+    }
+
+    /// <summary>
+    /// Minimal Blueprint graph IR used for compile-time static analysis (DD-5 §10).
+    /// Represents a single graph scope as a flat sequence of node types.
+    /// Cross-graph reasoning is intentionally out of scope (per DD-5 §10).
+    /// </summary>
+    public sealed class BlueprintGraphIr
+    {
+        /// <summary>Node types present in this graph scope (in execution order).</summary>
+        public IReadOnlyList<Type> Nodes { get; }
+
+        public BlueprintGraphIr(IReadOnlyList<Type> nodes)
+        {
+            Nodes = nodes ?? throw new ArgumentNullException(nameof(nodes));
+        }
+
+        public BlueprintGraphIr(params Type[] nodes) : this((IReadOnlyList<Type>)nodes) { }
+
+        /// <summary>Returns true if the graph contains at least one node of the given type.</summary>
+        public bool HasNode<T>() => Nodes.Any(n => n == typeof(T));
+    }
+
+    /// <summary>
+    /// Blueprint graph validators for DD-5 §10 rules ANIM008–ANIM011.
+    /// These run at compile time, checking Blueprint graphs for structural issues.
+    /// </summary>
+    public static class BlueprintAnimationValidators
+    {
+        /// <summary>
+        /// ANIM008 — EnqueueMontageNode used without a preceding PlayMontageChainNode
+        /// in the same graph scope (DD-5 §10). Warning: cross-graph chain starts are
+        /// legitimate so this is advisory only.
+        /// </summary>
+        public static IReadOnlyList<ValidationMessage> ValidateAnim008(BlueprintGraphIr graph)
+        {
+            if (graph == null) throw new ArgumentNullException(nameof(graph));
+
+            var messages = new List<ValidationMessage>();
+
+            bool hasEnqueue = graph.HasNode<EnqueueMontageNode>();
+            bool hasPlayChain = graph.HasNode<PlayMontageChainNode>();
+
+            if (hasEnqueue && !hasPlayChain)
+            {
+                messages.Add(new ValidationMessage
+                {
+                    Severity = ValidationSeverity.Warning,
+                    RuleId = "ANIM008",
+                    Message = "Enqueue Montage executed without a preceding Play Montage Chain in this graph. " +
+                              "The enqueue will silently no-op at runtime if no queue is active.",
+                });
+            }
+
+            return messages;
+        }
+
+        /// <summary>
+        /// ANIM009 — ReleaseLookNode used without a preceding LookAtPointNode or LookAtEntityNode
+        /// in the same graph scope (DD-5 §10). Warning: cross-graph acquire is legitimate.
+        /// </summary>
+        public static IReadOnlyList<ValidationMessage> ValidateAnim009(BlueprintGraphIr graph)
+        {
+            if (graph == null) throw new ArgumentNullException(nameof(graph));
+
+            var messages = new List<ValidationMessage>();
+
+            bool hasRelease = graph.HasNode<ReleaseLookNode>();
+            bool hasAcquire = graph.HasNode<LookAtPointNode>() || graph.HasNode<LookAtEntityNode>();
+
+            if (hasRelease && !hasAcquire)
+            {
+                messages.Add(new ValidationMessage
+                {
+                    Severity = ValidationSeverity.Warning,
+                    RuleId = "ANIM009",
+                    Message = "Release Look executed without a preceding Look At in this graph. " +
+                              "The release will succeed harmlessly at runtime if no aim is active.",
+                });
+            }
+
+            return messages;
+        }
+
+        /// <summary>
+        /// ANIM010 — Codegen self-check: queue mutation code must use the Span-cast
+        /// (Pattern A: MemoryMarshal.Cast) or pointer-cast (Pattern B) safe pattern (DD-5 §10).
+        /// This is an internal compiler error; it fires on codegen output, not designer graphs.
+        /// </summary>
+        /// <param name="patternKind">
+        /// The pattern identifier detected in generated code.
+        /// "SpanCast" (Pattern A) and "PointerCast" (Pattern B) are safe; anything else is flagged.
+        /// </param>
+        public static IReadOnlyList<ValidationMessage> ValidateAnim010(string patternKind)
+        {
+            if (patternKind == null) throw new ArgumentNullException(nameof(patternKind));
+
+            var messages = new List<ValidationMessage>();
+
+            // Only the two approved safe patterns are allowed (DD-5 §9.4).
+            if (patternKind != "SpanCast" && patternKind != "PointerCast")
+            {
+                messages.Add(new ValidationMessage
+                {
+                    Severity = ValidationSeverity.Error,
+                    RuleId = "ANIM010",
+                    Message = $"Compiler bug — fix codegen template. " +
+                              $"Queue mutation used unrecognised pattern '{patternKind}' instead of SpanCast or PointerCast.",
+                    Context = patternKind,
+                });
+            }
+
+            return messages;
+        }
+
+        /// <summary>
+        /// ANIM011 — Animation primitive used in an inappropriate context.
+        /// Fires when an animation node is authored in a Blueprint whose entity class
+        /// does not carry the required animation component (DD-5 §10).
+        /// <para>
+        /// Pass <paramref name="entityAnimDef"/> as non-null if the entity class has
+        /// <c>AnimationChannel</c> (i.e., it is a humanoid character). Pass null if the
+        /// entity class does not participate in the animation pipeline.
+        /// </para>
+        /// </summary>
+        public static IReadOnlyList<ValidationMessage> ValidateAnim011(
+            BlueprintGraphIr graph,
+            string entityClassName,
+            CharacterAnimationDefDto? entityAnimDef)
+        {
+            if (graph == null) throw new ArgumentNullException(nameof(graph));
+            if (entityClassName == null) throw new ArgumentNullException(nameof(entityClassName));
+
+            var messages = new List<ValidationMessage>();
+
+            // If the entity class has an animation descriptor it participates in the animation pipeline.
+            if (entityAnimDef != null)
+                return messages; // All animation primitives are valid on this class.
+
+            // Entity class does NOT have animation config — flag any animation primitives used.
+            foreach (var nodeType in graph.Nodes)
+            {
+                if (IsAnimationPrimitive(nodeType))
+                {
+                    messages.Add(new ValidationMessage
+                    {
+                        Severity = ValidationSeverity.Error,
+                        RuleId = "ANIM011",
+                        Message = $"Animation primitive '{nodeType.Name}' used in a context where its " +
+                                  $"target component is not present on the entity class '{entityClassName}'.",
+                        Context = nodeType.Name,
+                    });
+                }
+            }
+
+            return messages;
+        }
+
+        private static readonly HashSet<Type> AnimationPrimitiveTypes = new()
+        {
+            typeof(PlayMontageNode),
+            typeof(StopMontageNode),
+            typeof(PlayMontageChainNode),
+            typeof(EnqueueMontageNode),
+            typeof(ClearMontageQueueNode),
+            typeof(SetStanceNode),
+            typeof(LookAtPointNode),
+            typeof(LookAtEntityNode),
+            typeof(ReleaseLookNode),
+            typeof(GetMontageQueueProgressNode),
+            typeof(GetCurrentStanceNode),
+        };
+
+        private static bool IsAnimationPrimitive(Type nodeType)
+            => AnimationPrimitiveTypes.Contains(nodeType);
     }
 }

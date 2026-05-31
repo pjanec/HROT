@@ -428,6 +428,15 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             return false;
         }
 
+        public bool IsAnySlotInBlendOut(AnimationBackendHandle handle)
+        {
+            return false;
+        }
+
+        public void CrossfadeMontageOnSlot(AnimationBackendHandle handle, in PlayMontageParams @params)
+        {
+        }
+
         public AnimationBackendMetrics SnapshotMetrics()
         {
             return new AnimationBackendMetrics();

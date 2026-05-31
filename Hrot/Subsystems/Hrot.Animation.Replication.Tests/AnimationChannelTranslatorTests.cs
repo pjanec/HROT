@@ -280,8 +280,7 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
     // ── SC-9: LookAtEntity ingress keeps channel unchanged for unknown target ─
 
     [Fact]
-    public unsafe void LookAtChannelIngress_KeepsChannelUnchanged_WhenTargetEntityNotInMap()
-    {
+    public unsafe void LookAtChannelIngress_KeepsChannelUnchanged_WhenTargetEntityNotInMap()    {
         var ingressMap = new NetworkEntityMap();
         var ingressWorld = new EntityRepository();
         ingressWorld.RegisterComponent<LookAtChannel>();
@@ -320,5 +319,44 @@ public sealed class AnimationChannelTranslatorTests : IDisposable
         Assert.Equal(0, ingressTranslator.ReceivedSampleCount);
 
         ingressWorld.Dispose();
+    }
+
+    // ── SC-10: OFX-012: Re-publishes when same ActionInstanceId but Params blob changed ──
+
+    [Fact]
+    public unsafe void AnimChannelIntentEgress_PublishesOnActionParamsChange_WhenSameInstanceId()
+    {
+        // OFX-012: The dirty check must compare the 32-byte Params blob as well as
+        // ActionInstanceId. If only the Params change (same ActionInstanceId),
+        // a second publish must be issued.
+        var writer = new CapturingWriter<DdsAnimationChannelIntent>();
+        var translator = new AnimationChannelIntentEgressTranslator(writer, _entityMap);
+        var entity = SpawnEntity(600L);
+
+        var ch = new AnimationChannel
+        {
+            ActiveAction = 3,
+            ActionInstanceId = 42,
+        };
+        // Params bytes are all-zero by default (struct zero-init).
+        _world.AddComponent(entity, ch);
+
+        translator.ScanAndPublish(_world); // First scan — publishes
+        Assert.Equal(1, translator.SentSampleCount);
+
+        // Mutate only the Params blob; ActionInstanceId stays at 42.
+        {
+            ref var chRef = ref _world.GetComponentRW<AnimationChannel>(entity);
+            fixed (byte* p = chRef.Params)
+                p[0] = 0xFF; // change first byte
+        }
+
+        translator.ScanAndPublish(_world); // Second scan — must publish again (Params changed)
+        Assert.Equal(2, translator.SentSampleCount);
+
+        // A third scan with no changes must NOT publish.
+        translator.ScanAndPublish(_world);
+        Assert.Equal(2, translator.SentSampleCount);
+        Assert.Equal(1, translator.DirtyFalsePositiveCount);
     }
 }

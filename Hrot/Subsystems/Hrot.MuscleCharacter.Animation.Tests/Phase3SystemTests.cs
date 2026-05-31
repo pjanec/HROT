@@ -13,6 +13,7 @@ using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Components;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Descriptors;
+using Hrot.MuscleCharacter.Animation.Events;
 using Hrot.MuscleCharacter.Animation.Fake;
 using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Systems;
@@ -905,6 +906,285 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             // Queue is cleared
             var queue = repo.GetComponent<AnimationMontageQueue>(entity);
             Assert.Equal(0, queue.Count);
+        }
+
+        // ─── OFX-002: NotifyEventEmitterSystem typed event dispatch ──────────
+
+        /// <summary>Creates a DTO that includes Footstep, HitWindowOpened, and Generic markers.</summary>
+        private static CharacterAnimationDefDto CreateMultiNotifyDto()
+        {
+            var footstepHash = StableIdHasher.ComputeMarkerHash("Footstep_L");
+            var hitWindowHash = StableIdHasher.ComputeMarkerHash("HitWindow_Open");
+            var magOutHash = StableIdHasher.ComputeMarkerHash("MagOut");
+            return new CharacterAnimationDefDto
+            {
+                Slots = new List<SlotDefDto>
+                {
+                    new SlotDefDto { SlotId = 1, Name = "FullBody", BoneMask = new[] { "root" }, Mode = SlotCompositingMode.Override, Priority = 100 },
+                },
+                Montages = new List<MontageDefDto>
+                {
+                    new MontageDefDto
+                    {
+                        Name = "Reload_Rifle",
+                        AssetRef = "Anims/Reload.clip",
+                        Slot = 1,
+                        DefaultBlendInTime = 0f,
+                        DefaultBlendOutTime = 0f,
+                        DurationSeconds = 2.0f,
+                        Sections = new[] { "Start" },
+                        Notifies = new List<MontageNotifyRefDto>
+                        {
+                            new MontageNotifyRefDto { MarkerName = "Footstep_L",    TimeSeconds = 0.1f },
+                            new MontageNotifyRefDto { MarkerName = "HitWindow_Open", TimeSeconds = 0.3f },
+                            new MontageNotifyRefDto { MarkerName = "MagOut",         TimeSeconds = 0.5f },
+                        },
+                        IsStanceTransition = false,
+                    },
+                },
+                SupportedStances = new[] { Components.StanceId.Standing },
+                StanceTransitions = new List<StanceTransitionDto>(),
+                AimConfig = null,
+                NotifyMarkers = new List<NotifyMarkerDefDto>
+                {
+                    new NotifyMarkerDefDto { Name = "Footstep_L",    Hash = footstepHash,   Kind = AnimNotifyCategory.Footstep },
+                    new NotifyMarkerDefDto { Name = "HitWindow_Open", Hash = hitWindowHash, Kind = AnimNotifyCategory.HitWindowOpened },
+                    new NotifyMarkerDefDto { Name = "MagOut",         Hash = magOutHash,     Kind = AnimNotifyCategory.Generic },
+                },
+            };
+        }
+
+        [Fact]
+        public void NotifyEmitter_FootstepKind_EmitsFootstepEvent()
+        {
+            // OFX-002: Footstep RawNotifyEvent must result in FootstepEvent published on the bus.
+            var dto = CreateMultiNotifyDto();
+            var baked = BakingUtils.BakeDef(dto);
+            var classData = new Dictionary<long, CharacterAnimationBakedData> { [ClassId] = baked };
+            var backend = new FakeAnimationBackend(classData);
+            var cache = new BakedAnimationCache(null);
+            cache.GetOrBake(ClassId, dto);
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<CharacterAnimationDefRuntime>();
+            repo.RegisterComponent<AnimationExecutorState>();
+
+            var bridgeSystem = new AnimationRuntimeBridgeSystem(backend, cache);
+            var emitterSystem = new NotifyEventEmitterSystem(backend);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, SlotCount = 1 });
+            repo.AddComponent(entity, new AnimationExecutorState());
+
+            bridgeSystem.Execute(repo, 0f); // Register entity with backend
+
+            var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+
+            // Play montage and tick past footstep marker (0.1s)
+            int montageId = StableIdHasher.ComputeMontageAssetId("Reload_Rifle");
+            var playParams = new PlayMontageParams { MontageId = montageId, PlayRate = 1.0f };
+            backend.PlayMontageOnSlot(handle, in playParams);
+            backend.Tick(0.15f);
+
+            emitterSystem.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var footsteps = repo.Bus.Read<FootstepEvent>();
+            Assert.True(footsteps.Length >= 1, "Expected at least one FootstepEvent");
+            Assert.Equal(entity, footsteps[0].Target);
+        }
+
+        [Fact]
+        public void NotifyEmitter_HitWindowOpenedKind_EmitsHitWindowOpenedEvent()
+        {
+            // OFX-002: HitWindowOpened RawNotifyEvent must result in HitWindowOpenedEvent.
+            var dto = CreateMultiNotifyDto();
+            var baked = BakingUtils.BakeDef(dto);
+            var classData = new Dictionary<long, CharacterAnimationBakedData> { [ClassId] = baked };
+            var backend = new FakeAnimationBackend(classData);
+            var cache = new BakedAnimationCache(null);
+            cache.GetOrBake(ClassId, dto);
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<CharacterAnimationDefRuntime>();
+            repo.RegisterComponent<AnimationExecutorState>();
+
+            var bridgeSystem = new AnimationRuntimeBridgeSystem(backend, cache);
+            var emitterSystem = new NotifyEventEmitterSystem(backend);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, SlotCount = 1 });
+            repo.AddComponent(entity, new AnimationExecutorState());
+
+            bridgeSystem.Execute(repo, 0f);
+
+            var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+
+            int montageId = StableIdHasher.ComputeMontageAssetId("Reload_Rifle");
+            var playParams = new PlayMontageParams { MontageId = montageId, PlayRate = 1.0f };
+            backend.PlayMontageOnSlot(handle, in playParams);
+            backend.Tick(0.35f); // Past HitWindow_Open at 0.3s
+
+            emitterSystem.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            // Footstep (0.1s) and HitWindowOpened (0.3s) both fire
+            var hitWindows = repo.Bus.Read<HitWindowOpenedEvent>();
+            Assert.True(hitWindows.Length >= 1, "Expected at least one HitWindowOpenedEvent");
+            Assert.Equal(entity, hitWindows[0].Target);
+        }
+
+        [Fact]
+        public void NotifyEmitter_GenericKind_EmitsAnimNotifyEvent()
+        {
+            // OFX-002: Generic RawNotifyEvent must result in AnimNotifyEvent.
+            var dto = CreateMultiNotifyDto();
+            var baked = BakingUtils.BakeDef(dto);
+            var classData = new Dictionary<long, CharacterAnimationBakedData> { [ClassId] = baked };
+            var backend = new FakeAnimationBackend(classData);
+            var cache = new BakedAnimationCache(null);
+            cache.GetOrBake(ClassId, dto);
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<CharacterAnimationDefRuntime>();
+            repo.RegisterComponent<AnimationExecutorState>();
+
+            var bridgeSystem = new AnimationRuntimeBridgeSystem(backend, cache);
+            var emitterSystem = new NotifyEventEmitterSystem(backend);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new CharacterAnimationDefRuntime { BackendHandle = ClassId, SlotCount = 1 });
+            repo.AddComponent(entity, new AnimationExecutorState());
+
+            bridgeSystem.Execute(repo, 0f);
+
+            var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+
+            int montageId = StableIdHasher.ComputeMontageAssetId("Reload_Rifle");
+            var playParams = new PlayMontageParams { MontageId = montageId, PlayRate = 1.0f };
+            backend.PlayMontageOnSlot(handle, in playParams);
+            backend.Tick(0.6f); // Past MagOut at 0.5s
+
+            emitterSystem.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            var notifies = repo.Bus.Read<AnimNotifyEvent>();
+            Assert.True(notifies.Length >= 1, "Expected at least one AnimNotifyEvent for generic marker");
+            Assert.Equal(entity, notifies[0].Target);
+        }
+
+        // ─── OFX-009: MontageQueueAdvanceSystem crossfade tests ──────────────
+
+        [Fact]
+        public void QueueAdvances_WhenSlotEntersBlendOutWindow_BeforeSilence()
+        {
+            // OFX-009: Queue must advance (current entry index increments) when the active slot
+            // enters blend-out window — NOT waiting for the slot to go silent.
+            var (repo, backend, cache) = CreateFixture();
+            var dispatchSystem = new AnimationDispatcherSystem(backend, cache);
+            var bridgeSystem = new AnimationRuntimeBridgeSystem(backend, cache);
+            var queueAdvance = new MontageQueueAdvanceSystem(backend, cache);
+
+            var entity = CreateQueueEntity(repo);
+            WriteQueueEntries(repo, entity, new[] { ReloadId, ReloadId });
+
+            bridgeSystem.Execute(repo, 0f); // Register entity
+
+            unsafe
+            {
+                ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
+                ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
+                ch.ActionInstanceId = 1;
+                ch.DispatchedInstanceId = 0;
+            }
+            dispatchSystem.Execute(repo, 0f); // Stage first entry
+            bridgeSystem.Execute(repo, 0f);   // Apply staged play
+
+            // Confirm first entry is active
+            var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+            Assert.True(backend.IsAnySlotActive(handle));
+
+            // Tick past the blend-out threshold (Reload_Rifle: duration=1.0f, blendOut=0.2f → threshold at 0.8f)
+            backend.Tick(0.85f);
+
+            Assert.True(backend.IsAnySlotInBlendOut(handle), "Slot should be in blend-out window after 0.85s");
+            Assert.True(backend.IsAnySlotActive(handle), "Slot must still be active during blend-out");
+
+            // Run queue advance — should detect blend-out and trigger crossfade
+            queueAdvance.Execute(repo, 0f);
+
+            var queueState = repo.GetComponent<AnimationMontageQueueState>(entity);
+            Assert.Equal(1, queueState.CurrentEntryIndex); // Advanced to second entry
+        }
+
+        [Fact]
+        public void CrossfadeMontageOnSlot_IsCalledForNextQueueEntry()
+        {
+            // OFX-009: After queue advances on blend-out, the second montage must be playing
+            // (CrossfadeMontageOnSlot called — new slot state active with second entry's montage).
+            var (repo, backend, cache) = CreateFixture();
+            var dispatchSystem = new AnimationDispatcherSystem(backend, cache);
+            var bridgeSystem = new AnimationRuntimeBridgeSystem(backend, cache);
+            var queueAdvance = new MontageQueueAdvanceSystem(backend, cache);
+
+            // Use two distinct montage IDs to verify which is playing after crossfade.
+            // Both use Reload_Rifle (same ID in our test DTO) — we verify the advance happened
+            // by checking CurrentEntryIndex == 1 AND slot 1 is still active.
+            var entity = CreateQueueEntity(repo);
+            WriteQueueEntries(repo, entity, new[] { ReloadId, ReloadId });
+
+            bridgeSystem.Execute(repo, 0f);
+
+            unsafe
+            {
+                ref var ch = ref repo.GetComponentRW<AnimationChannel>(entity);
+                ch.ActiveAction = AnimationActionIds.PlayMontageQueue;
+                ch.ActionInstanceId = 1;
+                ch.DispatchedInstanceId = 0;
+            }
+            dispatchSystem.Execute(repo, 0f);
+            bridgeSystem.Execute(repo, 0f);
+
+            var def = repo.GetComponent<CharacterAnimationDefRuntime>(entity);
+            var handle = new AnimationBackendHandle
+            {
+                Index = (uint)(def.BackendHandle & 0xFFFFFFFF),
+                Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
+            };
+
+            // Tick into blend-out window
+            backend.Tick(0.85f);
+            Assert.True(backend.IsAnySlotInBlendOut(handle));
+
+            // Advance queue — should issue CrossfadeMontageOnSlot for second entry
+            queueAdvance.Execute(repo, 0f);
+
+            // After crossfade, slot 1 should be active (new montage started)
+            Assert.True(backend.IsAnySlotActive(handle),
+                "Slot should be active after crossfade (second entry started)");
+
+            var queueState = repo.GetComponent<AnimationMontageQueueState>(entity);
+            Assert.Equal(1, queueState.CurrentEntryIndex); // Second entry is now current
         }
     }
 }

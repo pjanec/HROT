@@ -1,259 +1,198 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Xunit;
-using Fdp.Core;
-using Fbt;
-using Fdp.ModuleHost.Abstractions;
-using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Lifecycle.Events;
-using Hrot.MuscleCharacter.Animation.Baking;
-using Hrot.MuscleCharacter.Animation.Components;
-using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Descriptors;
-using Hrot.MuscleCharacter.Animation.Fake;
-using Hrot.MuscleCharacter.Animation.Hashing;
 using Hrot.MuscleCharacter.Animation.Nodes;
+using Hrot.MuscleCharacter.Animation.Validation;
 
 namespace Hrot.MuscleCharacter.Animation.Tests
 {
     /// <summary>
-    /// Compiler validation tests for Phase 5 Part 2 nodes.
-    /// Tests ANIM008-011 validation rules (DD-Tests §5, Phase 5 Part 2).
+    /// Compiler validation tests for Phase 5 Part 2 nodes (OFX-006).
+    /// Tests ANIM008-011 validation rules using the real BlueprintGraphIr
+    /// and BlueprintAnimationValidators classes (DD-Tests Â§5, Phase 5 Part 2).
     /// </summary>
     public class AnimationValidatorTests
     {
-        // ─── Mock Validator Context ──────────────────────────────────────────
-
-        /// <summary>
-        /// Minimal validator context for testing rule triggers.
-        /// Production validator lives in Hrot.Blueprints/Compiler/AnimationValidator.cs
-        /// </summary>
-        private sealed class MockBlueprintContext
-        {
-            public List<(string RuleId, string Message)> Issues { get; } = new();
-
-            public void ReportWarning(string ruleId, string message)
-            {
-                Issues.Add((ruleId, message));
-            }
-
-            public void ReportError(string ruleId, string message)
-            {
-                Issues.Add((ruleId, message));
-            }
-
-            public bool HasRule(string ruleId)
-            {
-                return Issues.Exists(i => i.RuleId == ruleId);
-            }
-        }
-
-        // ───────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // ANIM008: EnqueueMontageNode without PlayMontageChainNode
-        // ───────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void ANIM008_EnqueueAloneWarns()
         {
-            var ctx = new MockBlueprintContext();
+            var graph = new BlueprintGraphIr(typeof(EnqueueMontageNode));
 
-            // Scenario: Graph contains EnqueueMontageNode but no PlayMontageChainNode
-            var hasEnqueue = true;
-            var hasPlayChain = false;
+            var msgs = BlueprintAnimationValidators.ValidateAnim008(graph);
 
-            if (hasEnqueue && !hasPlayChain)
-            {
-                ctx.ReportWarning("ANIM008", "EnqueueMontageNode used without PlayMontageChainNode in graph");
-            }
-
-            Assert.True(ctx.HasRule("ANIM008"));
-            Assert.Single(ctx.Issues);
+            Assert.Single(msgs);
+            Assert.Equal("ANIM008", msgs[0].RuleId);
+            Assert.Equal(ValidationSeverity.Warning, msgs[0].Severity);
         }
 
         [Fact]
         public void ANIM008_EnqueueWithPlayChainDoesNotWarn()
         {
-            var ctx = new MockBlueprintContext();
+            var graph = new BlueprintGraphIr(typeof(PlayMontageChainNode), typeof(EnqueueMontageNode));
 
-            var hasEnqueue = true;
-            var hasPlayChain = true;
+            var msgs = BlueprintAnimationValidators.ValidateAnim008(graph);
 
-            if (hasEnqueue && !hasPlayChain)
-            {
-                ctx.ReportWarning("ANIM008", "EnqueueMontageNode used without PlayMontageChainNode in graph");
-            }
-
-            Assert.False(ctx.HasRule("ANIM008"));
-            Assert.Empty(ctx.Issues);
+            Assert.Empty(msgs);
         }
 
-        // ───────────────────────────────────────────────────────────────────────
+        [Fact]
+        public void ANIM008_NoEnqueue_DoesNotWarn()
+        {
+            // Graph has no animation queue nodes at all â€” no ANIM008 warning.
+            var graph = new BlueprintGraphIr(typeof(PlayMontageNode));
+
+            var msgs = BlueprintAnimationValidators.ValidateAnim008(graph);
+
+            Assert.Empty(msgs);
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // ANIM009: ReleaseLookNode without prior LookAt
-        // ───────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void ANIM009_ReleaseLookWithoutLookAtNodeWarns()
         {
-            var ctx = new MockBlueprintContext();
+            var graph = new BlueprintGraphIr(typeof(ReleaseLookNode));
 
-            // Scenario: Graph has ReleaseLookNode but no LookAtPointNode or LookAtEntityNode
-            var hasReleaseLook = true;
-            var hasLookAtNode = false;
+            var msgs = BlueprintAnimationValidators.ValidateAnim009(graph);
 
-            if (hasReleaseLook && !hasLookAtNode)
+            Assert.Single(msgs);
+            Assert.Equal("ANIM009", msgs[0].RuleId);
+            Assert.Equal(ValidationSeverity.Warning, msgs[0].Severity);
+        }
+
+        [Fact]
+        public void ANIM009_ReleaseLookWithLookAtPointNodeDoesNotWarn()
+        {
+            var graph = new BlueprintGraphIr(typeof(LookAtPointNode), typeof(ReleaseLookNode));
+
+            var msgs = BlueprintAnimationValidators.ValidateAnim009(graph);
+
+            Assert.Empty(msgs);
+        }
+
+        [Fact]
+        public void ANIM009_ReleaseLookWithLookAtEntityNodeDoesNotWarn()
+        {
+            var graph = new BlueprintGraphIr(typeof(LookAtEntityNode), typeof(ReleaseLookNode));
+
+            var msgs = BlueprintAnimationValidators.ValidateAnim009(graph);
+
+            Assert.Empty(msgs);
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ANIM010: Codegen pattern self-check
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        [Fact]
+        public void ANIM010_SpanCastPatternIsAccepted()
+        {
+            var msgs = BlueprintAnimationValidators.ValidateAnim010("SpanCast");
+
+            Assert.Empty(msgs);
+        }
+
+        [Fact]
+        public void ANIM010_PointerCastPatternIsAccepted()
+        {
+            var msgs = BlueprintAnimationValidators.ValidateAnim010("PointerCast");
+
+            Assert.Empty(msgs);
+        }
+
+        [Fact]
+        public void ANIM010_UnknownPatternIsError()
+        {
+            var msgs = BlueprintAnimationValidators.ValidateAnim010("DirectPointer");
+
+            Assert.Single(msgs);
+            Assert.Equal("ANIM010", msgs[0].RuleId);
+            Assert.Equal(ValidationSeverity.Error, msgs[0].Severity);
+        }
+
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ANIM011: Animation primitives used on entity without AnimationChannel
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        [Fact]
+        public void ANIM011_AnimPrimitiveWithNoAnimDef_IsError()
+        {
+            // Entity class has NO animation descriptor â€” using PlayMontageNode must error.
+            var graph = new BlueprintGraphIr(typeof(PlayMontageNode));
+
+            var msgs = BlueprintAnimationValidators.ValidateAnim011(graph, "Turret", entityAnimDef: null);
+
+            Assert.Single(msgs);
+            Assert.Equal("ANIM011", msgs[0].RuleId);
+            Assert.Equal(ValidationSeverity.Error, msgs[0].Severity);
+        }
+
+        [Fact]
+        public void ANIM011_AnimPrimitiveWithAnimDef_IsOk()
+        {
+            // Entity class HAS animation descriptor â€” animation primitives are valid.
+            var graph = new BlueprintGraphIr(typeof(PlayMontageNode), typeof(LookAtPointNode));
+            var dto = new CharacterAnimationDefDto
             {
-                ctx.ReportWarning("ANIM009", "ReleaseLookNode used without prior LookAt node in execution path");
-            }
+                Slots = new List<SlotDefDto>(),
+                Montages = new List<MontageDefDto>(),
+                SupportedStances = Array.Empty<Components.StanceId>(),
+                StanceTransitions = new List<StanceTransitionDto>(),
+                AimConfig = null,
+                NotifyMarkers = new List<NotifyMarkerDefDto>(),
+            };
 
-            Assert.True(ctx.HasRule("ANIM009"));
+            var msgs = BlueprintAnimationValidators.ValidateAnim011(graph, "Soldier", entityAnimDef: dto);
+
+            Assert.Empty(msgs);
         }
 
         [Fact]
-        public void ANIM009_ReleaseLookWithLookAtNodeDoesNotWarn()
+        public void ANIM011_MultipleAnimPrimitivesWithNoAnimDef_EachReported()
         {
-            var ctx = new MockBlueprintContext();
+            // Two animation primitives on an entity without animation config â€” both are errors.
+            var graph = new BlueprintGraphIr(typeof(PlayMontageNode), typeof(SetStanceNode));
 
-            var hasReleaseLook = true;
-            var hasLookAtNode = true;
+            var msgs = BlueprintAnimationValidators.ValidateAnim011(graph, "Projectile", entityAnimDef: null);
 
-            if (hasReleaseLook && !hasLookAtNode)
-            {
-                ctx.ReportWarning("ANIM009", "ReleaseLookNode used without prior LookAt node in execution path");
-            }
-
-            Assert.False(ctx.HasRule("ANIM009"));
-            Assert.Empty(ctx.Issues);
+            Assert.Equal(2, msgs.Count);
+            Assert.All(msgs, m => Assert.Equal("ANIM011", m.RuleId));
         }
 
-        // ───────────────────────────────────────────────────────────────────────
-        // ANIM010: Span-cast mutation safety (codegen validation)
-        // ───────────────────────────────────────────────────────────────────────
-
-        [Fact]
-        public void ANIM010_SpanCastMutationPatternValidation()
-        {
-            // ANIM010 validates that codegen Span-cast patterns are safe
-            // This test verifies the pattern used in EnqueueMontageNode mutations
-
-            // Example pattern from DD-5 §9-4:
-            // var span = MemoryMarshal.Cast<AnimationMontageQueue, AnimationMontageQueueEntry>(
-            //     MemoryMarshal.AsBytes(ref queue).AsSpan()
-            // );
-
-            // Safe pattern: readonly ref to value type, cast within pinned lifetime
-            const int QueueCapacity = 8;
-            var queue = new AnimationMontageQueue { Count = 2, QueueVersion = 0 };
-
-            // Simulate Span-cast within safe scope
-            var queueBytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                new System.Span<AnimationMontageQueue>(ref queue)
-            );
-
-            // Pattern is safe if:
-            // 1. Source is value type on managed heap (ref parameter)
-            // 2. Cast preserves byte alignment
-            // 3. Mutation lifetime is within scope
-
-            Assert.Equal(queue.Count, 2);
-            // ANIM010 validator would scan bytecode to verify Span.AsBytes + MemoryMarshal.Cast pattern
-            // and ensure no ref.Equals or other unsafe patterns
-        }
-
-        [Fact]
-        public void ANIM010_DetectsUnsafeMutationPattern()
-        {
-            var ctx = new MockBlueprintContext();
-
-            // Example of unsafe pattern that ANIM010 should catch:
-            // 1. Direct pointer arithmetic without GCHandle
-            // 2. Using ref.Equals on Span-cast result
-            // 3. Calling Span.GetPinnableReference() without pinning
-
-            // For test purposes, simulate detection
-            bool usesUnsafePattern = false; // Would be detected by bytecode scanner
-
-            if (usesUnsafePattern)
-            {
-                ctx.ReportError("ANIM010", "Unsafe mutation pattern detected in queue codegen");
-            }
-
-            Assert.Empty(ctx.Issues);
-        }
-
-        // ───────────────────────────────────────────────────────────────────────
-        // ANIM011: Cross-subsystem context validation
-        // ───────────────────────────────────────────────────────────────────────
-
-        [Fact]
-        public void ANIM011_ValidatesNodeUsageInBTreeContext()
-        {
-            var ctx = new MockBlueprintContext();
-
-            // ANIM011 validates that look-at and getter nodes can be used safely in BTree, HSM, and Blueprint Instance contexts
-            // Scenario 1: LookAtPointNode in BTree selector branch (valid)
-            const string Context = "BTree";
-            var nodeType = typeof(LookAtPointNode);
-            bool isValidForContext = true; // LookAt nodes are safe in all contexts
-
-            if (!isValidForContext)
-            {
-                ctx.ReportError("ANIM011", $"Node {nodeType.Name} not supported in {Context} context");
-            }
-
-            Assert.Empty(ctx.Issues);
-        }
-
-        [Fact]
-        public void ANIM011_ValidatesGetterNodeOutputConnections()
-        {
-            var ctx = new MockBlueprintContext();
-
-            // ANIM011 also validates that getter nodes output are properly connected
-            // GetMontageQueueProgressNode outputs: CurrentEntryIndex, ElapsedSeconds, TotalCount (3 uint outputs)
-            // GetCurrentStanceNode outputs: CurrentStance, BlendWeight (uint + float)
-
-            var progressNode = new GetMontageQueueProgressNode { TargetCharacter = 1 };
-            var stanceNode = new GetCurrentStanceNode { TargetCharacter = 1 };
-
-            // Both should be readable
-            Assert.Equal(1u, progressNode.TargetCharacter);
-            Assert.Equal(1u, stanceNode.TargetCharacter);
-
-            Assert.Empty(ctx.Issues);
-        }
-
-        // ───────────────────────────────────────────────────────────────────────
-        // Integration: All validators on realistic graph
-        // ───────────────────────────────────────────────────────────────────────
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // Integration: Valid full graph passes all rules
+        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         [Fact]
         public void RealisticGraph_AllValidatorsPass()
         {
-            var ctx = new MockBlueprintContext();
+            // Valid graph: PlayMontageChain + Enqueue + LookAt + ReleaseLook.
+            var graph = new BlueprintGraphIr(
+                typeof(PlayMontageChainNode),
+                typeof(EnqueueMontageNode),
+                typeof(LookAtPointNode),
+                typeof(ReleaseLookNode));
+            var dto = new CharacterAnimationDefDto
+            {
+                Slots = new List<SlotDefDto>(),
+                Montages = new List<MontageDefDto>(),
+                SupportedStances = Array.Empty<Components.StanceId>(),
+                StanceTransitions = new List<StanceTransitionDto>(),
+                AimConfig = null,
+                NotifyMarkers = new List<NotifyMarkerDefDto>(),
+            };
 
-            // Realistic valid graph:
-            // - PlayMontageChainNode (enqueues montages)
-            // - EnqueueMontageNode (adds to queue) -> paired with PlayMontageChainNode
-            // - LookAtPointNode (aims at location)
-            // - ReleaseLookNode (stops aiming) -> paired with LookAtPointNode
-            // - GetMontageQueueProgressNode (reads progress)
-            // - GetCurrentStanceNode (reads stance)
-
-            bool hasPlayChain = true;
-            bool hasEnqueue = true;
-            bool hasLookAt = true;
-            bool hasReleaseLook = true;
-
-            // Check ANIM008
-            if (hasEnqueue && !hasPlayChain)
-                ctx.ReportWarning("ANIM008", "...");
-
-            // Check ANIM009
-            if (hasReleaseLook && !hasLookAt)
-                ctx.ReportWarning("ANIM009", "...");
-
-            Assert.Empty(ctx.Issues);
+            Assert.Empty(BlueprintAnimationValidators.ValidateAnim008(graph));
+            Assert.Empty(BlueprintAnimationValidators.ValidateAnim009(graph));
+            Assert.Empty(BlueprintAnimationValidators.ValidateAnim010("SpanCast"));
+            Assert.Empty(BlueprintAnimationValidators.ValidateAnim011(graph, "Soldier", dto));
         }
     }
 }

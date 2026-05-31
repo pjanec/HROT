@@ -27,13 +27,13 @@ Confidence: `V` = verified against code; `R` = reported, re-confirm against the 
 
 ## D. AI Editor hosts (blueprints-2)
 
-- [ ] **BPF-010** (R, Medium) -- `HsmInstanceSnapshot` active-states/events/timers/history left empty (HSM host design Slice 2; FIX1 HS-S2-01) -> [details](./TASK-DETAIL.md#bpf-010----hsminstancesnapshot-populated-with-empty-active-states--events--timers--history)
+- [x] **BPF-010** (R, Medium) -- `HsmInstanceSnapshot` active-states/events/timers/history left empty (HSM host design Slice 2; FIX1 HS-S2-01) -> [details](./TASK-DETAIL.md#bpf-010----hsminstancesnapshot-populated-with-empty-active-states--events--timers--history)
 
 ## E. Cross-cutting / already-tracked OPEN debt that diverges from design
 
-- [ ] **BPF-011** (V, Low) -- close blueprints-1 OPEN debt (DEBT-003/004/018/021/022/023) -> [details](./TASK-DETAIL.md#bpf-011----blueprints-1-open-debt-that-diverges-from-design)
-- [ ] **BPF-012** (V, Medium) -- close blueprints-2 OPEN debt (D-02 subtree resolution broken; D-01/D-03/D-04) -> [details](./TASK-DETAIL.md#bpf-012----blueprints-2-open-debt-that-diverges-from-design)
-- [ ] **BPF-013** (V, Low-Med) -- close breakpoints-1 OPEN debt (D-BP-01/02/04) -> [details](./TASK-DETAIL.md#bpf-013----breakpoints-1-open-debt)
+- [x] **BPF-011** (V, Low) -- close blueprints-1 OPEN debt (DEBT-003/004/018/021/022/023) -> [details](./TASK-DETAIL.md#bpf-011----blueprints-1-open-debt-that-diverges-from-design)
+- [x] **BPF-012** (V, Medium) -- close blueprints-2 OPEN debt (D-02 subtree resolution broken; D-01/D-03/D-04) -> [details](./TASK-DETAIL.md#bpf-012----blueprints-2-open-debt-that-diverges-from-design)
+- [x] **BPF-013** (V, Low-Med) -- close breakpoints-1 OPEN debt (D-BP-01/02/04) -> [details](./TASK-DETAIL.md#bpf-013----breakpoints-1-open-debt)
 
 ---
 
@@ -82,20 +82,20 @@ Details + design/code refs: [TASK-DETAIL.md PART 2](./TASK-DETAIL.md#part-2----d
 - [x] **BPF-035** (High, editor) -- `IWindowRegistrar` mismatch; registrar/DI absent; windows never registered -> [details](./TASK-DETAIL.md#bpf-035----iwindowregistrar-contract-mismatch-blueprintwindowregistrardi-registration-absent-windows-never-registered-editor)
 
 ## MEDIUM
-- [ ] **BPF-036** (Medium, debug) -- `OnHotReloadCompleted` clears `Watch.IsStale` unconditionally -> frozen deleted-pin watches -> [details](./TASK-DETAIL.md#bpf-036----onhotreloadcompleted-clears-watchisstale-unconditionally---deleted-pin-watches-show-frozen-values-debug)
-- [ ] **BPF-037** (Medium, shared-infra) -- `AtomicMultiFileWriter` mid-move rollback path untested (ACCEPTANCE Q7-03 unmet) -> [details](./TASK-DETAIL.md#bpf-037----atomicmultifilewriter-rollbackpartial-apply-path-has-no-non-vacuous-test-shared-infra)
-- [ ] **BPF-038** (Medium, runtime) -- HardReload test never asserts `InstanceVersion` bump (needs BPF-008) -> [details](./TASK-DETAIL.md#bpf-038----hardreload-integration-test-never-asserts-instanceversion-bump-it-claims-to-cover-runtime)
+- [x] **BPF-036** (Medium, debug) -- `OnHotReloadCompleted` clears `Watch.IsStale` unconditionally -> frozen deleted-pin watches -> [details](./TASK-DETAIL.md#bpf-036----onhotreloadcompleted-clears-watchisstale-unconditionally---deleted-pin-watches-show-frozen-values-debug)
+- [x] **BPF-037** (Medium, shared-infra) -- `AtomicMultiFileWriter` mid-move rollback path untested (ACCEPTANCE Q7-03 unmet) -> [details](./TASK-DETAIL.md#bpf-037----atomicmultifilewriter-rollbackpartial-apply-path-has-no-non-vacuous-test-shared-infra)
+- [x] **BPF-038** (Medium, runtime) -- HardReload test never asserts `InstanceVersion` bump (needs BPF-008) -> [details](./TASK-DETAIL.md#bpf-038----hardreload-integration-test-never-asserts-instanceversion-bump-it-claims-to-cover-runtime)
 - [x] **BPF-039** (Medium, compiler) -- `GetOrdered` appends residual fields via `dict.Values` (non-deterministic, M-1) -> [details](./TASK-DETAIL.md#bpf-039----getordered-appends-residual-fields-via-dictvalues-non-deterministic-compiler)
 - [x] **BPF-040** (Medium, compiler) -- `MetadataReferenceResolver` doesn't sort references (M-9) -> [details](./TASK-DETAIL.md#bpf-040----metadatareferenceresolver-does-not-sort-references-determinism-m-9-compiler)
 - [x] **BPF-041** (Medium, compiler) -- Stage8 PDB embedded-source test is a size heuristic, not content check -> [details](./TASK-DETAIL.md#bpf-041----stage8-pdb-embedded-source-test-is-a-size-heuristic-not-content-verification-compiler)
-- [ ] **BPF-042** (Medium, hot-reload) -- `ApplyReload` injects live `BehaviorRegistry`; partial failure corrupts it, no rollback -> [details](./TASK-DETAIL.md#bpf-042----fdptoolkits-applyreload-injects-the-live-behaviorregistry-into-registrars-partial-failure-corrupts-it-with-no-rollback-hot-reload)
-- [ ] **BPF-043** (Medium, hot-reload) -- `Hrot.Editor` `DrainPendingCallbacks` drains whole queue per frame -> [details](./TASK-DETAIL.md#bpf-043----hroteditor-drainpendingcallbacks-drains-the-whole-queue-per-frame-violating-one-reload-per-frame-bound-hot-reload)
-- [ ] **BPF-044** (Medium, hot-reload) -- `DoLoadAndScan` swallows all background scan failures (no log/event) -> [details](./TASK-DETAIL.md#bpf-044----fdptoolkits-doloadandscan-silently-swallows-all-background-scan-failures-hot-reload)
+- [x] **BPF-042** (Medium, hot-reload) -- `ApplyReload` injects live `BehaviorRegistry`; partial failure corrupts it, no rollback -> [details](./TASK-DETAIL.md#bpf-042----fdptoolkits-applyreload-injects-the-live-behaviorregistry-into-registrars-partial-failure-corrupts-it-with-no-rollback-hot-reload)
+- [x] **BPF-043** (Medium, hot-reload) -- `Hrot.Editor` `DrainPendingCallbacks` drains whole queue per frame -> [details](./TASK-DETAIL.md#bpf-043----hroteditor-drainpendingcallbacks-drains-the-whole-queue-per-frame-violating-one-reload-per-frame-bound-hot-reload)
+- [x] **BPF-044** (Medium, hot-reload) -- `DoLoadAndScan` swallows all background scan failures (no log/event) -> [details](./TASK-DETAIL.md#bpf-044----fdptoolkits-doloadandscan-silently-swallows-all-background-scan-failures-hot-reload)
 - [x] **BPF-045** (Medium, btree) -- trace events carry `Guid.Empty` NodeVisualId -> status/async overlays blank -> [details](./TASK-DETAIL.md#bpf-045----btree-trace-events-carry-guidempty-nodevisualid---status-glyphs--async-badges-never-draw-btree-host)
-- [ ] **BPF-046** (Medium, test-harness) -- TierUpgrade contract test bypasses the ECB it claims to exercise -> [details](./TASK-DETAIL.md#bpf-046----tierupgrade-contract-test-bypasses-the-ecb-it-claims-to-exercise-test-harness)
+- [x] **BPF-046** (Medium, test-harness) -- TierUpgrade contract test bypasses the ECB it claims to exercise -> [details](./TASK-DETAIL.md#bpf-046----tierupgrade-contract-test-bypasses-the-ecb-it-claims-to-exercise-test-harness)
 - [x] **BPF-047** (Medium, nodeeditor) -- `ChildOrderDeterminismTests` test a List stub, no production model -> [details](./TASK-DETAIL.md#bpf-047----childorderdeterminismtests-test-a-list-backed-stub-not-any-production-model-nodeeditor)
 - [x] **BPF-048** (Medium, nodeeditor) -- no test covers drag undo entries / ancestor suppression -> [details](./TASK-DETAIL.md#bpf-048----no-test-covers-drag-produced-undo-entries-or-ancestor-suppression-nodeeditor)
-- [ ] **BPF-049** (Medium, runtime) -- `GetAll()` returns values only, drops id (re-confirms BPF-007) -> [details](./TASK-DETAIL.md#bpf-049----blueprintregistrygetall-returns-values-only-dropping-the-id-runtime-re-confirms-bpf-007)
+- [x] **BPF-049** (Medium, runtime) -- `GetAll()` returns values only, drops id (re-confirms BPF-007) -> [details](./TASK-DETAIL.md#bpf-049----blueprintregistrygetall-returns-values-only-dropping-the-id-runtime-re-confirms-bpf-007)
 
 ## LOW
 - [x] **BPF-050** (Low, compiler) -- parallel-determinism test (§17.8) not implemented -> [details](./TASK-DETAIL.md#bpf-050----parallel-determinism-compiler-test-178-not-implemented-compiler)

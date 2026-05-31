@@ -78,10 +78,13 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                         continue;
                 }
 
+                bool slotInBlendOut = _backend.IsAnySlotInBlendOut(handle);
                 bool slotInactive = !_backend.IsAnySlotActive(handle);
                 bool trackingActive = queueState.TrackingActive != 0;
 
-                if (trackingActive && slotInactive)
+                // Advance when the active slot enters its blend-out window (crossfade) OR
+                // when the slot goes fully silent (natural completion with BlendOutTime == 0).
+                if (trackingActive && (slotInBlendOut || slotInactive))
                 {
                     // Case A: Queue was running and the active entry just finished naturally.
                     int completedIndex = queueState.CurrentEntryIndex;
@@ -103,9 +106,27 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                         int nextIndex = completedIndex + 1;
                         if (nextIndex < queue.Count)
                         {
-                            // Stage next queue entry for bridge to apply this frame
                             var nextEntry = entries[nextIndex];
-                            StageQueueEntry(ref execState, in nextEntry);
+
+                            if (slotInBlendOut)
+                            {
+                                // Issue crossfade directly — slot is still active in blend-out
+                                // window so the new montage blends in while the old blends out.
+                                var crossfadeParams = new PlayMontageParams
+                                {
+                                    MontageId = nextEntry.MontageId,
+                                    PlayRate = nextEntry.PlayRate != 0f ? nextEntry.PlayRate : 1f,
+                                    BlendInTime = nextEntry.BlendIntoTime,
+                                    StartSectionIndex = nextEntry.StartSectionIndex,
+                                };
+                                _backend.CrossfadeMontageOnSlot(handle, in crossfadeParams);
+                            }
+                            else
+                            {
+                                // Slot went silent (BlendOutTime == 0): stage for bridge.
+                                StageQueueEntry(ref execState, in nextEntry);
+                            }
+
                             queueState.CurrentEntryIndex = (byte)nextIndex;
                             queueState.EntryElapsedSeconds = 0f;
                             execState.LastActiveMontageId = nextEntry.MontageId;

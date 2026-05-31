@@ -532,6 +532,24 @@ public sealed class StrideAnimationBackend : IAnimationBackend
         return false;
     }
 
+    public bool IsAnySlotInBlendOut(AnimationBackendHandle handle)
+    {
+        int idx = IndexOf(handle);
+        if (idx < 0)
+            return false;
+
+        SlotPlaybackState[] slots = _entries[idx].Builder.Slots;
+        for (int i = 0; i < 8; i++)
+        {
+            if (slots[i].IsActive && slots[i].InBlendOut)
+                return true;
+        }
+        return false;
+    }
+
+    public void CrossfadeMontageOnSlot(AnimationBackendHandle handle, in PlayMontageParams @params)
+        => PlayMontageOnSlot(handle, in @params);
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------

@@ -134,6 +134,14 @@ namespace Hrot.MuscleCharacter.Animation.Events
         public readonly byte FootIndex;
         /// <summary>Surface type resolved by Muscle physics surface query.</summary>
         public readonly byte SurfaceTypeHint;
+
+        public FootstepEvent(Entity target, Vector3 worldPosition, byte footIndex, byte surfaceTypeHint)
+        {
+            Target = target;
+            WorldPosition = worldPosition;
+            FootIndex = footIndex;
+            SurfaceTypeHint = surfaceTypeHint;
+        }
     }
 
     /// <summary>
@@ -150,6 +158,13 @@ namespace Hrot.MuscleCharacter.Animation.Events
         public readonly int MontageId;
         /// <summary>Melee-attack hit-window identifier.</summary>
         public readonly byte WindowId;
+
+        public HitWindowOpenedEvent(Entity target, int montageId, byte windowId)
+        {
+            Target = target;
+            MontageId = montageId;
+            WindowId = windowId;
+        }
     }
 
     /// <summary>
@@ -166,6 +181,13 @@ namespace Hrot.MuscleCharacter.Animation.Events
         public readonly int MontageId;
         /// <summary>Melee-attack hit-window identifier.</summary>
         public readonly byte WindowId;
+
+        public HitWindowClosedEvent(Entity target, int montageId, byte windowId)
+        {
+            Target = target;
+            MontageId = montageId;
+            WindowId = windowId;
+        }
     }
 
     /// <summary>

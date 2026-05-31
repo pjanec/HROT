@@ -52,11 +52,35 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                 for (int i = 0; i < count; i++)
                 {
                     ref readonly var n = ref buf[i];
-                    repo.Bus.Publish(new AnimNotifyEvent(
-                        target: entity,
-                        montageId: (int)n.PayloadUint,
-                        markerHash: n.MarkerHash,
-                        payloadFloat: n.PayloadFloat));
+                    switch (n.Kind)
+                    {
+                        case AnimNotifyCategory.Footstep:
+                            repo.Bus.Publish(new FootstepEvent(
+                                target: entity,
+                                worldPosition: default,
+                                footIndex: (byte)(n.PayloadUint & 0xFF),
+                                surfaceTypeHint: 0));
+                            break;
+                        case AnimNotifyCategory.HitWindowOpened:
+                            repo.Bus.Publish(new HitWindowOpenedEvent(
+                                target: entity,
+                                montageId: (int)n.PayloadUint,
+                                windowId: (byte)(n.MarkerHash & 0xFF)));
+                            break;
+                        case AnimNotifyCategory.HitWindowClosed:
+                            repo.Bus.Publish(new HitWindowClosedEvent(
+                                target: entity,
+                                montageId: (int)n.PayloadUint,
+                                windowId: (byte)(n.MarkerHash & 0xFF)));
+                            break;
+                        default: // Generic
+                            repo.Bus.Publish(new AnimNotifyEvent(
+                                target: entity,
+                                montageId: (int)n.PayloadUint,
+                                markerHash: n.MarkerHash,
+                                payloadFloat: n.PayloadFloat));
+                            break;
+                    }
                 }
             }
         }

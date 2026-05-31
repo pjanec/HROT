@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Core;
 using Hrot.MuscleCharacter.Animation.Baking;
 using Hrot.MuscleCharacter.Animation.Contracts;
 using Hrot.MuscleCharacter.Animation.Fake.Components;
@@ -35,6 +36,11 @@ public sealed class FakeAnimationBackend : IAnimationBackend
 
     private readonly IReadOnlyDictionary<long, CharacterAnimationBakedData>? _classData;
 
+    // Optional ECS repository for FakeAnimBackendState component write-through (OFX-003).
+    private EntityRepository? _repo;
+    // Maps entityIndex -> full Entity handle for ECS component operations.
+    private readonly Dictionary<uint, Entity> _entityIndexToEntity = new();
+
     // Handle bookkeeping: handleIndex -> (generation, entityId)
     private readonly Dictionary<uint, (uint Generation, uint EntityId)> _handleSlots = new();
     private readonly Dictionary<uint, EntityBehavioralState> _entityStates = new();
@@ -63,6 +69,17 @@ public sealed class FakeAnimationBackend : IAnimationBackend
         // No-op for fake backend
     }
 
+    /// <summary>
+    /// Injects an EntityRepository so RegisterEntity will also populate
+    /// the <see cref="FakeAnimBackendState"/> ECS component (OFX-003).
+    /// Must be called before registering entities.
+    /// </summary>
+    public void SetEntityRepository(EntityRepository repo)
+    {
+        _repo = repo;
+        repo.RegisterComponent<FakeAnimBackendState>();
+    }
+
     public AnimationBackendHandle RegisterEntity(uint entityId, long characterDefHandle)
     {
         uint handleIndex = _nextHandleIndex++;
@@ -73,6 +90,14 @@ public sealed class FakeAnimationBackend : IAnimationBackend
 
         var state = new EntityBehavioralState { CharacterDefHandle = characterDefHandle };
         _entityStates[entityId] = state;
+
+        // OFX-003: when EntityRepository is injected, also populate the ECS component.
+        if (_repo != null)
+        {
+            var entity = _repo.GetEntityByIndex((int)entityId);
+            _entityIndexToEntity[entityId] = entity;
+            _repo.AddComponent(entity, new FakeAnimBackendState { Generation = generation });
+        }
 
         return handle;
     }
@@ -163,14 +188,19 @@ public sealed class FakeAnimationBackend : IAnimationBackend
         if (!TryResolveToState(handle, out var state) || state == null)
             return;
 
-        // Stop all active slots (StopMontageParams has no slot index)
+        // DD-Fake §3.3: force blend-out window instead of hard-clearing the slot.
+        // Natural completion (AdvanceSlots) will deactivate the slot once elapsed >= total.
+        float blendOut = @params.BlendOutTime > 0f ? @params.BlendOutTime : 0f;
         for (int i = 0; i < 8; i++)
         {
-            if (state.Slots[i].IsActive != 0)
-            {
-                state.Slots[i].IsActive = 0;
-                state.Slots[i].ElapsedSeconds = 0f;
-            }
+            if (state.Slots[i].IsActive == 0)
+                continue;
+
+            state.Slots[i].BlendOutTime = blendOut;
+            state.Slots[i].ElapsedSeconds = MathF.Max(
+                state.Slots[i].ElapsedSeconds,
+                state.Slots[i].TotalDurationSeconds - blendOut);
+            state.Slots[i].InBlendOutWindow = 1;
         }
     }
 
@@ -279,6 +309,18 @@ public sealed class FakeAnimationBackend : IAnimationBackend
             if (slot.BlendOutTime > 0f && remaining <= slot.BlendOutTime)
                 slot.InBlendOutWindow = 1;
 
+            // Blend weight computation (DD-Fake §4.1)
+            if (slot.ElapsedSeconds < slot.BlendInTime)
+                slot.BlendWeight = slot.BlendInTime > 0f ? slot.ElapsedSeconds / slot.BlendInTime : 1f;
+            else if (slot.ElapsedSeconds > slot.TotalDurationSeconds - slot.BlendOutTime)
+            {
+                float remain = slot.TotalDurationSeconds - slot.ElapsedSeconds;
+                slot.BlendWeight = slot.BlendOutTime > 0f ? MathF.Max(0f, remain / slot.BlendOutTime) : 0f;
+                slot.InBlendOutWindow = 1;
+            }
+            else
+                slot.BlendWeight = 1f;
+
             // Natural completion
             if (slot.ElapsedSeconds >= slot.TotalDurationSeconds)
             {
@@ -335,11 +377,17 @@ public sealed class FakeAnimationBackend : IAnimationBackend
             state.HorizontalVelZ * state.HorizontalVelZ);
 
         if (!state.IsGrounded || speed < MinFootstepSpeed)
+        {
+            // Reset accumulated distance when stationary so first step after
+            // moving starts from zero (DD-Fake §5).
+            state.DistanceSinceLastFootstep = 0f;
             return;
+        }
 
         state.DistanceSinceLastFootstep += speed * deltaTime;
 
-        while (state.DistanceSinceLastFootstep >= FootstepStrideMeters)
+        // Use `if`, not `while`: at most one footstep per tick (DD-Fake §5).
+        if (state.DistanceSinceLastFootstep >= FootstepStrideMeters)
         {
             state.DistanceSinceLastFootstep -= FootstepStrideMeters;
 
@@ -427,6 +475,28 @@ public sealed class FakeAnimationBackend : IAnimationBackend
     }
 
     /// <summary>
+    /// Query the aim/look-at layer state for a specific entity (non-interface method for tests).
+    /// Returns default FakeAimState if handle is invalid.
+    /// </summary>
+    public FakeAimState QueryAimState(AnimationBackendHandle handle)
+    {
+        if (!TryResolveToState(handle, out var state) || state == null)
+            return default;
+        return state.Aim;
+    }
+
+    /// <summary>
+    /// Query the stance transition state for a specific entity (non-interface method for tests).
+    /// Returns default FakeStanceState if handle is invalid.
+    /// </summary>
+    public FakeStanceState QueryStanceState(AnimationBackendHandle handle)
+    {
+        if (!TryResolveToState(handle, out var state) || state == null)
+            return default;
+        return state.Stance;
+    }
+
+    /// <summary>
     /// Drain pending notifies for a specific entity (IAnimationBackend implementation).
     /// Returns number of events written. Excess events are silently dropped.
     /// </summary>
@@ -500,5 +570,50 @@ public sealed class FakeAnimationBackend : IAnimationBackend
                 return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Returns true if any slot for this entity has entered its blend-out window (OFX-009).
+    /// </summary>
+    public bool IsAnySlotInBlendOut(AnimationBackendHandle handle)
+    {
+        if (!TryResolveToState(handle, out var state) || state == null)
+            return false;
+
+        foreach (var slot in state.Slots)
+        {
+            if (slot.IsActive != 0 && slot.InBlendOutWindow != 0)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Crossfade-replace: semantically equivalent to PlayMontageOnSlot
+    /// but used by the queue advance path for chaining (OFX-009, DD-1 §7).
+    /// </summary>
+    public void CrossfadeMontageOnSlot(AnimationBackendHandle handle, in PlayMontageParams @params)
+        => PlayMontageOnSlot(handle, in @params);
+
+    /// <summary>
+    /// Clears all entity state from both the internal dictionary and, when an
+    /// EntityRepository was injected, from the ECS component store (OFX-003).
+    /// </summary>
+    public void ResetWorld()
+    {
+        if (_repo != null)
+        {
+            foreach (var (_, entity) in _entityIndexToEntity)
+            {
+                if (_repo.HasComponent<FakeAnimBackendState>(entity))
+                    _repo.RemoveComponent<FakeAnimBackendState>(entity);
+            }
+            _entityIndexToEntity.Clear();
+        }
+
+        _handleSlots.Clear();
+        _entityStates.Clear();
+        _nextHandleIndex = 1;
+        _nextGeneration = 1;
     }
 }
