@@ -68,11 +68,11 @@ public sealed class BlueprintRegistry
         return snapshot.ById.TryGetValue(id, out def);
     }
 
-    /// <summary>Returns all registered definitions. Safe to enumerate mid-reload.</summary>
-    public IReadOnlyCollection<BlueprintDefinition> GetAll()
+    /// <summary>Returns all registered definitions as (Id, Def) tuples. Safe to enumerate mid-reload.</summary>
+    public IReadOnlyList<(int Id, BlueprintDefinition Def)> GetAll()
     {
         var snapshot = _current;
-        return snapshot.ById.Values.ToArray();
+        return snapshot.ById.Select(kv => (kv.Key, kv.Value)).ToArray();
     }
 
     // ---- World singletons ---------------------------------------------------

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -521,10 +523,75 @@ public static class ThrowingRegistrar
     }
 
     public unsafe bool InvokeHsmAction(BlueprintAsset asset, Entity entity)
-        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 4).");
+    {
+        var genType = FindGeneratedType(asset);
+
+        // The generated registrar calls:
+        // HsmActionDispatcher.RegisterAction(unchecked((ushort)ClassName.BlueprintId), ...)
+        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+        ushort actionId = unchecked((ushort)blueprintId);
+
+        // Generated HsmActivity reads Blackboard1024 from the entity; ensure it exists.
+        if (!_repo.HasComponent<Blackboard1024>(entity))
+            _repo.AddComponent(entity, default(Blackboard1024));
+
+        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+
+        var paramsType = genType.GetNestedType("Params");
+        if (paramsType != null && paramsType.IsValueType)
+        {
+            var paramsBoxed = Activator.CreateInstance(paramsType)!;
+            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
+            try
+            {
+                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
+                HsmActionDispatcher.ExecuteAction(actionId, paramsPtr, &bridge, null);
+            }
+            finally
+            {
+                paramsHandle.Free();
+            }
+        }
+        else
+        {
+            HsmActionDispatcher.ExecuteAction(actionId, null, &bridge, null);
+        }
+        return true;
+    }
 
     public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
-        => throw new NotImplementedException("Requires compiled blueprint assembly (Phase 4).");
+    {
+        var genType = FindGeneratedType(asset);
+
+        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+        ushort guardId  = unchecked((ushort)blueprintId);
+
+        // Generated HsmGuard reads Blackboard1024 from the entity; ensure it exists.
+        if (!_repo.HasComponent<Blackboard1024>(entity))
+            _repo.AddComponent(entity, default(Blackboard1024));
+
+        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+
+        var paramsType = genType.GetNestedType("Params");
+        if (paramsType != null && paramsType.IsValueType)
+        {
+            var paramsBoxed = Activator.CreateInstance(paramsType)!;
+            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
+            try
+            {
+                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
+                return HsmActionDispatcher.EvaluateGuard(guardId, paramsPtr, &bridge, eventId);
+            }
+            finally
+            {
+                paramsHandle.Free();
+            }
+        }
+        else
+        {
+            return HsmActionDispatcher.EvaluateGuard(guardId, null, &bridge, eventId);
+        }
+    }
 
     private Type FindGeneratedType(BlueprintAsset asset)
     {
@@ -711,6 +778,87 @@ public static class ThrowingRegistrar
                     _repo.AddComponent(entity, default(BlueprintBlackboard16384));
                 break;
         }
+    }
+
+    // ---- BPF-008: Fixture helpers ------------------------------------------
+
+    /// <summary>
+    /// Returns a copy of the <see cref="BlueprintSlotEntry"/> for the given blueprint
+    /// on the specified entity. Throws if no slot exists.
+    /// </summary>
+    public unsafe BlueprintSlotEntry GetSlotEntry(BlueprintAsset asset, Entity entity)
+    {
+        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
+        if (!TryGetSlotAcrossTiers(asset.AssetId, entity, out var tier, out _))
+            throw new InvalidOperationException(
+                $"No slot for blueprint '{asset.Name}' on entity {entity}. " +
+                "Call AttachBlueprint first.");
+
+        GetTierMemoryAndMeta(entity, tier, out byte* memory, out _, out _);
+
+        ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+        int slotCount  = header.SlotCount;
+        byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
+            if (slot.BlueprintId == blueprintId)
+                return slot;  // return copy
+        }
+        throw new InvalidOperationException(
+            $"Slot table scan failed for blueprint '{asset.Name}' on entity {entity}.");
+    }
+
+    /// <summary>
+    /// Writes <paramref name="status"/> into the <c>Status</c> field of channel component
+    /// <typeparamref name="T"/> on <paramref name="entity"/>.
+    /// </summary>
+    public unsafe void SetChannelStatus<T>(Entity entity, Fbt.NodeStatus status) where T : unmanaged
+    {
+        int offset = (int)Marshal.OffsetOf<T>("Status");
+        ref var component = ref _repo.GetComponentRW<T>(entity);
+        byte* ptr = (byte*)Unsafe.AsPointer(ref component);
+        Unsafe.Write(ptr + offset, status);
+    }
+
+    /// <summary>
+    /// Returns a snapshot of all blackboard component bytes for all entities that have
+    /// BB1024 or BB4096 components. Useful for before/after state comparison.
+    /// Format per entity: [Index:int][Generation:int][bytes...]
+    /// </summary>
+    public unsafe ImmutableArray<byte> SnapshotAllBlackboards()
+    {
+        var ms     = new MemoryStream();
+        var writer = new BinaryWriter(ms);
+
+        var query1024 = _repo.Query().With<BlueprintBlackboard1024>().Build();
+        foreach (var entity in query1024)
+        {
+            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard1024>(entity);
+            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+            int   size           = Unsafe.SizeOf<BlueprintBlackboard1024>();
+            writer.Write(entity.Index);
+            writer.Write(entity.Generation);
+            for (int i = 0; i < size; i++)
+                writer.Write(ptr[i]);
+        }
+
+        var query4096 = _repo.Query().With<BlueprintBlackboard4096>().Build();
+        foreach (var entity in query4096)
+        {
+            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard4096>(entity);
+            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
+            int   size           = Unsafe.SizeOf<BlueprintBlackboard4096>();
+            writer.Write(entity.Index);
+            writer.Write(entity.Generation);
+            for (int i = 0; i < size; i++)
+                writer.Write(ptr[i]);
+        }
+
+        writer.Flush();
+        return ms.ToArray().ToImmutableArray();
     }
 
     // ---- GC helpers and weak reference inspection ---------------------------

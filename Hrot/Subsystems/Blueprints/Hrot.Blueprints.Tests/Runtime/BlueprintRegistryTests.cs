@@ -208,4 +208,22 @@ public sealed class BlueprintRegistryTests : IDisposable
 
         Assert.Equal(1, count);
     }
+
+    // ---- BPF-007: GetAll returns (Id, Def) tuples ---------------------------
+
+    [Fact]
+    public void BPF007_GetAll_Returns_Tuple_With_Correct_Id()
+    {
+        int id = 10001;
+        var def = new BlueprintDefinition
+        {
+            Name = "TupleTest", Kind = BlueprintDispatchKind.Instance,
+            StructureHash = 0x999, StateSize = 32
+        };
+        _registry.RegisterInstance(id, def);
+
+        var all = _registry.GetAll();
+
+        Assert.Contains(all, t => t.Id == id && t.Def.Name == "TupleTest");
+    }
 }

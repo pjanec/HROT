@@ -34,7 +34,8 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
     public bool IsAttached => true;
-    public void Detach() { }
+    public void Attach()  { }
+    public void Detach()  { }
 
     // ---- IBlueprintDebugSession -- breakpoints (string overloads for tests) --
 

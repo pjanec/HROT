@@ -16,7 +16,8 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
     public bool IsAttached => true;
-    public void Detach() { }
+    public void Attach()  { }
+    public void Detach()  { }
 
     // ---- IBlueprintDebugSession -- breakpoints ------------------------------
 

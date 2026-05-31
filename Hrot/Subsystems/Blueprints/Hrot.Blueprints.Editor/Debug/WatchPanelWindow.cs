@@ -24,5 +24,7 @@ public sealed class WatchPanelWindow : BlueprintEditorWindowBase
     public override void DrawUI()
     {
         // ImGui table: Name, Type, Value, Tick, Stale? -- requires ImGui runtime.
+        var watches = _session.GetWatches();
+        _ = watches;
     }
 }

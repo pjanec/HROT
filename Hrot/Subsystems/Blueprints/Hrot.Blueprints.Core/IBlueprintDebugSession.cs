@@ -125,6 +125,7 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
 {
     // -- Lifecycle --
     bool IsAttached { get; }
+    void Attach();
     void Detach();
 
     // -- Breakpoint management --

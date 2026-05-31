@@ -144,6 +144,7 @@ public sealed class ReloadReconciliationTests
     private sealed class CapturingSink : IReloadLogSink
     {
         public int CallCount { get; private set; }
-        public void OnHardReset(int blueprintId, uint newInstanceVersion) => CallCount++;
+        public void OnSoftReload(int blueprintId, Fdp.Core.Entity entity, ulong hash) { }
+        public void OnHardReset(int blueprintId, Fdp.Core.Entity entity, ulong oldHash, ulong newHash) => CallCount++;
     }
 }

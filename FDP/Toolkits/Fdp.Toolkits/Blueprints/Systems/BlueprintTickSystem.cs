@@ -77,6 +77,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
                 {
+                    ulong oldHash = slot.StructureHash;
                     BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
                     if (def.InitDefault is not null)
                     {
@@ -85,7 +86,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                             slot.PayloadSize);
                         def.InitDefault(initSpan);
                     }
-                    _logSink.OnHardReset(slot.BlueprintId, slot.InstanceVersion);
+                    _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
                 }
 
                 if (def.Tick is not null)
@@ -124,6 +125,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
                 {
+                    ulong oldHash = slot.StructureHash;
                     BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
                     if (def.InitDefault is not null)
                     {
@@ -132,7 +134,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                             slot.PayloadSize);
                         def.InitDefault(initSpan);
                     }
-                    _logSink.OnHardReset(slot.BlueprintId, slot.InstanceVersion);
+                    _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
                 }
 
                 if (def.Tick is not null)
@@ -171,6 +173,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
                 if (slot.StructureHash != (uint)def!.StructureHash) // DEBT-014 truncation
                 {
+                    ulong oldHash = slot.StructureHash;
                     BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
                     if (def.InitDefault is not null)
                     {
@@ -179,7 +182,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                             slot.PayloadSize);
                         def.InitDefault(initSpan);
                     }
-                    _logSink.OnHardReset(slot.BlueprintId, slot.InstanceVersion);
+                    _logSink.OnHardReset(slot.BlueprintId, entity, oldHash, (ulong)def!.StructureHash);
                 }
 
                 if (def.Tick is not null)
@@ -272,6 +275,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
         // Reload reconciliation
         if (slot.StructureHash != (uint)def.StructureHash) // DEBT-014 truncation
         {
+            ulong oldHash = slot.StructureHash;
             BlueprintBlackboardPartitions.ResetSlot(memory, slotIndex, def.StructureHash);
             if (def.InitDefault is not null)
             {
@@ -280,7 +284,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
                     slot.PayloadSize);
                 def.InitDefault(resetSpan);
             }
-            _logSink.OnHardReset(blueprintId, slot.InstanceVersion);
+            _logSink.OnHardReset(blueprintId, Entity.Null, oldHash, (ulong)def.StructureHash);
         }
 
         if (def.Tick is not null)

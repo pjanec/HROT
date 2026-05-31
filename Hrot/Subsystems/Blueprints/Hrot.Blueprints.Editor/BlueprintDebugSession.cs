@@ -205,10 +205,19 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // ---- IBlueprintDebugSession -- lifecycle --------------------------------
 
-    public bool IsAttached => true;
+    private bool _isAttached;
+
+    public bool IsAttached => _isAttached;
+
+    public void Attach()
+    {
+        _isAttached    = true;
+        DebugProbe.Sink = this;
+    }
 
     public void Detach()
     {
+        _isAttached = false;
         if (_isPaused) Continue();
         DebugProbe.Sink = NullProbeSink.Instance;
         _breakpoints.Clear();

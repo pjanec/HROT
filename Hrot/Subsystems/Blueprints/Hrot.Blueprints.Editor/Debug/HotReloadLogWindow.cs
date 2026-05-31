@@ -1,12 +1,27 @@
 namespace Hrot.Blueprints.Editor.Debug;
 
-public sealed class HotReloadLogWindow : BlueprintEditorWindowBase
+public sealed class HotReloadLogWindow : BlueprintEditorWindowBase, IDisposable
 {
+    private readonly IBlueprintEditorCoordinator _coordinator;
+
     public HotReloadLogModel Model { get; } = new();
 
     public override string Title => "Hot Reload Log";
 
-    public void OnReloadCompleted(ReloadCompletedInfo info)
+    public HotReloadLogWindow(IBlueprintEditorCoordinator coordinator)
+    {
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+        _coordinator.OnReloadCompleted += OnReloadCompleted;
+        _coordinator.OnReloadFailed    += OnReloadFailed;
+    }
+
+    public void Dispose()
+    {
+        _coordinator.OnReloadCompleted -= OnReloadCompleted;
+        _coordinator.OnReloadFailed    -= OnReloadFailed;
+    }
+
+    private void OnReloadCompleted(ReloadCompletedInfo info)
     {
         Model.AddEntry(new ReloadLogEntry(
             Timestamp:  DateTime.UtcNow,
@@ -16,7 +31,7 @@ public sealed class HotReloadLogWindow : BlueprintEditorWindowBase
             DurationMs: info.DurationMs));
     }
 
-    public void OnReloadFailed(string message, ReloadSource source)
+    private void OnReloadFailed(string message, ReloadSource source)
     {
         Model.AddEntry(new ReloadLogEntry(
             Timestamp:  DateTime.UtcNow,
@@ -31,3 +46,4 @@ public sealed class HotReloadLogWindow : BlueprintEditorWindowBase
         // ImGui scrollable table with Clear button -- requires ImGui runtime.
     }
 }
+

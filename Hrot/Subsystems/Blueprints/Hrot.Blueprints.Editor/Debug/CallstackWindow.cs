@@ -17,6 +17,8 @@ public sealed class CallstackWindow : BlueprintEditorWindowBase
 
     public override void DrawUI()
     {
-        // ImGui list of GetActiveEntities() node history -- requires ImGui runtime.
+        // ImGui list of node history per active entity -- requires ImGui runtime.
+        var history = _session.GetRecentNodeHistory();
+        _ = history;
     }
 }

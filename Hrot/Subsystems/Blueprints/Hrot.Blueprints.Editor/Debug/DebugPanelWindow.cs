@@ -16,7 +16,11 @@ public sealed class DebugPanelWindow : BlueprintEditorWindowBase
     public override void DrawUI()
     {
         // ImGui rendering: pause indicator, breakpoint list, step buttons.
-        // Requires ImGui runtime. Stub for Slice 1.
+        var paused      = _session.IsPaused;
+        var breakpoints = _session.GetBreakpoints();
+        // Rendering requires ImGui runtime; data access verified by unit tests.
+        _ = paused;
+        _ = breakpoints;
     }
 
     public override void OnActivated()   { }
