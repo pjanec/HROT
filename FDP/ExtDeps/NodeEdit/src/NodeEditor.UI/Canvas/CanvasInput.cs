@@ -548,7 +548,7 @@ internal sealed class CanvasInput
 
                     if (container.Regions.Count > 0)
                     {
-                        int rIdx = reparenting
+                        int rIdx = (targetContainer == view.Interaction.DropTargetContainerId)
                             ? (view.Interaction.DropTargetRegionIndex ?? -1)
                             : container.GetRegionIndexForChild(nid);
                         if (rIdx > 0)
