@@ -46,6 +46,33 @@ public sealed class FakeCommandSink : IGraphCommandSink
                 _graph.NotifyChanged(GraphChangeKind.NodesMoved);
                 return new GraphCommandResult(true, null);
 
+            case GraphCommand.ChangeParentMultiple cpm:
+                foreach (var m in cpm.Moves)
+                {
+                    if (_graph.FindNode(m.NodeId) is not FakeNodeModel fnm) continue;
+
+                    // 1. Remove from old parent.
+                    if (fnm.ParentContainerId.HasValue &&
+                        _graph.FindNode(fnm.ParentContainerId.Value) is FakeContainerModel oldContainer)
+                    {
+                        oldContainer.RemoveChild(m.NodeId);
+                    }
+
+                    // 2. Add to new parent.
+                    if (m.NewParentContainerId.HasValue &&
+                        _graph.FindNode(m.NewParentContainerId.Value) is FakeContainerModel newContainer)
+                    {
+                        newContainer.AddChild(m.NodeId, m.NewRegionIndex ?? -1);
+                    }
+
+                    // 3. Update node's parent pointer and local position.
+                    fnm.ParentContainerId = m.NewParentContainerId;
+                    fnm.SetPosition(m.NewLocalPosition);
+                }
+
+                _graph.NotifyChanged(GraphChangeKind.NodesMoved);
+                return new GraphCommandResult(true, null);
+
             case GraphCommand.AddLink link:
                 _graph.AddLink(link.AssignedId, link.From, link.To);
                 _graph.NotifyChanged(GraphChangeKind.LinksAdded);

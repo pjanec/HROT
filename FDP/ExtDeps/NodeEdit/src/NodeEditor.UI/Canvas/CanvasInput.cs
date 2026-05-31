@@ -210,7 +210,7 @@ internal sealed class CanvasInput
                     {
                         var n = view.Model.FindNode(nid);
                         if (n != null)
-                            view.Interaction.DragOverridePositions[nid] = n.Position;
+                            view.Interaction.DragOverridePositions[nid] = view.NodeCanvasPosition(nid);
                     }
                     break;
 
@@ -249,7 +249,7 @@ internal sealed class CanvasInput
                         {
                             var n = view.Model.FindNode(nid);
                             if (n != null)
-                                view.Interaction.DragOverridePositions[nid] = n.Position;
+                                view.Interaction.DragOverridePositions[nid] = view.NodeCanvasPosition(nid);
                         }
                     }
                     else if (hover.ContainerZone == ContainerHoverZone.Interior)

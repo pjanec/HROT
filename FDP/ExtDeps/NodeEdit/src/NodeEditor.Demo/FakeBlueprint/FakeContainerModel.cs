@@ -59,4 +59,11 @@ public sealed class FakeContainerModel : IContainerNodeModel
         _regions.Add(rd);
         return rd;
     }
+
+    /// <summary>Removes a child node from the container.</summary>
+    public void RemoveChild(NodeId childId)
+    {
+        _childIds.Remove(childId);
+        _childRegion.Remove(childId);
+    }
 }
