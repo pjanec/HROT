@@ -19,30 +19,30 @@ Zero-finding clusters (held up): uai-runtime-core, uai-sourcegen, eqs-generators
 - [x] **OFX-004** (anim-ctrl, algorithm) -- `StopMontageOnSlot` hard-clears instead of blend-out -> [details](./TASK-DETAIL.md#ofx-004----stopmontageonslot-hard-clears-slots-instead-of-triggering-graceful-blend-out)
 - [x] **OFX-005** (anim-ctrl, algorithm) -- `BlendWeight` never computed in `AdvanceSlots` (always 0) -> [details](./TASK-DETAIL.md#ofx-005----blendweight-never-computed-in-advanceslots---always-0)
 - [x] **OFX-006** (anim-ctrl, SC-anchor) -- ANIM008/009/010/011 validators absent; tests are vacuous stubs -> [details](./TASK-DETAIL.md#ofx-006----anim008009010011-validators-have-no-production-implementation-their-tests-are-vacuous-stubs)
-- [ ] **OFX-007** (group-maneuvers, algorithm) -- `MergeContact` ties 3D position to max-threat, not most-recent sighting -> [details](./TASK-DETAIL.md#ofx-007----squadperceptionmergesystemmergecontact-ties-3d-position-to-max-threat-ownership-not-most-recent-sighting)
-- [ ] **OFX-008** (visual-asset-comparison, spec-drift) -- comparison outline drawn solid, design requires dashed -> [details](./TASK-DETAIL.md#ofx-008----comparison-annotation-outline-drawn-solid-design-requires-a-dashed-stroke)
+- [x] **OFX-007** (group-maneuvers, algorithm) -- `MergeContact` ties 3D position to max-threat, not most-recent sighting -> [details](./TASK-DETAIL.md#ofx-007----squadperceptionmergesystemmergecontact-ties-3d-position-to-max-threat-ownership-not-most-recent-sighting)
+- [x] **OFX-008** (visual-asset-comparison, spec-drift) -- comparison outline drawn solid, design requires dashed -> [details](./TASK-DETAIL.md#ofx-008----comparison-annotation-outline-drawn-solid-design-requires-a-dashed-stroke)
 
 ## MEDIUM
 - [x] **OFX-009** (anim-ctrl, algorithm) -- `MontageQueueAdvanceSystem` never crossfades; advances only after slot silent -> [details](./TASK-DETAIL.md#ofx-009----montagequeueadvancesystem-never-crossfades-advances-only-after-the-slot-goes-silent)
 - [x] **OFX-010** (navig-2, algorithm) -- `FakeDtCrowdProvider` separation threshold/formula/NearbyAgentCount deviate -> [details](./TASK-DETAIL.md#ofx-010----fakedtcrowdprovider-separation-threshold--formula--nearbyagentcount-range-deviate-from-design)
 - [x] **OFX-011** (navig-2, spec-drift) -- `BlockPolygon` layer-agnostic; design requires per-layer scoping -> [details](./TASK-DETAIL.md#ofx-011----fakenavmeshproviderblockpolygon-is-layer-agnostic-design-requires-per-layer-scoping)
 - [x] **OFX-012** (anim-ctrl, dual-path) -- intent egress dirty-check omits `ActionParams` blob comparison -> [details](./TASK-DETAIL.md#ofx-012----animation-intent-egress-dirty-check-omits-the-actionparams-blob-comparison)
-- [ ] **OFX-013** (group-maneuvers, dual-path) -- `RoleSlotAssignmentPrimitive` leaves stale RoleIds for unassigned members -> [details](./TASK-DETAIL.md#ofx-013----roleslotassignmentprimitive-leaves-stale-roleids-for-unassigned-members)
-- [ ] **OFX-014** (group-maneuvers, invariant) -- `PhaseSequencer` `>=` off-by-one + `dwellTimeoutTicks==0` immediate abort -> [details](./TASK-DETAIL.md#ofx-014----phasesequenceradvance-uses--off-by-one-and-treats-dwelltimeoutticks0-as-immediate-abort)
-- [ ] **OFX-015** (utility-ai, SC-anchor) -- emitter round-trip test vacuous (no Roslyn reparse -> reflect) -> [details](./TASK-DETAIL.md#ofx-015----utility-emitter-round-trip-test-is-vacuous-no-roslyn-parse---reflect---structural-equality)
-- [ ] **OFX-016** (eqs-2, spec-drift) -- EQS002 diagnostic points at the method, not the offending identifier -> [details](./TASK-DETAIL.md#ofx-016----eqs002-purity-diagnostic-points-at-the-method-not-the-offending-identifier)
-- [ ] **OFX-017** (eqs-2, integration-seam) -- Brain-side EqsResult child cache never pruned on sensor removal -> [details](./TASK-DETAIL.md#ofx-017----brain-side-eqsresultingresstranslator-child-entity-cache-is-never-pruned-on-sensor-removal)
+- [x] **OFX-013** (group-maneuvers, dual-path) -- `RoleSlotAssignmentPrimitive` leaves stale RoleIds for unassigned members -> [details](./TASK-DETAIL.md#ofx-013----roleslotassignmentprimitive-leaves-stale-roleids-for-unassigned-members)
+- [x] **OFX-014** (group-maneuvers, invariant) -- `PhaseSequencer` `>=` off-by-one + `dwellTimeoutTicks==0` immediate abort -> [details](./TASK-DETAIL.md#ofx-014----phasesequenceradvance-uses--off-by-one-and-treats-dwelltimeoutticks0-as-immediate-abort)
+- [x] **OFX-015** (utility-ai, SC-anchor) -- emitter round-trip test vacuous (no Roslyn reparse -> reflect) -> [details](./TASK-DETAIL.md#ofx-015----utility-emitter-round-trip-test-is-vacuous-no-roslyn-parse---reflect---structural-equality)
+- [x] **OFX-016** (eqs-2, spec-drift) -- EQS002 diagnostic points at the method, not the offending identifier -> [details](./TASK-DETAIL.md#ofx-016----eqs002-purity-diagnostic-points-at-the-method-not-the-offending-identifier)
+- [x] **OFX-017** (eqs-2, integration-seam) -- Brain-side EqsResult child cache never pruned on sensor removal -> [details](./TASK-DETAIL.md#ofx-017----brain-side-eqsresultingresstranslator-child-entity-cache-is-never-pruned-on-sensor-removal)
 - [x] **OFX-018** (navig-2, algorithm) -- `ReplanTimeBudget` guard absent; replan bounded only by count -> [details](./TASK-DETAIL.md#ofx-018----replantimebudget-guard-absent-replan-bounded-only-by-maxreplans-count)
 - [x] **OFX-019** (navig-2, dual-path) -- `FollowPathExecutor` doesn't map `FailedBlocked` -> stuck Running -> [details](./TASK-DETAIL.md#ofx-019----followpathexecutor-doesnt-map-failedblocked-to-failure---stuck-running-forever)
-- [ ] **OFX-020** (visual-asset-comparison, spec-drift) -- `connection_changed` badge draws at first endpoint, not midpoint -> [details](./TASK-DETAIL.md#ofx-020----connection_changed-edgemidpoint-badge-draws-at-the-first-endpoint-not-the-geometric-midpoint)
+- [x] **OFX-020** (visual-asset-comparison, spec-drift) -- `connection_changed` badge draws at first endpoint, not midpoint -> [details](./TASK-DETAIL.md#ofx-020----connection_changed-edgemidpoint-badge-draws-at-the-first-endpoint-not-the-geometric-midpoint)
 
 ## LOW
-- [ ] **OFX-021** (eqs-2, algorithm) -- cross-tick raycast polling skip-guard absent (perf; correctness-neutral) -> [details](./TASK-DETAIL.md#ofx-021----eqs-cross-tick-raycast-polling-skip-guard-absent-full-pipeline-re-runs-every-awaiting-tick)
+- [x] **OFX-021** (eqs-2, algorithm) -- cross-tick raycast polling skip-guard absent (perf; correctness-neutral) -> [details](./TASK-DETAIL.md#ofx-021----eqs-cross-tick-raycast-polling-skip-guard-absent-full-pipeline-re-runs-every-awaiting-tick)
 - [x] **OFX-022** (anim-ctrl, algorithm) -- `AdvanceFootsteps` while-loop multi-emit + no stationary reset -> [details](./TASK-DETAIL.md#ofx-022----advancefootsteps-uses-a-while-loop-multi-emit-and-doesnt-bleed-off-distance-when-stationary)
 - [x] **OFX-023** (anim-ctrl, SC-anchor) -- missing ANC-P1-06 aim-blend / stance-completion unit tests -> [details](./TASK-DETAIL.md#ofx-023----missing-anc-p1-06-unit-tests-tick_rampsaimblendweight-tick_completesstancetransition)
 - [x] **OFX-024** (navig-2, spec-drift) -- `IFakeNavmeshProviderTestApi.BumpVersion` missing -> [details](./TASK-DETAIL.md#ofx-024----ifakenavmeshprovidertestapibumpversion-missing)
 - [x] **OFX-025** (navig-2, SC-anchor) -- FakeDtCrowd separation test asserts only NearbyAgentCount -> [details](./TASK-DETAIL.md#ofx-025----fakedtcrowd-separation-test-asserts-only-nearbyagentcount-not-velocity-divergence)
-- [ ] **OFX-026** (group-maneuvers, SC-anchor) -- `AssignmentSlot` round-trip test omits the `Flags` field -> [details](./TASK-DETAIL.md#ofx-026----assignmentslot-layout-round-trip-test-omits-the-flags-field-it-was-specified-to-pin)
+- [x] **OFX-026** (group-maneuvers, SC-anchor) -- `AssignmentSlot` round-trip test omits the `Flags` field -> [details](./TASK-DETAIL.md#ofx-026----assignmentslot-layout-round-trip-test-omits-the-flags-field-it-was-specified-to-pin)
 
 ---
 
