@@ -50,6 +50,11 @@ public sealed class CanvasRenderer
     private string? _pendingVariableDropId;
     private string? _pendingVariableDropName;
     private Vector2 _pendingVariableDropPos;
+    private PinId? _pendingPromotePinId;
+    private bool _pendingPromoteIsLocal;
+    private bool _showPromoteVariableModal;
+    private string _promoteVariableName = "NewVariable";
+    private string _promoteVariableCategoryPath = "";
 
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
@@ -252,6 +257,12 @@ public sealed class CanvasRenderer
             ImGui.EndPopup();
         }
 
+        if (_showPromoteVariableModal)
+        {
+            ImGui.OpenPopup("##canvas_promote_var");
+            _showPromoteVariableModal = false;
+        }
+
         if (ImGui.BeginPopup("##canvas_drop_var"))
         {
             ImGui.TextDisabled("Variable Action");
@@ -275,6 +286,8 @@ public sealed class CanvasRenderer
             _pendingVariableDropId = null;
             _pendingVariableDropName = null;
         }
+
+        DrawPromoteVariableModal(view);
         ImGui.PopStyleVar();
     }
 
@@ -408,9 +421,9 @@ public sealed class CanvasRenderer
 
                 ImGui.Separator();
                 if (ImGui.MenuItem("Promote to Variable..."))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewVariable", false, null));
+                    OpenPromoteToVariableModal(pinId, false);
                 if (ImGui.MenuItem("Promote to Local Variable..."))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewLocalVariable", true, null));
+                    OpenPromoteToVariableModal(pinId, true);
 
                 ImGui.BeginDisabled();
                 ImGui.MenuItem("Split Struct Pin");
@@ -615,6 +628,65 @@ public sealed class CanvasRenderer
             float thickness = isActive ? 3.0f : 1.5f;
             dl.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
+    }
+
+    private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
+    {
+        _pendingPromotePinId = pinId;
+        _pendingPromoteIsLocal = isLocal;
+        _promoteVariableName = isLocal ? "NewLocalVariable" : "NewVariable";
+        _promoteVariableCategoryPath = "";
+        _showPromoteVariableModal = true;
+    }
+
+    private void DrawPromoteVariableModal(GraphView view)
+    {
+        bool open = true;
+        if (!ImGui.BeginPopupModal("##canvas_promote_var", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        if (_pendingPromotePinId is null)
+        {
+            ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+            return;
+        }
+
+        if (ImGui.IsWindowAppearing())
+            ImGui.SetKeyboardFocusHere();
+
+        ImGui.TextDisabled(_pendingPromoteIsLocal ? "Promote to Local Variable" : "Promote to Variable");
+        ImGui.Separator();
+
+        var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
+        bool inputEnter = ImGui.InputText("Name", ref _promoteVariableName, 128, inputFlags);
+        ImGui.InputText("Category", ref _promoteVariableCategoryPath, 256);
+
+        bool canPromote = !string.IsNullOrWhiteSpace(_promoteVariableName);
+        bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+
+        ImGui.BeginDisabled(!canPromote);
+        if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
+        {
+            string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
+            view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
+                _pendingPromotePinId.Value,
+                _promoteVariableName.Trim(),
+                _pendingPromoteIsLocal,
+                categoryPath));
+            _pendingPromotePinId = null;
+            ImGui.CloseCurrentPopup();
+        }
+        ImGui.EndDisabled();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(120, 0)) || !open || ImGui.IsKeyPressed(ImGuiKey.Escape))
+        {
+            _pendingPromotePinId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
     }
 
     // ── Model change tracking ─────────────────────────────────────────────────

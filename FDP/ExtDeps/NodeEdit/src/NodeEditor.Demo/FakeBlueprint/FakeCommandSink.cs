@@ -146,6 +146,11 @@ public sealed class FakeCommandSink : IGraphCommandSink
                     rrm.RemoveWaypoint(rr.WaypointIndex);
                 return new GraphCommandResult(true, null);
 
+            case GraphCommand.PromoteToVariable promote:
+                ApplyPromoteToVariable(promote);
+                _graph.NotifyChanged(GraphChangeKind.VariablesChanged);
+                return new GraphCommandResult(true, null);
+
             case GraphCommand.Batch batch:
                 foreach (var inner in batch.Commands) Apply(inner);
                 return new GraphCommandResult(true, null);
@@ -205,5 +210,70 @@ public sealed class FakeCommandSink : IGraphCommandSink
         if (label.Contains("Map", StringComparison.OrdinalIgnoreCase))   return ContainerKind.Map;
         if (label.Contains("Set", StringComparison.OrdinalIgnoreCase))   return ContainerKind.Set;
         return ContainerKind.Single;
+    }
+
+    private void ApplyPromoteToVariable(GraphCommand.PromoteToVariable promote)
+    {
+        if (_graph.FindPin(promote.Pin) is not FakePinModel targetPin)
+            return;
+        if (targetPin.Kind != PinKind.Data)
+            return;
+        if (_graph.FindNode(targetPin.OwnerNodeId) is not FakeNodeModel owner)
+            return;
+
+        string variableName = string.IsNullOrWhiteSpace(promote.VariableName) ? "NewVariable" : promote.VariableName.Trim();
+        string variableId = $"var.{Guid.NewGuid():N}";
+
+        if (targetPin.Direction == PinDirection.Input)
+        {
+            var getNodeId = IdGenerator.NewNodeId();
+            var getPos = owner.Position + new Vector2(-240f, 0f);
+            ApplyAddNode(new GraphCommand.AddNode(
+                getNodeId,
+                new NodeKindKey("Util.GetVar"),
+                getPos,
+                new Dictionary<string, object?> { ["VariableId"] = variableId, ["VariableName"] = variableName }));
+
+            var fromPin = FindPinByLabelAndDirection(getNodeId, "Value", PinDirection.Output)
+                       ?? FindFirstPinByDirection(getNodeId, PinDirection.Output);
+            if (fromPin is not null)
+                _graph.AddLink(IdGenerator.NewLinkId(), fromPin.Id, targetPin.Id);
+        }
+        else
+        {
+            var setNodeId = IdGenerator.NewNodeId();
+            var setPos = owner.Position + new Vector2(240f, 0f);
+            ApplyAddNode(new GraphCommand.AddNode(
+                setNodeId,
+                new NodeKindKey("Util.SetVar"),
+                setPos,
+                new Dictionary<string, object?> { ["VariableId"] = variableId, ["VariableName"] = variableName }));
+
+            var toPin = FindPinByLabelAndDirection(setNodeId, "Value", PinDirection.Input)
+                     ?? FindFirstPinByDirection(setNodeId, PinDirection.Input);
+            if (toPin is not null)
+                _graph.AddLink(IdGenerator.NewLinkId(), targetPin.Id, toPin.Id);
+        }
+    }
+
+    private FakePinModel? FindPinByLabelAndDirection(NodeId nodeId, string label, PinDirection direction)
+    {
+        if (_graph.FindNode(nodeId) is not FakeNodeModel node)
+            return null;
+
+        return node.Pins
+            .OfType<FakePinModel>()
+            .FirstOrDefault(p => p.Direction == direction &&
+                                 p.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private FakePinModel? FindFirstPinByDirection(NodeId nodeId, PinDirection direction)
+    {
+        if (_graph.FindNode(nodeId) is not FakeNodeModel node)
+            return null;
+
+        return node.Pins
+            .OfType<FakePinModel>()
+            .FirstOrDefault(p => p.Direction == direction);
     }
 }
