@@ -80,7 +80,7 @@ public sealed class MyBlueprintPanel
         ImGui.TextColored(_host.Theme.TextDefault, "My Blueprint");
         ImGui.SameLine(ImGui.GetContentRegionAvail().X - 48f);
 
-        if (ImGui.SmallButton("\u2295\u25bc"))  // ⊕▼
+        if (ImGui.SmallButton("+ \u25bc"))
             ImGui.OpenPopup("##mybp_add");
 
         if (ImGui.BeginPopup("##mybp_add"))
@@ -202,7 +202,7 @@ public sealed class MyBlueprintPanel
         if (section.CanCreateItems && section.CreateCommandId is not null)
         {
             ImGui.SameLine(ImGui.GetContentRegionAvail().X - 16f);
-            ImGui.SmallButton("\u2295##sec_add_" + section.Id);
+            ImGui.SmallButton("+##sec_add_" + section.Id);
             if (ImGui.IsItemClicked())
                 InvokeCreate(section.CreateCommandId);
         }

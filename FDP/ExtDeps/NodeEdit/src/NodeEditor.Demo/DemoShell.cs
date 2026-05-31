@@ -45,6 +45,9 @@ public sealed class DemoShell
     private readonly NodeEditor.Core.Bookmarks.BookmarkStore _bookmarks = new();
 
     private string _lastPick = "(none)";
+    private bool _showCreateVarModal;
+    private string _newVarName = "NewVariable";
+    private string _newVarType = "System.Single";
     private readonly Dictionary<float, nint> _fonts;
     private readonly List<(EditorNotification Notification, float TimeRemaining)> _activeToasts = new();
 
@@ -142,6 +145,7 @@ public sealed class DemoShell
         DrawDetailsWindow();
         DrawStatusBar();
         DrawToasts();
+        DrawCreateVariableModal();
     }
 
     // ── menu bar ──────────────────────────────────────────────────────────────
@@ -424,6 +428,56 @@ public sealed class DemoShell
         }
     }
 
+    private void DrawCreateVariableModal()
+    {
+        if (_showCreateVarModal)
+        {
+            ImGui.OpenPopup("Create Variable");
+            _showCreateVarModal = false;
+        }
+
+        bool open = true;
+        if (ImGui.BeginPopupModal("Create Variable", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.InputText("Name", ref _newVarName, 128);
+
+            if (ImGui.BeginCombo("Type", _newVarType))
+            {
+                string[] types = { "System.Boolean", "System.Int32", "System.Single", "System.String", "System.Numerics.Vector3", "NodeEditor.Color" };
+                foreach (var t in types)
+                {
+                    if (ImGui.Selectable(t, _newVarType == t)) _newVarType = t;
+                }
+                ImGui.EndCombo();
+            }
+
+            ImGui.Spacing();
+
+            if (ImGui.Button("Create", new Vector2(120, 0)))
+            {
+                var tk = new TypeKey(_newVarType);
+                var color = _host.TypeSystem_.GetPinColor(tk);
+
+                _host.MyBlueprint.AddVariable(
+                    $"var.{Guid.NewGuid():N}",
+                    _newVarName,
+                    color,
+                    $"User created variable ({_newVarType})");
+
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.SameLine();
+
+            if (ImGui.Button("Cancel", new Vector2(120, 0)))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndPopup();
+        }
+    }
+
     // ── scenario management ───────────────────────────────────────────────────
 
     private void ApplyScenario(int index)
@@ -475,6 +529,7 @@ public sealed class DemoShell
 
     private void RebuildPanels()
     {
+        _commands = new EditorCommandsImpl();
         _findBar = new FindBar(_view, new FindEngine(_view.Model, null));
         _mbPanel = new MyBlueprintPanel(
             _host.MyBlueprint, _host, _commands,
@@ -484,8 +539,13 @@ public sealed class DemoShell
         var detailsCtx = new DetailsContextProxy(_host.CommandSink_, _host.EditorRegistry, _host.Icons, _host.Theme);
         _details = new DetailsPanel(detailsReg, detailsCtx);
 
-        _commands = new EditorCommandsImpl();
         BuiltinCommandHandlers.RegisterAll(_commands, _view, _findBar);
+        var reg = new CommandRegistration(_commands);
+        reg.Add(CommandCatalog.CreateVariable, "Create Variable", "Add", _ =>
+        {
+            _showCreateVarModal = true;
+            _newVarName = "NewVariable";
+        });
         _indicators = new EditorIndicatorsImpl(_host.ToastQueue_);
         NodeEditor.UI.Bookmarks.BookmarkCommands.RegisterAll(_commands, _view, _bookmarks, _indicators, NavigateToGraph);
         _hotkeys = new HotkeyDispatcher(_host.Input, _commands);
