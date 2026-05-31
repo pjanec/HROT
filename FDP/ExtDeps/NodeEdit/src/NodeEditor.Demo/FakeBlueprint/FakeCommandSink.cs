@@ -181,6 +181,9 @@ public sealed class FakeCommandSink : IGraphCommandSink
             case GraphCommand.CollapseToFunction ctf:
                 return ApplyCollapseToFunction(ctf);
 
+            case GraphCommand.CollapseToMacro ctm:
+                return ApplyCollapseToMacro(ctm);
+
             case GraphCommand.Batch batch:
                 foreach (var inner in batch.Commands) Apply(inner);
                 return new GraphCommandResult(true, null);
@@ -439,6 +442,54 @@ public sealed class FakeCommandSink : IGraphCommandSink
         callNode.AddPin("Multiplier", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
         callNode.AddPin("Bonus", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
         callNode.AddPin("Result", PinDirection.Output, PinKind.Data, new TypeKey("System.Single"));
+
+        _graph.NotifyChanged(GraphChangeKind.Wholesale);
+        return new GraphCommandResult(true, null);
+    }
+
+    private GraphCommandResult ApplyCollapseToMacro(GraphCommand.CollapseToMacro ctm)
+    {
+        if (ctm.Nodes.Count == 0) return new GraphCommandResult(false, "No nodes selected");
+
+        // 1. Add Macro to the My Blueprint panel
+        string macId = $"macro.{Guid.NewGuid():N}";
+        _myBlueprint.AddMacro(macId, ctm.MacroName);
+
+        // 2. Find the center position to cleanly place the macro node
+        float sumX = 0, sumY = 0;
+        int count = 0;
+        foreach (var nid in ctm.Nodes)
+        {
+            var n = _graph.FindNode(nid);
+            if (n != null)
+            {
+                sumX += n.Position.X;
+                sumY += n.Position.Y;
+                count++;
+            }
+        }
+        if (count == 0) return new GraphCommandResult(false, "No valid nodes selected");
+        var center = new Vector2(sumX / count, sumY / count);
+
+        // 3. Delete the original nodes and their internal links
+        bool InSelection(NodeId id) => ctm.Nodes.Contains(id);
+        var linksToRemove = _graph.Links
+            .Where(l => InSelection(_graph.FindPin(l.FromPin)?.OwnerNodeId ?? default)
+                     || InSelection(_graph.FindPin(l.ToPin)?.OwnerNodeId ?? default))
+            .Select(l => l.Id)
+            .ToList();
+
+        foreach (var lid in linksToRemove) _graph.RemoveLink(lid);
+        foreach (var nid in ctm.Nodes) _graph.RemoveNode(nid);
+
+        // 4. Create the new Macro Call Node
+        var callId = IdGenerator.NewNodeId();
+        var callNode = _graph.AddNode(callId, new NodeKindKey("Macro.Call"), ctm.MacroName, center);
+        callNode.Category = NodeCategory.Macro;
+
+        // 5. Inject the base execution pins expected by S23 validation
+        callNode.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+        callNode.AddPin("Out", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
 
         _graph.NotifyChanged(GraphChangeKind.Wholesale);
         return new GraphCommandResult(true, null);

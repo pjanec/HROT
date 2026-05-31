@@ -59,6 +59,7 @@ public sealed class DemoShell
     private string _newEventName = "OnEnemyKilled";
     private bool _showCollapseModal;
     private string _collapseName = "CalculateDamage";
+    private int _collapseMode = 2; // 0 = Function, 1 = Macro, 2 = Auto-detect
     private readonly Dictionary<float, nint> _fonts;
     private readonly List<(EditorNotification Notification, float TimeRemaining)> _activeToasts = new();
 
@@ -663,38 +664,51 @@ public sealed class DemoShell
     {
         if (_showCollapseModal)
         {
-            ImGui.OpenPopup("Collapse to Function");
+            ImGui.OpenPopup("Collapse Selection To...");
             _showCollapseModal = false;
         }
 
         bool open = true;
-        if (ImGui.BeginPopupModal("Collapse to Function", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (ImGui.BeginPopupModal("Collapse Selection To...", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             if (ImGui.IsWindowAppearing()) ImGui.SetKeyboardFocusHere();
 
-            ImGui.InputText("Function Name", ref _collapseName, 128, ImGuiInputTextFlags.AutoSelectAll);
+            ImGui.InputText("Name", ref _collapseName, 128, ImGuiInputTextFlags.AutoSelectAll);
 
             ImGui.Spacing();
-            ImGui.TextDisabled("Detected Signature:");
-            ImGui.TextDisabled(" - Inputs: 3 (float)");
-            ImGui.TextDisabled(" - Outputs: 1 (float)");
+            ImGui.Separator();
+            ImGui.TextDisabled("Target Type:");
+
+            ImGui.RadioButton("Function (callable, returns one value)", ref _collapseMode, 0);
+            ImGui.RadioButton("Macro (inline-expanded, multi-exit)", ref _collapseMode, 1);
+            ImGui.RadioButton("Auto: choose based on selection content", ref _collapseMode, 2);
+
             ImGui.Spacing();
 
-            bool isValid = !string.IsNullOrWhiteSpace(_collapseName);
+            // Auto-detect heuristic: latent nodes require macro.
+            bool hasLatent = _view.Selection.Nodes.Any(nid => _graph.FindNode(nid)?.Kind.Id == "Flow.Delay");
+            int effectiveMode = _collapseMode == 2 ? (hasLatent ? 1 : 0) : _collapseMode;
+
+            if (hasLatent && effectiveMode == 0)
+            {
+                ImGui.TextColored(_host.Theme.ErrorColor, "Selection contains a latent node, so a Macro is required.");
+            }
+
+            bool isValid = !string.IsNullOrWhiteSpace(_collapseName) && !(hasLatent && effectiveMode == 0);
             ImGui.BeginDisabled(!isValid);
 
             if (ImGui.Button("Collapse", new Vector2(120, 0)) || (ImGui.IsKeyPressed(ImGuiKey.Enter) && isValid))
             {
-                var cmd = new GraphCommand.CollapseToFunction(
-                    _view.Selection.Nodes.ToList(),
-                    _collapseName,
-                    false, // pure
-                    "Combat" // category
-                );
-
-                // Dispatch to backend. Pass a dummy empty batch as the inverse
-                // since a perfect upfront inverse cannot be seamlessly constructed in the demo.
-                _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Function");
+                if (effectiveMode == 1)
+                {
+                    var cmd = new GraphCommand.CollapseToMacro(_view.Selection.Nodes.ToList(), _collapseName, "Default");
+                    _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Macro");
+                }
+                else
+                {
+                    var cmd = new GraphCommand.CollapseToFunction(_view.Selection.Nodes.ToList(), _collapseName, false, "Default");
+                    _view.Execute(cmd, new GraphCommand.Batch("Undo Collapse", Array.Empty<GraphCommand>()), "Collapse to Function");
+                }
 
                 ImGui.CloseCurrentPopup();
                 _view.Selection.Clear();
