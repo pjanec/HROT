@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Fbt;
 using ImGuiNET;
 using Hrot.BTree.Editor.Debug;
@@ -24,6 +26,7 @@ public sealed class BTreeRuntimeOverlayRenderer : ICustomCanvasRenderer
     private static readonly Vector4 SuccessColor  = new(0.20f, 0.80f, 0.20f, 0.80f);  // green
     private static readonly Vector4 FailureColor  = new(0.80f, 0.20f, 0.20f, 0.80f);  // red
     private static readonly Vector4 RunningGlyph  = new(1.00f, 0.80f, 0.00f, 0.80f);  // yellow
+    private static readonly Vector4 AsyncBadgeColor = new(0.40f, 0.80f, 1.00f, 0.90f); // cyan-blue clock badge
 
     // Default node size used when no explicit size override exists.
     private static readonly Vector2 DefaultNodeSize = new(120f, 48f);
@@ -33,11 +36,21 @@ public sealed class BTreeRuntimeOverlayRenderer : ICustomCanvasRenderer
     public string Id   => "btree.runtime_overlay";
     public CanvasRenderPass Pass => CanvasRenderPass.AfterNodes;
 
+    /// <summary>
+    /// Node VisualIds for which an async-pending badge was drawn in the most recent
+    /// Render() call.  Reset to empty at the start of each Render().
+    /// Used by unit tests that cannot inspect ImGui draw list calls directly.
+    /// </summary>
+    internal List<Guid> LastRenderedAsyncBadgeNodeIds { get; } = new();
+
     /// <summary>Attaches or detaches the debug session used for overlay data.</summary>
     public void SetSession(IBTreeDebugSession? session) => _session = session;
 
     public void Render(ICanvasRenderContext ctx)
     {
+        // Reset per-frame async-badge observable.
+        LastRenderedAsyncBadgeNodeIds.Clear();
+
         var snapshot = _session?.GetCurrentStateSnapshot();
         if (snapshot is null) return;
 
@@ -63,24 +76,39 @@ public sealed class BTreeRuntimeOverlayRenderer : ICustomCanvasRenderer
         }
 
         // 3. Status glyphs on recently executed nodes (skipped at low zoom).
-        if (ctx.IsLowZoom) return;
-        foreach (var executed in _session!.GetRecentNodeHistory(50))
+        if (!ctx.IsLowZoom)
         {
-            if (executed.AssetId != snapshot.AssetId) continue;
-            var nodeModel = ctx.Graph.FindNode(new NodeId(executed.NodeVisualId));
-            if (nodeModel is null) continue;
-
-            (string glyph, Vector4 color) = executed.Status switch
+            foreach (var executed in _session!.GetRecentNodeHistory(50))
             {
-                NodeStatus.Success => ("OK", SuccessColor),
-                NodeStatus.Failure => ("X",  FailureColor),
-                _                  => ("~",  RunningGlyph),
-            };
+                if (executed.AssetId != snapshot.AssetId) continue;
+                var nodeModel = ctx.Graph.FindNode(new NodeId(executed.NodeVisualId));
+                if (nodeModel is null) continue;
 
-            // Draw glyph near the top-right corner of the node.
-            var glyphPos = ctx.Viewport.GraphToScreen(
-                nodeModel.Position + new Vector2(DefaultNodeSize.X - 18f, 4f));
-            ctx.DrawList.AddText(glyphPos, ImGui.GetColorU32(color), glyph);
+                (string glyph, Vector4 color) = executed.Status switch
+                {
+                    NodeStatus.Success => ("OK", SuccessColor),
+                    NodeStatus.Failure => ("X",  FailureColor),
+                    _                  => ("~",  RunningGlyph),
+                };
+
+                // Draw glyph near the top-right corner of the node.
+                var glyphPos = ctx.Viewport.GraphToScreen(
+                    nodeModel.Position + new Vector2(DefaultNodeSize.X - 18f, 4f));
+                ctx.DrawList.AddText(glyphPos, ImGui.GetColorU32(color), glyph);
+            }
+        }
+
+        // 4. Async-pending clock badges on nodes with pending async operations.
+        // Per design SS12.4 step 4: call GetRecentAsyncHistory -> DrawAsyncBadge for
+        // each Issued (still-pending) entry that belongs to the currently displayed asset.
+        foreach (var evt in _session!.GetRecentAsyncHistory())
+        {
+            if (evt.Phase != BTreeAsyncPhase.Issued) continue;
+            if (evt.AssetId != snapshot.AssetId) continue;
+            var asyncNodeModel = ctx.Graph.FindNode(new NodeId(evt.NodeVisualId));
+            if (asyncNodeModel is null) continue;
+            LastRenderedAsyncBadgeNodeIds.Add(evt.NodeVisualId);
+            DrawAsyncBadge(ctx, asyncNodeModel.Position);
         }
     }
 
@@ -90,11 +118,25 @@ public sealed class BTreeRuntimeOverlayRenderer : ICustomCanvasRenderer
         Vector4 color,
         float thickness)
     {
+        var dl = ctx.DrawList;
+        if (Unsafe.As<ImDrawListPtr, nint>(ref dl) == 0) return;
         var min = ctx.Viewport.GraphToScreen(nodeCanvasPos);
         var max = ctx.Viewport.GraphToScreen(nodeCanvasPos + DefaultNodeSize);
-        ctx.DrawList.AddRect(min, max, ImGui.GetColorU32(color),
+        dl.AddRect(min, max, ImGui.GetColorU32(color),
             rounding: 4f * ctx.Zoom,
             flags: ImDrawFlags.None,
             thickness: thickness * ctx.Zoom);
+    }
+
+    // Draws a small cyan-blue clock badge in the bottom-right corner of the node.
+    // Guards against a null DrawList so headless tests can assert the observable
+    // LastRenderedAsyncBadgeNodeIds without needing a live ImGui context.
+    private static void DrawAsyncBadge(ICanvasRenderContext ctx, Vector2 nodeCanvasPos)
+    {
+        var screenPos = ctx.Viewport.GraphToScreen(
+            nodeCanvasPos + new Vector2(DefaultNodeSize.X - 14f, DefaultNodeSize.Y - 14f));
+        var dl = ctx.DrawList;
+        if (Unsafe.As<ImDrawListPtr, nint>(ref dl) == 0) return;
+        dl.AddText(screenPos, ImGui.GetColorU32(AsyncBadgeColor), "o");
     }
 }

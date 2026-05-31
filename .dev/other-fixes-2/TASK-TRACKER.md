@@ -18,7 +18,7 @@ the new code AND a test drives the production path.
 - [x] **FIX2-004** (High, BPF-033) -- `Attach()/Detach()` exist but `BlueprintEditorModule` never calls them -> `DebugProbe.Sink` never routed -> [details](./TASK-DETAIL.md#fix2-004----debugprobesink-never-routed-attachdetach-exist-but-blueprinteditormodule-never-calls-them-source-bpf-033)
 - [x] **FIX2-005** (High, BPF-035) -- registrar doesn't implement engine `IWindowRegistrar`, not in DI, no caller -> windows never registered -> [details](./TASK-DETAIL.md#fix2-005----blueprint-editor-windows-never-registered-registrar-doesnt-implement-the-engine-interface-and-isnt-in-di-source-bpf-035)
 - [x] **FIX2-006** (High, BPF-034) -- debug panels fetch data then discard (no rendering); Callstack uses wrong API; render + add `GetCurrentCallStack()` -> [details](./TASK-DETAIL.md#fix2-006----debugwatchcallstack-panels-fetch-data-then-discard-it-no-rendering-callstack-uses-the-wrong-api-source-bpf-034)
-- [ ] **FIX2-007** (High, BPF-026) -- BTree overlay blank: `SetDebugMetadata()` no production caller; wire on asset load -> [details](./TASK-DETAIL.md#fix2-007----btree-runtime-overlay-still-blank-setdebugmetadata-has-no-production-caller-source-bpf-026)
+- [x] **FIX2-007** (High, BPF-026) -- BTree overlay blank: `SetDebugMetadata()` no production caller; wire on asset load -> [details](./TASK-DETAIL.md#fix2-007----btree-runtime-overlay-still-blank-setdebugmetadata-has-no-production-caller-source-bpf-026)
 - [ ] **FIX2-008** (High, OFX-012) -- `LookAtChannelIntentEgressTranslator` still omits ActionParams blob compare -> [details](./TASK-DETAIL.md#fix2-008----lookatchannelintentegresstranslator-still-omits-the-actionparams-blob-compare-source-ofx-012)
 
 ## B. Partial implementations (still diverge from design)
@@ -26,7 +26,7 @@ the new code AND a test drives the production path.
 - [ ] **FIX2-010** (Medium, BPF-010) -- HSM snapshot EventQueue/TimerSlots/HistorySlots still empty; add decode helpers -> [details](./TASK-DETAIL.md#fix2-010----hsm-snapshot-eventqueue--timerslots--historyslots-still-empty-source-bpf-010)
 - [ ] **FIX2-011** (Medium, BPF-022) -- HSM deferred events: projector never populates; no blob storage; vacuous test -> [details](./TASK-DETAIL.md#fix2-011----hsm-deferred-events-projector-never-populates-them-no-blob-storage-vacuous-test-source-bpf-022)
 - [ ] **FIX2-012** (Medium, BPF-025) -- HSM projector transitions & regions still positional-sort; use `TransitionVisualIds` -> [details](./TASK-DETAIL.md#fix2-012----hsm-projector-transitions--regions-still-use-positional-sort-identity-source-bpf-025)
-- [ ] **FIX2-013** (Medium, BPF-045) -- BTree async-badge overlay render path still missing (§12.4 step 4) -> [details](./TASK-DETAIL.md#fix2-013----btree-async-badge-overlay-still-missing-source-bpf-045)
+- [x] **FIX2-013** (Medium, BPF-045) -- BTree async-badge overlay render path still missing (§12.4 step 4) -> [details](./TASK-DETAIL.md#fix2-013----btree-async-badge-overlay-still-missing-source-bpf-045)
 - [ ] **FIX2-014** (Medium, OFX-003) -- FakeAnimationBackend still runs off managed Dictionary; only Generation mirrored; + `_entityIndexToEntity` leak -> [details](./TASK-DETAIL.md#fix2-014----fakeanimationbackend-still-runs-off-the-managed-dictionary-only-generation-is-mirrored-source-ofx-003)
 
 ## C. Bookkeeping / not-started / test-quality (lower priority)
