@@ -530,6 +530,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _bpManager                 = new DataBreakpointManager(
             _context.World, _bpPreTickSnapshot, _bpSnapshotProvider,
             bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
+        bpTimeAdapter.SetManager(_bpManager);
         _bpSystem                  = new DataBreakpointSystem(_bpManager, _context.World.Bus);
 
         _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
@@ -794,10 +795,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     // No-op IEngineDebugTimeController for CGF (slave node; pause/step are not applicable).
     private sealed class CgfNoOpTimeController : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
     {
-        public bool IsPausedByDebugger => false;
+        private IDataBreakpointManager? _bpManager;
+        // D-BP-01: return real pause state from the breakpoint manager instead of hardcoded false.
+        public bool IsPausedByDebugger => _bpManager?.IsPaused ?? false;
         public void RequestPause() { }
         public void RequestResume() { }
         public void RequestStepOneTick() { }
+        public void SetManager(IDataBreakpointManager manager) => _bpManager = manager;
     }
 }
 

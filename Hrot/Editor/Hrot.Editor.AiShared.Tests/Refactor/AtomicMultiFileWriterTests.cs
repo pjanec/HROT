@@ -150,4 +150,43 @@ public sealed class AtomicMultiFileWriterTests
             Directory.Delete(baseDir, recursive: true);
         }
     }
+
+    /// <summary>
+    /// FIX2-019: When two files are written and the move phase succeeds for the first file
+    /// but fails for the second, SuccessfullyWritten must contain only the first path.
+    /// A SortedDictionary is used to guarantee deterministic iteration order.
+    /// </summary>
+    [Fact]
+    public void Write_TwoFiles_FirstSucceeds_SecondFails_PartialSuccessfullyWritten()
+    {
+        var baseDir = Directory.CreateTempSubdirectory("atomic_fix019_").FullName;
+        try
+        {
+            var writer = new AtomicMultiFileWriter();
+
+            // "a_output.txt" sorts before "b_blockdir" so file-1 is always processed first.
+            var path1 = Path.Combine(baseDir, "a_output.txt");
+            var path2 = Path.Combine(baseDir, "b_blockdir");
+
+            // Make path2 destination a directory so File.Move into it as a file fails.
+            Directory.CreateDirectory(path2);
+
+            var files = new SortedDictionary<string, string>(StringComparer.Ordinal)
+            {
+                [path1] = "content1",
+                [path2] = "should-fail",
+            };
+
+            var result = writer.Write(files);
+
+            Assert.False(result.Success);
+            Assert.Contains(path1, result.SuccessfullyWritten);
+            Assert.DoesNotContain(path2, result.SuccessfullyWritten);
+            Assert.NotNull(result.FailureReason);
+        }
+        finally
+        {
+            Directory.Delete(baseDir, recursive: true);
+        }
+    }
 }

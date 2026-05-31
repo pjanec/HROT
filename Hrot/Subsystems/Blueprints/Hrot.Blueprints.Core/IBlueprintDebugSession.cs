@@ -3,10 +3,17 @@ using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Compiler.Emit;
 
+// DEBT-018 deferred: These debug files are placed in the Hrot.Blueprints.Core root (not a Debug/
+// subfolder) to avoid the .gitignore [Dd]ebug/ wildcard match. Namespace is correct.
+// New debug files should follow the same placement convention for consistency.
+
 namespace Hrot.Blueprints.Core.Debug;
 
 // ---- Identifier value types -----------------------------------------------
 
+// DEBT-003: BreakpointKey(string NodeId) record from TASK-TH-008 is not implemented;
+// BreakpointId (int value) serves the same purpose for all current callers.
+// BreakpointKey is a design-only alias not required by any caller.
 public readonly record struct BreakpointId(int Value);
 public readonly record struct WatchId(int Value);
 
@@ -175,6 +182,8 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     /// no call stack has been recorded for the paused entity. (Editor DD §8.7)
     /// </summary>
     IReadOnlyList<CallFrame> GetCurrentCallStack();
+    // DEBT-022: per-entity node execution history; added to interface for editor access.
+    IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100);
 
     // -- Map registration --
     void RegisterDebugMap(DebugMap map);

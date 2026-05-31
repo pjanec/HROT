@@ -4,6 +4,7 @@ using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Emit;
 using Hrot.BTree.Editor.Model;
+using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
 
 namespace Hrot.BTree.Editor.Tests;
@@ -186,5 +187,88 @@ public sealed class BTreeFluentEmitterDeterminismTests
         string code = emitter.Emit(asset);
 
         code.Should().Contain("1.5f");
+    }
+}
+
+// ── Roslyn parse-validity tests ──────────────────────────────────────────────
+
+public sealed class BTreeFluentEmitterRoslynTests
+{
+    private static BehaviorTreeBlob EmptyBlob() => new BehaviorTreeBlob
+    {
+        TreeName = "T", Nodes = Array.Empty<NodeDefinition>(),
+        MethodNames = Array.Empty<string>(), FloatParams = Array.Empty<float>(),
+        IntParams = Array.Empty<int>(), SubtreeAssetIds = Array.Empty<string>(),
+    };
+
+    private static BehaviorTreeAsset MakeComplexTree()
+    {
+        var assetId = new Guid("cc000001-0000-0000-0000-000000000001");
+        var asset = new BehaviorTreeAsset(
+            assetId, "ComplexTree", "/trees/ComplexTree.cs", true,
+            "Hrot.Game.BlackboardType", "Hrot.Game.ContextType",
+            EmptyBlob(), "Hrot.AI.Behaviors.Trees");
+
+        var rootId    = new Guid("cc100001-0000-0000-0000-000000000001");
+        var seqId     = new Guid("cc200001-0000-0000-0000-000000000001");
+        var action1Id = new Guid("cc300001-0000-0000-0000-000000000001");
+        var selId     = new Guid("cc400001-0000-0000-0000-000000000001");
+        var action2Id = new Guid("cc500001-0000-0000-0000-000000000001");
+        var action3Id = new Guid("cc600001-0000-0000-0000-000000000001");
+
+        var root  = new BTreeEditorNode { VisualId = rootId,    KernelType = NodeType.Root,     KernelBlobIndex = 0 };
+        var seq   = new BTreeEditorNode { VisualId = seqId,     KernelType = NodeType.Sequence, KernelBlobIndex = 1 };
+        var act1  = new BTreeEditorNode
+        {
+            VisualId = action1Id, KernelType = NodeType.Action, KernelBlobIndex = 2,
+            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionOne", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+        };
+        var sel   = new BTreeEditorNode { VisualId = selId,     KernelType = NodeType.Selector, KernelBlobIndex = 3 };
+        var act2  = new BTreeEditorNode
+        {
+            VisualId = action2Id, KernelType = NodeType.Action, KernelBlobIndex = 4,
+            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionTwo", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+        };
+        var act3  = new BTreeEditorNode
+        {
+            VisualId = action3Id, KernelType = NodeType.Action, KernelBlobIndex = 5,
+            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionThree", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+        };
+
+        root.ChildVisualIds.Add(seqId);
+        seq.ChildVisualIds.Add(action1Id);
+        seq.ChildVisualIds.Add(selId);
+        sel.ChildVisualIds.Add(action2Id);
+        sel.ChildVisualIds.Add(action3Id);
+
+        asset.AddNode(root);
+        asset.AddNode(seq);
+        asset.AddNode(act1);
+        asset.AddNode(sel);
+        asset.AddNode(act2);
+        asset.AddNode(act3);
+
+        // Add an Inverter pill on the Sequence node to exercise composite+pill emit path.
+        asset.AddPill(new BTreeEditorPill
+        {
+            VisualId         = new Guid("cc700001-0000-0000-0000-000000000001"),
+            HostNodeVisualId = seqId,
+            DecoratorType    = NodeType.Inverter,
+            StackIndex       = 0,
+        });
+
+        return asset;
+    }
+
+    [Fact]
+    public void EmitComposite_ComplexTreeWithPill_ProducesValidCSharp()
+    {
+        var asset   = MakeComplexTree();
+        var emitter = new BTreeFluentEmitter();
+        string code = emitter.Emit(asset);
+
+        var diagnostics = CSharpSyntaxTree.ParseText(code).GetDiagnostics();
+
+        diagnostics.Should().BeEmpty("the emitted C# source must parse without errors or warnings");
     }
 }

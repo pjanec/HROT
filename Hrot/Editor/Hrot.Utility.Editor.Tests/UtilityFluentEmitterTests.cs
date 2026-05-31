@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Fdp.Toolkit.Utility;
 using Hrot.Editor.AiShared.Emit;
 using Hrot.Editor.AiShared.HotReload;
 using Hrot.Utility.Editor.Emit;
+using Hrot.Utility.Editor.Loading;
 using Hrot.Utility.Editor.Model;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -274,12 +276,12 @@ public class UtilityFluentEmitterTests
         Assert.Contains(expected, output, StringComparison.Ordinal);
     }
 
-    // ---- OFX-015: Roslyn round-trip structural equality ----
+    // ---- OFX-015 / FIX2-021: Loader round-trip full structural equality ----
 
     /// <summary>
-    /// Emits C# for a two-consideration model, parses it via Roslyn, and verifies
-    /// that the AST contains exactly the same InputNames and relative order as the
-    /// original model (structural equality, not string matching).
+    /// Emits C# for a two-consideration model, writes it to a temp file, loads it back
+    /// via UtilityAssetLoader, and verifies full structural equality in file-emission
+    /// order (VisualId-sorted: "aaa" before "bbb") without any alphabetical re-sorting.
     /// </summary>
     [Fact]
     public void EmitAndRoundTrip_UtilityDecisionAsset_StructuralEquality()
@@ -327,33 +329,40 @@ public class UtilityFluentEmitterTests
             }
         };
 
-        // Act: emit and parse with Roslyn (syntax-only, no semantic compilation needed).
+        // Act: emit to temp file and load back.
         string emittedCode = new UtilityFluentEmitter().Emit(asset);
-        var root = CSharpSyntaxTree.ParseText(emittedCode).GetRoot();
-
-        // Extract all .Consider(...) invocations from the AST.
-        var considerCalls = root
-            .DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .Where(inv =>
-                inv.Expression is MemberAccessExpressionSyntax ma &&
-                ma.Name.Identifier.Text == "Consider")
-            .ToList();
-
-        // Assert structural equality: same count and same InputName order.
-        Assert.Equal(2, considerCalls.Count);
-
-        string[] inputNames = considerCalls.Select(call =>
+        string tempPath    = Path.Combine(Path.GetTempPath(),
+            "fix2021_roundtrip_" + Guid.NewGuid().ToString("N") + ".cs");
+        try
         {
-            // First argument is In.XXX(...) -- extract member name XXX.
-            if (call.ArgumentList.Arguments[0].Expression is InvocationExpressionSyntax inCall &&
-                inCall.Expression is MemberAccessExpressionSyntax inMa)
-                return inMa.Name.Identifier.Text;
-            return null;
-        }).OrderBy(n => n, StringComparer.Ordinal).ToArray()!;
+            File.WriteAllText(tempPath, emittedCode, System.Text.Encoding.UTF8);
+            var result = UtilityAssetLoader.Load(tempPath);
+            var loaded = result.Asset;
 
-        Assert.Equal("HealthFraction", inputNames[0]);
-        Assert.Equal("ThreatRange",    inputNames[1]);
+            // Assert structural equality in file-emission order (VisualId-sorted: aaa < bbb).
+            Assert.Equal(1, loaded.Options.Count);
+            Assert.Equal((ushort)1,                  loaded.Options[0].OptionId);
+            Assert.Equal(ScoringMode.WeightedProduct, loaded.Options[0].Mode);
+            Assert.Equal(2,                           loaded.Options[0].Considerations.Count);
+
+            // Consideration 0: HealthFraction (VisualId "aaa" → emitted first)
+            var con0 = loaded.Options[0].Considerations[0];
+            Assert.Equal("HealthFraction",    con0.InputName);
+            Assert.Equal(InputContext.Self,   con0.Context);
+            Assert.Equal(0.8f,               con0.Weight);
+            Assert.Equal(CurveKind.InverseLinear, con0.Curve.Kind);
+
+            // Consideration 1: ThreatRange (VisualId "bbb" → emitted second)
+            var con1 = loaded.Options[0].Considerations[1];
+            Assert.Equal("ThreatRange",       con1.InputName);
+            Assert.Equal(InputContext.Target, con1.Context);
+            Assert.Equal(1.2f,               con1.Weight);
+            Assert.Equal(CurveKind.Linear,   con1.Curve.Kind);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
     }
 }
 

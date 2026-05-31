@@ -86,6 +86,8 @@ public sealed class DebugWindowDrawUITests
             GetCurrentCallStackCalled = true;
             return CallFramesToReturn.AsReadOnly();
         }
+        public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)
+            => Array.Empty<NodeHistoryEntry>();
 
         // ---- Map registration ----
         public void RegisterDebugMap(DebugMap map) { }

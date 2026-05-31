@@ -30,13 +30,13 @@ the new code AND a test drives the production path.
 - [x] **FIX2-014** (Medium, OFX-003) -- FakeAnimationBackend still runs off managed Dictionary; only Generation mirrored; + `_entityIndexToEntity` leak -> [details](./TASK-DETAIL.md#fix2-014----fakeanimationbackend-still-runs-off-the-managed-dictionary-only-generation-is-mirrored-source-ofx-003)
 
 ## C. Bookkeeping / not-started / test-quality (lower priority)
-- [ ] **FIX2-015** (Low, BPF-011) -- DEBT-018/022 unaddressed; addressed DEBT rows not marked RESOLVED -> [details](./TASK-DETAIL.md#fix2-015----blueprints-1-open-debt-only-partly-addressed-rows-not-marked-resolved-source-bpf-011)
-- [ ] **FIX2-016** (Low, BPF-012) -- mark blueprints-2 D-03/D-04 RESOLVED (code fixed, tracker stale) -> [details](./TASK-DETAIL.md#fix2-016----blueprints-2-debt-tracker-inconsistent-with-code-source-bpf-012)
-- [ ] **FIX2-017** (Low-Med, BPF-013) -- breakpoints-1 D-BP-01/02/04 not started (D-BP-04 = Blueprint canvas breakpoint menu unreachable) -> [details](./TASK-DETAIL.md#fix2-017----breakpoints-1-debt-not-started-source-bpf-013-only-not-fixed-item)
-- [ ] **FIX2-018** (Low, BPF-027) -- add Roslyn compile assertion to BTree composite emitter tests -> [details](./TASK-DETAIL.md#fix2-018----btree-composite-emitter-add-the-roslyn-compile-assertion-source-bpf-027)
-- [ ] **FIX2-019** (Low, BPF-037) -- AtomicMultiFileWriter partial-batch `SuccessfullyWritten` still untested (single-file test) -> [details](./TASK-DETAIL.md#fix2-019----atomicmultifilewriter-partial-batch-successfullywritten-still-untested-source-bpf-037)
-- [ ] **FIX2-020** (Low, BPF-047) -- ChildOrderDeterminismTests still test a local stub, not the production model -> [details](./TASK-DETAIL.md#fix2-020----childorderdeterminismtests-still-test-a-local-stub-not-a-production-model-source-bpf-047)
-- [ ] **FIX2-021** (Low-Med, OFX-015) -- emitter round-trip test skips reflect step; weight/context unchecked; sorted-away ordering -> [details](./TASK-DETAIL.md#fix2-021----utility-emitter-round-trip-test-added-but-skips-the-reflect-step-source-ofx-015)
+- [x] **FIX2-015** (Low, BPF-011) -- DEBT-018/022 unaddressed; addressed DEBT rows not marked RESOLVED -> [details](./TASK-DETAIL.md#fix2-015----blueprints-1-open-debt-only-partly-addressed-rows-not-marked-resolved-source-bpf-011)
+- [x] **FIX2-016** (Low, BPF-012) -- mark blueprints-2 D-03/D-04 RESOLVED (code fixed, tracker stale) -> [details](./TASK-DETAIL.md#fix2-016----blueprints-2-debt-tracker-inconsistent-with-code-source-bpf-012)
+- [x] **FIX2-017** (Low-Med, BPF-013) -- breakpoints-1 D-BP-01/02/04 not started (D-BP-04 = Blueprint canvas breakpoint menu unreachable) -> [details](./TASK-DETAIL.md#fix2-017----breakpoints-1-debt-not-started-source-bpf-013-only-not-fixed-item)
+- [x] **FIX2-018** (Low, BPF-027) -- add Roslyn compile assertion to BTree composite emitter tests -> [details](./TASK-DETAIL.md#fix2-018----btree-composite-emitter-add-the-roslyn-compile-assertion-source-bpf-027)
+- [x] **FIX2-019** (Low, BPF-037) -- AtomicMultiFileWriter partial-batch `SuccessfullyWritten` still untested (single-file test) -> [details](./TASK-DETAIL.md#fix2-019----atomicmultifilewriter-partial-batch-successfullywritten-still-untested-source-bpf-037)
+- [x] **FIX2-020** (Low, BPF-047) -- ChildOrderDeterminismTests still test a local stub, not the production model -> [details](./TASK-DETAIL.md#fix2-020----childorderdeterminismtests-still-test-a-local-stub-not-a-production-model-source-bpf-047)
+- [x] **FIX2-021** (Low-Med, OFX-015) -- emitter round-trip test skips reflect step; weight/context unchecked; sorted-away ordering -> [details](./TASK-DETAIL.md#fix2-021----utility-emitter-round-trip-test-added-but-skips-the-reflect-step-source-ofx-015)
 
 ---
 
