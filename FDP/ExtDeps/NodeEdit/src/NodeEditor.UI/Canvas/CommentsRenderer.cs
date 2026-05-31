@@ -80,8 +80,23 @@ internal static class CommentsRenderer
             else
             {
                 var textColor = new Vector4(1f, 1f, 1f, 0.9f);
-                dl.AddText(min + new Vector2(6f, (headerH - ImGui.GetTextLineHeight()) * 0.5f),
-                    ImGui.GetColorU32(textColor), comment.Text.Split('\n')[0]);
+                float targetFontSize = ImGui.GetFontSize() * view.Viewport.Zoom;
+                nint fontPtr = view.Host.Theme.GetFontForSize(targetFontSize);
+                bool useFont = fontPtr != 0;
+
+                unsafe
+                {
+                    if (useFont) ImGui.PushFont(new ImFontPtr((ImFont*)(void*)fontPtr));
+                }
+
+                var font = ImGui.GetFont();
+                string titleText = comment.Text.Split('\n')[0];
+                var textSize = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, titleText);
+                var textPos = min + new Vector2(6f * view.Viewport.Zoom, (headerH - textSize.Y) * 0.5f);
+
+                dl.AddText(font, targetFontSize, textPos, ImGui.GetColorU32(textColor), titleText);
+
+                if (useFont) ImGui.PopFont();
             }
         }
 
