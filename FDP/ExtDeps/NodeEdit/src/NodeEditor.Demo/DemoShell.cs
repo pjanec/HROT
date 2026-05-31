@@ -5,6 +5,7 @@ using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Demo.FakeBlueprint;
+using NodeEditor.Demo.Panels;
 using NodeEditor.Demo.Scenarios;
 using NodeEditor.Primitives;
 using NodeEditor.UI.Action;
@@ -46,6 +47,8 @@ public sealed class DemoShell
     private double                           _lastElapsed;
     private readonly Dictionary<FakeGraphModel, (FakeHostServices Host, GraphView View)> _tabState = new();
     private readonly NodeEditor.Core.Bookmarks.BookmarkStore _bookmarks = new();
+    private int _lastSelectionCount = -1;
+    private SelectionEntry? _lastPrimarySelection;
 
     private string _lastPick = "(none)";
     private bool _showCreateVarModal;
@@ -145,6 +148,7 @@ public sealed class DemoShell
         DrawMenuBar();
         DrawMyBlueprintWindow();
         DrawCanvasWindow();
+        SyncSelectionToDetails();
         DrawDetailsWindow();
         DrawFindResultsWindow();
         DrawStatusBar();
@@ -369,6 +373,39 @@ public sealed class DemoShell
                     _findResults.Draw();
                 }
                 ImGui.End();
+            }
+        }
+    }
+
+    private void SyncSelectionToDetails()
+    {
+        if (_details == null) return;
+
+        var sel = _view.Selection;
+        var primary = sel.Items.FirstOrDefault();
+
+        if (sel.Count != _lastSelectionCount || !primary.Equals(_lastPrimarySelection))
+        {
+            _lastSelectionCount = sel.Count;
+            _lastPrimarySelection = primary;
+
+            if (sel.Count == 0)
+            {
+                if (_mbPanel?.SelectedItem == null)
+                    _details.Target = new DetailsTarget.None();
+            }
+            else if (sel.Count == 1)
+            {
+                if (primary.Kind == SelectionEntryKind.Node)
+                    _details.Target = new DetailsTarget.SingleNode(primary.Node);
+                else if (primary.Kind == SelectionEntryKind.Comment)
+                    _details.Target = new DetailsTarget.Comment(primary.Comment);
+                else
+                    _details.Target = new DetailsTarget.None();
+            }
+            else if (sel.Nodes.Any())
+            {
+                _details.Target = new DetailsTarget.MultipleNodes(sel.Nodes.ToList());
             }
         }
     }
@@ -598,8 +635,22 @@ public sealed class DemoShell
             NavigateToGraph, NavigateToItem);
 
         var detailsReg = new DetailsViewRegistry();
+        detailsReg.Register(new DemoNodeDetailsProvider(_graph));
         var detailsCtx = new DetailsContextProxy(_host.CommandSink_, _host.EditorRegistry, _host.Icons, _host.Theme);
         _details = new DetailsPanel(detailsReg, detailsCtx);
+
+        _mbPanel.SelectionChanged += item =>
+        {
+            if (item != null && _details != null)
+            {
+                if (item.SectionId == "variables")
+                    _details.Target = new DetailsTarget.Variable(item.ItemId);
+                else if (item.SectionId == "functions")
+                    _details.Target = new DetailsTarget.Function(item.ItemId);
+                else if (item.SectionId == "macros")
+                    _details.Target = new DetailsTarget.Macro(item.ItemId);
+            }
+        };
 
         BuiltinCommandHandlers.RegisterAll(_commands, _view, _findBar);
         var reg = new CommandRegistration(_commands);
