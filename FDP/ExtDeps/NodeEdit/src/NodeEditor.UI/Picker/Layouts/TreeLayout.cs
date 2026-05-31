@@ -122,11 +122,19 @@ internal static class TreeLayout
 
         ImGui.PushID(filteredIdx);
 
-        if (ImGui.Selectable(re.Entry.Name, sel || focus))
+        // Architecturally critical: Supply AllowDoubleClick so ImGui captures the double-click event
+        // rather than treating it as two distinct single clicks that toggle state.
+        if (ImGui.Selectable(re.Entry.Name, sel || focus, ImGuiSelectableFlags.AllowDoubleClick))
         {
             state.SelectedFilteredIndices.Clear();
             state.SelectedFilteredIndices.Add(filteredIdx);
             state.KeyboardFocusIndex = filteredIdx;
+        }
+
+        // Evaluate the double-click immediately after the selectable
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            state.Confirmed = true;
         }
 
         ImGui.PopID();
