@@ -58,6 +58,7 @@ public sealed class FakeCommandSink : IGraphCommandSink
 
             case GraphCommand.SetNodeCollapsed sc:
                 if (_graph.FindNode(sc.Node) is FakeNodeModel sn) sn.IsCollapsed = sc.Collapsed;
+                _graph.NotifyChanged(GraphChangeKind.NodesModified);
                 return new GraphCommandResult(true, null);
 
             case GraphCommand.SetNodeDisabled sd:
@@ -71,6 +72,7 @@ public sealed class FakeCommandSink : IGraphCommandSink
             case GraphCommand.SetContainerCollapsed scc:
                 if (_graph.FindNode(scc.ContainerId) is FakeContainerModel fcm)
                     fcm.IsCollapsed = scc.IsCollapsed;
+                _graph.NotifyChanged(GraphChangeKind.NodesModified);
                 return new GraphCommandResult(true, null);
 
             case GraphCommand.SetPinDefault spd:
