@@ -148,9 +148,10 @@ internal sealed class CanvasLayoutBuilder
             var nodeAttachments = view.Model.GetAttachmentsForNode(node.Id);
             if (nodeAttachments.Count > 0)
             {
+                // Compute using the UNSCALED graph width so layout wrapping is stable across zooms.
                 var attachLayout = AttachmentLayoutEngine.Compute(
                     nodeAttachments,
-                    sw,
+                    nodeWGu,
                     a =>
                     {
                         float w = 0f;
@@ -165,7 +166,9 @@ internal sealed class CanvasLayoutBuilder
                     });
                 layout.AttachmentLayouts[node.Id] = attachLayout;
                 foreach (var (aId, placement) in attachLayout.Placements)
-                    layout.AttachmentScreenRects[aId] = new RectF(rect.Min + placement.TopLeft, placement.Size);
+                    layout.AttachmentScreenRects[aId] = new RectF(
+                        rect.Min + placement.TopLeft * zoom,
+                        placement.Size * zoom);
             }
 
             for (int i = 0; i < inputPins.Count; i++)
