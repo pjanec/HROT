@@ -114,6 +114,14 @@ public sealed class FakeCommandSink : IGraphCommandSink
     {
         var entry = _catalog.All.FirstOrDefault(e => e.Kind == add.Kind);
         var title = entry?.DisplayName ?? add.Kind.Id;
+
+        if (add.InitialProperties != null &&
+            add.InitialProperties.TryGetValue("VariableName", out var nameObj) &&
+            nameObj is string varName)
+        {
+            title = add.Kind.Id == "Util.GetVar" ? $"Get {varName}" : $"Set {varName}";
+        }
+
         var node  = _graph.AddNode(add.AssignedId, add.Kind, title, add.Position);
 
         if (entry is not null)

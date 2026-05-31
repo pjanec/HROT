@@ -25,11 +25,17 @@ public static class MyBlueprintDragSource
     [ThreadStatic]
     private static string? _currentItemId;
 
+    [ThreadStatic]
+    private static string? _currentDisplayName;
+
     /// <summary>The payload type of the item currently being dragged, or null.</summary>
     public static string? CurrentPayloadType => _currentPayloadType;
 
     /// <summary>The item id of the item currently being dragged, or null.</summary>
     public static string? CurrentItemId => _currentItemId;
+
+    /// <summary>The display name of the item currently being dragged, or null.</summary>
+    public static string? CurrentDisplayName => _currentDisplayName;
 
     /// <summary>
     /// Begin a drag-drop source for the given item if the user starts dragging.
@@ -44,6 +50,7 @@ public static class MyBlueprintDragSource
 
         _currentPayloadType = payloadType;
         _currentItemId      = itemId;
+        _currentDisplayName = displayName;
 
         // Pass a zero-length payload; drop targets read CurrentItemId from the static.
         ImGui.SetDragDropPayload(payloadType, IntPtr.Zero, 0);
@@ -63,6 +70,7 @@ public static class MyBlueprintDragSource
     {
         _currentPayloadType = null;
         _currentItemId      = null;
+        _currentDisplayName = null;
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

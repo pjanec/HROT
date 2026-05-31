@@ -47,6 +47,7 @@ public sealed class CanvasRenderer
     private int          _lastDragOverrideCount = -1;
     private Vector2      _contextMenuGraphPos;
     private string? _pendingVariableDropId;
+    private string? _pendingVariableDropName;
     private Vector2 _pendingVariableDropPos;
 
     /// <summary>
@@ -117,20 +118,22 @@ public sealed class CanvasRenderer
                 if (payload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
                 {
                     var varId = MyBlueprintDragSource.CurrentItemId;
+                    var varName = MyBlueprintDragSource.CurrentDisplayName ?? varId;
                     var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
                     var mods = view.Host.Input.Modifiers;
 
                     if (mods.HasFlag(KeyModifiers.Ctrl))
                     {
-                        PlaceVariableNode(view, varId, dropPos, isGet: true);
+                        PlaceVariableNode(view, varId, varName, dropPos, isGet: true);
                     }
                     else if (mods.HasFlag(KeyModifiers.Alt))
                     {
-                        PlaceVariableNode(view, varId, dropPos, isGet: false);
+                        PlaceVariableNode(view, varId, varName, dropPos, isGet: false);
                     }
                     else
                     {
                         _pendingVariableDropId = varId;
+                        _pendingVariableDropName = varName;
                         _pendingVariableDropPos = dropPos;
                         ImGui.OpenPopup("##canvas_drop_var");
                     }
@@ -254,27 +257,30 @@ public sealed class CanvasRenderer
             ImGui.Separator();
             if (ImGui.MenuItem("Get"))
             {
-                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropPos, isGet: true);
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: true);
                 _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
             }
             if (ImGui.MenuItem("Set"))
             {
-                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropPos, isGet: false);
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: false);
                 _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
             }
             ImGui.EndPopup();
         }
         else
         {
             _pendingVariableDropId = null;
+            _pendingVariableDropName = null;
         }
         ImGui.PopStyleVar();
     }
 
-    private void PlaceVariableNode(GraphView view, string variableId, Vector2 graphPos, bool isGet)
+    private void PlaceVariableNode(GraphView view, string variableId, string variableName, Vector2 graphPos, bool isGet)
     {
         var kind = new NodeKindKey(isGet ? "Util.GetVar" : "Util.SetVar");
-        var props = new Dictionary<string, object?> { ["VariableId"] = variableId };
+        var props = new Dictionary<string, object?> { ["VariableId"] = variableId, ["VariableName"] = variableName };
         var cb = new CommandBuilder(view.Model);
         var (fwd, inv) = cb.AddNode(kind, graphPos, props);
         view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
