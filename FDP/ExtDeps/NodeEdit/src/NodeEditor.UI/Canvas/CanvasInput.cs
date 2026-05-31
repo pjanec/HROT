@@ -507,6 +507,10 @@ internal sealed class CanvasInput
                             container.Padding.Left,
                             view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
                         newLocalPos = canvasPos - interiorOrigin;
+                        // Clamp to container interior bounds origin to avoid negative
+                        // local coordinates breaking parent auto-size calculations.
+                        newLocalPos.X = Math.Max(0f, newLocalPos.X);
+                        newLocalPos.Y = Math.Max(0f, newLocalPos.Y);
                     }
                     else
                     {
@@ -537,6 +541,10 @@ internal sealed class CanvasInput
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
                     var localPos = canvasPos - interiorOrigin;
+                    // Clamp to container interior bounds origin to avoid negative
+                    // local coordinates breaking parent auto-size calculations.
+                    localPos.X = Math.Max(0f, localPos.X);
+                    localPos.Y = Math.Max(0f, localPos.Y);
                     changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, localPos));
                     inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
                 }
