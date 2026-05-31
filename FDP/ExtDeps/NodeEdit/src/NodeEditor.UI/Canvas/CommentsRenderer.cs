@@ -67,7 +67,7 @@ internal static class CommentsRenderer
                 ImDrawFlags.RoundCornersTop);
 
             // Resize handles (8 corner + edge handles)
-            RenderResizeHandles(dl, min, max, selected);
+            RenderResizeHandles(dl, min, max, selected, view);
 
             // Title or rename field
             bool isRenaming = view.Interaction.RenamingComment == comment.Id;
@@ -86,12 +86,13 @@ internal static class CommentsRenderer
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private static void RenderResizeHandles(ImDrawListPtr dl, Vector2 min, Vector2 max, bool selected)
+    private static void RenderResizeHandles(ImDrawListPtr dl, Vector2 min, Vector2 max, bool selected, GraphView view)
     {
         if (!selected) return; // only show handles when selected
 
-        var handleColor = ImGui.GetColorU32(new Vector4(0.9f, 0.9f, 0.9f, 0.9f));
-        float r = HandleRadius;
+        var normalColor = ImGui.GetColorU32(new Vector4(0.9f, 0.9f, 0.9f, 0.9f));
+        var hoverColor = ImGui.GetColorU32(view.Host.Theme.SelectionAccent);
+        var mousePos = ImGui.GetMousePos();
 
         // 8 handle positions: TL, TC, TR, ML, MR, BL, BC, BR
         var cx = (min.X + max.X) * 0.5f;
@@ -104,7 +105,12 @@ internal static class CommentsRenderer
         };
 
         foreach (var h in handles)
-            dl.AddCircleFilled(h, r, handleColor);
+        {
+            bool isHovered = Vector2.Distance(mousePos, h) <= HandleHitRadius;
+            float r = isHovered ? HandleRadius * 1.5f : HandleRadius;
+            uint color = isHovered ? hoverColor : normalColor;
+            dl.AddCircleFilled(h, r, color);
+        }
     }
 
     private static void RenderRenameField(GraphView view, ICommentModel comment, Vector2 min, Vector2 headerMax)
@@ -142,9 +148,12 @@ internal static class CommentsRenderer
         var pos = view.Interaction.CommentDragOverridePositions.TryGetValue(comment.Id, out var dragPos)
             ? dragPos
             : comment.Position;
+        var size = view.Interaction.CommentSizeOverrides.TryGetValue(comment.Id, out var dragSize)
+            ? dragSize
+            : comment.Size;
 
         var min = view.Viewport.GraphToScreen(pos);
-        var max = view.Viewport.GraphToScreen(pos + comment.Size);
+        var max = view.Viewport.GraphToScreen(pos + size);
         return (min, max);
     }
 

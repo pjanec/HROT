@@ -684,16 +684,28 @@ internal sealed class CanvasInput
 
     private static void HandleResizingComment(GraphView view, IInputSource input)
     {
+        var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
+
+        // Per-frame transient override
+        foreach (var cid in view.Selection.Comments)
+        {
+            var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
+            if (comment == null) continue;
+
+            var newSize = graphPos - comment.Position;
+            newSize = Vector2.Max(newSize, new Vector2(80, 40));
+            view.Interaction.CommentSizeOverrides[cid] = newSize;
+        }
+
+        // Commit on drop
         if (input.IsMouseReleased(MouseButton.Left))
         {
-            var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
             foreach (var cid in view.Selection.Comments)
             {
-                var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
-                if (comment == null) continue;
-                var newSize = graphPos - comment.Position;
-                newSize = Vector2.Max(newSize, new Vector2(80, 40));
-                view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, null, newSize, null, null, null));
+                if (view.Interaction.CommentSizeOverrides.TryGetValue(cid, out var finalSize))
+                {
+                    view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, null, finalSize, null, null, null));
+                }
             }
             view.Interaction.ResetToIdle();
         }
