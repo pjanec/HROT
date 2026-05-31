@@ -49,11 +49,15 @@ public sealed class FakeCommandSink : IGraphCommandSink
             case GraphCommand.ChangeParentMultiple cpm:
                 foreach (var m in cpm.Moves)
                 {
-                    if (_graph.FindNode(m.NodeId) is not FakeNodeModel fnm) continue;
+                    var node = _graph.FindNode(m.NodeId);
+                    if (node == null) continue;
+
+                    NodeId? oldParentId = (node as FakeNodeModel)?.ParentContainerId
+                                       ?? (node as FakeContainerModel)?.ParentContainerId;
 
                     // 1. Remove from old parent.
-                    if (fnm.ParentContainerId.HasValue &&
-                        _graph.FindNode(fnm.ParentContainerId.Value) is FakeContainerModel oldContainer)
+                    if (oldParentId.HasValue &&
+                        _graph.FindNode(oldParentId.Value) is FakeContainerModel oldContainer)
                     {
                         oldContainer.RemoveChild(m.NodeId);
                     }
@@ -66,8 +70,16 @@ public sealed class FakeCommandSink : IGraphCommandSink
                     }
 
                     // 3. Update node's parent pointer and local position.
-                    fnm.ParentContainerId = m.NewParentContainerId;
-                    fnm.SetPosition(m.NewLocalPosition);
+                    if (node is FakeNodeModel fnm)
+                    {
+                        fnm.ParentContainerId = m.NewParentContainerId;
+                        fnm.SetPosition(m.NewLocalPosition);
+                    }
+                    else if (node is FakeContainerModel containerNode)
+                    {
+                        containerNode.ParentContainerId = m.NewParentContainerId;
+                        containerNode.Position = m.NewLocalPosition;
+                    }
                 }
 
                 _graph.NotifyChanged(GraphChangeKind.NodesMoved);
