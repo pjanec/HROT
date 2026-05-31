@@ -482,6 +482,41 @@ internal sealed class CanvasInput
         var moves = new List<(NodeId Id, Vector2 NewPos)>();
         var changeParents = new List<ChangeParentMove>();
         var inverseChangeParents = new List<ChangeParentMove>();
+        var rawLocalPositions = new Dictionary<NodeId, Vector2>();
+        var containerShifts = new Dictionary<NodeId, Vector2>();
+
+        foreach (var nid in view.Selection.Nodes)
+        {
+            var n = view.Model.FindNode(nid);
+            if (n == null) continue;
+
+            var canvasPos = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
+                ? ovr
+                : view.NodeCanvasPosition(nid);
+
+            bool reparenting = n.ParentContainerId != newParentId;
+            NodeId? targetContainer = reparenting ? newParentId : n.ParentContainerId;
+
+            Vector2 rawLocalPos = canvasPos;
+            if (targetContainer.HasValue)
+            {
+                var container = view.Model.FindNode(targetContainer.Value)?.AsContainer();
+                if (container != null)
+                {
+                    var containerCanvas = view.NodeCanvasPosition(targetContainer.Value);
+                    var interiorOrigin  = containerCanvas + new Vector2(
+                        container.Padding.Left,
+                        view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
+                    rawLocalPos = canvasPos - interiorOrigin;
+
+                    var currentShift = containerShifts.GetValueOrDefault(targetContainer.Value, Vector2.Zero);
+                    currentShift.X = Math.Min(currentShift.X, rawLocalPos.X);
+                    currentShift.Y = Math.Min(currentShift.Y, rawLocalPos.Y);
+                    containerShifts[targetContainer.Value] = currentShift;
+                }
+            }
+            rawLocalPositions[nid] = rawLocalPos;
+        }
 
         foreach (var nid in view.Selection.Nodes)
         {
@@ -489,64 +524,64 @@ internal sealed class CanvasInput
             if (n == null) continue;
 
             bool reparenting = n.ParentContainerId != newParentId;
-            var  canvasPos   = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
-                ? ovr
-                : view.NodeCanvasPosition(nid);
+            NodeId? targetContainer = reparenting ? newParentId : n.ParentContainerId;
+            Vector2 finalLocalPos = rawLocalPositions[nid];
+
+            if (targetContainer.HasValue && containerShifts.TryGetValue(targetContainer.Value, out var shift))
+            {
+                finalLocalPos -= shift;
+            }
 
             if (reparenting)
             {
-                // Compute position relative to the new parent's interior origin.
-                Vector2 newLocalPos;
-                if (newParentId.HasValue)
-                {
-                    var container = view.Model.FindNode(newParentId.Value)?.AsContainer();
-                    if (container != null)
-                    {
-                        var containerCanvas = view.NodeCanvasPosition(newParentId.Value);
-                        var interiorOrigin  = containerCanvas + new Vector2(
-                            container.Padding.Left,
-                            view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
-                        newLocalPos = canvasPos - interiorOrigin;
-                        // Clamp to container interior bounds origin to avoid negative
-                        // local coordinates breaking parent auto-size calculations.
-                        newLocalPos.X = Math.Max(0f, newLocalPos.X);
-                        newLocalPos.Y = Math.Max(0f, newLocalPos.Y);
-                    }
-                    else
-                    {
-                        newLocalPos = canvasPos;
-                    }
-                }
-                else
-                {
-                    newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
-                }
-                changeParents.Add(new ChangeParentMove(nid, newParentId, null, newLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, targetContainer, null, finalLocalPos));
                 inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
             }
             else if (n.ParentContainerId == null)
             {
-                // Root-level node staying at root: regular move.
-                moves.Add((nid, canvasPos));
+                moves.Add((nid, finalLocalPos));
             }
             else
             {
-                // Container child staying in same parent: move within parent.
-                // Compute parent-local position from canvas-absolute override.
-                var container = view.Model.FindNode(n.ParentContainerId.Value)?.AsContainer();
-                if (container != null)
+                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, finalLocalPos));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
+            }
+        }
+
+        foreach (var kvp in containerShifts)
+        {
+            var containerId = kvp.Key;
+            var shift = kvp.Value;
+            if (shift.X >= 0 && shift.Y >= 0) continue;
+
+            var containerNode = view.Model.FindNode(containerId);
+            if (containerNode == null) continue;
+
+            if (!view.Selection.Nodes.Contains(containerId))
+            {
+                if (containerNode.ParentContainerId.HasValue)
                 {
-                    var containerCanvas = view.NodeCanvasPosition(n.ParentContainerId.Value);
-                    var interiorOrigin  = containerCanvas + new Vector2(
-                        container.Padding.Left,
-                        view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
-                    var localPos = canvasPos - interiorOrigin;
-                    // Clamp to container interior bounds origin to avoid negative
-                    // local coordinates breaking parent auto-size calculations.
-                    localPos.X = Math.Max(0f, localPos.X);
-                    localPos.Y = Math.Max(0f, localPos.Y);
-                    changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, localPos));
-                    inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
+                    changeParents.Add(new ChangeParentMove(containerId, containerNode.ParentContainerId, null, containerNode.Position + shift));
+                    inverseChangeParents.Add(new ChangeParentMove(containerId, containerNode.ParentContainerId, null, containerNode.Position));
+                }
+                else
+                {
+                    moves.Add((containerId, containerNode.Position + shift));
+                }
+            }
+
+            if (containerNode.AsContainer() is { } containerModel)
+            {
+                foreach (var childId in containerModel.ChildNodeIds)
+                {
+                    if (view.Selection.Nodes.Contains(childId)) continue;
+                    var childNode = view.Model.FindNode(childId);
+                    if (childNode != null)
+                    {
+                        var newChildPos = childNode.Position - shift;
+                        changeParents.Add(new ChangeParentMove(childId, containerId, null, newChildPos));
+                        inverseChangeParents.Add(new ChangeParentMove(childId, containerId, null, childNode.Position));
+                    }
                 }
             }
         }
