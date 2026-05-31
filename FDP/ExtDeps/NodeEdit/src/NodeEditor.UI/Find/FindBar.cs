@@ -93,7 +93,10 @@ public sealed class FindBar
         ImGui.PushItemWidth(220);
         if (_needsFocus) { ImGui.SetKeyboardFocusHere(); _needsFocus = false; }
 
-        var searchBuf = _searchText;
+        // Snapshot whether we had text BEFORE ImGui processes the input and potentially reverts it.
+        bool hasTextBefore = !string.IsNullOrEmpty(_searchText);
+
+        string searchBuf = _searchText;
         if (ImGui.InputText("##find-search", ref searchBuf, 256))
         {
             _searchText  = searchBuf;
@@ -106,7 +109,8 @@ public sealed class FindBar
         // drops its active focus state on the frame Escape is pressed.
         if (ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
-            if (!string.IsNullOrEmpty(_searchText))
+            // Use the snapshot to determine if we should clear text or close the bar.
+            if (hasTextBefore)
             {
                 _searchText = string.Empty;
                 RefreshResults();
