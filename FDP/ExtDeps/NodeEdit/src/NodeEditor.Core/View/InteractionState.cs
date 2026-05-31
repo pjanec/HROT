@@ -71,6 +71,10 @@ public sealed class InteractionState
 
     /// <summary>True when the current drop target would create a cycle and the drop is therefore invalid.</summary>
     public bool DropTargetCycleDetected { get; set; }
+    /// <summary>
+    /// During a node drag: the specific region index within the drop target container, if any.
+    /// </summary>
+    public int? DropTargetRegionIndex { get; set; }
 
     /// <summary>Optional active viewport tween (camera animation to a bookmark).</summary>
     public ViewportTween? ActiveTween { get; private set; }
@@ -123,6 +127,7 @@ public sealed class InteractionState
         ContextMenuTarget = HoverInfo.None;
         DropTargetContainerId = null;
         DropTargetCycleDetected = false;
+        DropTargetRegionIndex = null;
         ActiveTween = null;
     }
 }

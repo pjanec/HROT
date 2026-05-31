@@ -4,6 +4,7 @@ using ImGuiNET;
 using NodeEditor.Core;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -473,6 +474,35 @@ internal sealed class CanvasInput
 
         view.Interaction.DropTargetContainerId  = cycleDetected ? null : best;
         view.Interaction.DropTargetCycleDetected = cycleDetected;
+
+        view.Interaction.DropTargetRegionIndex = null;
+        if (best.HasValue && !cycleDetected)
+        {
+            var targetNode = view.Model.FindNode(best.Value);
+            if (targetNode?.AsContainer() is { } containerModel && containerModel.Regions.Count > 0)
+            {
+                var bounds = spatialIndex.GetBounds(best.Value);
+                if (bounds.HasValue)
+                {
+                    var strips = RegionLayoutComputer.Compute(
+                        containerModel,
+                        bounds.Value,
+                        view.Host.Theme.NodeHeaderHeight,
+                        1f,
+                        paddingScale: 1f);
+
+                    foreach (var strip in strips)
+                    {
+                        var stripRect = new RectF(strip.Min, strip.Size);
+                        if (stripRect.Contains(mouseGraph))
+                        {
+                            view.Interaction.DropTargetRegionIndex = strip.RegionIndex;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
@@ -618,13 +648,16 @@ internal sealed class CanvasInput
 
             var newParent = targetParents[nid];
             bool reparenting = n.ParentContainerId != newParent;
+            int? targetRegion = (newParent == view.Interaction.DropTargetContainerId)
+                ? view.Interaction.DropTargetRegionIndex
+                : null;
 
             if (!reparenting && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
                 continue;
 
             if (reparenting)
             {
-                changeParents.Add(new ChangeParentMove(nid, newParent, null, newLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, newParent, targetRegion, newLocalPos));
                 inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
             }
             else if (n.ParentContainerId == null)
@@ -633,7 +666,7 @@ internal sealed class CanvasInput
             }
             else
             {
-                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, newLocalPos));
+                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, targetRegion, newLocalPos));
                 inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, null, n.Position));
             }
         }

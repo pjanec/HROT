@@ -130,7 +130,7 @@ internal sealed class ContainerRenderer
 
         // Region dividers and headers (only when container has multiple regions).
         if (container.Regions.Count > 0 && !container.IsCollapsed)
-            DrawRegions(dl, container, rect, catColor, headerHt, zoom);
+            DrawRegions(view, dl, container, rect, catColor, headerHt, zoom);
 
         // Title and collapse indicator.
         DrawCollapseIndicator(dl, container, pMin, headerHt, zoom);
@@ -142,6 +142,7 @@ internal sealed class ContainerRenderer
 
     // Draws dashed region dividers and region header bands.
     private static void DrawRegions(
+        GraphView view,
         ImDrawListPtr dl,
         IContainerNodeModel container,
         RectF rect,
@@ -160,12 +161,20 @@ internal sealed class ContainerRenderer
         uint regionBgColor = ImGui.GetColorU32(new Vector4(catColor.X, catColor.Y, catColor.Z, 0.25f));
         uint textColor     = ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.7f));
         const float regionHeaderH = 18f; // screen pixels
+        bool isDropTarget = view.Interaction.DropTargetContainerId == container.Id;
+        int? dropRegion = isDropTarget ? view.Interaction.DropTargetRegionIndex : null;
 
         for (int i = 0; i < strips.Count; i++)
         {
             var strip = strips[i];
             var sMin  = strip.Min;
             var sMax  = strip.Min + strip.Size;
+
+            if (dropRegion == strip.RegionIndex)
+            {
+                uint highlightColor = ImGui.GetColorU32(view.Host.Theme.SelectionAccent with { W = 0.25f });
+                dl.AddRectFilled(sMin, sMax, highlightColor);
+            }
 
             // Region header band at top of each strip.
             var hBandMax = new Vector2(sMax.X, MathF.Min(sMin.Y + regionHeaderH, sMax.Y));
