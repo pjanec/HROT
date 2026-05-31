@@ -58,10 +58,11 @@ public static class RegionLayoutComputer
         if (innerW <= 0 || innerH <= 0)
             return System.Array.Empty<RegionStrip>();
 
+        bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
         int count = container.Regions.Count;
-        float[] regionH = new float[count];
-        float minH = 60f * paddingScale;
-        for (int i = 0; i < count; i++) regionH[i] = minH;
+        float[] regionSizes = new float[count];
+        float minSize = 60f * paddingScale;
+        for (int i = 0; i < count; i++) regionSizes[i] = minSize;
 
         foreach (var childId in container.ChildNodeIds)
         {
@@ -72,35 +73,45 @@ public static class RegionLayoutComputer
             int rIdx = container.GetRegionIndexForChild(childId);
             if (rIdx >= 0 && rIdx < count)
             {
-                float extentY = (childNode.Position.Y + childSize.Value.Y) * paddingScale;
-                regionH[rIdx] = Math.Max(regionH[rIdx], extentY);
+                float extent = isHorizontal
+                    ? (childNode.Position.X + childSize.Value.X) * paddingScale
+                    : (childNode.Position.Y + childSize.Value.Y) * paddingScale;
+                regionSizes[rIdx] = Math.Max(regionSizes[rIdx], extent);
             }
         }
 
-        float sumH = 0f;
-        foreach (var h in regionH) sumH += h;
+        float sumSize = 0f;
+        foreach (var s in regionSizes) sumSize += s;
+        float availableSize = isHorizontal ? innerW : innerH;
 
-        if (innerH > sumH + 0.1f)
+        if (availableSize > sumSize + 0.1f)
         {
-            float extra = (innerH - sumH) / count;
-            for (int i = 0; i < count; i++) regionH[i] += extra;
+            float extra = (availableSize - sumSize) / count;
+            for (int i = 0; i < count; i++) regionSizes[i] += extra;
         }
-        else if (sumH > innerH + 0.1f && sumH > 0f)
+        else if (sumSize > availableSize + 0.1f && sumSize > 0f)
         {
-            float scale = innerH / sumH;
-            for (int i = 0; i < count; i++) regionH[i] *= scale;
+            float scale = availableSize / sumSize;
+            for (int i = 0; i < count; i++) regionSizes[i] *= scale;
         }
 
         var result = new List<RegionStrip>(count);
-        float currentY = 0f;
+        float currentOffset = 0f;
         for (int i = 0; i < count; i++)
         {
+            Vector2 min = isHorizontal
+                ? interiorMin + new Vector2(currentOffset, 0f)
+                : interiorMin + new Vector2(0f, currentOffset);
+            Vector2 size = isHorizontal
+                ? new Vector2(regionSizes[i], innerH)
+                : new Vector2(innerW, regionSizes[i]);
+
             result.Add(new RegionStrip(
-                Min:         interiorMin + new Vector2(0f, currentY),
-                Size:        new Vector2(innerW, regionH[i]),
+                Min:         min,
+                Size:        size,
                 Descriptor:  container.Regions[i],
                 RegionIndex: i));
-            currentY += regionH[i];
+            currentOffset += regionSizes[i];
         }
         return result;
     }

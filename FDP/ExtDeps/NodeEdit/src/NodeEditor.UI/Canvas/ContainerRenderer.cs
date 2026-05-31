@@ -166,6 +166,7 @@ internal sealed class ContainerRenderer
         const float regionHeaderH = 18f; // screen pixels
         bool isDropTarget = view.Interaction.DropTargetContainerId == container.Id;
         int? dropRegion = isDropTarget ? view.Interaction.DropTargetRegionIndex : null;
+        bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
 
         for (int i = 0; i < strips.Count; i++)
         {
@@ -179,16 +180,21 @@ internal sealed class ContainerRenderer
                 dl.AddRectFilled(sMin, sMax, highlightColor);
             }
 
-            // Region header band at top of each strip.
-            var hBandMax = new Vector2(sMax.X, MathF.Min(sMin.Y + regionHeaderH, sMax.Y));
-            dl.AddRectFilled(sMin, hBandMax, regionBgColor);
-            // Region name label.
-            dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + (regionHeaderH - ImGui.GetTextLineHeight()) * 0.5f),
-                textColor, strip.Descriptor.Name ?? string.Empty);
-
-            // Dashed divider above this strip (not for the very first strip).
-            if (i > 0)
-                DrawDashedHorizontalLine(dl, sMin.Y, sMin.X, sMax.X, dividerColor);
+            if (isHorizontal)
+            {
+                var hBandMax = new Vector2(MathF.Min(sMin.X + regionHeaderH, sMax.X), sMax.Y);
+                dl.AddRectFilled(sMin, hBandMax, regionBgColor);
+                dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + 4f), textColor, strip.Descriptor.Name ?? string.Empty);
+                if (i > 0) DrawDashedVerticalLine(dl, sMin.X, sMin.Y, sMax.Y, dividerColor);
+            }
+            else
+            {
+                var hBandMax = new Vector2(sMax.X, MathF.Min(sMin.Y + regionHeaderH, sMax.Y));
+                dl.AddRectFilled(sMin, hBandMax, regionBgColor);
+                dl.AddText(new Vector2(sMin.X + 4f, sMin.Y + (regionHeaderH - ImGui.GetTextLineHeight()) * 0.5f),
+                    textColor, strip.Descriptor.Name ?? string.Empty);
+                if (i > 0) DrawDashedHorizontalLine(dl, sMin.Y, sMin.X, sMax.X, dividerColor);
+            }
         }
     }
 
@@ -206,6 +212,22 @@ internal sealed class ContainerRenderer
             if (next > x1) next = x1;
             if (on) dl.AddLine(new Vector2(x, y), new Vector2(next, y), color, 1f);
             x = next;
+            on = !on;
+        }
+    }
+
+    private static void DrawDashedVerticalLine(ImDrawListPtr dl, float x, float y0, float y1, uint color)
+    {
+        const float DashOn  = 4f;
+        const float DashOff = 3f;
+        float y = y0;
+        bool on = true;
+        while (y < y1)
+        {
+            float next = y + (on ? DashOn : DashOff);
+            if (next > y1) next = y1;
+            if (on) dl.AddLine(new Vector2(x, y), new Vector2(x, next), color, 1f);
+            y = next;
             on = !on;
         }
     }

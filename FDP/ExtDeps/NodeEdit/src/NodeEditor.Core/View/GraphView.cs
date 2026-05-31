@@ -104,32 +104,41 @@ public sealed class GraphView
             container.Padding.Left,
             Host.Theme.NodeHeaderHeight + container.Padding.Top);
 
+        float regionOffsetX = 0f;
         float regionOffsetY = 0f;
         if (container.Regions.Count > 0)
         {
             int rIdx = container.GetRegionIndexForChild(id);
             if (rIdx > 0)
             {
-                float[] regionHeights = new float[container.Regions.Count];
-                for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
+                bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                float[] regionSizes = new float[container.Regions.Count];
+                for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
 
                 foreach (var childId in container.ChildNodeIds)
                 {
                     var childNode = Model.FindNode(childId);
                     if (childNode == null) continue;
                     int cRIdx = container.GetRegionIndexForChild(childId);
-                    if (cRIdx >= 0 && cRIdx < regionHeights.Length)
+                    if (cRIdx >= 0 && cRIdx < regionSizes.Length)
                     {
                         var size = childNode.SizeOverride ?? new Vector2(160, 64);
-                        regionHeights[cRIdx] = Math.Max(regionHeights[cRIdx], childNode.Position.Y + size.Y);
+                        if (isHorizontal)
+                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.X + size.X);
+                        else
+                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.Y + size.Y);
                     }
                 }
 
-                for (int i = 0; i < rIdx; i++) regionOffsetY += regionHeights[i];
+                for (int i = 0; i < rIdx; i++)
+                {
+                    if (isHorizontal) regionOffsetX += regionSizes[i];
+                    else regionOffsetY += regionSizes[i];
+                }
             }
         }
 
-        return interiorOrigin + new Vector2(node.Position.X, node.Position.Y + regionOffsetY);
+        return interiorOrigin + new Vector2(node.Position.X + regionOffsetX, node.Position.Y + regionOffsetY);
     }
 
     /// <summary>

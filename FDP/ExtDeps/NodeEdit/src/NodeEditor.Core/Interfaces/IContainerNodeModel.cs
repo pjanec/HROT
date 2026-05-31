@@ -35,6 +35,8 @@ public interface IContainerNodeModel : INodeModel
 
     /// <summary>Interior padding from the container edge to the child layout area.</summary>
     ContainerPadding Padding { get; }
+    /// <summary>The layout orientation of regions within the container.</summary>
+    RegionLayoutOrientation RegionOrientation { get; }
 
     /// <summary>
     /// Minimum interior size in graph units. Container auto-resize never
@@ -59,6 +61,13 @@ public sealed record ContainerPadding(
 {
     /// <summary>Default padding: 8 px top, 12 px on each other side.</summary>
     public static ContainerPadding Default { get; } = new(8f, 12f, 12f, 12f);
+}
+
+/// <summary>Orientation of parallel regions inside a container.</summary>
+public enum RegionLayoutOrientation
+{
+    VerticalStack,
+    HorizontalStack,
 }
 
 /// <summary>Extension methods on INodeModel for container-related queries.</summary>

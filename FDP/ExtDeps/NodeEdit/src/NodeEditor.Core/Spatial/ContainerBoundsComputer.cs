@@ -37,8 +37,9 @@ public static class ContainerBoundsComputer
 
         if (container.Regions.Count > 0)
         {
-            float[] regionHeights = new float[container.Regions.Count];
-            for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
+            bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+            float[] regionSizes = new float[container.Regions.Count];
+            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
 
             foreach (var childId in container.ChildNodeIds)
             {
@@ -46,20 +47,27 @@ public static class ContainerBoundsComputer
                 var childSize = getChildGraphSize(childId);
                 if (childNode == null || !childSize.HasValue) continue;
 
-                float extentX = childNode.Position.X + childSize.Value.X;
-                maxX = Math.Max(maxX, extentX);
-
                 int rIdx = container.GetRegionIndexForChild(childId);
-                if (rIdx >= 0 && rIdx < regionHeights.Length)
+                if (isHorizontal)
                 {
                     float extentY = childNode.Position.Y + childSize.Value.Y;
-                    regionHeights[rIdx] = Math.Max(regionHeights[rIdx], extentY);
+                    maxY = Math.Max(maxY, extentY);
+                    if (rIdx >= 0 && rIdx < regionSizes.Length)
+                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.X + childSize.Value.X);
+                }
+                else
+                {
+                    float extentX = childNode.Position.X + childSize.Value.X;
+                    maxX = Math.Max(maxX, extentX);
+                    if (rIdx >= 0 && rIdx < regionSizes.Length)
+                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.Y + childSize.Value.Y);
                 }
             }
 
-            float totalRegionH = 0f;
-            foreach (var h in regionHeights) totalRegionH += h;
-            maxY = Math.Max(maxY, totalRegionH);
+            float totalRegionSize = 0f;
+            foreach (var s in regionSizes) totalRegionSize += s;
+            if (isHorizontal) maxX = Math.Max(maxX, totalRegionSize);
+            else maxY = Math.Max(maxY, totalRegionSize);
         }
         else
         {

@@ -553,8 +553,9 @@ internal sealed class CanvasInput
                             : container.GetRegionIndexForChild(nid);
                         if (rIdx > 0)
                         {
-                            float[] regionHeights = new float[container.Regions.Count];
-                            for (int i = 0; i < regionHeights.Length; i++) regionHeights[i] = 60f;
+                            bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                            float[] regionSizes = new float[container.Regions.Count];
+                            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
 
                             foreach (var childId in container.ChildNodeIds)
                             {
@@ -562,16 +563,18 @@ internal sealed class CanvasInput
                                 var childNode = view.Model.FindNode(childId);
                                 if (childNode == null) continue;
                                 int cRIdx = container.GetRegionIndexForChild(childId);
-                                if (cRIdx >= 0 && cRIdx < regionHeights.Length)
+                                if (cRIdx >= 0 && cRIdx < regionSizes.Length)
                                 {
                                     var size = childNode.SizeOverride ?? new Vector2(160, 64);
-                                    regionHeights[cRIdx] = Math.Max(regionHeights[cRIdx], childNode.Position.Y + size.Y);
+                                    float extent = isHorizontal ? childNode.Position.X + size.X : childNode.Position.Y + size.Y;
+                                    regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], extent);
                                 }
                             }
 
                             float offset = 0f;
-                            for (int i = 0; i < rIdx; i++) offset += regionHeights[i];
-                            rawLocalPos.Y -= offset;
+                            for (int i = 0; i < rIdx; i++) offset += regionSizes[i];
+                            if (isHorizontal) rawLocalPos.X -= offset;
+                            else rawLocalPos.Y -= offset;
                         }
                     }
                 }
@@ -608,6 +611,7 @@ internal sealed class CanvasInput
         {
             var containerNode = view.Model.FindNode(cid);
             if (containerNode?.AsContainer() is not { } containerModel) continue;
+            bool isHorizontal = containerModel.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
 
             float minX = float.MaxValue;
             float minY = float.MaxValue;
@@ -623,10 +627,14 @@ internal sealed class CanvasInput
                 {
                     var pos = finalLocalPositions.TryGetValue(childId, out var fPos) ? fPos : childNode.Position;
                     futureChildren[childId] = pos;
-                    minX = Math.Min(minX, pos.X);
                     int rIdx = containerModel.GetRegionIndexForChild(childId);
                     if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
-                        minY = Math.Min(minY, pos.Y);
+                    {
+                        if (isHorizontal) minX = Math.Min(minX, pos.X);
+                        else minY = Math.Min(minY, pos.Y);
+                    }
+                    if (isHorizontal) minY = Math.Min(minY, pos.Y);
+                    else minX = Math.Min(minX, pos.X);
                     hasChildren = true;
                 }
             }
@@ -637,12 +645,16 @@ internal sealed class CanvasInput
                 {
                     var pos = finalLocalPositions[nid];
                     futureChildren[nid] = pos;
-                    minX = Math.Min(minX, pos.X);
                     int rIdx = containerModel.GetRegionIndexForChild(nid);
                     if (view.Selection.Nodes.Contains(nid) && targetParents[nid] == cid)
                         rIdx = view.Interaction.DropTargetRegionIndex ?? -1;
                     if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
-                        minY = Math.Min(minY, pos.Y);
+                    {
+                        if (isHorizontal) minX = Math.Min(minX, pos.X);
+                        else minY = Math.Min(minY, pos.Y);
+                    }
+                    if (isHorizontal) minY = Math.Min(minY, pos.Y);
+                    else minX = Math.Min(minX, pos.X);
                     hasChildren = true;
                 }
             }
