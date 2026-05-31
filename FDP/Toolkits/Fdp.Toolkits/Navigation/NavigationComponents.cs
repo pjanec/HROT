@@ -272,6 +272,14 @@ namespace Fdp.Toolkit.Navigation
         /// <see cref="MoveToParams.RouteHandle"/> and by <c>PlanRouteExecutor</c>.
         /// </summary>
         public int RouteHandle;
+
+        /// <summary>
+        /// Maximum wall-clock time (seconds) the entity is allowed to spend replanning
+        /// for this intent. 0 = no time limit (rely on <see cref="MaxReplans"/> only).
+        /// Checked by <c>NavigationExecutionSystem</c> before issuing each replan.
+        /// Set by <c>MoveToExecutor.OnEnter</c>; defaults to 0 (unlimited).
+        /// </summary>
+        public float ReplanTimeBudget;
     }
 
     /// <summary>

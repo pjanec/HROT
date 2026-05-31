@@ -333,5 +333,67 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(NavResult.InProgress, status.Result);
             Assert.Equal(0.3f, status.ProgressS, precision: 4);
         }
+
+        // ── OFX-018: ReplanTimeBudget stops replanning when elapsed >= budget ────
+
+        /// <summary>
+        /// OFX-018: When <see cref="NavigationIntent.ReplanTimeBudget"/> is set to a small
+        /// positive value, replanning must stop once the cumulative stuck time exceeds the
+        /// budget — even when the replan count is still below <see cref="NavigationIntent.MaxReplans"/>.
+        /// </summary>
+        [Fact]
+        public void ReplanTimeBudget_ExceededBeforeCountLimit_CausesFailedBlocked()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+
+            byte allowReplanFlag = (byte)(1 << NavigationConstants.FlagBitAllowReplan);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform
+            {
+                Position = new System.Numerics.Vector3(0f, 0f, 0f),
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
+            // velocity = 0 → always stuck
+            repo.AddComponent(entity, new SimVelocity { Linear = System.Numerics.Vector3.Zero });
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode             = NavMode.DirectPoint,
+                FinalDestination = new System.Numerics.Vector3(1000f, 0f, 0f),
+                ArrivalRadius    = 2f,
+                TargetSpeed      = 15f,
+                IntentId         = 1u,
+                Flags            = allowReplanFlag,
+                // High count limit: without time-budget this would allow many replans.
+                MaxReplans       = 10,
+                // Small budget: will be exceeded by the time FrustrationTickLimit fires.
+                ReplanTimeBudget = 0.01f,
+            });
+            repo.AddComponent(entity, new NavigationStatus
+            {
+                IntentId = 1u,
+                Result   = NavResult.InProgress,
+            });
+            repo.AddComponent(entity, new FrustrationTicks { Ticks = 0 });
+
+            // Run enough ticks for the frustration guard to fire.
+            // dt = 0.016f; after FrustrationTickLimit + 2 ticks the guard fires.
+            // ElapsedSinceFirstReplan = (FrustrationTickLimit + 2) * 0.016 >> 0.01 budget.
+            NavigationResult? lastResult = null;
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++)
+            {
+                system.Execute(repo, 0.016f);
+                lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
+                if (lastResult == NavResult.FailedBlocked)
+                    break;
+            }
+
+            var finalStatus = repo.GetComponent<NavigationStatus>(entity);
+            // Entity should fail.
+            Assert.Equal(NavResult.FailedBlocked, finalStatus.Result);
+            // The time-budget guard prevented any actual replan from occurring.
+            Assert.Equal(0, finalStatus.ReplanCount);
+        }
     }
 }

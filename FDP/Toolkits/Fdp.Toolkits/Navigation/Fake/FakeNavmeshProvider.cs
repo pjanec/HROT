@@ -10,10 +10,12 @@ namespace Fdp.Toolkit.Navigation.Fake
     public interface IFakeNavmeshProviderTestApi
     {
         /// <summary>
-        /// Marks a polygon as blocked (non-walkable) across all layers and bumps the version.
-        /// Returns false if no polygon with that ID is found.
+        /// Marks a polygon as blocked (non-walkable) in the specified layer and bumps
+        /// that layer's version.  Passing <see cref="NavLayerMask.All"/> replicates the
+        /// legacy behaviour of blocking in every layer that contains the polygon.
+        /// Returns false if no polygon with that ID is found in the requested layer(s).
         /// </summary>
-        bool BlockPolygon(int polygonId);
+        bool BlockPolygon(int polygonId, NavLayerMask layer = NavLayerMask.All);
 
         /// <summary>
         /// Marks a polygon as unblocked (walkable) across all layers and bumps the version.
@@ -26,6 +28,13 @@ namespace Fdp.Toolkit.Navigation.Fake
         /// Bumps the layer version.
         /// </summary>
         void AddOffMeshLink(OffMeshLink link);
+
+        /// <summary>
+        /// Bumps the version of all layers whose spatial bounds overlap with
+        /// <paramref name="region"/> and whose layer bit appears in <paramref name="layer"/>.
+        /// Does NOT change any polygon walkability.
+        /// </summary>
+        void BumpVersion(BoundingBox2D region, NavLayerMask layer);
 
         /// <summary>
         /// Returns the <see cref="NavTestMap"/> that was used to construct this provider,
@@ -207,17 +216,20 @@ namespace Fdp.Toolkit.Navigation.Fake
         // ── IFakeNavmeshProviderTestApi ──────────────────────────────────────────
 
         /// <inheritdoc/>
-        public bool BlockPolygon(int polygonId)
+        public bool BlockPolygon(int polygonId, NavLayerMask layer = NavLayerMask.All)
         {
             bool found = false;
-            foreach (var layer in _layers)
+            foreach (var navLayer in _layers)
             {
-                foreach (var poly in layer.Polygons)
+                // Only block in layers whose bit is set in the requested mask.
+                if ((navLayer.Layer & (uint)layer) == 0) continue;
+
+                foreach (var poly in navLayer.Polygons)
                 {
                     if (poly.Id == polygonId)
                     {
                         poly.IsBlocked = true;
-                        layer.Version++;
+                        navLayer.Version++;
                         found = true;
                     }
                 }
@@ -266,6 +278,31 @@ namespace Fdp.Toolkit.Navigation.Fake
 
         /// <inheritdoc/>
         public NavTestMap? GetLoadedMap() => _loadedMap;
+
+        /// <inheritdoc/>
+        public void BumpVersion(BoundingBox2D region, NavLayerMask layer)
+        {
+            foreach (var navLayer in _layers)
+            {
+                // Only bump layers whose bit is set in the requested mask.
+                if (layer != NavLayerMask.All && (navLayer.Layer & (uint)layer) == 0)
+                    continue;
+
+                // Bump if any polygon centroid falls within the region.
+                bool overlaps = false;
+                foreach (var poly in navLayer.Polygons)
+                {
+                    var c = poly.Centroid();
+                    if (region.Contains(new System.Numerics.Vector2(c.X, c.Z)))
+                    {
+                        overlaps = true;
+                        break;
+                    }
+                }
+                if (overlaps)
+                    navLayer.Version++;
+            }
+        }
 
         // ── Private helpers ──────────────────────────────────────────────────────
 

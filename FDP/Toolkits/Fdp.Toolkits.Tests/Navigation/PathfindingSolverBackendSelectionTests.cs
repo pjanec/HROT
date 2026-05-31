@@ -207,6 +207,94 @@ namespace Fdp.Toolkit.Navigation.Tests
             roadNet.Dispose();
         }
 
+        // ── OFX-001: Auto-select backend based on both endpoint proximity ──────────
+
+        /// <summary>
+        /// Both start AND end are near a road node → NavRoadGraph (§5.2).
+        /// </summary>
+        [Fact]
+        public void AutoSelect_BothEndpointsNearRoad_ReturnsNavRoadGraph()
+        {
+            // Arrange: nodes at (0,0) and (100,0); both endpoints within 500m threshold.
+            var roadNet = BuildTwoNodeNetwork();
+            var solver  = new PathfindingSolverSystem(roadNet, _pool);
+
+            long requestId = ((long)10 << 32) | _world.GlobalVersion;
+            _world.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId    = requestId,
+                Start        = new Vector3(0f, 0f, 0f),    // on road node 0
+                End          = new Vector3(100f, 0f, 0f),  // on road node 1
+                BackendForce = NavigationBackend.Auto,
+            });
+
+            RunSolverPipeline(_world, solver);
+
+            var events = ((ISimulationView)_world).ReadEvents<PathfindingResultEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(NavigationBackend.NavRoadGraph, events[0].PrimaryBackend);
+
+            roadNet.Dispose();
+        }
+
+        /// <summary>
+        /// Start is near a road node, end is far away → Hybrid (§5.2).
+        /// </summary>
+        [Fact]
+        public void AutoSelect_MixedEndpoints_ReturnsHybrid()
+        {
+            // Arrange: node at (0,0); start is near (0,0), end is at (2000, 2000) which is
+            // further than the 500 m RoadRadiusThreshold from any node.
+            var roadNet = BuildTwoNodeNetwork();
+            var solver  = new PathfindingSolverSystem(roadNet, _pool);
+
+            long requestId = ((long)11 << 32) | _world.GlobalVersion;
+            _world.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId    = requestId,
+                Start        = new Vector3(0f, 0f, 0f),       // near road node 0
+                End          = new Vector3(2000f, 2000f, 0f), // far from all road nodes
+                BackendForce = NavigationBackend.Auto,
+            });
+
+            RunSolverPipeline(_world, solver);
+
+            var events = ((ISimulationView)_world).ReadEvents<PathfindingResultEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(NavigationBackend.Hybrid, events[0].PrimaryBackend);
+
+            roadNet.Dispose();
+        }
+
+        /// <summary>
+        /// Both start AND end are far from any road node, navmesh provider available → Navmesh (§5.2).
+        /// </summary>
+        [Fact]
+        public void AutoSelect_BothEndpointsFarFromRoad_WithNavmesh_ReturnsNavmesh()
+        {
+            // Arrange: both endpoints at (2000, 2000) and (3000, 3000) — far from all road nodes.
+            var roadNet = BuildTwoNodeNetwork();
+            var navmesh = new StubNavmeshProvider();
+            var solver  = new PathfindingSolverSystem(roadNet, _pool, navmesh: navmesh);
+
+            long requestId = ((long)12 << 32) | _world.GlobalVersion;
+            _world.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId    = requestId,
+                Start        = new Vector3(2000f, 2000f, 0f),
+                End          = new Vector3(3000f, 3000f, 0f),
+                BackendForce = NavigationBackend.Auto,
+            });
+
+            RunSolverPipeline(_world, solver);
+
+            var events = ((ISimulationView)_world).ReadEvents<PathfindingResultEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(NavigationBackend.Navmesh, events[0].PrimaryBackend);
+
+            roadNet.Dispose();
+        }
+
         // ── Stub implementations ─────────────────────────────────────────────────
 
         /// <summary>Stub volumetric provider that records calls and returns a two-waypoint path.</summary>

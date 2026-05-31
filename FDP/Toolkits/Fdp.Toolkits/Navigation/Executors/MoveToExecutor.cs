@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.Flags            = p.Flags;
             intent.MaxReplans       = p.MaxReplans;
             intent.RouteHandle      = p.RouteHandle;
+            intent.ReplanTimeBudget = 0f;  // no time limit by default; set post-enter if needed
             world.SetComponent(entity, intent);
 
             channel.Status = NodeStatus.Running;

@@ -105,5 +105,27 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
 
             Assert.Equal(NodeStatus.Failure, channel.Status);
         }
+
+        // ── Test 4: FailedBlocked → Failure (OFX-019) ─────────────────────────────────────────────
+
+        [Fact]
+        public void FollowPathExecutor_Execute_FailedBlocked_ReturnsFailure()
+        {
+            var (world, entity, channel) = BuildWorld(routeHandle: 42);
+
+            var executor = new FollowPathExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intent.IntentId,
+                Result   = NavigationResult.FailedBlocked,
+            });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Failure, channel.Status);
+        }
     }
 }

@@ -40,6 +40,13 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// </summary>
     public sealed class FakeDtCrowdProvider : IDtCrowdProvider, IFakeDtCrowdProviderTestApi
     {
+        // ── Separation constants (DD-Fake-Nav §4.3) ──────────────────────────────
+        // Separation force is applied when dist < combinedR * SeparationRadiusMultiplier.
+        // NearbyAgentCount is incremented when dist < combinedR * NearbyAgentRadiusMultiplier.
+        private const float SeparationRadiusMultiplier  = 1.5f;
+        private const float NearbyAgentRadiusMultiplier = 4.0f;
+        // Minimum distance used in the push formula denominator to avoid division by zero.
+        private const float SeparationMinDist = 0.01f;
         private sealed class AgentEntry
         {
             public Entity              Entity;
@@ -133,7 +140,7 @@ namespace Fdp.Toolkit.Navigation.Fake
                 }
             }
 
-            // Separation pass (O(N^2)).
+            // Separation pass (O(N^2), DD-Fake-Nav §4.3).
             var separation = new Vector3[keys.Count];
             for (int i = 0; i < keys.Count; i++)
             {
@@ -141,16 +148,24 @@ namespace Fdp.Toolkit.Navigation.Fake
                 for (int j = 0; j < keys.Count; j++)
                 {
                     if (i == j) continue;
-                    var ri = _agents[keys[i]].Params.Radius;
-                    var rj = _agents[keys[j]].Params.Radius;
-                    float sumR = ri + rj;
-                    var diff = positions[i] - positions[j];
+                    float ri = _agents[keys[i]].Params.Radius;
+                    float rj = _agents[keys[j]].Params.Radius;
+                    float combinedR = ri + rj;
+                    var   diff = positions[i] - positions[j];
                     float dist = diff.Length();
-                    if (dist < sumR && dist > 0.0001f)
-                    {
-                        float overlap = sumR - dist;
-                        separation[i] += SafeNormalize(diff) * (overlap * 0.5f / dt);
+
+                    // NearbyAgentCount: count agents within the wider proximity radius.
+                    if (dist < combinedR * NearbyAgentRadiusMultiplier)
                         _agents[keys[i]].NearbyAgentCount++;
+
+                    // Separation force: apply when within the separation radius.
+                    if (dist < combinedR * SeparationRadiusMultiplier && dist > 0.0001f)
+                    {
+                        float separationWeight = _agents[keys[i]].Params.SeparationWeight;
+                        // Push formula per §4.3: normalized direction / max(dist, minDist) * weight.
+                        separation[i] += SafeNormalize(diff)
+                            / MathF.Max(dist, SeparationMinDist)
+                            * separationWeight;
                     }
                 }
             }

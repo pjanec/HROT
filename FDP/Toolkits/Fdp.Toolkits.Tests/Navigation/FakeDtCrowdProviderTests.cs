@@ -385,5 +385,127 @@ namespace Fdp.Toolkit.Navigation.Tests
             var api = (IFakeDtCrowdProviderTestApi)crowd;
             Assert.Equal(5, api.UpdateCallCount);
         }
+
+        // ── OFX-010: Separation fires at 1.2x combined radius ─────────────────────
+
+        /// <summary>
+        /// OFX-010: Two agents placed at 1.2× their combined radius must receive a
+        /// separation force on the first <see cref="FakeDtCrowdProvider.Update"/> tick.
+        /// The NearbyAgentCount must be > 0 (4× proximity band), and each agent's
+        /// velocity must have a component pushing it away from the other (OFX-010).
+        /// </summary>
+        [Fact]
+        public void Separation_AtOneDotTwoXCombinedRadius_ForceAppliedAndNearbyAgentCounted()
+        {
+            var crowd = new FakeDtCrowdProvider();
+            var e1    = new Entity(1, 1);
+            var e2    = new Entity(2, 1);
+
+            // radius = 0.5, combinedR = 1.0; 1.2 × combinedR = 1.2 m (within sep radius 1.5 m)
+            crowd.RegisterAgent(e1, DefaultParams(radius: 0.5f));
+            crowd.RegisterAgent(e2, DefaultParams(radius: 0.5f));
+
+            // Both heading in +X so desired velocity is purely along X.
+            crowd.SetAgentTarget(e1, new Vector3(100f, 0f, 0f));
+            crowd.SetAgentTarget(e2, new Vector3(100f, 0f, 0f));
+
+            var view = new TestView();
+            // Place side-by-side at 1.2 m apart along Z so separation force is in Z.
+            view.SetPosition(e1, new Vector3(0f, 0f, 0f));
+            view.SetPosition(e2, new Vector3(0f, 0f, 1.2f)); // 1.2× combinedR
+
+            crowd.Update(0.1f, view);
+
+            Assert.True(crowd.TryGetAgentSnapshot(e1, out var snap1));
+            Assert.True(snap1.NearbyAgentCount > 0,
+                "e1 should count e2 as a nearby agent in the 4x proximity band");
+
+            Assert.True(crowd.TryGetAgentSnapshot(e2, out var snap2));
+            Assert.True(snap2.NearbyAgentCount > 0,
+                "e2 should count e1 as a nearby agent in the 4x proximity band");
+
+            // The separation force pushes agents away from each other along Z.
+            var vel1 = crowd.GetAgentVelocity(e1);
+            var vel2 = crowd.GetAgentVelocity(e2);
+            Assert.True(vel1.Z < 0f,
+                $"e1 at Z=0 should be pushed in -Z by e2 at Z=1.2; actual Z vel={vel1.Z:F4}");
+            Assert.True(vel2.Z > 0f,
+                $"e2 at Z=1.2 should be pushed in +Z away from e1; actual Z vel={vel2.Z:F4}");
+        }
+
+        // ── OFX-025: Velocity-divergence tests ───────────────────────────────────
+
+        /// <summary>
+        /// OFX-025 A: Two agents on crossing paths must have Z-velocity components that
+        /// diverge (opposite signs) after the first update tick — confirming separation
+        /// force is applied across the velocity boundary (OFX-025).
+        /// </summary>
+        [Fact]
+        public void CrossingPaths_AfterOneTick_ZVelocitiesDiverge()
+        {
+            var crowd = new FakeDtCrowdProvider();
+            var e1    = new Entity(1, 1);
+            var e2    = new Entity(2, 1);
+
+            crowd.RegisterAgent(e1, DefaultParams(radius: 0.5f));
+            crowd.RegisterAgent(e2, DefaultParams(radius: 0.5f));
+
+            // e1 heads in +X, e2 in -X.  Z offset = 0.6 each side → distance = 1.17 < 1.5
+            crowd.SetAgentTarget(e1, new Vector3( 10f, 0f, 0f));
+            crowd.SetAgentTarget(e2, new Vector3(-10f, 0f, 0f));
+
+            var view = new TestView();
+            view.SetPosition(e1, new Vector3(-0.5f, 0f, -0.3f)); // approaching from left-below
+            view.SetPosition(e2, new Vector3( 0.5f, 0f,  0.3f)); // approaching from right-above
+
+            crowd.Update(0.016f, view);
+
+            var vel1 = crowd.GetAgentVelocity(e1);
+            var vel2 = crowd.GetAgentVelocity(e2);
+
+            // Separation must push e1 toward -Z and e2 toward +Z (they diverge).
+            Assert.True(vel1.Z < 0f,
+                $"e1 crossing in +X should be pushed away in -Z; got Z={vel1.Z:F4}");
+            Assert.True(vel2.Z > 0f,
+                $"e2 crossing in -X should be pushed away in +Z; got Z={vel2.Z:F4}");
+        }
+
+        /// <summary>
+        /// OFX-025 B: A center agent with no target, surrounded by three agents at 120°
+        /// and at equal distance within the separation radius, must have a velocity that
+        /// stays near zero because the symmetric separation forces cancel (OFX-025).
+        /// </summary>
+        [Fact]
+        public void SurroundedBy_SymmetricAgents_CenterVelocityRemainsNearZero()
+        {
+            var crowd  = new FakeDtCrowdProvider();
+            var center = new Entity(0, 1);
+            var ring1  = new Entity(1, 1);
+            var ring2  = new Entity(2, 1);
+            var ring3  = new Entity(3, 1);
+
+            var p = DefaultParams(radius: 0.5f);
+            crowd.RegisterAgent(center, p);
+            crowd.RegisterAgent(ring1, p);
+            crowd.RegisterAgent(ring2, p);
+            crowd.RegisterAgent(ring3, p);
+
+            // Center has no target.  Ring agents also have no target (stationary view positions).
+            // Ring agents at 120° intervals, distance = 0.8 m < combinedR * 1.5 = 1.5 m.
+            const float d = 0.8f;
+            var view = new TestView();
+            view.SetPosition(center, Vector3.Zero);
+            view.SetPosition(ring1, new Vector3( d,           0f,  0f));
+            view.SetPosition(ring2, new Vector3(-d * 0.5f,    0f,  d * 0.866f));
+            view.SetPosition(ring3, new Vector3(-d * 0.5f,    0f, -d * 0.866f));
+
+            // Run several ticks; view positions stay fixed, so forces stay symmetric.
+            for (int i = 0; i < 10; i++)
+                crowd.Update(0.016f, view);
+
+            var vel = crowd.GetAgentVelocity(center);
+            Assert.True(vel.Length() < 0.05f,
+                $"Symmetric ring must cancel separation forces; center speed={vel.Length():F4}");
+        }
     }
 }

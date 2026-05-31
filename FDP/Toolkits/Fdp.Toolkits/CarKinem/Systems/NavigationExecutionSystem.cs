@@ -181,6 +181,7 @@ namespace CarKinem.Systems
                 if (speed < FrustrationSpeedThreshold)
                 {
                     frustration.Ticks++;
+                    frustration.ElapsedSinceFirstReplan += deltaTime;
                     repo.SetComponent(entity, frustration);
 
                     if (frustration.Ticks > FrustrationTickLimit)
@@ -191,7 +192,11 @@ namespace CarKinem.Systems
 
                         bool allowReplan = (intent.Flags & (1 << NavigationConstants.FlagBitAllowReplan)) != 0;
 
-                        if (allowReplan && status.ReplanCount < effectiveMax)
+                        // Time-budget guard (§3.4): stop replanning when elapsed >= ReplanTimeBudget.
+                        bool timeBudgetExceeded = intent.ReplanTimeBudget > 0f
+                            && frustration.ElapsedSinceFirstReplan >= intent.ReplanTimeBudget;
+
+                        if (allowReplan && status.ReplanCount < effectiveMax && !timeBudgetExceeded)
                         {
                             // ── Internal Muscle replan ─────────────────────────────────────────
                             status.ReplanCount++;

@@ -390,5 +390,118 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(p1.PathExists(from, to), p2.PathExists(from, to));
             Assert.Equal(p1.PathCost(from, to),   p2.PathCost(from, to));
         }
+
+        // ── OFX-011: BlockPolygon is scoped to the specified layer ────────────────
+
+        /// <summary>
+        /// Blocking a polygon in the Infantry layer must not block the same polygon
+        /// ID in the Vehicle layer (OFX-011).
+        /// </summary>
+        [Fact]
+        public void BlockPolygon_InfantryLayer_DoesNotBlockVehicleLayer()
+        {
+            // Two layers, same polygon ID 1, different layer bits.
+            var infantryPoly = new NavPolygon
+            {
+                Id = 1,
+                Vertices = new[]
+                {
+                    new Vector3(0, 0, 0), new Vector3(2, 0, 0),
+                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                },
+            };
+            var vehiclePoly = new NavPolygon
+            {
+                Id = 1,
+                Vertices = new[]
+                {
+                    new Vector3(0, 0, 0), new Vector3(2, 0, 0),
+                    new Vector3(2, 0, 2), new Vector3(0, 0, 2),
+                },
+            };
+
+            var infantryLayer = new FakeNavLayer
+            {
+                Layer    = (uint)NavLayerMask.Infantry,
+                Polygons = new[] { infantryPoly },
+                Adjacency = new[] { System.Array.Empty<int>() },
+            };
+            var vehicleLayer = new FakeNavLayer
+            {
+                Layer    = (uint)NavLayerMask.Vehicle,
+                Polygons = new[] { vehiclePoly },
+                Adjacency = new[] { System.Array.Empty<int>() },
+            };
+
+            var provider = new FakeNavmeshProvider(infantryLayer, vehicleLayer);
+            var center   = new Vector3(1f, 0f, 1f);
+
+            // Both layers start walkable.
+            Assert.True(provider.IsWalkable(center, (uint)NavLayerMask.Infantry), "Infantry walkable before block");
+            Assert.True(provider.IsWalkable(center, (uint)NavLayerMask.Vehicle),  "Vehicle walkable before block");
+
+            // Block only the Infantry layer.
+            bool blocked = provider.BlockPolygon(1, NavLayerMask.Infantry);
+
+            Assert.True(blocked, "BlockPolygon should return true when polygon found");
+            Assert.False(provider.IsWalkable(center, (uint)NavLayerMask.Infantry),
+                "Infantry polygon should be blocked");
+            Assert.True(provider.IsWalkable(center, (uint)NavLayerMask.Vehicle),
+                "Vehicle polygon must remain walkable after Infantry-only block");
+        }
+
+        // ── OFX-024: BumpVersion increments navmesh version ───────────────────────
+
+        /// <summary>
+        /// <see cref="IFakeNavmeshProviderTestApi.BumpVersion"/> must increment the
+        /// version for a layer whose polygon centroid falls in the region, without
+        /// changing any polygon walkability (OFX-024).
+        /// </summary>
+        [Fact]
+        public void BumpVersion_RegionOverlapsLayer_IncrementsVersion()
+        {
+            var layer    = BuildTwoAdjacentLayer();
+            var provider = new FakeNavmeshProvider(layer);
+
+            uint versionBefore = provider.QueryVersion();
+
+            // Region that contains the centroid of poly1 (centroid ~(1,0,1) in XZ).
+            var region = new BoundingBox2D(
+                new System.Numerics.Vector2(0f, 0f),
+                new System.Numerics.Vector2(2f, 2f));
+
+            ((IFakeNavmeshProviderTestApi)provider).BumpVersion(region, NavLayerMask.All);
+
+            uint versionAfter = provider.QueryVersion();
+            Assert.True(versionAfter > versionBefore,
+                $"Version should increase after BumpVersion; was {versionBefore}, now {versionAfter}");
+
+            // Walkability must be unchanged.
+            Assert.True(provider.IsWalkable(new Vector3(1f, 0f, 1f)),
+                "BumpVersion must not block any polygon");
+        }
+
+        /// <summary>
+        /// <see cref="IFakeNavmeshProviderTestApi.BumpVersion"/> for a region that does not
+        /// overlap any polygon must leave the version unchanged.
+        /// </summary>
+        [Fact]
+        public void BumpVersion_RegionNoOverlap_VersionUnchanged()
+        {
+            var layer    = BuildTwoAdjacentLayer();
+            var provider = new FakeNavmeshProvider(layer);
+
+            uint versionBefore = provider.QueryVersion();
+
+            // Region far from all polygons.
+            var region = new BoundingBox2D(
+                new System.Numerics.Vector2(100f, 100f),
+                new System.Numerics.Vector2(200f, 200f));
+
+            ((IFakeNavmeshProviderTestApi)provider).BumpVersion(region, NavLayerMask.All);
+
+            uint versionAfter = provider.QueryVersion();
+            Assert.Equal(versionBefore, versionAfter);
+        }
     }
 }

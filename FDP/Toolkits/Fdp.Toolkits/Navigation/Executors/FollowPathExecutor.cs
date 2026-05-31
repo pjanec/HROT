@@ -60,6 +60,7 @@ namespace Fdp.Toolkit.Navigation.Executors
                     channel.Status = NodeStatus.Success;
                     break;
 
+                case NavigationResult.FailedBlocked:
                 case NavigationResult.FailedInvalidHandle:
                 case NavigationResult.FailedUnreachable:
                 case NavigationResult.NoPath:

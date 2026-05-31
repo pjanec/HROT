@@ -110,25 +110,38 @@ namespace Fdp.Toolkit.Navigation.Systems
             if (req.MobilityProfile == MobilityProfileFlying && _volumetric != null)
                 return NavigationBackend.Volumetric;
 
-            // Auto heuristic: prefer road-graph when the start point is near a road node;
-            // fall back to navmesh if available, otherwise road-graph.
+            // Auto heuristic per §5.2: check both endpoints against the road network.
+            // Both near road -> RoadGraph; one near, one far -> Hybrid; neither -> Navmesh.
             bool networkHasNodes = _roadNetwork.Nodes.IsCreated && _roadNetwork.Nodes.Length > 0;
             if (networkHasNodes)
             {
                 var start2D = new Vector2(req.Start.X, req.Start.Y);
-                int nearest = FindNearestNode(start2D);
-                if (nearest >= 0)
-                {
-                    float distSq = Vector2.DistanceSquared(start2D, _roadNetwork.Nodes[nearest].Position);
-                    if (distSq < RoadRadiusThresholdSq)
-                        return NavigationBackend.NavRoadGraph;
-                }
+                var end2D   = new Vector2(req.End.X,   req.End.Y);
+
+                bool startNear = IsNearRoad(start2D);
+                bool endNear   = IsNearRoad(end2D);
+
+                if (startNear && endNear)
+                    return NavigationBackend.NavRoadGraph;
+
+                if (startNear || endNear)
+                    return NavigationBackend.Hybrid;
             }
 
             if (_navmesh != null)
                 return NavigationBackend.Navmesh;
 
             return NavigationBackend.NavRoadGraph;
+        }
+
+        /// <summary>Returns true if <paramref name="point2D"/> is within
+        /// <see cref="RoadRadiusThresholdSq"/> of the nearest road node.</summary>
+        private bool IsNearRoad(Vector2 point2D)
+        {
+            int nearest = FindNearestNode(point2D);
+            if (nearest < 0) return false;
+            float distSq = Vector2.DistanceSquared(point2D, _roadNetwork.Nodes[nearest].Position);
+            return distSq < RoadRadiusThresholdSq;
         }
 
         // ── Dispatch ─────────────────────────────────────────────────────────────
@@ -144,8 +157,19 @@ namespace Fdp.Toolkit.Navigation.Systems
                 case NavigationBackend.Volumetric when _volumetric != null:
                     return SolveVolumetric(in req, handle);
 
-                // RoadGraph, Hybrid (not yet implemented), or forced backend whose
-                // provider is absent all fall through to the Dijkstra road-graph solver.
+                // Hybrid: road-graph for macro routing, navmesh for local correction.
+                // Phase-1 implementation: road-graph Dijkstra covers the full path.
+                // Full splice is a future enhancement.
+                case NavigationBackend.Hybrid:
+                    bool hybridNetworkEmpty = !_roadNetwork.Nodes.IsCreated || _roadNetwork.Nodes.Length == 0;
+                    if (!hybridNetworkEmpty)
+                        return SolveHybrid(in req, handle);
+                    if (_navmesh != null)
+                        return SolveNavmesh(in req, handle);
+                    return Unreachable(in req, handle, NavigationBackend.Hybrid);
+
+                // RoadGraph, or forced backend whose provider is absent all fall through to
+                // the Dijkstra road-graph solver.
                 default:
                     bool networkEmpty = !_roadNetwork.Nodes.IsCreated || _roadNetwork.Nodes.Length == 0;
                     return networkEmpty
@@ -248,6 +272,28 @@ namespace Fdp.Toolkit.Navigation.Systems
                 SourceNodeId        = req.SourceNodeId,
                 PrimaryBackend      = NavigationBackend.NavRoadGraph,
                 FailureReason       = NavigationFailureReason.NoFailure,
+            };
+        }
+
+        // ── Hybrid backend ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Phase-1 Hybrid: road-graph Dijkstra for the full path, tagged as Hybrid.
+        /// Full navmesh-splice is a future enhancement (§5.2).
+        /// </summary>
+        private PathfindingResultEvent SolveHybrid(in PathfindingRequestEvent req, int handle)
+        {
+            var result = SolvePath(in req, handle);
+            // Re-tag as Hybrid so callers can distinguish from pure NavRoadGraph.
+            return new PathfindingResultEvent
+            {
+                RequestId           = result.RequestId,
+                IsReachable         = result.IsReachable,
+                TotalDistanceMeters = result.TotalDistanceMeters,
+                RouteHandle         = result.RouteHandle,
+                SourceNodeId        = result.SourceNodeId,
+                PrimaryBackend      = result.IsReachable ? NavigationBackend.Hybrid : result.PrimaryBackend,
+                FailureReason       = result.FailureReason,
             };
         }
 

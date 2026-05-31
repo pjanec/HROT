@@ -46,8 +46,16 @@ namespace CarKinem.Core
         /// </summary>
         public byte BlockedEventFired;
 
-        // 2 bytes explicit padding to keep the struct size at 8 bytes (int + 4 x byte).
+        // 2 bytes explicit padding to keep the float field naturally aligned.
         private byte _pad0;
         private byte _pad1;
+
+        /// <summary>
+        /// Accumulated seconds the entity has been frustrated (speed below threshold) for
+        /// the current intent.  Used by <c>NavigationExecutionSystem</c> to enforce
+        /// <see cref="Fdp.Toolkit.Navigation.NavigationIntent.ReplanTimeBudget"/>.
+        /// Reset to 0 when a new intent begins.
+        /// </summary>
+        public float ElapsedSinceFirstReplan;
     }
 }
