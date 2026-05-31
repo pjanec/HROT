@@ -220,6 +220,50 @@ internal sealed class CanvasInput
                     view.Selection.ReplaceWith(SelectionEntry.OfReroute(hover.Reroute));
                     break;
 
+                case HoverKind.Container:
+                    if (hover.ContainerZone == ContainerHoverZone.CollapseArrow)
+                    {
+                        var containerNode = view.Model.FindNode(hover.Node);
+                        if (containerNode != null)
+                        {
+                            var fwd = new GraphCommand.SetContainerCollapsed(hover.Node, !containerNode.IsCollapsed);
+                            var inv = new GraphCommand.SetContainerCollapsed(hover.Node, containerNode.IsCollapsed);
+                            view.Execute(fwd, inv, "Toggle Container Collapse");
+                        }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Header)
+                    {
+                        if (!ctrl && !shift && !view.Selection.Contains(SelectionEntry.OfNode(hover.Node)))
+                            view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
+                        else if (ctrl)
+                            view.Selection.Toggle(SelectionEntry.OfNode(hover.Node));
+                        else if (shift)
+                            view.Selection.Add(SelectionEntry.OfNode(hover.Node));
+
+                        // Begin node drag
+                        view.Interaction.Mode = InteractionMode.DraggingNodes;
+                        view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.DragStartGraph  = view.Viewport.ScreenToGraph(input.MousePosition);
+                        view.Interaction.DragThresholdCrossed = false;
+                        foreach (var nid in view.Selection.Nodes)
+                        {
+                            var n = view.Model.FindNode(nid);
+                            if (n != null)
+                                view.Interaction.DragOverridePositions[nid] = n.Position;
+                        }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Interior)
+                    {
+                        // Treat clicking the interior like empty canvas to allow marquee selection.
+                        if (!ctrl && !shift)
+                            view.Selection.Clear();
+                        view.Interaction.Mode = InteractionMode.MarqueeSelecting;
+                        view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.DragStartGraph  = view.Viewport.ScreenToGraph(input.MousePosition);
+                        view.Interaction.MarqueeTouchMode = alt;
+                    }
+                    break;
+
                 case HoverKind.Link:
                     if (alt)
                     {
