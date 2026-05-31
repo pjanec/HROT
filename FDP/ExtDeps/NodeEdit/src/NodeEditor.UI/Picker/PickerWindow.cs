@@ -229,19 +229,10 @@ public sealed class PickerWindow
         HandleKeyboardNavigation();
 
         bool enterPressed = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
-        bool ctrlPressed  = ImGui.GetIO().KeyCtrl;
-
-        bool shouldConfirm = _state.Confirmed || ImGui.Button("OK");
-
-        if (_state.SelectionMode == PickerSelectionMode.Single)
-        {
-            if (enterPressed) shouldConfirm = true;
-        }
-        else
-        {
-            // Architecturally critical: In multi-select, only Ctrl+Enter confirms via keyboard
-            if (enterPressed && ctrlPressed) shouldConfirm = true;
-        }
+        
+        // Architecturally modified: Enter universally confirms the picker 
+        // regardless of Single or Multi-Select mode.
+        bool shouldConfirm = _state.Confirmed || ImGui.Button("OK") || enterPressed;
 
         if (shouldConfirm)
         {
@@ -274,7 +265,6 @@ public sealed class PickerWindow
         if (count == 0) return;
 
         bool shift = ImGui.GetIO().KeyShift;
-        bool ctrl  = ImGui.GetIO().KeyCtrl;
 
         if (ImGui.IsKeyPressed(ImGuiKey.UpArrow))
             MoveFocus(-1, count, shift);
@@ -291,10 +281,8 @@ public sealed class PickerWindow
 
         if (_state.SelectionMode != PickerSelectionMode.Single)
         {
-            bool enterPressed = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
-
-            // Space or Enter (without Ctrl) toggles multi-selection state
-            if (ImGui.IsKeyPressed(ImGuiKey.Space) || (enterPressed && !ctrl))
+            // Enter no longer toggles. Only Space manipulates the checklist state.
+            if (ImGui.IsKeyPressed(ImGuiKey.Space))
             {
                 // Target all highlighted rows, or just the focused one if no highlight span exists
                 var targets = _state.HighlightedIndices.Count > 0
@@ -332,7 +320,8 @@ public sealed class PickerWindow
         {
             if (extendSelection)
             {
-                int anchor = _state.KeyboardFocusIndex;
+                // Anchor geometrically to the start of the Shift sequence
+                int anchor = _state.SelectionAnchorIndex;
                 int lo = Math.Min(anchor, idx);
                 int hi = Math.Max(anchor, idx);
                 _state.HighlightedIndices.Clear();
@@ -341,6 +330,8 @@ public sealed class PickerWindow
             }
             else
             {
+                // Establish a new anchor point
+                _state.SelectionAnchorIndex = idx;
                 _state.HighlightedIndices.Clear();
                 _state.HighlightedIndices.Add(idx);
             }

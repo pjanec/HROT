@@ -182,8 +182,7 @@ internal static class PickerItemListHelper
                     if (!state.SelectedFilteredIndices.Remove(filteredIdx))
                         state.SelectedFilteredIndices.Add(filteredIdx);
 
-                    state.KeyboardFocusIndex = filteredIdx;
-                }
+                    state.KeyboardFocusIndex = filteredIdx;                }
                 else
                 {
                     // Clicked the row label -> update highlight/focus span
@@ -191,10 +190,11 @@ internal static class PickerItemListHelper
                     {
                         if (!state.HighlightedIndices.Remove(filteredIdx))
                             state.HighlightedIndices.Add(filteredIdx);
+                        state.SelectionAnchorIndex = filteredIdx;
                     }
                     else if (shift && state.HighlightedIndices.Count > 0)
                     {
-                        int anchor = state.KeyboardFocusIndex;
+                        int anchor = state.SelectionAnchorIndex;
                         int lo = Math.Min(anchor, filteredIdx);
                         int hi = Math.Max(anchor, filteredIdx);
                         state.HighlightedIndices.Clear();
@@ -203,19 +203,18 @@ internal static class PickerItemListHelper
                     }
                     else
                     {
+                        state.SelectionAnchorIndex = filteredIdx;
                         state.HighlightedIndices.Clear();
                         state.HighlightedIndices.Add(filteredIdx);
                     }
-                    state.KeyboardFocusIndex = filteredIdx;
-                }
+                    state.KeyboardFocusIndex = filteredIdx;                }
             }
             else
             {
                 // Single-select mode enforces unified highlight and selection
                 state.SelectedFilteredIndices.Clear();
                 state.SelectedFilteredIndices.Add(filteredIdx);
-                state.KeyboardFocusIndex = filteredIdx;
-            }
+                state.KeyboardFocusIndex = filteredIdx;                }
         }
 
         // Right-click context menu.
@@ -244,3 +243,5 @@ internal static class PickerItemListHelper
             yield return (state.Filtered[i], i);
     }
 }
+
+

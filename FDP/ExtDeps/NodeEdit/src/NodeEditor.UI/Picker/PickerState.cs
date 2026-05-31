@@ -31,6 +31,7 @@ internal sealed class PickerState
     public HashSet<int> SelectedFilteredIndices = [];
     public HashSet<int> HighlightedIndices      = [];
     public int KeyboardFocusIndex;
+    public int SelectionAnchorIndex;
 
     // ── Wide layout sidebar ───────────────────────────────────────────────────
     public string SelectedCategory = "";
@@ -106,6 +107,7 @@ internal sealed class PickerState
         SelectedFilteredIndices = [];
         HighlightedIndices      = [];
         KeyboardFocusIndex      = 0;
+        SelectionAnchorIndex    = 0;
         SelectedCategory        = "";
         Confirmed               = false;
         FocusSearchNextFrame    = true;
