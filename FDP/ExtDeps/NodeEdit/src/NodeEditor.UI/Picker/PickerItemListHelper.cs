@@ -83,55 +83,139 @@ internal static class PickerItemListHelper
         }
     }
 
-    // ── private ──────────────────────────────────────────────────────────────
+    // private
 
     private static void DrawRow(PickerState state, IPickerRenderContext ctx, int filteredIdx, RankedEntry re)
     {
-        bool sel   = state.SelectedFilteredIndices.Contains(filteredIdx);
-        bool focus = state.KeyboardFocusIndex == filteredIdx;
+        bool isChecked = state.SelectedFilteredIndices.Contains(filteredIdx);
+        bool isFocused = state.KeyboardFocusIndex == filteredIdx;
+        bool isHighlighted = state.HighlightedIndices.Contains(filteredIdx) || (state.SelectionMode == PickerSelectionMode.Single && isChecked);
 
         ImGui.PushID(filteredIdx);
 
-        // Selection label — highlight matched characters when match positions available.
-        if (sel || focus)
-            ImGui.PushStyleColor(ImGuiCol.Header, ImGui.GetColorU32(ctx.Theme.SelectionAccent));
+        var pos = ImGui.GetCursorScreenPos();
+        var availWidth = ImGui.GetContentRegionAvail().X;
+        var size = new Vector2(availWidth, RowHeight - 4f);
 
-        bool clicked = ImGui.Selectable(re.Entry.Name, sel || focus,
-                          ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick,
-                          new Vector2(0f, RowHeight - 4f));
+        // Invisible selectable captures hit-tests without fighting visual layout
+        bool clicked = ImGui.Selectable("##sel", false,
+            ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick,
+            size);
 
-        if (sel || focus) ImGui.PopStyleColor();
+        var dl = ImGui.GetWindowDrawList();
+
+        // Highlight background (row span emphasis)
+        if (isHighlighted)
+            dl.AddRectFilled(pos, pos + size, ImGui.GetColorU32(ctx.Theme.SelectionAccent with { W = 0.35f }), 2f);
+
+        // Keyboard focus indicator
+        if (isFocused)
+            dl.AddRect(pos, pos + size, ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.5f }), 2f);
+
+        float textX = pos.X + 4f;
+
+        // Render multi-select checkbox [ ] / [x]
+        bool checkboxClicked = false;
+        if (state.SelectionMode != PickerSelectionMode.Single)
+        {
+            var cbSize = new Vector2(14f, 14f);
+            var cbPos = new Vector2(textX, pos.Y + (size.Y - cbSize.Y) * 0.5f);
+
+            dl.AddRect(cbPos, cbPos + cbSize, ImGui.GetColorU32(ctx.Theme.TextMuted), 2f);
+            if (isChecked)
+                dl.AddRectFilled(cbPos + new Vector2(3f, 3f), cbPos + new Vector2(11f, 11f), ImGui.GetColorU32(ctx.Theme.TextDefault), 1f);
+
+            // Strict geometric hit-test against the checkbox
+            var mouse = ImGui.GetMousePos();
+            if (clicked && mouse.X >= cbPos.X && mouse.X <= cbPos.X + cbSize.X && mouse.Y >= cbPos.Y && mouse.Y <= cbPos.Y + cbSize.Y)
+            {
+                checkboxClicked = true;
+            }
+
+            textX += 20f;
+        }
+
+        // Render display name with match highlights
+        float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
+        uint defaultTextColor = isHighlighted ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        uint highlightColor   = isHighlighted ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
+
+        if (re.MatchPositions is { Count: > 0 } matchSet)
+        {
+            var set = new HashSet<int>(matchSet);
+            for (int i = 0; i < re.Entry.Name.Length; i++)
+            {
+                var ch = re.Entry.Name[i].ToString();
+                var color = set.Contains(i) ? highlightColor : defaultTextColor;
+                dl.AddText(new Vector2(textX, textY), color, ch);
+                textX += ImGui.CalcTextSize(ch).X;
+            }
+        }
+        else
+        {
+            dl.AddText(new Vector2(textX, textY), defaultTextColor, re.Entry.Name);
+        }
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
-            state.Confirmed = true;
+            if (state.SelectionMode == PickerSelectionMode.Single)
+                state.Confirmed = true;
+            else
+            {
+                // Double-click in multi-select forces the item checked
+                if (!state.SelectedFilteredIndices.Contains(filteredIdx))
+                    state.SelectedFilteredIndices.Add(filteredIdx);
+            }
         }
 
+        // Apply mouse-click rules
         if (clicked)
         {
             bool ctrl  = ImGui.GetIO().KeyCtrl;
             bool shift = ImGui.GetIO().KeyShift;
 
-            if (ctrl)
+            if (state.SelectionMode != PickerSelectionMode.Single)
             {
-                if (!state.SelectedFilteredIndices.Remove(filteredIdx))
-                    state.SelectedFilteredIndices.Add(filteredIdx);
-            }
-            else if (shift && state.SelectedFilteredIndices.Count > 0)
-            {
-                int anchor = state.KeyboardFocusIndex;
-                int lo = Math.Min(anchor, filteredIdx);
-                int hi = Math.Max(anchor, filteredIdx);
-                for (int k = lo; k <= hi; k++)
-                    state.SelectedFilteredIndices.Add(k);
+                if (checkboxClicked)
+                {
+                    // Clicked exactly on the checkbox box -> toggle ONLY the checked state
+                    if (!state.SelectedFilteredIndices.Remove(filteredIdx))
+                        state.SelectedFilteredIndices.Add(filteredIdx);
+
+                    state.KeyboardFocusIndex = filteredIdx;
+                }
+                else
+                {
+                    // Clicked the row label -> update highlight/focus span
+                    if (ctrl)
+                    {
+                        if (!state.HighlightedIndices.Remove(filteredIdx))
+                            state.HighlightedIndices.Add(filteredIdx);
+                    }
+                    else if (shift && state.HighlightedIndices.Count > 0)
+                    {
+                        int anchor = state.KeyboardFocusIndex;
+                        int lo = Math.Min(anchor, filteredIdx);
+                        int hi = Math.Max(anchor, filteredIdx);
+                        state.HighlightedIndices.Clear();
+                        for (int k = lo; k <= hi; k++)
+                            state.HighlightedIndices.Add(k);
+                    }
+                    else
+                    {
+                        state.HighlightedIndices.Clear();
+                        state.HighlightedIndices.Add(filteredIdx);
+                    }
+                    state.KeyboardFocusIndex = filteredIdx;
+                }
             }
             else
             {
+                // Single-select mode enforces unified highlight and selection
                 state.SelectedFilteredIndices.Clear();
                 state.SelectedFilteredIndices.Add(filteredIdx);
+                state.KeyboardFocusIndex = filteredIdx;
             }
-
-            state.KeyboardFocusIndex = filteredIdx;
         }
 
         // Right-click context menu.
@@ -148,7 +232,7 @@ internal static class PickerItemListHelper
         }
 
         // Scroll-to when keyboard-focused.
-        if (focus && !sel)
+        if (isFocused)
             ImGui.SetScrollHereY(0.5f);
 
         ImGui.PopID();

@@ -1,4 +1,5 @@
 using NodeEditor.Core.Search;
+using NodeEditor.Core.Interfaces;
 
 namespace NodeEditor.UI.Picker;
 
@@ -11,6 +12,7 @@ internal sealed class PickerState
 {
     // ── Session identity ─────────────────────────────────────────────────────
     public string ContextKey = "";
+    public PickerSelectionMode SelectionMode = PickerSelectionMode.Single;
     public FavoritesStore Favorites = new();
     public RecentStore Recent = new();
 
@@ -27,6 +29,7 @@ internal sealed class PickerState
 
     // ── Selection ────────────────────────────────────────────────────────────
     public HashSet<int> SelectedFilteredIndices = [];
+    public HashSet<int> HighlightedIndices      = [];
     public int KeyboardFocusIndex;
 
     // ── Wide layout sidebar ───────────────────────────────────────────────────
@@ -92,14 +95,16 @@ internal sealed class PickerState
     }
 
     /// <summary>Reset all transient state for a new picker session.</summary>
-    public void Reset(string contextKey, string initialQuery)
+    public void Reset(string contextKey, string initialQuery, PickerSelectionMode mode)
     {
         ContextKey              = contextKey;
         SearchText              = initialQuery;
         LastQuery               = "\u0000";
+        SelectionMode           = mode;
         AllEntries              = [];
         Filtered                = [];
         SelectedFilteredIndices = [];
+        HighlightedIndices      = [];
         KeyboardFocusIndex      = 0;
         SelectedCategory        = "";
         Confirmed               = false;
