@@ -49,13 +49,29 @@ internal sealed class PickerState
 
         foreach (var entry in AllEntries)
         {
-            var result = FuzzyMatcher.Score(q, entry.Name, entry.Keywords);
+            // Architecturally critical: Project the full path to support VS-style deep hierarchy fuzzy matching
+            string fullPath = string.IsNullOrEmpty(entry.Category)
+                ? entry.Name
+                : $"{entry.Category}/{entry.Name}";
+
+            var result = FuzzyMatcher.Score(q, fullPath, entry.Keywords);
             if (!result.HasMatch) continue;
+
+            // Shift match positions from the full path coordinate space back to the Name's coordinate space.
+            // This prevents out-of-bounds exceptions and misalignment during UI highlight rendering.
+            int nameStartIndex = fullPath.Length - entry.Name.Length;
+            var adjustedPositions = new List<int>();
+
+            foreach (int pos in result.MatchPositions)
+            {
+                if (pos >= nameStartIndex)
+                    adjustedPositions.Add(pos - nameStartIndex);
+            }
 
             bool isFav = Favorites.IsStarred(ContextKey, entry.Id);
             bool isRec = Recent.IsRecent(ContextKey, entry.Id);
 
-            Filtered.Add(new RankedEntry(entry, result.Score, result.MatchPositions, isFav, isRec));
+            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec));
         }
 
         // Sort: favorites first, then recents, then by score desc, then name asc.

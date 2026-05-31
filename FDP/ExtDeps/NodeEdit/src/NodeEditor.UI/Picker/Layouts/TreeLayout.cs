@@ -51,11 +51,14 @@ internal static class TreeLayout
             }
         }
 
+        bool isSearching = !string.IsNullOrEmpty(state.SearchText);
+        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+
         foreach (var (root, items) in byRoot)
         {
-            if (ImGui.TreeNode(root))
+            if (ImGui.TreeNodeEx(root, flags))
             {
-                DrawGroupedItems(state, ctx, root, items);
+                DrawGroupedItems(state, ctx, root, items, isSearching);
                 ImGui.TreePop();
             }
         }
@@ -66,7 +69,8 @@ internal static class TreeLayout
 
     private static void DrawGroupedItems(PickerState state, IPickerRenderContext ctx,
         string parentCategoryPath,
-        List<(int idx, RankedEntry re)> items)
+        List<(int idx, RankedEntry re)> items,
+        bool isSearching)
     {
         var bySubRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
         var leaves = new List<(int idx, RankedEntry re)>();
@@ -97,12 +101,14 @@ internal static class TreeLayout
             }
         }
 
+        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+
         // 1. Draw sub-category folders recursively
         foreach (var (subRoot, subItems) in bySubRoot)
         {
-            if (ImGui.TreeNode(subRoot))
+            if (ImGui.TreeNodeEx(subRoot, flags))
             {
-                DrawGroupedItems(state, ctx, prefix + subRoot, subItems);
+                DrawGroupedItems(state, ctx, prefix + subRoot, subItems, isSearching);
                 ImGui.TreePop();
             }
         }
