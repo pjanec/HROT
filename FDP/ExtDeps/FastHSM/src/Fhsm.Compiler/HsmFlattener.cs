@@ -80,7 +80,7 @@ namespace Fhsm.Compiler
             }
         }
         
-        private static Dictionary<string, ushort> BuildActionTable(StateMachineGraph graph)
+        internal static Dictionary<string, ushort> BuildActionTable(StateMachineGraph graph)
         {
             // Collect all unique action names, assign IDs
             var actions = new HashSet<string>();
@@ -116,7 +116,7 @@ namespace Fhsm.Compiler
             return table;
         }
 
-        private static Dictionary<string, ushort> BuildGuardTable(StateMachineGraph graph)
+        internal static Dictionary<string, ushort> BuildGuardTable(StateMachineGraph graph)
         {
             // Similar to BuildActionTable but for guards
             var guards = new HashSet<string>();

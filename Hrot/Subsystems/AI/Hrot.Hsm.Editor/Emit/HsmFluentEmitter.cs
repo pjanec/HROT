@@ -281,6 +281,9 @@ public sealed class HsmFluentEmitter : IFluentCSharpEmitter<HsmAsset>
         if (s.OnExitAction   != null) parts.Add($".OnExit({QuoteStr(s.OnExitAction)})");
         if (s.ActivityAction != null) parts.Add($".Activity({QuoteStr(s.ActivityAction)})");
         if (s.TimerAction    != null) parts.Add($".TimerAction({QuoteStr(s.TimerAction)})");
+        // BPF-022: emit deferred-event declarations in ascending ID order.
+        foreach (var eventId in s.DeferredEventIds.OrderBy(id => id))
+            parts.Add($".DeferEvent({eventId})");
         return parts;
     }
 

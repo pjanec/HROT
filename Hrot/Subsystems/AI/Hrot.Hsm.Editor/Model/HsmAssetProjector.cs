@@ -85,49 +85,26 @@ internal static class HsmAssetProjector
             parentNode.Children.Add(stateNodes[i]);
         }
 
-        // Apply StableIds from layout or mint fresh ones
+        // BPF-025: assign StableIds from metadata (content-based, keyed by FlatIndex),
+        // then apply layout data using each state's resolved StableId as the lookup key.
+        for (int i = 0; i < stateNodes.Length; i++)
+        {
+            if (!metadata.StateStableIds.TryGetValue((ushort)i, out var sid) || sid == Guid.Empty)
+                sid = Guid.NewGuid(); // fallback for states not in metadata
+            stateNodes[i].StableId = sid;
+        }
+
         if (layout != null)
         {
-            // The layout stores StableIds as dict keys.
-            // We need to match by flat index via name since layout keys are Guids.
-            // For now: try to find a state in the layout by matching every stored Guid
-            // to a state by flat index using the metadata name mapping.
-            // Simple approach: assign StableIds from layout if the count matches (positional).
-            // The layout maps Guid -> StateLayoutEntry; we need to map FlatIndex -> Guid.
-            // Since we don't have that reverse mapping here, we store all layout Guids
-            // and assign to states sequentially if counts match. This is a stub;
-            // the full HsmEditorLayoutBuilder records state stable IDs by Guid key.
-            // When HsmEditorLayoutBuilder.State(stableIdString, ...) is called,
-            // it stores [Guid -> StateLayoutEntry]. We'll look up by matching the GUID
-            // stored in the layout to a state's mint GUID.
-            // Real approach: use a name->stableId mapping passed from the layout method.
-            // For now: for each state, if the layout has an entry, apply position/size/comment.
-            foreach (var (stableId, entry) in layout.States)
+            // Apply layout positions and visual properties to each state by its StableId.
+            foreach (var sn in stateNodes)
             {
-                // This state's StableId is the key; find or apply to a matching state.
-                // We do an O(n) scan to find if any existing stateNode's current StableId matches.
-                // Since StableIds are freshly minted (Guid.NewGuid()), no match is expected yet.
-                // The correct implementation assigns StableId from layout before minting.
-                // For this batch, we apply positions to states by array order if the
-                // layout entry count matches the state count (simple heuristic).
-                // TODO: full round-trip via HsmFluentEmitter (HS-S1-05)
-            }
-
-            // Apply layout positions in order of layout.States (sorted by Guid key)
-            // to states in flat-index order. Not ideal but serviceable for initial support.
-            // Full round-trip via HsmFluentEmitter (HS-S1-05) will fix ordering.
-            var layoutStateKeys = new List<Guid>(layout.States.Keys);
-            layoutStateKeys.Sort();
-            for (int i = 0; i < Math.Min(layoutStateKeys.Count, stateNodes.Length); i++)
-            {
-                var key = layoutStateKeys[i];
-                var entry = layout.States[key];
-                stateNodes[i].StableId = key;
-                stateNodes[i].Position = entry.Position;
-                if (entry.SizeOverride.HasValue) stateNodes[i].SizeOverride = entry.SizeOverride.Value;
-                stateNodes[i].Comment = entry.Comment;
-                stateNodes[i].IsCollapsed = entry.Collapsed;
-                stateNodes[i].ColorOverride = entry.Color;
+                if (!layout.States.TryGetValue(sn.StableId, out var entry)) continue;
+                sn.Position   = entry.Position;
+                if (entry.SizeOverride.HasValue) sn.SizeOverride = entry.SizeOverride.Value;
+                sn.Comment     = entry.Comment;
+                sn.IsCollapsed = entry.Collapsed;
+                sn.ColorOverride = entry.Color;
             }
         }
 

@@ -24,6 +24,10 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     private HsmInstanceSnapshot? _currentSnapshot;
     private ushort _lastReadPos;
 
+    // BPF-023: metadata used to symbolicate ActiveLeafIds -> StableIds.
+    private MachineMetadata? _metadata;
+    private Guid             _metadataAssetId;
+
     private enum StepMode { None, Over, Into, Out }
     private StepMode _stepMode = StepMode.None;
     private byte _stepFromMicroStep;
@@ -39,6 +43,13 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     public event Action<HsmTimerEvent>?     OnTimerEvent;
 
     public HsmDebugSession(AiTracerCoordinator? coordinator = null) : base(coordinator) { }
+
+    // BPF-023: store metadata so Update() can symbolicate ActiveLeafIds.
+    public void SetMetadata(Guid assetId, MachineMetadata? metadata)
+    {
+        _metadataAssetId = assetId;
+        _metadata        = metadata;
+    }
 
     // ---- IHsmDebugSession ------------------------------------------------
 
@@ -80,8 +91,8 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         {
             ref readonly var comp = ref repo.GetComponentRO<BrainHsm64>(entity);
             snap = new HsmInstanceSnapshot(
-                entity, Guid.Empty,
-                Array.Empty<Guid>(),
+                entity, _metadataAssetId,
+                DecodeLeaves64(comp.State, 2),
                 Array.Empty<HsmEventQueueEntry>(),
                 Array.Empty<HsmTimerSlot>(),
                 Array.Empty<HsmHistorySlot>(),
@@ -96,8 +107,8 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         {
             ref readonly var comp = ref repo.GetComponentRO<BrainHsm128>(entity);
             snap = new HsmInstanceSnapshot(
-                entity, Guid.Empty,
-                Array.Empty<Guid>(),
+                entity, _metadataAssetId,
+                DecodeLeaves128(comp.State, 4),
                 Array.Empty<HsmEventQueueEntry>(),
                 Array.Empty<HsmTimerSlot>(),
                 Array.Empty<HsmHistorySlot>(),
@@ -109,6 +120,24 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
                 comp.State.Header.Generation);
         }
         _currentSnapshot = snap;
+
+        // BPF-024: StepOut/StepOver depend only on snapshot phase/microstep, not on trace.
+        // Evaluate them here, before the trace-guard return.
+        if (_stepMode is StepMode.Over or StepMode.Out && _currentSnapshot is not null)
+        {
+            bool shouldPause = _stepMode switch
+            {
+                StepMode.Over => _currentSnapshot.MicroStep != _stepFromMicroStep,
+                // BPF-024: StepOut waits until the instance re-enters Activity phase.
+                StepMode.Out  => _currentSnapshot.Phase == InstancePhase.Activity,
+                _             => false
+            };
+            if (shouldPause)
+            {
+                _stepMode = StepMode.None;
+                Coordinator.RequestPause();
+            }
+        }
 
         // === Trace polling ===
         if (!repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
@@ -149,21 +178,11 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         }
         _lastReadPos = trace.WritePos;
 
-        // Step-mode auto-pause evaluation
-        if (_stepMode != StepMode.None && _currentSnapshot is not null)
+        // StepInto pause: requires a trace event (node entry or transition) to have occurred.
+        if (_stepMode == StepMode.Into && _nodeProcessedSinceStep)
         {
-            bool shouldPause = _stepMode switch
-            {
-                StepMode.Over => _currentSnapshot.MicroStep != _stepFromMicroStep,
-                StepMode.Into => _nodeProcessedSinceStep,
-                StepMode.Out  => _currentSnapshot.MicroStep != _stepFromMicroStep,
-                _             => false
-            };
-            if (shouldPause)
-            {
-                _stepMode = StepMode.None;
-                Coordinator.RequestPause();
-            }
+            _stepMode = StepMode.None;
+            Coordinator.RequestPause();
         }
     }
 
@@ -251,5 +270,33 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         _history.Clear();
         _stateEntryCounts.Clear();
         _heatmapModeActive      = false;
+    }
+
+    // ---- BPF-023: active-leaf decode helpers -----------------------------
+
+    private unsafe IReadOnlyList<Guid> DecodeLeaves64(HsmInstance64 state, int slotCount)
+    {
+        var result = new List<Guid>(slotCount);
+        for (int i = 0; i < slotCount; i++)
+        {
+            ushort id = state.ActiveLeafIds[i];
+            if (id == 0xFFFF) continue;
+            if (_metadata != null && _metadata.StateStableIds.TryGetValue(id, out var sid))
+                result.Add(sid);
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<Guid> DecodeLeaves128(HsmInstance128 state, int slotCount)
+    {
+        var result = new List<Guid>(slotCount);
+        for (int i = 0; i < slotCount; i++)
+        {
+            ushort id = state.ActiveLeafIds[i];
+            if (id == 0xFFFF) continue;
+            if (_metadata != null && _metadata.StateStableIds.TryGetValue(id, out var sid))
+                result.Add(sid);
+        }
+        return result;
     }
 }

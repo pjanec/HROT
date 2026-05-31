@@ -155,4 +155,43 @@ public class HsmFluentEmitterTests
 
         code.Should().Contain(".Final()");
     }
+
+    // ---- BPF-022: DeferEvent emission -----------------------------------
+
+    [Fact]
+    public void Emit_contains_DeferEvent_calls_for_each_deferred_id()
+    {
+        var builder = new HsmBuilder("M");
+        builder.Event("Tick",  1);
+        builder.Event("Fire",  2);
+        builder.State("Idle").Initial();
+        var asset = BuildAndProject(builder);
+
+        // Manually populate DeferredEventIds on the "Idle" state (projector
+        // does not populate this yet; emitter must emit what is present).
+        var idle = asset.AllStates.First(s => s.Name == "Idle");
+        idle.DeferredEventIds.Add(2);
+        idle.DeferredEventIds.Add(1);
+
+        string code = EmitAsset(asset);
+
+        // Both IDs must appear, in ascending order.
+        code.Should().Contain(".DeferEvent(1)");
+        code.Should().Contain(".DeferEvent(2)");
+        var idx1 = code.IndexOf(".DeferEvent(1)", StringComparison.Ordinal);
+        var idx2 = code.IndexOf(".DeferEvent(2)", StringComparison.Ordinal);
+        idx1.Should().BeLessThan(idx2, "lower event ID must be emitted first");
+    }
+
+    [Fact]
+    public void Emit_omits_DeferEvent_when_no_deferred_ids()
+    {
+        var builder = new HsmBuilder("M");
+        builder.State("Idle").Initial();
+        var asset = BuildAndProject(builder);
+
+        string code = EmitAsset(asset);
+
+        code.Should().NotContain(".DeferEvent(");
+    }
 }

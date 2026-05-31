@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
+using System.Numerics;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
+using Hrot.Editor.AiShared.Layout;
 using Hrot.Hsm.Editor.Model;
 using Xunit;
 
@@ -234,5 +236,101 @@ public class HsmAssetProjectionTests
         asset.AllEvents[0].Name.Should().Be("Trigger1");
         asset.AllEvents[1].EventId.Should().Be(2);
         asset.AllEvents[1].Name.Should().Be("Trigger2");
+    }
+
+    // ---- BPF-017: ActionNames keyed by hash ID ---------------------------
+
+    [Fact]
+    public void BuildMachineMetadata_ActionNames_KeyedByHashId_MatchingBlobActionId()
+    {
+        // Arrange: one state with a known entry action
+        var builder = new HsmBuilder("ActionMachine");
+        builder.State("Idle").Initial().OnEntry("AttackAction");
+        var graph    = builder.Build();
+        HsmNormalizer.Normalize(graph);
+        var flatData = HsmFlattener.Flatten(graph);
+        var blob     = HsmEmitter.Emit(flatData);
+        var metadata = HsmEmitter.BuildMachineMetadata(graph);
+
+        // Find the state in the blob that has a non-empty OnEntryActionId
+        ushort actionHashId = 0xFFFF;
+        foreach (var s in blob.States)
+        {
+            if (s.OnEntryActionId != 0xFFFF) { actionHashId = s.OnEntryActionId; break; }
+        }
+        actionHashId.Should().NotBe((ushort)0xFFFF, "at least one state must have an entry action");
+
+        // Assert: ActionNames must map that hash ID to the original action name.
+        metadata.ActionNames.Should().ContainKey(actionHashId);
+        metadata.ActionNames[actionHashId].Should().Be("AttackAction");
+    }
+
+    [Fact]
+    public void BuildMachineMetadata_ActionNames_MultipleActions_AllKeyedByHashId()
+    {
+        var builder = new HsmBuilder("MultiActionMachine");
+        builder.State("Idle").Initial().OnEntry("OnEnterIdle").OnExit("OnExitIdle");
+        builder.State("Active").OnEntry("OnEnterActive");
+        var graph    = builder.Build();
+        HsmNormalizer.Normalize(graph);
+        var flatData = HsmFlattener.Flatten(graph);
+        var blob     = HsmEmitter.Emit(flatData);
+        var metadata = HsmEmitter.BuildMachineMetadata(graph);
+
+        // Every action name must be resolvable via GetActionName using the blob's stored ID.
+        foreach (var state in blob.States.ToArray())
+        {
+            if (state.OnEntryActionId != 0xFFFF)
+                metadata.GetActionName(state.OnEntryActionId)
+                    .Should().NotStartWith("Action_",
+                    "GetActionName should return the real name, not Action_<id>");
+            if (state.OnExitActionId != 0xFFFF)
+                metadata.GetActionName(state.OnExitActionId)
+                    .Should().NotStartWith("Action_");
+        }
+    }
+
+    // ---- BPF-025: StableIds assigned from metadata, not positional -------
+
+    [Fact]
+    public void Project_state_StableIds_come_from_metadata_not_layout_position()
+    {
+        var idleId = new Guid("a0000000-0000-0000-0000-000000000001");
+        var busyId = new Guid("a0000000-0000-0000-0000-000000000002");
+        var doneId = new Guid("a0000000-0000-0000-0000-000000000003");
+
+        var builder = new HsmBuilder("StableMachine");
+        builder.State("Idle", idleId).Initial();
+        builder.State("Busy", busyId);
+        builder.State("Done", doneId).Final();
+        var (blob, metadata) = Compile(builder);
+        var asset = Project(blob, metadata);
+
+        asset.AllStates.First(s => s.Name == "Idle").StableId.Should().Be(idleId);
+        asset.AllStates.First(s => s.Name == "Busy").StableId.Should().Be(busyId);
+        asset.AllStates.First(s => s.Name == "Done").StableId.Should().Be(doneId);
+    }
+
+    [Fact]
+    public void Project_layout_applied_by_StableId_not_flat_position()
+    {
+        var idleId = new Guid("b0000000-0000-0000-0000-000000000001");
+        var busyId = new Guid("b0000000-0000-0000-0000-000000000002");
+
+        var builder = new HsmBuilder("LayoutMachine");
+        builder.State("Idle", idleId).Initial();
+        builder.State("Busy", busyId);
+        var (blob, metadata) = Compile(builder);
+
+        var layout = new HsmEditorLayoutBuilder()
+            .State(idleId.ToString("D"), new Vector2(100f, 200f))
+            .State(busyId.ToString("D"), new Vector2(300f, 400f))
+            .Build();
+
+        var asset = HsmAssetProjector.Project(blob, metadata, layout,
+            Guid.NewGuid(), "LayoutMachine", "", false, "");
+
+        asset.AllStates.First(s => s.Name == "Idle").Position.Should().Be(new Vector2(100f, 200f));
+        asset.AllStates.First(s => s.Name == "Busy").Position.Should().Be(new Vector2(300f, 400f));
     }
 }

@@ -109,8 +109,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                     {
                         if (!_isPaused)
                             HandleBreakpointHit(self, bp, nodeId);
+                        else
+                            IncrementHitCountOnly(bp); // paused already: accumulate but no re-pause
                     }
-                    // Second hit in same tick: silently skip (per-frame dedup).
+                    else
+                    {
+                        // Same-tick dedup: accumulate HitCount across entities (design §9.2).
+                        IncrementHitCountOnly(bp);
+                    }
                 }
             }
         }
@@ -609,6 +615,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void OnNewTick() => _firedBreakpointsThisTick.Clear();
 
     // ---- Private helpers ----------------------------------------------------
+
+    // BPF-003: increments HitCount without triggering a new pause (same-tick dedup path).
+    private void IncrementHitCountOnly(Breakpoint bp)
+    {
+        if (bp.Id.Value == 0 || !_breakpoints.ContainsKey(bp.Id)) return;
+        var updated = bp with { HitCount = bp.HitCount + 1 };
+        _breakpoints[bp.Id]        = updated;
+        _bpByNodeString[bp.NodeId] = updated;
+    }
 
     private void HandleBreakpointHit(Entity self, Breakpoint bp, string nodeId)
     {

@@ -373,4 +373,132 @@ public sealed class HsmDebugSessionTests
 
         sut.GetRecentTraceHistory(10).Should().HaveCount(3);
     }
+
+    // ---- BPF-023: active-state decoding ----------------------------------
+
+    [Fact]
+    public unsafe void Update_WithBrainHsm64_ActiveLeafIds_DecodedViaMetadata()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase     = InstancePhase.Activity;
+        brain.State.ActiveLeafIds[0] = 1;
+        brain.State.ActiveLeafIds[1] = 2;
+        world.AddComponent(entity, brain);
+
+        var stableA = new Guid("aa000000-0000-0000-0000-000000000001");
+        var stableB = new Guid("bb000000-0000-0000-0000-000000000002");
+        var assetId = new Guid("cc000000-0000-0000-0000-000000000001");
+
+        var metadata = new MachineMetadata();
+        metadata.StateStableIds[1] = stableA;
+        metadata.StateStableIds[2] = stableB;
+
+        var sut = new HsmDebugSession();
+        sut.SetMetadata(assetId, metadata);
+        sut.Update(world, entity);
+
+        var snap = sut.GetCurrentStateSnapshot();
+        snap.Should().NotBeNull();
+        snap!.AssetId.Should().Be(assetId);
+        snap.ActiveLeafStableIds.Should().HaveCount(2);
+        snap.ActiveLeafStableIds.Should().Contain(stableA);
+        snap.ActiveLeafStableIds.Should().Contain(stableB);
+    }
+
+    [Fact]
+    public unsafe void Update_WithBrainHsm64_Slot0xFFFF_NotIncludedInActiveLeaves()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase     = InstancePhase.Activity;
+        brain.State.ActiveLeafIds[0] = 5;
+        brain.State.ActiveLeafIds[1] = 0xFFFF; // empty slot
+        world.AddComponent(entity, brain);
+
+        var stableA  = new Guid("dd000000-0000-0000-0000-000000000005");
+        var metadata = new MachineMetadata();
+        metadata.StateStableIds[5] = stableA;
+
+        var sut = new HsmDebugSession();
+        sut.SetMetadata(Guid.NewGuid(), metadata);
+        sut.Update(world, entity);
+
+        var snap = sut.GetCurrentStateSnapshot();
+        snap!.ActiveLeafStableIds.Should().HaveCount(1);
+        snap.ActiveLeafStableIds[0].Should().Be(stableA);
+    }
+
+    // ---- BPF-024: StepOut uses Activity-phase predicate ------------------
+
+    [Fact]
+    public unsafe void StepOut_does_not_pause_while_in_Entry_phase()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Entry;
+        world.AddComponent(entity, brain);
+
+        var spy = new SpyCoordinator();
+        var sut = new HsmDebugSession(spy);
+        sut.StepOut();
+        sut.Update(world, entity);
+
+        // Still in Entry phase -- StepOut must NOT request a pause yet.
+        spy.PauseRequested.Should().BeFalse();
+    }
+
+    [Fact]
+    public unsafe void StepOut_pauses_when_Activity_phase_reached()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase = InstancePhase.Activity;
+        world.AddComponent(entity, brain);
+
+        var spy = new SpyCoordinator();
+        var sut = new HsmDebugSession(spy);
+        sut.StepOut();
+        sut.Update(world, entity);
+
+        spy.PauseRequested.Should().BeTrue();
+    }
+
+    [Fact]
+    public unsafe void StepOver_pauses_when_MicroStep_changes()
+    {
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+
+        var brain = new BrainHsm64();
+        brain.State.Header.Phase     = InstancePhase.Entry;
+        brain.State.Header.MicroStep = 1;
+        world.AddComponent(entity, brain);
+
+        var spy = new SpyCoordinator();
+        var sut = new HsmDebugSession(spy);
+        sut.StepOver(); // captures MicroStep=1
+
+        brain.State.Header.MicroStep = 2;
+        world.SetComponent(entity, brain);
+        sut.Update(world, entity);
+
+        spy.PauseRequested.Should().BeTrue();
+    }
+}
+
+file sealed class SpyCoordinator : AiTracerCoordinator
+{
+    public bool PauseRequested;
+    public override void RequestStepOneTick() { }
+    public override void RequestPause()       => PauseRequested = true;
+    public override void RequestContinue()    { }
 }

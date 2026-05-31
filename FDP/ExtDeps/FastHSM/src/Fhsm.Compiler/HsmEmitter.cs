@@ -33,16 +33,17 @@ namespace Fhsm.Compiler
                 meta.EventNames[kvp.Value] = kvp.Key;
             }
 
-            // Action names: graph.RegisteredActions is just the set of names without
-            // stable IDs. The action-to-ID mapping is built inside HsmFlattener
-            // (BuildActionTable). We rebuild a parallel ordering here.
-            // NOTE: this is best-effort. A future change could expose the action
-            // table from Flatten() and use that directly.
-            ushort actionIdx = 0;
-            foreach (var actionName in graph.RegisteredActions.OrderBy(n => n, StringComparer.Ordinal))
-            {
-                meta.ActionNames[actionIdx++] = actionName;
-            }
+            // Action names: use the same hash IDs that HsmFlattener assigns so
+            // that MachineMetadata.ActionNames[hashId] resolves correctly at runtime.
+            var actionTable = HsmFlattener.BuildActionTable(graph);
+            foreach (var (name, hashId) in actionTable)
+                meta.ActionNames[hashId] = name;
+
+            // Guard names share the same ActionNames dictionary (guards are looked
+            // up by their hash ID via MachineMetadata.GetActionName).
+            var guardTable = HsmFlattener.BuildGuardTable(graph);
+            foreach (var (name, hashId) in guardTable)
+                meta.ActionNames[hashId] = name;
 
             // Transition VisualIds: must match HsmFlattener order (states sorted by FlatIndex,
             // then state transitions, then global transitions appended at the end).

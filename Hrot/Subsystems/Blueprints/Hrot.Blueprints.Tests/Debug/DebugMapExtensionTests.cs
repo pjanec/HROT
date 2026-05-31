@@ -1,9 +1,11 @@
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Debug;
+using System.Runtime.CompilerServices;
 
 namespace Hrot.Blueprints.Tests.Debug;
 
@@ -385,9 +387,11 @@ public sealed class BreakpointHashSafetyTests
         Assert.Equal(1, pauseCount);
         Assert.True(session.IsPaused);
 
-        // Same tick, E2 hits while paused -- no new pause (dedup + already paused).
+        // Same tick, E2 hits while paused -- no new pause (dedup + already paused),
+        // but HitCount must still accumulate (BPF-003 / CORR-02-2).
         ((IBlueprintProbeSink)session).OnNodeEnter(E2, nodeIdStr);
         Assert.Equal(1, pauseCount);
+        Assert.Equal(2, session.GetBreakpoints()[0].HitCount);
 
         // Advance tick and call OnNewTick to reset dedup set, then continue.
         session.Continue();
@@ -664,5 +668,111 @@ public sealed class StateSnapshotTests
         Assert.NotNull(snap);
         // AssetName should be Guid fallback string when nothing is registered.
         Assert.Equal(AssetIdA.ToString("D"), snap!.AssetName);
+    }
+
+    // ---- CORR-02-1: AiPrimitive field values from Blackboard1024 (BPF-001 §8.6) --
+
+    [Fact]
+    public unsafe void GetCurrentStateSnapshot_AiPrimitive_ReturnsFieldValue_WhenHashMatches()
+    {
+        const ulong StructureHash = 0xDEAD_BEEF_CAFE_1234UL;
+        const float Speed         = 3.14f;
+
+        var def = new BlueprintDefinition
+        {
+            Name          = "TestPrimitive",
+            Kind          = BlueprintDispatchKind.AiPrimitive,
+            StructureHash = StructureHash,
+            StateSize     = 4,
+            StateFields   = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal)
+            {
+                ["Speed"] = new BlueprintFieldDescriptor("Speed", typeof(float), 0, 4, ""),
+            },
+        };
+        var reg  = new BlueprintRegistry();
+        reg.RegisterAiPrimitive(BlueprintIdHash.Compute(AssetIdA), def);
+
+        var view    = new BlackboardStubSimulationView(StructureHash, Speed);
+        var session = MakeSession(reg, view);
+        session.SetBreakpoint(AssetIdA, GraphId1, NodeId1);
+        ((IBlueprintProbeSink)session).OnNodeEnter(E1, NodeId1.ToString("D"));
+
+        var snap = session.GetCurrentStateSnapshot();
+
+        Assert.NotNull(snap);
+        Assert.Equal(BlueprintDispatchKind.AiPrimitive, snap!.Dispatch);
+        Assert.True(snap.FieldValues.ContainsKey("Speed"), "FieldValues must contain 'Speed'");
+        Assert.Equal(Speed, (float)snap.FieldValues["Speed"]);
+    }
+
+    [Fact]
+    public unsafe void GetCurrentStateSnapshot_AiPrimitive_ReturnsEmptyFields_WhenHashMismatches()
+    {
+        const ulong DefinitionHash = 0xAAAA_BBBB_CCCC_DDDDUL;
+        const ulong BlackboardHash = 0x1111_2222_3333_4444UL; // different hash
+        const float Speed          = 9.99f;
+
+        var def = new BlueprintDefinition
+        {
+            Name          = "TestPrimitive",
+            Kind          = BlueprintDispatchKind.AiPrimitive,
+            StructureHash = DefinitionHash,
+            StateSize     = 4,
+            StateFields   = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal)
+            {
+                ["Speed"] = new BlueprintFieldDescriptor("Speed", typeof(float), 0, 4, ""),
+            },
+        };
+        var reg  = new BlueprintRegistry();
+        reg.RegisterAiPrimitive(BlueprintIdHash.Compute(AssetIdA), def);
+
+        var view    = new BlackboardStubSimulationView(BlackboardHash, Speed);
+        var session = MakeSession(reg, view);
+        session.SetBreakpoint(AssetIdA, GraphId1, NodeId1);
+        ((IBlueprintProbeSink)session).OnNodeEnter(E1, NodeId1.ToString("D"));
+
+        var snap = session.GetCurrentStateSnapshot();
+
+        Assert.NotNull(snap);
+        Assert.Equal(BlueprintDispatchKind.AiPrimitive, snap!.Dispatch);
+        Assert.Empty(snap.FieldValues);
+    }
+
+    private static BlueprintDebugSession MakeSession(BlueprintRegistry reg, ISimulationView view)
+        => new BlueprintDebugSession(reg, view, new MockTimeController());
+
+    // Provides a Blackboard1024 with the supplied structure hash in bytes 0-7
+    // and a float Speed value in bytes 8-11.
+    private sealed unsafe class BlackboardStubSimulationView : ISimulationView
+    {
+        private Blackboard1024 _bb;
+
+        public BlackboardStubSimulationView(ulong structureHash, float speed)
+        {
+            fixed (Blackboard1024* p = &_bb)
+            {
+                byte* bytes = (byte*)p;
+                *(ulong*)bytes         = structureHash;
+                *(float*)(bytes + 8)   = speed;
+            }
+        }
+
+        public uint  Tick => 0;
+        public float Time => 0f;
+        public bool  IsAlive(Entity e)         => true;
+        public bool  HasComponent<T>(Entity e)        where T : unmanaged => typeof(T) == typeof(Blackboard1024);
+        public bool  HasManagedComponent<T>(Entity e) where T : class     => false;
+        public ref readonly T GetComponentRO<T>(Entity e) where T : unmanaged
+        {
+            if (typeof(T) == typeof(Blackboard1024))
+                return ref Unsafe.As<Blackboard1024, T>(ref _bb);
+            throw new NotImplementedException();
+        }
+        public T GetManagedComponentRO<T>(Entity e) where T : class
+            => throw new NotImplementedException();
+        public ReadOnlySpan<T>    ReadEvents<T>()        where T : unmanaged => ReadOnlySpan<T>.Empty;
+        public QueryBuilder       Query()                                    => throw new NotImplementedException();
+        public IReadOnlyList<T>   ReadManagedEvents<T>()                     => Array.Empty<T>();
+        public IEntityCommandBuffer GetCommandBuffer()                       => throw new NotImplementedException();
     }
 }
