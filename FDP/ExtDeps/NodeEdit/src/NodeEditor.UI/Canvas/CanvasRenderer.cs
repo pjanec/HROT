@@ -4,8 +4,10 @@ using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Canvas;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Find;
+using NodeEditor.UI.Panels;
 using NodeEditor.UI.Util;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
@@ -44,6 +46,8 @@ public sealed class CanvasRenderer
     private bool         _spatialDirty          = true;
     private int          _lastDragOverrideCount = -1;
     private Vector2      _contextMenuGraphPos;
+    private string? _pendingVariableDropId;
+    private Vector2 _pendingVariableDropPos;
 
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
@@ -105,6 +109,35 @@ public sealed class CanvasRenderer
         ImGui.SetNextItemAllowOverlap();
         ImGui.InvisibleButton("##canvas_bg", size);
         bool isCanvasBgActive = ImGui.IsItemActive();
+        if (ImGui.BeginDragDropTarget())
+        {
+            var payload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.Variable);
+            unsafe
+            {
+                if (payload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var varId = MyBlueprintDragSource.CurrentItemId;
+                    var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+                    var mods = view.Host.Input.Modifiers;
+
+                    if (mods.HasFlag(KeyModifiers.Ctrl))
+                    {
+                        PlaceVariableNode(view, varId, dropPos, isGet: true);
+                    }
+                    else if (mods.HasFlag(KeyModifiers.Alt))
+                    {
+                        PlaceVariableNode(view, varId, dropPos, isGet: false);
+                    }
+                    else
+                    {
+                        _pendingVariableDropId = varId;
+                        _pendingVariableDropPos = dropPos;
+                        ImGui.OpenPopup("##canvas_drop_var");
+                    }
+                }
+            }
+            ImGui.EndDragDropTarget();
+        }
         bool isCanvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
         bool isCanvasDirectlyFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.None);
 
@@ -214,7 +247,37 @@ public sealed class CanvasRenderer
             DrawContextMenu(view);
             ImGui.EndPopup();
         }
+
+        if (ImGui.BeginPopup("##canvas_drop_var"))
+        {
+            ImGui.TextDisabled("Variable Action");
+            ImGui.Separator();
+            if (ImGui.MenuItem("Get"))
+            {
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropPos, isGet: true);
+                _pendingVariableDropId = null;
+            }
+            if (ImGui.MenuItem("Set"))
+            {
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropPos, isGet: false);
+                _pendingVariableDropId = null;
+            }
+            ImGui.EndPopup();
+        }
+        else
+        {
+            _pendingVariableDropId = null;
+        }
         ImGui.PopStyleVar();
+    }
+
+    private void PlaceVariableNode(GraphView view, string variableId, Vector2 graphPos, bool isGet)
+    {
+        var kind = new NodeKindKey(isGet ? "Util.GetVar" : "Util.SetVar");
+        var props = new Dictionary<string, object?> { ["VariableId"] = variableId };
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, graphPos, props);
+        view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
     }
 
     // Invokes active custom renderers for the given pass, in registration order.
