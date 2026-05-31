@@ -87,6 +87,29 @@ public sealed class FakeCommandSink : IGraphCommandSink
 
             case GraphCommand.AddLink link:
                 _graph.AddLink(link.AssignedId, link.From, link.To);
+
+                // --- S20 Wildcard Resolution Mock ---
+                if (_graph.FindPin(link.To) is FakePinModel toPin &&
+                    _graph.FindPin(link.From) is FakePinModel fromPin &&
+                    toPin.Type?.Id == "T")
+                {
+                    if (_graph.FindNode(toPin.OwnerNodeId) is FakeNodeModel macroNode &&
+                        macroNode.Kind.Id == "Macro.Call")
+                    {
+                        // 1. Resolve all generic <T> pins on this node to the incoming wire's type
+                        foreach (var p in macroNode.Pins.OfType<FakePinModel>())
+                        {
+                            if (p.Type?.Id == "T")
+                                p.Type = fromPin.Type;
+                        }
+
+                        // 2. Visually update the macro header to show resolution
+                        var typeName = fromPin.Type?.Id.Split('.').Last() ?? "Unknown";
+                        macroNode.Title = macroNode.Title.Replace("<T>", $"<{typeName}>");
+                    }
+                }
+                // ------------------------------------
+
                 _graph.NotifyChanged(GraphChangeKind.LinksAdded);
                 return new GraphCommandResult(true, null);
 
@@ -218,6 +241,23 @@ public sealed class FakeCommandSink : IGraphCommandSink
             node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
             // S18 specific return: -> float
             node.AddPin("Result", PinDirection.Input, PinKind.Data, new TypeKey("System.Single"));
+            return;
+        }
+        else if (add.Kind.Id == "Macro.Call")
+        {
+            node.Category = NodeCategory.Macro;
+            if (add.InitialProperties != null && add.InitialProperties.TryGetValue("MacroName", out var mName))
+                node.Title = $"{mName} <T>";
+
+            node.AddPin("In", PinDirection.Input, PinKind.Exec, null, PinShape.Triangle);
+            // Generic wildcard array input (Type="T")
+            node.AddPin("Array", PinDirection.Input, PinKind.Data, new TypeKey("T"), PinShape.Diamond);
+
+            node.AddPin("Loop Body", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
+            // Generic wildcard item output (Type="T")
+            node.AddPin("Item", PinDirection.Output, PinKind.Data, new TypeKey("T"), PinShape.Circle);
+            node.AddPin("Index", PinDirection.Output, PinKind.Data, new TypeKey("System.Int32"), PinShape.Circle);
+            node.AddPin("Completed", PinDirection.Output, PinKind.Exec, null, PinShape.Triangle);
             return;
         }
 
