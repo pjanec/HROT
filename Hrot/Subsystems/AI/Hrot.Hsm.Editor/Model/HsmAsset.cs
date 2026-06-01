@@ -583,6 +583,8 @@ public sealed class StateNode : IContainerNodeModel
 
     public Vector2 MinimumInteriorSize =>
         IsParallel ? new Vector2(280f, 120f) : new Vector2(200f, 80f);
+
+	public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
 }
 
 // Editor-side representation of a transition between two states.
