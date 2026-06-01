@@ -2,7 +2,7 @@
   "mcpServers": {
     "codebase-memory-mcp": {
       "type": "stdio",
-      "command": "c:\\Users\\pjane\\.vscode\\extensions\\tunakite03.codebase-memory-mcp-0.5.22\\bin\\win32-x64\\codebase-memory-mcp.exe",
+      "command": "c:\\Users\\petr.janecek\\.vscode\\extensions\\tunakite03.codebase-memory-mcp-0.5.22\\bin\\win32-x64\\codebase-memory-mcp.exe",
       "args": []
     }
   }

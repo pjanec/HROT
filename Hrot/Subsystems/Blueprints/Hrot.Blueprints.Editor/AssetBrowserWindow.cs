@@ -71,7 +71,30 @@ public sealed class AssetBrowserWindow : BlueprintEditorWindowBase
                     if (ImGui.IsMouseDoubleClicked(0))
                     {
                         var asset = _editorState.GetInMemoryAsset(entry.AssetId);
-                        if (asset != null) _selectionStore.SelectAsset(asset);
+                        if (asset == null)
+                        {
+                            try
+                            {
+                                string json = File.ReadAllText(entry.Path);
+                                asset = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(json);
+
+                                if (asset != null)
+                                {
+                                    // Cache it so the Inspector and GraphEditor share the same mutable model
+                                    _editorState.SetInMemoryAsset(asset);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log or handle deserialization failure
+                                Console.WriteLine($"Failed to load asset from {entry.Path}: {ex.Message}");
+                            }
+                        }
+
+                        if (asset != null)
+                        {
+                            _selectionStore.SelectAsset(asset);
+                        }
                     }
                 }
 

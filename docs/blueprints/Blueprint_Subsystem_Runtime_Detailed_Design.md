@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Runtime Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches.
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches. All Runtime DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestones M8 (BlueprintRegistry), M9 (Blackboard tiers + partition allocator), M10 (BlueprintTickSystem + BlueprintMaintenanceSystem).
 > **Doesn't cover:** Compiler (separate DD), test harness (Test Harness DD), debug protocol (Debug Protocol DD), editor (Editor DD), hot-reload coordinator (Hot Reload DD).
@@ -152,7 +152,7 @@ public sealed class BlueprintRegistry
     // World singletons
     public void RegisterWorldSingleton(int blueprintId, BlackboardTier tier);
     public bool TryGetWorldSingleton(int blueprintId, out BlackboardTier tier);
-    public IEnumerable<(int Id, BlackboardTier Tier)> GetAllWorldSingletons();
+    public IReadOnlyList<(int Id, BlackboardTier Tier)> GetAllWorldSingletons();   // pre-materialized, zero per-call alloc
 
     // Hot reload protocol — called by AiHotReloadCoordinator on main thread
     public BlueprintRegistryStaging BeginStaging();
@@ -174,6 +174,11 @@ public sealed class BlueprintRegistry
             = new Dictionary<string, int>(StringComparer.Ordinal);
         public Dictionary<int, BlackboardTier> WorldSingletons { get; init; }
             = new Dictionary<int, BlackboardTier>();
+
+        // Pre-materialized for zero per-call allocation in the hot path.
+        // Built once at CommitStaging time.
+        public IReadOnlyList<(int BlueprintId, BlackboardTier Tier)> WorldSingletonList { get; init; }
+            = Array.Empty<(int, BlackboardTier)>();
     }
 
     private Snapshot _current = new();
@@ -209,10 +214,9 @@ public sealed class BlueprintRegistry
         return snapshot.WorldSingletons.TryGetValue(blueprintId, out tier);
     }
 
-    public IEnumerable<(int Id, BlackboardTier Tier)> GetAllWorldSingletons()
+    public IReadOnlyList<(int Id, BlackboardTier Tier)> GetAllWorldSingletons()
     {
-        var snapshot = _current;
-        return snapshot.WorldSingletons.Select(kv => (kv.Key, kv.Value)).ToList();
+        return _current.WorldSingletonList;  // single field read, no allocation
     }
 
     // Direct registration — used during cold boot and by staging buffer
@@ -268,6 +272,12 @@ public sealed class BlueprintRegistry
 
     public void CommitStaging(BlueprintRegistryStaging staging)
     {
+        // Pre-materialize the world-singleton list for zero-alloc hot-path enumeration.
+        var singletonList = staging.WorldSingletons
+            .Select(kv => (kv.Key, kv.Value))
+            .ToList()
+            .AsReadOnly();
+
         // Build a new snapshot from the staging buffer
         var next = new Snapshot
         {
@@ -275,9 +285,10 @@ public sealed class BlueprintRegistry
             ByName = staging.Definitions.ToDictionary(
                 kv => kv.Value.Name, kv => kv.Key, StringComparer.Ordinal),
             WorldSingletons = staging.WorldSingletons.ToDictionary(kv => kv.Key, kv => kv.Value),
+            WorldSingletonList = singletonList,
         };
 
-        // Atomic publish — readers see either the previous snapshot or the new one,
+        // Atomic publish -- readers see either the previous snapshot or the new one,
         // never a partial state.
         Interlocked.Exchange(ref _current, next);
 
@@ -1198,58 +1209,59 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 }
 ```
 
-The three `[UpdateBefore]` attributes are the architect-confirmed minimum set; if the engine introduces additional command-dispatcher systems, they must be added here.
+The three `[UpdateBefore]` attributes are the architect-confirmed minimum set (names confirmed against the engine codebase per Q-12.1 resolution); if the engine introduces additional command-dispatcher systems, they must be added here.
 
 ### 6.3 Per-tier tick — concrete implementation for tier 1024
 
 The three tier methods are structurally identical; only the component type differs. Showing the 1024 variant in full; the others are mechanical copies.
 
 ```csharp
-private unsafe void TickTier_1024(ISimulationView view, IEntityCommandBuffer ecb)
+private unsafe void TickTier_1024(EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb)
 {
-    var repo = (EntityRepository)view;                     // cast — view IS the repo in production
-    var query = repo.Query().With<BlueprintBlackboard1024>().Build();
-
-    foreach (var entity in query)
+    foreach (var entity in _query1024!)
     {
         ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* memory = bb.Memory)
+        ref byte memoryRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
+        byte* memory = (byte*)Unsafe.AsPointer(ref memoryRef);
+
+        ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+
+        // Defensive: skip uninitialized blackboards (shouldn't happen post-attach,
+        // but covers race during initial scenario load).
+        if (header.MagicAndVersion != 0x42504257) continue;
+
+        int slotCount = header.SlotCount;
+        byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
+
+        for (int i = 0; i < slotCount; i++)
         {
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+            ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + i * SlotEntrySize);
 
-            // Defensive: skip uninitialized blackboards (shouldn't happen post-attach,
-            // but covers race during initial scenario load).
-            if (header.MagicAndVersion != 0x42504257) continue;
+            // Resolve current definition
+            if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
 
-            int slotCount = header.SlotCount;
-            byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
-
-            for (int i = 0; i < slotCount; i++)
+            // Per-slot reload reconciliation -- see §9
+            if (slot.StructureHash != def.StructureHash)
             {
-                ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(slotTable + i * SlotEntrySize);
-
-                // Resolve current definition
-                if (!_registry.TryGetById(slot.BlueprintId, out var def)) continue;
-
-                // Per-slot reload reconciliation — see §9
-                if (slot.StructureHash != def.StructureHash)
+                BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
+                // Run InitDefault on the now-zeroed payload
+                if (def.InitDefault is not null)
                 {
-                    BlueprintBlackboardPartitions.ResetSlot(memory, i, def.StructureHash);
-                    // Run InitDefault on the now-zeroed payload
-                    if (def.InitDefault is not null)
-                    {
-                        var slotSpan = new Span<byte>(memory + slot.PayloadOffset, slot.PayloadSize);
-                        def.InitDefault(slotSpan);
-                    }
+                    var initSpan = MemoryMarshal.CreateSpan(
+                        ref Unsafe.Add(ref memoryRef, slot.PayloadOffset),
+                        slot.PayloadSize);
+                    def.InitDefault(initSpan);
                 }
+            }
 
-                // Tick this slot
-                if (def.Tick is not null)
-                {
-                    var slotSpan = new Span<byte>(memory + slot.PayloadOffset, slot.PayloadSize);
-                    def.Tick(slotSpan, view, ecb, entity,
-                             view.Time, view.DeltaTime, slot.InstanceVersion);
-                }
+            // Tick this slot
+            if (def.Tick is not null)
+            {
+                var tickSpan = MemoryMarshal.CreateSpan(
+                    ref Unsafe.Add(ref memoryRef, slot.PayloadOffset),
+                    slot.PayloadSize);
+                def.Tick(tickSpan, view, ecb, entity,
+                         view.Time, view.DeltaTime, slot.InstanceVersion);
             }
         }
     }
@@ -1260,14 +1272,13 @@ private const int SlotEntrySize = BlueprintBlackboardPartitions.SlotEntrySize;
 
 A few important details:
 
-- **`GetComponentRW`** is used because `ResetSlot` and `Tick` both write to the payload. The hot-path reading of structure-hash is a read but the reconciliation path writes.
-- **`fixed (byte* memory = bb.Memory)`** pins the chunk memory for the duration of one entity's tick. The pin is released at the end of the `fixed` block, so we don't hold pins across entity boundaries.
-- **`new Span<byte>(ptr, len)`** is allocation-free; `Span<T>` is a ref struct stack-allocated.
+- **`GetComponentRW`** is used because `ResetSlot` and `Tick` both write to the payload.
+- **`MemoryMarshal.CreateSpan(ref Unsafe.Add(ref memoryRef, offset), length)`** is the engine's zero-overhead span idiom. No GC pinning instructions are emitted; see §10.5 for the safety argument.
 - **`slot.InstanceVersion`** is read from the slot table entry on every tick and passed as the `instanceVersion` parameter (per Compiler DD Patch Q-18.1). Generated code uses it for latent cursor staleness checks.
 
-### 6.4 Why `repo.Query()` instead of a cached `EntityQuery`
+### 6.4 Lazy query caching
 
-The engine's `EntityRepository.Query()` returns a builder that constructs the query each frame. In hot-path systems, the engine team caches the built query and reuses it. We should follow the same pattern:
+The engine has no `OnAttach`-style lifecycle callback. Engine systems (e.g. `MovingEntitySystem`, `EditorZoneAuthoringSystem`) build queries lazily on first `Execute` using the `??=` operator. We follow the same pattern:
 
 ```csharp
 public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
@@ -1279,16 +1290,26 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     public BlueprintTickSystem(BlueprintRegistry registry) => _registry = registry;
 
-    public void OnAttach(EntityRepository repo)
+    public void Execute(ISimulationView view)
     {
-        _query1024  = repo.Query().With<BlueprintBlackboard1024>().Build();
-        _query4096  = repo.Query().With<BlueprintBlackboard4096>().Build();
-        _query16384 = repo.Query().With<BlueprintBlackboard16384>().Build();
+        var repo = (EntityRepository)view;   // write-access escalation -- standard engine convention
+        var ecb = view.GetCommandBuffer();
+
+        _query1024  ??= repo.Query().With<BlueprintBlackboard1024>().Build();
+        _query4096  ??= repo.Query().With<BlueprintBlackboard4096>().Build();
+        _query16384 ??= repo.Query().With<BlueprintBlackboard16384>().Build();
+
+        TickTier_1024(repo, view, ecb);
+        TickTier_4096(repo, view, ecb);
+        TickTier_16384(repo, view, ecb);
+
+        TickWorldSingletons(repo, view, ecb);
     }
+    // ...
 }
 ```
 
-The exact name and timing of the attach callback varies by engine convention; whichever lifecycle hook the engine team uses for "system has access to the repo, now build queries", we use it here.
+The first `Execute` call pays the query-build cost; every subsequent call uses the cached query reference. Same pattern applies to `BlueprintMaintenanceSystem`.
 
 ### 6.5 Tick ordering within a single entity
 
@@ -1620,93 +1641,114 @@ public static void RegisterAll(BlueprintRegistry registry)
 
 `RegisterWorldSingleton` is the marker — `BlueprintTickSystem` only walks Blueprints in `_registry.GetAllWorldSingletons()` for the singleton path; everything else goes through the per-entity tier ticks.
 
-### 8.4 Singleton attach
+### 8.4 World-singleton lazy init inside `TickWorldSingletons`
 
-Singleton attach happens once at scenario load (or first encounter — Slice 1 deferred decision documented in §12.4 below). The runtime provides a small helper:
+Per Runtime DD Inline Patches Q-12.4, the `EnsureWorldSingletonAttached` pattern is replaced by inline lazy init inside `EnsureAndTickSingleton`. `BlueprintRegistry.EnsureWorldSingletonAttached` and `InitializeWorldSingletonBlueprints` are **removed** from the public API. The first frame after a registry commit auto-attaches and auto-initializes any new world-singleton entries.
 
 ```csharp
-public sealed class BlueprintRegistry
+private unsafe void TickWorldSingletons(
+    EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb)
 {
-    // (added to the public API per §2.2)
-    public unsafe void EnsureWorldSingletonAttached(
-        EntityRepository repo, int blueprintId)
+    foreach (var (blueprintId, tier) in _registry.GetAllWorldSingletons())
     {
-        if (!TryGetById(blueprintId, out var def)) return;
-        if (!TryGetWorldSingleton(blueprintId, out var tier)) return;
+        if (!_registry.TryGetById(blueprintId, out var def)) continue;
 
         switch (tier)
         {
-            case BlackboardTier.B1024:    EnsureSingletonSlot<BlueprintBlackboard1024>(repo, blueprintId, def); break;
-            case BlackboardTier.B4096:    EnsureSingletonSlot<BlueprintBlackboard4096>(repo, blueprintId, def); break;
-            case BlackboardTier.B16384:   EnsureSingletonSlot<BlueprintBlackboard16384>(repo, blueprintId, def); break;
+            case BlackboardTier.B1024:
+                EnsureAndTickSingleton<BlueprintBlackboard1024>(
+                    repo, view, ecb, blueprintId, def,
+                    BlueprintBlackboard1024.TotalSize,
+                    (byte)BlueprintBlackboard1024.MaxSlots);
+                break;
+            case BlackboardTier.B4096:
+                EnsureAndTickSingleton<BlueprintBlackboard4096>(
+                    repo, view, ecb, blueprintId, def,
+                    BlueprintBlackboard4096.TotalSize,
+                    (byte)BlueprintBlackboard4096.MaxSlots);
+                break;
+            case BlackboardTier.B16384:
+                EnsureAndTickSingleton<BlueprintBlackboard16384>(
+                    repo, view, ecb, blueprintId, def,
+                    BlueprintBlackboard16384.TotalSize,
+                    (byte)BlueprintBlackboard16384.MaxSlots);
+                break;
         }
     }
-
-    private unsafe void EnsureSingletonSlot<TBB>(
-        EntityRepository repo, int blueprintId, BlueprintDefinition def)
-        where TBB : unmanaged
-    {
-        // Ensure the singleton component exists
-        if (!repo.HasSingleton<TBB>())
-            repo.SetSingletonUnmanaged<TBB>(default);
-
-        ref var bb = ref repo.GetSingleton<TBB>();
-        fixed (byte* memory = &Unsafe.As<TBB, byte>(ref bb))
-        {
-            // Ensure initialized
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
-            if (header.MagicAndVersion != 0x42504257)
-            {
-                int totalSize = Unsafe.SizeOf<TBB>();
-                byte maxSlots = TBBMaxSlots<TBB>();
-                BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
-            }
-
-            // Attach if not already attached
-            if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _))
-            {
-                if (!BlueprintBlackboardPartitions.TryAttach(
-                        memory, blueprintId, def.StateSize, def.StructureHash, out var payloadOffset))
-                    return;  // Singleton tier full — should not happen with Slice 1 constraint
-
-                // Initialize default state
-                if (def.InitDefault is not null)
-                {
-                    var slotSpan = new Span<byte>(memory + payloadOffset, def.StateSize);
-                    def.InitDefault(slotSpan);
-                }
-            }
-        }
-    }
-
-    private static byte TBBMaxSlots<TBB>() where TBB : unmanaged
-        => typeof(TBB) switch
-        {
-            var t when t == typeof(BlueprintBlackboard1024)  => (byte)BlueprintBlackboard1024.MaxSlots,
-            var t when t == typeof(BlueprintBlackboard4096)  => (byte)BlueprintBlackboard4096.MaxSlots,
-            var t when t == typeof(BlueprintBlackboard16384) => (byte)BlueprintBlackboard16384.MaxSlots,
-            _ => 0,
-        };
 }
-```
 
-`EnsureWorldSingletonAttached` is idempotent: safe to call multiple times.
-
-### 8.5 When is `EnsureWorldSingletonAttached` invoked
-
-Per Slice 1 architectural decision (v1.2 §6.8): scenario-load code calls it for every registered world-singleton Blueprint. Specifically, the hook is a one-time pass during world initialization, after `BlueprintRegistry.CommitStaging` populates the registry.
-
-This is *not* the runtime layer's responsibility to schedule. The host application (engine boot code) calls:
-
-```csharp
-public void InitializeWorldSingletonBlueprints(EntityRepository repo, BlueprintRegistry registry)
+private unsafe void EnsureAndTickSingleton<TBB>(
+    EntityRepository repo, ISimulationView view, IEntityCommandBuffer ecb,
+    int blueprintId, BlueprintDefinition def, int totalSize, byte maxSlots)
+    where TBB : unmanaged
 {
-    foreach (var (id, _) in registry.GetAllWorldSingletons())
-        registry.EnsureWorldSingletonAttached(repo, id);
-}
-```
+    // Lazy attach -- first encounter creates the singleton + allocates the slot
+    if (!repo.HasSingleton<TBB>())
+        repo.SetSingletonUnmanaged<TBB>(default);
 
-after the first registry commit. After hot reload, the same call is made again — already-attached singletons are no-ops; newly-registered ones get attached.
+    ref var bb = ref repo.GetSingleton<TBB>();
+    ref byte memoryRef = ref Unsafe.As<TBB, byte>(ref bb);
+    byte* memory = (byte*)Unsafe.AsPointer(ref memoryRef);
+
+    // Initialize header if not yet done
+    ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+    if (header.MagicAndVersion != 0x42504257)
+        BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
+
+    // Attach slot if not yet attached
+    if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
+    {
+        if (!BlueprintBlackboardPartitions.TryAttach(
+                memory, blueprintId, def.StateSize, def.StructureHash, out payloadOffset))
+            return;  // Tier capacity exhausted -- shouldn't happen with Slice 1 constraints
+
+        if (def.InitDefault is not null)
+        {
+            var initSpan = MemoryMarshal.CreateSpan(
+                ref Unsafe.Add(ref memoryRef, payloadOffset),
+                def.StateSize);
+            def.InitDefault(initSpan);
+        }
+    }
+
+    // Locate slot for reconciliation
+    byte* slotTable = memory + sizeof(BlueprintBlackboardHeader);
+    int slotIndex = FindSlotIndex(slotTable, header.SlotCount, blueprintId);
+    ref var slot = ref Unsafe.AsRef<BlueprintSlotEntry>(
+        slotTable + slotIndex * BlueprintBlackboardPartitions.SlotEntrySize);
+
+    // Reload reconciliation
+    if (slot.StructureHash != def.StructureHash)
+    {
+        BlueprintBlackboardPartitions.ResetSlot(memory, slotIndex, def.StructureHash);
+        if (def.InitDefault is not null)
+        {
+            var resetSpan = MemoryMarshal.CreateSpan(
+                ref Unsafe.Add(ref memoryRef, slot.PayloadOffset),
+                slot.PayloadSize);
+            def.InitDefault(resetSpan);
+        }
+    }
+
+    // Tick
+    if (def.Tick is not null)
+    {
+        var tickSpan = MemoryMarshal.CreateSpan(
+            ref Unsafe.Add(ref memoryRef, slot.PayloadOffset),
+            slot.PayloadSize);
+        def.Tick(tickSpan, view, ecb, Entity.Null,
+                 view.Time, view.DeltaTime, slot.InstanceVersion);
+    }
+}
+
+### 8.5 World-singleton lifecycle summary
+
+- **First frame after `CommitStaging`** with a world-singleton entry: `EnsureAndTickSingleton` attaches the slot and calls `InitDefault` lazily. No engine boot code needed.
+- **After hot reload adding a new world-singleton:** same flow. New entry appears in `GetAllWorldSingletons()`; next tick attaches and inits.
+- **After hot reload removing a world-singleton:** entry no longer appears in `GetAllWorldSingletons()`; slot stays dormant in the singleton component. Slice 2 may add explicit detach.
+- **Scenario reset:** host sets `repo.SetSingletonUnmanaged<TBB>(default)` to zero the component. The next tick re-attaches and re-inits lazily.
+
+`BlueprintRegistry.EnsureWorldSingletonAttached` and `InitializeWorldSingletonBlueprints` are removed from the public API.
 
 ### 8.6 Soft clear interaction
 
@@ -1831,35 +1873,22 @@ In a single `BlueprintTickSystem.Execute` call, the code visits:
 ```
 Execute
   ├── TickTier_1024
-  │   ├── repo.Query()  → reuses cached query (built in OnAttach)
-  │   ├── foreach entity (iterator over IEntityQuery → no allocation)
-  │   │   ├── repo.GetComponentRW<T>(entity)  → ref into chunk memory
-  │   │   ├── fixed (byte* memory = ...)  → pin, no allocation
-  │   │   ├── For each slot (linear scan, no allocation)
-  │   │   │   ├── _registry.TryGetById  → dictionary lookup, no allocation
-  │   │   │   ├── (rare) ResetSlot + InitDefault  → no allocation
-  │   │   │   ├── new Span<byte>(ptr, len)  → ref struct on stack, no allocation
-  │   │   │   └── def.Tick(...)  → delegate invocation, no allocation
+  │   ├── _query1024 (cached via ??=, no per-frame build)
+  │   ├── foreach entity (iterator over IEntityQuery -- no allocation)
+  │   │   ├── repo.GetComponentRW<T>(entity)  -- ref into chunk memory
+  │   │   ├── Unsafe.As + Unsafe.AsPointer  -- no pin, no allocation
+  │   │   └── For each slot (linear scan, no allocation)
+  │   │       ├── _registry.TryGetById  -- dictionary lookup, no allocation
+  │   │       ├── (rare) ResetSlot + InitDefault  -- no allocation
+  │   │       ├── MemoryMarshal.CreateSpan(ref ...)  -- no allocation
+  │   │       └── def.Tick(...)  -- delegate invocation, no allocation
   ├── TickTier_4096 (same shape)
   ├── TickTier_16384 (same shape)
   └── TickWorldSingletons
-      ├── _registry.GetAllWorldSingletons()  → CAUTION
-      └── (per singleton, same as per-slot)
+      └── _registry.GetAllWorldSingletons()  -- returns pre-materialized IReadOnlyList, no allocation
 ```
 
-The only allocation hazard in this graph is the marked `GetAllWorldSingletons()` call — it materializes a list each frame. For Slice 1's small set of world-singletons (≤3), this is OK; for Slice 2 we'd switch to a struct-enumerator pattern. Slice 1 spec acknowledges this minor allocation; the bulk of the hot path is allocation-free.
-
-Audit:
-
-```csharp
-public IEnumerable<(int Id, BlackboardTier Tier)> GetAllWorldSingletons()
-{
-    var snapshot = _current;
-    return snapshot.WorldSingletons.Select(kv => (kv.Key, kv.Value)).ToList();
-}
-```
-
-The `.ToList()` allocates an array of `(int, BlackboardTier)` tuples (one heap alloc per frame). For ≤3 entries this is ~16 bytes of allocation per frame, negligible. Production-quality would replace with a custom struct enumerator; Slice 1 accepts the cost.
+The hot path is **fully allocation-free** in steady state. Allocations only happen at `CommitStaging` (rare; hot-reload boundary).
 
 ### 10.3 Verification
 
@@ -1893,13 +1922,12 @@ public void BlueprintTickSystem_HotPath_AllocatesNothingBeyondBudget()
 
     long perFrame = (afterBytes - beforeBytes) / 1000;
 
-    // Budget: ≤ 64 bytes per frame for Slice 1 (covers the ToList alloc
-    // in TickWorldSingletons + minor incidentals)
-    Assert.True(perFrame <= 64, $"Per-frame allocation {perFrame} bytes exceeds budget 64");
+    // Budget: 0 bytes per frame in steady state (all per-frame allocs eliminated)
+    Assert.True(perFrame <= 0, $"Per-frame allocation {perFrame} bytes; expected zero");
 }
 ```
 
-The 64-byte budget is generous. Slice 2 tightens to 0 by replacing `GetAllWorldSingletons` with a struct enumerator.
+The allocation budget is 0 bytes per frame in steady state. The `GetAllWorldSingletons()` pre-materialization in `CommitStaging` eliminated the last per-frame allocation.
 
 ### 10.4 JIT inlining hints
 
@@ -1907,14 +1935,15 @@ The JIT inlines methods up to ~32 bytes of IL by default. The hot-path methods (
 
 `def.Tick(...)` is a delegate invocation. Delegate dispatch in .NET 8 is ~1ns; the JIT cannot inline through delegates. This is the dominant per-slot cost. Slice 1 accepts it.
 
-### 10.5 Pinning safety
+### 10.5 Span construction over `ref byte`
 
-The `fixed (byte* memory = bb.Memory)` pattern pins the chunk for the duration of the block. While pinned:
-- The GC cannot move the chunk.
-- Other systems should not run (they don't — `Execute` is the only thread running this entity's chunk during Simulation phase).
-- Adding/removing components on this entity would require ECB (which defers to Sync); we don't issue any.
+The runtime uses `MemoryMarshal.CreateSpan(ref Unsafe.Add(ref memoryRef, offset), length)` to project `Span<byte>` views into chunk memory. This is the engine's zero-overhead pattern: no GC pinning instructions are emitted, and the span's validity is guaranteed by the engine's Simulation-phase no-structural-mutation invariant.
 
-The pin is per-entity, not held across entities. So even though Simulation is supposed to be single-threaded for our usage, the pinning is correct under any threading model the engine might adopt later.
+- `memoryRef` is a managed `ref byte` to the start of the component's bytes, held via `ref var bb = ref repo.GetComponentRW<T>(entity)`.
+- `Unsafe.Add(ref memoryRef, offset)` produces a `ref byte` at the desired payload offset.
+- `MemoryMarshal.CreateSpan` wraps that ref into a `Span<byte>` of the desired length.
+
+No pin is taken. The GC won't move the chunk during Simulation phase by engine convention; the span's validity holds for the duration of the iteration. Engine systems (e.g. `CarKinematicsSystem`, `MovingEntitySystem`) use the same idiom.
 
 ### 10.6 Bounds-check elimination
 
@@ -2155,39 +2184,24 @@ The `BlueprintTestFixture` (per Test Harness DD, M2) wires the real `BlueprintTi
 
 ### 12.1 `[UpdateBefore]` dispatcher names
 
-The architect named `LocomotionDispatcherSystem`, `WeaponDispatcherSystem`, `InteractionDispatcherSystem`. These exact names need to match the engine's actual class names at implementation time. If the engine team renames them or introduces a parent `CommandDispatcherSystem` we'd use that instead.
+**RESOLVED (Runtime DD Inline Patches Q-12.1):** The engine uses exactly:
+- `LocomotionDispatcherSystem`
+- `WeaponDispatcherSystem`
+- `InteractionDispatcherSystem`
 
-**Decision needed during M10 implementation:** confirm names against the codebase; adjust attributes accordingly. If the engine has a sub-phase abstraction (`SystemPhase.SimulationCognitive` running before `SystemPhase.SimulationDispatch`), prefer that over explicit `[UpdateBefore]` per dispatcher.
+There is no `SystemPhase.SimulationCognitive` sub-phase. The explicit `[UpdateBefore]` attributes are the architecturally mandated approach. No changes to §6.2's code.
 
 ### 12.2 `EntityRepository` cast vs `ISimulationView` extension
 
-`BlueprintTickSystem.Execute(ISimulationView view)` currently does `var repo = (EntityRepository)view;` to access write APIs (`GetComponentRW`, `Query`). This cast is brittle — works because in production `ISimulationView` is implemented by `EntityRepository`, but ugly.
-
-**Decision needed:** is there a cleaner engine API for "I'm a Simulation-phase system that needs write access"? If the engine has `ISimulationViewMut` or similar, use it. Otherwise the cast is acceptable; comment it explicitly.
+**RESOLVED (Runtime DD Inline Patches Q-12.2):** The `var repo = (EntityRepository)view;` pattern is the engine convention, not brittle. Engine systems (`CarKinematicsSystem`, `InteractionDispatcherSystem`, `MissionAdapterSystem`) all use this exact cast to escalate from read-only `ISimulationView` to write-capable `EntityRepository`. No commentary or hedging needed.
 
 ### 12.3 Query lifecycle
 
-Per §6.4 we cache queries in `OnAttach`-style lifecycle. Confirm the exact attach hook name in `IEcsModuleSystem`. If queries must be rebuilt after structural changes (engine convention), document that interaction.
-
-**Decision needed during M10 implementation.**
+**RESOLVED (Runtime DD Inline Patches Q-12.3):** `IEcsModuleSystem` has no `OnAttach` callback. Queries are cached lazily via `??=` in `Execute`, matching `MovingEntitySystem`, `EditorZoneAuthoringSystem`, and other engine systems.
 
 ### 12.4 World-singleton init timing
 
-§8.5 says `InitializeWorldSingletonBlueprints` runs after the first registry commit. Concretely:
-
-```csharp
-// In engine boot code, after AiHotReloadCoordinator's first DrainPendingCallbacks
-registry.InitializeWorldSingletonBlueprints(repo);
-```
-
-After hot reload:
-
-```csharp
-// In DrainPendingCallbacks itself, after CommitStaging:
-registry.InitializeWorldSingletonBlueprints(repo);  // idempotent
-```
-
-**Decision needed:** confirm this is the right injection point with the engine team. Alternative is to add a `OnRegistryChanged` handler inside `BlueprintRegistry` that auto-runs init — but that introduces a dependency on `EntityRepository` inside the registry, complicating its construction.
+**RESOLVED (Runtime DD Inline Patches Q-12.4):** World-singleton attach and init are lazy inside `BlueprintTickSystem.TickWorldSingletons` via `EnsureAndTickSingleton`. No engine boot hook needed. `BlueprintRegistry.EnsureWorldSingletonAttached` and `InitializeWorldSingletonBlueprints` are dropped from the public surface.
 
 ### 12.5 Profile granularity
 

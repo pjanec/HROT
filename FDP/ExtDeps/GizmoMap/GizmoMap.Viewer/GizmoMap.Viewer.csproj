@@ -13,6 +13,6 @@
     <ProjectReference Include="..\GizmoMap.Presentation\GizmoMap.Presentation.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.2.2" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.3-gc40f8c1444" />
   </ItemGroup>
 </Project>

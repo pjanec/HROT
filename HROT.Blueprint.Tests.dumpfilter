@@ -1,16 +1,11 @@
 - *
-+ Hrot/Subsystems
++ Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests
+
 - **/docs
 - **/Docs
 - **/.*
 - **/obj
 - **/bin
-- **/tests
-- **/Tests
-- **/*.Tests*
-
-+ Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests
-
 - **/*Benchmark*
 - **/*benchmark*
 - **/build

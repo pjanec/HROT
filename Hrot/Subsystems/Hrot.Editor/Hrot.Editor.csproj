@@ -33,7 +33,10 @@
     <ProjectReference Include="..\..\..\FDP\Examples\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />    <!-- Ensures Hrot.AI.Behaviors.dll is copied to the output directory for hot-reload.
          No types from this assembly are used statically; the C# compiler strips the
          IL reference, but MSBuild copy-local mechanics still deliver the DLL. -->
-    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />  </ItemGroup>
+    <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <ProjectReference Include="..\AI\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
+    <ProjectReference Include="..\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Raylib-cs" Version="7.0.2" />

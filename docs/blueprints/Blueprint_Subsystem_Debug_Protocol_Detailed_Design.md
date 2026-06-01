@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Debug Protocol Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD (+ Inline Patches v1, v2) + Runtime DD (+ Inline Patches) + Test Harness DD (+ Inline Patches) + Hot Reload DD (+ Inline Patches).
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD (+ Inline Patches v1, v2) + Runtime DD (+ Inline Patches) + Test Harness DD (+ Inline Patches) + Hot Reload DD (+ Inline Patches). All Debug Protocol DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestone M12 (debug protocol implementation; editor UI is M13).
 > **Doesn't cover:** Editor window UX (Editor DD), compile-time debug probe insertion (Compiler DD §9.11), tick-system probe routing (Runtime DD §6.x mention only).
@@ -89,6 +89,9 @@ The debug protocol is **single-threaded, main-thread-only** for Slice 1:
 - All probe calls (`NodeEnter`, `PinValueChanged`) happen during the simulation tick, which runs on the main thread.
 - All editor UI calls into the session happen on the main thread (from the editor's frame callback).
 - No cross-thread queues, no locks.
+- **Probes never block the calling thread.** Probes are observation points that capture state and optionally request a frame-boundary pause. Simulation always returns from the probe call within nanoseconds, regardless of breakpoint state.
+
+FDP's `SubsystemOrchestrator` runs `Update()` (ECS simulation) and `DrawUI()` (ImGui rendering) sequentially on the same main thread. Blocking inside `BlueprintTickSystem.Execute` would mean `DrawUI()` never runs. Breakpoint hits therefore do not block the thread; they capture state, request a time-controller pause, and return immediately. The engine halts time advancement on the next frame, so the user inspects state in the editor UI. Step operations advance the engine by exactly one tick.
 
 If the engine later moves simulation to a worker thread, the protocol needs threading rework. Slice 1's main-thread assumption is documented and tested.
 
@@ -159,15 +162,45 @@ public sealed record Breakpoint(
     bool Enabled,
     string DisplayName);            // resolved from debug map
 
-public sealed record Watch(
-    WatchId Id,
-    Guid AssetId,
-    Guid GraphId,
-    Guid PinId,
-    string DisplayName,             // resolved from debug map
-    Type ExpectedType,
-    object? LastValue,
-    int UpdateCount);
+public sealed class Watch
+{
+    public WatchId Id { get; init; }
+    public Guid AssetId { get; init; }
+    public Guid GraphId { get; init; }
+    public Guid PinId { get; init; }
+    public string PinIdString { get; private set; } = "";
+    public string DisplayName { get; init; } = "";
+    public Type ExpectedType { get; init; } = typeof(int);
+    public int ExpectedSizeBytes { get; init; }
+
+    // 64 bytes of inline storage. Sufficient for any unmanaged scalar or small struct
+    // the compiler emits (Vector3 = 12 bytes; Entity = 8 bytes; Matrix4x4 = 64 bytes).
+    // Allocated once at watch construction, reused for all updates -- zero per-update alloc.
+    private readonly byte[] _valueBuffer = new byte[64];
+    public ReadOnlySpan<byte> LastValueBytes => _valueBuffer.AsSpan(0, ExpectedSizeBytes);
+
+    public Entity LastUpdateEntity { get; private set; }
+    public uint LastUpdateTick { get; private set; }
+    public int UpdateCount { get; private set; }
+    public bool HasEverBeenWritten { get; private set; }
+    public bool IsStale { get; private set; }
+
+    internal void WriteValue<T>(T value, Entity self, uint tick) where T : unmanaged
+    {
+        if (Unsafe.SizeOf<T>() > _valueBuffer.Length)
+            throw new InvalidOperationException(
+                $"Watch buffer too small for type {typeof(T).Name} " +
+                $"({Unsafe.SizeOf<T>()} bytes > {_valueBuffer.Length}).");
+        Unsafe.WriteUnaligned(ref _valueBuffer[0], value);
+        LastUpdateEntity = self;
+        LastUpdateTick = tick;
+        UpdateCount++;
+        HasEverBeenWritten = true;
+    }
+
+    internal void UpdatePinIdString(string s) => PinIdString = s;
+    internal void MarkStale(bool b) => IsStale = b;
+}
 
 public sealed record BreakpointHit(
     Breakpoint Breakpoint,
@@ -187,7 +220,8 @@ public sealed record PinValueChanged(
     Entity Self,
     Guid AssetId,
     Guid PinId,
-    object Value,
+    byte[] ValueBytes,           // copied from watch's buffer at firing time
+    Type ValueType,
     float SimulationTime);
 
 public sealed record BlueprintStateSnapshot(
@@ -218,11 +252,13 @@ Generated code calls `DebugProbe.NodeEnter(...)` which routes to whatever `Sink`
 public interface IBlueprintProbeSink
 {
     void OnNodeEnter(Entity self, string nodeId);
-    void OnPinValueChanged<T>(Entity self, string pinId, T value);
+    void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged;
+    void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName);
+    void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName);
 }
 ```
 
-Two methods. The `nodeId` parameter is a string (a Guid in canonical "00000000-0000-0000-0000-000000000000" form) so the compiler can emit it as a const string literal — no per-call Guid parse, no allocation.
+Four methods. The `nodeId` parameter is a string (a Guid in canonical "00000000-0000-0000-0000-000000000000" form) so the compiler can emit it as a const string literal — no per-call Guid parse, no allocation.
 
 The session implementations convert string → Guid lazily when needed (e.g., during breakpoint matching against the breakpoint set).
 
@@ -248,6 +284,7 @@ public static class DebugProbe
         => Sink.OnNodeEnter(self, nodeId);
 
     public static void PinValueChanged<T>(Entity self, string pinId, T value)
+        where T : unmanaged
         => Sink.OnPinValueChanged(self, pinId, value);
 }
 
@@ -256,7 +293,9 @@ public sealed class NullProbeSink : IBlueprintProbeSink
     public static NullProbeSink Instance { get; } = new NullProbeSink();
     private NullProbeSink() { }
     public void OnNodeEnter(Entity self, string nodeId) { }
-    public void OnPinValueChanged<T>(Entity self, string pinId, T value) { }
+    public void OnPinValueChanged<T>(Entity self, string pinId, T value) where T : unmanaged { }
+    public void OnPeerCallEnter(Entity self, string peerAssetIdString, string methodName) { }
+    public void OnPeerCallExit(Entity self, string peerAssetIdString, string methodName) { }
 }
 ```
 
@@ -828,23 +867,27 @@ private void HandleBreakpointHit(BreakpointHit hit)
     _pausedOnEntity = hit.Self;
     _isPaused = true;
 
-    // Capture state snapshot
+    // Capture state snapshot before returning -- the slot bytes are stable
+    // until the next tick, so we can read them after the probe returns,
+    // but capturing now ensures the snapshot reflects the exact moment of hit.
     _pauseSnapshot = CaptureStateSnapshot(hit.Self, hit.Breakpoint.AssetId);
 
-    // Fire event for editor UI
+    // Request the engine pause at the next frame boundary.
+    // The current tick continues to completion -- probes for other entities
+    // hitting the same breakpoint accumulate hit counts but don't request
+    // additional pauses (already paused).
+    _timeController.RequestPause();
+
+    // Fire event for editor UI. The handler runs after the tick completes,
+    // during the same frame's DrawUI phase. UI shows breakpoint hit.
     OnBreakpointHit?.Invoke(hit);
     OnSessionStateChanged?.Invoke();
 
-    // Block this thread until Continue / StepOver / StepInto / StepOut is called
-    _resumeSignal.WaitOne();
+    // Return immediately -- no thread block.
 }
 ```
 
-The `_resumeSignal` is a `ManualResetEventSlim`. The probe call (on the simulation thread, which is the main thread for Slice 1) blocks until the editor user clicks Continue.
-
-This is the simulation-pause mechanism: the probe call doesn't return until the user signals to resume. While it's blocked, the editor UI is responsive (the editor's own main loop runs in a separate frame; the simulation is paused but the editor isn't).
-
-For Slice 1 single-threaded simulation, this works cleanly: blocking the probe thread blocks simulation; the editor's UI thread is separate and stays alive.
+The probe call (on the simulation thread, which is the main thread for Slice 1) returns immediately after requesting a frame-boundary pause. The engine completes the current tick naturally, then halts time advancement. While halted, the editor UI is responsive (the editor's `DrawUI()` phase runs on the same thread in subsequent frames).
 
 ### 6.5 Resume operations
 
@@ -852,31 +895,32 @@ For Slice 1 single-threaded simulation, this works cleanly: blocking the probe t
 public void Continue()
 {
     _stepMode = StepMode.None;
-    SignalResume();
+    ClearPauseState();
+    _timeController.RequestResume();
 }
 
 public void StepOver()
 {
+    // Capture step-from context BEFORE clearing pause
     _stepMode = StepMode.Over;
     _stepFromNodeIdString = _pausedAt!.NodeIdString;
     _stepFromEntity = _pausedOnEntity!.Value;
     SignalResume();
 }
 
-// StepInto, StepOut analogous — see §7
+// StepInto, StepOut analogous -- see §7
 
-private void SignalResume()
+private void ClearPauseState()
 {
     _isPaused = false;
     _pausedAt = null;
     _pausedOnEntity = null;
     _pauseSnapshot = null;
-    _resumeSignal.Set();
     OnSessionStateChanged?.Invoke();
 }
 ```
 
-After signal, the probe call (blocked in `_resumeSignal.WaitOne()`) returns, simulation continues from where it paused.
+After `ClearPauseState`, the engine receives a `RequestResume()` or `RequestStepOneTick()`. The probe call (which already returned non-blocking) has no signal to wait for. Stepping advances the engine by exactly one tick; the next probe call checks `_stepMode` and re-pauses if the step condition matched.
 
 ### 6.6 Hit count
 
@@ -962,7 +1006,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 }
 ```
 
-When `StepOver` / `StepInto` / `StepOut` is called, the session sets `_stepMode` and the relevant context, then signals resume. The next probe call checks `_stepMode` and decides whether to re-pause.
+When `StepOver` / `StepInto` / `StepOut` is called, the session sets `_stepMode` and the relevant context, then requests a one-tick advance. The next probe call checks `_stepMode` and decides whether to re-pause.
 
 ### 7.3 StepOver
 
@@ -971,66 +1015,63 @@ The user wants: "from this node, advance one node and pause again, but don't pau
 ```csharp
 public void StepOver()
 {
+    // Capture step-from context BEFORE clearing pause
     _stepMode = StepMode.Over;
     _stepFromNodeIdString = _pausedAt!.NodeIdString;
     _stepFromAssetId = _pausedAt.AssetId;
     _stepFromEntity = _pausedOnEntity!.Value;
     _stepFromCallDepth = _currentCallDepth;
-    SignalResume();
+    _stepFromTick = _view.Tick;
+
+    ClearPauseState();
+    _timeController.RequestStepOneTick();
 }
 
 public void OnNodeEnter(Entity self, string nodeId)
 {
-    // ... breakpoint handling ...
+    // Always update execution history (subject to history-buffer cap)
+    RecordNodeHistory(self, nodeId);
 
-    // Step handling
-    switch (_stepMode)
+    // Check breakpoints -- increment hit count, possibly fire event + request pause
+    HandleBreakpointMatchingForNode(self, nodeId);
+
+    // Check step mode
+    if (_stepMode != StepMode.None)
+        HandleStepMatchingForNode(self, nodeId);
+}
+
+private void HandleStepMatchingForNode(Entity self, string nodeId)
+{
+    bool shouldPause = _stepMode switch
     {
-        case StepMode.Over:
-            HandleStepOver(self, nodeId);
-            break;
-        case StepMode.Into:
-            HandleStepInto(self, nodeId);
-            break;
-        case StepMode.Out:
-            HandleStepOut(self, nodeId);
-            break;
+        StepMode.Over => MatchesStepOver(self, nodeId),
+        StepMode.Into => MatchesStepInto(self, nodeId),
+        StepMode.Out  => MatchesStepOut(self, nodeId),
+        _ => false,
+    };
+
+    if (shouldPause)
+    {
+        var node = FindNodeAcrossAllMaps(nodeId);
+        var pseudoBp = MakePseudoBreakpoint(self, nodeId, node);
+        var hit = new BreakpointHit(pseudoBp, self, _view.Time, _view.Tick);
+
+        _stepMode = StepMode.None;
+        HandleBreakpointHit(hit);   // captures state, fires event, RequestPause
     }
 }
 
-private void HandleStepOver(Entity self, string nodeId)
+private void HandleStepOver(Entity self, string nodeId) => MatchesStepOver(self, nodeId);
+
+private bool MatchesStepOver(Entity self, string nodeId)
 {
     // Pause when:
     //   1) Same entity (Slice 1: a step follows one entity; see §9)
     //   2) Same call depth or shallower (didn't recurse deeper or returned out)
     //   3) Different node-id than where we stepped from
-    if (_stepFromEntity == self
+    return _stepFromEntity == self
         && _currentCallDepth <= _stepFromCallDepth
-        && nodeId != _stepFromNodeIdString)
-    {
-        ForceStepPause(self, nodeId);
-    }
-}
-
-private void ForceStepPause(Entity self, string nodeId)
-{
-    _stepMode = StepMode.None;
-    var node = FindNodeAcrossAllMaps(nodeId);
-    var pseudoBreakpoint = new Breakpoint
-    {
-        Id = new BreakpointId(0),    // synthetic; not in user's list
-        AssetId = node?.AssetId ?? Guid.Empty,
-        GraphId = node?.GraphId ?? Guid.Empty,
-        NodeId = Guid.Parse(nodeId),
-        NodeIdString = nodeId,
-        DisplayName = node?.DisplayName ?? "(stepped)",
-        Enabled = true,
-        IsStale = false,
-        HitCount = 0,
-        AssetStructureHashAtSetTime = 0,
-    };
-    var hit = new BreakpointHit(pseudoBreakpoint, self, _view.Time, _view.Tick);
-    HandleBreakpointHit(hit);
+        && nodeId != _stepFromNodeIdString;
 }
 ```
 
@@ -1738,7 +1779,8 @@ Hrot.Blueprints.Tests/Debug/
 public void Breakpoint_FiresOnNodeEntry_OncePerFrame()
 {
     using var fixture = new BlueprintTestFixture();
-    var session = new BlueprintDebugSession(fixture.Registry, fixture.View);
+    var timeController = fixture.TimeController;
+    var session = new BlueprintDebugSession(fixture.Registry, fixture.View, timeController);
     DebugProbe.Sink = session;
 
     var asset = TestData.LoadAsset("HealthRegen");
@@ -1759,19 +1801,18 @@ public void Breakpoint_FiresOnNodeEntry_OncePerFrame()
     BreakpointHit? lastHit = null;
     session.OnBreakpointHit += hit => lastHit = hit;
 
-    // Tick — generated code's probe call fires
-    // Use a non-blocking variant for the test (skip the WaitOne pause)
-    session.SetTestModeNoBlock(true);
+    // Tick -- generated code's probe call fires and requests pause (non-blocking)
     fixture.TickFrame(0.016f);
 
     Assert.NotNull(lastHit);
     Assert.Equal(entity, lastHit.Self);
     Assert.Equal(bpId, lastHit.Breakpoint.Id);
-    Assert.Equal(1, lastHit.Breakpoint.HitCount);
+    Assert.True(timeController.PauseWasRequested);   // session asked engine to pause
+    Assert.Equal(1, timeController.PauseRequestCount);   // only one request even if multiple entities
 }
 ```
 
-The `SetTestModeNoBlock(true)` is a test-only escape hatch — it skips the `WaitOne()` so the test thread doesn't deadlock. In production, the simulation thread blocks; in tests, it doesn't.
+No `SetTestModeNoBlock` escape hatch needed -- probes already don't block.
 
 ### 12.3 Structure-hash safety test
 
@@ -1780,9 +1821,9 @@ The `SetTestModeNoBlock(true)` is a test-only escape hatch — it skips the `Wai
 public void Breakpoint_AfterStructureChange_MarkedStaleAndDoesNotFire()
 {
     using var fixture = new BlueprintTestFixture();
-    var session = new BlueprintDebugSession(fixture.Registry, fixture.View);
+    var session = new BlueprintDebugSession(fixture.Registry, fixture.View, fixture.TimeController);
     DebugProbe.Sink = session;
-    session.SetTestModeNoBlock(true);
+    // (no SetTestModeNoBlock needed -- probes don't block)
 
     var v1 = BlueprintAssetBuilder
         .Instance("X")
@@ -1831,9 +1872,9 @@ public void Breakpoint_AfterStructureChange_MarkedStaleAndDoesNotFire()
 public void StepOver_PastPeerCall_PausesAtNextNodeNotInsidePeer()
 {
     using var fixture = new BlueprintTestFixture();
-    var session = new BlueprintDebugSession(fixture.Registry, fixture.View);
+    var session = new BlueprintDebugSession(fixture.Registry, fixture.View, fixture.TimeController);
     DebugProbe.Sink = session;
-    session.SetTestModeNoBlock(true);
+    // (no SetTestModeNoBlock needed -- probes don't block)
 
     var sensor = TestData.LoadAsset("DoorSensor");
     var actor = TestData.LoadAsset("DoorActor");
@@ -1880,9 +1921,9 @@ public void StepOver_PastPeerCall_PausesAtNextNodeNotInsidePeer()
 public void DebugMode_ProbeCall_UnderTwoHundredNanoseconds_WithBreakpointSet()
 {
     using var fixture = new BlueprintTestFixture();
-    var session = new BlueprintDebugSession(fixture.Registry, fixture.View);
+    var session = new BlueprintDebugSession(fixture.Registry, fixture.View, fixture.TimeController);
     DebugProbe.Sink = session;
-    session.SetTestModeNoBlock(true);
+    // (no SetTestModeNoBlock needed -- probes don't block)
 
     var asset = TestData.LoadAsset("InstanceCounter");
     fixture.CompileAndLoad(asset, CompilerMode.Debug);
@@ -1919,61 +1960,33 @@ These tests guard against regressions in the probe path's performance.
 
 ---
 
-## 13. Open questions for implementation
+## 13. Open questions — RESOLVED
 
-### 13.1 Slice 1 single-debugger limitation
+All six Slice 1 decisions are locked.
 
-Slice 1 supports one `IBlueprintDebugSession` at a time. The static `DebugProbe.Sink` field is a single reference. Multiple debuggers (e.g., one for the editor + one for an external profiler) would need a multiplexing sink.
+### 13.1 Slice 1 single-debugger limitation — LOCKED
 
-**Recommendation for Slice 1:** ship single-debugger. Add multiplexing in Slice 2 if needed:
+One `DebugProbe.Sink` at a time. A `MultiplexingProbeSink` for multiple simultaneous debuggers is deferred to Slice 2.
 
-```csharp
-// Slice 2 only:
-public sealed class MultiplexingProbeSink : IBlueprintProbeSink
-{
-    private readonly List<IBlueprintProbeSink> _sinks = new();
-    public void AddSink(IBlueprintProbeSink sink) => _sinks.Add(sink);
-    public void OnNodeEnter(Entity self, string nodeId)
-    {
-        foreach (var s in _sinks) s.OnNodeEnter(self, nodeId);
-    }
-    // ... etc ...
-}
-```
+### 13.2 SimulationTime vs WallClockTime in BreakpointHit — LOCKED
 
-### 13.2 SimulationTime vs WallClockTime in BreakpointHit
+`SimulationTime` only on `BreakpointHit` records. The editor can stamp its own wall-clock in the `OnBreakpointHit` handler when needed. Less data on the protocol.
 
-Breakpoint hits include `SimulationTime` (from `ISimulationView.Time`). Should they also include `WallClockTime` for editor display ("hit 2 seconds ago in real time")?
+### 13.3 Pause-on-error vs pause-on-breakpoint — LOCKED
 
-**Slice 1 decision:** simulation time only. The editor can stamp its own wall-clock in the `OnBreakpointHit` handler if needed. Less data on the protocol.
+Protocol does not intercept exceptions for Slice 1. They propagate to the engine crash handler or attached IDE. Slice 2 may add a "pause on Blueprint exception" mode.
 
-### 13.3 Pause-on-error vs pause-on-breakpoint
+### 13.4 Watch persistence across editor sessions — LOCKED
 
-If generated code throws an exception (per Runtime DD §6.10), should the protocol intercept? Slice 1 says no — exceptions propagate to the engine's error handler.
+In-memory only for Slice 1. A `watches.json` next to the project file is deferred to Slice 2.
 
-For Slice 2, we could add a "pause on Blueprint exception" mode where the protocol catches in the probe wrapper and surfaces the exception with full state snapshot. Useful for debugging, but adds a try/catch around every probe — non-trivial cost.
+### 13.5 Performance budget CI gate — LOCKED
 
-**Slice 1 decision:** no exception interception by the protocol.
+Probe-overhead benchmarks are part of M12 acceptance gate; budget breach fails CI. Targets from §1.5: ≤50 ns (no breakpoints/watches), ≤200 ns (breakpoint hit), ≤300 ns (trace pin-value).
 
-### 13.4 Watch persistence across editor sessions
+### 13.6 Debug map storage in production — LOCKED
 
-Per §6.9, breakpoints don't persist. Watches likely should — they represent investigative state the user has built up. For Slice 2 add `watches.json` next to project.
-
-**Slice 1 decision:** no persistence.
-
-### 13.5 Performance budget tracking
-
-§1.5 gave targets (50ns, 200ns, 300ns per probe call). These should be enforced by CI: probe-overhead tests run on every PR; budget breach fails build.
-
-**Decision needed during M12 implementation:** set up the CI gate.
-
-### 13.6 Debug map storage in production
-
-For MSBuild builds, the debug map is a `.dbgmap.json` next to the DLL. For Quick Reload, it's in-memory passed to `coordinator.ApplyQuickReload`. The session's loader handles both.
-
-But: should the debug map ever ship in production builds? Yes — it's small (a few KB per asset), and unlocks editor debugging for the dev who's writing the game. The Release-mode emit eliminates probes from generated code, but the debug map is still useful for editor inspection of slot bytes (per §8.4 — `GetCurrentStateSnapshot` works without probes, just needs the layout map).
-
-**Decision:** ship debug maps in production. Strip only the probe instrumentation from generated source; keep the layout metadata.
+Debug maps ship alongside production DLLs as `.dbgmap.json` files. Release-mode generated code emits no probes, but the layout metadata is needed for Live ExCon diagnostics and editor inspection (`GetCurrentStateSnapshot` works without probes).
 
 ---
 

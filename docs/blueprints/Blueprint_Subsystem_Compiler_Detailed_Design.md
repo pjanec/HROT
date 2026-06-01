@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Compiler Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1.
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1. All inline patches (Compiler DD InlinePatches v1 and v2) integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestones M3 (Validator), M4 (Library lowering), M5 (Instance lowering), M6 (AiPrimitive lowering + thunks), M7 (Latent / channel commands / waits).
 > **Doesn't cover:** Runtime systems (Runtime DD), test harness (Test Harness DD), debug protocol UI (Debug Protocol DD), editor (Editor DD), hot-reload coordinator (Hot Reload DD).
@@ -120,7 +120,7 @@ public sealed record CompileOptions(
     IEngineEventCatalog EngineEvents,
     IChannelCommandCatalog ChannelCommands,
     IWaitPrimitiveCatalog WaitPrimitives,
-    IReadOnlyList<BlueprintAsset> SiblingAssets,
+    IReadOnlyList<BlueprintSignature> SiblingSignatures,
     bool EmitPdbWithEmbeddedSource = false,
     string? VirtualSourcePath = null);
 
@@ -1981,6 +1981,7 @@ public static class {SanitizedName}_Bp
         IEntityCommandBuffer ecb,
         Entity self,
         float time,
+        float deltaTime,
         {AdditionalParamsFromCatalog})
     {
         // Body emitted from IR
@@ -1993,7 +1994,8 @@ public static class {SanitizedName}_Bp
         IEntityCommandBuffer ecb,
         Entity self,
         float time,
-        float deltaTime)
+        float deltaTime,
+        uint instanceVersion)
     {
         // Engine event polling (one loop per Event graph matching catalog entry):
         var {EventVar} = view.ReadEvents<{EventType}>();
@@ -2002,7 +2004,7 @@ public static class {SanitizedName}_Bp
             var __evt = {EventVar}[i];
             if (!view.IsAlive(__evt.{TargetField})) continue;
             if (__evt.{TargetField} == self)
-                Event_{EventName}(ref s, view, ecb, self, time,
+                Event_{EventName}(ref s, view, ecb, self, time, deltaTime,
                     __evt.{Field1}, __evt.{Field2}, ...);
         }
         // ... more poll loops ...
@@ -2018,9 +2020,9 @@ public static class {SanitizedName}_Bp
         // ... emitted statements ...
     }
 
-    public static void RegisterAll(BlueprintRegistry registry)
+    public static void Register(BlueprintRegistryStaging staging)
     {
-        registry.RegisterInstance(BlueprintId, new BlueprintDefinition
+        staging.Add(BlueprintId, new BlueprintDefinition
         {
             Name = "{Name}",
             Kind = BlueprintDispatchKind.Instance,
@@ -2038,10 +2040,10 @@ public static class {SanitizedName}_Bp
 
     private static void TickThunk(
         Span<byte> bytes, ISimulationView view, IEntityCommandBuffer ecb,
-        Entity self, float time, float deltaTime)
+        Entity self, float time, float deltaTime, uint instanceVersion)
     {
         ref var s = ref Unsafe.As<byte, State>(ref MemoryMarshal.GetReference(bytes));
-        Tick(ref s, view, ecb, self, time, deltaTime);
+        Tick(ref s, view, ecb, self, time, deltaTime, instanceVersion);
     }
 
     // ... event handler thunks ...
@@ -3346,22 +3348,21 @@ public static class MoveToAndFire_Bp
 public static unsafe class BlueprintRegistrar_MoveToAndFire_A1B2C3D4_Bp
 {
     public static void Register(
-        BlueprintRegistry registry,
-        BehaviorRegistry behReg,
-        HsmActionDispatcher hsmDispatcher)
+        BlueprintRegistryStaging staging,
+        BehaviorRegistry behReg)
     {
-        behReg.RegisterAction("MoveToAndFire_Bp", MoveToAndFire_Bp.BTreeTick);
-        hsmDispatcher.RegisterAction(
-            MoveToAndFire_Bp.BlueprintId,
-            (IntPtr)(delegate* unmanaged<void*, void*, HsmCommandWriter*, void>)
-                &MoveToAndFire_Bp.HsmActivity);
-        registry.RegisterAiPrimitive(MoveToAndFire_Bp.BlueprintId, new BlueprintDefinition
+        staging.Add(MoveToAndFire_Bp.BlueprintId, new BlueprintDefinition
         {
             Name = "MoveToAndFire",
             Kind = BlueprintDispatchKind.AiPrimitive,
             StructureHash = MoveToAndFire_Bp.StructureHash,
             StateSize = 0,
         });
+        behReg.RegisterAction("MoveToAndFire_Bp", MoveToAndFire_Bp.BTreeTick);
+        HsmActionDispatcher.RegisterAction(
+            MoveToAndFire_Bp.BlueprintId,
+            (IntPtr)(delegate* unmanaged<void*, void*, HsmCommandWriter*, void>)
+                &MoveToAndFire_Bp.HsmActivity);
     }
 }
 ```
@@ -3491,7 +3492,7 @@ public static class HealthRegen_Bp
 
     public static void Event_OnHit(
         ref State s, ISimulationView view, IEntityCommandBuffer ecb,
-        Entity self, float time,
+        Entity self, float time, float deltaTime, uint instanceVersion,
         Entity attacker, float damage, Vector3 direction)
     {
         DebugProbe.NodeEnter(self, "n-hit-damage");
@@ -3499,13 +3500,13 @@ public static class HealthRegen_Bp
 
         // Start a 5-second regen delay cursor
         s.Cursor.ResumeAt = 1;
-        s.Cursor.InstanceVersion = /* captured via runtime context — Slice 1 deferred */ 0;
+        s.Cursor.InstanceVersion = instanceVersion;
         s.Cursor.WaitUntilTime = time + 5.0f;
     }
 
     public static void Tick(
         ref State s, ISimulationView view, IEntityCommandBuffer ecb,
-        Entity self, float time, float deltaTime)
+        Entity self, float time, float deltaTime, uint instanceVersion)
     {
         // Engine event poll for HitEvent (Event_OnHit graph subscribes)
         var __evts_0 = view.ReadEvents<Hrot.HitEvent>();
@@ -3514,7 +3515,7 @@ public static class HealthRegen_Bp
             var __e = __evts_0[__i];
             if (!view.IsAlive(__e.Target)) continue;
             if (__e.Target != self) continue;
-            Event_OnHit(ref s, view, ecb, self, time, __e.Attacker, __e.Damage, __e.Direction);
+            Event_OnHit(ref s, view, ecb, self, time, deltaTime, instanceVersion, __e.Attacker, __e.Damage, __e.Direction);
         }
 
         // Cursor-driven regen state machine
@@ -3541,9 +3542,9 @@ public static class HealthRegen_Bp
         }
     }
 
-    public static void RegisterAll(BlueprintRegistry registry)
+    public static void Register(BlueprintRegistryStaging staging)
     {
-        registry.RegisterInstance(BlueprintId, new BlueprintDefinition
+        staging.Add(BlueprintId, new BlueprintDefinition
         {
             Name = "HealthRegen",
             Kind = BlueprintDispatchKind.Instance,
@@ -3562,10 +3563,10 @@ public static class HealthRegen_Bp
 
     private static void TickThunk(
         Span<byte> bytes, ISimulationView view, IEntityCommandBuffer ecb,
-        Entity self, float time, float deltaTime)
+        Entity self, float time, float deltaTime, uint instanceVersion)
     {
         ref var s = ref Unsafe.As<byte, State>(ref MemoryMarshal.GetReference(bytes));
-        Tick(ref s, view, ecb, self, time, deltaTime);
+        Tick(ref s, view, ecb, self, time, deltaTime, instanceVersion);
     }
 
     // ... BeginPlayThunk, OnHitThunk shaped similarly
@@ -3574,8 +3575,8 @@ public static class HealthRegen_Bp
 [BlueprintRegistrar]
 public static class BlueprintRegistrar_HealthRegen_B2C3D4E5_Bp
 {
-    public static void Register(BlueprintRegistry registry)
-        => HealthRegen_Bp.RegisterAll(registry);
+    public static void Register(BlueprintRegistryStaging staging)
+        => HealthRegen_Bp.Register(staging);
 }
 ```
 
@@ -3588,7 +3589,7 @@ public static class BlueprintRegistrar_HealthRegen_B2C3D4E5_Bp
 | Latent mechanism | Phase byte in WorkingState; returns `NodeStatus.Running` | `BlueprintLatentCursor.ResumeAt` + `WaitUntilTime`; returns void |
 | Event subscription | None (BTree/HSM kernels poll us, not vice versa) | `view.ReadEvents<T>()` loops in `Tick` |
 | Cross-Blueprint calls | Not in this demo | Possible via `callablePeers` (also not in this demo) |
-| Registration | `BehaviorRegistry` + `HsmActionDispatcher` + `BlueprintRegistry` | `BlueprintRegistry` only |
+| Registration | `BehaviorRegistry` + static `HsmActionDispatcher` + `BlueprintRegistryStaging` | `BlueprintRegistryStaging` only |
 | Cleanup on reload | Inline StructureHash check on `Blackboard1024` first 8 bytes | Per-slot in `BlueprintBlackboardPartitions` |
 
 Both share the same underlying compiler pipeline (Stages 1-5), diverge in Stage 6 (lowering), and produce structurally different but conceptually parallel C# in Stage 7.
@@ -4088,13 +4089,24 @@ internal static class TestData
 
 A few specific items that are worth flagging for the implementation phase, but which don't affect the architecture:
 
-### 18.1 InstanceVersion capture mechanism
+### 18.1 InstanceVersion capture mechanism — RESOLVED
 
-The `BlueprintLatentCursor.InstanceVersion` field is supposed to capture the slot's current InstanceVersion at suspend time, so the next tick's staleness check can detect hot-reload-driven invalidation.
+The `BlueprintLatentCursor.InstanceVersion` field captures the slot's current `InstanceVersion` at suspend time, so the next tick's staleness check can detect hot-reload-driven invalidation.
 
-The clean way to thread this value into generated code is to pass it as an additional `Tick` parameter (`uint currentInstanceVersion`) populated by `BlueprintTickSystem` when it invokes the slot. This means the generated `Tick` signature for Instance dispatch grows by one parameter.
+**Resolution (Compiler DD Inline Patches Q-18.1):** The `Tick` method gains a `uint instanceVersion` parameter at the end, populated by `BlueprintTickSystem` when it invokes the slot:
 
-**Decision needed during M5/M10 implementation:** confirm the parameter shape and update the v1.2 spec accordingly. The doc currently has `Tick(ref State s, ISimulationView view, IEntityCommandBuffer ecb, Entity self, float time, float deltaTime)`. Likely amended to add `uint instanceVersion` at the end.
+```csharp
+public static void Tick(
+    ref State s,
+    ISimulationView view,
+    IEntityCommandBuffer ecb,
+    Entity self,
+    float time,
+    float deltaTime,
+    uint instanceVersion)   // <-- added
+```
+
+The `TickDelegate` in `BlueprintDefinition` also takes this parameter. Event handlers that open latent cursors receive `instanceVersion` forwarded from `Tick` and assign it to `s.Cursor.InstanceVersion`. This is now reflected in §10.5 and §16.
 
 ### 18.2 Engine event payload field-ordering convention
 
@@ -4130,13 +4142,11 @@ If an author manually edits a `.bp.json` and accidentally changes the asset Guid
 
 **Open**: should the editor enforce one-Guid-per-asset (forbid Guid editing in the Asset Editor) and offer "regenerate Guid" as an explicit action? Likely yes — affects Editor Detailed Design.
 
-### 18.7 Sibling-asset resolution at generator time
+### 18.7 Sibling-asset resolution at generator time — RESOLVED
 
-The Roslyn generator sees `.bp.json` files via `AdditionalFiles`. It must compile them in dependency order if `CallablePeers` references are to resolve correctly.
+**Resolution (Compiler DD Inline Patches Patch 1):** The Roslyn generator uses `IIncrementalGenerator` providers with a `.Combine()` to merge them. A `BlueprintSignatureParser` extracts lightweight `BlueprintSignature` records (identity + exports only, no graph/node/link data) per file in its own cache scope. The collected catalog (signatures only) is combined with per-file full compile inputs. This ensures O(1) build time for body-only edits — unchanged sibling signatures keep the per-asset compile cache valid.
 
-**Decision needed:** the generator does a two-pass walk — first pass parses all `.bp.json` files into `BlueprintAsset` objects; second pass compiles each one with the full sibling list. This is also where the catalog gets populated from siblings (a Library asset's functions become callable by name).
-
-The architecture supports this; the implementation needs to wire it up during M4.
+The `CompileOptions.SiblingAssets` field is replaced by `SiblingSignatures : IReadOnlyList<BlueprintSignature>` (reflected in §1.2).
 
 ### 18.8 Diagnostic format for editor consumption
 

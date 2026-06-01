@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Hot Reload Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches + Runtime DD + Runtime DD Inline Patches + Test Harness DD + Test Harness DD Inline Patches.
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches + Runtime DD + Runtime DD Inline Patches + Test Harness DD + Test Harness DD Inline Patches. All Hot Reload DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestone M11 (hot reload integration — mock-first phase A, then engine-side phase B).
 > **Doesn't cover:** Compiler internals (Compiler DD), runtime systems (Runtime DD), test harness internals (Test Harness DD), debug protocol (Debug Protocol DD), editor (Editor DD).
@@ -58,7 +58,7 @@ Per v1.2 §8 and Architecture Inline Patches, three changes are needed to the ex
 
 1. **Attribute-driven registrar discovery.** Replace the hard-coded class-name scan with a scan for any class carrying `[HsmActionRegistrar]`, `[FbtRegistrar]`, or `[BlueprintRegistrar]`. The new `[BlueprintRegistrar]` attribute lives in `Fdp.Toolkits.Blueprints`; the others already exist.
 
-2. **Parameter-driven argument injection.** When invoking a registrar's `Register` method on the main thread, inspect its parameter list and supply the appropriate registry instance (`BehaviorRegistry`, `HsmActionDispatcher`, or `BlueprintRegistry`). This makes the coordinator agnostic to which subsystem owns a given registrar.
+2. **Parameter-driven argument injection.** When invoking a registrar's `Register` method on the main thread, inspect its parameter list and supply the appropriate registry instance (`BehaviorRegistry` or `BlueprintRegistryStaging`). `HsmActionDispatcher` is a static class and cannot be injected; generated registrars call it directly. `BlueprintRegistry` injection is explicitly forbidden (throws) to enforce the atomic RCU contract. This makes the coordinator agnostic to which subsystem owns a given registrar.
 
 3. **Optional PDB loading.** Add a constructor-gated option to load PDBs alongside the PE bytes. When the option is on (dev mode), attached debuggers can step through generated code; when off (production), no PDB I/O happens.
 
@@ -238,8 +238,10 @@ internal sealed class PendingReload
     public required AssemblyLoadContext NewAlc { get; init; }
     public required Assembly NewAssembly { get; init; }
     public required IReadOnlyList<ResolvedRegistrar> Registrars { get; init; }
-    public AssemblyLoadContext? OldAlc { get; init; }
     public DateTime LoadedAt { get; init; } = DateTime.UtcNow;
+
+    // OldAlc is NOT captured here. The background thread must not read _currentAlc
+    // (main-thread-only). ApplyReload reads _currentAlc directly at commit time.
 }
 
 internal sealed record ResolvedRegistrar(
@@ -303,7 +305,8 @@ internal sealed class AiHotReloadCoordinator
             NewAlc = alc,
             NewAssembly = assembly,
             Registrars = registrars,
-            OldAlc = _currentAlc,   // captured for unload on main thread
+            // No OldAlc capture -- background thread must not touch _currentAlc.
+            // Main-thread ApplyReload reads _currentAlc directly at commit time.
         };
     }
 }
@@ -461,20 +464,18 @@ If the queue is empty, `DrainPendingCallbacks` is a no-op fast path.
 internal sealed class AiHotReloadCoordinator
 {
     private readonly BehaviorRegistry _behaviorRegistry;
-    private readonly HsmActionDispatcher _hsmDispatcher;
     private readonly BlueprintRegistry _blueprintRegistry;
+    // NOTE: HsmActionDispatcher is a static class; no field needed.
 
-    public event Action? OnReloadCompleted;
+    public event Action<ReloadCompletedInfo>? OnReloadCompleted;
     public event Action<Exception>? OnReloadFailed;
 
     public AiHotReloadCoordinator(
         BehaviorRegistry behaviorRegistry,
-        HsmActionDispatcher hsmDispatcher,
         BlueprintRegistry blueprintRegistry,
         AiHotReloadCoordinatorOptions options)
     {
         _behaviorRegistry = behaviorRegistry;
-        _hsmDispatcher = hsmDispatcher;
         _blueprintRegistry = blueprintRegistry;
         _options = options;
     }
@@ -493,34 +494,31 @@ internal sealed class AiHotReloadCoordinator
             _options.Logger?.LogInfo(
                 $"Hot reload applied: {pending.Registrars.Count} registrars from " +
                 $"'{pending.NewAssembly.GetName().Name}'.");
-            OnReloadCompleted?.Invoke();
-        }
-        catch (Exception ex)
-        {
-            _options.Logger?.LogError(
-                $"Hot reload apply failed: {ex.Message}", ex);
-            OnReloadFailed?.Invoke(ex);
-            // Old ALC stays loaded; simulation continues with old code.
-            // The failed new ALC is left dangling — GC will reclaim it once no refs hold it.
-            try { pending.NewAlc.Unload(); }
-            catch (Exception innerEx)
+                FireReloadCompleted(ReloadSource.FullRebuildViaFileWatcher, pending.NewAlc, dllPath: null);
+            }
+            catch (Exception ex)
             {
-                _options.Logger?.LogWarning(
-                    $"Failed to unload partially-applied ALC: {innerEx.Message}");
+                _options.Logger?.LogError(
+                    $"Hot reload apply failed: {ex.Message}. " +
+                    "Old code remains live; failed ALC will be unloaded. " +
+                    "Note: HSM dispatcher and BehaviorRegistry may have partial registrations " +
+                    "from this attempt; next successful reload restores consistency.",
+                    ex);
+                OnReloadFailed?.Invoke(ex);
+                // Unload ONLY the failed ALC. _currentAlc is untouched -- still points to live code.
+                try { pending.NewAlc.Unload(); }
+                catch (Exception innerEx)
+                {
+                    _options.Logger?.LogWarning(
+                        $"Failed to unload partially-applied ALC: {innerEx.Message}");
+                }
             }
         }
-    }
 
     private void ApplyReload(PendingReload pending)
     {
-        // 1. Clear stale HSM function pointers
-        _hsmDispatcher.ClearAll();
-
-        // 2. Begin Blueprint registry staging
-        var staging = _blueprintRegistry.BeginStaging();
-
-        // 3. Invoke each registrar with parameter-injection
-        foreach (var registrar in pending.Registrars)
+        // 1. Clear stale HSM function pointers (static call -- HsmActionDispatcher is a static class)
+        HsmActionDispatcher.ClearAll();
         {
             InvokeRegistrar(registrar, staging);
         }
@@ -528,10 +526,21 @@ internal sealed class AiHotReloadCoordinator
         // 4. Atomically commit Blueprint registry
         _blueprintRegistry.CommitStaging(staging);
 
-        // 5. Update current-ALC reference; unload the old one
+        // 5. Update current-ALC reference; unload the old one.
+        //    ONLY on the main thread, ONLY after successful commit.
         var oldAlc = _currentAlc;
         _currentAlc = pending.NewAlc;
         oldAlc?.Unload();
+    }
+
+    private void FireReloadCompleted(ReloadSource source, AssemblyLoadContext newAlc, string? dllPath)
+    {
+        OnReloadCompleted?.Invoke(new ReloadCompletedInfo
+        {
+            Source = source,
+            NewAlc = newAlc,
+            DllPath = dllPath,
+        });
     }
 }
 ```
@@ -566,14 +575,25 @@ private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStagi
 
 private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging staging)
 {
-    if (paramType == typeof(BlueprintRegistryStaging))    return staging;
-    if (paramType == typeof(BlueprintRegistry))           return _blueprintRegistry;
-    if (paramType == typeof(BehaviorRegistry))            return _behaviorRegistry;
-    if (paramType == typeof(HsmActionDispatcher))         return _hsmDispatcher;
+    if (paramType == typeof(BlueprintRegistryStaging))  return staging;
+    if (paramType == typeof(BehaviorRegistry))          return _behaviorRegistry;
+
+    // BlueprintRegistry is explicitly forbidden -- direct access violates the atomic RCU contract.
+    if (paramType == typeof(BlueprintRegistry))
+        throw new HotReloadRegistrarException(
+            $"Registrar requests BlueprintRegistry, but only BlueprintRegistryStaging " +
+            "may be injected. Direct registry access would violate the atomic RCU contract. " +
+            "Change the registrar's signature to use BlueprintRegistryStaging.");
+
+    // HsmActionDispatcher is a static class -- never injected.
+    if (paramType == typeof(HsmActionDispatcher))
+        throw new HotReloadRegistrarException(
+            $"Registrar requests HsmActionDispatcher as a parameter, but it is a static " +
+            "class. Call HsmActionDispatcher.RegisterAction statically from inside Register.");
 
     throw new HotReloadRegistrarException(
         $"Unknown registrar parameter type: {paramType.FullName}. " +
-        "Add a case to ResolveRegistrarArgument or change the registrar's signature.");
+        "Supported types: BlueprintRegistryStaging, BehaviorRegistry.");
 }
 ```
 
@@ -606,8 +626,7 @@ public static unsafe class BlueprintRegistrar_MoveToAndFire_A1B2C3D4_Bp
 {
     public static void Register(
         BlueprintRegistryStaging staging,
-        BehaviorRegistry behReg,
-        HsmActionDispatcher hsmDispatcher)
+        BehaviorRegistry behReg)
     {
         // Stage Blueprint definition
         staging.Add(MoveToAndFire_Bp.BlueprintId, new BlueprintDefinition
@@ -621,8 +640,8 @@ public static unsafe class BlueprintRegistrar_MoveToAndFire_A1B2C3D4_Bp
         // Register BTree thunk (per declared BTreeAction hosting)
         behReg.RegisterAction("MoveToAndFire_Bp", MoveToAndFire_Bp.BTreeTick);
 
-        // Register HSM thunk (per declared HsmAction hosting)
-        hsmDispatcher.RegisterAction(
+        // Register HSM thunk (per declared HsmAction hosting) -- static call, no parameter
+        HsmActionDispatcher.RegisterAction(
             MoveToAndFire_Bp.BlueprintId,
             (IntPtr)(delegate* unmanaged<void*, void*, HsmCommandWriter*, void>)
                 &MoveToAndFire_Bp.HsmActivity);
@@ -668,7 +687,7 @@ Registrars stage into a buffer rather than writing directly to the registry. Why
 
 This is fundamental to the "no partial state visible to ticking" guarantee from §1.4.
 
-If a registrar accidentally takes `BlueprintRegistry` as a parameter (instead of `BlueprintRegistryStaging`), the coordinator still injects it — but the registrar's direct calls would mutate the *current* snapshot. That's a bug; the parameter-injection table is the policy enforcement.
+**Strict rule:** `ResolveRegistrarArgument` throws `HotReloadRegistrarException` if a registrar requests `BlueprintRegistry` as a parameter. Only `BlueprintRegistryStaging` and `BehaviorRegistry` are valid registrar parameter types. This is a hard error at registrar invocation time, not a silent permissive injection.
 
 ### 4.7 Ordering invariants within `ApplyReload`
 
@@ -802,32 +821,11 @@ Queue: [Reload1, Reload2]
 `DrainPendingCallbacks` processes one per frame:
 
 ```
-Frame N: Apply Reload1 (NewAlc=A, OldAlc=current). After: _currentAlc = A
-Frame N+1: Apply Reload2 (NewAlc=B, OldAlc=current=A). After: _currentAlc = B; A unloaded
+Frame N: Apply Reload1 (NewAlc=A). After: _currentAlc = A; original ALC unloaded
+Frame N+1: Apply Reload2 (NewAlc=B). After: _currentAlc = B; A unloaded
 ```
 
-This is correct: Reload2's `OldAlc` is captured at *background-thread time*, but at commit time the coordinator uses `_currentAlc` (which is now A after Reload1's commit). The `OldAlc` field on `PendingReload` is informational; the actual unload uses the live `_currentAlc` field.
-
-Updated `ApplyReload` to reflect this:
-
-```csharp
-private void ApplyReload(PendingReload pending)
-{
-    _hsmDispatcher.ClearAll();
-    var staging = _blueprintRegistry.BeginStaging();
-    foreach (var registrar in pending.Registrars)
-        InvokeRegistrar(registrar, staging);
-    _blueprintRegistry.CommitStaging(staging);
-
-    // Use the LIVE _currentAlc, not pending.OldAlc — handles the
-    // "two reloads queued before drain" case correctly.
-    var oldAlc = _currentAlc;
-    _currentAlc = pending.NewAlc;
-    oldAlc?.Unload();
-}
-```
-
-(Simplified from §4.3; this is the corrected version. The `pending.OldAlc` field can be dropped or kept for logging.)
+This is correct because `_currentAlc` is read directly inside `ApplyReload` at commit time. The background thread never touches `_currentAlc`; there is no stale capture on `PendingReload` (the `OldAlc` field was removed per Hot Reload DD Inline Patches Patch 1). Each `ApplyReload` call reads the live `_currentAlc`, which reflects the last committed reload, and correctly unloads it.
 
 ---
 
@@ -1550,13 +1548,7 @@ For completeness, what's explicitly out of scope:
 
 ### 11.1 `AiHotReloadCoordinator` constructor injection
 
-The current signature takes `BehaviorRegistry`, `HsmActionDispatcher`, `BlueprintRegistry`. The engine's existing coordinator probably has just two — the new `BlueprintRegistry` is the addition.
-
-**Decision needed during M11:** confirm the engine's DI container path that constructs the coordinator. Either:
-- Modify the constructor to accept `BlueprintRegistry`, update the DI binding once.
-- Or add a setter/initializer property and wire it post-construction.
-
-Constructor injection is preferable for clarity; setter is acceptable if it minimizes engine-side diff.
+**RESOLVED (Hot Reload DD Inline Patches Patch 2):** The constructor is `(BehaviorRegistry, BlueprintRegistry, AiHotReloadCoordinatorOptions)`. `HsmActionDispatcher` is a static class and is not injected; the `_hsmDispatcher` field has been dropped. The implementation agent should confirm the engine's DI binding accepts this 3-parameter constructor and add `BlueprintRegistry` to the injection wiring.
 
 ### 11.2 `OnRegistryChanged` consumer registration
 
@@ -1572,13 +1564,50 @@ The Hot Reload DD §5.5 mentions editor + debug protocol as `OnRegistryChanged` 
 
 ### 11.4 Quick Reload's relationship to the coordinator
 
-The editor's Quick Reload path (Editor DD scope) bypasses the file watcher and constructs its own ALC. It still uses `BlueprintRegistry.BeginStaging` / `CommitStaging` and respects the same staging-commit semantics.
+**RESOLVED (Hot Reload DD Inline Patches Patch 3):** Quick Reload always goes through the coordinator. The `ReloadApplier` helper-class approach is dropped. The coordinator exposes a public `ApplyQuickReload` method that the editor calls directly on the main thread:
 
-Question: should Quick Reload also go through the coordinator (so the same `OnReloadCompleted` event fires) or use a direct path?
+```csharp
+/// <summary>
+/// Apply a Quick Reload prepared by the editor. Must be called on the main thread.
+/// The coordinator takes ownership of the ALC lifecycle.
+/// </summary>
+public void ApplyQuickReload(
+    AssemblyLoadContext quickReloadAlc,
+    BehaviorRegistry behaviorStaging,
+    BlueprintRegistryStaging blueprintStaging)
+{
+    try
+    {
+        // Commit the BlueprintRegistry staging atomically
+        _blueprintRegistry.CommitStaging(blueprintStaging);
 
-**Recommendation for Slice 1:** Quick Reload uses a *helper class* extracted from the coordinator — `ReloadApplier` — that does just the `ApplyReload` logic without the file watcher infrastructure. Both the coordinator and the editor's Quick Reload call into `ReloadApplier.Apply(PendingReload)`. This consolidates the "apply" logic in one place, accessible from both paths.
+        // Merge BehaviorRegistry staging into the live registry
+        foreach (var (name, def) in behaviorStaging.GetAllEntries())
+            _behaviorRegistry.RegisterAction(name, def);
 
-The Editor DD should reference this; the helper class lives in `Fdp.Toolkits.Behavior` alongside the coordinator.
+        // Update _currentAlc (main-thread-only)
+        var oldAlc = _currentAlc;
+        _currentAlc = quickReloadAlc;
+
+        FireReloadCompleted(ReloadSource.QuickReloadViaApi, quickReloadAlc, dllPath: null);
+
+        oldAlc?.Unload();
+    }
+    catch (Exception ex)
+    {
+        _options.Logger?.LogError($"Quick Reload apply failed: {ex.Message}", ex);
+        OnReloadFailed?.Invoke(ex);
+        try { quickReloadAlc.Unload(); } catch (Exception innerEx)
+        {
+            _options.Logger?.LogWarning(
+                $"Failed to unload Quick Reload ALC after failure: {innerEx.Message}");
+        }
+        throw;   // re-throw so the editor can surface the error
+    }
+}
+```
+
+The editor's `QuickReloadService` is responsible for: calling `HsmActionDispatcher.ClearAll()`, invoking registrars into the staging registries, registering the debug map, then calling `coordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging)`. See Editor DD §10.3 and §11.4 for the full flow. The coordinator only commits what the editor has already prepared.
 
 ### 11.5 Logger interface
 

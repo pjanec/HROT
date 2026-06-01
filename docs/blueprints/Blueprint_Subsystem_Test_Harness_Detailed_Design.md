@@ -1,6 +1,6 @@
 # Blueprint Subsystem — Test Harness Detailed Design
 
-> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches + Runtime DD + Runtime DD Inline Patches.
+> **Status:** Detailed design, derived from `Blueprint_Subsystem_Architecture_v1.2.md` + Final Resolutions + Inline Patches + Implementation Roadmap v1.1 + Compiler DD + Compiler DD Inline Patches + Runtime DD + Runtime DD Inline Patches. All Test Harness DD inline patches integrated.
 > **Audience:** Implementation agent and human reviewer.
 > **Drives:** Milestone M2 (test harness skeleton + Fdp.Core mocks).
 > **Doesn't cover:** the test *cases* themselves (those are owned by the respective DDs — Compiler tests in Compiler DD §17, Runtime tests in Runtime DD §11, etc.). This DD owns the *infrastructure* those tests run on.
@@ -361,10 +361,6 @@ public sealed class MockSimulationView : ISimulationView
     private float _deltaTime;
     private uint _tick;
 
-    // Per-tick stable event streams; rebuilt at the start of each tick
-    private readonly Dictionary<Type, object> _eventStreamsByType
-        = new Dictionary<Type, object>();
-
     public MockSimulationView(EntityRepository repo)
     {
         _repo = repo;
@@ -381,17 +377,6 @@ public sealed class MockSimulationView : ISimulationView
         _time += dt;
         _deltaTime = dt;
         _tick++;
-        // Stable event streams reset each tick; tests publish events
-        // via fixture.PublishEvent<T>(evt) which goes to _ecb queue;
-        // on Playback, those events become readable via ReadEvents<T>().
-        // The streams stay stable for the *duration of one tick*.
-    }
-
-    internal void BeginTick(IReadOnlyDictionary<Type, IReadOnlyList<object>> publishedEvents)
-    {
-        _eventStreamsByType.Clear();
-        foreach (var (type, list) in publishedEvents)
-            _eventStreamsByType[type] = list;
     }
 
     // -- Entity lifecycle reads --
@@ -416,13 +401,9 @@ public sealed class MockSimulationView : ISimulationView
     public ref readonly T GetSingletonRO<T>() where T : unmanaged
         => ref _repo.GetSingletonRO<T>();
 
-    // -- Events — return cached per-tick stream --
+    // -- Events -- delegate directly to FdpEventBus; stability guaranteed by bus double-buffering
     public IReadOnlyList<T> ReadEvents<T>() where T : unmanaged
-    {
-        if (_eventStreamsByType.TryGetValue(typeof(T), out var list))
-            return (IReadOnlyList<T>)list;
-        return Array.Empty<T>();
-    }
+        => _repo.Bus.Read<T>();
 
     // -- Queries --
     public IEntityQuery Query() => _repo.Query();
@@ -436,7 +417,7 @@ public sealed class MockSimulationView : ISimulationView
 
 `ISimulationView.GetCommandBuffer()` returns the frame's command buffer. In production, the engine maintains one ECB per frame and exposes it via the view. The mock follows the same pattern: it constructs one `MockEntityCommandBuffer` at fixture creation, returns the same instance from every `GetCommandBuffer()` call within a frame.
 
-The fixture's `TickFrame` resets the ECB at the start of each tick (after playback of the previous tick's queue).
+The fixture's `TickFrame` plays back the ECB at the end of each tick (Sync phase), after which both structural mutations and queued events are settled.
 
 ### 3.5 What about write access?
 
@@ -448,54 +429,40 @@ The mock's value is **at the boundary**: anywhere a system accepts an `ISimulati
 
 ### 3.6 Event publication for tests
 
-Tests need to publish events that Blueprint code can poll. Two patterns:
-
-**Pattern A — publish via ECB, playback before tick:**
+Tests need to publish events that Blueprint code can poll via `view.ReadEvents<T>()`. Events are published via ECB and become readable in the *next* `TickFrame` after `SwapBuffers()`:
 
 ```csharp
 // In test
 fixture.Ecb.PublishEvent(new HitEvent { Target = entity, Damage = 30, ... });
-fixture.TickFrame(0.016f);   // ECB plays back at start of tick; events become readable
+fixture.TickFrame(0.016f);   // SwapBuffers at tick start makes the event readable
+var hits = fixture.View.ReadEvents<HitEvent>();  // stable for entire tick
 ```
 
-**Pattern B — direct publish to mock view (test-only escape hatch):**
-
-```csharp
-// In test
-fixture.PublishEventForNextTick(new HitEvent { Target = entity, Damage = 30, ... });
-fixture.TickFrame(0.016f);
-```
-
-Pattern A mirrors production code exactly. Pattern B is a convenience for tests that don't want to fuss with ECB; useful when the event being injected wouldn't normally come from inside the simulation (e.g., "player pressed jump"). Both yield the same outcome — the event is in `ReadEvents<T>` for the duration of the next tick.
+This mirrors production code exactly. The `FdpEventBus` double-buffer ensures events published during a tick are not visible until the next `SwapBuffers()`.
 
 ```csharp
 // Inside BlueprintTestFixture:
-private readonly Dictionary<Type, List<object>> _pendingEvents = new();
-
-public void PublishEventForNextTick<T>(T evt) where T : unmanaged
-{
-    if (!_pendingEvents.TryGetValue(typeof(T), out var list))
-        _pendingEvents[typeof(T)] = list = new List<object>();
-    list.Add(evt);
-}
-
 public void TickFrame(float dt)
 {
-    Ecb.Playback();                                  // playback queued ECB ops + events
-    View.AdvanceTime(dt);
-    View.BeginTick(SnapshotPendingEvents());         // events stable for this tick
-    _pendingEvents.Clear();
-    TickSystem.Execute(View);
-    MaintenanceSystem.Execute(View);
-    // ECB playback happens at the start of NEXT TickFrame to mirror production timing
-}
+    // 1. Advance event bus so events published last frame become readable this frame
+    _repo.Bus.SwapBuffers();
 
-private Dictionary<Type, IReadOnlyList<object>> SnapshotPendingEvents()
-{
-    var snapshot = new Dictionary<Type, IReadOnlyList<object>>();
-    foreach (var (type, list) in _pendingEvents)
-        snapshot[type] = list.ToArray();             // copy to detach from mutation
-    return snapshot;
+    // 2. Advance time
+    View.AdvanceTime(dt);
+
+    // 3. Simulation phase
+    TickSystem.Execute(View);
+    foreach (var auxSystem in _auxSimulationSystems)
+        auxSystem.Execute(View);
+
+    // 4. BeforeSync phase
+    MaintenanceSystem.Execute(View);
+
+    // 5. Sync phase: ECB playback (structural mutations + queued events apply)
+    Ecb.Playback(_repo);
+
+    // 6. Mid-tick inspection hook (after everything settled)
+    _tickActions?.Invoke(View, Ecb);
 }
 ```
 
@@ -512,12 +479,7 @@ for (int i = 0; i < hits.Count; i++)
 }
 ```
 
-The architect's QV-3 ruling: `hits` must remain valid for the duration of this loop, even if other code in the same tick publishes more events. The mock enforces this by:
-- Snapshotting `_pendingEvents` into immutable lists at `BeginTick`.
-- Returning those exact lists from `ReadEvents<T>` for the tick.
-- Resetting on the next `BeginTick`.
-
-So events published *during* a tick (e.g., via `ecb.PublishEvent`) do not appear in that tick's `ReadEvents<T>`. They appear next tick after ECB playback. This matches production semantics.
+The architect's QV-3 ruling: `hits` must remain valid for the duration of this loop, even if other code in the same tick publishes more events. This stability is provided natively by the `FdpEventBus` double-buffering: `Read<T>()` returns the *read* buffer which stays immutable until the next `SwapBuffers()`. Events published via ECB during a tick land in the write buffer and become readable only on the next `SwapBuffers()` (next `TickFrame`). No mock-side snapshot logic needed.
 
 ### 3.8 `IsAlive` mid-frame semantics (QV-4)
 
@@ -838,31 +800,34 @@ This is essential for tier upgrade (Runtime DD §7): `AddEmptyComponent<Blueprin
 
 ### 4.8 Playback timing within `TickFrame`
 
-The mock's playback is called by the fixture at a specific point in `TickFrame`:
+ECB playback happens at the **end** of `TickFrame`, after `MaintenanceSystem.Execute`, mirroring the engine's Sync phase order. Assertions written immediately after `TickFrame(dt)` see the fully finalised state.
 
 ```csharp
 public void TickFrame(float deltaTime)
 {
-    // 1. Play back queued ECB ops from previous frame (or seed events)
-    Ecb.Playback();
+    // 1. Advance event bus so events published last frame become readable this frame
+    _repo.Bus.SwapBuffers();
 
     // 2. Advance time
     View.AdvanceTime(deltaTime);
 
-    // 3. Snapshot events into the view's per-tick stable stream
-    View.BeginTick(SnapshotPendingEvents());
-
-    // 4. Execute systems (this is where new ECB ops get queued)
+    // 3. Simulation phase
     TickSystem.Execute(View);
+    foreach (var auxSystem in _auxSimulationSystems)
+        auxSystem.Execute(View);
+
+    // 4. BeforeSync phase
     MaintenanceSystem.Execute(View);
 
-    // 5. Ecb.Playback() at the START of the next TickFrame
+    // 5. Sync phase: ECB playback
+    Ecb.Playback(_repo);
+
+    // 6. Mid-tick inspection hook (after everything settled)
+    _tickActions?.Invoke(View, Ecb);
 }
 ```
 
-This matches production: the engine plays ECB at Sync phase (end of frame), so the *next* frame's systems see the changes. The mock plays at the start of the next `TickFrame` for the same observable behavior.
-
-Test-side, this means: a `TickFrame` call shows the *previous* frame's ECB results being applied. Tests that need to verify "did the ECB op apply correctly?" must call `TickFrame` (or `fixture.Ecb.Playback()` directly) after issuing the op.
+This matches production: the engine plays ECB at Sync phase (end of frame). Tests that need to verify "did the ECB op apply correctly?" simply call `TickFrame(dt)` and then assert.
 
 ### 4.9 Phase-rule violations the mock catches
 
@@ -2662,44 +2627,58 @@ If the engine team later moves these into a shared assembly that tests can refer
 
 ### 12.1 InvokeBTreeAction / InvokeHsmAction helpers
 
-§9.4 used `fixture.InvokeBTreeAction(asset, entity)` for end-to-end tests of AiPrimitive Blueprints hosted as BTree actions. This helper needs to:
+**RESOLVED (Test Harness DD Inline Patches Q-12.1):** The real `BehaviorRegistry` is lightweight and used directly. `HsmActionDispatcher` is a static class. The fixture's `Dispose` calls `HsmActionDispatcher.ClearAll()` to remove the test's registered function pointers:
 
-1. Look up the registered `BTreeTick` delegate by name from a (mock) `BehaviorRegistry`.
-2. Construct a minimal `BTreeContext` referencing the fixture's world and the target entity.
-3. Find the entity's `BrainBlackboard`, derive a paramIndex (Slice 1 convention: param slot 0).
-4. Invoke the delegate.
+```csharp
+public void Dispose()
+{
+    HsmActionDispatcher.ClearAll();   // clear stale function pointers from this test's ALC
+    // ... ALC unload, GC reclaim verify ...
+}
+```
 
-The implementation lives in the test harness. The exact signature depends on how `BehaviorRegistry` is constructed in production (Slice 1 will use the real `BehaviorRegistry` if we can configure it lightweight, otherwise a small `MockBehaviorRegistry`).
-
-**Decision needed during M2:** confirm whether the real `BehaviorRegistry` can be instantiated in tests without dragging in the full BTree kernel, or whether we need a mock.
+`InvokeRegistrarMethod` supports only `BlueprintRegistryStaging` and `BehaviorRegistry` parameter types (matching the coordinator's `ResolveRegistrarArgument`; `HsmActionDispatcher` is static, not injected).
 
 ### 12.2 BTreeContext construction in tests
 
-Same question for `BTreeContext`. The generated `BTreeTick` thunk takes `ref BTreeContext ctx`. Tests need to construct one. If `BTreeContext` is a simple struct with `World` + `Self` fields, tests construct it directly. If it has dependencies on a full BTree state machine, the test harness will need a small `BTreeContextBuilder`.
+**RESOLVED (Test Harness DD Inline Patches Q-12.2):** `BTreeContext` is a simple value struct. Tests construct it directly on the stack:
 
-**Decision needed during M2:** inspect `BTreeContext` shape in `Fdp.Toolkits`.
+```csharp
+public NodeStatus InvokeBTreeAction(BlueprintAsset asset, Entity entity, int paramIndex = 0)
+{
+    var ctx = new BTreeContext { World = _repo, Self = entity, Time = View.Time };
+    ref var bb = ref _repo.GetComponentRW<BrainBlackboard>(entity);
+    ref var state = ref _repo.GetComponentRW<BehaviorTreeState>(entity);
+    var thunk = ResolveBTreeTickMethod(asset);
+    return thunk(ref bb, ref state, ref ctx, paramIndex);
+}
+```
 
 ### 12.3 HsmKernelBridge construction
 
-For AiPrimitive Blueprints hosted as HsmAction or HsmGuard, the generated thunk takes `void* context` which is interpreted as `HsmKernelBridge*`. Tests need a way to construct one.
-
-Slice 1 plan: `fixture.InvokeHsmAction(asset, entity)` allocates a stack-or-pinned `HsmKernelBridge` with the world reference (via `GCHandle.Alloc(World)`) and the entity. Bridges are short-lived (test scope), `GCHandle.Free` at the end.
-
-**Decision needed:** confirm the bridge struct layout is stable and stack-allocatable.
-
-### 12.4 PreviewDispatcher pattern
-
-Several Slice 1 demos (especially MoveToAndFire) need a "mock dispatcher" that reads channel commands and updates statuses. The test harness might benefit from a base class:
+**RESOLVED (Test Harness DD Inline Patches Q-12.3):** `EntityRepository.UnmanagedHandle` is a permanent `nint` allocated at repo construction. Test helpers use it directly; no `GCHandle.Alloc/Free` needed:
 
 ```csharp
-public abstract class MockDispatcherSystemBase<TChannel> : IEcsModuleSystem
+var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+```
+
+### 12.4 MockDispatcherSystem base class
+
+**RESOLVED (Test Harness DD Inline Patches Q-12.4):** `MockDispatcherSystem<TChannel>` is added to `Hrot.Blueprints.Tests/MockSystems/` with `??=` lazy query caching. Concrete subclasses cover all Slice 1 channel-command demos.
+
+```csharp
+public abstract class MockDispatcherSystem<TChannel> : IEcsModuleSystem, IProfiledSystem
     where TChannel : unmanaged
 {
+    public string ProfileName => $"Mock{typeof(TChannel).Name}Dispatcher";
+
+    private IEntityQuery? _query;
+
     public void Execute(ISimulationView view)
     {
         var repo = (EntityRepository)view;
-        var query = repo.Query().With<TChannel>().Build();
-        foreach (var entity in query)
+        _query ??= repo.Query().With<TChannel>().Build();
+        foreach (var entity in _query)
         {
             ref var channel = ref repo.GetComponentRW<TChannel>(entity);
             HandleChannel(ref channel, entity, view);
@@ -2709,23 +2688,6 @@ public abstract class MockDispatcherSystemBase<TChannel> : IEcsModuleSystem
     protected abstract void HandleChannel(ref TChannel channel, Entity entity, ISimulationView view);
 }
 ```
-
-Each demo test then implements a small subclass:
-
-```csharp
-public sealed class MockLocomotionDispatcher : MockDispatcherSystemBase<LocomotionChannel>
-{
-    public Func<LocomotionChannel, NodeStatus> NextStatus { get; set; } = _ => NodeStatus.Success;
-
-    protected override void HandleChannel(ref LocomotionChannel channel, Entity entity, ISimulationView view)
-    {
-        if (channel.ActiveAction != 0)
-            channel.Status = NextStatus(channel);
-    }
-}
-```
-
-**Decision needed during M16 demo work:** finalize the pattern, possibly with a small fluent setup helper.
 
 ### 12.5 Cross-test scenario reuse
 
