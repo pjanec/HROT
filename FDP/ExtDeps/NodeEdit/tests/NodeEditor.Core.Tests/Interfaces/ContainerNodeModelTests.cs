@@ -48,6 +48,7 @@ public sealed class ContainerNodeModelTests
         public IReadOnlyList<RegionDescriptor> Regions => System.Array.Empty<RegionDescriptor>();
         public int GetRegionIndexForChild(NodeId childId) => -1;
         public ContainerPadding Padding => ContainerPadding.Default;
+        public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(200f, 100f);
     }
 
@@ -71,6 +72,7 @@ public sealed class ContainerNodeModelTests
         public IReadOnlyList<RegionDescriptor> Regions => System.Array.Empty<RegionDescriptor>();
         public int GetRegionIndexForChild(NodeId childId) => -1;
         public ContainerPadding Padding => ContainerPadding.Default;
+        public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(200f, 100f);
     }
 

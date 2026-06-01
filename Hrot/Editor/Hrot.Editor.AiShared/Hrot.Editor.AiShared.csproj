@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
   </ItemGroup>
 

@@ -20,17 +20,26 @@ internal sealed class HitTester
     private const float WireHitDistancePx = 6f;
     private const int   WireSampleCount   = 24;
 
-    // Visual Z-Layers mapping exactly to the paint order in CanvasRenderer.
+    // Visual Z-Layers. Higher value = later paint = wins hit test.
+    // Ordering (low to high):
+    //   BeforeContent < CommentBody < ContainerInterior < AfterWires < NodeBody
+    //   < CommentHeader < ContainerHeader < ContainerChevron < TopMost
+    //   < Attachment < Wire < Pin < Reroute
     internal const int ZLayerBeforeContent     = 10;
     internal const int ZLayerCommentBody       = 20;
     internal const int ZLayerContainerInterior = 30;
-    internal const int ZLayerContainerHeader   = 40;
-    internal const int ZLayerWire              = 50;
-    internal const int ZLayerAfterWires        = 60;
-    internal const int ZLayerNodeElement       = 70; // Node bodies, pins, attachments
-    internal const int ZLayerCommentHeader     = 80;
-    internal const int ZLayerAfterNodes        = 100;
-    internal const int ZLayerTopMost           = 110;
+    internal const int ZLayerAfterWires        = 35;
+    internal const int ZLayerNodeBody          = 40;   // Same element group as old ZLayerNodeElement
+    internal const int ZLayerNodeElement       = 40;   // Alias kept for internal callsites
+    internal const int ZLayerCommentHeader     = 50;
+    internal const int ZLayerContainerHeader   = 60;
+    internal const int ZLayerContainerChevron  = 65;
+    internal const int ZLayerTopMost           = 70;
+    internal const int ZLayerAttachment        = 80;
+    internal const int ZLayerWire              = 90;
+    internal const int ZLayerAfterNodes        = 95;
+    internal const int ZLayerPin               = 100;
+    internal const int ZLayerReroute           = 110;
 
     public void UpdateHover(
         GraphView view,

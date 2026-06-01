@@ -58,11 +58,12 @@ internal static class MyBlueprintItemRenderer
         }
         x += AccentDotRadius * 2f + 4f;
 
-        // Icon (16x16).
+        // Icon (16x16) — pass atlas UV rect so sprite-sheet icons are correctly cropped.
         if (item.IconKey is not null && icons.TryGet(item.IconKey, out var iconHandle))
         {
             ImGui.SetCursorScreenPos(new Vector2(x, cursorStart.Y + (RowHeight - IconSize) * 0.5f));
-            ImGui.Image(iconHandle.TextureId, new Vector2(IconSize, IconSize));
+            ImGui.Image(iconHandle.TextureId, new Vector2(IconSize, IconSize),
+                        iconHandle.Uv0, iconHandle.Uv1);
         }
         x += IconSize + 4f;
 

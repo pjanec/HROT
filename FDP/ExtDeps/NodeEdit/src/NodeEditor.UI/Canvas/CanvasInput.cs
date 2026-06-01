@@ -406,14 +406,26 @@ internal sealed class CanvasInput
 
     private static bool IsAncestorSelected(GraphView view, NodeId id)
     {
-        var currentParent = view.Model.FindNode(id)?.ParentContainerId;
+        var selectedNodes = new System.Collections.Generic.HashSet<NodeId>(
+            view.Selection.Nodes);
+        return HasSelectedAncestor(id, selectedNodes, view.Model);
+    }
+
+    /// <summary>
+    /// Returns true if any ancestor of <paramref name="id"/> is present in
+    /// <paramref name="selectedNodes"/>.  Exposed internal for BPF-030 tests.
+    /// </summary>
+    internal static bool HasSelectedAncestor(
+        NodeId id,
+        System.Collections.Generic.IReadOnlySet<NodeId> selectedNodes,
+        NodeEditor.Core.Interfaces.IGraphModel model)
+    {
+        var currentParent = model.FindNode(id)?.ParentContainerId;
         while (currentParent.HasValue)
         {
-            // If an ancestor is part of the current selection, this child must be skipped.
-            if (view.Selection.Contains(SelectionEntry.OfNode(currentParent.Value)))
+            if (selectedNodes.Contains(currentParent.Value))
                 return true;
-
-            currentParent = view.Model.FindNode(currentParent.Value)?.ParentContainerId;
+            currentParent = model.FindNode(currentParent.Value)?.ParentContainerId;
         }
         return false;
     }
@@ -525,7 +537,8 @@ internal sealed class CanvasInput
     }
 
     // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
-    private static void CommitNodeDrop(GraphView view, IInputSource input)
+    // Internal for testing (ContainerDragTests).
+    internal static void CommitNodeDrop(GraphView view, IInputSource input)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
         var finalLocalPositions = new Dictionary<NodeId, Vector2>();
@@ -701,7 +714,6 @@ internal sealed class CanvasInput
             }
         }
 
-        var moves = new List<(NodeId Id, Vector2 NewPos)>();
         var changeParents = new List<ChangeParentMove>();
         var inverseChangeParents = new List<ChangeParentMove>();
 
@@ -746,49 +758,16 @@ internal sealed class CanvasInput
             if (!reparenting && !regionChanged && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
                 continue;
 
-            if (reparenting || regionChanged)
-            {
-                changeParents.Add(new ChangeParentMove(nid, newParent, targetRegion, newLocalPos));
-                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
-            }
-            else if (n.ParentContainerId == null)
-            {
-                moves.Add((nid, newLocalPos));
-            }
-            else
-            {
-                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, targetRegion, newLocalPos));
-                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
-            }
-        }
-
-        var forwards = new List<GraphCommand>();
-        var inverses = new List<GraphCommand>();
-
-        if (moves.Count > 0)
-        {
-            var cb = new CommandBuilder(view.Model);
-            var (f, i) = cb.MoveNodes(moves);
-            forwards.Add(f);
-            inverses.Add(i);
+            // Always use ChangeParentMultiple for uniformity (BPF-029).
+            changeParents.Add(new ChangeParentMove(nid, newParent, targetRegion, newLocalPos));
+            inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
         }
 
         if (changeParents.Count > 0)
         {
-            forwards.Add(new GraphCommand.ChangeParentMultiple(changeParents));
-            inverses.Add(new GraphCommand.ChangeParentMultiple(inverseChangeParents));
-        }
-
-        if (forwards.Count == 1)
-        {
-            view.Execute(forwards[0], inverses[0], "Move Nodes");
-        }
-        else if (forwards.Count > 1)
-        {
-            inverses.Reverse();
             view.Execute(
-                new GraphCommand.Batch("Move Nodes", forwards),
-                new GraphCommand.Batch("Move Nodes", inverses),
+                new GraphCommand.ChangeParentMultiple(changeParents),
+                new GraphCommand.ChangeParentMultiple(inverseChangeParents),
                 "Move Nodes");
         }
     }

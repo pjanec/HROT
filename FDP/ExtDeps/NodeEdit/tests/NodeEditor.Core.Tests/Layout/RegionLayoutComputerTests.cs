@@ -41,6 +41,7 @@ public sealed class RegionLayoutComputerTests
         public IReadOnlyList<RegionDescriptor> Regions => _regions;
         public int GetRegionIndexForChild(NodeId childId) => -1;
         public ContainerPadding Padding { get; }
+        public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(100f, 60f);
     }
 

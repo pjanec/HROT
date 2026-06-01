@@ -52,6 +52,7 @@ public sealed class ContainerTransformTests
         public IReadOnlyList<RegionDescriptor> Regions => System.Array.Empty<RegionDescriptor>();
         public int GetRegionIndexForChild(NodeId childId) => -1;
         public ContainerPadding Padding { get; set; } = ContainerPadding.Default;
+        public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(200f, 100f);
     }
 

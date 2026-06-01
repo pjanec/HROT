@@ -16,12 +16,16 @@
     </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+    <PackageReference Include="NLog" Version="5.2.8" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

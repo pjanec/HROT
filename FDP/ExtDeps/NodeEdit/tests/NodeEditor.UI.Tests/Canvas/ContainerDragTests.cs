@@ -75,6 +75,7 @@ public sealed class ContainerDragTests
         public IReadOnlyList<NodeId> ChildNodeIds => _childIds;
         public IReadOnlyList<RegionDescriptor> Regions => _regions;
         public ContainerPadding Padding => ContainerPadding.Default;
+        public RegionLayoutOrientation RegionOrientation => RegionLayoutOrientation.VerticalStack;
         public Vector2 MinimumInteriorSize => new(200f, 100f);
         public NodeId? ParentContainerId { get; }
         public int GetRegionIndexForChild(NodeId childId) => -1;

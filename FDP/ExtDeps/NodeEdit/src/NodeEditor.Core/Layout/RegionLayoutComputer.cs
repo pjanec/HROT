@@ -23,8 +23,20 @@ public readonly record struct RegionStrip(
 public static class RegionLayoutComputer
 {
     /// <summary>
+    /// Convenience overload that computes region strips without child-node size data.
+    /// Child-driven region sizing is skipped; all regions are equally distributed.
+    /// </summary>
+    public static IReadOnlyList<RegionStrip> Compute(
+        IContainerNodeModel container,
+        RectF outerBounds,
+        float headerHeight,
+        float outlineWidth,
+        float paddingScale = 1f)
+        => Compute(container, null!, static _ => null, outerBounds, headerHeight, outlineWidth, paddingScale);
+
+    /// <summary>
     /// Compute the layout strips for a container with one or more regions.
-    /// Returns an empty list if the container has fewer than 2 regions (no dividers needed).
+    /// Returns an empty list if the container has no regions.
     /// </summary>
     /// <param name="container">The container whose regions are being laid out.</param>
     /// <param name="model">Graph model used to look up child nodes.</param>

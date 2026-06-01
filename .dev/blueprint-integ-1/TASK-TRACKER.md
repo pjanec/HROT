@@ -9,13 +9,13 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 ## Phase 0 — Foundations: NodeEdit icon UV + engine adapters
 **Goal:** the host-provided NodeEdit services (input, theme, icons, clipboard, diagnostics, pickers) exist as production adapters; icons addressable by UV rect.
 
-- [ ] **AIE-001** NodeEdit `IconHandle`/`IIconProvider` UV-rect support [details](./TASK-DETAIL.md#aie-001--nodeedit-iconhandleiiconprovider-uv-rect-support)
-- [ ] **AIE-002** `SilkIconProvider` [details](./TASK-DETAIL.md#aie-002--silkiconprovider--iiconprovider)
-- [ ] **AIE-003** `ImGuiInputSource` [details](./TASK-DETAIL.md#aie-003--imguiinputsource--iinputsource)
-- [ ] **AIE-004** `EngineEditorTheme` [details](./TASK-DETAIL.md#aie-004--engineeditortheme--ieditortheme)
-- [ ] **AIE-005** `ImGuiClipboard` [details](./TASK-DETAIL.md#aie-005--imguiclipboard--iclipboard)
-- [ ] **AIE-006** `NLogDiagnosticsSink` [details](./TASK-DETAIL.md#aie-006--nlogdiagnosticssink--idiagnosticssink)
-- [ ] **AIE-007** `AiEditorAdapterBundle` [details](./TASK-DETAIL.md#aie-007--aieditoradapterbundle)
+- [x] **AIE-001** NodeEdit `IconHandle`/`IIconProvider` UV-rect support [details](./TASK-DETAIL.md#aie-001--nodeedit-iconhandleiiconprovider-uv-rect-support) — BATCH-01 ✅
+- [x] **AIE-002** `SilkIconProvider` [details](./TASK-DETAIL.md#aie-002--silkiconprovider--iiconprovider) — BATCH-01 ✅
+- [x] **AIE-003** `ImGuiInputSource` [details](./TASK-DETAIL.md#aie-003--imguiinputsource--iinputsource) — BATCH-01 ✅
+- [x] **AIE-004** `EngineEditorTheme` [details](./TASK-DETAIL.md#aie-004--engineeditortheme--ieditortheme) — BATCH-01 ✅
+- [x] **AIE-005** `ImGuiClipboard` [details](./TASK-DETAIL.md#aie-005--imguiclipboard--iclipboard) — BATCH-01 ✅
+- [x] **AIE-006** `NLogDiagnosticsSink` [details](./TASK-DETAIL.md#aie-006--nlogdiagnosticssink--idiagnosticssink) — BATCH-01 ✅
+- [x] **AIE-007** `AiEditorAdapterBundle` [details](./TASK-DETAIL.md#aie-007--aieditoradapterbundle) — BATCH-01 ✅
 
 ## Phase 1 — Shared backing + document/perspective infrastructure
 **Goal:** one shared catalog/debug backing; documents + three perspectives; global Asset Browser; Blueprint parallel infra retired.
