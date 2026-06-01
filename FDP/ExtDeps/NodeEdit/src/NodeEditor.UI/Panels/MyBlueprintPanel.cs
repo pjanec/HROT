@@ -1,4 +1,4 @@
-using ImGuiNET;
+﻿using ImGuiNET;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.Search;
@@ -61,7 +61,7 @@ public sealed class MyBlueprintPanel
         _navigateToGraph = navigateToGraph;
         _navigateToItem  = navigateToItem;
 
-        _model.Changed += () => { /* model changed — re-renders automatically next frame */ };
+        _model.Changed += () => { /* model changed â€” re-renders automatically next frame */ };
     }
 
     /// <summary>Draw the panel inside the current ImGui window/region.</summary>
@@ -73,14 +73,14 @@ public sealed class MyBlueprintPanel
         DrawSections();
     }
 
-    // ── header ────────────────────────────────────────────────────────────────
+    // â”€â”€ header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void DrawHeader()
     {
         ImGui.TextColored(_host.Theme.TextDefault, "My Blueprint");
         ImGui.SameLine(ImGui.GetContentRegionAvail().X - 48f);
 
-        if (ImGui.SmallButton("\u2295\u25bc"))  // ⊕▼
+        if (ImGui.SmallButton("+ \u25bc"))
             ImGui.OpenPopup("##mybp_add");
 
         if (ImGui.BeginPopup("##mybp_add"))
@@ -94,7 +94,7 @@ public sealed class MyBlueprintPanel
         }
     }
 
-    // ── search box ────────────────────────────────────────────────────────────
+    // â”€â”€ search box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void DrawSearchBox()
     {
@@ -136,7 +136,7 @@ public sealed class MyBlueprintPanel
         }
     }
 
-    // ── sections ──────────────────────────────────────────────────────────────
+    // â”€â”€ sections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void DrawSections()
     {
@@ -172,10 +172,19 @@ public sealed class MyBlueprintPanel
     {
         bool expanded = _sectionExpanded.GetValueOrDefault(section.Id, true);
         string label  = $"{section.DisplayName} ({items.Count})##sec_{section.Id}";
+        var flags = expanded ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+        flags |= ImGuiTreeNodeFlags.AllowOverlap;
+        bool isOpen = ImGui.CollapsingHeader(label, flags);
 
-        if (ImGui.CollapsingHeader(label, expanded
-                ? ImGuiTreeNodeFlags.DefaultOpen
-                : ImGuiTreeNodeFlags.None))
+        if (section.CanCreateItems && section.CreateCommandId is not null)
+        {
+            ImGui.SameLine(ImGui.GetContentRegionAvail().X - 16f);
+            ImGui.SmallButton("+##sec_add_" + section.Id);
+            if (ImGui.IsItemClicked())
+                InvokeCreate(section.CreateCommandId);
+        }
+
+        if (isOpen)
         {
             _sectionExpanded[section.Id] = true;
             ImGui.Indent(8f);
@@ -197,20 +206,8 @@ public sealed class MyBlueprintPanel
         {
             _sectionExpanded[section.Id] = false;
         }
-
-        // Per-section ⊕ button at end of header.
-        if (section.CanCreateItems && section.CreateCommandId is not null)
-        {
-            ImGui.SameLine(ImGui.GetContentRegionAvail().X - 16f);
-            ImGui.SmallButton("\u2295##sec_add_" + section.Id);
-            if (ImGui.IsItemClicked())
-                InvokeCreate(section.CreateCommandId);
-        }
     }
-
-    // ── grouped items ─────────────────────────────────────────────────────────
-
-    private void DrawItemsGrouped(string sectionId, IReadOnlyList<MyBlueprintItem> items, int depth)
+private void DrawItemsGrouped(string sectionId, IReadOnlyList<MyBlueprintItem> items, int depth)
     {
         // Group by first segment of CategoryPath.
         var byCategory = new SortedDictionary<string, List<MyBlueprintItem>>(StringComparer.OrdinalIgnoreCase);
@@ -256,7 +253,7 @@ public sealed class MyBlueprintPanel
             DrawItem(item, null, false);
     }
 
-    // ── single item row ───────────────────────────────────────────────────────
+    // â”€â”€ single item row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void DrawItem(MyBlueprintItem item, IReadOnlyList<int>? matchPositions, bool indented)
     {
@@ -286,7 +283,7 @@ public sealed class MyBlueprintPanel
 
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void InvokeCreate(string commandId)
         => _commands.Invoke(commandId);

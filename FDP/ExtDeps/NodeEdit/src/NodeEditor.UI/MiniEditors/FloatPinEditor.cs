@@ -13,14 +13,13 @@ public sealed class FloatPinEditor : IPinDefaultValueEditor
     /// <inheritdoc/>
     public bool Draw(ref object? value, DefaultEditorContext ctx, out bool committed)
     {
-        committed = false;
         float current = value is float f ? f : 0f;
 
         float speed = (float)(ctx.Metadata.Step ?? 0.01);
         string format = ctx.Metadata.Units is { } u ? $"%.3f {u}" : "%.3f";
 
         ImGui.PushItemWidth(ctx.MaxWidth);
-        bool changed = DragFloatWithExpression.Render("##float", ref current, speed, format);
+        bool changed = DragFloatWithExpression.Render("##float", ref current, out committed, speed, format);
         ImGui.PopItemWidth();
 
         if (changed)
@@ -33,10 +32,8 @@ public sealed class FloatPinEditor : IPinDefaultValueEditor
             }
 
             value = current;
-            committed = ImGui.IsItemDeactivated();
-            return true;
         }
 
-        return false;
+        return changed;
     }
 }

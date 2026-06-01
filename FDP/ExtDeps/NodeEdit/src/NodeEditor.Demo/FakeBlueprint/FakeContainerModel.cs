@@ -30,6 +30,7 @@ public sealed class FakeContainerModel : IContainerNodeModel
     public IReadOnlyList<NodeId> ChildNodeIds => _childIds;
     public IReadOnlyList<RegionDescriptor> Regions => _regions;
     public ContainerPadding Padding { get; set; } = ContainerPadding.Default;
+    public RegionLayoutOrientation RegionOrientation { get; set; } = RegionLayoutOrientation.VerticalStack;
     public Vector2 MinimumInteriorSize { get; set; } = new(200f, 100f);
 
     public FakeContainerModel(NodeId id, string title, Vector2 position, NodeKindKey? kind = null)
@@ -58,5 +59,12 @@ public sealed class FakeContainerModel : IContainerNodeModel
         var rd = new RegionDescriptor(_regions.Count, name, priority, customColor);
         _regions.Add(rd);
         return rd;
+    }
+
+    /// <summary>Removes a child node from the container.</summary>
+    public void RemoveChild(NodeId childId)
+    {
+        _childIds.Remove(childId);
+        _childRegion.Remove(childId);
     }
 }

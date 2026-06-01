@@ -3,6 +3,7 @@ using NodeEditor.Core.Bookmarks;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
+using System;
 using System.Numerics;
 
 namespace NodeEditor.UI.Bookmarks;
@@ -22,33 +23,36 @@ public static class BookmarkEdgeMarkerRenderer
     /// </summary>
     public static void Render(GraphView view, BookmarkStore store, IEditorTheme theme)
     {
-        var vp       = view.Viewport;
-        var origin   = vp.CanvasScreenOrigin;
-        var size     = vp.CanvasScreenSize;
-        var dl       = ImGui.GetWindowDrawList();
+        var dl = ImGui.GetWindowDrawList();
+        var visibleGraphRect = RectF.FromMinMax(
+            view.Viewport.ScreenToGraph(view.Viewport.CanvasScreenOrigin),
+            view.Viewport.ScreenToGraph(view.Viewport.CanvasScreenOrigin + view.Viewport.CanvasScreenSize));
 
-        for (int slot = 1; slot <= 9; slot++)
+        foreach (var b in store.All)
         {
-            var b = store.GetSlot(slot);
-            if (b is null || b.TargetGraph != view.Model.Id) continue;
+            if (b.TargetGraph != view.Model.Id || b.SlotNumber < 1 || b.SlotNumber > 9) continue;
 
-            var bookmarkScreen = vp.GraphToScreen(b.ViewportPan);
-            var canvasRect     = new RectF(origin, size);
+            var bookmarkCenterGraph = b.ViewportPan + (view.Viewport.CanvasScreenSize / b.ViewportZoom) * 0.5f;
 
-            if (canvasRect.Contains(bookmarkScreen)) continue; // on-screen, no marker needed
+            if (visibleGraphRect.Contains(bookmarkCenterGraph)) continue;
 
-            var clipped = ClipToEdge(bookmarkScreen, origin, size);
-            var dir     = Vector2.Normalize(bookmarkScreen - new Vector2(origin.X + size.X * 0.5f, origin.Y + size.Y * 0.5f));
+            var screenTarget = view.Viewport.GraphToScreen(bookmarkCenterGraph);
+            var clipped = ClipToEdge(screenTarget, view.Viewport.CanvasScreenOrigin, view.Viewport.CanvasScreenSize);
 
-            var color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 0.85f, 0.1f, 0.85f));
+            if (Vector2.DistanceSquared(screenTarget, clipped) < 1f) continue;
+
+            var dir = Vector2.Normalize(screenTarget - clipped);
+            if (dir.LengthSquared() < 0.5f) dir = new Vector2(0, -1);
+
+            uint color = ImGui.GetColorU32(new Vector4(1f, 0.8f, 0.2f, 0.8f));
             DrawArrow(dl, clipped, dir, ArrowSize, color);
 
             // Hover tooltip
             if (Vector2.Distance(ImGui.GetMousePos(), clipped) < ArrowSize * 2)
-                ImGui.SetTooltip($"[{slot}] {b.Label}");
+                ImGui.SetTooltip($"[{b.SlotNumber}] {b.Label}");
 
             // Click to jump
-            if (ImGui.IsMouseClicked(ImGuiMouseButton.Left) &&
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) &&
                 Vector2.Distance(ImGui.GetMousePos(), clipped) < ArrowSize * 2)
             {
                 view.Interaction.BeginViewportTween(b.ViewportPan, b.ViewportZoom, 180);
@@ -62,6 +66,9 @@ public static class BookmarkEdgeMarkerRenderer
     {
         var center = origin + size * 0.5f;
         var dir    = target - center;
+
+        if (dir.LengthSquared() < 0.0001f) return center;
+
         float tx   = dir.X != 0 ? (dir.X > 0 ? (origin.X + size.X - ArrowInset - center.X) / dir.X : (origin.X + ArrowInset - center.X) / dir.X) : float.PositiveInfinity;
         float ty   = dir.Y != 0 ? (dir.Y > 0 ? (origin.Y + size.Y - ArrowInset - center.Y) / dir.Y : (origin.Y + ArrowInset - center.Y) / dir.Y) : float.PositiveInfinity;
         float t    = Math.Min(Math.Abs(tx), Math.Abs(ty));

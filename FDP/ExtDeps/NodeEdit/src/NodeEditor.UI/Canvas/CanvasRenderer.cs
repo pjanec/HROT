@@ -2,11 +2,15 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Canvas;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.UI.Find;
+using NodeEditor.UI.Panels;
 using NodeEditor.UI.Util;
+using NodeEditor.UI.Action;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -43,6 +47,16 @@ public sealed class CanvasRenderer
     private IGraphModel? _subscribedModel;
     private bool         _spatialDirty          = true;
     private int          _lastDragOverrideCount = -1;
+    private Vector2      _contextMenuGraphPos;
+    private string? _pendingVariableDropId;
+    private string? _pendingVariableDropName;
+    private Vector2 _pendingVariableDropPos;
+    private PinId? _pendingPromotePinId;
+    private bool _pendingPromoteIsLocal;
+    private bool _showPromoteVariableModal;
+    private string _promoteVariableName = "NewVariable";
+    private string _promoteVariableCategoryPath = "";
+    private IEditorCommands? _editorCommands;
 
     /// <summary>
     /// Render one frame of the node-editor canvas. Call this inside an ImGui window
@@ -52,7 +66,7 @@ public sealed class CanvasRenderer
     /// <param name="view">The graph view to render.</param>
     public void Render(GraphView view)
     {
-        Render(view, findBar: null);
+        Render(view, findBar: null, commands: null);
     }
 
     /// <summary>
@@ -62,8 +76,10 @@ public sealed class CanvasRenderer
     /// </summary>
     /// <param name="view">The graph view to render.</param>
     /// <param name="findBar">Optional find bar; overlays are only drawn when <see cref="FindBar.IsVisible"/> is true.</param>
-    public void Render(GraphView view, FindBar? findBar)
+    /// <param name="commands">Optional command dispatcher used by context-menu actions.</param>
+    public void Render(GraphView view, FindBar? findBar, IEditorCommands? commands = null)
     {
+        _editorCommands = commands;
         // Draw find bar above the canvas
         findBar?.Draw();
 
@@ -104,9 +120,89 @@ public sealed class CanvasRenderer
         ImGui.SetNextItemAllowOverlap();
         ImGui.InvisibleButton("##canvas_bg", size);
         bool isCanvasBgActive = ImGui.IsItemActive();
-        bool isCanvasHovered = ImGui.IsWindowHovered(
-            ImGuiHoveredFlags.AllowWhenBlockedByActiveItem
-            | ImGuiHoveredFlags.AllowWhenBlockedByPopup);
+        if (ImGui.BeginDragDropTarget())
+        {
+            var payload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.Variable);
+            unsafe
+            {
+                if (payload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var varId = MyBlueprintDragSource.CurrentItemId;
+                    var varName = MyBlueprintDragSource.CurrentDisplayName ?? varId;
+                    var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+                    var mods = view.Host.Input.Modifiers;
+
+                    if (mods.HasFlag(KeyModifiers.Ctrl))
+                    {
+                        PlaceVariableNode(view, varId, varName, dropPos, isGet: true);
+                    }
+                    else if (mods.HasFlag(KeyModifiers.Alt))
+                    {
+                        PlaceVariableNode(view, varId, varName, dropPos, isGet: false);
+                    }
+                    else
+                    {
+                        _pendingVariableDropId = varId;
+                        _pendingVariableDropName = varName;
+                        _pendingVariableDropPos = dropPos;
+                        ImGui.OpenPopup("##canvas_drop_var");
+                    }
+                }
+            }
+
+            var evtPayload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.CustomEvent);
+            unsafe
+            {
+                if (evtPayload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var evtId = MyBlueprintDragSource.CurrentItemId;
+                    var evtName = MyBlueprintDragSource.CurrentDisplayName ?? evtId;
+                    var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+
+                    var kind = new NodeKindKey("Event.CallCustom");
+                    var props = new Dictionary<string, object?> { ["EventName"] = evtName };
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.AddNode(kind, dropPos, props);
+                    view.Execute(fwd, inv, "Call Custom Event");
+                }
+            }
+
+            var macroPayload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.Macro);
+            unsafe
+            {
+                if (macroPayload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var macroId = MyBlueprintDragSource.CurrentItemId;
+                    var macroName = MyBlueprintDragSource.CurrentDisplayName ?? macroId;
+                    var dropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+
+                    var kind = new NodeKindKey("Macro.Call");
+                    var props = new Dictionary<string, object?> { ["MacroName"] = macroName };
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.AddNode(kind, dropPos, props);
+                    view.Execute(fwd, inv, "Call Macro");
+                }
+            }
+
+            var dispPayload = ImGui.AcceptDragDropPayload(MyBlueprintDragSource.EventDispatcher);
+            unsafe
+            {
+                if (dispPayload.NativePtr != null && MyBlueprintDragSource.CurrentItemId is not null)
+                {
+                    var dispId = MyBlueprintDragSource.CurrentItemId;
+                    var dispName = MyBlueprintDragSource.CurrentDisplayName ?? dispId;
+
+                    // Reuse pending drop fields to pass data to the dispatcher popup.
+                    _pendingVariableDropId = dispId;
+                    _pendingVariableDropName = dispName;
+                    _pendingVariableDropPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
+                    ImGui.OpenPopup("##canvas_drop_dispatcher");
+                }
+            }
+            ImGui.EndDragDropTarget();
+        }
+        bool isCanvasHovered = ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem);
+        bool isCanvasDirectlyFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.None);
 
         // Subscribe to model changes so we know when to rebuild the spatial index.
         // Unsubscribe from the previous model if the view was switched.
@@ -153,7 +249,7 @@ public sealed class CanvasRenderer
         InvokeCustomRenderers(view, CanvasRenderPass.BeforeContent);
 
         // 6a. Comment boxes — background layer (below nodes).
-        DrawComments(dl, view, foreground: false, visibleGraphRect);
+        CommentsRenderer.RenderBackground(dl, view, visibleGraphRect);
 
         // 6b. Container fills, headers, and outlines — drawn before wires so wires
         //     render on top of the container background but under child nodes.
@@ -166,13 +262,13 @@ public sealed class CanvasRenderer
         InvokeCustomRenderers(view, CanvasRenderPass.AfterWires);
 
         // 8. Nodes + inline editors — only the culled visible subset.
-        _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
+        bool isNodeBgActive = _nodes.DrawAll(view, dl, _layout.NodeScreenRects, _layout.PinScreenPositions, _layout.ConnectedInputPins, visibleNodeIds);
 
         // 8b. Attachment pills (or low-zoom bars) above host nodes.
         _attachments.DrawAll(view, dl, _layout.AttachmentLayouts, _layout.NodeScreenRects);
 
         // 4. Process input after widgets are submitted, using snapshotted hover.
-        _input.Handle(view, isCanvasHovered, isCanvasBgActive, _spatialIndex);
+        _input.Handle(view, isCanvasHovered, isCanvasBgActive, isNodeBgActive, isCanvasDirectlyFocused, _spatialIndex);
         if ((view.Host.Input.Modifiers & KeyModifiers.Alt) != 0
             && view.Interaction.Hover.Kind == HoverKind.Link)
         {
@@ -180,12 +276,9 @@ public sealed class CanvasRenderer
         }
 
         // 9. Comment boxes — foreground layer (header text on top of nodes).
-        DrawComments(dl, view, foreground: true, visibleGraphRect);
+        CommentsRenderer.RenderForeground(dl, view, visibleGraphRect);
 
-        // 10. Reroute waypoints.
-        ReroutesRenderer.Render(view.Model, view.Selection, view.Viewport, view.TypeSystem, visibleNodeIds, visibleGraphRect);
-
-        // 10b. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
+        // 10. Custom: AfterNodes pass — after all nodes, attachments, reroutes; before selection outlines.
         InvokeCustomRenderers(view, CanvasRenderPass.AfterNodes);
 
         // 11. Pending wire being dragged.
@@ -199,12 +292,13 @@ public sealed class CanvasRenderer
 
         // 13. Find overlay (match highlights + dim pass).
         if (findBar?.IsVisible == true && findBar.Results.Count > 0)
-            DrawFindOverlay(view, dl, findBar);
+            DrawFindOverlay(view, dl, findBar, _layout.NodeScreenRects);
 
         // 14. Context menu popup request/dispatch.
         if (view.Interaction.ContextMenuScreen.HasValue)
         {
             ImGui.SetNextWindowPos(view.Interaction.ContextMenuScreen.Value);
+            _contextMenuGraphPos = view.Viewport.ScreenToGraph(view.Interaction.ContextMenuScreen.Value);
             ImGui.OpenPopup("##canvas_ctx");
             view.Interaction.ContextMenuScreen = null;
         }
@@ -216,7 +310,91 @@ public sealed class CanvasRenderer
             DrawContextMenu(view);
             ImGui.EndPopup();
         }
+
+        if (_showPromoteVariableModal)
+        {
+            ImGui.OpenPopup("##canvas_promote_var");
+            _showPromoteVariableModal = false;
+        }
+
+        bool varPopupOpen = ImGui.BeginPopup("##canvas_drop_var");
+        if (varPopupOpen)
+        {
+            ImGui.TextDisabled("Variable Action");
+            ImGui.Separator();
+            if (ImGui.MenuItem("Get"))
+            {
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: true);
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Set"))
+            {
+                PlaceVariableNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, isGet: false);
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            ImGui.EndPopup();
+        }
+
+        bool dispPopupOpen = ImGui.BeginPopup("##canvas_drop_dispatcher");
+        if (dispPopupOpen)
+        {
+            ImGui.TextDisabled("Dispatcher Action");
+            ImGui.Separator();
+            if (ImGui.MenuItem("Call"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.CallDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Bind"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.BindDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Unbind"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            if (ImGui.MenuItem("Unbind All"))
+            {
+                PlaceDispatcherNode(view, _pendingVariableDropId!, _pendingVariableDropName ?? _pendingVariableDropId!, _pendingVariableDropPos, "Event.UnbindAllDispatcher");
+                _pendingVariableDropId = null;
+                _pendingVariableDropName = null;
+            }
+            ImGui.EndPopup();
+        }
+
+        if (!varPopupOpen && !dispPopupOpen)
+        {
+            _pendingVariableDropId = null;
+            _pendingVariableDropName = null;
+        }
+
+        DrawPromoteVariableModal(view);
         ImGui.PopStyleVar();
+    }
+
+    private void PlaceVariableNode(GraphView view, string variableId, string variableName, Vector2 graphPos, bool isGet)
+    {
+        var kind = new NodeKindKey(isGet ? "Util.GetVar" : "Util.SetVar");
+        var props = new Dictionary<string, object?> { ["VariableId"] = variableId, ["VariableName"] = variableName };
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, graphPos, props);
+        view.Execute(fwd, inv, isGet ? "Add Get Variable" : "Add Set Variable");
+    }
+
+    private void PlaceDispatcherNode(GraphView view, string dispatcherId, string dispatcherName, Vector2 graphPos, string kindId)
+    {
+        var kind = new NodeKindKey(kindId);
+        var props = new Dictionary<string, object?> { ["DispatcherId"] = dispatcherId, ["DispatcherName"] = dispatcherName };
+        var cb = new CommandBuilder(view.Model);
+        var (fwd, inv) = cb.AddNode(kind, graphPos, props);
+        view.Execute(fwd, inv, $"Add {kindId.Split('.').Last()}");
     }
 
     // Invokes active custom renderers for the given pass, in registration order.
@@ -259,52 +437,6 @@ public sealed class CanvasRenderer
     }
 
     // ── Comments ──────────────────────────────────────────────────────────────
-
-    private static void DrawComments(ImDrawListPtr dl, GraphView view, bool foreground, RectF visibleGraphRect)
-    {
-        var theme = view.Host.Theme;
-        var comments = view.Model.Comments.ToList();
-        comments.Sort((a, b) => a.ZOrder.CompareTo(b.ZOrder));
-
-        foreach (var comment in comments)
-        {
-            var commentRect = new RectF(comment.Position, comment.Size);
-            if (!commentRect.Intersects(visibleGraphRect))
-                continue;
-
-            var min = view.Viewport.GraphToScreen(comment.Position);
-            var max = view.Viewport.GraphToScreen(comment.Position + comment.Size);
-            float headerH = 20f * view.Viewport.Zoom;
-
-            bool selected = view.Selection.Contains(SelectionEntry.OfComment(comment.Id));
-
-            if (!foreground)
-            {
-                // Body fill (semi-transparent)
-                var bodyColor = comment.Color with { W = 0.15f };
-                dl.AddRectFilled(min, max, ImGui.GetColorU32(bodyColor), 4f);
-
-                // Header strip
-                var headerMax = new Vector2(max.X, min.Y + headerH);
-                dl.AddRectFilled(min, headerMax, ImGui.GetColorU32(comment.Color with { W = 0.65f }), 4f,
-                    ImDrawFlags.RoundCornersTop);
-
-                // Border
-                uint borderColor = selected
-                    ? ImGui.GetColorU32(theme.SelectionAccent)
-                    : ImGui.GetColorU32(comment.Color);
-                dl.AddRect(min, max, borderColor, 4f, ImDrawFlags.None, selected ? 2f : 1f);
-            }
-            else
-            {
-                // Header text
-                uint textColor = ImGui.GetColorU32(theme.TextDefault);
-                dl.AddText(min + new Vector2(6f, 4f), textColor, comment.Text.Split('\n')[0]);
-            }
-        }
-    }
-
-    // ── Pending wire ──────────────────────────────────────────────────────────
 
     private void DrawPendingWire(GraphView view, ImDrawListPtr dl)
     {
@@ -352,11 +484,75 @@ public sealed class CanvasRenderer
         dl.AddRect(min, max, ImGui.GetColorU32(theme.SelectionAccent), 0f, ImDrawFlags.None, 1.5f);
     }
 
-    private static void DrawContextMenu(GraphView view)
+    private void DrawContextMenu(GraphView view)
     {
         var target = view.Interaction.ContextMenuTarget;
         switch (target.Kind)
         {
+            case HoverKind.None:
+            {
+                if (ImGui.MenuItem("Add Node...", "Tab"))
+                {
+                    view.Interaction.Mode = InteractionMode.PickerOpen;
+                    var graphPos = _contextMenuGraphPos;
+                    view.Host.Pickers.Open(
+                        "nodes.all",
+                        ImGui.GetMousePos(),
+                        pick =>
+                        {
+                            if (pick is NodeCatalogEntry entry)
+                            {
+                                var cb = new CommandBuilder(view.Model);
+                                var (fwd, inv) = cb.AddNode(entry.Kind, graphPos, null);
+                                view.Execute(fwd, inv, "Add Node");
+                            }
+                            view.Interaction.ResetToIdle();
+                        },
+                        () => view.Interaction.ResetToIdle());
+                }
+
+                if (ImGui.MenuItem("Add Return Node"))
+                {
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.AddNode(new NodeKindKey("Function.Return"), _contextMenuGraphPos, null);
+                    view.Execute(fwd, inv, "Add Return");
+                }
+
+                bool hasSelection = view.Selection.Nodes.Any();
+                if (ImGui.MenuItem("Add Comment", "C", false, hasSelection))
+                {
+                    CanvasCommands.AddCommentAroundSelection(view);
+                }
+
+                ImGui.Separator();
+                ImGui.MenuItem("Paste", "Ctrl+V", false, false);
+                ImGui.Separator();
+
+                if (ImGui.MenuItem("Frame All", "Home"))
+                {
+                    if (view.Model.Nodes.Count > 0)
+                    {
+                        float minX = float.MaxValue, minY = float.MaxValue;
+                        float maxX = float.MinValue, maxY = float.MinValue;
+                        foreach (var n in view.Model.Nodes)
+                        {
+                            var size = n.SizeOverride ?? new Vector2(160, 64);
+                            if (n.Position.X < minX) minX = n.Position.X;
+                            if (n.Position.Y < minY) minY = n.Position.Y;
+                            if (n.Position.X + size.X > maxX) maxX = n.Position.X + size.X;
+                            if (n.Position.Y + size.Y > maxY) maxY = n.Position.Y + size.Y;
+                        }
+                        view.Viewport.FrameRect(new RectF(new Vector2(minX, minY), new Vector2(maxX - minX, maxY - minY)));
+                    }
+                }
+
+                if (ImGui.MenuItem("Reset Zoom", "Ctrl+0"))
+                {
+                    view.Viewport.Reset();
+                }
+                break;
+            }
+
             case HoverKind.Pin:
             {
                 var pinId = target.Pin;
@@ -364,17 +560,31 @@ public sealed class CanvasRenderer
                 {
                     var linksToRemove = view.Model.Links
                         .Where(l => l.FromPin == pinId || l.ToPin == pinId)
-                        .Select(l => l.Id)
                         .ToList();
+
                     if (linksToRemove.Count > 0)
-                        view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(linksToRemove));
+                    {
+                        var fwds = new List<Core.Commands.GraphCommand>();
+                        var invs = new List<Core.Commands.GraphCommand>();
+                        fwds.Add(new Core.Commands.GraphCommand.RemoveLinks(linksToRemove.Select(l => l.Id).ToList()));
+                        foreach (var l in linksToRemove)
+                        {
+                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                        }
+                        invs.Reverse();
+
+                        view.Execute(
+                            new Core.Commands.GraphCommand.Batch("Break Links", fwds),
+                            new Core.Commands.GraphCommand.Batch("Break Links", invs),
+                            "Break Links");
+                    }
                 }
 
                 ImGui.Separator();
                 if (ImGui.MenuItem("Promote to Variable..."))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewVariable", false, null));
+                    OpenPromoteToVariableModal(pinId, false);
                 if (ImGui.MenuItem("Promote to Local Variable..."))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(pinId, "NewLocalVariable", true, null));
+                    OpenPromoteToVariableModal(pinId, true);
 
                 ImGui.BeginDisabled();
                 ImGui.MenuItem("Split Struct Pin");
@@ -395,7 +605,15 @@ public sealed class CanvasRenderer
             {
                 var linkId = target.Link;
                 if (ImGui.MenuItem("Break Link"))
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveLinks(new[] { linkId }));
+                {
+                    var link = view.Model.FindLink(linkId);
+                    if (link != null)
+                    {
+                        var fwd = new Core.Commands.GraphCommand.RemoveLinks(new[] { linkId });
+                        var inv = new Core.Commands.GraphCommand.AddLink(link.Id, link.FromPin, link.ToPin);
+                        view.Execute(fwd, inv, "Break Link");
+                    }
+                }
 
                 if (ImGui.MenuItem("Select Connected Nodes"))
                 {
@@ -413,8 +631,13 @@ public sealed class CanvasRenderer
 
                 if (ImGui.MenuItem("Insert Reroute Node Here"))
                 {
-                    var graphPos = view.Viewport.ScreenToGraph(ImGui.GetMousePos());
-                    view.Commands.Apply(new Core.Commands.GraphCommand.InsertReroute(linkId, graphPos));
+                    var link = view.Model.FindLink(linkId);
+                    if (link != null)
+                    {
+                        var fwd = new Core.Commands.GraphCommand.InsertReroute(linkId, _contextMenuGraphPos);
+                        var inv = new Core.Commands.GraphCommand.RemoveReroute(linkId, link.Waypoints.Count);
+                        view.Execute(fwd, inv, "Insert Reroute");
+                    }
                 }
 
                 ImGui.BeginDisabled();
@@ -424,12 +647,144 @@ public sealed class CanvasRenderer
             }
 
             case HoverKind.Node:
-                if (ImGui.MenuItem("Delete Node"))
+            {
+                var selectedNodes = view.Selection.Nodes.ToList();
+                bool isHoveredSelected = selectedNodes.Contains(target.Node);
+
+                // If right-clicking an unselected node, target just that node.
+                // If right-clicking a selected node, target the whole group.
+                var targetNodes = isHoveredSelected ? selectedNodes : new List<NodeId> { target.Node };
+                var node = view.Model.FindNode(target.Node);
+
+                bool canNavigate = node != null &&
+                                   (node.Kind.Id == "Function.Call" ||
+                                    node.Kind.Id == "Macro.Call" ||
+                                    node.Kind.Id == "Event.CallCustom");
+
+                if (ImGui.MenuItem("Go to Definition", "F12", false, canNavigate))
                 {
-                    var nodeId = target.Node;
-                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(new[] { nodeId }));
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.GoToDefinition);
+                }
+
+                bool canExpand = node != null &&
+                                 (node.Kind.Id == "Function.Call" ||
+                                  node.Kind.Id == "Macro.Call" ||
+                                  node.Title == "ScaleBy");
+
+                if (ImGui.MenuItem("Expand Node", null, false, canExpand))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+
+                    var callNode = view.Model.FindNode(target.Node);
+                    if (callNode != null)
+                    {
+                        // 1. Snapshot the external links attached to the call node before destruction.
+                        var externalLinks = view.Model.Links
+                            .Where(l => view.Model.FindPin(l.FromPin)?.OwnerNodeId == target.Node ||
+                                        view.Model.FindPin(l.ToPin)?.OwnerNodeId == target.Node)
+                            .ToList();
+
+                        var invs = new List<Core.Commands.GraphCommand>();
+
+                        // 2. Predict IDs of internal nodes the backend will spawn.
+                        var n1Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp1");
+                        var n2Id = IdGenerator.DeterministicNodeId(target.Node.Value.ToString() + "_exp2");
+                        invs.Add(new Core.Commands.GraphCommand.RemoveNodes(new[] { n1Id, n2Id }));
+
+                        // 3. Restore the original call node with precise pin IDs.
+                        var props = new Dictionary<string, object?> { ["PinIds"] = callNode.Pins.Select(p => p.Id).ToList() };
+                        invs.Add(new Core.Commands.GraphCommand.AddNode(callNode.Id, callNode.Kind, callNode.Position, props));
+
+                        // 4. Restore external wires.
+                        foreach (var l in externalLinks)
+                        {
+                            invs.Add(new Core.Commands.GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                        }
+
+                        // 5. Dispatch command with exact inverse.
+                        var fwd = new Core.Commands.GraphCommand.ExpandNode(target.Node);
+                        view.Execute(fwd, new Core.Commands.GraphCommand.Batch("Undo Expand", invs), "Expand Node");
+                    }
+                }
+
+                ImGui.Separator();
+
+                if (ImGui.MenuItem(targetNodes.Count > 1 ? $"Delete {targetNodes.Count} Nodes" : "Delete Node", "Del"))
+                {
+                    if (!isHoveredSelected) view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveNodes(targetNodes));
+                }
+
+                ImGui.Separator();
+
+                if (ImGui.MenuItem("Add Comment", "C"))
+                {
+                    if (!isHoveredSelected)
+                    {
+                        view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    }
+
+                    CanvasCommands.AddCommentAroundSelection(view);
                 }
                 break;
+            }
+
+            case HoverKind.Comment:
+            {
+                var commentId = target.Comment;
+                var comment = view.Model.Comments.FirstOrDefault(c => c.Id == commentId);
+                if (comment == null) break;
+
+                if (ImGui.MenuItem("Rename", "F2"))
+                {
+                    view.Interaction.RenamingComment = commentId;
+                }
+
+                ImGui.Separator();
+                if (ImGui.BeginMenu("Color"))
+                {
+                    if (ImGui.MenuItem("Blue"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.29f, 0.56f, 0.88f, 1f), null, null));
+                    if (ImGui.MenuItem("Green"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.49f, 0.82f, 0.13f, 1f), null, null));
+                    if (ImGui.MenuItem("Yellow")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.97f, 0.90f, 0.11f, 1f), null, null));
+                    if (ImGui.MenuItem("Orange")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.96f, 0.65f, 0.14f, 1f), null, null));
+                    if (ImGui.MenuItem("Red"))    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.81f, 0.01f, 0.11f, 1f), null, null));
+                    if (ImGui.MenuItem("Purple")) view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.56f, 0.07f, 0.99f, 1f), null, null));
+                    if (ImGui.MenuItem("Cyan"))   view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.31f, 0.89f, 0.76f, 1f), null, null));
+                    if (ImGui.MenuItem("Brown"))  view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, new Vector4(0.54f, 0.34f, 0.16f, 1f), null, null));
+                    ImGui.EndMenu();
+                }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Bring to Front"))
+                {
+                    int maxZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Max(c => c.ZOrder) : 0;
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, maxZ + 1, null));
+                }
+                if (ImGui.MenuItem("Send to Back"))
+                {
+                    int minZ = view.Model.Comments.Count > 0 ? view.Model.Comments.Min(c => c.ZOrder) : 0;
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, minZ - 1, null));
+                }
+
+                ImGui.Separator();
+                ImGui.BeginDisabled();
+                ImGui.MenuItem("Resize to Fit Contents");
+                ImGui.EndDisabled();
+
+                bool mwc = comment.MoveWithContents;
+                if (ImGui.MenuItem("Move with Contents", null, ref mwc))
+                {
+                    view.Commands.Apply(new Core.Commands.GraphCommand.UpdateComment(commentId, null, null, null, null, null, mwc));
+                }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Delete", "Del"))
+                {
+                    view.Commands.Apply(new Core.Commands.GraphCommand.RemoveComment(commentId));
+                }
+                break;
+            }
 
             case HoverKind.CustomElement:
             {
@@ -453,7 +808,7 @@ public sealed class CanvasRenderer
 
     // ── Find overlay ─────────────────────────────────────────────────────────
 
-    private static void DrawFindOverlay(GraphView view, ImDrawListPtr dl, FindBar findBar)
+    private static void DrawFindOverlay(GraphView view, ImDrawListPtr dl, FindBar findBar, Dictionary<NodeId, RectF> nodeScreenRects)
     {
         var matchNodeIds = new HashSet<NodeId>();
         foreach (var r in findBar.Results)
@@ -463,11 +818,9 @@ public sealed class CanvasRenderer
         foreach (var node in view.Model.Nodes)
         {
             if (matchNodeIds.Contains(node.Id)) continue;
-            var pos  = node.Position;
-            var size = node.SizeOverride ?? new Vector2(160, 64);
-            var min  = view.Viewport.GraphToScreen(pos);
-            var max  = view.Viewport.GraphToScreen(pos + size);
-            dl.AddRectFilled(min, max, ImGui.GetColorU32(new Vector4(0, 0, 0, 0.6f)), 4f);
+            if (!nodeScreenRects.TryGetValue(node.Id, out var rect)) continue;
+
+            dl.AddRectFilled(rect.Min, rect.Max, ImGui.GetColorU32(new Vector4(0, 0, 0, 0.6f)), 4f);
         }
 
         // Yellow outline for matching nodes
@@ -477,18 +830,79 @@ public sealed class CanvasRenderer
             if (!result.Node.HasValue) continue;
             var node = view.Model.FindNode(result.Node.Value);
             if (node is null) continue;
-
-            var size  = node.SizeOverride ?? new Vector2(160, 64);
-            var min   = view.Viewport.GraphToScreen(node.Position);
-            var max   = view.Viewport.GraphToScreen(node.Position + size);
+            if (!nodeScreenRects.TryGetValue(node.Id, out var rect)) continue;
             bool isActive = (i == findBar.ActiveIndex);
 
+            // Apply a 2 Hz sine pulse for the active match.
+            float pulseAlpha = isActive
+                ? 0.5f + 0.5f * MathF.Sin((float)ImGui.GetTime() * MathF.PI * 4f)
+                : 1f;
+
             var outlineColor = isActive
-                ? new Vector4(1f, 0.9f, 0.1f, 1f)
+                ? new Vector4(1f, 0.9f, 0.1f, pulseAlpha)
                 : new Vector4(1f, 0.85f, 0.0f, 0.7f);
             float thickness = isActive ? 3.0f : 1.5f;
-            dl.AddRect(min, max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
+            dl.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(outlineColor), 4f, ImDrawFlags.None, thickness);
         }
+    }
+
+    private void OpenPromoteToVariableModal(PinId pinId, bool isLocal)
+    {
+        _pendingPromotePinId = pinId;
+        _pendingPromoteIsLocal = isLocal;
+        _promoteVariableName = isLocal ? "NewLocalVariable" : "NewVariable";
+        _promoteVariableCategoryPath = "";
+        _showPromoteVariableModal = true;
+    }
+
+    private void DrawPromoteVariableModal(GraphView view)
+    {
+        bool open = true;
+        if (!ImGui.BeginPopupModal("##canvas_promote_var", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        if (_pendingPromotePinId is null)
+        {
+            ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+            return;
+        }
+
+        if (ImGui.IsWindowAppearing())
+            ImGui.SetKeyboardFocusHere();
+
+        ImGui.TextDisabled(_pendingPromoteIsLocal ? "Promote to Local Variable" : "Promote to Variable");
+        ImGui.Separator();
+
+        var inputFlags = ImGuiInputTextFlags.AutoSelectAll | ImGuiInputTextFlags.EnterReturnsTrue;
+        bool inputEnter = ImGui.InputText("Name", ref _promoteVariableName, 128, inputFlags);
+        ImGui.InputText("Category", ref _promoteVariableCategoryPath, 256);
+
+        bool canPromote = !string.IsNullOrWhiteSpace(_promoteVariableName);
+        bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+
+        ImGui.BeginDisabled(!canPromote);
+        if (ImGui.Button("Promote", new Vector2(120, 0)) || ((inputEnter || globalEnter) && canPromote))
+        {
+            string? categoryPath = string.IsNullOrWhiteSpace(_promoteVariableCategoryPath) ? null : _promoteVariableCategoryPath.Trim();
+            view.Commands.Apply(new Core.Commands.GraphCommand.PromoteToVariable(
+                _pendingPromotePinId.Value,
+                _promoteVariableName.Trim(),
+                _pendingPromoteIsLocal,
+                categoryPath));
+            _pendingPromotePinId = null;
+            ImGui.CloseCurrentPopup();
+        }
+        ImGui.EndDisabled();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new Vector2(120, 0)) || !open || ImGui.IsKeyPressed(ImGuiKey.Escape))
+        {
+            _pendingPromotePinId = null;
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
     }
 
     // ── Model change tracking ─────────────────────────────────────────────────

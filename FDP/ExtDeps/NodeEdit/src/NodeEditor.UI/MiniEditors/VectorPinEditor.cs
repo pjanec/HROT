@@ -24,35 +24,34 @@ public sealed class VectorPinEditor : IPinDefaultValueEditor
     /// <inheritdoc/>
     public bool Draw(ref object? value, DefaultEditorContext ctx, out bool committed)
     {
-        committed = false;
         var v = Decode(value);
         bool changed = false;
-        float fieldWidth = ctx.MaxWidth / _dimension - 2f;
+        float gap = MathF.Max(1f, 4f * ImGui.GetIO().FontGlobalScale);
+        float fieldWidth = (ctx.MaxWidth - (gap * (_dimension - 1))) / _dimension;
 
-        ImGui.PushItemWidth(fieldWidth);
-        if (DragFloatWithExpression.Render("##x", ref v.X)) changed = true;
-        committed |= ImGui.IsItemDeactivated();
-        ImGui.SameLine(0f, 2f);
+        ImGui.PushItemWidth(MathF.Max(fieldWidth, 1f));
+        bool cX = false, cY = false, cZ = false, cW = false;
 
-        if (DragFloatWithExpression.Render("##y", ref v.Y)) changed = true;
-        committed |= ImGui.IsItemDeactivated();
+        if (DragFloatWithExpression.Render("##x", ref v.X, out cX)) changed = true;
+        ImGui.SameLine(0f, gap);
+
+        if (DragFloatWithExpression.Render("##y", ref v.Y, out cY)) changed = true;
 
         if (_dimension >= 3)
         {
-            ImGui.SameLine(0f, 2f);
-            if (DragFloatWithExpression.Render("##z", ref v.Z)) changed = true;
-            committed |= ImGui.IsItemDeactivated();
+            ImGui.SameLine(0f, gap);
+            if (DragFloatWithExpression.Render("##z", ref v.Z, out cZ)) changed = true;
         }
 
         if (_dimension >= 4)
         {
-            ImGui.SameLine(0f, 2f);
-            if (DragFloatWithExpression.Render("##w", ref v.W)) changed = true;
-            committed |= ImGui.IsItemDeactivated();
+            ImGui.SameLine(0f, gap);
+            if (DragFloatWithExpression.Render("##w", ref v.W, out cW)) changed = true;
         }
 
         ImGui.PopItemWidth();
 
+        committed = cX || cY || cZ || cW;
         if (changed) value = Encode(v);
         return changed;
     }

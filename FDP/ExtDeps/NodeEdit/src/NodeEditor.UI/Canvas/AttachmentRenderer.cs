@@ -44,7 +44,7 @@ internal sealed class AttachmentRenderer
             if (lowZoom)
                 DrawLowZoomBar(dl, nodeRect, attachments, theme);
             else
-                DrawPills(dl, nodeRect, layout, attachments, theme);
+                DrawPills(dl, nodeRect, layout, attachments, view);
         }
     }
 
@@ -81,8 +81,23 @@ internal sealed class AttachmentRenderer
         RectF nodeRect,
         AttachmentLayout layout,
         IReadOnlyList<IAttachmentModel> attachments,
-        IEditorTheme theme)
+        GraphView view)
     {
+        var theme = view.Host.Theme;
+        float zoom = view.Viewport.Zoom;
+
+        // Setup font scaling (matches node title rendering).
+        float targetFontSize = ImGui.GetFontSize() * zoom;
+        nint fontPtr = theme.GetFontForSize(targetFontSize);
+        bool useFont = fontPtr != 0;
+
+        unsafe
+        {
+            if (useFont) ImGui.PushFont(new ImFontPtr((ImFont*)(void*)fontPtr));
+        }
+
+        var font = ImGui.GetFont();
+
         // Build lookup table so we can find a model given its id.
         var modelMap = new Dictionary<AttachmentId, IAttachmentModel>(attachments.Count);
         foreach (var a in attachments)
@@ -92,11 +107,11 @@ internal sealed class AttachmentRenderer
         {
             if (!modelMap.TryGetValue(id, out var model)) continue;
 
-            // TopLeft is relative to the host node Min, in screen pixels.
-            var pillMin = nodeRect.Min + placement.TopLeft;
-            var pillMax = pillMin + placement.Size;
+            // Apply zoom to layout geometry.
+            var pillMin = nodeRect.Min + placement.TopLeft * zoom;
+            var pillMax = pillMin + placement.Size * zoom;
 
-            float cornerRadius = theme.AttachmentCornerRadius;
+            float cornerRadius = theme.AttachmentCornerRadius * zoom;
 
             var bgColor = GetCategoryColor(model.Category, theme);
             if ((model.State & AttachmentState.Disabled) != 0)
@@ -106,28 +121,30 @@ internal sealed class AttachmentRenderer
 
             // State outlines drawn on top of fill.
             if ((model.State & AttachmentState.Selected) != 0)
-                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.SelectionAccent), cornerRadius, ImDrawFlags.None, 2f);
+                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.SelectionAccent), cornerRadius, ImDrawFlags.None, 2f * zoom);
             else if ((model.State & AttachmentState.Error) != 0)
-                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.ErrorColor), cornerRadius, ImDrawFlags.None, 1f);
+                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.ErrorColor), cornerRadius, ImDrawFlags.None, 1f * zoom);
             else if ((model.State & AttachmentState.Warning) != 0)
-                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.WarningColor), cornerRadius, ImDrawFlags.None, 1f);
+                dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.WarningColor), cornerRadius, ImDrawFlags.None, 1f * zoom);
 
             // Text content: optional glyph then optional label.
-            float textLineH = ImGui.GetTextLineHeight();
-            float textY = pillMin.Y + (placement.Size.Y - textLineH) * 0.5f;
-            float textX = pillMin.X + AttachmentLayoutEngine.PillPaddingH;
+            float textLineH = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, "A").Y;
+            float textY = pillMin.Y + (placement.Size.Y * zoom - textLineH) * 0.5f;
+            float textX = pillMin.X + AttachmentLayoutEngine.PillPaddingH * zoom;
             uint textColor = ImGui.GetColorU32(theme.TextDefault);
 
             if (!string.IsNullOrEmpty(model.Glyph))
             {
-                dl.AddText(new Vector2(textX, textY), textColor, model.Glyph);
-                textX += ImGui.CalcTextSize(model.Glyph).X;
+                dl.AddText(font, targetFontSize, new Vector2(textX, textY), textColor, model.Glyph);
+                textX += font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, model.Glyph).X;
                 if (!string.IsNullOrEmpty(model.Label))
-                    textX += 4f;
+                    textX += 4f * zoom;
             }
             if (!string.IsNullOrEmpty(model.Label))
-                dl.AddText(new Vector2(textX, textY), textColor, model.Label);
+                dl.AddText(font, targetFontSize, new Vector2(textX, textY), textColor, model.Label);
         }
+
+        if (useFont) ImGui.PopFont();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

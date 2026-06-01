@@ -20,8 +20,8 @@ internal sealed class NodeRenderer
 
     private readonly PinRenderer _pins = new();
 
-    /// <summary>Draw the culled visible nodes and their inline editors.</summary>
-    public void DrawAll(
+    /// <summary>Draw the culled visible nodes and their inline editors. Returns true if a node body was clicked.</summary>
+    public bool DrawAll(
         GraphView view,
         ImDrawListPtr dl,
         Dictionary<NodeId, RectF> nodeScreenRects,
@@ -33,6 +33,7 @@ internal sealed class NodeRenderer
         float zoom  = view.Viewport.Zoom;
         float corner = theme.NodeCornerRadius * zoom;
         float border = theme.NodeBorderThickness * zoom;
+        bool isNodeBgActive = false;
 
         // Pass 1: draw unselected, resting nodes in stable model order.
         foreach (var node in view.Model.Nodes)
@@ -43,7 +44,7 @@ internal sealed class NodeRenderer
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);
             if (isSelected || isDragged) continue;
-            RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
+            isNodeBgActive |= RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
                 theme, zoom, corner, border);
         }
 
@@ -56,14 +57,16 @@ internal sealed class NodeRenderer
             bool isSelected = view.Selection.Contains(SelectionEntry.OfNode(node.Id));
             bool isDragged  = view.Interaction.DragOverridePositions.ContainsKey(node.Id);
             if (!isSelected && !isDragged) continue;
-            RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
+            isNodeBgActive |= RenderSingleNode(view, dl, node.Id, nodeScreenRects, pinPositions, connectedInputPins,
                 theme, zoom, corner, border);
         }
+
+        return isNodeBgActive;
     }
 
     // -- private ----------------------------------------------------------------
 
-    private void RenderSingleNode(
+    private bool RenderSingleNode(
         GraphView view,
         ImDrawListPtr dl,
         NodeId nodeId,
@@ -76,14 +79,23 @@ internal sealed class NodeRenderer
         float border)
     {
         var node = view.Model.FindNode(nodeId);
-        if (node == null) return;
-        if (!nodeScreenRects.TryGetValue(nodeId, out var rect)) return;
+        if (node == null) return false;
+        if (!nodeScreenRects.TryGetValue(nodeId, out var rect)) return false;
 
         var pMin = rect.Min;
         var pMax = rect.Min + rect.Size;
 
         // Body background
         dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(new Vector4(0.18f, 0.18f, 0.18f, 0.95f)), corner);
+
+        // Submit an interaction blocker for this node body.
+        // SetNextItemAllowOverlap permits widgets submitted after this (this node's own inline
+        // editors) to capture input, while still occluding widgets rendered in prior passes
+        // (editors of nodes underneath).
+        ImGui.SetCursorScreenPos(pMin);
+        ImGui.SetNextItemAllowOverlap();
+        ImGui.InvisibleButton($"##node_bg_{nodeId.Value}", pMax - pMin);
+        bool isBgActive = ImGui.IsItemActive();
 
         // Header strip
         float headerH = theme.NodeHeaderHeight * zoom;
@@ -110,6 +122,8 @@ internal sealed class NodeRenderer
         // Inline default-value editors
         if (!view.Viewport.IsLowZoom)
             DrawInlineEditors(view, node, nodeScreenRects, pinPositions, connectedInputPins, zoom);
+
+        return isBgActive;
     }
 
     private static void DrawTitle(
@@ -184,27 +198,47 @@ internal sealed class NodeRenderer
         IEditorTheme theme)
     {
         var debug = view.Host.Debug;
+        bool isExecuting = (node.State & NodeState.Executing) != 0 || debug?.CurrentlyExecutingNode == node.Id;
+        bool isRecentlyExecuted = (node.State & NodeState.RecentlyExecuted) != 0 || debug?.RecentlyExecutedNodes.Contains(node.Id) == true;
 
-        if ((node.State & NodeState.Executing) != 0 || (debug?.CurrentlyExecutingNode == node.Id) == true)
+        if (isExecuting)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, 1f)),
-                corner, ImDrawFlags.None, border + 2f);
+            // Architecturally critical: 2 Hz sine pulse for currently executing node
+            float time = (float)ImGui.GetTime();
+            float pulseAlpha = 0.5f + 0.5f * MathF.Sin(time * MathF.PI * 4f);
+            
+            // Header glow overlay
+            float headerH = theme.NodeHeaderHeight * view.Viewport.Zoom;
+            dl.AddRectFilled(pMin, new Vector2(pMax.X, pMin.Y + headerH), ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, pulseAlpha * 0.4f)), corner, ImDrawFlags.RoundCornersTop);
+            
+            // Pulsing outline
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.9f, 0.1f, pulseAlpha)), corner, ImDrawFlags.None, border + 2f);
+        }
+        else if (isRecentlyExecuted)
+        {
+            // Recently executed afterglow
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(new Vector4(1f, 0.6f, 0.1f, 0.8f)), corner, ImDrawFlags.None, border + 1.5f);
         }
         else if ((node.State & NodeState.Error) != 0)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.ErrorColor),
-                corner, ImDrawFlags.None, border + 1f);
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.ErrorColor), corner, ImDrawFlags.None, border + 1f);
         }
         else if ((node.State & NodeState.Warning) != 0)
         {
-            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.WarningColor),
-                corner, ImDrawFlags.None, border + 1f);
+            dl.AddRect(pMin, pMax, ImGui.GetColorU32(theme.WarningColor), corner, ImDrawFlags.None, border + 1f);
         }
 
         if ((node.State & NodeState.Disabled) != 0)
         {
-            dl.AddRectFilled(pMin, pMax,
-                ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.5f)), corner);
+            dl.AddRectFilled(pMin, pMax, ImGui.GetColorU32(new Vector4(0f, 0f, 0f, 0.5f)), corner);
+        }
+
+        // Breakpoint marker (16x16 red circle on the left edge of the header)
+        if (debug?.Breakpoints.Contains(node.Id) == true)
+        {
+            float headerH = theme.NodeHeaderHeight * view.Viewport.Zoom;
+            var bpCenter = pMin + new Vector2(0f, headerH * 0.5f);
+            dl.AddCircleFilled(bpCenter, 8f * view.Viewport.Zoom, ImGui.GetColorU32(new Vector4(0.9f, 0.1f, 0.1f, 1f)));
         }
     }
 
@@ -227,7 +261,6 @@ internal sealed class NodeRenderer
             .ToList();
         if (visibleInputPins.Count == 0) return;
 
-        float editorWidthPx = EditorWidthGu * zoom;
         float targetFontSize = ImGui.GetFontSize() * zoom;
         nint fontPtr = view.Host.Theme.GetFontForSize(targetFontSize);
         bool useFont = fontPtr != 0;
@@ -239,21 +272,34 @@ internal sealed class NodeRenderer
 
         float pinCenterX = nodeRect.Min.X + CanvasLayoutBuilder.NodeHorizPadGu * zoom;
         float maxLabelWidthPx = 0f;
+        float maxOutputWidthPx = 0f;
         var font = ImGui.GetFont();
 
-        foreach (var p in node.Pins.Where(x => x.Direction == PinDirection.Input && (!x.IsAdvanced || node.ShowAdvancedPins)))
+        foreach (var p in node.Pins)
         {
-            if (pinPositions.TryGetValue(p.Id, out var pos))
-                pinCenterX = pos.X;
+            if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
 
-            if (string.IsNullOrEmpty(p.Label)) continue;
-            float labelWidth = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, p.Label).X;
-            if (labelWidth > maxLabelWidthPx) maxLabelWidthPx = labelWidth;
+            float labelWidth = 0f;
+            if (!string.IsNullOrEmpty(p.Label))
+                labelWidth = font.CalcTextSizeA(targetFontSize, float.MaxValue, 0f, p.Label).X;
+
+            if (p.Direction == PinDirection.Input)
+            {
+                if (pinPositions.TryGetValue(p.Id, out var pos))
+                    pinCenterX = pos.X;
+
+                if (labelWidth > maxLabelWidthPx) maxLabelWidthPx = labelWidth;
+            }
+            else
+            {
+                float outWidth = (20f * zoom) + labelWidth; // 20f matches layout glyph budget
+                if (outWidth > maxOutputWidthPx) maxOutputWidthPx = outWidth;
+            }
         }
 
-        float editorX = pinCenterX + (8f * zoom) + maxLabelWidthPx + (EditorHorizPadGu * zoom);
-        float maxEditorX = nodeRect.Min.X + nodeRect.Size.X - (CanvasLayoutBuilder.NodeHorizPadGu * zoom) - editorWidthPx;
-        if (editorX > maxEditorX) editorX = maxEditorX;
+        float editorX = pinCenterX + (10f * zoom) + maxLabelWidthPx + (CanvasLayoutBuilder.EditorHorizPadGu * zoom);
+        float rightLimitX = nodeRect.Max.X - (CanvasLayoutBuilder.NodeHorizPadGu * zoom) - maxOutputWidthPx - (12f * zoom);
+        float editorWidthPx = MathF.Max(rightLimitX - editorX, 40f * zoom);
 
         foreach (var pin in visibleInputPins)
         {
@@ -264,25 +310,42 @@ internal sealed class NodeRenderer
 
             var editorPos = new Vector2(editorX, pinScreenPos.Y - ImGui.GetFontSize() * 0.5f);
 
-            using var scope = new ImGuiPushIdScope(pin.Id.GetHashCode());
+            using var scope = new ImGuiPushIdScope(pin.Id.Value.ToString());
             ImGui.SetCursorScreenPos(editorPos);
             ImGui.PushItemWidth(editorWidthPx);
 
-            var currentValue = pin.Default!.Value;
+            var currentValue = view.Interaction.PinDragOverrides.TryGetValue(pin.Id, out var ovr)
+                ? ovr
+                : pin.Default!.Value;
             var ctx = new DefaultEditorContext(
                 Pin: pin.Id,
                 Type: pin.Type!.Value,
                 MaxWidth: editorWidthPx,
                 IsReadOnly: false,
-                Metadata: pin.Default.Metadata);
+                Metadata: pin.Default!.Metadata);
 
-            editor.Draw(ref currentValue, ctx, out bool committed);
+            bool changed = editor.Draw(ref currentValue, ctx, out bool committed);
 
             ImGui.PopItemWidth();
 
             if (committed)
             {
-                view.Commands.Apply(new GraphCommand.SetPinDefault(pin.Id, currentValue));
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
+                if (!Equals(currentValue, pin.Default!.Value))
+                {
+                    var cb = new CommandBuilder(view.Model);
+                    var (fwd, inv) = cb.SetPinDefault(pin.Id, currentValue);
+                    view.Execute(fwd, inv, "Set Pin Default");
+                }
+            }
+            else if (changed)
+            {
+                view.Interaction.PinDragOverrides[pin.Id] = currentValue;
+            }
+            else if (!ImGui.IsAnyItemActive())
+            {
+                // Clean up orphaned drag overrides if the user cancels via Escape
+                view.Interaction.PinDragOverrides.Remove(pin.Id);
             }
         }
 

@@ -35,17 +35,53 @@ public static class ContainerBoundsComputer
         float maxX = container.MinimumInteriorSize.X;
         float maxY = container.MinimumInteriorSize.Y;
 
-        foreach (var childId in container.ChildNodeIds)
+        if (container.Regions.Count > 0)
         {
-            var childNode  = model.FindNode(childId);
-            var childSize  = getChildGraphSize(childId);
-            if (childNode == null || !childSize.HasValue) continue;
+            bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+            float[] regionSizes = new float[container.Regions.Count];
+            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
 
-            // child.Position is parent-local (interior-coordinate-space)
-            float extentX = childNode.Position.X + childSize.Value.X;
-            float extentY = childNode.Position.Y + childSize.Value.Y;
-            maxX = Math.Max(maxX, extentX);
-            maxY = Math.Max(maxY, extentY);
+            foreach (var childId in container.ChildNodeIds)
+            {
+                var childNode = model.FindNode(childId);
+                var childSize = getChildGraphSize(childId);
+                if (childNode == null || !childSize.HasValue) continue;
+
+                int rIdx = container.GetRegionIndexForChild(childId);
+                if (isHorizontal)
+                {
+                    float extentY = childNode.Position.Y + childSize.Value.Y;
+                    maxY = Math.Max(maxY, extentY);
+                    if (rIdx >= 0 && rIdx < regionSizes.Length)
+                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.X + childSize.Value.X);
+                }
+                else
+                {
+                    float extentX = childNode.Position.X + childSize.Value.X;
+                    maxX = Math.Max(maxX, extentX);
+                    if (rIdx >= 0 && rIdx < regionSizes.Length)
+                        regionSizes[rIdx] = Math.Max(regionSizes[rIdx], childNode.Position.Y + childSize.Value.Y);
+                }
+            }
+
+            float totalRegionSize = 0f;
+            foreach (var s in regionSizes) totalRegionSize += s;
+            if (isHorizontal) maxX = Math.Max(maxX, totalRegionSize);
+            else maxY = Math.Max(maxY, totalRegionSize);
+        }
+        else
+        {
+            foreach (var childId in container.ChildNodeIds)
+            {
+                var childNode = model.FindNode(childId);
+                var childSize = getChildGraphSize(childId);
+                if (childNode == null || !childSize.HasValue) continue;
+
+                float extentX = childNode.Position.X + childSize.Value.X;
+                float extentY = childNode.Position.Y + childSize.Value.Y;
+                maxX = Math.Max(maxX, extentX);
+                maxY = Math.Max(maxY, extentY);
+            }
         }
 
         float outerWidth  = maxX + container.Padding.Left + container.Padding.Right  + 2f * OutlineWidth;

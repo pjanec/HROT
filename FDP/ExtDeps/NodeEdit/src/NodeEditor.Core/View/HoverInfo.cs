@@ -21,6 +21,8 @@ public readonly record struct HoverInfo
     public CustomElementRef CustomElement { get; init; }
     /// <summary>For comments: whether the cursor is on the title bar (drag), the body, or a resize handle.</summary>
     public CommentHoverZone CommentZone { get; init; }
+    /// <summary>Index of the active comment resize handle (0-7).</summary>
+    public int CommentResizeHandle { get; init; }
     /// <summary>For containers: which zone of the container the cursor is over.</summary>
     public ContainerHoverZone ContainerZone { get; init; }
 

@@ -104,5 +104,20 @@ public sealed class S35_ContainerNodes : Scenario
         var root1 = AddNode(graph, catalog, "Event.BeginPlay", new Vector2(50f, 600f));
         var root2 = AddNode(graph, catalog, "Util.Print",      new Vector2(350f, 600f));
         LinkNodes(graph, root1, 0, root2, 0);
+
+        // â”€â”€ 7. Empty parallel-region container (3 regions) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        var emptyHoriz = graph.AddContainer(IdGenerator.NewNodeId(), "Horizontal Regions", new Vector2(50f, 750f));
+        emptyHoriz.Category = NodeCategory.FlowControl;
+        emptyHoriz.AddRegion("H-Region 1", priority: 1);
+        emptyHoriz.AddRegion("H-Region 2", priority: 2);
+        emptyHoriz.AddRegion("H-Region 3", priority: 3);
+
+        var emptyVert = graph.AddContainer(IdGenerator.NewNodeId(), "Vertical Columns", new Vector2(350f, 750f));
+        emptyVert.Category = NodeCategory.FlowControl;
+        emptyVert.RegionOrientation = RegionLayoutOrientation.HorizontalStack;
+        emptyVert.AddRegion("Col 1", priority: 1);
+        emptyVert.AddRegion("Col 2", priority: 2);
+        emptyVert.AddRegion("Col 3", priority: 3);
     }
 }

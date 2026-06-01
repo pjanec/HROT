@@ -76,7 +76,7 @@ public sealed class PickerWindow
         _onPickRaw      = null;
         _onCancel       = null;
 
-        _state.Reset(request.ContextKey, request.InitialQuery);
+        _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
         _state.AllEntries = _requestEntries;
         _state.Refilter();
 
@@ -108,7 +108,7 @@ public sealed class PickerWindow
         _onPickResult   = null;
         _onCancel       = onCancel;
 
-        _state.Reset(contextKey, "");
+        _state.Reset(contextKey, "", adapter.SelectionMode);
 
         // For cheap/sync sources, pre-load items immediately.
         if (!adapter.IsAsync)
@@ -228,7 +228,13 @@ public sealed class PickerWindow
     {
         HandleKeyboardNavigation();
 
-        if (_state.Confirmed || ImGui.Button("OK") || ImGui.IsKeyPressed(ImGuiKey.Enter))
+        bool enterPressed = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+        
+        // Architecturally modified: Enter universally confirms the picker 
+        // regardless of Single or Multi-Select mode.
+        bool shouldConfirm = _state.Confirmed || ImGui.Button("OK") || enterPressed;
+
+        if (shouldConfirm)
         {
             Confirm();
             return;
@@ -258,28 +264,79 @@ public sealed class PickerWindow
         int count = _state.Filtered.Count;
         if (count == 0) return;
 
+        bool shift = ImGui.GetIO().KeyShift;
+
         if (ImGui.IsKeyPressed(ImGuiKey.UpArrow))
-            MoveFocus(-1, count);
+            MoveFocus(-1, count, shift);
         else if (ImGui.IsKeyPressed(ImGuiKey.DownArrow))
-            MoveFocus(1, count);
+            MoveFocus(1, count, shift);
         else if (ImGui.IsKeyPressed(ImGuiKey.PageUp))
-            MoveFocus(-10, count);
+            MoveFocus(-10, count, shift);
         else if (ImGui.IsKeyPressed(ImGuiKey.PageDown))
-            MoveFocus(10, count);
+            MoveFocus(10, count, shift);
         else if (ImGui.IsKeyPressed(ImGuiKey.Home))
-            SetFocus(0);
+            SetFocus(0, shift);
         else if (ImGui.IsKeyPressed(ImGuiKey.End))
-            SetFocus(count - 1);
+            SetFocus(count - 1, shift);
+
+        if (_state.SelectionMode != PickerSelectionMode.Single)
+        {
+            // Enter no longer toggles. Only Space manipulates the checklist state.
+            if (ImGui.IsKeyPressed(ImGuiKey.Space))
+            {
+                // Target all highlighted rows, or just the focused one if no highlight span exists
+                var targets = _state.HighlightedIndices.Count > 0
+                    ? _state.HighlightedIndices
+                    : new HashSet<int> { _state.KeyboardFocusIndex };
+
+                // Intelligent batch toggle: if ANY target is unchecked, check them all. Otherwise uncheck all.
+                bool anyUnchecked = targets.Any(idx => !_state.SelectedFilteredIndices.Contains(idx));
+
+                foreach (var idx in targets)
+                {
+                    if (idx >= 0 && idx < count)
+                    {
+                        if (anyUnchecked)
+                            _state.SelectedFilteredIndices.Add(idx);
+                        else
+                            _state.SelectedFilteredIndices.Remove(idx);
+                    }
+                }
+            }
+        }
     }
 
-    private void MoveFocus(int delta, int count)
-        => SetFocus(Math.Clamp(_state.KeyboardFocusIndex + delta, 0, count - 1));
+    private void MoveFocus(int delta, int count, bool extendSelection)
+        => SetFocus(Math.Clamp(_state.KeyboardFocusIndex + delta, 0, count - 1), extendSelection);
 
-    private void SetFocus(int idx)
+    private void SetFocus(int idx, bool extendSelection)
     {
+        if (_state.SelectionMode == PickerSelectionMode.Single)
+        {
+            _state.SelectedFilteredIndices.Clear();
+            _state.SelectedFilteredIndices.Add(idx);
+        }
+        else
+        {
+            if (extendSelection)
+            {
+                // Anchor geometrically to the start of the Shift sequence
+                int anchor = _state.SelectionAnchorIndex;
+                int lo = Math.Min(anchor, idx);
+                int hi = Math.Max(anchor, idx);
+                _state.HighlightedIndices.Clear();
+                for (int k = lo; k <= hi; k++)
+                    _state.HighlightedIndices.Add(k);
+            }
+            else
+            {
+                // Establish a new anchor point
+                _state.SelectionAnchorIndex = idx;
+                _state.HighlightedIndices.Clear();
+                _state.HighlightedIndices.Add(idx);
+            }
+        }
         _state.KeyboardFocusIndex = idx;
-        _state.SelectedFilteredIndices.Clear();
-        _state.SelectedFilteredIndices.Add(idx);
     }
 
     // ── confirm / cancel ──────────────────────────────────────────────────────

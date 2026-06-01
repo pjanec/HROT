@@ -38,4 +38,10 @@ public sealed class FakeGraphContainer
             throw new ArgumentOutOfRangeException(nameof(index));
         ActiveIndex = index;
     }
+
+    /// <summary>Append a new graph tab to the container.</summary>
+    public void AddGraph(FakeGraphModel graph)
+    {
+        _graphs.Add(graph);
+    }
 }

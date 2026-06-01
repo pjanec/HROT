@@ -23,7 +23,8 @@ public sealed class HotkeyDispatcher
     /// <summary>Call once per frame before rendering.</summary>
     public void ProcessThisFrame()
     {
-        if (ImGui.GetIO().WantCaptureKeyboard)
+        // Yield host hotkeys exclusively when the user is actively typing in a text field.
+        if (ImGui.GetIO().WantTextInput)
             return;
 
         var mods = _input.Modifiers;

@@ -4,6 +4,7 @@ using ImGuiNET;
 using NodeEditor.Core;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.Layout;
 using NodeEditor.Core.Spatial;
 using NodeEditor.Core.View;
 using NodeEditor.Primitives;
@@ -27,9 +28,10 @@ internal sealed class CanvasInput
     /// Process one frame of input for the given view.
     /// Must be called after the canvas child window is active.
     /// </summary>
-    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, SpatialIndex spatialIndex)
+    public void Handle(GraphView view, bool isCanvasHovered, bool isCanvasBgActive, bool isNodeBgActive, bool isCanvasDirectlyFocused, SpatialIndex spatialIndex)
     {
-        bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive);
+        // Allow canvas processing if either the canvas itself OR a node background was clicked.
+        bool canProcess = isCanvasHovered && (!ImGui.IsAnyItemActive() || isCanvasBgActive || isNodeBgActive);
 
         var input = view.Host.Input;
         var mode  = view.Interaction.Mode;
@@ -45,7 +47,7 @@ internal sealed class CanvasInput
         switch (mode)
         {
             case InteractionMode.Idle:
-                HandleIdle(view, canProcess, input);
+                HandleIdle(view, canProcess, isCanvasDirectlyFocused, input);
                 break;
 
             case InteractionMode.Panning:
@@ -87,13 +89,15 @@ internal sealed class CanvasInput
 
     // ── Idle ──────────────────────────────────────────────────────────────────
 
-    private static void HandleIdle(GraphView view, bool canvasHovered, IInputSource input)
+    private static void HandleIdle(GraphView view, bool canProcess, bool isCanvasDirectlyFocused, IInputSource input)
     {
         var hover = view.Interaction.Hover;
         var modifiers = input.Modifiers;
 
-        // Tab on canvas opens the generic node picker.
-        if (canvasHovered && input.IsKeyPressed(EditorKey.Tab))
+        // Strict constraint: only open the picker if hovering empty canvas (HoverKind.None).
+        // This prevents Tab/Space from opening the picker while navigating widgets or hovering nodes.
+        if (canProcess && isCanvasDirectlyFocused && hover.Kind == HoverKind.None
+            && (input.IsKeyPressed(EditorKey.Tab) || input.IsKeyPressed(EditorKey.Space)))
         {
             view.Interaction.Mode = InteractionMode.PickerOpen;
             var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
@@ -104,8 +108,9 @@ internal sealed class CanvasInput
                 {
                     if (pick is NodeCatalogEntry entry)
                     {
-                        var newId = IdGenerator.NewNodeId();
-                        view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, graphPos, null));
+                        var cb = new CommandBuilder(view.Model);
+                        var (fwd, inv) = cb.AddNode(entry.Kind, graphPos, null);
+                        view.Execute(fwd, inv, "Add Node");
                     }
                     view.Interaction.ResetToIdle();
                 },
@@ -114,7 +119,7 @@ internal sealed class CanvasInput
         }
 
         // Right-mouse → pan
-        if (canvasHovered && input.IsMousePressed(MouseButton.Right))
+        if (canProcess && input.IsMousePressed(MouseButton.Right))
         {
             view.Interaction.Mode = InteractionMode.Panning;
             view.Interaction.DragStartScreen = input.MousePosition;
@@ -123,7 +128,7 @@ internal sealed class CanvasInput
         }
 
         // Left-mouse pressed
-        if (canvasHovered && input.IsMousePressed(MouseButton.Left))
+        if (canProcess && input.IsMousePressed(MouseButton.Left))
         {
             bool ctrl  = (modifiers & KeyModifiers.Ctrl)  != 0;
             bool shift = (modifiers & KeyModifiers.Shift) != 0;
@@ -136,11 +141,24 @@ internal sealed class CanvasInput
                     {
                         var linksToRemove = view.Model.Links
                             .Where(l => l.FromPin == hover.Pin || l.ToPin == hover.Pin)
-                            .Select(l => l.Id)
                             .ToList();
 
                         if (linksToRemove.Count > 0)
-                            view.Commands.Apply(new GraphCommand.RemoveLinks(linksToRemove));
+                        {
+                            var fwds = new List<GraphCommand>();
+                            var invs = new List<GraphCommand>();
+                            fwds.Add(new GraphCommand.RemoveLinks(linksToRemove.Select(l => l.Id).ToList()));
+                            foreach (var l in linksToRemove)
+                            {
+                                invs.Add(new GraphCommand.AddLink(l.Id, l.FromPin, l.ToPin));
+                            }
+                            invs.Reverse();
+
+                            view.Execute(
+                                new GraphCommand.Batch("Break Links", fwds),
+                                new GraphCommand.Batch("Break Links", invs),
+                                "Break Links");
+                        }
                         return;
                     }
 
@@ -191,9 +209,10 @@ internal sealed class CanvasInput
                     // Snapshot positions
                     foreach (var nid in view.Selection.Nodes)
                     {
+                        if (IsAncestorSelected(view, nid)) continue;
                         var n = view.Model.FindNode(nid);
                         if (n != null)
-                            view.Interaction.DragOverridePositions[nid] = n.Position;
+                            view.Interaction.DragOverridePositions[nid] = view.NodeCanvasPosition(nid);
                     }
                     break;
 
@@ -203,18 +222,75 @@ internal sealed class CanvasInput
                     view.Selection.ReplaceWith(SelectionEntry.OfReroute(hover.Reroute));
                     break;
 
+                case HoverKind.Container:
+                    if (hover.ContainerZone == ContainerHoverZone.CollapseArrow)
+                    {
+                        var containerNode = view.Model.FindNode(hover.Node);
+                        if (containerNode != null)
+                        {
+                            var fwd = new GraphCommand.SetContainerCollapsed(hover.Node, !containerNode.IsCollapsed);
+                            var inv = new GraphCommand.SetContainerCollapsed(hover.Node, containerNode.IsCollapsed);
+                            view.Execute(fwd, inv, "Toggle Container Collapse");
+                        }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Header)
+                    {
+                        if (!ctrl && !shift && !view.Selection.Contains(SelectionEntry.OfNode(hover.Node)))
+                            view.Selection.ReplaceWith(SelectionEntry.OfNode(hover.Node));
+                        else if (ctrl)
+                            view.Selection.Toggle(SelectionEntry.OfNode(hover.Node));
+                        else if (shift)
+                            view.Selection.Add(SelectionEntry.OfNode(hover.Node));
+
+                        // Begin node drag
+                        view.Interaction.Mode = InteractionMode.DraggingNodes;
+                        view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.DragStartGraph  = view.Viewport.ScreenToGraph(input.MousePosition);
+                        view.Interaction.DragThresholdCrossed = false;
+                        foreach (var nid in view.Selection.Nodes)
+                        {
+                            if (IsAncestorSelected(view, nid)) continue;
+                            var n = view.Model.FindNode(nid);
+                            if (n != null)
+                                view.Interaction.DragOverridePositions[nid] = view.NodeCanvasPosition(nid);
+                        }
+                    }
+                    else if (hover.ContainerZone == ContainerHoverZone.Interior)
+                    {
+                        // Treat clicking the interior like empty canvas to allow marquee selection.
+                        if (!ctrl && !shift)
+                            view.Selection.Clear();
+                        view.Interaction.Mode = InteractionMode.MarqueeSelecting;
+                        view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.DragStartGraph  = view.Viewport.ScreenToGraph(input.MousePosition);
+                        view.Interaction.MarqueeTouchMode = alt;
+                    }
+                    break;
+
                 case HoverKind.Link:
                     if (alt)
                     {
-                        view.Commands.Apply(new GraphCommand.RemoveLinks(new[] { hover.Link }));
+                        var link = view.Model.FindLink(hover.Link);
+                        if (link != null)
+                        {
+                            var fwd = new GraphCommand.RemoveLinks(new[] { hover.Link });
+                            var inv = new GraphCommand.AddLink(link.Id, link.FromPin, link.ToPin);
+                            view.Execute(fwd, inv, "Break Link");
+                        }
                         return;
                     }
 
-                    if (ctrl)
+                    if (ctrl || input.IsMouseDoubleClicked(MouseButton.Left))
                     {
-                        // Ctrl+click wire → insert reroute
+                        // Ctrl+click or double-click wire → insert reroute
                         var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
-                        view.Commands.Apply(new GraphCommand.InsertReroute(hover.Link, graphPos));
+                        var link = view.Model.FindLink(hover.Link);
+                        if (link != null)
+                        {
+                            var fwd = new GraphCommand.InsertReroute(hover.Link, graphPos);
+                            var inv = new GraphCommand.RemoveReroute(hover.Link, link.Waypoints.Count);
+                            view.Execute(fwd, inv, "Insert Reroute");
+                        }
                     }
                     else
                     {
@@ -223,17 +299,43 @@ internal sealed class CanvasInput
                     break;
 
                 case HoverKind.Comment:
-                    if (hover.CommentZone == CommentHoverZone.ResizeHandle)
+                    if (input.IsMouseDoubleClicked(MouseButton.Left) && hover.CommentZone == CommentHoverZone.Header)
+                    {
+                        view.Interaction.RenamingComment = hover.Comment;
+                        view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+                    }
+                    else if (hover.CommentZone == CommentHoverZone.ResizeHandle)
                     {
                         view.Interaction.Mode = InteractionMode.ResizingComment;
                         view.Interaction.DragStartScreen = input.MousePosition;
+                        view.Interaction.ActiveCommentResizeHandle = hover.CommentResizeHandle;
                         view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
                     }
                     else if (hover.CommentZone == CommentHoverZone.Header)
                     {
-                        view.Interaction.Mode = InteractionMode.DraggingComment;
-                        view.Interaction.DragStartScreen = input.MousePosition;
-                        view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+                        // Prevent drag interception when the active rename box is being clicked.
+                        if (view.Interaction.RenamingComment != hover.Comment)
+                        {
+                            view.Interaction.Mode = InteractionMode.DraggingComment;
+                            view.Interaction.DragStartScreen = input.MousePosition;
+                            view.Selection.ReplaceWith(SelectionEntry.OfComment(hover.Comment));
+
+                            // Snapshot fully enclosed nodes for the "Move with contents" behavior
+                            view.Interaction.CommentDragContents.Clear();
+                            var comment = view.Model.Comments.FirstOrDefault(c => c.Id == hover.Comment);
+                            if (comment != null && comment.MoveWithContents)
+                            {
+                                var commentRect = new RectF(comment.Position, comment.Size);
+                                foreach (var node in view.Model.Nodes)
+                                {
+                                    var nodeBounds = new RectF(node.Position, node.SizeOverride ?? new Vector2(160, 64));
+                                    if (commentRect.FullyContains(nodeBounds))
+                                    {
+                                        view.Interaction.CommentDragContents.Add(node.Id);
+                                    }
+                                }
+                            }
+                        }
                     }
                     break;
 
@@ -302,6 +404,20 @@ internal sealed class CanvasInput
         }
     }
 
+    private static bool IsAncestorSelected(GraphView view, NodeId id)
+    {
+        var currentParent = view.Model.FindNode(id)?.ParentContainerId;
+        while (currentParent.HasValue)
+        {
+            // If an ancestor is part of the current selection, this child must be skipped.
+            if (view.Selection.Contains(SelectionEntry.OfNode(currentParent.Value)))
+                return true;
+
+            currentParent = view.Model.FindNode(currentParent.Value)?.ParentContainerId;
+        }
+        return false;
+    }
+
     // ── Dragging nodes ────────────────────────────────────────────────────────
 
     private static void HandleDraggingNodes(GraphView view, IInputSource input, SpatialIndex spatialIndex)
@@ -319,6 +435,7 @@ internal sealed class CanvasInput
             var deltaGraph = delta / view.Viewport.Zoom;
             foreach (var nid in view.Selection.Nodes)
             {
+                if (IsAncestorSelected(view, nid)) continue;
                 var n = view.Model.FindNode(nid);
                 if (n == null) continue;
                 // Use canvas-absolute position as the override so the renderer can
@@ -374,103 +491,366 @@ internal sealed class CanvasInput
 
         view.Interaction.DropTargetContainerId  = cycleDetected ? null : best;
         view.Interaction.DropTargetCycleDetected = cycleDetected;
+
+        view.Interaction.DropTargetRegionIndex = null;
+        if (best.HasValue && !cycleDetected)
+        {
+            var targetNode = view.Model.FindNode(best.Value);
+            if (targetNode?.AsContainer() is { } containerModel && containerModel.Regions.Count > 0)
+            {
+                var bounds = spatialIndex.GetBounds(best.Value);
+                if (bounds.HasValue)
+                {
+                    var strips = RegionLayoutComputer.Compute(
+                        containerModel,
+                        view.Model,
+                        id => spatialIndex.GetBounds(id)?.Size,
+                        bounds.Value,
+                        view.Host.Theme.NodeHeaderHeight,
+                        1f,
+                        paddingScale: 1f);
+
+                    foreach (var strip in strips)
+                    {
+                        var stripRect = new RectF(strip.Min, strip.Size);
+                        if (stripRect.Contains(mouseGraph))
+                        {
+                            view.Interaction.DropTargetRegionIndex = strip.RegionIndex;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    // Commits the drop: emits a single ChangeParentMultiple command (undo-recorded).
-    internal static void CommitNodeDrop(GraphView view, IInputSource input)
+    // Commits the drop: emits ChangeParent if reparenting occurred, else MoveNodes.
+    private static void CommitNodeDrop(GraphView view, IInputSource input)
     {
         var newParentId = view.Interaction.DropTargetContainerId;
-        // BPF-030: build a set of selected node IDs for ancestor suppression.
-        var selectedSet = view.Selection.Nodes.ToHashSet();
+        var finalLocalPositions = new Dictionary<NodeId, Vector2>();
+        var targetParents = new Dictionary<NodeId, NodeId?>();
+        var affectedContainers = new HashSet<NodeId>();
+        var topLevelNodes = view.Selection.Nodes.Where(nid => !IsAncestorSelected(view, nid)).ToHashSet();
 
-        var forwardMoves = new List<ChangeParentMove>();
-        var inverseMoves = new List<ChangeParentMove>();
-
-        foreach (var nid in view.Selection.Nodes)
+        foreach (var nid in topLevelNodes)
         {
-            // BPF-030: skip nodes whose ancestor is also being dragged (it would move with the ancestor).
-            if (HasSelectedAncestor(nid, selectedSet, view.Model)) continue;
-
             var n = view.Model.FindNode(nid);
             if (n == null) continue;
+
+            if (n.ParentContainerId.HasValue) affectedContainers.Add(n.ParentContainerId.Value);
+            if (newParentId.HasValue) affectedContainers.Add(newParentId.Value);
 
             var canvasPos = view.Interaction.DragOverridePositions.TryGetValue(nid, out var ovr)
                 ? ovr
                 : view.NodeCanvasPosition(nid);
 
-            // Compute position relative to the target parent's interior origin.
-            Vector2 newLocalPos;
-            if (newParentId.HasValue)
+            bool reparenting = n.ParentContainerId != newParentId;
+            NodeId? targetContainer = reparenting ? newParentId : n.ParentContainerId;
+            targetParents[nid] = targetContainer;
+
+            Vector2 rawLocalPos = canvasPos;
+            if (targetContainer.HasValue)
             {
-                var container = view.Model.FindNode(newParentId.Value)?.AsContainer();
+                var container = view.Model.FindNode(targetContainer.Value)?.AsContainer();
                 if (container != null)
                 {
-                    var containerCanvas = view.NodeCanvasPosition(newParentId.Value);
+                    var containerCanvas = view.Interaction.DragOverridePositions.TryGetValue(targetContainer.Value, out var cOvr)
+                        ? cOvr
+                        : view.NodeCanvasPosition(targetContainer.Value);
+
                     var interiorOrigin  = containerCanvas + new Vector2(
                         container.Padding.Left,
                         view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
-                    newLocalPos = canvasPos - interiorOrigin;
+                    rawLocalPos = canvasPos - interiorOrigin;
+
+                    if (container.Regions.Count > 0)
+                    {
+                        int rIdx = (targetContainer == view.Interaction.DropTargetContainerId)
+                            ? (view.Interaction.DropTargetRegionIndex ?? -1)
+                            : container.GetRegionIndexForChild(nid);
+                        if (rIdx > 0)
+                        {
+                            bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                            float[] regionSizes = new float[container.Regions.Count];
+                            for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
+
+                            foreach (var childId in container.ChildNodeIds)
+                            {
+                                if (topLevelNodes.Contains(childId)) continue;
+                                var childNode = view.Model.FindNode(childId);
+                                if (childNode == null) continue;
+                                int cRIdx = container.GetRegionIndexForChild(childId);
+                                if (cRIdx >= 0 && cRIdx < regionSizes.Length)
+                                {
+                                    var size = childNode.SizeOverride ?? new Vector2(160, 64);
+                                    float extent = isHorizontal ? childNode.Position.X + size.X : childNode.Position.Y + size.Y;
+                                    regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], extent);
+                                }
+                            }
+
+                            float offset = 0f;
+                            for (int i = 0; i < rIdx; i++) offset += regionSizes[i];
+                            if (isHorizontal) rawLocalPos.X -= offset;
+                            else rawLocalPos.Y -= offset;
+                        }
+                    }
                 }
-                else
+            }
+            finalLocalPositions[nid] = rawLocalPos;
+        }
+
+        var allAffected = new HashSet<NodeId>(affectedContainers);
+        foreach (var cid in affectedContainers)
+        {
+            var curr = view.Model.FindNode(cid);
+            while (curr?.ParentContainerId.HasValue == true)
+            {
+                allAffected.Add(curr.ParentContainerId.Value);
+                curr = view.Model.FindNode(curr.ParentContainerId.Value);
+            }
+        }
+
+        int GetDepth(NodeId id)
+        {
+            int depth = 0;
+            var curr = view.Model.FindNode(id);
+            while (curr?.ParentContainerId.HasValue == true)
+            {
+                depth++;
+                curr = view.Model.FindNode(curr.ParentContainerId.Value);
+            }
+            return depth;
+        }
+
+        var orderedContainers = allAffected.OrderByDescending(GetDepth).ToList();
+
+        foreach (var cid in orderedContainers)
+        {
+            var containerNode = view.Model.FindNode(cid);
+            if (containerNode?.AsContainer() is not { } containerModel) continue;
+            bool isHorizontal = containerModel.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+
+            float minX = float.MaxValue;
+            float minY = float.MaxValue;
+            bool hasChildren = false;
+
+            var futureChildren = new Dictionary<NodeId, Vector2>();
+
+            foreach (var childId in containerModel.ChildNodeIds)
+            {
+                if (topLevelNodes.Contains(childId)) continue;
+                var childNode = view.Model.FindNode(childId);
+                if (childNode != null)
                 {
-                    newLocalPos = canvasPos;
+                    var pos = finalLocalPositions.TryGetValue(childId, out var fPos) ? fPos : childNode.Position;
+                    futureChildren[childId] = pos;
+                    int rIdx = containerModel.GetRegionIndexForChild(childId);
+                    if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
+                    {
+                        if (isHorizontal) minX = Math.Min(minX, pos.X);
+                        else minY = Math.Min(minY, pos.Y);
+                    }
+                    if (isHorizontal) minY = Math.Min(minY, pos.Y);
+                    else minX = Math.Min(minX, pos.X);
+                    hasChildren = true;
                 }
+            }
+
+            foreach (var nid in topLevelNodes)
+            {
+                if (targetParents[nid] == cid)
+                {
+                    var pos = finalLocalPositions[nid];
+                    futureChildren[nid] = pos;
+                    int rIdx = containerModel.GetRegionIndexForChild(nid);
+                    if (topLevelNodes.Contains(nid) && targetParents[nid] == cid)
+                        rIdx = view.Interaction.DropTargetRegionIndex ?? -1;
+                    if (containerModel.Regions.Count == 0 || rIdx == 0 || rIdx == -1)
+                    {
+                        if (isHorizontal) minX = Math.Min(minX, pos.X);
+                        else minY = Math.Min(minY, pos.Y);
+                    }
+                    if (isHorizontal) minY = Math.Min(minY, pos.Y);
+                    else minX = Math.Min(minX, pos.X);
+                    hasChildren = true;
+                }
+            }
+
+            float shiftX = minX == float.MaxValue ? 0f : minX;
+            float shiftY = minY == float.MaxValue ? 0f : minY;
+
+            if (hasChildren && (Math.Abs(shiftX) > 0.01f || Math.Abs(shiftY) > 0.01f))
+            {
+                var shift = new Vector2(shiftX, shiftY);
+
+                foreach (var childKvp in futureChildren)
+                {
+                    finalLocalPositions[childKvp.Key] = childKvp.Value - shift;
+                    if (!targetParents.ContainsKey(childKvp.Key))
+                        targetParents[childKvp.Key] = cid;
+                }
+
+                var currentContainerPos = finalLocalPositions.TryGetValue(cid, out var cPos)
+                    ? cPos
+                    : containerNode.Position;
+                finalLocalPositions[cid] = currentContainerPos + shift;
+
+                if (!targetParents.ContainsKey(cid))
+                    targetParents[cid] = containerNode.ParentContainerId;
+            }
+        }
+
+        var moves = new List<(NodeId Id, Vector2 NewPos)>();
+        var changeParents = new List<ChangeParentMove>();
+        var inverseChangeParents = new List<ChangeParentMove>();
+
+        foreach (var kvp in finalLocalPositions)
+        {
+            var nid = kvp.Key;
+            var newLocalPos = kvp.Value;
+
+            newLocalPos.X = (float)Math.Round(newLocalPos.X, 2);
+            newLocalPos.Y = (float)Math.Round(newLocalPos.Y, 2);
+
+            var n = view.Model.FindNode(nid);
+            if (n == null) continue;
+
+            var newParent = targetParents[nid];
+            bool reparenting = n.ParentContainerId != newParent;
+            int? targetRegion = null;
+            int currentRegion = -1;
+
+            if (n.ParentContainerId.HasValue)
+            {
+                var oldContainer = view.Model.FindNode(n.ParentContainerId.Value)?.AsContainer();
+                currentRegion = oldContainer?.GetRegionIndexForChild(nid) ?? -1;
+            }
+
+            if (newParent == view.Interaction.DropTargetContainerId)
+            {
+                if (topLevelNodes.Contains(nid))
+                {
+                    targetRegion = view.Interaction.DropTargetRegionIndex;
+                }
+                else if (newParent.HasValue)
+                {
+                    var newContainer = view.Model.FindNode(newParent.Value)?.AsContainer();
+                    int rIdx = newContainer?.GetRegionIndexForChild(nid) ?? -1;
+                    targetRegion = rIdx >= 0 ? rIdx : null;
+                }
+            }
+
+            bool regionChanged = targetRegion.HasValue && targetRegion.Value != currentRegion;
+
+            if (!reparenting && !regionChanged && Vector2.DistanceSquared(n.Position, newLocalPos) < 0.01f)
+                continue;
+
+            if (reparenting || regionChanged)
+            {
+                changeParents.Add(new ChangeParentMove(nid, newParent, targetRegion, newLocalPos));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
+            }
+            else if (n.ParentContainerId == null)
+            {
+                moves.Add((nid, newLocalPos));
             }
             else
             {
-                newLocalPos = canvasPos; // dropping to root: position is canvas-absolute
+                changeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, targetRegion, newLocalPos));
+                inverseChangeParents.Add(new ChangeParentMove(nid, n.ParentContainerId, currentRegion >= 0 ? currentRegion : null, n.Position));
             }
-
-            // Snapshot original state for undo BEFORE the forward command is applied.
-            Vector2 originalLocalPos = n.Position;
-            NodeId? originalParentId = n.ParentContainerId;
-
-            // BPF-029: accumulate all moves into a single ChangeParentMultiple.
-            forwardMoves.Add(new ChangeParentMove(nid, newParentId, null, newLocalPos));
-            inverseMoves.Add(new ChangeParentMove(nid, originalParentId, null, originalLocalPos));
         }
 
-        if (forwardMoves.Count == 0) return;
+        var forwards = new List<GraphCommand>();
+        var inverses = new List<GraphCommand>();
 
-        // BPF-028: route through Execute so the move lands on the undo stack.
-        var forward = new GraphCommand.ChangeParentMultiple(forwardMoves);
-        var inverse = new GraphCommand.ChangeParentMultiple(inverseMoves);
-        view.Execute(forward, inverse, "Move nodes");
-    }
-
-    // Returns true if any ancestor of nodeId is present in selectedSet.
-    internal static bool HasSelectedAncestor(NodeId nodeId, HashSet<NodeId> selectedSet, IGraphModel model)
-    {
-        var node = model.FindNode(nodeId);
-        if (node == null) return false;
-        var parentId = node.ParentContainerId;
-        while (parentId.HasValue)
+        if (moves.Count > 0)
         {
-            if (selectedSet.Contains(parentId.Value)) return true;
-            var parent = model.FindNode(parentId.Value);
-            if (parent == null) break;
-            parentId = parent.ParentContainerId;
+            var cb = new CommandBuilder(view.Model);
+            var (f, i) = cb.MoveNodes(moves);
+            forwards.Add(f);
+            inverses.Add(i);
         }
-        return false;
+
+        if (changeParents.Count > 0)
+        {
+            forwards.Add(new GraphCommand.ChangeParentMultiple(changeParents));
+            inverses.Add(new GraphCommand.ChangeParentMultiple(inverseChangeParents));
+        }
+
+        if (forwards.Count == 1)
+        {
+            view.Execute(forwards[0], inverses[0], "Move Nodes");
+        }
+        else if (forwards.Count > 1)
+        {
+            inverses.Reverse();
+            view.Execute(
+                new GraphCommand.Batch("Move Nodes", forwards),
+                new GraphCommand.Batch("Move Nodes", inverses),
+                "Move Nodes");
+        }
     }
 
     // ── Dragging reroutes ─────────────────────────────────────────────────────
 
     private static void HandleDraggingReroutes(GraphView view, IInputSource input)
     {
-        if (input.IsMouseReleased(MouseButton.Left))
-        {
-            // Commit reroute move
-            foreach (var reroute in view.Selection.Reroutes)
-            {
-                var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
-                view.Commands.Apply(new GraphCommand.MoveReroute(reroute.LinkId, reroute.WaypointIndex, graphPos));
-            }
-            view.Interaction.ResetToIdle();
-        }
-        else if (view.Interaction.DragThresholdCrossed || input.MouseDelta.Length() > 0)
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+
+        if (!view.Interaction.DragThresholdCrossed && delta.Length() > TimingConstants.DragThresholdPixels)
         {
             view.Interaction.DragThresholdCrossed = true;
+        }
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            var deltaGraph = delta / view.Viewport.Zoom;
+            foreach (var reroute in view.Selection.Reroutes)
+            {
+                var link = view.Model.FindLink(reroute.LinkId);
+                if (link != null && reroute.WaypointIndex >= 0 && reroute.WaypointIndex < link.Waypoints.Count)
+                {
+                    var startPos = link.Waypoints[reroute.WaypointIndex];
+                    view.Interaction.RerouteDragOverridePositions[reroute] = startPos + deltaGraph;
+                }
+            }
+        }
+
+        if (input.IsMouseReleased(MouseButton.Left))
+        {
+            if (view.Interaction.DragThresholdCrossed && view.Interaction.RerouteDragOverridePositions.Count > 0)
+            {
+                var fwds = new List<GraphCommand>();
+                var invs = new List<GraphCommand>();
+
+                foreach (var kvp in view.Interaction.RerouteDragOverridePositions)
+                {
+                    var link = view.Model.FindLink(kvp.Key.LinkId);
+                    if (link != null && kvp.Key.WaypointIndex >= 0 && kvp.Key.WaypointIndex < link.Waypoints.Count)
+                    {
+                        var oldPos = link.Waypoints[kvp.Key.WaypointIndex];
+                        fwds.Add(new GraphCommand.MoveReroute(kvp.Key.LinkId, kvp.Key.WaypointIndex, kvp.Value));
+                        invs.Add(new GraphCommand.MoveReroute(kvp.Key.LinkId, kvp.Key.WaypointIndex, oldPos));
+                    }
+                }
+
+                if (fwds.Count == 1)
+                {
+                    view.Execute(fwds[0], invs[0], "Move Reroute");
+                }
+                else if (fwds.Count > 1)
+                {
+                    invs.Reverse();
+                    view.Execute(
+                        new GraphCommand.Batch("Move Reroutes", fwds),
+                        new GraphCommand.Batch("Move Reroutes", invs),
+                        "Move Reroutes");
+                }
+            }
+
+            view.Interaction.ResetToIdle();
         }
     }
 
@@ -478,18 +858,97 @@ internal sealed class CanvasInput
 
     private static void HandleDraggingComment(GraphView view, IInputSource input)
     {
-        if (input.IsMouseReleased(MouseButton.Left))
+        var delta = input.MousePosition - view.Interaction.DragStartScreen;
+
+        if (!view.Interaction.DragThresholdCrossed && delta.Length() > TimingConstants.DragThresholdPixels)
         {
-            var delta = view.Viewport.ScreenToGraph(input.MousePosition)
-                      - view.Viewport.ScreenToGraph(view.Interaction.DragStartScreen);
+            view.Interaction.DragThresholdCrossed = true;
+        }
+
+        if (view.Interaction.DragThresholdCrossed)
+        {
+            var deltaGraph = delta / view.Viewport.Zoom;
+            bool moveComment = (input.Modifiers & KeyModifiers.Alt) == 0;
+            bool moveContents = (input.Modifiers & KeyModifiers.Shift) == 0;
 
             foreach (var cid in view.Selection.Comments)
             {
                 var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
                 if (comment == null) continue;
-                var newPos = comment.Position + delta;
-                view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, newPos, null, null, null, null));
+
+                if (moveComment)
+                {
+                    view.Interaction.CommentDragOverridePositions[cid] = comment.Position + deltaGraph;
+                }
+
+                if (moveContents && comment.MoveWithContents)
+                {
+                    foreach (var nid in view.Interaction.CommentDragContents)
+                    {
+                        var node = view.Model.FindNode(nid);
+                        if (node != null)
+                        {
+                            view.Interaction.DragOverridePositions[nid] = node.Position + deltaGraph;
+                        }
+                    }
+                }
             }
+        }
+
+        if (input.IsMouseReleased(MouseButton.Left))
+        {
+            if (view.Interaction.DragThresholdCrossed)
+            {
+                var deltaGraph = delta / view.Viewport.Zoom;
+                bool moveComment = (input.Modifiers & KeyModifiers.Alt) == 0;
+                bool moveContents = (input.Modifiers & KeyModifiers.Shift) == 0;
+
+                var fwds = new List<GraphCommand>();
+                var invs = new List<GraphCommand>();
+
+                foreach (var cid in view.Selection.Comments)
+                {
+                    var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
+                    if (comment == null) continue;
+
+                    if (moveComment)
+                    {
+                        var newPos = comment.Position + deltaGraph;
+                        fwds.Add(new GraphCommand.UpdateComment(cid, null, newPos, null, null, null, null));
+                        invs.Add(new GraphCommand.UpdateComment(cid, null, comment.Position, null, null, null, null));
+                    }
+
+                    if (moveContents && comment.MoveWithContents && view.Interaction.CommentDragContents.Count > 0)
+                    {
+                        var nodeMovesFwd = new List<NodeMove>();
+                        var nodeMovesInv = new List<NodeMove>();
+                        foreach (var nid in view.Interaction.CommentDragContents)
+                        {
+                            var node = view.Model.FindNode(nid);
+                            if (node != null)
+                            {
+                                nodeMovesFwd.Add(new NodeMove(nid, node.Position + deltaGraph));
+                                nodeMovesInv.Add(new NodeMove(nid, node.Position));
+                            }
+                        }
+                        if (nodeMovesFwd.Count > 0)
+                        {
+                            fwds.Add(new GraphCommand.MoveNodes(nodeMovesFwd));
+                            invs.Add(new GraphCommand.MoveNodes(nodeMovesInv));
+                        }
+                    }
+                }
+
+                if (fwds.Count > 0)
+                {
+                    invs.Reverse();
+                    view.Execute(
+                        new GraphCommand.Batch("Move Comment", fwds),
+                        new GraphCommand.Batch("Move Comment", invs),
+                        "Move Comment");
+                }
+            }
+
             view.Interaction.ResetToIdle();
         }
     }
@@ -498,17 +957,79 @@ internal sealed class CanvasInput
 
     private static void HandleResizingComment(GraphView view, IInputSource input)
     {
+        int handle = view.Interaction.ActiveCommentResizeHandle;
+        if (handle < 0) return;
+
+        var deltaGraph = (input.MousePosition - view.Interaction.DragStartScreen) / view.Viewport.Zoom;
+
+        bool modLeft   = handle == 0 || handle == 3 || handle == 5;
+        bool modRight  = handle == 2 || handle == 4 || handle == 7;
+        bool modTop    = handle == 0 || handle == 1 || handle == 2;
+        bool modBottom = handle == 5 || handle == 6 || handle == 7;
+
+        foreach (var cid in view.Selection.Comments)
+        {
+            var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
+            if (comment == null) continue;
+
+            var newPos = comment.Position;
+            var newSize = comment.Size;
+
+            if (modLeft)
+            {
+                newPos.X += deltaGraph.X;
+                newSize.X -= deltaGraph.X;
+                if (newSize.X < 80f) { newPos.X -= (80f - newSize.X); newSize.X = 80f; }
+            }
+            else if (modRight)
+            {
+                newSize.X += deltaGraph.X;
+                if (newSize.X < 80f) newSize.X = 80f;
+            }
+
+            if (modTop)
+            {
+                newPos.Y += deltaGraph.Y;
+                newSize.Y -= deltaGraph.Y;
+                if (newSize.Y < 40f) { newPos.Y -= (40f - newSize.Y); newSize.Y = 40f; }
+            }
+            else if (modBottom)
+            {
+                newSize.Y += deltaGraph.Y;
+                if (newSize.Y < 40f) newSize.Y = 40f;
+            }
+
+            view.Interaction.CommentDragOverridePositions[cid] = newPos;
+            view.Interaction.CommentSizeOverrides[cid] = newSize;
+        }
+
         if (input.IsMouseReleased(MouseButton.Left))
         {
-            var graphPos = view.Viewport.ScreenToGraph(input.MousePosition);
+            var fwds = new List<GraphCommand>();
+            var invs = new List<GraphCommand>();
+
             foreach (var cid in view.Selection.Comments)
             {
                 var comment = view.Model.Comments.FirstOrDefault(c => c.Id == cid);
                 if (comment == null) continue;
-                var newSize = graphPos - comment.Position;
-                newSize = Vector2.Max(newSize, new Vector2(80, 40));
-                view.Commands.Apply(new GraphCommand.UpdateComment(cid, null, null, newSize, null, null, null));
+
+                if (view.Interaction.CommentSizeOverrides.TryGetValue(cid, out var finalSize) &&
+                    view.Interaction.CommentDragOverridePositions.TryGetValue(cid, out var finalPos))
+                {
+                    fwds.Add(new GraphCommand.UpdateComment(cid, null, finalPos, finalSize, null, null, null));
+                    invs.Add(new GraphCommand.UpdateComment(cid, null, comment.Position, comment.Size, null, null, null));
+                }
             }
+
+            if (fwds.Count > 0)
+            {
+                invs.Reverse();
+                view.Execute(
+                    new GraphCommand.Batch("Resize Comment", fwds),
+                    new GraphCommand.Batch("Resize Comment", invs),
+                    "Resize Comment");
+            }
+
             view.Interaction.ResetToIdle();
         }
     }
@@ -583,11 +1104,12 @@ internal sealed class CanvasInput
         if (input.IsMouseReleased(MouseButton.Left))
         {
             var dropHover = view.Interaction.Hover;
+            var cb = new CommandBuilder(view.Model);
 
             if (pw.CandidateTarget.HasValue && pw.CandidateValid)
             {
-                var newId = LinkId.NewId();
-                view.Commands.Apply(new GraphCommand.AddLink(newId, pw.SourcePin, pw.CandidateTarget.Value));
+                var (fwd, inv) = cb.AddLink(pw.SourcePin, pw.CandidateTarget.Value);
+                view.Execute(fwd, inv, "Connect Pins");
                 view.Interaction.ResetToIdle();
             }
             else if (dropHover.Kind == HoverKind.Pin)
@@ -598,7 +1120,9 @@ internal sealed class CanvasInput
             else if (dropHover.Kind == HoverKind.Node)
             {
                 var node = view.Model.FindNode(dropHover.Node);
-                if (node != null)
+                var srcPin = view.Model.FindPin(pw.SourcePin);
+
+                if (node != null && srcPin != null)
                 {
                     var compatiblePin = node.Pins.FirstOrDefault(p =>
                         p.Id != pw.SourcePin
@@ -606,8 +1130,10 @@ internal sealed class CanvasInput
 
                     if (compatiblePin != null)
                     {
-                        var linkId = LinkId.NewId();
-                        view.Commands.Apply(new GraphCommand.AddLink(linkId, pw.SourcePin, compatiblePin.Id));
+                        var fromId = srcPin.Direction == PinDirection.Output ? srcPin.Id : compatiblePin.Id;
+                        var toId = srcPin.Direction == PinDirection.Output ? compatiblePin.Id : srcPin.Id;
+                        var (fwd, inv) = cb.AddLink(fromId, toId);
+                        view.Execute(fwd, inv, "Connect Pins");
                     }
                 }
 
@@ -635,30 +1161,73 @@ internal sealed class CanvasInput
                     {
                         if (pick is NodeCatalogEntry entry)
                         {
-                            var newId = IdGenerator.NewNodeId();
-                            view.Commands.Apply(new GraphCommand.AddNode(newId, entry.Kind, pw.CursorGraph, null));
-
-                            var newNode = view.Model.FindNode(newId);
-                            var srcPin = view.Model.FindPin(pw.SourcePin);
-
-                            if (newNode != null && srcPin != null)
+                            var srcPinModel = view.Model.FindPin(pw.SourcePin);
+                            if (srcPinModel != null)
                             {
-                                var targetDir = srcPin.Direction == PinDirection.Output
-                                    ? PinDirection.Input
-                                    : PinDirection.Output;
-
-                                var compatiblePin = newNode.Pins.FirstOrDefault(p =>
-                                    p.Direction == targetDir &&
-                                    p.Kind == srcPin.Kind &&
-                                    (srcPin.Kind == PinKind.Exec || p.Type == srcPin.Type));
-
-                                if (compatiblePin != null)
+                                // 1. Pre-generate Pin IDs so they remain stable across Undo/Redo
+                                var pinIds = new List<PinId>();
+                                int totalPins = entry.Inputs.Count + entry.Outputs.Count;
+                                for (int i = 0; i < totalPins; i++)
                                 {
-                                    var linkId = LinkId.NewId();
-                                    var fromPin = srcPin.Direction == PinDirection.Output ? srcPin.Id : compatiblePin.Id;
-                                    var toPin = srcPin.Direction == PinDirection.Output ? compatiblePin.Id : srcPin.Id;
-                                    view.Commands.Apply(new GraphCommand.AddLink(linkId, fromPin, toPin));
+                                    pinIds.Add(IdGenerator.NewPinId());
                                 }
+
+                                var props = new Dictionary<string, object?> { ["PinIds"] = pinIds };
+                                var newNodeId = IdGenerator.NewNodeId();
+
+                                var nodeFwd = new GraphCommand.AddNode(newNodeId, entry.Kind, pw.CursorGraph, props);
+                                var nodeInv = new GraphCommand.RemoveNodes(new[] { newNodeId });
+
+                                var fwds = new List<GraphCommand> { nodeFwd };
+                                var invs = new List<GraphCommand> { nodeInv };
+
+                                // 2. Find a compatible pin using the catalog entry signatures
+                                var targetDir = srcPinModel.Direction == PinDirection.Output ? PinDirection.Input : PinDirection.Output;
+                                PinId? compatiblePinId = null;
+                                int pinIdx = 0;
+
+                                foreach (var sig in entry.Inputs)
+                                {
+                                    if (targetDir == PinDirection.Input && sig.Kind == srcPinModel.Kind &&
+                                        (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                    {
+                                        compatiblePinId = pinIds[pinIdx];
+                                        break;
+                                    }
+                                    pinIdx++;
+                                }
+
+                                if (compatiblePinId == null)
+                                {
+                                    foreach (var sig in entry.Outputs)
+                                    {
+                                        if (targetDir == PinDirection.Output && sig.Kind == srcPinModel.Kind &&
+                                            (srcPinModel.Kind == PinKind.Exec || sig.Type == srcPinModel.Type))
+                                        {
+                                            compatiblePinId = pinIds[pinIdx];
+                                            break;
+                                        }
+                                        pinIdx++;
+                                    }
+                                }
+
+                                // 3. Form the link command targeting the deterministic PinId
+                                if (compatiblePinId.HasValue)
+                                {
+                                    var linkId = IdGenerator.NewLinkId();
+                                    var fromId = srcPinModel.Direction == PinDirection.Output ? srcPinModel.Id : compatiblePinId.Value;
+                                    var toId   = srcPinModel.Direction == PinDirection.Output ? compatiblePinId.Value : srcPinModel.Id;
+
+                                    fwds.Add(new GraphCommand.AddLink(linkId, fromId, toId));
+                                    invs.Add(new GraphCommand.RemoveLinks(new[] { linkId }));
+                                }
+
+                                // 4. Execute as a single atomic batch (inverses must be reversed)
+                                invs.Reverse();
+                                var batchFwd = new GraphCommand.Batch("Add Node", fwds);
+                                var batchInv = new GraphCommand.Batch("Add Node", invs);
+
+                                view.Execute(batchFwd, batchInv, "Add Node");
                             }
                         }
                         view.Interaction.ResetToIdle();

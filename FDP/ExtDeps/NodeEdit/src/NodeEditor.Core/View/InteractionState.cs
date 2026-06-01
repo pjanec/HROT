@@ -36,12 +36,21 @@ public sealed class InteractionState
     /// the final positions are flushed via a single MoveNodes command and this dict is cleared.
     /// </summary>
     public Dictionary<NodeId, Vector2> DragOverridePositions { get; } = new();
+    /// <summary>Per-pin override values during an inline editor drag.</summary>
+    public Dictionary<PinId, object?> PinDragOverrides { get; } = new();
 
     /// <summary>Snapshot of nodes that are dragged together with a comment ("contained" set, captured at drag-start).</summary>
     public HashSet<NodeId> CommentDragContents { get; } = new();
 
     /// <summary>Per-comment graph-space position overrides while a comment drag is in progress.</summary>
     public Dictionary<CommentId, Vector2> CommentDragOverridePositions { get; } = new();
+    /// <summary>Per-comment graph-space size overrides while resizing.</summary>
+    public Dictionary<CommentId, Vector2> CommentSizeOverrides { get; } = new();
+    /// <summary>Index of the grab handle (0-7) currently being dragged to resize a comment.</summary>
+    public int ActiveCommentResizeHandle { get; set; } = -1;
+
+    /// <summary>Per-reroute graph-space position overrides while a drag is in progress.</summary>
+    public Dictionary<RerouteRef, Vector2> RerouteDragOverridePositions { get; } = new();
 
     /// <summary>The comment currently being inline-renamed; null when not renaming.</summary>
     public CommentId? RenamingComment { get; set; }
@@ -62,6 +71,10 @@ public sealed class InteractionState
 
     /// <summary>True when the current drop target would create a cycle and the drop is therefore invalid.</summary>
     public bool DropTargetCycleDetected { get; set; }
+    /// <summary>
+    /// During a node drag: the specific region index within the drop target container, if any.
+    /// </summary>
+    public int? DropTargetRegionIndex { get; set; }
 
     /// <summary>Optional active viewport tween (camera animation to a bookmark).</summary>
     public ViewportTween? ActiveTween { get; private set; }
@@ -69,6 +82,27 @@ public sealed class InteractionState
     /// <summary>Begin a smooth camera animation to the given pan/zoom over the specified duration.</summary>
     public void BeginViewportTween(Vector2 targetPan, float targetZoom, double durationMs)
         => ActiveTween = new ViewportTween(targetPan, targetZoom, durationMs);
+
+    public void UpdateTween(double deltaSeconds, ViewportState viewport)
+    {
+        if (ActiveTween == null) return;
+        var tween = ActiveTween;
+
+        // Capture origin state lazily on the first frame of execution
+        if (tween.StartPan == null || !tween.StartZoom.HasValue)
+        {
+            tween.StartPan = viewport.PanGraph;
+            tween.StartZoom = viewport.Zoom;
+        }
+
+        float t = tween.Advance(deltaSeconds * 1000.0);
+
+        viewport.PanGraph = Vector2.Lerp(tween.StartPan!.Value, tween.TargetPan, t);
+        viewport.SetZoom(tween.StartZoom!.Value + (tween.TargetZoom - tween.StartZoom.Value) * t);
+
+        if (tween.IsComplete)
+            ActiveTween = null;
+    }
 
     /// <summary>Clear the active tween (called by renderer once the tween completes or is interrupted).</summary>
     public void ClearTween() => ActiveTween = null;
@@ -79,8 +113,12 @@ public sealed class InteractionState
         Mode = InteractionMode.Idle;
         DragThresholdCrossed = false;
         DragOverridePositions.Clear();
+        PinDragOverrides.Clear();
         CommentDragContents.Clear();
         CommentDragOverridePositions.Clear();
+        CommentSizeOverrides.Clear();
+        ActiveCommentResizeHandle = -1;
+        RerouteDragOverridePositions.Clear();
         RenamingComment = null;
         MarqueeGraph = default;
         MarqueeTouchMode = false;
@@ -89,6 +127,8 @@ public sealed class InteractionState
         ContextMenuTarget = HoverInfo.None;
         DropTargetContainerId = null;
         DropTargetCycleDetected = false;
+        DropTargetRegionIndex = null;
+        ActiveTween = null;
     }
 }
 
@@ -99,6 +139,9 @@ public sealed class ViewportTween
     public float   TargetZoom { get; }
     public double  DurationMs { get; }
     public double  ElapsedMs  { get; private set; }
+
+    public Vector2? StartPan  { get; set; }
+    public float?   StartZoom { get; set; }
 
     public ViewportTween(Vector2 targetPan, float targetZoom, double durationMs)
     {

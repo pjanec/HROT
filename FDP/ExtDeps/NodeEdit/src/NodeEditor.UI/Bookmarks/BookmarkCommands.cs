@@ -17,6 +17,7 @@ public static class BookmarkCommands
         EditorCommandsImpl cmds,
         GraphView          view,
         BookmarkStore      store,
+        IEditorIndicators  indicators,
         System.Action<GraphId> navigateToGraph)
     {
         for (int slot = 1; slot <= 9; slot++)
@@ -43,7 +44,7 @@ public static class BookmarkCommands
                     null,
                     new KeyBinding((EditorKey)((int)EditorKey.D0 + s), KeyModifiers.Ctrl | KeyModifiers.Shift),
                     IsEnabled: () => true),
-                _ => SetBookmark(store, s, view));
+                _ => SetBookmark(store, s, view, indicators));
         }
     }
 
@@ -62,10 +63,9 @@ public static class BookmarkCommands
         view.Interaction.BeginViewportTween(b.ViewportPan, b.ViewportZoom, durationMs: 180);
     }
 
-    private static void SetBookmark(BookmarkStore store, int slot, GraphView view)
+    private static void SetBookmark(BookmarkStore store, int slot, GraphView view, IEditorIndicators indicators)
     {
-        var existing = store.GetSlot(slot);
-        // If occupied, overwrite (prompt is demo-layer concern; engine just sets)
+        bool isOverwrite = store.GetSlot(slot) is not null;
         var pan  = view.Viewport.PanGraph;
         var zoom = view.Viewport.Zoom;
         var label = $"{view.Model.DisplayName} @ ({pan.X:F0}, {pan.Y:F0})";
@@ -78,5 +78,13 @@ public static class BookmarkCommands
             zoom,
             slot,
             DateTime.UtcNow));
+
+        indicators.Notify(new EditorNotification(
+            Id: Guid.NewGuid().ToString(),
+            Severity: isOverwrite ? NotificationSeverity.Warning : NotificationSeverity.Success,
+            Title: isOverwrite ? $"Bookmark {slot} Overwritten" : $"Bookmark {slot} Set",
+            Body: label,
+            AutoDismiss: TimeSpan.FromSeconds(3),
+            Actions: null));
     }
 }

@@ -1,4 +1,5 @@
 using NodeEditor.Core.Search;
+using NodeEditor.Core.Interfaces;
 
 namespace NodeEditor.UI.Picker;
 
@@ -11,6 +12,7 @@ internal sealed class PickerState
 {
     // ── Session identity ─────────────────────────────────────────────────────
     public string ContextKey = "";
+    public PickerSelectionMode SelectionMode = PickerSelectionMode.Single;
     public FavoritesStore Favorites = new();
     public RecentStore Recent = new();
 
@@ -27,7 +29,9 @@ internal sealed class PickerState
 
     // ── Selection ────────────────────────────────────────────────────────────
     public HashSet<int> SelectedFilteredIndices = [];
+    public HashSet<int> HighlightedIndices      = [];
     public int KeyboardFocusIndex;
+    public int SelectionAnchorIndex;
 
     // ── Wide layout sidebar ───────────────────────────────────────────────────
     public string SelectedCategory = "";
@@ -49,13 +53,29 @@ internal sealed class PickerState
 
         foreach (var entry in AllEntries)
         {
-            var result = FuzzyMatcher.Score(q, entry.Name, entry.Keywords);
+            // Architecturally critical: Project the full path to support VS-style deep hierarchy fuzzy matching
+            string fullPath = string.IsNullOrEmpty(entry.Category)
+                ? entry.Name
+                : $"{entry.Category}/{entry.Name}";
+
+            var result = FuzzyMatcher.Score(q, fullPath, entry.Keywords);
             if (!result.HasMatch) continue;
+
+            // Shift match positions from the full path coordinate space back to the Name's coordinate space.
+            // This prevents out-of-bounds exceptions and misalignment during UI highlight rendering.
+            int nameStartIndex = fullPath.Length - entry.Name.Length;
+            var adjustedPositions = new List<int>();
+
+            foreach (int pos in result.MatchPositions)
+            {
+                if (pos >= nameStartIndex)
+                    adjustedPositions.Add(pos - nameStartIndex);
+            }
 
             bool isFav = Favorites.IsStarred(ContextKey, entry.Id);
             bool isRec = Recent.IsRecent(ContextKey, entry.Id);
 
-            Filtered.Add(new RankedEntry(entry, result.Score, result.MatchPositions, isFav, isRec));
+            Filtered.Add(new RankedEntry(entry, result.Score, adjustedPositions, isFav, isRec));
         }
 
         // Sort: favorites first, then recents, then by score desc, then name asc.
@@ -76,15 +96,18 @@ internal sealed class PickerState
     }
 
     /// <summary>Reset all transient state for a new picker session.</summary>
-    public void Reset(string contextKey, string initialQuery)
+    public void Reset(string contextKey, string initialQuery, PickerSelectionMode mode)
     {
         ContextKey              = contextKey;
         SearchText              = initialQuery;
         LastQuery               = "\u0000";
+        SelectionMode           = mode;
         AllEntries              = [];
         Filtered                = [];
         SelectedFilteredIndices = [];
+        HighlightedIndices      = [];
         KeyboardFocusIndex      = 0;
+        SelectionAnchorIndex    = 0;
         SelectedCategory        = "";
         Confirmed               = false;
         FocusSearchNextFrame    = true;

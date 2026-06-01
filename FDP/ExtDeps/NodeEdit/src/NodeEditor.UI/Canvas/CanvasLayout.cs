@@ -53,7 +53,7 @@ internal sealed class CanvasLayoutBuilder
     // Layout constants — all in graph units.
     public const float NodeMinWidthGu   = 160f;
     public const float NodeHorizPadGu   = 12f;
-    public const float PinRowHeightGu   = 22f;
+    public const float PinRowHeightGu   = 24f;
     public const float PinTopPadGu      = 6f;
     public const float PinBottomPadGu   = 8f;
     public const float EditorWidthGu    = 80f;
@@ -77,15 +77,12 @@ internal sealed class CanvasLayoutBuilder
 
         foreach (var node in view.Model.Nodes)
         {
-            // Use canvas-absolute position: container children store Position as parent-local,
-            // so we resolve the full chain via NodeCanvasPosition.
-            Vector2 graphPos;
-            if (view.Interaction.DragOverridePositions.TryGetValue(node.Id, out var over))
-                graphPos = over;
-            else if (node.ParentContainerId == null)
-                graphPos = node.Position;
-            else
-                graphPos = view.NodeCanvasPosition(node.Id);
+            // Cull nodes hidden inside a collapsed parent.
+            if (IsHiddenByCollapsedParent(view, node.Id)) continue;
+
+            // Compute the real-time visual position accounting for active drags
+            // of the node or any of its parents.
+            Vector2 graphPos = GetVisualCanvasPosition(view, layout, node.Id);
 
             var inputPins = new List<IPinModel>();
             var outputPins = new List<IPinModel>();
@@ -97,7 +94,7 @@ internal sealed class CanvasLayoutBuilder
                 if (p.IsAdvanced && !node.ShowAdvancedPins) continue;
 
                 float labelWidthGu = string.IsNullOrEmpty(p.Label) ? 0f : ImGui.CalcTextSize(p.Label).X;
-                float pinWidthGu = 18f + labelWidthGu; // glyph + label spacing budget
+                float pinWidthGu = 20f + labelWidthGu; // glyph + label spacing budget
 
                 if (p.Direction == PinDirection.Input)
                 {
@@ -108,7 +105,16 @@ internal sealed class CanvasLayoutBuilder
                                            && view.TypeSystem.GetDefaultEditor(p.Type.Value) != null;
 
                     if (hasInlineEditor)
-                        pinWidthGu += EditorWidthGu + (EditorHorizPadGu * 2f);
+                    {
+                        float reqWidth = EditorWidthGu;
+                        var t = p.Type?.Id;
+                        if (t == "System.Numerics.Vector2") reqWidth = 120f;
+                        else if (t == "System.Numerics.Vector3" || t == "System.Numerics.Quaternion") reqWidth = 180f;
+                        else if (t == "System.Numerics.Vector4") reqWidth = 240f;
+                        else if (t == "System.Guid") reqWidth = 260f;
+
+                        pinWidthGu += reqWidth + (EditorHorizPadGu * 2f);
+                    }
 
                     maxInputWidthGu = Math.Max(maxInputWidthGu, pinWidthGu);
                     inputPins.Add(p);
@@ -139,9 +145,10 @@ internal sealed class CanvasLayoutBuilder
             var nodeAttachments = view.Model.GetAttachmentsForNode(node.Id);
             if (nodeAttachments.Count > 0)
             {
+                // Compute using the UNSCALED graph width so layout wrapping is stable across zooms.
                 var attachLayout = AttachmentLayoutEngine.Compute(
                     nodeAttachments,
-                    sw,
+                    nodeWGu,
                     a =>
                     {
                         float w = 0f;
@@ -156,7 +163,9 @@ internal sealed class CanvasLayoutBuilder
                     });
                 layout.AttachmentLayouts[node.Id] = attachLayout;
                 foreach (var (aId, placement) in attachLayout.Placements)
-                    layout.AttachmentScreenRects[aId] = new RectF(rect.Min + placement.TopLeft, placement.Size);
+                    layout.AttachmentScreenRects[aId] = new RectF(
+                        rect.Min + placement.TopLeft * zoom,
+                        placement.Size * zoom);
             }
 
             for (int i = 0; i < inputPins.Count; i++)
@@ -187,8 +196,10 @@ internal sealed class CanvasLayoutBuilder
         foreach (var node in view.Model.Nodes)
         {
             if (node.AsContainer() is not { } container) continue;
+            if (IsHiddenByCollapsedParent(view, node.Id)) continue;
             if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
-            var canvasPos = view.NodeCanvasPosition(node.Id);
+            // Respect drag overrides recursively so descendants move visually during drag.
+            var canvasPos = GetVisualCanvasPosition(view, layout, node.Id);
             var screenPos = view.Viewport.GraphToScreen(canvasPos);
             layout.NodeScreenRects[node.Id] = new RectF(screenPos, graphSize * zoom);
         }
@@ -200,8 +211,9 @@ internal sealed class CanvasLayoutBuilder
             foreach (var node in view.Model.Nodes)
             {
                 if (node.AsContainer() is not { } container) continue;
+                if (IsHiddenByCollapsedParent(view, node.Id)) continue;
                 if (!layout.NodeGraphSizes.TryGetValue(node.Id, out var graphSize)) continue;
-                var canvasPos = view.NodeCanvasPosition(node.Id);
+                var canvasPos = GetVisualCanvasPosition(view, layout, node.Id);
                 spatialIndex.Insert(node.Id, new RectF(canvasPos, graphSize));
             }
         }
@@ -215,6 +227,10 @@ internal sealed class CanvasLayoutBuilder
         float headerHt,
         float zoom)
     {
+        // If collapsed, leave its size as the default header box and do not
+        // calculate bounding boxes of its children.
+        if (container.IsCollapsed) return;
+
         // Recurse into child containers before this one.
         foreach (var childId in container.ChildNodeIds)
         {
@@ -230,5 +246,78 @@ internal sealed class CanvasLayoutBuilder
             headerHt);
 
         layout.NodeGraphSizes[container.Id] = outerSize;
+    }
+
+    private static Vector2 GetVisualCanvasPosition(GraphView view, CanvasLayout layout, NodeId id)
+    {
+        // If the node itself is actively being dragged, use its override.
+        if (view.Interaction.DragOverridePositions.TryGetValue(id, out var over))
+            return over;
+
+        var node = view.Model.FindNode(id);
+        if (node == null) return Vector2.Zero;
+
+        // If it's a root node, use its exact model position.
+        if (node.ParentContainerId == null)
+            return node.Position;
+
+        var parent = view.Model.FindNode(node.ParentContainerId.Value);
+        if (parent?.AsContainer() is not { } container)
+            return node.Position;
+
+        // Recursively resolve the parent's visual position to inherit active drags.
+        var parentCanvas = GetVisualCanvasPosition(view, layout, parent.Id);
+        var interiorOrigin = parentCanvas + new Vector2(
+            container.Padding.Left,
+            view.Host.Theme.NodeHeaderHeight + container.Padding.Top);
+
+        float regionOffsetX = 0f;
+        float regionOffsetY = 0f;
+        if (container.Regions.Count > 0)
+        {
+            int rIdx = container.GetRegionIndexForChild(id);
+            if (rIdx > 0)
+            {
+                bool isHorizontal = container.RegionOrientation == RegionLayoutOrientation.HorizontalStack;
+                float[] regionSizes = new float[container.Regions.Count];
+                for (int i = 0; i < regionSizes.Length; i++) regionSizes[i] = 60f;
+
+                foreach (var childId in container.ChildNodeIds)
+                {
+                    var childNode = view.Model.FindNode(childId);
+                    if (childNode == null) continue;
+                    int cRIdx = container.GetRegionIndexForChild(childId);
+                    if (cRIdx >= 0 && cRIdx < regionSizes.Length)
+                    {
+                        var size = layout.NodeGraphSizes.TryGetValue(childId, out var s)
+                            ? s
+                            : (childNode.SizeOverride ?? new Vector2(160, 64));
+                        if (isHorizontal)
+                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.X + size.X);
+                        else
+                            regionSizes[cRIdx] = Math.Max(regionSizes[cRIdx], childNode.Position.Y + size.Y);
+                    }
+                }
+
+                for (int i = 0; i < rIdx; i++)
+                {
+                    if (isHorizontal) regionOffsetX += regionSizes[i];
+                    else regionOffsetY += regionSizes[i];
+                }
+            }
+        }
+
+        return interiorOrigin + new Vector2(node.Position.X + regionOffsetX, node.Position.Y + regionOffsetY);
+    }
+
+    private static bool IsHiddenByCollapsedParent(GraphView view, NodeId id)
+    {
+        var parentId = view.GetParentContainer(id);
+        if (parentId == null) return false;
+
+        var parent = view.Model.FindNode(parentId.Value);
+        if (parent?.AsContainer() is { IsCollapsed: true }) return true;
+
+        return IsHiddenByCollapsedParent(view, parentId.Value);
     }
 }

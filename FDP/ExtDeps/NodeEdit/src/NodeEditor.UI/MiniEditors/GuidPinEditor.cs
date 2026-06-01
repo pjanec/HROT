@@ -34,7 +34,6 @@ public sealed class GuidPinEditor : IPinDefaultValueEditor
     private static string FormatGuid(Guid g)
     {
         if (g == Guid.Empty) return "(empty)";
-        string hex = g.ToString("N"); // 32 hex chars
-        return $"{hex[..4]}…{hex[^4..]}";
+        return g.ToString("D");
     }
 }

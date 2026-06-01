@@ -51,11 +51,14 @@ internal static class TreeLayout
             }
         }
 
+        bool isSearching = !string.IsNullOrEmpty(state.SearchText);
+        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+
         foreach (var (root, items) in byRoot)
         {
-            if (ImGui.TreeNode(root))
+            if (ImGui.TreeNodeEx(root, flags))
             {
-                DrawGroupedItems(state, ctx, root, items);
+                DrawGroupedItems(state, ctx, root, items, isSearching);
                 ImGui.TreePop();
             }
         }
@@ -65,28 +68,55 @@ internal static class TreeLayout
     }
 
     private static void DrawGroupedItems(PickerState state, IPickerRenderContext ctx,
-                                         string parentCategory,
-                                         List<(int idx, RankedEntry re)> items)
+        string parentCategoryPath,
+        List<(int idx, RankedEntry re)> items,
+        bool isSearching)
     {
-        foreach (var (idx, re) in items)
+        var bySubRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
+        var leaves = new List<(int idx, RankedEntry re)>();
+
+        string prefix = parentCategoryPath + "/";
+
+        foreach (var item in items)
         {
-            // Check if this item has a sub-category beyond the parent.
-            string? cat = re.Entry.Category;
-            if (cat is not null && cat.Length > parentCategory.Length + 1)
+            string? cat = item.re.Entry.Category;
+            
+            // If the category path extends beyond the current parent, group it by the next segment.
+            if (cat != null && cat.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                // There's a deeper segment; nest one more level.
-                string subCat = cat[(parentCategory.Length + 1)..];
-                string subRoot = subCat.Contains('/') ? subCat[..subCat.IndexOf('/')] : subCat;
-                if (ImGui.TreeNode(subRoot))
+                string remainder = cat[prefix.Length..];
+                string subRoot = remainder.Contains('/') ? remainder[..remainder.IndexOf('/')] : remainder;
+
+                if (!bySubRoot.TryGetValue(subRoot, out var list))
                 {
-                    DrawLeafItem(state, ctx, idx, re);
-                    ImGui.TreePop();
+                    list = new List<(int idx, RankedEntry re)>();
+                    bySubRoot[subRoot] = list;
                 }
+                list.Add(item);
             }
             else
             {
-                DrawLeafItem(state, ctx, idx, re);
+                // The item belongs exactly to the current parent category.
+                leaves.Add(item);
             }
+        }
+
+        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+
+        // 1. Draw sub-category folders recursively
+        foreach (var (subRoot, subItems) in bySubRoot)
+        {
+            if (ImGui.TreeNodeEx(subRoot, flags))
+            {
+                DrawGroupedItems(state, ctx, prefix + subRoot, subItems, isSearching);
+                ImGui.TreePop();
+            }
+        }
+
+        // 2. Draw leaf items at this depth
+        foreach (var (idx, re) in leaves)
+        {
+            DrawLeafItem(state, ctx, idx, re);
         }
     }
 
@@ -122,11 +152,19 @@ internal static class TreeLayout
 
         ImGui.PushID(filteredIdx);
 
-        if (ImGui.Selectable(re.Entry.Name, sel || focus))
+        // Architecturally critical: Supply AllowDoubleClick so ImGui captures the double-click event
+        // rather than treating it as two distinct single clicks that toggle state.
+        if (ImGui.Selectable(re.Entry.Name, sel || focus, ImGuiSelectableFlags.AllowDoubleClick))
         {
             state.SelectedFilteredIndices.Clear();
             state.SelectedFilteredIndices.Add(filteredIdx);
             state.KeyboardFocusIndex = filteredIdx;
+        }
+
+        // Evaluate the double-click immediately after the selectable
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            state.Confirmed = true;
         }
 
         ImGui.PopID();

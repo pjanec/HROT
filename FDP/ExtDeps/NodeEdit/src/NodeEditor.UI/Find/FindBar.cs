@@ -93,7 +93,10 @@ public sealed class FindBar
         ImGui.PushItemWidth(220);
         if (_needsFocus) { ImGui.SetKeyboardFocusHere(); _needsFocus = false; }
 
-        var searchBuf = _searchText;
+        // Snapshot whether we had text BEFORE ImGui processes the input and potentially reverts it.
+        bool hasTextBefore = !string.IsNullOrEmpty(_searchText);
+
+        string searchBuf = _searchText;
         if (ImGui.InputText("##find-search", ref searchBuf, 256))
         {
             _searchText  = searchBuf;
@@ -101,13 +104,17 @@ public sealed class FindBar
             RefreshResults();
         }
 
-        // Esc handling
-        if (ImGui.IsItemFocused() && ImGui.IsKeyPressed(ImGuiKey.Escape))
+        // Esc handling.
+        // We check window focus instead of item focus because ImGui.InputText instantly
+        // drops its active focus state on the frame Escape is pressed.
+        if (ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
-            if (!string.IsNullOrEmpty(_searchText))
+            // Use the snapshot to determine if we should clear text or close the bar.
+            if (hasTextBefore)
             {
                 _searchText = string.Empty;
                 RefreshResults();
+                _needsFocus = true;
             }
             else
             {
@@ -235,11 +242,18 @@ public sealed class FindBar
             var node = _view.Model.FindNode(nodeId);
             if (node is not null)
             {
-                // Pan the viewport so the node is centered.
+                // Calculate the actual center of the node.
+                var nodeSize = node.SizeOverride ?? new Vector2(160, 64);
+                var nodeCenter = node.Position + nodeSize * 0.5f;
+
                 var canvasCenterGraph = _view.Viewport.ScreenToGraph(
                     _view.Viewport.CanvasScreenOrigin + _view.Viewport.CanvasScreenSize * 0.5f);
-                var delta = canvasCenterGraph - node.Position;
-                _view.Viewport.Pan(-delta);
+
+                var delta = canvasCenterGraph - nodeCenter;
+                var targetPan = _view.Viewport.PanGraph - delta;
+
+                // Trigger smooth camera animation.
+                _view.Interaction.BeginViewportTween(targetPan, _view.Viewport.Zoom, 180);
             }
         }
     }

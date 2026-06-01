@@ -102,7 +102,9 @@ internal sealed class WireRenderer
         var prev = a;
         for (int i = 0; i < waypoints.Count; i++)
         {
-            var wp = view.Viewport.GraphToScreen(waypoints[i]);
+            var rr = new RerouteRef(link.Id, i);
+            var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : waypoints[i];
+            var wp = view.Viewport.GraphToScreen(wpGraph);
             DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments);
             prev = wp;
         }
@@ -148,9 +150,9 @@ internal sealed class WireRenderer
             }
             for (int wi = 0; wi < link.Waypoints.Count; wi++)
             {
-                var pt = view.Viewport.GraphToScreen(link.Waypoints[wi]);
-
                 var rr = new RerouteRef(link.Id, wi);
+                var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : link.Waypoints[wi];
+                var pt = view.Viewport.GraphToScreen(wpGraph);
                 bool sel = view.Selection.Contains(SelectionEntry.OfReroute(rr));
                 bool hov = view.Interaction.Hover is { Kind: HoverKind.Reroute } h
                         && h.Reroute == rr;

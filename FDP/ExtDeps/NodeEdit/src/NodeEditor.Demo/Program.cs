@@ -34,6 +34,7 @@ internal static class Program
         // (menus, panels, etc.).  The scaled canvas fonts are only applied via
         // explicit PushFont/PopFont blocks inside NodeRenderer and PinRenderer.
         var io = ImGui.GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard;
 
         // Always keep the built-in pixel font as the global default so that all
         // structural UI (menus, toolbars, panels) continues to use it unchanged.

@@ -11,7 +11,7 @@ public sealed class FakePinModel : IPinModel
     public string  Label        { get; set; }
     public PinDirection Direction { get; }
     public PinKind Kind         { get; }
-    public TypeKey? Type        { get; }
+    public TypeKey? Type        { get; set; }
     public PinShape Shape       { get; set; } = PinShape.Circle;
     public bool IsAdvanced      { get; set; }
     public bool IsOptional      { get; set; }

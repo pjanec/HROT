@@ -15,7 +15,7 @@ namespace NodeEditor.UI.Canvas;
 internal sealed class PinRenderer
 {
     private const float PinRadiusPx     = 5f;
-    private const float PinLabelOffsetX = 8f;
+    private const float PinLabelOffsetX = 10f;
 
     /// <summary>Draw all visible pin glyphs and labels for a node.</summary>
     public void DrawNodePins(

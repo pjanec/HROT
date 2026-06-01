@@ -15,6 +15,9 @@ public sealed class FakeInputSource : IInputSource
 
     private char[]  _textBuffer = new char[64];
     private int     _textLen;
+    private double  _lastLeftClickTime;
+    private Vector2 _lastLeftClickPos;
+    private bool    _isDoubleClickedLeft;
 
     /// <summary>Called once per frame to capture text input from Raylib.</summary>
     public void BeginFrame()
@@ -23,6 +26,24 @@ public sealed class FakeInputSource : IInputSource
         int ch;
         while ((ch = Raylib.GetCharPressed()) != 0 && _textLen < _textBuffer.Length)
             _textBuffer[_textLen++] = (char)ch;
+
+        _isDoubleClickedLeft = false;
+        if (Raylib.IsMouseButtonPressed(Raylib_cs.MouseButton.Left))
+        {
+            double now = Raylib.GetTime();
+            Vector2 pos = Raylib.GetMousePosition();
+
+            if (now - _lastLeftClickTime < 0.3 && Vector2.Distance(pos, _lastLeftClickPos) < 5f)
+            {
+                _isDoubleClickedLeft = true;
+                _lastLeftClickTime = 0;
+            }
+            else
+            {
+                _lastLeftClickTime = now;
+                _lastLeftClickPos = pos;
+            }
+        }
     }
 
     public Vector2     MousePosition => Raylib.GetMousePosition();
@@ -45,7 +66,8 @@ public sealed class FakeInputSource : IInputSource
     public bool IsMouseDown(NodeEditor.Primitives.MouseButton btn)          => Raylib.IsMouseButtonDown(ToRaylib(btn));
     public bool IsMousePressed(NodeEditor.Primitives.MouseButton btn)       => Raylib.IsMouseButtonPressed(ToRaylib(btn));
     public bool IsMouseReleased(NodeEditor.Primitives.MouseButton btn)      => Raylib.IsMouseButtonReleased(ToRaylib(btn));
-    public bool IsMouseDoubleClicked(NodeEditor.Primitives.MouseButton btn) => false; // Raylib has no built-in double-click
+    public bool IsMouseDoubleClicked(NodeEditor.Primitives.MouseButton btn)
+        => btn == NodeEditor.Primitives.MouseButton.Left && _isDoubleClickedLeft;
 
     public bool IsKeyDown(EditorKey k)                => _keyMap.TryGetValue(k, out var rk) && Raylib.IsKeyDown(rk);
     public bool IsKeyPressed(EditorKey k, bool allowRepeat = false)

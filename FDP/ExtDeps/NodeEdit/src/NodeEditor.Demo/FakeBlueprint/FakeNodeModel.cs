@@ -36,9 +36,10 @@ public sealed class FakeNodeModel : INodeModel
         PinDirection direction,
         PinKind kind,
         TypeKey? type = null,
-        PinShape shape = PinShape.Circle)
+        PinShape shape = PinShape.Circle,
+        PinId? idOverride = null)
     {
-        var id  = IdGenerator.NewPinId();
+        var id  = idOverride ?? IdGenerator.NewPinId();
         var pin = new FakePinModel(id, Id, label, direction, kind, type) { Shape = shape };
         _pins.Add(pin);
         return pin;
