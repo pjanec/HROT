@@ -245,6 +245,11 @@ namespace Hrot.Editor
         private AiAssetCatalogBuilder?         _aiCatalogBuilder;
         private AiDocumentManager?             _aiDocumentManager;
         private WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
+        // AIE-026: save → emit → reload scheduler (ticked in Update)
+        private Hrot.Editor.AiShared.Emit.RegenerationScheduler? _regenerationScheduler;
+        // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
+        // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
+        private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
         private EditorSelectionStore           _btreeSelectionStore  = new();
         private EditorSelectionStore           _hsmSelectionStore    = new();
         private EditorSelectionStore           _blueprintSelectionStore = new();
@@ -1329,6 +1334,10 @@ namespace Hrot.Editor
             // can observe a half-swapped pointer.
             _aiCoordinator?.DrainPendingCallbacks();
 
+            // AIE-026: tick the regeneration scheduler — flushes debounced dirty saves
+            // (BTree/HSM emit-on-dirty).  Safe in headless mode; no-op when nothing is pending.
+            _regenerationScheduler?.Tick();
+
             // Swap the Control Plane bus so intents published by the UI this frame
             // are readable by ClusterMaster/ClusterUiCache on the orchestration bus.
             _orchestrationBus?.SwapBuffers();
@@ -1539,6 +1548,17 @@ namespace Hrot.Editor
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
             _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
 
+            // AIE-025: Retarget per-perspective selection stores when the active document changes.
+            // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
+            // so updating ActiveAsset here is all that is needed for the window to show the right schema.
+            _aiDocumentManager.ActiveChanged += () =>
+            {
+                var active = _aiDocumentManager.Active;
+                _btreeSelectionStore.ActiveAsset       = (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree)      ? active.Asset : null;
+                _hsmSelectionStore.ActiveAsset         = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)        ? active.Asset : null;
+                _blueprintSelectionStore.ActiveAsset   = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)  ? active.Asset : null;
+            };
+
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
             var assetBrowserFindResults = new FindResultsWindow(
                 idOverride:        "ai_asset_browser_find_results",
@@ -1600,7 +1620,73 @@ namespace Hrot.Editor
                             doc.Asset, adapterBundle);
                         break;
                 }
+
+                // AIE-026: subscribe to this asset's Changed event so dirty edits
+                // get queued into the regeneration scheduler.
+                if (_regenerationScheduler != null)
+                {
+                    var schedulerRef = _regenerationScheduler;
+                    doc.Asset.Changed += () =>
+                    {
+                        if (doc.Asset.IsDirty)
+                            schedulerRef.Schedule(doc.Asset);
+                    };
+                }
             };
+
+            // ── AIE-026: Build the BTree/HSM emit service + RegenerationScheduler ───────────────
+            var btreeEmitter = new Hrot.BTree.Editor.Emit.BTreeFluentEmitter();
+            var hsmEmitter   = new Hrot.Hsm.Editor.Emit.HsmFluentEmitter();
+
+            var emitService = new Hrot.Editor.AiShared.Emit.AiAssetEmitService(
+                emitDelegate: asset => asset switch
+                {
+                    Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => btreeEmitter.Emit(bt),
+                    Hrot.Hsm.Editor.Model.HsmAsset             hs => hsmEmitter.Emit(hs),
+                    _                                             => null,
+                },
+                postEmit: (asset, _) =>
+                {
+                    // Clear in-memory dirty flag after a successful emit (written or no-op).
+                    if (asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btAsset)
+                        btAsset.ClearDirty();
+                    else if (asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
+                        hsmAsset.ClearDirty();
+                });
+
+            // AIE-026 (Blueprint): Light wiring — store a QuickReload trigger that Phase 4 can fill.
+            // In Phase 2, Blueprint editing is not yet implemented (Phase 4 concern); the trigger is
+            // a no-op placeholder so that the scheduler route exists without rebuilding the full pipeline.
+            // Phase 4 replaces _blueprintQuickReloadTrigger with a real QuickReloadService.TriggerAsync call.
+            _blueprintQuickReloadTrigger = null; // populated by Phase 4 composition
+
+            _regenerationScheduler = new Hrot.Editor.AiShared.Emit.RegenerationScheduler(
+                flushAction: asset =>
+                {
+                    if (asset.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+                    {
+                        // Route dirty Blueprint through the shared Quick Reload path if wired.
+                        // (_blueprintQuickReloadTrigger is set by Phase 4 when QuickReloadService is wired.)
+                        _blueprintQuickReloadTrigger?.Invoke(asset);
+                        return;
+                    }
+                    emitService.Emit(asset);
+                },
+                debounceTicks: 500);
+
+            // AIE-026: On reload completed → reconcile open documents from the refreshed catalog
+            // so BTree/HSM assets reflect the new assembly's projected layout (positions by VisualId/StableId).
+            if (_aiCoordinator != null)
+            {
+                _aiCoordinator.OnReloadCompleted += _ =>
+                {
+                    if (_aiCatalogBuilder == null || _aiDocumentManager == null) return;
+                    // _aiCatalogBuilder.Catalog.All already contains the freshly projected assets
+                    // because the contributor's ContributorChanged fires synchronously inside
+                    // AiAssetCatalogBuilder.RefreshFromAssembly (called earlier in OnReloadCompleted).
+                    _aiDocumentManager.ReconcileFromCatalog(_aiCatalogBuilder.Catalog.All);
+                };
+            }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;

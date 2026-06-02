@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Hrot.Editor.AiShared.Documents;
 
 /// <summary>
@@ -151,6 +153,46 @@ public sealed class AiDocumentManager
         _focusCallback?.Invoke(_active);
 
         ActiveChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Reconciles all open documents against a freshly reloaded set of assets.
+    /// For each open document whose <c>AssetId</c> appears in <paramref name="reloadedAssets"/>,
+    /// calls <see cref="AiDocument.ReconcileAsset"/> to swap in the freshly projected version.
+    /// <para>
+    /// Positions and comments are preserved because the projector re-reads
+    /// <c>[BTreeLayout]</c>/<c>[HsmLayout]</c> attribute data on every reload, so the
+    /// reconciled asset already carries the correct visual positions by
+    /// <c>VisualId</c>/<c>StableId</c>.
+    /// </para>
+    /// <para>
+    /// If the active document was reconciled, <see cref="ActiveChanged"/> fires so the
+    /// canvas and blackboard window refresh.
+    /// </para>
+    /// </summary>
+    /// <param name="reloadedAssets">The freshly projected assets from the hot-reload.</param>
+    public void ReconcileFromCatalog(IEnumerable<IEditableAsset> reloadedAssets)
+    {
+        if (reloadedAssets is null) return;
+
+        // Index the reloaded assets by AssetId for O(1) lookup.
+        var byId = new Dictionary<Guid, IEditableAsset>();
+        foreach (var a in reloadedAssets)
+            byId[a.AssetId] = a;
+
+        bool activeReconciled = false;
+        foreach (var doc in _documents)
+        {
+            if (!byId.TryGetValue(doc.Asset.AssetId, out var fresh))
+                continue;
+
+            doc.ReconcileAsset(fresh);
+            if (doc == _active)
+                activeReconciled = true;
+        }
+
+        if (activeReconciled)
+            ActiveChanged?.Invoke();
     }
 
     /// <summary>

@@ -367,6 +367,12 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Clears the in-memory dirty flag after a successful save/emit.
+    /// Called by the <c>RegenerationScheduler</c> flush action in <c>EditorSubsystem</c>.
+    /// </summary>
+    public void ClearDirty() => IsDirty = false;
+
     // Converts a name into a valid C# identifier (strips non-alphanumeric chars,
     // prepends '_' when the first char is a digit, falls back to "HsmAsset").
     private static string SanitizeIdentifier(string name)

@@ -35,8 +35,8 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 - [x] **AIE-022** HSM host binding [details](./TASK-DETAIL.md#aie-022--hsm-host-binding) — BATCH-05 ✅
 - [x] **AIE-023** Inspector facet dispatch [details](./TASK-DETAIL.md#aie-023--inspector-facet-dispatch) — BATCH-06 ✅
 - [x] **AIE-024** Custom StructEdit field pickers [details](./TASK-DETAIL.md#aie-024--custom-structedit-field-pickers) — BATCH-06 ✅ (+ DEBT-003 PickerRegistry.Get)
-- [ ] **AIE-025** Blackboard Authoring per perspective [details](./TASK-DETAIL.md#aie-025--blackboard-authoring-per-perspective)
-- [ ] **AIE-026** Save → emit → hot-reload loop [details](./TASK-DETAIL.md#aie-026--save--emit--hot-reload-loop)
+- [x] **AIE-025** Blackboard Authoring per perspective [details](./TASK-DETAIL.md#aie-025--blackboard-authoring-per-perspective) — BATCH-07 ✅
+- [x] **AIE-026** Save → emit → hot-reload loop [details](./TASK-DETAIL.md#aie-026--save--emit--hot-reload-loop) — BATCH-07 ✅ (Phase 2 complete)
 - [x] **AIE-027** `HsmGlobalsStrip` implementation [details](./TASK-DETAIL.md#aie-027--hsmglobalsstrip-implementation) — BATCH-06 ✅
 
 ## Phase 3 — Debug (BTree + HSM)

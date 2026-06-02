@@ -18,10 +18,31 @@ public sealed class AiDocument
     }
 
     /// <summary>The backing editable asset.</summary>
-    public IEditableAsset Asset { get; }
+    public IEditableAsset Asset { get; private set; }
 
     /// <summary>The asset kind (BTree, HSM, Blueprint, …).</summary>
     public AssetKind Kind { get; }
+
+    /// <summary>
+    /// Replaces the backing asset with a freshly projected version after a hot reload.
+    /// The new asset must have the same <see cref="IEditableAsset.AssetId"/> and
+    /// <see cref="AssetKind"/>; if not, the call is a no-op.
+    /// <para>
+    /// Positions and comments are preserved because the projector reads layout data
+    /// from the <c>[BTreeLayout]</c>/<c>[HsmLayout]</c> attribute methods on reload,
+    /// so the reconciled asset already carries the correct visual positions by
+    /// <c>VisualId</c>/<c>StableId</c>.
+    /// </para>
+    /// </summary>
+    public void ReconcileAsset(IEditableAsset newAsset)
+    {
+        if (newAsset is null) return;
+        if (newAsset.AssetId != Asset.AssetId) return;
+        if (newAsset.Kind    != Asset.Kind)    return;
+        Asset = newAsset;
+        // The reload produced a clean (non-dirty) asset; clear any stale dirty flag.
+        _isDirty = false;
+    }
 
     /// <summary>
     /// Opaque view-state slot. The canvas (Phase 2) stores a <c>GraphView</c> instance
