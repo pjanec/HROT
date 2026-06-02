@@ -14,10 +14,22 @@ public sealed class DiagnosticsWindow : ManagedWindow
     private readonly IAssetCatalog _catalog;
     private readonly IReadOnlyList<IAssetValidator> _validators;
 
+    /// <param name="catalog">The shared asset catalog.</param>
+    /// <param name="validators">Asset validators to run each frame.</param>
+    /// <param name="idOverride">
+    ///   Optional stable ImGui id override (e.g. <c>"ai_diagnostics_btree"</c>)
+    ///   for per-perspective instances with independent dock layouts.
+    /// </param>
+    /// <param name="owningPerspective">
+    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// </param>
     public DiagnosticsWindow(
         IAssetCatalog catalog,
-        IReadOnlyList<IAssetValidator> validators)
-        : base("ai_diagnostics", "Diagnostics", "Authoring", WindowScope.PerspectiveBound)
+        IReadOnlyList<IAssetValidator> validators,
+        string? idOverride = null,
+        string? owningPerspective = null)
+        : base(idOverride ?? "ai_diagnostics", "Diagnostics",
+               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _catalog    = catalog;
         _validators = validators;

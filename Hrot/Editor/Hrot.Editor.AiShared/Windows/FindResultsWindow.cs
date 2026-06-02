@@ -14,8 +14,18 @@ public sealed class FindResultsWindow : ManagedWindow
     private IReadOnlyList<AssetReferenceInfo>? _results;
     private RefactorPreview? _renamePreview;
 
-    public FindResultsWindow()
-        : base("ai_find_results", "Find Results", "Authoring", WindowScope.PerspectiveBound)
+    /// <param name="idOverride">
+    ///   Optional stable ImGui id override (e.g. <c>"ai_find_results_btree"</c>)
+    ///   for per-perspective instances with independent dock layouts.
+    /// </param>
+    /// <param name="owningPerspective">
+    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// </param>
+    public FindResultsWindow(
+        string? idOverride = null,
+        string? owningPerspective = null)
+        : base(idOverride ?? "ai_find_results", "Find Results",
+               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
     }
 

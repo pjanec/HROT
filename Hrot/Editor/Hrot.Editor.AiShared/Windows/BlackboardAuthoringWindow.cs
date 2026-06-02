@@ -89,13 +89,28 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private bool _openLossySaveConfirm;
     private bool _lossySavePopupOpen = true;
 
+    /// <param name="store">Editor selection store for this perspective.</param>
+    /// <param name="refactorService">Refactoring service.</param>
+    /// <param name="sanitizerRegistry">Optional comparison sanitizer registry.</param>
+    /// <param name="exportBuilder">Optional comparison export builder.</param>
+    /// <param name="sessionRegistry">Optional comparison session registry.</param>
+    /// <param name="idOverride">
+    ///   Optional stable ImGui id override (e.g. <c>"ai_blackboard_variables_btree"</c>)
+    ///   for per-perspective instances with independent dock layouts.
+    /// </param>
+    /// <param name="owningPerspective">
+    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// </param>
     public BlackboardAuthoringWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
         SanitizerRegistry? sanitizerRegistry = null,
         ComparisonExportBuilder? exportBuilder = null,
-        ComparisonSessionRegistry? sessionRegistry = null)
-        : base("ai_blackboard_variables", "Blackboard Variables", "Authoring", WindowScope.PerspectiveBound)
+        ComparisonSessionRegistry? sessionRegistry = null,
+        string? idOverride = null,
+        string? owningPerspective = null)
+        : base(idOverride ?? "ai_blackboard_variables", "Blackboard Variables",
+               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _refactorService = refactorService;

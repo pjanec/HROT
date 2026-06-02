@@ -23,12 +23,27 @@ public sealed class InspectorWindow : ManagedWindow
     private readonly byte[] _renameBuf = new byte[512];
     private bool _openRenameModal;
 
+    /// <param name="store">Editor selection store for this perspective.</param>
+    /// <param name="refactorService">Refactoring service.</param>
+    /// <param name="findResults">Find-results window.</param>
+    /// <param name="subAssetResolver">Optional sub-asset resolver for blackboard data.</param>
+    /// <param name="idOverride">
+    ///   Optional stable ImGui id override. When supplied, the window uses this id
+    ///   rather than the default <c>"ai_inspector"</c>, enabling per-perspective
+    ///   instances with independent dock layouts.
+    /// </param>
+    /// <param name="owningPerspective">
+    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
         FindResultsWindow findResults,
-        Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null)
-        : base("ai_inspector", "Inspector", "Authoring", WindowScope.PerspectiveBound)
+        Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null,
+        string? idOverride = null,
+        string? owningPerspective = null)
+        : base(idOverride ?? "ai_inspector", "Inspector",
+               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _refactorService = refactorService;

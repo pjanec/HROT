@@ -17,10 +17,22 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
     private readonly IDebugSessionRegistry _registry;
     private readonly List<IRuntimeInspectorPane> _panes = new();
 
+    /// <param name="store">Editor selection store for this perspective.</param>
+    /// <param name="registry">Debug session registry.</param>
+    /// <param name="idOverride">
+    ///   Optional stable ImGui id override (e.g. <c>"ai_runtime_inspector_btree"</c>)
+    ///   for per-perspective instances with independent dock layouts.
+    /// </param>
+    /// <param name="owningPerspective">
+    ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
+    /// </param>
     public RuntimeInspectorWindow(
         EditorSelectionStore store,
-        IDebugSessionRegistry registry)
-        : base("ai_runtime_inspector", "Runtime Inspector", "Authoring", WindowScope.PerspectiveBound)
+        IDebugSessionRegistry registry,
+        string? idOverride = null,
+        string? owningPerspective = null)
+        : base(idOverride ?? "ai_runtime_inspector", "Runtime Inspector",
+               owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
         _store = store;
         _registry = registry;
