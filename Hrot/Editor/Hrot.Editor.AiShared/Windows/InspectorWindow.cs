@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 
@@ -19,6 +20,13 @@ public sealed class InspectorWindow : ManagedWindow
     private readonly FindResultsWindow _findResults;
     private readonly Func<Guid, IBlackboardManagedAsset?>? _subAssetResolver;
 
+    // Optional facet dispatcher injected from composition root (keeps AiShared dep-clean).
+    private IFacetDispatcher? _facetDispatcher;
+
+    // Cached facet state (one boxed struct per frame that has an active sub-selection).
+    private object? _currentFacet;
+    private IAssetSubSelection? _currentFacetSelection;
+
     private string? _pendingRenameKey;
     private readonly byte[] _renameBuf = new byte[512];
     private bool _openRenameModal;
@@ -35,13 +43,18 @@ public sealed class InspectorWindow : ManagedWindow
     /// <param name="owningPerspective">
     ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
     /// </param>
+    /// <param name="facetDispatcher">
+    ///   Optional per-perspective facet dispatcher (injected from composition root).
+    ///   When supplied, sub-selections are routed through it for StructEdit rendering.
+    /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
         FindResultsWindow findResults,
         Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null,
         string? idOverride = null,
-        string? owningPerspective = null)
+        string? owningPerspective = null,
+        IFacetDispatcher? facetDispatcher = null)
         : base(idOverride ?? "ai_inspector", "Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -49,6 +62,50 @@ public sealed class InspectorWindow : ManagedWindow
         _refactorService = refactorService;
         _findResults = findResults;
         _subAssetResolver = subAssetResolver;
+        _facetDispatcher = facetDispatcher;
+    }
+
+    /// <summary>
+    /// Wires (or replaces) the facet dispatcher at runtime.
+    /// Called from the composition root after construction when the dispatcher
+    /// is built with the asset-specific mapper.
+    /// </summary>
+    public void SetFacetDispatcher(IFacetDispatcher? dispatcher)
+    {
+        _facetDispatcher = dispatcher;
+        // Invalidate cached facet when dispatcher changes.
+        _currentFacet          = null;
+        _currentFacetSelection = null;
+    }
+
+    /// <summary>
+    /// Returns the boxed facet for the current sub-selection (if any).
+    /// Used by tests to verify dispatch without triggering ImGui.
+    /// </summary>
+    internal object? GetCurrentFacet()
+    {
+        var sub = _store.ActiveSubSelection;
+        if (_facetDispatcher is null || sub is null) return null;
+        if (!ReferenceEquals(sub, _currentFacetSelection))
+        {
+            _currentFacet          = _facetDispatcher.GetFacet(sub);
+            _currentFacetSelection = sub;
+        }
+        return _currentFacet;
+    }
+
+    /// <summary>
+    /// Commits the current facet (applies edited values back to the asset).
+    /// Safe to call from tests — does not require ImGui.
+    /// </summary>
+    internal void CommitCurrentFacet(object editedFacet)
+    {
+        var sub = _store.ActiveSubSelection;
+        if (_facetDispatcher is null || sub is null) return;
+        _facetDispatcher.ApplyFacet(sub, editedFacet);
+        // Invalidate cache so next GetCurrentFacet re-reads from asset.
+        _currentFacet          = null;
+        _currentFacetSelection = null;
     }
 
     protected override void DrawClientArea()
@@ -124,6 +181,26 @@ public sealed class InspectorWindow : ManagedWindow
             {
                 _pendingRenameKey = null;
                 Array.Clear(_renameBuf, 0, _renameBuf.Length);
+            }
+        }
+
+        // ---- Facet dispatch (AIE-023) -----------------------------------------------
+        // Render StructEdit facet for the active sub-selection when a dispatcher is wired.
+        // All ImGui calls are inside this block so headless tests can call GetCurrentFacet()
+        // and CommitCurrentFacet() without an ImGui context.
+        if (ImGuiNET.ImGui.GetCurrentContext() != IntPtr.Zero
+            && _facetDispatcher is not null
+            && _store.ActiveSubSelection is { } activeSub)
+        {
+            var facet = GetCurrentFacet();
+            if (facet is not null)
+            {
+                ImGuiNET.ImGui.Separator();
+                ImGuiNET.ImGui.Text($"[{facet.GetType().Name}]");
+                // Full StructEdit rendering would go here (wired in a later pass).
+                // For now show a Commit button that applies the facet back.
+                if (ImGuiNET.ImGui.Button("Apply##facet"))
+                    CommitCurrentFacet(facet);
             }
         }
 

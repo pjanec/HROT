@@ -124,14 +124,45 @@ public sealed class BTreeDocumentFactoryTests : IDisposable
     [Fact]
     public void BTreeDocumentFactory_Build_GraphView_ExposesProjectedLinks()
     {
-        // BTree links are empty in BTreeGraphModel (parent/child encoded via ChildVisualIds,
-        // not as explicit ILinkModel entries — links are reconstructed on demand by the command sink).
+        // Tree: Root → Sequence → {Action1, Action2}
+        // Edges: Root→Sequence (1), Sequence→Action1 (1), Sequence→Action2 (1) = 3 links total.
         var asset  = MakeAsset(RootSequence2Actions());
         var bundle = MakeBundle();
         var ctx    = BTreeDocumentFactory.Build(asset, bundle);
 
-        // Verify the model is queryable without throwing.
-        ctx.View.Model.Links.Should().NotBeNull();
+        var links = ctx.View.Model.Links.ToList();
+
+        // Exact link count: 3 parent→child edges.
+        links.Should().HaveCount(3, "Root→Sequence, Sequence→Action1, Sequence→Action2");
+
+        // For each link: FromPin == child.OutputPinId, ToPin == parent.InputPinId.
+        // Get node lookup from asset.
+        var nodes = asset.Nodes.ToDictionary(n => n.VisualId);
+        // Build a nodeId→editorNode map through the graph model.
+        var modelNodes = ctx.View.Model.Nodes.ToList();
+
+        foreach (var link in links)
+        {
+            // FromPin must be some child's OutputPinId.
+            var childNode = asset.Nodes.FirstOrDefault(
+                n => new NodeEditor.Primitives.PinId(n.OutputPinId) == link.FromPin);
+            childNode.Should().NotBeNull(
+                $"link.FromPin {link.FromPin} must match some child's OutputPinId");
+
+            // ToPin must be the parent's InputPinId.
+            // Find the parent: the node that has childNode.VisualId in its ChildVisualIds.
+            var parentNode = asset.Nodes.FirstOrDefault(
+                n => n.ChildVisualIds.Contains(childNode!.VisualId));
+            parentNode.Should().NotBeNull(
+                $"child {childNode!.VisualId} must have a parent in the tree");
+
+            link.ToPin.Should().Be(new NodeEditor.Primitives.PinId(parentNode!.InputPinId),
+                $"link to-pin must be parent ({parentNode.KernelType}).InputPinId");
+
+            // Link must also be findable by id.
+            ctx.View.Model.FindLink(link.Id).Should().NotBeNull(
+                $"link {link.Id} must be findable via FindLink");
+        }
     }
 
     [Fact]

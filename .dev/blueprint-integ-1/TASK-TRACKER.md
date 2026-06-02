@@ -31,13 +31,13 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 **Goal:** open, edit, inspect, and save BTree/HSM graphs end-to-end on the shared canvas.
 
 - [x] **AIE-020** `AiGraphCanvasWindow` [details](./TASK-DETAIL.md#aie-020--aigraphcanvaswindow) — BATCH-05 ✅
-- [ ] ⚠️ **AIE-021** BTree host binding [details](./TASK-DETAIL.md#aie-021--btree-host-binding) — BATCH-05 partial; **BTreeGraphModel.Links empty (P1)** → BATCH-06 Corrective Task 0
+- [x] **AIE-021** BTree host binding [details](./TASK-DETAIL.md#aie-021--btree-host-binding) — BATCH-05 + BATCH-06 (links) ✅
 - [x] **AIE-022** HSM host binding [details](./TASK-DETAIL.md#aie-022--hsm-host-binding) — BATCH-05 ✅
-- [ ] **AIE-023** Inspector facet dispatch [details](./TASK-DETAIL.md#aie-023--inspector-facet-dispatch)
-- [ ] **AIE-024** Custom StructEdit field pickers [details](./TASK-DETAIL.md#aie-024--custom-structedit-field-pickers)
+- [x] **AIE-023** Inspector facet dispatch [details](./TASK-DETAIL.md#aie-023--inspector-facet-dispatch) — BATCH-06 ✅
+- [x] **AIE-024** Custom StructEdit field pickers [details](./TASK-DETAIL.md#aie-024--custom-structedit-field-pickers) — BATCH-06 ✅ (+ DEBT-003 PickerRegistry.Get)
 - [ ] **AIE-025** Blackboard Authoring per perspective [details](./TASK-DETAIL.md#aie-025--blackboard-authoring-per-perspective)
 - [ ] **AIE-026** Save → emit → hot-reload loop [details](./TASK-DETAIL.md#aie-026--save--emit--hot-reload-loop)
-- [ ] **AIE-027** `HsmGlobalsStrip` implementation [details](./TASK-DETAIL.md#aie-027--hsmglobalsstrip-implementation)
+- [x] **AIE-027** `HsmGlobalsStrip` implementation [details](./TASK-DETAIL.md#aie-027--hsmglobalsstrip-implementation) — BATCH-06 ✅
 
 ## Phase 3 — Debug (BTree + HSM)
 **Goal:** breakpoints, step controls, runtime overlays, runtime inspector, trace timeline wired to the live sim.

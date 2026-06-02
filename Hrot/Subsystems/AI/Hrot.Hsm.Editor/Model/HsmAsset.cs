@@ -280,8 +280,9 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
     private readonly Dictionary<ushort, TransitionNode> _flatIndexToTransition;
     private readonly Dictionary<ushort, EventDefinition> _eventIdToEvent;
 
-    // Mutable backing lists for regions and attachments (mutated by HsmCommandSink).
-    private readonly List<RegionNode> _allRegionsList;
+    // Mutable backing lists for regions, global transitions, and attachments.
+    private readonly List<RegionNode>           _allRegionsList;
+    private readonly List<GlobalTransitionNode> _allGlobalTransitionsList;
     private readonly Dictionary<AttachmentId, HsmAttachment> _attachments = new();
 
     public event Action? Changed;
@@ -315,7 +316,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
         AllGlobalTransitions = allGlobalTransitions.AsReadOnly();
         AllRegions = allRegions.AsReadOnly();
         AllEvents = allEvents.AsReadOnly();
-        _allRegionsList = allRegions;
+        _allRegionsList           = allRegions;
+        _allGlobalTransitionsList = allGlobalTransitions;
 
         _stableIdToState = new Dictionary<Guid, StateNode>(allStates.Count);
         _visualIdToTransition = new Dictionary<Guid, TransitionNode>(allTransitions.Count);
@@ -393,6 +395,17 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
     {
         _allRegionsList.Remove(region);
         _stableIdToRegion.Remove(region.StableId);
+    }
+
+    // ---- Global transition mutation helpers ----
+
+    /// <summary>Removes the global transition with the given VisualId, if it exists.</summary>
+    internal bool RemoveGlobalTransition(Guid visualId)
+    {
+        int idx = _allGlobalTransitionsList.FindIndex(g => g.VisualId == visualId);
+        if (idx < 0) return false;
+        _allGlobalTransitionsList.RemoveAt(idx);
+        return true;
     }
 
     // ---- Attachment mutation helpers (called by HsmCommandSink) ----

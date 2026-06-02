@@ -43,7 +43,7 @@ public sealed class PickerRegistry : IPickerRegistry
     {
         if (_adapters.TryGetValue(sourceKey, out var raw) &&
             raw is PickerSourceAdapter<TItem> typed)
-            return null; // adapter wraps the source; use Open() instead
+            return typed.Source;
 
         return null;
     }

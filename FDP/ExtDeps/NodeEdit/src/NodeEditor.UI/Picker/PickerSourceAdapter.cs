@@ -54,6 +54,9 @@ internal sealed class PickerSourceAdapter<TItem> : IPickerSourceAdapter
 
     public PickerSourceAdapter(IPickerSource<TItem> source) => _source = source;
 
+    /// <summary>Exposes the underlying typed source for <see cref="PickerRegistry.Get{TItem}"/>.</summary>
+    public IPickerSource<TItem> Source => _source;
+
     public string Title              => _source.Title;
     public string EmptyResultText    => _source.EmptyResultText;
     public PickerLayout PreferredLayout => _source.PreferredLayout;

@@ -8,6 +8,44 @@ using NodeEditor.Primitives;
 
 namespace Hrot.BTree.Editor.Model;
 
+// ── BTreeParentChildLink ──────────────────────────────────────────────────────
+
+/// <summary>
+/// <see cref="ILinkModel"/> adapter for a single parent↔child edge in a BTree.
+/// Follows the reversed-pin convention: FromPin = child.OutputPinId, ToPin = parent.InputPinId.
+/// LinkId is deterministically derived from the child's VisualId so it survives reload.
+/// </summary>
+internal sealed class BTreeParentChildLink : ILinkModel
+{
+    // XOR constant for the link id — distinct from pin-id XOR constants.
+    private static readonly (ulong hi, ulong lo) LinkIdXorKey =
+        (0xCC_00_00_00_00_00_00_01UL, 0x00_00_00_00_00_00_00_05UL);
+
+    private static Guid XorGuid(Guid g, ulong hi, ulong lo)
+    {
+        var bytes = g.ToByteArray();
+        var hiBytes = BitConverter.GetBytes(hi);
+        var loBytes = BitConverter.GetBytes(lo);
+        for (int i = 0; i < 8; i++) bytes[i]     ^= hiBytes[i];
+        for (int i = 0; i < 8; i++) bytes[i + 8] ^= loBytes[i];
+        return new Guid(bytes);
+    }
+
+    internal BTreeParentChildLink(BTreeEditorNode child, BTreeEditorNode parent)
+    {
+        // Id is keyed on child VisualId (one link per child)
+        Id      = new LinkId(XorGuid(child.VisualId, LinkIdXorKey.hi, LinkIdXorKey.lo));
+        FromPin = new PinId(child.OutputPinId);
+        ToPin   = new PinId(parent.InputPinId);
+    }
+
+    public LinkId                     Id        { get; }
+    public PinId                      FromPin   { get; }
+    public PinId                      ToPin     { get; }
+    public LinkStyle                  Style     => LinkStyle.Solid;
+    public IReadOnlyList<Vector2>     Waypoints => Array.Empty<Vector2>();
+}
+
 // ── BTreeNodeModel ────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -121,9 +159,10 @@ public sealed class BTreeGraphModel : IGraphModel
 {
     private readonly BehaviorTreeAsset _asset;
 
-    // Cached node and attachment adapters.  Rebuilt when the asset fires Changed.
+    // Cached node, link, and attachment adapters.  Rebuilt when the asset fires Changed.
     private readonly Dictionary<NodeId,       BTreeNodeModel>           _nodeCache       = new();
     private readonly Dictionary<PinId,        BTreePinModel>            _pinCache        = new();
+    private readonly Dictionary<LinkId,       BTreeParentChildLink>     _linkCache       = new();
     private readonly Dictionary<AttachmentId, BTreePillAttachmentModel> _attachmentCache = new();
 
     /// <summary>
@@ -148,14 +187,30 @@ public sealed class BTreeGraphModel : IGraphModel
     {
         _nodeCache.Clear();
         _pinCache.Clear();
+        _linkCache.Clear();
         _attachmentCache.Clear();
 
+        // Build a VisualId→BTreeEditorNode lookup for link projection.
+        var byVisualId = new Dictionary<Guid, BTreeEditorNode>(_asset.Nodes.Count);
         foreach (var node in _asset.Nodes)
         {
             var model = new BTreeNodeModel(node);
             _nodeCache[model.Id] = model;
             foreach (var pin in model.Pins)
                 _pinCache[pin.Id] = (BTreePinModel)pin;
+            byVisualId[node.VisualId] = node;
+        }
+
+        // Project each parent→child edge as child.OutputPin → parent.InputPin.
+        foreach (var parent in _asset.Nodes)
+        {
+            foreach (var childId in parent.ChildVisualIds)
+            {
+                if (!byVisualId.TryGetValue(childId, out var child))
+                    continue;
+                var link = new BTreeParentChildLink(child, parent);
+                _linkCache[link.Id] = link;
+            }
         }
 
         foreach (var pill in _asset.Pills)
@@ -173,7 +228,7 @@ public sealed class BTreeGraphModel : IGraphModel
         new("BTreeGraph", "Behavior Tree", AllowsLatent: false, RequiresEntryNode: true);
 
     public IReadOnlyCollection<INodeModel>       Nodes    => _nodeCache.Values;
-    public IReadOnlyCollection<ILinkModel>       Links    => Array.Empty<ILinkModel>();
+    public IReadOnlyCollection<ILinkModel>       Links    => _linkCache.Values;
     public IReadOnlyCollection<ICommentModel>    Comments => Array.Empty<ICommentModel>();
     public IReadOnlyCollection<IAttachmentModel> Attachments => _attachmentCache.Values;
 
@@ -185,7 +240,8 @@ public sealed class BTreeGraphModel : IGraphModel
     public IPinModel? FindPin(PinId id) =>
         _pinCache.TryGetValue(id, out var p) ? p : null;
 
-    public ILinkModel? FindLink(LinkId id) => null;
+    public ILinkModel? FindLink(LinkId id) =>
+        _linkCache.TryGetValue(id, out var link) ? link : null;
 
     public IAttachmentModel? FindAttachment(AttachmentId id) =>
         _attachmentCache.TryGetValue(id, out var a) ? a : null;
