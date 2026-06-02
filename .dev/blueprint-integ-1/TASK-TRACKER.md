@@ -25,7 +25,7 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 - [x] **AIE-012** `AiDocumentManager` [details](./TASK-DETAIL.md#aie-012--aidocumentmanager) — BATCH-02 ✅
 - [x] **AIE-013** Global `AssetBrowserWindow` + Open-docs section [details](./TASK-DETAIL.md#aie-013--global-assetbrowserwindow-with-open-docs-section) — BATCH-03 ✅
 - [x] **AIE-014** `PerspectiveWorkspaceRegistrar` infra + active-asset→perspective [details](./TASK-DETAIL.md#aie-014--perspectiveworkspaceregistrar-infra--active-assetperspective) — BATCH-03 ✅
-- [ ] **AIE-015** `EditorSubsystem` composition rewrite [details](./TASK-DETAIL.md#aie-015--editorsubsystem-composition-rewrite-retire-blueprint-parallel-infra) — BATCH-04 (after Corrective Task 0: AV fix)
+- [x] **AIE-015** `EditorSubsystem` composition rewrite [details](./TASK-DETAIL.md#aie-015--editorsubsystem-composition-rewrite-retire-blueprint-parallel-infra) — BATCH-04 ✅ (+ Corrective Task 0: adapter AV fix)
 
 ## Phase 2 — BTree + HSM perspectives (authoring)
 **Goal:** open, edit, inspect, and save BTree/HSM graphs end-to-end on the shared canvas.

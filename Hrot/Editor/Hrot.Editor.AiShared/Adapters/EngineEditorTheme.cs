@@ -90,6 +90,12 @@ public sealed class EngineEditorTheme : IEditorTheme
     /// </remarks>
     public unsafe nint GetFontForSize(float targetPixelSize)
     {
+        // Guard against missing context BEFORE any ImGui dereference.
+        // AccessViolationException is a corrupted-state exception that managed
+        // try/catch cannot handle, so we must prevent the native call entirely.
+        if (ImGui.GetCurrentContext() == IntPtr.Zero)
+            return IntPtr.Zero;
+
         try
         {
             var io = ImGui.GetIO();

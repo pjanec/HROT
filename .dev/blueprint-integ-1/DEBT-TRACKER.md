@@ -7,6 +7,7 @@
 | DEBT-003 | BATCH-01 | NodeEdit `PickerRegistry.Get<TItem>` returns `null` (unfinished upstream). Not exercised yet; will matter for inspector/wire-drop pickers in Phase 2 (AIE-024) and Phase 4. | P2 | Phase 2 | OPEN |
 | DEBT-004 | BATCH-01 | `SilkIconProvider` catalog-coverage test hardcodes the BTree/HSM icon-key list rather than deriving it from `BTreeNodeCatalog`/`HsmNodeCatalog`; could drift if catalogs add keys. | P3 | — | OPEN |
 | DEBT-005 | BATCH-01 | `ImGuiClipboard` round-trip not verifiable headlessly; icon key→cell mapping in `SilkIconProvider` is best-effort semantic and needs a visual pass once the canvas renders. | P3 | Phase 2 | OPEN |
+| DEBT-007 | BATCH-04 | `EditorSubsystem.BlueprintWindowRegistrar` kept as a `=> null` compat shim (internal property) after retiring the registrar. Remove once no test/external caller references it. | P3 | — | OPEN |
 | DEBT-006 | BATCH-02 | `Hrot.Blueprints.Tests` has **10 pre-existing failures** (mid-flight repo): 6 `Compiler.*EmitGoldenTests` (golden-source drift), 2 `Demos.*Snapshot`, 1 `Runtime.AllocationFreeTests`, 1 `Editor.ConditionSummaryAttachmentTests`. Unrelated to AI-editor integration. Gates the Phase 4 "green Blueprints suite" criterion — must be triaged/regenerated before Phase 4 sign-off. | P2 | Phase 4 | OPEN |
 
 Legend:

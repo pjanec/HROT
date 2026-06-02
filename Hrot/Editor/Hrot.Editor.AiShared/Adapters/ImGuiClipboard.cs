@@ -1,3 +1,4 @@
+using System;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
 
@@ -15,6 +16,11 @@ public sealed class ImGuiClipboard : IClipboard
     /// <remarks>Returns <see langword="null"/> when no ImGui context is active.</remarks>
     public string? GetText()
     {
+        // Guard before any ImGui deref — AccessViolationException is a
+        // corrupted-state exception that managed try/catch cannot handle.
+        if (ImGui.GetCurrentContext() == IntPtr.Zero)
+            return null;
+
         try
         {
             return ImGui.GetClipboardText();
@@ -29,6 +35,10 @@ public sealed class ImGuiClipboard : IClipboard
     /// <remarks>No-op when no ImGui context is active.</remarks>
     public void SetText(string text)
     {
+        // Guard before any ImGui deref.
+        if (ImGui.GetCurrentContext() == IntPtr.Zero)
+            return;
+
         try
         {
             ImGui.SetClipboardText(text ?? string.Empty);

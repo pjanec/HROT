@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -100,6 +100,17 @@ using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Editor.Debug;
 using StructEdit.Reflection;
 using Fdp.Toolkit.ReplayBrowser.Search;
+// AIE-015: shared AI editor infrastructure
+using Hrot.BTree.Editor.Catalog;
+using Hrot.Blueprints.Editor.Catalog;
+using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Debug;
+using Hrot.Editor.AiShared.Documents;
+using Hrot.Editor.AiShared.Refactor;
+using Hrot.Editor.AiShared.References;
+using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Windows;
+using Hrot.Hsm.Editor.Catalog;
 
 namespace Hrot.Editor
 {
@@ -229,8 +240,19 @@ namespace Hrot.Editor
         private BlueprintRegistry          _blueprintRegistry = new();
         private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
-        // FIX3-001: engine IWindowRegistrar bridge for blueprint editor windows.
-        private Fdp.Toolkit.Runner.IWindowRegistrar? _blueprintWindowRegistrar;
+
+        // ── AIE-015: Shared AI editor catalog + document/perspective infrastructure ──────────
+        private AiAssetCatalogBuilder?         _aiCatalogBuilder;
+        private AiDocumentManager?             _aiDocumentManager;
+        private WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
+        private EditorSelectionStore           _btreeSelectionStore  = new();
+        private EditorSelectionStore           _hsmSelectionStore    = new();
+        private EditorSelectionStore           _blueprintSelectionStore = new();
+        private PerspectiveWorkspaceRegistrar? _btreeRegistrar;
+        private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
+        private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
+        private AssetBrowserWindow?            _aiAssetBrowser;
+        // ─────────────────────────────────────────────────────────────────────────────────────
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -360,16 +382,10 @@ namespace Hrot.Editor
         /// <summary>Internal test hook: exposes the AI hot-reload coordinator (UBP-P10T10).</summary>
         internal AiHotReloadCoordinator? AiCoordinator => _aiCoordinator;
 
-        /// <summary>
-        /// Blueprint editor window registrar wired during <see cref="Initialize"/>.
-        /// Settable in tests (via InternalsVisibleTo) to inject a pre-built registrar without
-        /// calling the full Initialize path.
-        /// </summary>
-        internal Fdp.Toolkit.Runner.IWindowRegistrar? BlueprintWindowRegistrar
-        {
-            get => _blueprintWindowRegistrar;
-            set => _blueprintWindowRegistrar = value;
-        }
+        // AIE-015: BlueprintWindowRegistrar retired — replaced by PerspectiveWorkspaceRegistrar infrastructure.
+        // Kept as a null-returning stub so any external reference during migration compiles.
+        [System.Obsolete("Retired by AIE-015. Use the perspective registrar infrastructure instead.")]
+        internal Fdp.Toolkit.Runner.IWindowRegistrar? BlueprintWindowRegistrar => null;
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _camera?.GetCameraView();
@@ -490,6 +506,38 @@ namespace Hrot.Editor
 
             // Load the current DLL immediately so behaviors are ready before the first frame.
             _aiCoordinator.TriggerInitialLoad();
+
+            // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
+            // Contributors are created and registered in one step via AiAssetCatalogBuilder.
+            // The blueprints directory mirrors the path used by the retired CreateBlueprintWindowRegistrar.
+            var bpRootDir     = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+            var btreeContrib  = new BTreeAssetContributor();
+            var hsmContrib    = new HsmAssetContributor();
+            var bpContrib     = new BlueprintAssetContributor(bpRootDir);
+
+            _aiCatalogBuilder = new AiAssetCatalogBuilder(
+                btreeContrib,
+                hsmContrib,
+                bpContrib,
+                asm => btreeContrib.LoadFrom(asm),
+                asm => hsmContrib.LoadFrom(asm),
+                ()  => bpContrib.Refresh());
+
+            // Wire hot-reload: refresh the catalog whenever AI behaviors are reloaded.
+            // On initial load the OnReloadCompleted fires via DrainPendingCallbacks; each
+            // subsequent file-watcher reload triggers the same callback.
+            _aiCoordinator.OnReloadCompleted += info =>
+            {
+                // Obtain the Hrot.AI.Behaviors assembly from the new ALC (or AppDomain for initial load).
+                var aiAsm = info.NewAlc?.Assemblies
+                    .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors")
+                    ?? AppDomain.CurrentDomain.GetAssemblies()
+                        .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+
+                if (aiAsm != null)
+                    _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
+            };
+            // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ?? Hot-reload message log source ?????????????????????????????????
             // Wire up after the coordinator is configured so that both the
@@ -698,8 +746,8 @@ namespace Hrot.Editor
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             _blueprintDebugSession = bpBlueprintSession;
-            // FIX3-001: create the blueprint editor window registrar now that the debug session is ready.
-            _blueprintWindowRegistrar = CreateBlueprintWindowRegistrar();
+            // AIE-015: CreateBlueprintWindowRegistrar retired - perspective infra is wired in RegisterWindows.
+
             // ─────────────────────────────────────────────────────────────────────────────────
 
             // ── WHEN-M11: Wire Blueprint Editor Bootstrap (Corrective) ──────────────────────
@@ -1464,10 +1512,53 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
-            // FIX3-001: register blueprint editor windows before the legacy editor guard so
-            // they are available even when _editorLogic is null (e.g. in tests that inject
-            // BlueprintWindowRegistrar directly without calling Initialize).
-            _blueprintWindowRegistrar?.RegisterWindows(windowManager);
+            // ── AIE-015: Shared AI editor — document manager + perspective switcher ───────────
+            // Wire the perspective switcher to the window manager so manual toolbar
+            // switches can activate the most-recently-opened doc of that kind.
+            _perspectiveSwitcher = new WindowManagerPerspectiveSwitcher(windowManager);
+
+            // Build shared services needed by registrars.
+            var catalog         = _aiCatalogBuilder?.Catalog ?? new AssetCatalog();
+            var referenceCatalog = new ReferenceCatalog(catalog);
+            var refactorService = new RefactorService(
+                referenceCatalog,
+                catalog,
+                new AtomicMultiFileWriter());
+            var debugRegistry   = new DebugSessionRegistry();
+            var liveProvider    = new LiveSessionRegistry();
+
+            // Build per-perspective selection stores and registrars (side panels only — no canvas yet).
+            _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
+                "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry);
+            _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
+                "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry);
+            _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
+                "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry);
+
+            // Document manager — activated doc drives perspective switch.
+            _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
+            _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
+
+            // Global Asset Browser — single instance, Global scope, shows Open-docs section.
+            var assetBrowserFindResults = new FindResultsWindow(
+                idOverride:        "ai_asset_browser_find_results",
+                owningPerspective: "Global");
+            _aiAssetBrowser = new AssetBrowserWindow(
+                store:           _aiEditorSelectionStore,
+                catalog:         catalog,
+                refactorService: refactorService,
+                findResults:     assetBrowserFindResults,
+                liveProvider:    liveProvider,
+                documentManager: _aiDocumentManager);
+
+            // Register all three perspective side-panel sets.
+            _btreeRegistrar.RegisterWindows(windowManager);
+            _hsmRegistrar.RegisterWindows(windowManager);
+            _blueprintRegistrar.RegisterWindows(windowManager);
+
+            // Register the global Asset Browser.
+            windowManager.RegisterWindow(_aiAssetBrowser);
+            // ─────────────────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;
 
@@ -1680,32 +1771,7 @@ namespace Hrot.Editor
 
         // ?? Private helpers ???????????????????????????????????????????????????
 
-        // FIX3-001: build the blueprint editor window registrar from scratch using the
-        // already-initialized _blueprintDebugSession and a fresh set of blueprint editor
-        // services.  Called from Initialize() after _blueprintDebugSession is set.
-        private Fdp.Toolkit.Runner.IWindowRegistrar CreateBlueprintWindowRegistrar()
-        {
-            var bpRootDir   = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
-            var catalog     = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpRootDir);
-            var store       = new Hrot.Blueprints.Editor.EditorSelectionStore();
-            var dirty       = new Hrot.Blueprints.Editor.DirtyTracker();
-            var state       = new Hrot.Blueprints.Editor.EditorState();
-            var coordinator = new Hrot.Blueprints.Editor.NullBlueprintEditorCoordinator();
-            var console     = new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
-            // A dedicated Fdp AiHotReloadCoordinator for blueprint quick-reload (separate from
-            // _aiCoordinator which drives Hrot.AI.Behaviors hot-swap).
-            var bpFdpCoord  = new Fdp.Toolkit.Behavior.AiHotReloadCoordinator(
-                                  new BehaviorRegistry(), _blueprintRegistry, new Fdp.Toolkit.Behavior.AiHotReloadCoordinatorOptions());
-            var qrs         = new Hrot.Blueprints.Editor.Reload.QuickReloadService(
-                                  catalog, state, console,
-                                  new Hrot.Blueprints.Core.Compiler.BlueprintCompiler(), bpFdpCoord,
-                                  _blueprintDebugSession);
-            var frs         = new Hrot.Blueprints.Editor.Reload.FullRebuildService(console);
-            var drawers     = new Hrot.Blueprints.Editor.Inspector.DrawerRegistry();
-
-            return new Hrot.Blueprints.Editor.BlueprintWindowRegistrar(
-                catalog, store, dirty, state, _blueprintDebugSession!, coordinator, qrs, frs, drawers);
-        }
+        // AIE-015: CreateBlueprintWindowRegistrar removed - retired in favor of PerspectiveWorkspaceRegistrar.
 
         /// <summary>
         /// Drains <see cref="ActivateEditorToolEvent"/> from the bus and routes each

@@ -62,6 +62,25 @@ public sealed class AIE005_ImGuiClipboardTests
         clipboard.SetText(string.Empty);
     }
 
+    /// <summary>
+    /// Corrective Task 0 — guard test: with no ImGui context both methods must
+    /// behave gracefully without crashing.  The old try/catch was insufficient
+    /// because AccessViolationException is a corrupted-state exception.
+    /// </summary>
+    [Fact]
+    public void ImGuiClipboard_NoContext_GetReturnsNull_SetNoThrow()
+    {
+        var clipboard = new ImGuiClipboard();
+
+        // GetText must return null (not crash) when there is no context.
+        string? text = clipboard.GetText();
+        Assert.Null(text);
+
+        // SetText must be a silent no-op (not crash) when there is no context.
+        clipboard.SetText("ignored");        // must not throw or crash
+        clipboard.SetText(null!);            // must handle null gracefully too
+    }
+
     // NOTE: Round-trip verification (GetText returns what SetText wrote) requires
     // an active ImGui context with a platform clipboard backend registered.
     // That test is deferred to manual/integration testing in the editor shell.

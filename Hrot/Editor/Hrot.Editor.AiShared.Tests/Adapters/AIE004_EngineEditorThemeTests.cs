@@ -71,6 +71,23 @@ public sealed class AIE004_EngineEditorThemeTests
             "GetFontForSize must return zero (no context) or a positive handle (valid font).");
     }
 
+    /// <summary>
+    /// Corrective Task 0 — guard test: with no ImGui context the method must return
+    /// <see cref="IntPtr.Zero"/> deterministically and must NOT crash.
+    /// (Previously the managed try/catch was insufficient because
+    /// AccessViolationException is a corrupted-state exception.)
+    /// </summary>
+    [Fact]
+    public void EngineEditorTheme_GetFontForSize_NoContext_ReturnsZero()
+    {
+        // Precondition: no ImGui context is active in this test process.
+        var t = MakeTheme();
+
+        nint result = t.GetFontForSize(14f);
+
+        Assert.Equal(IntPtr.Zero, result);
+    }
+
     [Fact]
     public void EngineEditorTheme_GetFontForSize_NeverThrows_ForAnySize()
     {

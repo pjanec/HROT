@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
@@ -21,11 +22,20 @@ public sealed class ImGuiInputSource : IInputSource
 {
     // ── Frame-snapshot properties ─────────────────────────────────────────────
 
+    // ── Context guard helper ──────────────────────────────────────────────────
+    // AccessViolationException is a corrupted-state exception that managed
+    // try/catch cannot handle.  We must check the context pointer BEFORE any
+    // ImGui native call to prevent the AV entirely.
+    private static bool HasContext => ImGui.GetCurrentContext() != IntPtr.Zero;
+
+    // ── Frame-snapshot properties ─────────────────────────────────────────────
+
     /// <inheritdoc/>
     public Vector2 MousePosition
     {
         get
         {
+            if (!HasContext) return Vector2.Zero;
             try { return ImGui.GetMousePos(); }
             catch { return Vector2.Zero; }
         }
@@ -36,6 +46,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         get
         {
+            if (!HasContext) return Vector2.Zero;
             try { return ImGui.GetIO().MouseDelta; }
             catch { return Vector2.Zero; }
         }
@@ -46,6 +57,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         get
         {
+            if (!HasContext) return 0f;
             try { return ImGui.GetIO().MouseWheel; }
             catch { return 0f; }
         }
@@ -56,6 +68,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         get
         {
+            if (!HasContext) return KeyModifiers.None;
             try
             {
                 var io = ImGui.GetIO();
@@ -70,6 +83,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         get
         {
+            if (!HasContext) return ReadOnlySpan<char>.Empty;
             try
             {
                 // ImGuiNET exposes typed text via AddInputCharacter / the InputCharacters list.
@@ -79,7 +93,7 @@ public sealed class ImGuiInputSource : IInputSource
                 unsafe
                 {
                     var io    = ImGui.GetIO();
-                    var chars = new System.Collections.Generic.List<char>(4);
+                    var chars = new List<char>(4);
                     ushort c;
                     // Iterate through the ring-buffer by index until we hit '\0'.
                     for (int i = 0; i < io.InputQueueCharacters.Size; i++)
@@ -102,6 +116,7 @@ public sealed class ImGuiInputSource : IInputSource
     /// <inheritdoc/>
     public bool IsMouseDown(MouseButton btn)
     {
+        if (!HasContext) return false;
         try { return ImGui.IsMouseDown(MapMouseButton(btn)); }
         catch { return false; }
     }
@@ -109,6 +124,7 @@ public sealed class ImGuiInputSource : IInputSource
     /// <inheritdoc/>
     public bool IsMousePressed(MouseButton btn)
     {
+        if (!HasContext) return false;
         try { return ImGui.IsMouseClicked(MapMouseButton(btn)); }
         catch { return false; }
     }
@@ -116,6 +132,7 @@ public sealed class ImGuiInputSource : IInputSource
     /// <inheritdoc/>
     public bool IsMouseReleased(MouseButton btn)
     {
+        if (!HasContext) return false;
         try { return ImGui.IsMouseReleased(MapMouseButton(btn)); }
         catch { return false; }
     }
@@ -123,6 +140,7 @@ public sealed class ImGuiInputSource : IInputSource
     /// <inheritdoc/>
     public bool IsMouseDoubleClicked(MouseButton btn)
     {
+        if (!HasContext) return false;
         try { return ImGui.IsMouseDoubleClicked(MapMouseButton(btn)); }
         catch { return false; }
     }
@@ -132,6 +150,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         var ik = MapEditorKey(k);
         if (ik == ImGuiKey.None) return false;
+        if (!HasContext) return false;
         try { return ImGui.IsKeyDown(ik); }
         catch { return false; }
     }
@@ -141,6 +160,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         var ik = MapEditorKey(k);
         if (ik == ImGuiKey.None) return false;
+        if (!HasContext) return false;
         try { return ImGui.IsKeyPressed(ik, allowRepeat); }
         catch { return false; }
     }
@@ -150,6 +170,7 @@ public sealed class ImGuiInputSource : IInputSource
     {
         var ik = MapEditorKey(k);
         if (ik == ImGuiKey.None) return false;
+        if (!HasContext) return false;
         try { return ImGui.IsKeyReleased(ik); }
         catch { return false; }
     }
