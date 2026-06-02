@@ -140,6 +140,62 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         }
     }
 
+    // ── AIE-047/048: Blueprint My Blueprint + Details + Variables windows ─────
+
+    /// <summary>
+    /// AIE-047: after RegisterWindows, the My Blueprint window is registered
+    /// with the Blueprint perspective and PerspectiveBound scope.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersMyBlueprintWindow_ForBlueprint()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        Assert.True(wm.TryGetWindow("ai_my_blueprint_blueprint", out var mbWin),
+            "Expected My Blueprint window 'ai_my_blueprint_blueprint' to be registered.");
+        Assert.Equal("Blueprint", mbWin!.OwningPerspective);
+        Assert.Equal(WindowScope.PerspectiveBound, mbWin.Scope);
+    }
+
+    /// <summary>
+    /// AIE-048: after RegisterWindows, the Details window is registered
+    /// with the Blueprint perspective and PerspectiveBound scope.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersDetailsWindow_ForBlueprint()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        Assert.True(wm.TryGetWindow("ai_details_blueprint", out var detWin),
+            "Expected Details window 'ai_details_blueprint' to be registered.");
+        Assert.Equal("Blueprint", detWin!.OwningPerspective);
+        Assert.Equal(WindowScope.PerspectiveBound, detWin.Scope);
+    }
+
+    /// <summary>
+    /// AIE-048: after RegisterWindows, the Variables window is registered
+    /// with the Blueprint perspective and PerspectiveBound scope.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersVariablesWindow_ForBlueprint()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        Assert.True(wm.TryGetWindow("ai_variables_blueprint", out var varWin),
+            "Expected Variables window 'ai_variables_blueprint' to be registered.");
+        Assert.Equal("Blueprint", varWin!.OwningPerspective);
+        Assert.Equal(WindowScope.PerspectiveBound, varWin.Scope);
+    }
+
     // ── AIE-020/021/022: Canvas windows (BATCH-05) ────────────────────────────
 
     /// <summary>

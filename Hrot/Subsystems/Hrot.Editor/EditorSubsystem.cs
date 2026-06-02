@@ -264,6 +264,13 @@ namespace Hrot.Editor
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
         private AssetBrowserWindow?            _aiAssetBrowser;
+        // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
+        private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
+        // AIE-048: Blueprint Details + Variables windows.
+        private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
+        private Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow? _blueprintVariablesWindow;
+        // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
+        private readonly Hrot.Blueprints.Editor.EditorSelectionStore _blueprintLegacySelectionStore = new();
         // AIE-030: shared debug session infrastructure (created in Initialize, wired in RegisterWindows)
         private AiTracerCoordinator?                    _aiTracerCoordinator;
         private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeDebugSession;
@@ -1583,12 +1590,41 @@ namespace Hrot.Editor
             // AIE-025: Retarget per-perspective selection stores when the active document changes.
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
             // so updating ActiveAsset here is all that is needed for the window to show the right schema.
+            // AIE-047/048: Also retarget My Blueprint + Details + Variables windows for Blueprint.
             _aiDocumentManager.ActiveChanged += () =>
             {
                 var active = _aiDocumentManager.Active;
                 _btreeSelectionStore.ActiveAsset       = (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree)      ? active.Asset : null;
                 _hsmSelectionStore.ActiveAsset         = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)        ? active.Asset : null;
                 _blueprintSelectionStore.ActiveAsset   = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)  ? active.Asset : null;
+
+                // AIE-047/048: Retarget Blueprint-specific windows.
+                if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+                {
+                    // Extract the BlueprintAsset from the canvas context (set by BlueprintDocumentFactory).
+                    var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
+
+                    // Retarget My Blueprint window.
+                    _blueprintMyBlueprintWindow?.Retarget(
+                        editableAsset:  active.Asset,
+                        blueprintAsset: bpAsset,
+                        hostServices:   ctx?.View.Host,
+                        commands:       new NodeEditor.Core.Action.EditorCommandsImpl());
+
+                    // Retarget Details window (just needs the BlueprintAsset).
+                    _blueprintDetailsWindow?.Retarget(bpAsset);
+
+                    // Retarget Variables window via legacy bridge store.
+                    _blueprintLegacySelectionStore.SelectAsset(bpAsset);
+                }
+                else
+                {
+                    // Clear Blueprint windows when switching away from Blueprint perspective.
+                    _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
+                    _blueprintDetailsWindow?.Retarget(null);
+                    _blueprintLegacySelectionStore.SelectAsset(null);
+                }
             };
 
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
@@ -1667,6 +1703,24 @@ namespace Hrot.Editor
             _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
             // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
+
+            // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
+            _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintMyBlueprintWindow);
+
+            // ── AIE-048: Blueprint Details + Variables windows ────────────────────────────────
+            _blueprintDetailsWindow = new Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow(
+                selectionStore:  _blueprintSelectionStore,
+                drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry());
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintDetailsWindow);
+
+            // BlueprintVariablesWindow (wrapped in a ManagedWindow adapter) uses the legacy
+            // Blueprints.Editor.EditorSelectionStore (which holds a BlueprintAsset? directly);
+            // we bridge it from the AiShared store via _blueprintLegacySelectionStore in ActiveChanged.
+            _blueprintVariablesWindow = new Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow(
+                legacySelectionStore: _blueprintLegacySelectionStore,
+                refactorService:      refactorService);
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintVariablesWindow);
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.

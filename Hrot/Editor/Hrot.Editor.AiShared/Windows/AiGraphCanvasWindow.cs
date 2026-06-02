@@ -21,6 +21,14 @@ public sealed class AiCanvasContext
     public string Kind { get; }
 
     /// <summary>
+    /// Optional opaque reference to the host's backing asset model.
+    /// Set by the document factory (e.g. Blueprint sets this to the
+    /// <c>BlueprintAsset</c>) so the composition root can retrieve it without
+    /// adding a kind-specific dependency to this shared assembly.
+    /// </summary>
+    public object? AssetRef { get; set; }
+
+    /// <summary>
     /// Creates a canvas context.
     /// </summary>
     /// <param name="view">Constructed graph view for the document.</param>

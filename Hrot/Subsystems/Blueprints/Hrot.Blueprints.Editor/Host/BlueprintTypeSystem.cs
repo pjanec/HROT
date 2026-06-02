@@ -123,4 +123,17 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     /// <remarks>Only the int→float cast is implicit; all others require an explicit Cast node.</remarks>
     public bool IsImplicitCast(TypeKey from, TypeKey to)
         => from.Id == Int32 && to.Id == Single;
+
+    // ── Static helpers ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the accent color for a type id, using the same palette as
+    /// <see cref="GetPinColor"/>. Returns <c>null</c> for exec (empty typeId)
+    /// or unknown types (callers may choose to omit the dot in that case).
+    /// </summary>
+    public static Vector4? GetAccentColorForTypeId(string typeId)
+    {
+        if (string.IsNullOrEmpty(typeId)) return null;
+        return _types.TryGetValue(typeId, out var t) ? t.Color : null;
+    }
 }

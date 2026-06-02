@@ -142,7 +142,12 @@ public static class BlueprintDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
-        return new AiCanvasContext(view, AssetKind.Blueprint.ToString());
+        // Store the BlueprintAsset in AssetRef so the composition root can retarget
+        // My Blueprint / Details / Variables windows without a kind-specific dependency.
+        return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
+        {
+            AssetRef = bpAsset,
+        };
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

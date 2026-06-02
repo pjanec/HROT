@@ -58,8 +58,8 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 - [x] **AIE-044** `BlueprintCommandSink` [details](./TASK-DETAIL.md#aie-044--blueprintcommandsink--igraphcommandsink)
 - [x] **AIE-045** `BlueprintEditorHostServices` [details](./TASK-DETAIL.md#aie-045--blueprinteditorhostservices--ieditorhostservices)
 - [x] **AIE-046** Blueprint host binding into canvas [details](./TASK-DETAIL.md#aie-046--blueprint-host-binding-into-aigraphcanvaswindow)
-- [ ] **AIE-047** `BlueprintMyBlueprintModel` + `MyBlueprintPanel` [details](./TASK-DETAIL.md#aie-047--blueprintmyblueprintmodel--myblueprintpanel)
-- [ ] **AIE-048** Blueprint Details + Variables windows [details](./TASK-DETAIL.md#aie-048--blueprint-details--variables-windows)
+- [x] **AIE-047** `BlueprintMyBlueprintModel` + `MyBlueprintPanel` [details](./TASK-DETAIL.md#aie-047--blueprintmyblueprintmodel--myblueprintpanel)
+- [x] **AIE-048** Blueprint Details + Variables windows [details](./TASK-DETAIL.md#aie-048--blueprint-details--variables-windows)
 - [x] **AIE-049** Real `IEditService` [details](./TASK-DETAIL.md#aie-049--real-ieditservice)
 
 ## Phase 5 — Cross-asset services (P2)
