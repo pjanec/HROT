@@ -114,6 +114,11 @@ public class PerspectiveWorkspaceRegistrar
     ///   so budget warnings from sub-tree DTO requirements surface in the bin-packing display
     ///   (AIE-052).
     /// </param>
+    /// <param name="schemaExporter">
+    ///   Optional action schema exporter. Forwarded to <see cref="InspectorWindow"/> so
+    ///   sub-element collision diagnostics are shown in the Inspector diagnostic strip
+    ///   (AIE-053).
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -125,7 +130,8 @@ public class PerspectiveWorkspaceRegistrar
         SanitizerRegistry? sanitizerRegistry = null,
         ComparisonExportBuilder? exportBuilder = null,
         ComparisonSessionRegistry? sessionRegistry = null,
-        BlackboardAggregatorService? aggregatorService = null)
+        BlackboardAggregatorService? aggregatorService = null,
+        IActionSchemaExporter? schemaExporter = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -148,7 +154,8 @@ public class PerspectiveWorkspaceRegistrar
             refactorService:   refactorService,
             findResults:       FindResults,
             idOverride:        $"ai_inspector_{suffix}",
-            owningPerspective: perspectiveName);
+            owningPerspective: perspectiveName,
+            schemaExporter:    schemaExporter);
 
         RuntimeInspector = new RuntimeInspectorWindow(
             store:             selectionStore,

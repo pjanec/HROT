@@ -5,6 +5,7 @@ using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
+using Hrot.Editor.AiShared.Validation;
 
 namespace Hrot.Editor.AiShared.Windows;
 
@@ -19,6 +20,9 @@ public sealed class InspectorWindow : ManagedWindow
     private readonly IRefactorService _refactorService;
     private readonly FindResultsWindow _findResults;
     private readonly Func<Guid, IBlackboardManagedAsset?>? _subAssetResolver;
+
+    // Optional schema exporter for sub-element collision diagnostics (AIE-053).
+    private readonly IActionSchemaExporter? _schemaExporter;
 
     // Optional facet dispatcher injected from composition root (keeps AiShared dep-clean).
     private IFacetDispatcher? _facetDispatcher;
@@ -54,7 +58,8 @@ public sealed class InspectorWindow : ManagedWindow
         Func<Guid, IBlackboardManagedAsset?>? subAssetResolver = null,
         string? idOverride = null,
         string? owningPerspective = null,
-        IFacetDispatcher? facetDispatcher = null)
+        IFacetDispatcher? facetDispatcher = null,
+        IActionSchemaExporter? schemaExporter = null)
         : base(idOverride ?? "ai_inspector", "Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -63,6 +68,7 @@ public sealed class InspectorWindow : ManagedWindow
         _findResults = findResults;
         _subAssetResolver = subAssetResolver;
         _facetDispatcher = facetDispatcher;
+        _schemaExporter = schemaExporter;
     }
 
     /// <summary>
@@ -110,6 +116,9 @@ public sealed class InspectorWindow : ManagedWindow
 
     protected override void DrawClientArea()
     {
+        // Render the diagnostic strip for SubElementCollisions (AIE-053).
+        DrawCollisionDiagnosticStrip();
+
         if (_store.ActiveAsset is null)
         {
             ImGuiNET.ImGui.TextDisabled("Select an asset to begin.");
@@ -245,6 +254,44 @@ public sealed class InspectorWindow : ManagedWindow
                 $"Option {utilSel.OptionIndex}, Consideration {utilSel.ConsiderationIndex}");
             // Curve inspector panel wired in a later phase (P5-02).
         }
+    }
+
+    /// <summary>
+    /// Returns the current list of sub-element collisions without requiring an ImGui context.
+    /// Returns null if no schema exporter was injected.
+    /// Used by tests to verify collision detection headlessly.
+    /// </summary>
+    internal IReadOnlyList<ActionCollision>? GetCollisions() =>
+        _schemaExporter is null ? null : SubElementCollisionDetector.GetCollisions(_schemaExporter);
+
+    private void DrawCollisionDiagnosticStrip()
+    {
+        if (_schemaExporter is null) return;
+
+        var collisions = SubElementCollisionDetector.GetCollisions(_schemaExporter);
+        if (collisions.Count == 0) return;
+
+        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.ChildBg, new System.Numerics.Vector4(0.2f, 0.05f, 0.05f, 1f));
+        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Border,  new System.Numerics.Vector4(1f,   0.2f,  0.2f,  1f));
+
+        if (ImGuiNET.ImGui.BeginChild("SubElementCollisions",
+                new System.Numerics.Vector2(0, 30 + (collisions.Count * 20)),
+                ImGuiNET.ImGuiChildFlags.Borders))
+        {
+            ImGuiNET.ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f),
+                "⚠ SUB-ELEMENT COLLISIONS DETECTED");
+
+            foreach (var collision in collisions)
+            {
+                ImGuiNET.ImGui.TextWrapped(
+                    $"Short name '{collision.ShortName}' has multiple FQN claimants: " +
+                    string.Join(", ", collision.ClaimingFqns));
+            }
+        }
+        ImGuiNET.ImGui.EndChild();
+
+        ImGuiNET.ImGui.PopStyleColor(2);
+        ImGuiNET.ImGui.Spacing();
     }
 
     private void DrawSyncBindingsTable(

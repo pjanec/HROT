@@ -1589,9 +1589,12 @@ namespace Hrot.Editor
             // ── AIE-052: Blackboard aggregator service + strategies ───────────────────────────────
             // Construct service with empty strategy list, then register strategies after to break
             // the circular dependency (service ↔ strategies take each other in their ctors).
+            // AIE-053: Shared ActionSchemaExporter instance — also forwarded to the Inspector
+            // for sub-element collision diagnostics.
+            var sharedSchemaExporter = new ActionSchemaExporter();
             var aggregatorService = new BlackboardAggregatorService(
                 Array.Empty<IBlackboardAggregatorStrategy>(),
-                new ActionSchemaExporter(),
+                sharedSchemaExporter,
                 catalog);
             aggregatorService.Register(new BTreeBlackboardAggregatorStrategy(aggregatorService));
             aggregatorService.Register(new HsmBlackboardAggregatorStrategy(aggregatorService));
@@ -1623,20 +1626,23 @@ namespace Hrot.Editor
                 sanitizerRegistry:    sanitizerRegistry,
                 exportBuilder:        comparisonExportBuilder,
                 sessionRegistry:      comparisonSessionRegistry,
-                aggregatorService:    aggregatorService);
+                aggregatorService:    aggregatorService,
+                schemaExporter:       sharedSchemaExporter);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,
                 sanitizerRegistry:    sanitizerRegistry,
                 exportBuilder:        comparisonExportBuilder,
                 sessionRegistry:      comparisonSessionRegistry,
-                aggregatorService:    aggregatorService);
+                aggregatorService:    aggregatorService,
+                schemaExporter:       sharedSchemaExporter);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,
                 sanitizerRegistry:    sanitizerRegistry,
                 exportBuilder:        comparisonExportBuilder,
-                sessionRegistry:      comparisonSessionRegistry);
+                sessionRegistry:      comparisonSessionRegistry,
+                schemaExporter:       sharedSchemaExporter);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);

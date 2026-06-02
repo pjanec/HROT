@@ -156,7 +156,15 @@ public sealed class RefactorService : IRefactorService
                 $"Asset {assetId} has {danglingRefs.Count} dangling reference(s).", assetId));
         }
 
-        return new DeletePreview(assetId, danglingRefs, issues);
+        // AIE-053: classify each dangling reference.
+        var classified = danglingRefs
+            .Select(r => new ClassifiedDanglingReference(r, ClassifyReference(r)))
+            .ToList();
+
+        return new DeletePreview(assetId, danglingRefs, issues)
+        {
+            ClassifiedReferences = classified
+        };
     }
 
     public RefactorResult ApplyDelete(DeletePreview preview)
@@ -165,6 +173,31 @@ public sealed class RefactorService : IRefactorService
         {
             return new RefactorResult(false, Array.Empty<string>(),
                 "Preview contains Error-level issues; aborting.");
+        }
+
+        // AIE-053: refuse if any Critical references exist and caller has not opted in.
+        var criticalRefs = preview.ClassifiedReferences
+            .Where(c => c.Criticality == ReferenceCriticality.Critical)
+            .ToList();
+        if (criticalRefs.Count > 0 && preview.DanglingReferences.Count > 0)
+        {
+            // We check AllowDanglingReferences via the issues list pattern:
+            // If AllowDanglingReferences was false, a Warning issue was added.
+            // However, we need the original DeleteOptions to check — instead we
+            // check whether the preview actually has critical refs and infer refusal
+            // from whether issues were raised (Warning means not-allowed was set).
+            // More precisely: refuse when critical refs exist AND the preview contains
+            // a Warning-level issue (which is only added when AllowDanglingReferences==false).
+            bool hasWarning = preview.Issues.Any(i => i.Severity == RefactorIssueSeverity.Warning);
+            if (hasWarning)
+            {
+                var fqns = string.Join(", ",
+                    criticalRefs.Take(3).Select(c => c.Reference.TargetKey));
+                return new RefactorResult(false, Array.Empty<string>(),
+                    $"Cannot delete asset {preview.AssetId}: {criticalRefs.Count} critical " +
+                    $"reference(s) would break compilation ({fqns}). " +
+                    "Redirect or remove these references first, or set AllowDanglingReferences=true.");
+            }
         }
 
         var asset = _assetCatalog.FindByAssetId(preview.AssetId);
@@ -184,6 +217,40 @@ public sealed class RefactorService : IRefactorService
 
         return new RefactorResult(true, written, null);
     }
+
+    /// <summary>
+    /// Maps a <see cref="SubElementKind"/> to a <see cref="ReferenceCriticality"/>.
+    /// </summary>
+    /// <remarks>
+    /// Criticality mapping rationale (AIE-053):
+    /// <list type="bullet">
+    ///   <item><c>ActionFqn/ConditionFqn/GuardFqn</c> → Critical: these are resolved at
+    ///     compile time via the generated registrar; a missing declaring type breaks the build.</item>
+    ///   <item><c>AssetReference</c> → Critical: a typed field that references the deleted
+    ///     asset's exported type will fail to compile.</item>
+    ///   <item><c>BlackboardField</c> → Critical: the struct field type comes from the
+    ///     asset being deleted; removing it breaks struct compilation.</item>
+    ///   <item><c>EventName</c> → AutoResolvable: event dispatch is name-based at runtime;
+    ///     missing event just goes unhandled (no compilation dependency).</item>
+    ///   <item><c>BlackboardVariable</c> → AutoResolvable: variable binding is name-based
+    ///     and resolved at runtime; the runtime tolerates missing master variables.</item>
+    ///   <item><c>UtilityInput</c> → AutoResolvable: utility input selectors are name-based;
+    ///     missing entries degrade gracefully.</item>
+    /// </list>
+    /// </remarks>
+    private static ReferenceCriticality ClassifyReference(AssetReferenceInfo info) =>
+        info.TargetKind switch
+        {
+            SubElementKind.ActionFqn        => ReferenceCriticality.Critical,
+            SubElementKind.ConditionFqn     => ReferenceCriticality.Critical,
+            SubElementKind.GuardFqn         => ReferenceCriticality.Critical,
+            SubElementKind.AssetReference   => ReferenceCriticality.Critical,
+            SubElementKind.BlackboardField  => ReferenceCriticality.Critical,
+            SubElementKind.EventName        => ReferenceCriticality.AutoResolvable,
+            SubElementKind.BlackboardVariable => ReferenceCriticality.AutoResolvable,
+            SubElementKind.UtilityInput     => ReferenceCriticality.AutoResolvable,
+            _ => ReferenceCriticality.AutoResolvable,
+        };
 
     public Task<RefactorPreview> PreviewRenameAsync(string fromKey, string toKey, RefactorOptions options, CancellationToken ct = default)
         => Task.Run(() => PreviewRename(fromKey, toKey, options), ct);

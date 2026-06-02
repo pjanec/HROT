@@ -68,7 +68,7 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 - [x] **AIE-050** Comparison sanitizers + ComparisonExportBuilder [details](./TASK-DETAIL.md#aie-050--comparison-sanitizers--comparisonexportbuilder)
 - [x] **AIE-051** Reference catalog contributors + RefactorService + FindResults [details](./TASK-DETAIL.md#aie-051--reference-catalog-contributors--refactorservice--findresults)
 - [x] **AIE-052** Blackboard aggregator strategies [details](./TASK-DETAIL.md#aie-052--blackboard-aggregator-strategies)
-- [ ] **AIE-053** SubElementCollision + dangling-reference classification [details](./TASK-DETAIL.md#aie-053--subelementcollision--dangling-reference-classification)
+- [x] **AIE-053** SubElementCollision + dangling-reference classification [details](./TASK-DETAIL.md#aie-053--subelementcollision--dangling-reference-classification)
 
 ---
 
