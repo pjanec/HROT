@@ -1,7 +1,6 @@
 using System;
 using System.Numerics;
 using ImGuiNET;
-using NodeEditor.Core;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -9,74 +8,78 @@ namespace Hrot.Editor.AiShared.Adapters;
 
 /// <summary>
 /// Production <see cref="IEditorTheme"/> for the engine editor.
-/// Delegates geometry, colors, and attachment/container defaults to
-/// <see cref="DefaultTheme"/>; overrides <see cref="GetFontForSize"/> to
-/// query the engine's currently loaded ImGui fonts.
+/// Uses the demo's Unreal-inspired dark color/geometry scheme (mirroring
+/// <c>FakeEditorTheme</c> from the NodeEdit Demo specimen) so the Blueprint,
+/// BTree, and HSM canvases all share the same look.
 /// <para>
-/// The palette is aligned to the engine's dark-mode UI so the NodeEdit canvas
-/// feels native in the ClusterRunner editor shell.
+/// <see cref="GetFontForSize"/> queries the engine's currently loaded ImGui
+/// fonts. All other members are literal constants that match the demo values.
 /// </para>
 /// </summary>
 public sealed class EngineEditorTheme : IEditorTheme
 {
-    // ── Backing DefaultTheme supplies all property values ────────────────────
-
-    private static readonly DefaultTheme _base = new DefaultTheme();
-
-    // ── IEditorTheme surface — colors ────────────────────────────────────────
+    // ── IEditorTheme surface — colors (demo literal values) ──────────────────
 
     /// <inheritdoc/>
-    public Vector4 BackgroundColor        => _base.BackgroundColor;
+    public Vector4 BackgroundColor        { get; } = new(0.10f, 0.10f, 0.10f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 GridMinorColor         => _base.GridMinorColor;
+    public Vector4 GridMinorColor         { get; } = new(0.20f, 0.20f, 0.20f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 GridMajorColor         => _base.GridMajorColor;
+    public Vector4 GridMajorColor         { get; } = new(0.25f, 0.25f, 0.25f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 SelectionAccent        => _base.SelectionAccent;
+    public Vector4 SelectionAccent        { get; } = new(0.21f, 0.52f, 0.89f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 PrimarySelectionAccent => _base.PrimarySelectionAccent;
+    public Vector4 PrimarySelectionAccent { get; } = new(0.26f, 0.65f, 0.99f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 ErrorColor             => _base.ErrorColor;
+    public Vector4 ErrorColor             { get; } = new(0.90f, 0.10f, 0.10f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 WarningColor           => _base.WarningColor;
+    public Vector4 WarningColor           { get; } = new(0.95f, 0.70f, 0.10f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 TextDefault            => _base.TextDefault;
+    public Vector4 TextDefault            { get; } = new(1.00f, 1.00f, 1.00f, 1f);
 
     /// <inheritdoc/>
-    public Vector4 TextMuted              => _base.TextMuted;
+    public Vector4 TextMuted              { get; } = new(0.60f, 0.60f, 0.60f, 1f);
 
-    // ── Per-category header colors ────────────────────────────────────────────
-
-    /// <inheritdoc/>
-    public Vector4 GetCategoryHeaderColor(NodeCategory category)
-        => _base.GetCategoryHeaderColor(category);
-
-    // ── IEditorTheme surface — geometry ──────────────────────────────────────
+    // ── Per-category header colors (demo per-category map) ────────────────────
 
     /// <inheritdoc/>
-    public float NodeCornerRadius    => _base.NodeCornerRadius;
+    public Vector4 GetCategoryHeaderColor(NodeCategory category) => category switch
+    {
+        NodeCategory.Event       => new Vector4(0.65f, 0.07f, 0.07f, 1f),
+        NodeCategory.Function    => new Vector4(0.07f, 0.30f, 0.60f, 1f),
+        NodeCategory.Macro       => new Vector4(0.25f, 0.15f, 0.50f, 1f),
+        NodeCategory.VariableGet => new Vector4(0.07f, 0.40f, 0.20f, 1f),
+        NodeCategory.VariableSet => new Vector4(0.05f, 0.35f, 0.15f, 1f),
+        NodeCategory.FlowControl => new Vector4(0.20f, 0.20f, 0.20f, 1f),
+        _                        => new Vector4(0.15f, 0.15f, 0.15f, 1f),
+    };
+
+    // ── IEditorTheme surface — geometry (demo literal values) ────────────────
 
     /// <inheritdoc/>
-    public float NodeBorderThickness => _base.NodeBorderThickness;
+    public float NodeCornerRadius    { get; } = 4f;
 
     /// <inheritdoc/>
-    public float NodeHeaderHeight    => _base.NodeHeaderHeight;
+    public float NodeBorderThickness { get; } = 1.5f;
 
     /// <inheritdoc/>
-    public float PinGlyphSize        => _base.PinGlyphSize;
+    public float NodeHeaderHeight    { get; } = 28f;
 
     /// <inheritdoc/>
-    public float WireThicknessExec   => _base.WireThicknessExec;
+    public float PinGlyphSize        { get; } = 10f;
 
     /// <inheritdoc/>
-    public float WireThicknessData   => _base.WireThicknessData;
+    public float WireThicknessExec   { get; } = 3f;
+
+    /// <inheritdoc/>
+    public float WireThicknessData   { get; } = 2f;
 
     // ── Font resolution ───────────────────────────────────────────────────────
 
@@ -126,32 +129,7 @@ public sealed class EngineEditorTheme : IEditorTheme
         }
     }
 
-    // ── Attachment pill colors (engine-aligned overrides) ────────────────────
-    // Matching DefaultTheme values; override here if engine palette diverges.
-
-    /// <inheritdoc/>
-    public Vector4 AttachmentDecoratorColor => _base.AttachmentDecoratorColor;
-
-    /// <inheritdoc/>
-    public Vector4 AttachmentFlagColor      => _base.AttachmentFlagColor;
-
-    /// <inheritdoc/>
-    public Vector4 AttachmentPureColor      => _base.AttachmentPureColor;
-
-    /// <inheritdoc/>
-    public Vector4 AttachmentCustomColor    => _base.AttachmentCustomColor;
-
-    // ── Attachment geometry ───────────────────────────────────────────────────
-
-    /// <inheritdoc/>
-    public float AttachmentHeight       => _base.AttachmentHeight;
-
-    /// <inheritdoc/>
-    public float AttachmentCornerRadius => _base.AttachmentCornerRadius;
-
-    /// <inheritdoc/>
-    public float AttachmentGapAboveHost => _base.AttachmentGapAboveHost;
-
-    /// <inheritdoc/>
-    public float AttachmentInterGap     => _base.AttachmentInterGap;
+    // ── Attachment pill colors — use IEditorTheme interface defaults ──────────
+    // These match DefaultTheme; no override needed. IEditorTheme provides
+    // default implementations so all attachment members resolve correctly.
 }

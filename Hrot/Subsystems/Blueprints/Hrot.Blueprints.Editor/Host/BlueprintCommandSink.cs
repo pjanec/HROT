@@ -276,18 +276,29 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
     private GraphCommandResult ApplyMoveNodes(GraphCommand.MoveNodes move)
     {
+        var movedIds = new List<NodeId>(move.Moves.Count);
+
         foreach (var nodeMove in move.Moves)
         {
+            // 1. Persist the new position to the asset so saving captures it.
             var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeMove.Node.Value);
             if (assetNode == null) continue;
 
             assetNode.EditorMetadata.X = nodeMove.NewPosition.X;
             assetNode.EditorMetadata.Y = nodeMove.NewPosition.Y;
+
+            // 2. Mutate the existing projection node instance in place —
+            //    no full Rebuild() needed, preserving model identity across drag frames.
+            if (_model.FindNode(nodeMove.Node) is BlueprintNodeModel projNode)
+                projNode.SetPosition(nodeMove.NewPosition);
+
+            movedIds.Add(nodeMove.Node);
         }
 
         // Move is not pushed to CommandHistory — continuous drag would overflow it.
         _markDirty(_asset);
-        _model.RebuildAndNotify();
+        // Fire a lightweight NodesMoved notification; do NOT call RebuildAndNotify().
+        _model.NotifyMoved(movedIds);
         return new GraphCommandResult(true, null);
     }
 

@@ -5,19 +5,25 @@ using NodeEditor.Primitives;
 namespace Hrot.Blueprints.Editor.Host;
 
 /// <summary>
-/// Read-only <see cref="INodeModel"/> adapter projecting a <see cref="Hrot.Blueprints.Core.Assets.Node"/>
+/// <see cref="INodeModel"/> adapter projecting a <see cref="Hrot.Blueprints.Core.Assets.Node"/>
 /// onto the NodeEdit canvas contract.
+/// <para>
+/// <see cref="Position"/> is mutable via <see cref="SetPosition"/> so that
+/// <see cref="BlueprintCommandSink.ApplyMoveNodes"/> can update the existing instance
+/// in place without a full model rebuild on every drag frame.
+/// </para>
 /// </summary>
 internal sealed class BlueprintNodeModel : INodeModel
 {
     private readonly List<IPinModel> _pins;
+    private Vector2 _position;
 
     public NodeId      Id               { get; }
     public NodeKindKey Kind             { get; }
     public string      Title            { get; }
     public string?     Subtitle         => null;
     public NodeCategory Category        { get; }
-    public Vector2     Position         { get; }
+    public Vector2     Position         => _position;
     public Vector2?    SizeOverride     => null;
     public NodeState   State            { get; } = NodeState.Normal;
     public string?     StatusTooltip    => null;
@@ -26,18 +32,22 @@ internal sealed class BlueprintNodeModel : INodeModel
     public NodeId?     ParentContainerId => null;
     public IReadOnlyList<IPinModel> Pins => _pins;
 
-    public BlueprintNodeModel(Hrot.Blueprints.Core.Assets.Node node)
+    /// <summary>
+    /// Constructs a node model from a raw asset node, using the pre-resolved
+    /// <paramref name="resolvedPins"/> list built by the two-pass GUID-binding algorithm.
+    /// </summary>
+    public BlueprintNodeModel(Hrot.Blueprints.Core.Assets.Node node, IReadOnlyList<IPinModel> resolvedPins)
     {
-        Id       = new NodeId(node.Id);
-        Kind     = new NodeKindKey(node.GetType().Name);
-        Title    = BuildTitle(node);
-        Category = BuildCategory(node);
-        Position = new Vector2(node.EditorMetadata.X, node.EditorMetadata.Y);
-
-        _pins = node.Pins
-            .Select(p => (IPinModel)new BlueprintPinModel(p, Id))
-            .ToList();
+        Id        = new NodeId(node.Id);
+        Kind      = new NodeKindKey(node.GetType().Name);
+        Title     = BuildTitle(node);
+        Category  = BuildCategory(node);
+        _position = new Vector2(node.EditorMetadata.X, node.EditorMetadata.Y);
+        _pins     = new List<IPinModel>(resolvedPins);
     }
+
+    /// <summary>Updates <see cref="Position"/> in place without rebuilding the model graph.</summary>
+    internal void SetPosition(Vector2 pos) => _position = pos;
 
     // ── helpers ────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.NodeDrawers;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -20,11 +21,19 @@ namespace Hrot.Blueprints.Editor.Host;
 /// Call <see cref="Rebuild"/> (or subscribe to a mutation source that calls it) and then
 /// raise <see cref="Changed"/> to keep the canvas in sync with in-memory asset edits.
 /// </para>
+/// <para>
+/// Pin hydration is <b>projection-only</b>: loaded assets that have <c>"Pins": []</c>
+/// receive canonical pins derived from <see cref="NodePinSchema"/>.  Pin GUIDs for
+/// connected pins are bound from the incident link's <c>FromPinId</c>/<c>ToPinId</c>
+/// fields; unconnected pins receive deterministic GUIDs.  Nothing is written back
+/// to the asset or to disk.
+/// </para>
 /// </summary>
 public sealed class BlueprintGraphModel : IGraphModel
 {
-    private readonly BlueprintAsset _asset;
-    private readonly Graph          _graph;
+    private readonly BlueprintAsset    _asset;
+    private readonly Graph             _graph;
+    private readonly NodeKindRegistry? _kindRegistry;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -35,10 +44,19 @@ public sealed class BlueprintGraphModel : IGraphModel
 
     /// <param name="asset">The owning asset.</param>
     /// <param name="graph">The specific graph inside the asset to project.</param>
-    public BlueprintGraphModel(BlueprintAsset asset, Graph graph)
+    /// <param name="kindRegistry">
+    /// Optional palette registry used by <see cref="NodePinSchema"/> to look up canonical
+    /// pin lists for node kinds registered at editor startup (e.g. WhenNode, ReadEqsResult).
+    /// Pass <see langword="null"/> in unit tests that don't exercise those kinds.
+    /// </param>
+    public BlueprintGraphModel(
+        BlueprintAsset    asset,
+        Graph             graph,
+        NodeKindRegistry? kindRegistry = null)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
-        _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+        _asset        = asset        ?? throw new ArgumentNullException(nameof(asset));
+        _graph        = graph        ?? throw new ArgumentNullException(nameof(graph));
+        _kindRegistry = kindRegistry;
         Rebuild();
     }
 
@@ -62,21 +80,137 @@ public sealed class BlueprintGraphModel : IGraphModel
     // ── mutation notification ────────────────────────────────────────────────
 
     /// <summary>
-    /// Rebuilds the node/pin/link projection from the current asset state and
-    /// fires <see cref="Changed"/>. Call this after any in-memory asset mutation.
+    /// Rebuilds the node/pin/link projection from the current asset state.
+    /// Uses a <b>two-pass GUID-binding algorithm</b> so that connected pins
+    /// receive the GUIDs carried in the asset's <c>Link.FromPinId</c> /
+    /// <c>Link.ToPinId</c> fields, making wires resolve even when the asset
+    /// stores <c>"Pins": []</c>.
+    ///
+    /// <para><b>Pass 1 — pin GUID resolution per node:</b></para>
+    /// <list type="number">
+    ///   <item>Get the canonical pin list via <see cref="NodePinSchema.GetCanonicalPins"/>.</item>
+    ///   <item>Collect all links incident on this node.</item>
+    ///   <item>
+    ///     For each output pin (in order), if a link from this node uses that
+    ///     position as its source, assign <c>link.FromPinId</c> as the pin's GUID.
+    ///     For each input pin (in order), if a link to this node uses that
+    ///     position, assign <c>link.ToPinId</c> as the pin's GUID.
+    ///     Unconnected pins receive <c>IdGenerator.Deterministic("pin:{nodeId}:{name}:{dir}")</c>.
+    ///   </item>
+    /// </list>
+    ///
+    /// <para><b>Pass 2 — build models:</b></para>
+    /// Build <see cref="BlueprintNodeModel"/> instances with the resolved pin list,
+    /// then build <see cref="BlueprintLinkModel"/> instances (they now resolve via
+    /// the pin dictionary).
     /// </summary>
     public void Rebuild()
     {
-        var nodes  = new Dictionary<NodeId, INodeModel>();
-        var pins   = new Dictionary<PinId,  IPinModel>();
-        var links  = new Dictionary<LinkId, ILinkModel>();
+        var nodes = new Dictionary<NodeId, INodeModel>();
+        var pins  = new Dictionary<PinId,  IPinModel>();
+        var links = new Dictionary<LinkId, ILinkModel>();
 
-        // Project nodes and their pins.
+        // ── Pass 1: resolve per-node pin GUIDs ──────────────────────────────
+
+        // Build a node-id → incident links lookup once for efficiency.
+        var linksFromNode = new Dictionary<Guid, List<Link>>();
+        var linksToNode   = new Dictionary<Guid, List<Link>>();
+        foreach (var assetLink in _graph.Links)
+        {
+            if (!linksFromNode.TryGetValue(assetLink.FromNodeId, out var fromList))
+                linksFromNode[assetLink.FromNodeId] = fromList = new();
+            fromList.Add(assetLink);
+
+            if (!linksToNode.TryGetValue(assetLink.ToNodeId, out var toList))
+                linksToNode[assetLink.ToNodeId] = toList = new();
+            toList.Add(assetLink);
+        }
+
+        // For each asset node, resolve a pin list with correct GUIDs.
+        var resolvedPinLists = new Dictionary<Guid, List<IPinModel>>();
+
         foreach (var assetNode in _graph.Nodes)
         {
-            var nodeModel = new BlueprintNodeModel(assetNode);
+            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry);
+
+            // Separate incident links by direction.
+            linksFromNode.TryGetValue(assetNode.Id, out var outLinks);
+            linksToNode.TryGetValue(assetNode.Id,   out var inLinks);
+
+            outLinks ??= _emptyLinks;
+            inLinks  ??= _emptyLinks;
+
+            // Assign GUIDs to pins.
+            // FAST PATH: if the asset node already had pins (builder-created or freshly-added
+            // nodes), their GUIDs are authoritative — use them directly without rebinding.
+            // This preserves the original GUIDs so AddLink validation works correctly.
+            var assetHadPins = assetNode.Pins.Count > 0;
+            var pinGuidMap   = new Dictionary<Pin, Guid>(ReferenceEqualityComparer.Instance);
+
+            if (assetHadPins)
+            {
+                // Canonical pins == node.Pins, already have the correct GUIDs.
+                foreach (var pin in canonicalPins)
+                    pinGuidMap[pin] = pin.Id;
+            }
+            else
+            {
+                // SLOW PATH: JSON-loaded assets (Pins: []).
+                // Strategy: iterate output pins in declaration order; match them to
+                // the outLinks list in order (first out-pin matches first out-link, etc.).
+                // Same for input pins vs inLinks.
+                var outPins = canonicalPins.Where(p => p.Direction == "Out").ToList();
+                var inPins  = canonicalPins.Where(p => p.Direction == "In").ToList();
+
+                for (int i = 0; i < outPins.Count; i++)
+                {
+                    var pin = outPins[i];
+                    var link = outLinks.ElementAtOrDefault(i);
+                    var guid = (link != null)
+                        ? link.FromPinId
+                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:Out");
+                    pinGuidMap[pin] = guid;
+                }
+
+                for (int i = 0; i < inPins.Count; i++)
+                {
+                    var pin = inPins[i];
+                    var link = inLinks.ElementAtOrDefault(i);
+                    var guid = (link != null)
+                        ? link.ToPinId
+                        : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:In");
+                    pinGuidMap[pin] = guid;
+                }
+            }
+
+            // Build the resolved IPinModel list.
+            var nodeId = new NodeId(assetNode.Id);
+            var resolvedPins = new List<IPinModel>(canonicalPins.Count);
+            foreach (var pin in canonicalPins)
+            {
+                var resolvedGuid = pinGuidMap.TryGetValue(pin, out var g) ? g : Guid.NewGuid();
+                // Construct a synthetic Pin with the resolved GUID so BlueprintPinModel works.
+                var resolvedPin = new Hrot.Blueprints.Core.Assets.Pin
+                {
+                    Id        = resolvedGuid,
+                    Name      = pin.Name,
+                    Direction = pin.Direction,
+                    IsExec    = pin.IsExec,
+                    TypeRef   = pin.TypeRef,
+                };
+                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId));
+            }
+            resolvedPinLists[assetNode.Id] = resolvedPins;
+        }
+
+        // ── Pass 2: build node and link models ───────────────────────────────
+
+        foreach (var assetNode in _graph.Nodes)
+        {
+            var resolvedPins = resolvedPinLists[assetNode.Id];
+            var nodeModel    = new BlueprintNodeModel(assetNode, resolvedPins);
             nodes[nodeModel.Id] = nodeModel;
-            foreach (var pin in nodeModel.Pins)
+            foreach (var pin in resolvedPins)
                 pins[pin.Id] = pin;
         }
 
@@ -94,9 +228,23 @@ public sealed class BlueprintGraphModel : IGraphModel
         _links = links;
     }
 
+    private static readonly List<Link> _emptyLinks = new();
+
     /// <summary>Fires <see cref="Changed"/> with <see cref="GraphChangeKind.Wholesale"/>.</summary>
     public void NotifyChanged()
         => Changed?.Invoke(new GraphChangeNotification(GraphChangeKind.Wholesale, null, null, null, null));
+
+    /// <summary>
+    /// Fires <see cref="Changed"/> with <see cref="GraphChangeKind.NodesMoved"/>
+    /// for the given node IDs.  Does NOT rebuild the projection caches, so the
+    /// existing <see cref="INodeModel"/> instances are preserved (identity stable).
+    /// Call after mutating <see cref="BlueprintNodeModel.SetPosition"/> in place.
+    /// </summary>
+    public void NotifyMoved(IReadOnlyCollection<NodeId> movedIds)
+        => Changed?.Invoke(new GraphChangeNotification(
+            GraphChangeKind.NodesMoved,
+            new HashSet<NodeId>(movedIds),
+            null, null, null));
 
     /// <summary>Rebuilds caches and fires <see cref="Changed"/>.</summary>
     public void RebuildAndNotify()

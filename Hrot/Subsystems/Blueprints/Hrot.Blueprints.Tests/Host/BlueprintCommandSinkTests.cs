@@ -5,6 +5,7 @@ using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Tests.Builders;
 using NodeEditor.Core.Commands;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 using Xunit;
 
@@ -272,6 +273,65 @@ public sealed class BlueprintCommandSinkTests
         Assert.NotNull(modelNode);
         Assert.Equal(55f, modelNode!.Position.X, precision: 2);
         Assert.Equal(66f, modelNode!.Position.Y, precision: 2);
+    }
+
+    /// <summary>
+    /// BCP-B: After MoveNodes the SAME INodeModel instance is returned by FindNode
+    /// (no full rebuild occurred).  This verifies identity preservation — the canvas
+    /// can safely hold references to node models across drag frames.
+    /// </summary>
+    [Fact]
+    public void CommandSink_MoveNodes_SameInstanceIdentityPreserved()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new FunctionCallNode { Id = Guid.NewGuid(),
+            EditorMetadata = new NodeMetadata { X = 0, Y = 0 } };
+        graph.Nodes.Add(node);
+        var (sink, model, _, _, _, _) = MakeSut(asset, graph);
+
+        // Capture the reference BEFORE the move.
+        var instanceBefore = model.FindNode(new NodeId(node.Id));
+        Assert.NotNull(instanceBefore);
+
+        sink.Apply(new GraphCommand.MoveNodes(
+            new[] { new NodeMove(new NodeId(node.Id), new Vector2(100f, 200f)) }));
+
+        // FindNode must return the SAME object reference (no rebuild replaced it).
+        var instanceAfter = model.FindNode(new NodeId(node.Id));
+        Assert.NotNull(instanceAfter);
+        Assert.Same(instanceBefore, instanceAfter);
+
+        // And the position must have been updated in place.
+        Assert.Equal(100f, instanceAfter!.Position.X, precision: 2);
+        Assert.Equal(200f, instanceAfter.Position.Y, precision: 2);
+    }
+
+    /// <summary>
+    /// BCP-B: MoveNodes fires NodesMoved (not Wholesale) and does NOT trigger a Rebuild —
+    /// verified by counting Changed notifications of each kind.
+    /// </summary>
+    [Fact]
+    public void CommandSink_MoveNodes_FiresNodesMoved_NotWholesale()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new FunctionCallNode { Id = Guid.NewGuid(),
+            EditorMetadata = new NodeMetadata { X = 0, Y = 0 } };
+        graph.Nodes.Add(node);
+        var (sink, model, _, _, _, _) = MakeSut(asset, graph);
+
+        int wholesaleCount = 0;
+        int nodesMovedCount = 0;
+        model.Changed += n =>
+        {
+            if (n.Kind == GraphChangeKind.Wholesale) wholesaleCount++;
+            if (n.Kind == GraphChangeKind.NodesMoved) nodesMovedCount++;
+        };
+
+        sink.Apply(new GraphCommand.MoveNodes(
+            new[] { new NodeMove(new NodeId(node.Id), new Vector2(50f, 75f)) }));
+
+        Assert.Equal(0, wholesaleCount);
+        Assert.Equal(1, nodesMovedCount);
     }
 
     // ── SetNodeProperty ──────────────────────────────────────────────────────

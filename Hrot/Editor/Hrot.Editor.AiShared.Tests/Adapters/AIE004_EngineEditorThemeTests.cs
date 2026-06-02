@@ -136,6 +136,84 @@ public sealed class AIE004_EngineEditorThemeTests
             $"Expected at least 3 distinct header colors for named categories, got {distinctCount}.");
     }
 
+    // ── AIE-004-04: Demo literal values (BCP-BATCH-01 Task C) ────────────────
+
+    /// <summary>
+    /// Verifies the exact selection-accent color matches the FakeEditorTheme specimen:
+    /// (0.21, 0.52, 0.89, 1).  This is the primary regression guard for the
+    /// yellow-marquee bug fix (wrong color was forwarded from DefaultTheme).
+    /// </summary>
+    [Fact]
+    public void EngineEditorTheme_SelectionAccent_IsBlue_MatchesDemoValue()
+    {
+        var t = MakeTheme();
+        // FakeEditorTheme: new(0.21f, 0.52f, 0.89f, 1f)
+        Assert.Equal(0.21f, t.SelectionAccent.X, 4);
+        Assert.Equal(0.52f, t.SelectionAccent.Y, 4);
+        Assert.Equal(0.89f, t.SelectionAccent.Z, 4);
+        Assert.Equal(1.00f, t.SelectionAccent.W, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_PrimarySelectionAccent_MatchesDemoValue()
+    {
+        var t = MakeTheme();
+        // FakeEditorTheme: new(0.26f, 0.65f, 0.99f, 1f)
+        Assert.Equal(0.26f, t.PrimarySelectionAccent.X, 4);
+        Assert.Equal(0.65f, t.PrimarySelectionAccent.Y, 4);
+        Assert.Equal(0.99f, t.PrimarySelectionAccent.Z, 4);
+        Assert.Equal(1.00f, t.PrimarySelectionAccent.W, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_NodeCornerRadius_Is4()
+    {
+        Assert.Equal(4f, MakeTheme().NodeCornerRadius, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_WireThicknessExec_Is3()
+    {
+        Assert.Equal(3f, MakeTheme().WireThicknessExec, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_WireThicknessData_Is2()
+    {
+        Assert.Equal(2f, MakeTheme().WireThicknessData, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_Event_IsRed()
+    {
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.Event);
+        // FakeEditorTheme: new Vector4(0.65f, 0.07f, 0.07f, 1f)
+        Assert.Equal(0.65f, color.X, 4);
+        Assert.Equal(0.07f, color.Y, 4);
+        Assert.Equal(0.07f, color.Z, 4);
+        Assert.Equal(1.00f, color.W, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_Function_IsBlue()
+    {
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.Function);
+        // FakeEditorTheme: new Vector4(0.07f, 0.30f, 0.60f, 1f)
+        Assert.Equal(0.07f, color.X, 4);
+        Assert.Equal(0.30f, color.Y, 4);
+        Assert.Equal(0.60f, color.Z, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_VariableGet_IsGreen()
+    {
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.VariableGet);
+        // FakeEditorTheme: new Vector4(0.07f, 0.40f, 0.20f, 1f)
+        Assert.Equal(0.07f, color.X, 4);
+        Assert.Equal(0.40f, color.Y, 4);
+        Assert.Equal(0.20f, color.Z, 4);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static void AssertColorSane(Vector4 color, string name)

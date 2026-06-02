@@ -88,11 +88,11 @@ public static class BlueprintDocumentFactory
                  ?? throw new InvalidOperationException(
                         $"Blueprint asset '{bpAsset.Name}' has no graphs.");
 
-        // ── 2. Graph model ────────────────────────────────────────────────────
-        var graphModel = new BlueprintGraphModel(bpAsset, graph);
-
         // ── 3. Kind-specific host components ─────────────────────────────────
         var kindRegistry = paletteRegistry ?? new NodeKindRegistry();
+
+        // ── 2. Graph model (pass registry for pin hydration of JSON-loaded assets) ──
+        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
