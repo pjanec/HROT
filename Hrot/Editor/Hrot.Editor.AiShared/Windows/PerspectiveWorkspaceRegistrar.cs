@@ -1,4 +1,5 @@
 using Fdp.Presentation.WindowManager;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
@@ -50,6 +51,18 @@ public class PerspectiveWorkspaceRegistrar
     public DiagnosticsWindow Diagnostics { get; }
 
     /// <summary>
+    /// Optional per-perspective Breakpoints window (null when no breakpoint manager
+    /// was supplied at construction). Registered by <see cref="RegisterWindows"/>.
+    /// </summary>
+    public AiBreakpointsWindow? Breakpoints { get; }
+
+    /// <summary>
+    /// Optional per-perspective Watch window (null when no breakpoint manager was
+    /// supplied at construction). Registered by <see cref="RegisterWindows"/>.
+    /// </summary>
+    public AiWatchWindow? Watch { get; }
+
+    /// <summary>
     /// All windows registered by this registrar (including any added via
     /// <see cref="RegisterExtraWindow"/>). Useful for test verification.
     /// </summary>
@@ -76,13 +89,20 @@ public class PerspectiveWorkspaceRegistrar
     ///   Asset validators shown by the Diagnostics window.
     ///   Pass an empty array when none are registered yet.
     /// </param>
+    /// <param name="breakpointManager">
+    ///   Optional shared <see cref="IDataBreakpointManager"/>. When non-null, per-perspective
+    ///   <see cref="AiBreakpointsWindow"/> and <see cref="AiWatchWindow"/> are created and
+    ///   registered by <see cref="RegisterWindows"/>. Both windows share this single manager
+    ///   instance — no duplication.
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
         IAssetCatalog catalog,
         IRefactorService refactorService,
         IDebugSessionRegistry debugRegistry,
-        IReadOnlyList<IAssetValidator>? validators = null)
+        IReadOnlyList<IAssetValidator>? validators = null,
+        IDataBreakpointManager? breakpointManager = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -130,6 +150,20 @@ public class PerspectiveWorkspaceRegistrar
             validators:        vl,
             idOverride:        $"ai_diagnostics_{suffix}",
             owningPerspective: perspectiveName);
+
+        // AIE-034: per-perspective Watch + Breakpoints windows (optional).
+        if (breakpointManager != null)
+        {
+            Breakpoints = new AiBreakpointsWindow(
+                id:                $"ai_breakpoints_{suffix}",
+                owningPerspective: perspectiveName,
+                manager:           breakpointManager);
+
+            Watch = new AiWatchWindow(
+                id:                $"ai_watch_{suffix}",
+                owningPerspective: perspectiveName,
+                manager:           breakpointManager);
+        }
     }
 
     // ── Registration ─────────────────────────────────────────────────────────
@@ -149,6 +183,11 @@ public class PerspectiveWorkspaceRegistrar
         RegisterCore(windowManager, TraceTimeline);
         RegisterCore(windowManager, BlackboardAuthoring);
         RegisterCore(windowManager, Diagnostics);
+
+        // AIE-034: per-perspective Watch + Breakpoints windows (created only when a
+        // DataBreakpointManager was supplied; null means "not wired yet").
+        if (Breakpoints != null) RegisterCore(windowManager, Breakpoints);
+        if (Watch      != null) RegisterCore(windowManager, Watch);
     }
 
     // ── Extension seam ────────────────────────────────────────────────────────

@@ -28,6 +28,8 @@
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <ProjectReference Include="..\..\Subsystems\Hrot.MuscleCharacter.Animation\Hrot.MuscleCharacter.Animation.csproj" />
+    <!-- AIE-034: per-perspective Watch + Breakpoints windows use IDataBreakpointManager -->
+    <ProjectReference Include="..\..\Diagnostics\Hrot.Diagnostics.Breakpoints\Hrot.Diagnostics.Breakpoints.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 using Hrot.BTree.Editor.Debug;
 using Hrot.BTree.Editor.Renderers;
 using Hrot.Diagnostics.Breakpoints;
@@ -87,6 +89,21 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     }
 
     ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
+
+    // ---- Breakpoint toggle (AIE-033) ─────────────────────────────────────────
+
+    /// <summary>
+    /// Toggles the breakpoint flag on the specified node by dispatching a
+    /// <see cref="GraphCommand.SetNodeProperty"/> command through the command sink.
+    /// This is the canonical path for canvas breakpoint-toggle actions; it means
+    /// undo/redo history tracks the toggle as a normal graph mutation.
+    /// </summary>
+    /// <param name="nodeId">The NodeId of the node to toggle.</param>
+    /// <param name="value">The desired <c>isBreakpoint</c> value.</param>
+    public void ToggleNodeBreakpoint(NodeId nodeId, bool value)
+    {
+        _commandSink.Apply(new GraphCommand.SetNodeProperty(nodeId, "isBreakpoint", value));
+    }
 
     // ---- Viewport control ----
 

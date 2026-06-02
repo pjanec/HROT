@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Hsm.Editor.Renderers;
+using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Hsm.Editor.Host;
 
@@ -85,6 +87,17 @@ internal sealed class HsmEditorHostServices : IEditorHostServices
     }
 
     ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
+
+    // ---- Breakpoint toggle (AIE-033) ─────────────────────────────────────────
+
+    /// <summary>
+    /// Toggles the breakpoint flag on the specified node by dispatching a
+    /// <see cref="GraphCommand.SetNodeProperty"/> command through the command sink.
+    /// </summary>
+    public void ToggleNodeBreakpoint(NodeId nodeId, bool value)
+    {
+        _commandSink.Apply(new GraphCommand.SetNodeProperty(nodeId, "isBreakpoint", value));
+    }
 
     // ---- Viewport control ----
 

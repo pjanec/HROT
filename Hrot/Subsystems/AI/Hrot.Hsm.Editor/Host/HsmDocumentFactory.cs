@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Windows;
+using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Model;
 using Hrot.Hsm.Editor.Renderers;
 using NodeEditor.Core.Interfaces;
@@ -43,7 +45,17 @@ public static class HsmDocumentFactory
     /// </summary>
     /// <param name="asset">The editable HSM asset (must be an <see cref="HsmAsset"/>).</param>
     /// <param name="bundle">Engine adapter bundle (pickers, icons, theme, input, clipboard, diagnostics).</param>
-    /// <param name="debugSession">Optional debug session (null while Phase 3 is not wired).</param>
+    /// <param name="debugSession">
+    ///   Optional HSM debug session.  When non-null, the runtime-overlay and
+    ///   breakpoint-gutter renderers bind to it so live execution state is shown.
+    ///   When null (authoring mode), both renderers report <c>IsActive==false</c>
+    ///   so there is no per-frame cost.
+    /// </param>
+    /// <param name="breakpointManager">
+    ///   Optional shared <see cref="IDataBreakpointManager"/>. When non-null, the
+    ///   breakpoint-gutter renderer also draws dots for breakpoints registered in the
+    ///   universal-breakpoint stack.
+    /// </param>
     /// <param name="extraRenderers">
     ///   Optional additional custom canvas renderers to append after the built-in HSM set.
     /// </param>
@@ -53,9 +65,11 @@ public static class HsmDocumentFactory
     ///   Thrown when <paramref name="asset"/> is not an <see cref="HsmAsset"/>.
     /// </exception>
     public static AiCanvasContext Build(
-        IEditableAsset        asset,
-        AiEditorAdapterBundle bundle,
-        IDebugSession?        debugSession   = null,
+        IEditableAsset          asset,
+        AiEditorAdapterBundle   bundle,
+        IDebugSession?          debugSession      = null,
+        IHsmDebugSession?       hsmDebugSession   = null,
+        IDataBreakpointManager? breakpointManager = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
@@ -76,7 +90,7 @@ public static class HsmDocumentFactory
         var commandSink  = new HsmCommandSink(hsmAsset);
 
         // ── 3. Custom renderers (built-in HSM set + caller extras) ────────────
-        var renderers = BuildRenderers(hsmAsset, extraRenderers);
+        var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers);
 
         // ── 4. Host services ──────────────────────────────────────────────────
         var hostServices = new HsmEditorHostServices(
@@ -93,6 +107,11 @@ public static class HsmDocumentFactory
             debug:           debugSession,
             customRenderers: renderers);
 
+        // Wire breakpoint manager into the host services (command-sink path via
+        // HsmBreakpointContextMenuProvider; also makes BpGutterRenderer accessible).
+        if (breakpointManager != null)
+            hostServices.SetBreakpointManager(breakpointManager);
+
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
             graphModel,
@@ -108,16 +127,41 @@ public static class HsmDocumentFactory
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static IReadOnlyList<ICustomCanvasRenderer> BuildRenderers(
-        HsmAsset asset,
+        HsmAsset                hsmAsset,
+        IHsmDebugSession?       hsmDebugSession,
+        IDataBreakpointManager? breakpointManager,
         IReadOnlyList<ICustomCanvasRenderer>? extra)
     {
-        // Include the standard HSM custom renderers.
+        // ── Registration order (per design-talk §9) ──────────────────────────
+        // AfterWires pass:
+        //   1. HsmTransitionLabelRenderer — event/guard/action text on transition links
+        // AfterNodes pass (strictly ordered for correct z-index):
+        //   2. HsmInitialArrowRenderer    — initial-child arrow markers
+        //   3. HsmRegionConflictsRenderer — yellow warning lines for output-lane collisions
+        //   4. HsmHistoryGlyphsRenderer   — circled H / H* / ⊙ final glyphs
+        //   5. HsmBreakpointGutterRenderer— red dot for armed breakpoints
+        //   6. HsmRuntimeOverlayRenderer  — teal glow on active-config (last: most ephemeral)
+
+        var runtimeOverlay = new HsmRuntimeOverlayRenderer(hsmAsset);
+        var gutterRenderer = new HsmBreakpointGutterRenderer(hsmAsset);
+
+        // Wire HSM-specific debug session into overlay and gutter.
+        if (hsmDebugSession != null)
+        {
+            runtimeOverlay.SetSession(hsmDebugSession);
+            gutterRenderer.SetSession(hsmDebugSession);
+        }
+        if (breakpointManager != null)
+            gutterRenderer.SetManager(breakpointManager);
+
         var list = new List<ICustomCanvasRenderer>
         {
-            new HsmTransitionLabelRenderer(asset),
-            new HsmInitialArrowRenderer(asset),
-            new HsmHistoryGlyphsRenderer(asset),
-            new HsmRegionConflictsRenderer(asset),
+            new HsmTransitionLabelRenderer(hsmAsset),  // AfterWires
+            new HsmInitialArrowRenderer(hsmAsset),     // AfterNodes
+            new HsmRegionConflictsRenderer(hsmAsset),  // AfterNodes (above initial arrows)
+            new HsmHistoryGlyphsRenderer(hsmAsset),    // AfterNodes (above conflicts)
+            gutterRenderer,                            // AfterNodes (above glyphs)
+            runtimeOverlay,                            // AfterNodes (last — most ephemeral)
         };
 
         if (extra != null)

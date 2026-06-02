@@ -37,6 +37,12 @@ public sealed class BTreeRuntimeOverlayRenderer : ICustomCanvasRenderer
     public CanvasRenderPass Pass => CanvasRenderPass.AfterNodes;
 
     /// <summary>
+    /// False when no debug session is attached — the canvas skips the renderer
+    /// entirely so there is no per-frame overhead during authoring.
+    /// </summary>
+    public bool IsActive => _session != null;
+
+    /// <summary>
     /// Node VisualIds for which an async-pending badge was drawn in the most recent
     /// Render() call.  Reset to empty at the start of each Render().
     /// Used by unit tests that cannot inspect ImGui draw list calls directly.

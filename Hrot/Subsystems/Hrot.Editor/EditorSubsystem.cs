@@ -1565,13 +1565,17 @@ namespace Hrot.Editor
                     () => _hsmDebugSession);
             // ────────────────────────────────────────────────────────────────────────────────────
 
-            // Build per-perspective selection stores and registrars (side panels only — no canvas yet).
+            // Build per-perspective selection stores and registrars.
+            // AIE-034: pass _bpManager so each perspective gets Watch + Breakpoints windows.
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
-                "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry);
+                "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
+                breakpointManager: _bpManager);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
-                "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry);
+                "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
+                breakpointManager: _bpManager);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
-                "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry);
+                "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
+                breakpointManager: _bpManager);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
@@ -1663,12 +1667,19 @@ namespace Hrot.Editor
                 switch (doc.Kind)
                 {
                     case Hrot.Editor.AiShared.AssetKind.BTree:
+                        // AIE-033: inject BTree debug session + breakpoint manager so runtime
+                        // overlay and breakpoint-gutter renderers bind to the active session.
                         doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
-                            doc.Asset, adapterBundle, _btreeSelectionStore);
+                            doc.Asset, adapterBundle, _btreeSelectionStore,
+                            btreeDebugSession:   _btreeDebugSession,
+                            breakpointManager:   _bpManager);
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Hsm:
+                        // AIE-033: inject HSM debug session + breakpoint manager.
                         doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
-                            doc.Asset, adapterBundle);
+                            doc.Asset, adapterBundle,
+                            hsmDebugSession:   _hsmDebugSession,
+                            breakpointManager: _bpManager);
                         break;
                 }
 

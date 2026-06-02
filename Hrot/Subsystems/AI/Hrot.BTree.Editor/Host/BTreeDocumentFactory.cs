@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using Hrot.BTree.Editor.Debug;
 using Hrot.BTree.Editor.Model;
 using Hrot.BTree.Editor.Renderers;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Documents;
@@ -48,7 +50,21 @@ public static class BTreeDocumentFactory
     ///   Per-perspective selection store; used by <see cref="VariableBindingBadgeRenderer"/>.
     ///   When <c>null</c> a new empty store is created.
     /// </param>
-    /// <param name="debugSession">Optional debug session (null while Phase 3 is not wired).</param>
+    /// <param name="debugSession">
+    ///   Optional NodeEdit <see cref="IDebugSession"/> (executing-node overlay in the canvas UI).
+    ///   Stored in <see cref="BTreeEditorHostServices.Debug"/> and used by the canvas renderer.
+    /// </param>
+    /// <param name="btreeDebugSession">
+    ///   Optional BTree-specific debug session.  When non-null, the runtime-overlay and
+    ///   breakpoint-gutter renderers bind to it so live execution state is shown.
+    ///   When null (authoring mode), both renderers report <c>IsActive==false</c>
+    ///   so there is no per-frame cost.
+    /// </param>
+    /// <param name="breakpointManager">
+    ///   Optional shared <see cref="IDataBreakpointManager"/>. When non-null, the
+    ///   breakpoint-gutter renderer also draws dots for breakpoints registered in the
+    ///   universal-breakpoint stack (AIE-034 / UBP-P10).
+    /// </param>
     /// <param name="extraRenderers">
     ///   Optional additional custom canvas renderers to append after the built-in BTree set.
     /// </param>
@@ -58,10 +74,12 @@ public static class BTreeDocumentFactory
     ///   Thrown when <paramref name="asset"/> is not a <see cref="BehaviorTreeAsset"/>.
     /// </exception>
     public static AiCanvasContext Build(
-        IEditableAsset        asset,
-        AiEditorAdapterBundle bundle,
-        EditorSelectionStore? selectionStore      = null,
-        IDebugSession?        debugSession        = null,
+        IEditableAsset          asset,
+        AiEditorAdapterBundle   bundle,
+        EditorSelectionStore?   selectionStore      = null,
+        IDebugSession?          debugSession        = null,
+        IBTreeDebugSession?     btreeDebugSession   = null,
+        IDataBreakpointManager? breakpointManager   = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
     {
         if (asset is null)   throw new ArgumentNullException(nameof(asset));
@@ -83,7 +101,7 @@ public static class BTreeDocumentFactory
 
         // ── 3. Custom renderers (built-in BTree set + caller extras) ──────────
         var store = selectionStore ?? new EditorSelectionStore();
-        var renderers = BuildRenderers(btAsset, store, extraRenderers);
+        var renderers = BuildRenderers(btAsset, store, btreeDebugSession, breakpointManager, extraRenderers);
 
         // ── 4. Host services ──────────────────────────────────────────────────
         var hostServices = new BTreeEditorHostServices(
@@ -100,6 +118,11 @@ public static class BTreeDocumentFactory
             debug:           debugSession,
             customRenderers: renderers);
 
+        // Wire breakpoint manager into the host services (command-sink path via
+        // BTreeBreakpointContextMenuProvider; also makes BpGutterRenderer accessible).
+        if (breakpointManager != null)
+            hostServices.SetBreakpointManager(breakpointManager);
+
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
             graphModel,
@@ -115,16 +138,43 @@ public static class BTreeDocumentFactory
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private static IReadOnlyList<ICustomCanvasRenderer> BuildRenderers(
-        BehaviorTreeAsset asset,
-        EditorSelectionStore store,
+        BehaviorTreeAsset       asset,
+        EditorSelectionStore    store,
+        IBTreeDebugSession?     btreeDebugSession,
+        IDataBreakpointManager? breakpointManager,
         IReadOnlyList<ICustomCanvasRenderer>? extra)
     {
-        // Include the standard BTree custom renderers with their correct ctors.
+        // ── Registration order (per design-talk §9) ──────────────────────────
+        // BeforeContent pass:
+        //   1. HeatmapOverlayRenderer  — node frequency heat map (background fill)
+        //   2. SubtreeBoundaryRenderer — dashed subtree rectangle (background hint)
+        // AfterWires pass:
+        //   3. ObserverGuardBadgeRenderer     — "OBSERVES" badge on guard connections
+        //   4. VariableBindingBadgeRenderer   — variable-binding pins
+        // AfterNodes pass:
+        //   5. BTreeBreakpointGutterRenderer  — red dot in node gutter for armed BPs
+        //   6. BTreeRuntimeOverlayRenderer    — pulsing gold outline on executing node
+
+        var runtimeOverlay = new BTreeRuntimeOverlayRenderer();
+        var gutterRenderer = new BTreeBreakpointGutterRenderer(asset);
+
+        // Wire BTree-specific debug session into overlay and gutter.
+        if (btreeDebugSession != null)
+        {
+            runtimeOverlay.SetSession(btreeDebugSession);
+            gutterRenderer.SetSession(btreeDebugSession);
+        }
+        if (breakpointManager != null)
+            gutterRenderer.SetManager(breakpointManager);
+
         var list = new List<ICustomCanvasRenderer>
         {
-            new SubtreeBoundaryRenderer(asset),
-            new ObserverGuardBadgeRenderer(),
-            new VariableBindingBadgeRenderer(store),
+            new HeatmapOverlayRenderer(asset),         // BeforeContent
+            new SubtreeBoundaryRenderer(asset),        // BeforeContent
+            new ObserverGuardBadgeRenderer(),          // AfterWires
+            new VariableBindingBadgeRenderer(store),   // AfterWires
+            gutterRenderer,                            // AfterNodes
+            runtimeOverlay,                            // AfterNodes (last — most ephemeral)
         };
 
         if (extra != null)

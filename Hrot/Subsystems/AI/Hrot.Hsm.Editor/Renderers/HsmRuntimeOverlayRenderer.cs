@@ -38,6 +38,12 @@ public sealed class HsmRuntimeOverlayRenderer : ICustomCanvasRenderer
     public string Id   => "hsm.runtime_overlay";
     public CanvasRenderPass Pass => CanvasRenderPass.AfterNodes;
 
+    /// <summary>
+    /// False when no debug session is attached — the canvas skips the renderer
+    /// entirely so there is no per-frame overhead during authoring.
+    /// </summary>
+    public bool IsActive => _session != null;
+
     /// <summary>Attaches or detaches the debug session used for overlay data.</summary>
     public void SetSession(IHsmDebugSession? session) => _session = session;
 

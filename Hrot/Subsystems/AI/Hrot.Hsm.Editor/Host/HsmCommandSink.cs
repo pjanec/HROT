@@ -86,7 +86,29 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)       { /* TODO */ }
     private void ApplyAddLink(GraphCommand.AddLink cmd)               { /* TODO */ }
     private void ApplyRemoveLinks(GraphCommand.RemoveLinks cmd)       { /* TODO */ }
-    private void ApplySetNodeProperty(GraphCommand.SetNodeProperty cmd) { /* TODO */ }
+    private void ApplySetNodeProperty(GraphCommand.SetNodeProperty cmd)
+    {
+        // Handle well-known property keys.
+        switch (cmd.Key)
+        {
+            case "isBreakpoint":
+            {
+                bool value = cmd.Value is bool b && b;
+                // Try state node first, then transition.
+                var state = _asset.FindStateByStableId(cmd.Node.Value);
+                if (state is not null)
+                    state.IsBreakpoint = value;
+                else
+                {
+                    var trans = _asset.FindTransitionByVisualId(cmd.Node.Value);
+                    if (trans is not null)
+                        trans.IsBreakpoint = value;
+                }
+                break;
+            }
+            // Other property keys are silently ignored (forward-compatible).
+        }
+    }
     private void ApplyChangeParent(GraphCommand.ChangeParent cmd)     { /* TODO */ }
     private void ApplySetContainerCollapsed(GraphCommand.SetContainerCollapsed cmd) { /* TODO */ }
     private void ApplyAddRegion(GraphCommand.AddRegion cmd)
