@@ -37,5 +37,15 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary><c>CrowdAgent</c> — tag component opting the entity into Detour crowd avoidance.</summary>
         public const int CrowdAgent                     = 261;
+
+        // IDs 262-264 are occupied by GlobalComponentIds (DangerAreaSensor, DangerAreaCognitiveBuffer,
+        // MovementModeIntent). CrowdMotorIntent is placed at 265, continuing the navigation block.
+
+        /// <summary>
+        /// <c>CrowdMotorIntent</c> — engine-agnostic steering output written by
+        /// <c>CrowdAgentUpdateSystem</c> (P2-T4) and read by <c>BulletCharacterMotor</c>
+        /// (P1-T3, design §5.3).
+        /// </summary>
+        public const int CrowdMotorIntent               = 265;
     }
 }

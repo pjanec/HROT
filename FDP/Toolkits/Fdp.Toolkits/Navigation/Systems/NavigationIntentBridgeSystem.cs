@@ -7,6 +7,7 @@ using CarKinem.Trajectory;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using NLog;
 
 namespace Fdp.Toolkit.Navigation.Systems
 {
@@ -41,11 +42,16 @@ namespace Fdp.Toolkit.Navigation.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public class NavigationIntentBridgeSystem : IEcsModuleSystem
     {
+        private static readonly Logger Log = LogManager.GetCurrentClassLogger();
+
         // FIX: Cache by the full Entity struct (Index + Generation) to prevent
         // false-positives when entity indices are recycled by the free-list.
         private readonly Dictionary<Entity, uint> _lastAppliedIntentId = new();
 
         // Cache for LocomotionChannel action idempotency (keyed by full Entity).
+        // IMPORTANT (STR-D21 F6 fix): the ActionInstanceId is only cached when crowd
+        // registration succeeds.  If RegisterAgent returns false (crowd not yet initialized)
+        // we do NOT update this dict so the bridge retries on the next tick.
         private readonly Dictionary<Entity, uint> _lastAppliedActionInstanceId = new();
 
         private readonly TrajectoryPoolManager? _trajectoryPool;
@@ -185,6 +191,12 @@ namespace Fdp.Toolkit.Navigation.Systems
                     continue;
                 }
 
+                // STR-D21 F6 fix: when crowd registration is deferred (RegisterAgent returns
+                // false because the navmesh is not yet baked), we must NOT cache the
+                // ActionInstanceId — so the bridge retries on the next tick.
+                // This flag is set to false only in the deferred-crowd path below.
+                bool cacheActionId = true;
+
                 switch (ch.ActiveAction)
                 {
                     case NavigationConstants.ActionIdMoveTo:
@@ -212,6 +224,23 @@ namespace Fdp.Toolkit.Navigation.Systems
                         });
 
                         // Crowd registration for infantry (entities without VehicleState).
+                        // STR-D21 F6 fix: if RegisterAgent returns false (crowd provider not yet
+                        // initialized — the DotRecastDtCrowdProvider is deferred until BakeNavmesh
+                        // supplies the navmesh), do NOT cache ActionInstanceId so we retry next tick.
+                        //
+                        // BATCH-27 belt-and-suspenders diagnostic: log when crowd registration is
+                        // skipped because VehicleState is present.  On a correctly-configured GPU
+                        // run this branch should NEVER fire for InfantrySoldier entities (TKB 2002)
+                        // after the BATCH-26 VehicleKinematicsTkbTranslator fix (ShapeKind=Capsule →
+                        // no VehicleState injected).  If it does fire, the translator fix is absent.
+                        if (_dtCrowd != null && repo.HasComponent<VehicleState>(entity))
+                        {
+                            Log.Warn("[BridgeReg] entity #{0} has VehicleState — crowd registration SKIPPED " +
+                                     "(BATCH-26 VehicleKinematicsTkbTranslator fix missing? ShapeKind must be " +
+                                     "CollisionShapeKind.Capsule to prevent VehicleState injection on infantry). " +
+                                     "actionId={1}",
+                                entity.Index, ch.ActionInstanceId);
+                        }
                         if (_dtCrowd != null && !repo.HasComponent<VehicleState>(entity))
                         {
                             var profile = repo.HasComponent<NavAgentProfile>(entity)
@@ -221,21 +250,62 @@ namespace Fdp.Toolkit.Navigation.Systems
                             float radius  = profile.AgentRadius > 0f ? profile.AgentRadius : 0.4f;
                             float maxSpd  = p.Speed > 0f ? p.Speed : 5f;
 
-                            _dtCrowd.RegisterAgent(entity, new CrowdAgentParams
+                            // BATCH-26 / STR-D20: pass the entity's current SimTransform position as
+                            // the agent start position so DtCrowd places the agent at a valid navmesh
+                            // polygon from frame 1.  Without this the agent starts at (0,0,0) — the
+                            // crowd may plan a path from the wrong polygon and produce zero velocity
+                            // until the agent teleports to the real position on the first Update() call.
+                            bool registered = _dtCrowd.RegisterAgent(entity, new CrowdAgentParams
                             {
                                 Radius          = radius,
                                 Height          = profile.AgentHeight > 0f ? profile.AgentHeight : 1.8f,
                                 MaxSpeed        = maxSpd,
                                 MaxAcceleration = 20f,
                                 SeparationWeight = 2,
-                            });
+                            }, from);
 
-                            // Tag the entity as crowd-managed.
-                            if (!repo.HasComponent<CrowdAgent>(entity))
-                                repo.AddComponent(entity, default(CrowdAgent));
+                            if (registered)
+                            {
+                                // Tag the entity as crowd-managed.
+                                if (!repo.HasComponent<CrowdAgent>(entity))
+                                    repo.AddComponent(entity, default(CrowdAgent));
 
-                            // Set the target in the crowd provider (carry real Z, P3D-302).
-                            _dtCrowd.SetAgentTarget(entity, p.Destination);
+                                // Set the target in the crowd provider (carry real Z, P3D-302).
+                                _dtCrowd.SetAgentTarget(entity, p.Destination);
+
+                                // Diagnostic: log successful registration (once per entity).
+                                // [BridgeReg] tag allows GPU operator to grep for F6 confirmation.
+                                Log.Info("[BridgeReg] entity #{0} crowd-registered: " +
+                                         "radius={1:F2} maxSpd={2:F1} dest=({3:F1},{4:F1}) actionId={5}",
+                                    entity.Index, radius, maxSpd,
+                                    p.Destination.X, p.Destination.Y, ch.ActionInstanceId);
+                            }
+                            else
+                            {
+                                // RegisterAgent returned false — either the crowd is not yet
+                                // initialized (navmesh not baked yet) or the entity was already
+                                // registered.
+                                bool alreadyRegistered = _dtCrowd.TryGetAgentSnapshot(entity, out _);
+                                if (alreadyRegistered)
+                                {
+                                    // Entity already in crowd — just update the target.
+                                    _dtCrowd.SetAgentTarget(entity, p.Destination);
+                                    if (!repo.HasComponent<CrowdAgent>(entity))
+                                        repo.AddComponent(entity, default(CrowdAgent));
+                                    Log.Debug("[BridgeReg] entity #{0} already crowd-registered — " +
+                                              "updated target to ({1:F1},{2:F1}).",
+                                        entity.Index, p.Destination.X, p.Destination.Y);
+                                }
+                                else
+                                {
+                                    // Crowd not yet initialized; do NOT cache ActionInstanceId —
+                                    // bridge will retry on every subsequent tick until ready.
+                                    Log.Debug("[BridgeReg] entity #{0} RegisterAgent deferred " +
+                                              "(crowd not initialized yet). Will retry next tick.",
+                                        entity.Index);
+                                    cacheActionId = false;
+                                }
+                            }
                         }
                         break;
                     }
@@ -329,7 +399,11 @@ namespace Fdp.Toolkit.Navigation.Systems
                     }
                 }
 
-                _lastAppliedActionInstanceId[entity] = ch.ActionInstanceId;
+                // Only cache the ActionInstanceId when the action was fully processed.
+                // If cacheActionId=false (deferred crowd not ready), we skip caching so the
+                // bridge retries this action on every subsequent tick.
+                if (cacheActionId)
+                    _lastAppliedActionInstanceId[entity] = ch.ActionInstanceId;
             }
         }
     }

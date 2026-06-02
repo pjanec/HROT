@@ -118,6 +118,12 @@ namespace Fdp.Core.FlightRecorder
         /// <param name="eventBus">Optional event bus to capture events from for this frame.</param>
         public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
         {
+            // Safe-after-dispose: once the output stream has been closed (e.g. a deterministic
+            // finalize via RecordingModule.FlushAndClose, BATCH-16 Fix B) the still-installed
+            // RecorderTickSystem may fire one more time before the kernel swaps it out. Silently
+            // skip rather than writing to a disposed FileStream.
+            if (_disposed) return;
+
             // Auto-Recovery: If we dropped a frame previously, force a Keyframe now to restore state.
             if (_forceKeyframeNext)
             {
@@ -184,6 +190,9 @@ namespace Fdp.Core.FlightRecorder
         /// </param>
         public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
         {
+            // Safe-after-dispose (BATCH-16 Fix B): skip if the output stream is already closed.
+            if (_disposed) return;
+
             // Wait for previous frame to complete
             _workerTask?.Wait();
             

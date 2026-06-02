@@ -17,6 +17,23 @@ namespace CarKinem.Tkb
     /// Also stamps navigation contract components required by MoveToExecutor:
     ///   NavigationIntent, NavigationStatus, FrustrationTicks, FormationController.
     /// Each AddComponent call is guarded by IsComponentTypeRegistered.
+    ///
+    /// <para>
+    /// <b>BATCH-26 / STR-D20 fix:</b> <see cref="VehicleState"/> and <see cref="VehicleParams"/>
+    /// are only injected when the template carries a <see cref="StrideRenderModelDefDto"/> with
+    /// <c>ShapeKind == CollisionShapeKind.OrientedBox</c> (true vehicles).  Capsule-shaped
+    /// entities (infantry, civilians) carry a <see cref="VehicleParametersDto"/> to configure
+    /// their walk-speed parameters, but they must NOT receive <see cref="VehicleState"/> — the
+    /// <see cref="Fdp.Toolkit.Navigation.Systems.NavigationIntentBridgeSystem"/> uses
+    /// <c>!HasComponent&lt;VehicleState&gt;</c> as the crowd-eligibility guard, so injecting it
+    /// unconditionally on infantry prevented crowd registration (F6 GPU failure).
+    /// </para>
+    ///
+    /// <para>
+    /// The navigation contract components (NavigationIntent, NavigationStatus, FrustrationTicks,
+    /// FormationController) continue to be stamped on ALL VehicleParametersDto-carrying entities,
+    /// since both infantry and vehicles need them for the BehaviorTree MoveToExecutor front door.
+    /// </para>
     /// </summary>
     public sealed class VehicleKinematicsTkbTranslator : ITkbEntityTranslator
     {
@@ -30,18 +47,29 @@ namespace CarKinem.Tkb
             var dto = template.GetDescriptor<VehicleParametersDto>();
             if (dto == null) return;
 
-            if (repo.IsComponentTypeRegistered<VehicleParams>() && !repo.HasComponent<VehicleParams>(entity))
-                repo.AddComponent(entity, new VehicleParams
-                {
-                    Length      = dto.Length,
-                    Width       = dto.Width,
-                    WheelBase   = dto.Length * 0.6f,
-                    MaxSpeedFwd = dto.MaxSpeedFwd,
-                    MaxAccel    = dto.MaxAccel
-                });
+            // ── STR-D20 fix (BATCH-26): only inject VehicleParams/VehicleState for vehicle-shaped
+            // entities (OrientedBox).  Infantry/civilian templates carry VehicleParametersDto for
+            // walk-speed configuration but have ShapeKind=Capsule — they must NOT receive
+            // VehicleState or the NavigationIntentBridgeSystem will exclude them from crowd nav.
+            var renderDef = template.GetDescriptor<StrideRenderModelDefDto>();
+            bool isVehicleShaped = renderDef == null
+                || renderDef.ShapeKind == CollisionShapeKind.OrientedBox;
 
-            if (repo.IsComponentTypeRegistered<VehicleState>() && !repo.HasComponent<VehicleState>(entity))
-                repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = 0 });
+            if (isVehicleShaped)
+            {
+                if (repo.IsComponentTypeRegistered<VehicleParams>() && !repo.HasComponent<VehicleParams>(entity))
+                    repo.AddComponent(entity, new VehicleParams
+                    {
+                        Length      = dto.Length,
+                        Width       = dto.Width,
+                        WheelBase   = dto.Length * 0.6f,
+                        MaxSpeedFwd = dto.MaxSpeedFwd,
+                        MaxAccel    = dto.MaxAccel
+                    });
+
+                if (repo.IsComponentTypeRegistered<VehicleState>() && !repo.HasComponent<VehicleState>(entity))
+                    repo.AddComponent(entity, new VehicleState { Speed = 0, SteerAngle = 0 });
+            }
 
             if (repo.IsComponentTypeRegistered<NavState>() && !repo.HasComponent<NavState>(entity))
                 repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });

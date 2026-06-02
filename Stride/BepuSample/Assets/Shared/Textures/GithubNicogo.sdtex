@@ -1,7 +1,0 @@
-!Texture
-Id: 9fc218d5-24b8-4c96-a964-2c97b7f3f095
-SerializedVersion: {Stride: 2.0.0.0}
-Tags: []
-Source: !file ../../../Resources/Github.png
-Type: !ColorTextureType
-    ColorKeyColor: {R: 255, G: 0, B: 255, A: 255}

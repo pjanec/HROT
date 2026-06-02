@@ -171,8 +171,21 @@ namespace Hrot.SimHost.Modules.Orchestration
                 return;
             }
             _activeRecordingModule.SetMaxNetworkId(maxNetworkId);
-            await _kernel.UninstallModuleAsync(_activeRecordingModule);
+
+            // BATCH-16 Fix B: UninstallModuleAsync is the only safe place to close the recorder
+            // writer — it first removes the RecorderTickSystem from the topology (so no more ticks
+            // can write), drains in-flight write tasks, and only THEN disposes the RecordingModule,
+            // which closes the AsyncRecorder's FileStream (opened FileShare.None). Disposing earlier
+            // (on this thread) would race the still-live RecorderTickSystem on the kernel loop
+            // thread. Awaiting this guarantees the module is drained + disposed before we return.
+            //
+            // RecordingModule.Dispose now additionally blocks until the writer handle is verifiably
+            // released by the OS (WaitForWriterRelease), so the D9 record→replay-same-file path no
+            // longer throws IOException("…node_0.fdp… used by another process") when the ReplayModule
+            // opens the file for read immediately after this returns.
+            var finalizing = _activeRecordingModule;
             _activeRecordingModule = null;
+            await _kernel.UninstallModuleAsync(finalizing);
         }
 
         // ── Episode recording ───────────────────────────────────────────────────────

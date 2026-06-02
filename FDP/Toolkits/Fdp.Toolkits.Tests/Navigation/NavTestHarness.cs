@@ -67,6 +67,11 @@ namespace Fdp.Toolkit.Navigation.Tests
             // VehicleState component needed for SpawnVehicle and to prevent crowd registration.
             world.RegisterComponent<VehicleState>();
 
+            // CrowdMotorIntent: written by CrowdAgentUpdateSystem (P2-T4 refactor).
+            // The harness integrates position from this intent in Tick() to simulate
+            // what BulletCharacterMotor does in the real Stride app.
+            world.RegisterComponent<CrowdMotorIntent>();
+
             // Events needed by off-mesh traversal tests.
             world.RegisterEvent<OffMeshTraversalStartedEvent>();
 
@@ -104,6 +109,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             Repo.AddComponent(entity, new LocomotionChannel());
             Repo.AddComponent(entity, new NavAgentProfile { AgentRadius = 0.4f, AgentHeight = 1.8f });
             Repo.AddComponent(entity, new CrowdAgent());
+            Repo.AddComponent(entity, new CrowdMotorIntent());
             return entity;
         }
 
@@ -277,8 +283,14 @@ namespace Fdp.Toolkit.Navigation.Tests
             _materialize.Execute(Repo, Dt);
             // 6b. Off-mesh detection (must be BEFORE CrowdUpdate to suppress velocity this tick).
             _offMeshDetect.Execute(Repo, Dt);
-            // 7. CrowdUpdate: integrates agent positions.
+            // 7. CrowdUpdate: writes CrowdMotorIntent (P2-T4 refactor; no longer integrates position).
             _crowdUpdate.Execute(Repo, Dt);
+            // 7.post. Position integration stand-in: in the real Stride app, BulletCharacterMotor
+            // reads CrowdMotorIntent and the physics step moves the body; BulletReverseSyncSystem
+            // then writes SimTransform from the physics body. In this headless harness there is no
+            // physics engine, so we integrate position directly from the intent to keep agent
+            // positions advancing as navigation requires.
+            IntegratePositionsFromIntent(Dt);
             // 7a. Sync solver trajectories into PathRegistry so CorridorPreviewSystem can read
             //     waypoints.  The solver stores paths in TrajectoryPoolManager; PathRegistry.Muscle
             //     is populated here for any entity whose RouteHandle exists in the pool.
@@ -314,6 +326,7 @@ namespace Fdp.Toolkit.Navigation.Tests
             Repo.AddComponent(entity, new LocomotionChannel());
             Repo.AddComponent(entity, new NavAgentProfile { AgentRadius = 0.4f, AgentHeight = 1.8f, MobilityProfile = 4 });
             Repo.AddComponent(entity, new CrowdAgent());
+            Repo.AddComponent(entity, new CrowdMotorIntent());
             return entity;
         }
 
@@ -337,6 +350,7 @@ namespace Fdp.Toolkit.Navigation.Tests
                 PreferredLayerMask   = (uint)NavLayerMask.Naval,
             });
             Repo.AddComponent(entity, new CrowdAgent());
+            Repo.AddComponent(entity, new CrowdMotorIntent());
             return entity;
         }
 
@@ -363,6 +377,50 @@ namespace Fdp.Toolkit.Navigation.Tests
         /// PathRegistry.Muscle so that CorridorPreviewSystem.TryGetWaypointsSlice succeeds.
         /// Called once per tick, between CrowdUpdate and CorridorPreviewSystem.
         /// </summary>
+        /// <summary>
+        /// Integrates <see cref="SimTransform.Position"/> from <see cref="CrowdMotorIntent.Velocity"/>
+        /// for all CrowdAgent entities, simulating what BulletCharacterMotor + BulletReverseSyncSystem
+        /// do in the real Stride app. Required for headless navigation integration tests after the
+        /// P2-T4 refactor that removed position integration from <see cref="CrowdAgentUpdateSystem"/>.
+        /// </summary>
+        private void IntegratePositionsFromIntent(float dt)
+        {
+            if (!Repo.IsComponentTypeRegistered<CrowdMotorIntent>())
+                return;
+
+            var query = Repo.Query()
+                .With<CrowdAgent>()
+                .With<CrowdMotorIntent>()
+                .With<NavigationStatus>()
+                .Build();
+
+            foreach (var entity in query)
+            {
+                var status = Repo.GetComponent<NavigationStatus>(entity);
+                if (status.Phase == NavigationPhase.AwaitingTraversal)
+                    continue;
+
+                var intent = Repo.GetComponent<CrowdMotorIntent>(entity);
+
+                // Mirror to SimVelocity ALWAYS (even zero velocity) so NavigationExecutionSystem
+                // can detect frustration when an agent is stuck at zero speed.
+                if (Repo.HasComponent<SimVelocity>(entity))
+                {
+                    var sv = Repo.GetComponent<SimVelocity>(entity);
+                    sv.Linear = intent.Velocity;
+                    Repo.SetComponent(entity, sv);
+                }
+
+                // Integrate position only when velocity is non-zero.
+                if (intent.Velocity == System.Numerics.Vector3.Zero)
+                    continue;
+
+                if (!Repo.HasComponent<SimTransform>(entity)) continue;
+                ref var tf = ref Repo.GetComponentRW<SimTransform>(entity);
+                tf.Position += intent.Velocity * dt;
+            }
+        }
+
         private void SyncSolverTrajectoriesIntoPathRegistry()
         {
             var muscleQuery = Repo.Query().With<NavigationCorridorMuscle>().Build();

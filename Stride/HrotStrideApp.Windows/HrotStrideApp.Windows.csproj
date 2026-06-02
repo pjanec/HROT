@@ -4,7 +4,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <RootNamespace>HrotStrideApp</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
@@ -13,6 +13,11 @@
 
     <!-- Force msbuild to check to rebuild this assembly instead of letting VS IDE guess -->
     <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+
+    <!-- HrotStrideApp.Windows does not define any CycloneDDS IDL topics.
+         The code-generator is pulled transitively through the ProjectReference chain but
+         fails on Stride/Windows projects due to command-line length.  Suppress it. -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
   </PropertyGroup>
 
   <ItemGroup>
