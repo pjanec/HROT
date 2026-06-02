@@ -1,6 +1,8 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Diagnostics.Breakpoints;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
@@ -95,6 +97,23 @@ public class PerspectiveWorkspaceRegistrar
     ///   registered by <see cref="RegisterWindows"/>. Both windows share this single manager
     ///   instance — no duplication.
     /// </param>
+    /// <param name="sanitizerRegistry">
+    ///   Optional comparison sanitizer registry. Forwarded to
+    ///   <see cref="BlackboardAuthoringWindow"/> so the comparison toolbar is shown (AIE-050).
+    /// </param>
+    /// <param name="exportBuilder">
+    ///   Optional comparison export builder. Forwarded to <see cref="BlackboardAuthoringWindow"/>
+    ///   (AIE-050).
+    /// </param>
+    /// <param name="sessionRegistry">
+    ///   Optional comparison session registry. Forwarded to <see cref="BlackboardAuthoringWindow"/>
+    ///   (AIE-050).
+    /// </param>
+    /// <param name="aggregatorService">
+    ///   Optional blackboard aggregator service. Forwarded to <see cref="BlackboardAuthoringWindow"/>
+    ///   so budget warnings from sub-tree DTO requirements surface in the bin-packing display
+    ///   (AIE-052).
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -102,7 +121,11 @@ public class PerspectiveWorkspaceRegistrar
         IRefactorService refactorService,
         IDebugSessionRegistry debugRegistry,
         IReadOnlyList<IAssetValidator>? validators = null,
-        IDataBreakpointManager? breakpointManager = null)
+        IDataBreakpointManager? breakpointManager = null,
+        SanitizerRegistry? sanitizerRegistry = null,
+        ComparisonExportBuilder? exportBuilder = null,
+        ComparisonSessionRegistry? sessionRegistry = null,
+        BlackboardAggregatorService? aggregatorService = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -140,10 +163,14 @@ public class PerspectiveWorkspaceRegistrar
             owningPerspective: perspectiveName);
 
         BlackboardAuthoring = new BlackboardAuthoringWindow(
-            store:             selectionStore,
-            refactorService:   refactorService,
-            idOverride:        $"ai_blackboard_variables_{suffix}",
-            owningPerspective: perspectiveName);
+            store:              selectionStore,
+            refactorService:    refactorService,
+            sanitizerRegistry:  sanitizerRegistry,
+            exportBuilder:      exportBuilder,
+            sessionRegistry:    sessionRegistry,
+            aggregatorService:  aggregatorService,
+            idOverride:         $"ai_blackboard_variables_{suffix}",
+            owningPerspective:  perspectiveName);
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,

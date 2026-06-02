@@ -48,9 +48,13 @@ public sealed class BlackboardAggregatorService
         _catalog = catalog;
     }
 
-    // Registers a strategy after construction; used for test bootstrapping to
-    // break the circular dependency between service and strategy.
-    internal void Register(IBlackboardAggregatorStrategy strategy) => _strategies.Add(strategy);
+    /// <summary>
+    /// Registers a strategy after construction.
+    /// Used to break the circular dependency between the service and its strategies
+    /// (strategies accept the service in their constructors for recursive aggregation).
+    /// Must be called before the first <see cref="Aggregate"/> invocation.
+    /// </summary>
+    public void Register(IBlackboardAggregatorStrategy strategy) => _strategies.Add(strategy);
 
     public AggregationResult Aggregate(IEditableAsset asset)
     {

@@ -104,7 +104,9 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Host;
 using Hrot.Blueprints.Editor.Catalog;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Refactor;
@@ -116,6 +118,12 @@ using Hrot.Hsm.Editor.Host;
 // AIE-030/031/032: BTree/HSM debug session infrastructure
 using Hrot.BTree.Editor.Inspector;
 using Hrot.Hsm.Editor.Inspector;
+// AIE-050/051/052: cross-asset services
+using Hrot.BTree.Editor.Blackboard;
+using Hrot.BTree.Editor.Comparison;
+using Hrot.Hsm.Editor.Blackboard;
+using Hrot.Hsm.Editor.Comparison;
+using Hrot.Blueprints.Editor.Comparison;
 
 namespace Hrot.Editor
 {
@@ -1549,12 +1557,46 @@ namespace Hrot.Editor
             _perspectiveSwitcher = new WindowManagerPerspectiveSwitcher(windowManager);
 
             // Build shared services needed by registrars.
-            var catalog         = _aiCatalogBuilder?.Catalog ?? new AssetCatalog();
-            var referenceCatalog = new ReferenceCatalog(catalog);
+            var catalog = _aiCatalogBuilder?.Catalog ?? new AssetCatalog();
+
+            // ── AIE-051: Reference catalog contributors ───────────────────────────────────────────
+            var referenceContributors = new IReferenceCatalogContributor[]
+            {
+                new BTreeBlackboardVariableContributor(),
+                new HsmReferenceContributor(),
+                new BlueprintReferenceContributor(),
+            };
+            var referenceCatalog = new ReferenceCatalog(catalog, referenceContributors);
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             var refactorService = new RefactorService(
                 referenceCatalog,
                 catalog,
                 new AtomicMultiFileWriter());
+
+            // ── AIE-050: Comparison sanitizers + ComparisonExportBuilder ─────────────────────────
+            var sanitizerRegistry = new SanitizerRegistry();
+            sanitizerRegistry.Register(new BTreeComparisonSanitizer(catalog));
+            sanitizerRegistry.Register(new HsmComparisonSanitizer(catalog));
+            sanitizerRegistry.Register(new BlueprintComparisonSanitizer(
+                new NoOpComparisonMigrationAdapter(),
+                new NoOpMetaEnvelopeSanitizer(),
+                catalog));
+            var comparisonExportBuilder = new ComparisonExportBuilder();
+            var comparisonSessionRegistry = new ComparisonSessionRegistry();
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
+            // ── AIE-052: Blackboard aggregator service + strategies ───────────────────────────────
+            // Construct service with empty strategy list, then register strategies after to break
+            // the circular dependency (service ↔ strategies take each other in their ctors).
+            var aggregatorService = new BlackboardAggregatorService(
+                Array.Empty<IBlackboardAggregatorStrategy>(),
+                new ActionSchemaExporter(),
+                catalog);
+            aggregatorService.Register(new BTreeBlackboardAggregatorStrategy(aggregatorService));
+            aggregatorService.Register(new HsmBlackboardAggregatorStrategy(aggregatorService));
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             var debugRegistry   = new DebugSessionRegistry();
             var liveProvider    = new LiveSessionRegistry();
 
@@ -1573,15 +1615,28 @@ namespace Hrot.Editor
 
             // Build per-perspective selection stores and registrars.
             // AIE-034: pass _bpManager so each perspective gets Watch + Breakpoints windows.
+            // AIE-050: pass comparison services so BlackboardAuthoringWindow shows comparison toolbar.
+            // AIE-052: pass aggregatorService so BlackboardAuthoringWindow runs bin-packing with sub-tree requirements.
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
                 "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager: _bpManager);
+                breakpointManager:    _bpManager,
+                sanitizerRegistry:    sanitizerRegistry,
+                exportBuilder:        comparisonExportBuilder,
+                sessionRegistry:      comparisonSessionRegistry,
+                aggregatorService:    aggregatorService);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager: _bpManager);
+                breakpointManager:    _bpManager,
+                sanitizerRegistry:    sanitizerRegistry,
+                exportBuilder:        comparisonExportBuilder,
+                sessionRegistry:      comparisonSessionRegistry,
+                aggregatorService:    aggregatorService);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager: _bpManager);
+                breakpointManager:    _bpManager,
+                sanitizerRegistry:    sanitizerRegistry,
+                exportBuilder:        comparisonExportBuilder,
+                sessionRegistry:      comparisonSessionRegistry);
 
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);

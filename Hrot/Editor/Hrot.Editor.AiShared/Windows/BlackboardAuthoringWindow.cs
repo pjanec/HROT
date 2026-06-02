@@ -66,6 +66,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private readonly IRefactorService _refactorService;
     private readonly ComparisonToolbarAction? _comparisonToolbar;
     private readonly ComparisonSessionRegistry? _sessionRegistry;
+    private readonly BlackboardAggregatorService? _aggregatorService;
 
     // Inline rename state
     
@@ -94,6 +95,12 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// <param name="sanitizerRegistry">Optional comparison sanitizer registry.</param>
     /// <param name="exportBuilder">Optional comparison export builder.</param>
     /// <param name="sessionRegistry">Optional comparison session registry.</param>
+    /// <param name="aggregatorService">
+    ///   Optional blackboard aggregator service. When supplied, its
+    ///   <see cref="BlackboardAggregatorService.Aggregate"/> output is passed to
+    ///   <see cref="BuildViewModel"/> so budget warnings from sub-tree DTO requirements
+    ///   surface in the bin-packing display (AIE-052).
+    /// </param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id override (e.g. <c>"ai_blackboard_variables_btree"</c>)
     ///   for per-perspective instances with independent dock layouts.
@@ -107,6 +114,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         SanitizerRegistry? sanitizerRegistry = null,
         ComparisonExportBuilder? exportBuilder = null,
         ComparisonSessionRegistry? sessionRegistry = null,
+        BlackboardAggregatorService? aggregatorService = null,
         string? idOverride = null,
         string? owningPerspective = null)
         : base(idOverride ?? "ai_blackboard_variables", "Blackboard Variables",
@@ -115,6 +123,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         _store = store;
         _refactorService = refactorService;
         _sessionRegistry = sessionRegistry;
+        _aggregatorService = aggregatorService;
         if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
             _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
     }
@@ -293,7 +302,12 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             return;
         }
 
-        var vm = BuildViewModel(_store.ActiveAsset);
+        // AIE-052: aggregate sub-tree DTO requirements so bin-packing can surface budget warnings.
+        var aggregationResult = (_aggregatorService != null && _store.ActiveAsset != null)
+            ? _aggregatorService.Aggregate(_store.ActiveAsset)
+            : (AggregationResult?)null;
+
+        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult);
 
         if (!vm.HasActiveAsset)
         {
