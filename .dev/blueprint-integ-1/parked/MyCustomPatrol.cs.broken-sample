@@ -1,0 +1,32 @@
+﻿using Fbt;
+using Fbt.Compiler;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Trees.Layout;
+using Hrot.Editor.AiShared.Layout;
+using System;
+using System.Numerics;
+
+namespace Hrot.AI.Behaviors.Brains;
+
+public static class MyCustomNodes
+{
+    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+            .Sequence(seq => seq
+                .Condition(Condition_HasTarget, visualId: new Guid("..."))
+                .Action(Action_AimAndFire, visualId: new Guid("..."))
+            , visualId: new Guid("..."));
+
+    [BTreeDefinition("MyCustomPatrol", AssetId = "YOUR-ASSET-GUID")]
+    public static BehaviorTreeBlob Build() =>
+        CreateBuilder().Compile("MyCustomPatrol");
+
+    [BTreeLayout("YOUR-ASSET-GUID")]
+    public static BTreeEditorLayout Layout() => new BTreeEditorLayoutBuilder()
+        .Canvas(panOffset: new Vector2(100f, 50f), zoomLevel: 1.0f)
+        .Node("...", position: new Vector2(0f, 0f))
+        .Node("...", position: new Vector2(-80f, 100f))
+        .Node("...", position: new Vector2(80f, 100f))
+        .Build();
+}
