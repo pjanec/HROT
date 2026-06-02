@@ -102,6 +102,7 @@ using StructEdit.Reflection;
 using Fdp.Toolkit.ReplayBrowser.Search;
 // AIE-015: shared AI editor infrastructure
 using Hrot.BTree.Editor.Catalog;
+using Hrot.BTree.Editor.Host;
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Debug;
@@ -111,6 +112,10 @@ using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Hsm.Editor.Catalog;
+using Hrot.Hsm.Editor.Host;
+// AIE-030/031/032: BTree/HSM debug session infrastructure
+using Hrot.BTree.Editor.Inspector;
+using Hrot.Hsm.Editor.Inspector;
 
 namespace Hrot.Editor
 {
@@ -257,6 +262,10 @@ namespace Hrot.Editor
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
         private AssetBrowserWindow?            _aiAssetBrowser;
+        // AIE-030: shared debug session infrastructure (created in Initialize, wired in RegisterWindows)
+        private AiTracerCoordinator?                    _aiTracerCoordinator;
+        private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeDebugSession;
+        private Hrot.Hsm.Editor.Debug.HsmDebugSession?     _hsmDebugSession;
         // ─────────────────────────────────────────────────────────────────────────────────────
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
@@ -512,11 +521,18 @@ namespace Hrot.Editor
             // Load the current DLL immediately so behaviors are ready before the first frame.
             _aiCoordinator.TriggerInitialLoad();
 
+            // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
+            _aiTracerCoordinator = new AiTracerCoordinator();
+            _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
+            _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
+            // ────────────────────────────────────────────────────────────────────────────────────
+
             // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
             // Contributors are created and registered in one step via AiAssetCatalogBuilder.
             // The blueprints directory mirrors the path used by the retired CreateBlueprintWindowRegistrar.
             var bpRootDir     = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
-            var btreeContrib  = new BTreeAssetContributor();
+            // AIE-030: pass _btreeDebugSession so LoadFrom wires NodeDebugMetadata for symbolication.
+            var btreeContrib  = new BTreeAssetContributor(_btreeDebugSession);
             var hsmContrib    = new HsmAssetContributor();
             var bpContrib     = new BlueprintAssetContributor(bpRootDir);
 
@@ -1536,6 +1552,19 @@ namespace Hrot.Editor
             var debugRegistry   = new DebugSessionRegistry();
             var liveProvider    = new LiveSessionRegistry();
 
+            // ── AIE-030: Register BTree/HSM debug session factories ─────────────────────────────
+            // Factories capture the pre-built sessions (created in Initialize with the
+            // AiTracerCoordinator).  NodeDebugMetadata symbolication is already wired because
+            // BTreeAssetContributor was constructed with _btreeDebugSession and calls
+            // SetDebugMetadata on every LoadFrom / RegisterBlob invocation.
+            if (_btreeDebugSession != null)
+                debugRegistry.RegisterSessionFactory<Hrot.BTree.Editor.Debug.BTreeDebugSession>(
+                    () => _btreeDebugSession);
+            if (_hsmDebugSession != null)
+                debugRegistry.RegisterSessionFactory<Hrot.Hsm.Editor.Debug.HsmDebugSession>(
+                    () => _hsmDebugSession);
+            // ────────────────────────────────────────────────────────────────────────────────────
+
             // Build per-perspective selection stores and registrars (side panels only — no canvas yet).
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
                 "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry);
@@ -1575,6 +1604,28 @@ namespace Hrot.Editor
             _btreeRegistrar.RegisterWindows(windowManager);
             _hsmRegistrar.RegisterWindows(windowManager);
             _blueprintRegistrar.RegisterWindows(windowManager);
+
+            // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
+            // Each pane holds a reference to its session; the window selects the matching pane
+            // at draw time based on the active asset kind.
+            if (_btreeDebugSession != null)
+            {
+                var btreePane = new BTreeRuntimeInspectorPane();
+                btreePane.SetSession(_btreeDebugSession);
+                _btreeRegistrar.RuntimeInspector.RegisterPane(btreePane);
+            }
+            if (_hsmDebugSession != null)
+            {
+                var hsmPane = new HsmRuntimeInspectorPane();
+                hsmPane.SetSession(_hsmDebugSession);
+                _hsmRegistrar.RuntimeInspector.RegisterPane(hsmPane);
+            }
+            // ────────────────────────────────────────────────────────────────────────────────────
+
+            // ── AIE-032: Register BTree/HSM trace lane providers ────────────────────────────────
+            _btreeRegistrar.TraceTimeline.RegisterProvider(new BTreeTraceLaneProvider());
+            _hsmRegistrar.TraceTimeline.RegisterProvider(new HsmTraceLaneProvider());
+            // ────────────────────────────────────────────────────────────────────────────────────
 
             // Register the global Asset Browser.
             windowManager.RegisterWindow(_aiAssetBrowser);

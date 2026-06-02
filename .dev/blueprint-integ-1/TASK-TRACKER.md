@@ -42,9 +42,9 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 ## Phase 3 — Debug (BTree + HSM)
 **Goal:** breakpoints, step controls, runtime overlays, runtime inspector, trace timeline wired to the live sim.
 
-- [ ] **AIE-030** DebugSessionRegistry + AiTracerCoordinator + session factories [details](./TASK-DETAIL.md#aie-030--debugsessionregistry--aitracercoordinator--session-factories)
-- [ ] **AIE-031** RuntimeInspector panes per perspective [details](./TASK-DETAIL.md#aie-031--runtimeinspector-panes-per-perspective)
-- [ ] **AIE-032** TraceTimeline lane providers per perspective [details](./TASK-DETAIL.md#aie-032--tracetimeline-lane-providers-per-perspective)
+- [x] **AIE-030** DebugSessionRegistry + AiTracerCoordinator + session factories [details](./TASK-DETAIL.md#aie-030--debugsessionregistry--aitracercoordinator--session-factories) — BATCH-08 ✅
+- [x] **AIE-031** RuntimeInspector panes per perspective [details](./TASK-DETAIL.md#aie-031--runtimeinspector-panes-per-perspective) — BATCH-08 ✅
+- [x] **AIE-032** TraceTimeline lane providers per perspective [details](./TASK-DETAIL.md#aie-032--tracetimeline-lane-providers-per-perspective) — BATCH-08 ✅
 - [ ] **AIE-033** Canvas runtime overlays + breakpoint toggles [details](./TASK-DETAIL.md#aie-033--canvas-runtime-overlays--breakpoint-toggles)
 - [ ] **AIE-034** Watch / Breakpoints / Diagnostics windows per perspective [details](./TASK-DETAIL.md#aie-034--watch--breakpoints--diagnostics-windows-per-perspective)
 
