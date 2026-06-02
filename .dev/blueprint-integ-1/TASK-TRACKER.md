@@ -51,10 +51,10 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 ## Phase 4 — Blueprint perspective (full structural B2 + My Blueprint)
 **Goal:** Blueprint data-flow graphs open/edit/connect/delete on the shared canvas, with My Blueprint outliner + node-drawer details.
 
-- [ ] **AIE-040** `BlueprintGraphModel` [details](./TASK-DETAIL.md#aie-040--blueprintgraphmodel--igraphmodel)
-- [ ] **AIE-041** `BlueprintTypeSystem` [details](./TASK-DETAIL.md#aie-041--blueprinttypesystem--itypesystem)
-- [ ] **AIE-042** `BlueprintLinkValidator` [details](./TASK-DETAIL.md#aie-042--blueprintlinkvalidator--ilinkvalidator)
-- [ ] **AIE-043** `BlueprintNodeCatalog` [details](./TASK-DETAIL.md#aie-043--blueprintnodecatalog--inodecatalog)
+- [x] **AIE-040** `BlueprintGraphModel` [details](./TASK-DETAIL.md#aie-040--blueprintgraphmodel--igraphmodel)
+- [x] **AIE-041** `BlueprintTypeSystem` [details](./TASK-DETAIL.md#aie-041--blueprinttypesystem--itypesystem)
+- [x] **AIE-042** `BlueprintLinkValidator` [details](./TASK-DETAIL.md#aie-042--blueprintlinkvalidator--ilinkvalidator)
+- [x] **AIE-043** `BlueprintNodeCatalog` [details](./TASK-DETAIL.md#aie-043--blueprintnodecatalog--inodecatalog)
 - [ ] **AIE-044** `BlueprintCommandSink` [details](./TASK-DETAIL.md#aie-044--blueprintcommandsink--igraphcommandsink)
 - [ ] **AIE-045** `BlueprintEditorHostServices` [details](./TASK-DETAIL.md#aie-045--blueprinteditorhostservices--ieditorhostservices)
 - [ ] **AIE-046** Blueprint host binding into canvas [details](./TASK-DETAIL.md#aie-046--blueprint-host-binding-into-aigraphcanvaswindow)
