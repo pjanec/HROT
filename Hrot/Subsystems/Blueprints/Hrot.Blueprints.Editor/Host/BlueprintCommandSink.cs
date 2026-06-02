@@ -1,0 +1,366 @@
+using System.Numerics;
+using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.GraphEditor;
+using Hrot.Blueprints.Editor.NodeDrawers;
+using NodeEditor.Core.Commands;
+using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
+
+namespace Hrot.Blueprints.Editor.Host;
+
+/// <summary>
+/// <see cref="IGraphCommandSink"/> that applies NodeEdit <see cref="GraphCommand"/>s to the
+/// active <see cref="BlueprintAsset"/> graph.
+///
+/// <para>
+/// Structural operations (add/remove node, add/remove link) are routed through the existing
+/// <see cref="GraphCommands"/>/<see cref="CommandHistory"/> for undo/redo.  Position-only moves
+/// bypass the history to avoid polluting the undo stack with continuous drag operations.
+/// Property edits are routed through the real <see cref="EditService"/>.
+/// </para>
+///
+/// <para>
+/// After every mutation the model is rebuilt and <see cref="BlueprintGraphModel.RebuildAndNotify"/>
+/// is called so the canvas reflects the change.  The asset is marked dirty via
+/// <see cref="EditService.MarkDirty"/>.
+/// </para>
+/// </summary>
+public sealed class BlueprintCommandSink : IGraphCommandSink
+{
+    private readonly BlueprintAsset      _asset;
+    private readonly Graph               _graph;
+    private readonly BlueprintGraphModel _model;
+    private readonly BlueprintNodeCatalog _catalog;
+    private readonly BlueprintLinkValidator _validator;
+    private readonly CommandHistory      _history;
+    private readonly EditService         _editService;
+    private readonly Action<BlueprintAsset> _markDirty;
+
+    /// <summary>
+    /// Constructs a command sink bound to the given asset graph.
+    /// </summary>
+    /// <param name="asset">The owning Blueprint asset.</param>
+    /// <param name="graph">The specific graph within the asset to mutate.</param>
+    /// <param name="model">The <see cref="BlueprintGraphModel"/> to rebuild after every mutation.</param>
+    /// <param name="catalog">Used to resolve <see cref="NodeKindKey"/> → descriptor when adding nodes.</param>
+    /// <param name="validator">Used to enforce the single-data-input link replacement rule.</param>
+    /// <param name="history">Command history for structural operations.</param>
+    /// <param name="editService">Property-edit service for <see cref="GraphCommand.SetNodeProperty"/>.</param>
+    /// <param name="markDirty">Callback invoked after every successful mutation to mark the asset dirty.</param>
+    public BlueprintCommandSink(
+        BlueprintAsset       asset,
+        Graph                graph,
+        BlueprintGraphModel  model,
+        BlueprintNodeCatalog catalog,
+        BlueprintLinkValidator validator,
+        CommandHistory       history,
+        EditService          editService,
+        Action<BlueprintAsset> markDirty)
+    {
+        _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
+        _graph       = graph       ?? throw new ArgumentNullException(nameof(graph));
+        _model       = model       ?? throw new ArgumentNullException(nameof(model));
+        _catalog     = catalog     ?? throw new ArgumentNullException(nameof(catalog));
+        _validator   = validator   ?? throw new ArgumentNullException(nameof(validator));
+        _history     = history     ?? throw new ArgumentNullException(nameof(history));
+        _editService = editService ?? throw new ArgumentNullException(nameof(editService));
+        _markDirty   = markDirty   ?? throw new ArgumentNullException(nameof(markDirty));
+    }
+
+    // ── IGraphCommandSink ────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public GraphCommandResult Apply(GraphCommand command)
+    {
+        switch (command)
+        {
+            case GraphCommand.AddNode add:
+                return ApplyAddNode(add);
+
+            case GraphCommand.RemoveNodes remove:
+                return ApplyRemoveNodes(remove);
+
+            case GraphCommand.AddLink link:
+                return ApplyAddLink(link);
+
+            case GraphCommand.RemoveLinks removeLinks:
+                return ApplyRemoveLinks(removeLinks);
+
+            case GraphCommand.MoveNodes move:
+                return ApplyMoveNodes(move);
+
+            case GraphCommand.SetNodeProperty prop:
+                return ApplySetNodeProperty(prop);
+
+            case GraphCommand.Batch batch:
+                return ApplyBatch(batch);
+
+            default:
+                // Unknown commands are silently accepted (forward-compat).
+                return new GraphCommandResult(true, null);
+        }
+    }
+
+    // ── AddNode ──────────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyAddNode(GraphCommand.AddNode add)
+    {
+        // Create the asset-level node. Unknown kinds fall back to FunctionCallNode.
+        var assetNode = CreateAssetNode(add.Kind, add.Position, add.InitialProperties);
+        if (assetNode == null)
+            return new GraphCommandResult(false, $"Could not create node for kind: {add.Kind.Id}");
+
+        // Push through CommandHistory for undo/redo.
+        var addCmd = new AddNodeCommand(_graph, assetNode);
+        _history.Execute(addCmd);
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+
+        return new GraphCommandResult(true, null);
+    }
+
+    private Node? CreateAssetNode(
+        NodeKindKey kind,
+        Vector2 position,
+        IReadOnlyDictionary<string, object?>? props)
+    {
+        // Map the NodeKindKey back to the appropriate asset Node subtype.
+        // The NodeKindRegistry descriptor has a CreateInstance factory; use it
+        // to create a properly-typed node (pins are not relevant here — they are
+        // projected from the drawn descriptor, not from asset pin lists).
+        var registryDescriptor = _catalog.KindRegistry.TryGet(kind.Id);
+        Node assetNode;
+
+        if (registryDescriptor != null)
+        {
+            try { assetNode = registryDescriptor.CreateInstance(); }
+            catch { assetNode = new FunctionCallNode { MethodName = kind.Id }; }
+        }
+        else
+        {
+            // Dynamic kind (custom event, callable peer) — create a generic FunctionCallNode.
+            assetNode = new FunctionCallNode { MethodName = kind.Id };
+        }
+
+        assetNode.Id = Guid.NewGuid();
+        assetNode.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
+
+        // Apply initial properties if provided.
+        if (props != null)
+            ApplyInitialProperties(assetNode, props);
+
+        return assetNode;
+    }
+
+    private static void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)
+    {
+        // Apply well-known properties that map directly to asset fields.
+        if (props.TryGetValue("Comment", out var comment) && comment is string s)
+            node.EditorMetadata.Comment = s;
+
+        if (node is FunctionCallNode fc)
+        {
+            if (props.TryGetValue("TargetTypeId", out var t) && t is string tid) fc.TargetTypeId = tid;
+            if (props.TryGetValue("MethodName",   out var m) && m is string mn)  fc.MethodName   = mn;
+        }
+        else if (node is GetVariableNode gv)
+        {
+            if (props.TryGetValue("VariableId", out var vid) && vid is string vs) gv.VariableId = vs;
+        }
+        else if (node is SetVariableNode sv)
+        {
+            if (props.TryGetValue("VariableId", out var vid) && vid is string vs) sv.VariableId = vs;
+        }
+        else if (node is LiteralNode lit)
+        {
+            if (props.TryGetValue("TypeId",     out var typeId)  && typeId  is string ts) lit.TypeId     = ts;
+            if (props.TryGetValue("ValueJson",  out var valJson) && valJson is string vs) lit.ValueJson  = vs;
+        }
+        else if (node is EventEntryNode ee)
+        {
+            if (props.TryGetValue("EventTypeId", out var eid) && eid is string es) ee.EventTypeId = es;
+        }
+    }
+
+    // ── RemoveNodes ──────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyRemoveNodes(GraphCommand.RemoveNodes remove)
+    {
+        foreach (var nodeId in remove.Nodes)
+        {
+            var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeId.Value);
+            if (assetNode == null) continue;
+
+            // Remove incident links first (not through history to keep things simple).
+            _graph.Links.RemoveAll(l =>
+                l.FromNodeId == assetNode.Id || l.ToNodeId == assetNode.Id);
+
+            // Remove the node through CommandHistory.
+            var delCmd = new DeleteNodeCommand(_graph, assetNode);
+            _history.Execute(delCmd);
+        }
+
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── AddLink ──────────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyAddLink(GraphCommand.AddLink link)
+    {
+        // Validate through our validator first.
+        var validation = _validator.Validate(link.From, link.To);
+
+        if (validation.Verdict == LinkValidity.Invalid)
+        {
+            // Single-data-input replacement: remove the existing data link first.
+            if (validation.Reason?.Contains("replace") == true ||
+                validation.Reason?.Contains("already has") == true)
+            {
+                RemoveExistingDataLink(link.To);
+            }
+            else
+            {
+                return new GraphCommandResult(false, validation.Reason);
+            }
+        }
+
+        // Resolve pin GUIDs from the model.
+        var fromPinGuid = link.From.Value;
+        var toPinGuid   = link.To.Value;
+
+        // Resolve source/target node ids for the asset link record.
+        var fromPin = _model.FindPin(link.From);
+        var toPin   = _model.FindPin(link.To);
+        if (fromPin == null || toPin == null)
+            return new GraphCommandResult(false, "Pin not found in model.");
+
+        var assetLink = new Link
+        {
+            FromNodeId = fromPin.OwnerNodeId.Value,
+            FromPinId  = fromPinGuid,
+            ToNodeId   = toPin.OwnerNodeId.Value,
+            ToPinId    = toPinGuid,
+        };
+
+        _graph.Links.Add(assetLink);
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private void RemoveExistingDataLink(PinId toPin)
+    {
+        _graph.Links.RemoveAll(l => l.ToPinId == toPin.Value);
+    }
+
+    // ── RemoveLinks ──────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyRemoveLinks(GraphCommand.RemoveLinks removeLinks)
+    {
+        foreach (var linkId in removeLinks.Links)
+        {
+            // Reconstruct the (fromPinId, toPinId) pair from our stable LinkId.
+            // Since we can't directly invert the hash, we check each link's derived id.
+            _graph.Links.RemoveAll(l =>
+                BlueprintGraphModel.MakeLinkId(l.FromPinId, l.ToPinId) == linkId);
+        }
+
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── MoveNodes ────────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyMoveNodes(GraphCommand.MoveNodes move)
+    {
+        foreach (var nodeMove in move.Moves)
+        {
+            var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == nodeMove.Node.Value);
+            if (assetNode == null) continue;
+
+            assetNode.EditorMetadata.X = nodeMove.NewPosition.X;
+            assetNode.EditorMetadata.Y = nodeMove.NewPosition.Y;
+        }
+
+        // Move is not pushed to CommandHistory — continuous drag would overflow it.
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── SetNodeProperty ──────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplySetNodeProperty(GraphCommand.SetNodeProperty prop)
+    {
+        var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == prop.Node.Value);
+        if (assetNode == null)
+            return new GraphCommandResult(false, $"Node {prop.Node} not found.");
+
+        // Route through the EditService for undo/redo.
+        object? previousValue = GetNodeProperty(assetNode, prop.Key);
+        object? newValue      = prop.Value;
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            $"Set {prop.Key} on {assetNode.Id}",
+            apply: () => SetNodeProperty(assetNode, prop.Key, newValue),
+            undo:  () => SetNodeProperty(assetNode, prop.Key, previousValue));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private static object? GetNodeProperty(Node node, string key) => key switch
+    {
+        "Comment"      => node.EditorMetadata.Comment,
+        "TargetTypeId" => (node as FunctionCallNode)?.TargetTypeId,
+        "MethodName"   => (node as FunctionCallNode)?.MethodName,
+        "VariableId"   => (node as GetVariableNode)?.VariableId
+                       ?? (node as SetVariableNode)?.VariableId,
+        "EventTypeId"  => (node as EventEntryNode)?.EventTypeId,
+        "isBreakpoint" => null,   // runtime-only; not stored on asset
+        _              => null,
+    };
+
+    private static void SetNodeProperty(Node node, string key, object? value)
+    {
+        switch (key)
+        {
+            case "Comment":
+                node.EditorMetadata.Comment = value as string;
+                break;
+            case "TargetTypeId" when node is FunctionCallNode fc1:
+                fc1.TargetTypeId = value as string ?? "";
+                break;
+            case "MethodName" when node is FunctionCallNode fc2:
+                fc2.MethodName = value as string ?? "";
+                break;
+            case "VariableId" when node is GetVariableNode gv:
+                gv.VariableId = value as string ?? "";
+                break;
+            case "VariableId" when node is SetVariableNode sv:
+                sv.VariableId = value as string ?? "";
+                break;
+            case "EventTypeId" when node is EventEntryNode ee:
+                ee.EventTypeId = value as string ?? "";
+                break;
+            // "isBreakpoint" is runtime-only; silently skip.
+        }
+    }
+
+    // ── Batch ────────────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyBatch(GraphCommand.Batch batch)
+    {
+        foreach (var inner in batch.Commands)
+        {
+            var result = Apply(inner);
+            if (!result.Success)
+                return result;   // stop on first failure
+        }
+        return new GraphCommandResult(true, null);
+    }
+}

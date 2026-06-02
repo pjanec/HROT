@@ -51,6 +51,13 @@ public sealed class BlueprintNodeCatalog : INodeCatalog
 
     // ── public API ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The underlying <see cref="NodeKindRegistry"/> used to resolve
+    /// <see cref="NodeEditor.Primitives.NodeKindKey"/> to asset-node factory descriptors.
+    /// Exposed so <see cref="BlueprintCommandSink"/> can create correctly-typed asset nodes.
+    /// </summary>
+    public NodeKindRegistry KindRegistry => _registry;
+
     /// <summary>Fired whenever the catalog entries change (e.g. after <see cref="Refresh"/>).</summary>
     public event Action? CatalogChanged;
 

@@ -245,6 +245,8 @@ namespace Hrot.Editor
         private BlueprintRegistry          _blueprintRegistry = new();
         private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
+        // AIE-049: real EditService — context swapped per-document by BlueprintDocumentFactory.
+        private Hrot.Blueprints.Editor.NodeDrawers.EditService? _blueprintEditService;
 
         // ── AIE-015: Shared AI editor catalog + document/perspective infrastructure ──────────
         private AiAssetCatalogBuilder?         _aiCatalogBuilder;
@@ -347,20 +349,6 @@ namespace Hrot.Editor
             public void Dispose() { }
         }
 
-        // ?? WHEN-M11: No-op IEditService stub ????????????????????????????
-
-        /// <summary>
-        /// Stub implementation of IEditService for blueprint node drawers.
-        /// Full undo/redo integration deferred to M5.
-        /// </summary>
-        private sealed class NoOpEditService : Hrot.Blueprints.Editor.NodeDrawers.IEditService
-        {
-            public void MarkDirty(Hrot.Blueprints.Core.Assets.BlueprintAsset asset)
-            {
-                // No-op: undo/redo integration deferred
-            }
-        }
-
         // ?? Internal test accessors ???????????????????????????????????????????
 
         /// <summary>Internal test hook: direct access to the ECS world.</summary>
@@ -395,6 +383,14 @@ namespace Hrot.Editor
 
         /// <summary>Internal test hook: exposes the AI hot-reload coordinator (UBP-P10T10).</summary>
         internal AiHotReloadCoordinator? AiCoordinator => _aiCoordinator;
+
+        /// <summary>
+        /// Internal accessor: exposes the shared <see cref="Hrot.Blueprints.Editor.NodeDrawers.EditService"/>
+        /// so that <see cref="Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory"/> can inject a
+        /// per-document <see cref="Hrot.Blueprints.Editor.NodeDrawers.EditServiceContext"/> when a
+        /// Blueprint document is opened (AIE-049).
+        /// </summary>
+        internal Hrot.Blueprints.Editor.NodeDrawers.EditService? BlueprintEditService => _blueprintEditService;
 
         // AIE-015: BlueprintWindowRegistrar retired — replaced by PerspectiveWorkspaceRegistrar infrastructure.
         // Kept as a null-returning stub so any external reference during migration compiles.
@@ -779,7 +775,10 @@ namespace Hrot.Editor
             var eqsTemplates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
 
             // IEditService stub - no-op for now since the interface is marked as stub.
-            var blueprintEditService = new Hrot.Editor.EditorSubsystem.NoOpEditService();
+            // AIE-049: real IEditService — context (CommandHistory + markDirty) is injected
+            // per-document by BlueprintDocumentFactory when a document is opened.
+            _blueprintEditService = new Hrot.Blueprints.Editor.NodeDrawers.EditService();
+            var blueprintEditService = _blueprintEditService;
 
             // Note: These registries are created but not yet wired to UI components.
             // Final wiring happens in the canvas/UI initialization below (section 10+).
@@ -1639,8 +1638,9 @@ namespace Hrot.Editor
             var adapterBundle = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
-            var btreeCanvasRenderer = new NodeEditor.UI.Canvas.CanvasRenderer();
-            var hsmCanvasRenderer   = new NodeEditor.UI.Canvas.CanvasRenderer();
+            var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
+            var hsmCanvasRenderer       = new NodeEditor.UI.Canvas.CanvasRenderer();
+            var blueprintCanvasRenderer = new NodeEditor.UI.Canvas.CanvasRenderer();
 
             // Canvas windows — one per perspective.
             var btreeCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
@@ -1655,12 +1655,21 @@ namespace Hrot.Editor
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     view => hsmCanvasRenderer.Render(view, null)));
 
+            // AIE-046: Blueprint canvas window.
+            var blueprintCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
+                assetKind:  "Blueprint",
+                docManager: _aiDocumentManager,
+                renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
+                    view => blueprintCanvasRenderer.Render(view, null)));
+
             // Register the canvas windows into their respective perspectives via the extension seam.
             _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);
             _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
+            // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
 
-            // Wire AiDocumentManager.Open so that opening a BTree/HSM asset populates ViewState
-            // via the matching document factory.
+            // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
+            // ViewState via the matching document factory.
             _aiDocumentManager.DocumentOpened += doc =>
             {
                 if (doc.ViewState != null) return; // already populated (re-open of existing doc)
@@ -1680,6 +1689,14 @@ namespace Hrot.Editor
                             doc.Asset, adapterBundle,
                             hsmDebugSession:   _hsmDebugSession,
                             breakpointManager: _bpManager);
+                        break;
+                    case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                        // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
+                        // Injects per-document EditServiceContext into the shared EditService
+                        // so node drawers route property edits through this document's CommandHistory.
+                        doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
+                            doc.Asset, adapterBundle, _blueprintEditService,
+                            _blueprintPaletteEntries);
                         break;
                 }
 

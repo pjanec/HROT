@@ -55,12 +55,12 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 - [x] **AIE-041** `BlueprintTypeSystem` [details](./TASK-DETAIL.md#aie-041--blueprinttypesystem--itypesystem)
 - [x] **AIE-042** `BlueprintLinkValidator` [details](./TASK-DETAIL.md#aie-042--blueprintlinkvalidator--ilinkvalidator)
 - [x] **AIE-043** `BlueprintNodeCatalog` [details](./TASK-DETAIL.md#aie-043--blueprintnodecatalog--inodecatalog)
-- [ ] **AIE-044** `BlueprintCommandSink` [details](./TASK-DETAIL.md#aie-044--blueprintcommandsink--igraphcommandsink)
-- [ ] **AIE-045** `BlueprintEditorHostServices` [details](./TASK-DETAIL.md#aie-045--blueprinteditorhostservices--ieditorhostservices)
-- [ ] **AIE-046** Blueprint host binding into canvas [details](./TASK-DETAIL.md#aie-046--blueprint-host-binding-into-aigraphcanvaswindow)
+- [x] **AIE-044** `BlueprintCommandSink` [details](./TASK-DETAIL.md#aie-044--blueprintcommandsink--igraphcommandsink)
+- [x] **AIE-045** `BlueprintEditorHostServices` [details](./TASK-DETAIL.md#aie-045--blueprinteditorhostservices--ieditorhostservices)
+- [x] **AIE-046** Blueprint host binding into canvas [details](./TASK-DETAIL.md#aie-046--blueprint-host-binding-into-aigraphcanvaswindow)
 - [ ] **AIE-047** `BlueprintMyBlueprintModel` + `MyBlueprintPanel` [details](./TASK-DETAIL.md#aie-047--blueprintmyblueprintmodel--myblueprintpanel)
 - [ ] **AIE-048** Blueprint Details + Variables windows [details](./TASK-DETAIL.md#aie-048--blueprint-details--variables-windows)
-- [ ] **AIE-049** Real `IEditService` [details](./TASK-DETAIL.md#aie-049--real-ieditservice)
+- [x] **AIE-049** Real `IEditService` [details](./TASK-DETAIL.md#aie-049--real-ieditservice)
 
 ## Phase 5 — Cross-asset services (P2)
 **Goal:** comparison/diff, find-references/refactor, blackboard aggregation, collision/dangling diagnostics wired (mostly existing services).
