@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Lightweight game-side contracts assembly: no ImGui / NodeEdit / AiShared-heavy deps. -->
+    <!-- Contains layout-contract types for BTree, HSM, and Blueprint assets. -->
+    <AssemblyName>Hrot.Editor.AiContracts</AssemblyName>
+    <RootNamespace>Hrot.Editor.AiContracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared" />
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />
+  </ItemGroup>
+
+</Project>

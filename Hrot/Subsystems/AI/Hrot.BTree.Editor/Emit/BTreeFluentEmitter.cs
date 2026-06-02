@@ -21,8 +21,8 @@ namespace Hrot.BTree.Editor.Emit;
 /// </summary>
 public sealed class BTreeFluentEmitter : IFluentCSharpEmitter<BehaviorTreeAsset>
 {
-    // The layout-related namespace is a game-side type.
-    private const string LayoutNamespace = "Hrot.AI.Behaviors.Trees.Layout";
+    // The layout-contract namespace — matches HsmFluentEmitter and the types in Hrot.Editor.AiContracts.
+    private const string LayoutNamespace = "Hrot.Editor.AiShared.Layout";
     private const string FbtNamespace    = "Fbt";
     private const string Indent          = "    ";
 

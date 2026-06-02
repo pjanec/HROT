@@ -23,6 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <!-- Discovery tests: load Hrot.AI.Behaviors assembly and verify SampleScout is found. -->
+    <ProjectReference Include="..\..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
   </ItemGroup>
 
   <ItemGroup>

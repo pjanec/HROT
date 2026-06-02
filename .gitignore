@@ -57,3 +57,4 @@ cyclonedds.log
 .codebase
 .codebase-memory
 *.lscache
+build-output.txt

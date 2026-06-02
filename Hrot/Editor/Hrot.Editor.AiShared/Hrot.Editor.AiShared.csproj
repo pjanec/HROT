@@ -20,6 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Layout-contract types live in the lightweight AiContracts assembly. -->
+    <ProjectReference Include="..\Hrot.Editor.AiContracts\Hrot.Editor.AiContracts.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />

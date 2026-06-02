@@ -2,6 +2,10 @@ using System.Numerics;
 
 namespace Hrot.Editor.AiShared.Layout;
 
+/// <summary>
+/// Snapshot of canvas-level layout data for an HSM asset.
+/// Returned by an <see cref="HsmLayoutAttribute"/>-decorated method; consumed by the editor on open.
+/// </summary>
 public sealed class HsmEditorLayout
 {
     public Vector2 PanOffset { get; init; }

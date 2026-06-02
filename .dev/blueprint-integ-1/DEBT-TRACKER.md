@@ -18,3 +18,4 @@ Legend:
 - Status: OPEN / RESOLVED (do not delete resolved rows)
 
 > Seed row DEBT-001 records the one explicitly-deferred decision from the design discussion. Add new rows as batches surface debt (format above).
+| DEBT-009 | BATCH-10 | `Fhsm.Tests` has 2 pre-existing kernel failures (`OrthogonalRegionTests.OutputLane_Conflict_Detected`, `FailSafeTests.InfiniteLoop_Detected_And_Stops`) — verified identical at baseline 8e197569 with Batch-10 stashed. Mid-flight FastHSM kernel issue, unrelated to AI-editor integration. | P3 | — | OPEN |

@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lightweight layout-contract types: BTreeEditorLayout, HsmEditorLayout, [BTree/HsmLayout] attributes, etc.
+         Required so that emitted [BTreeLayout]/[HsmLayout] methods compile in this game-side assembly. -->
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiContracts\Hrot.Editor.AiContracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- FDP toolkit: BrainBlackboard, BTreeContext, LocomotionChannel, WeaponChannel,
          BehaviorState, NavigationConstants, MoveToParams, TargetMemory, WeaponState,
          CarKinem types, and all other Fdp.Toolkit.* namespaces used by CgfNodes.cs. -->

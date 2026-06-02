@@ -54,7 +54,7 @@ public sealed class HsmAssetContributor : IAssetCatalogContributor
 
                 var asset = HsmAssetProjector.Project(
                     blob,
-                    null,
+                    blob.Metadata,
                     layout,
                     assetId,
                     defAttr.MachineName,

@@ -3,6 +3,10 @@ using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.Editor.AiShared.Layout;
 
+/// <summary>
+/// Fluent builder for <see cref="BTreeEditorLayout"/> instances.
+/// Used inside <see cref="BTreeLayoutAttribute"/>-decorated methods in game-side assemblies.
+/// </summary>
 public sealed class BTreeEditorLayoutBuilder
 {
     private Vector2 _panOffset;

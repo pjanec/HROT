@@ -3,6 +3,10 @@ using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.Editor.AiShared.Layout;
 
+/// <summary>
+/// Snapshot of canvas-level layout data for a BTree asset.
+/// Returned by a <see cref="BTreeLayoutAttribute"/>-decorated method; consumed by the editor on open.
+/// </summary>
 public sealed class BTreeEditorLayout
 {
     public Vector2 PanOffset { get; init; }
@@ -10,7 +14,7 @@ public sealed class BTreeEditorLayout
     public IReadOnlyDictionary<Guid, NodeLayoutEntry> Nodes { get; init; } =
         new Dictionary<Guid, NodeLayoutEntry>();
 
-    // Sync bindings per subtree-node visual ID. Empty when none configured.
+    /// <summary>Sync bindings per subtree-node visual ID. Empty when none configured.</summary>
     public IReadOnlyDictionary<Guid, IReadOnlyList<SubtreeSyncBinding>> SyncBindings { get; init; } =
         new Dictionary<Guid, IReadOnlyList<SubtreeSyncBinding>>();
 

@@ -2,6 +2,9 @@ using System.Numerics;
 
 namespace Hrot.Editor.AiShared.Layout;
 
+/// <summary>
+/// Canvas position and display properties for a single BTree node.
+/// </summary>
 public sealed class NodeLayoutEntry
 {
     public Vector2 Position { get; init; }

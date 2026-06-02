@@ -2,6 +2,10 @@ using System.Numerics;
 
 namespace Hrot.Editor.AiShared.Layout;
 
+/// <summary>
+/// Fluent builder for <see cref="HsmEditorLayout"/> instances.
+/// Used inside <see cref="HsmLayoutAttribute"/>-decorated methods in game-side assemblies.
+/// </summary>
 public sealed class HsmEditorLayoutBuilder
 {
     private Vector2 _panOffset;
