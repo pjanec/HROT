@@ -139,4 +139,32 @@ public sealed class EditorSubsystemBlueprintWindowsTests
             Assert.Equal("Blueprint", win!.OwningPerspective);
         }
     }
+
+    // ── AIE-020/021/022: Canvas windows (BATCH-05) ────────────────────────────
+
+    /// <summary>
+    /// BATCH-05 AIE-020: after RegisterWindows, both BTree and HSM canvas windows are
+    /// registered (via RegisterExtraWindow on their respective registrars) with the correct
+    /// OwningPerspective and PerspectiveBound scope.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersCanvasWindows_ForBTreeAndHsm()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // BTree canvas window.
+        Assert.True(wm.TryGetWindow("ai_canvas_btree", out var btreeCanvas),
+            "Expected BTree canvas window 'ai_canvas_btree' to be registered.");
+        Assert.Equal("BTree",           btreeCanvas!.OwningPerspective);
+        Assert.Equal(WindowScope.PerspectiveBound, btreeCanvas.Scope);
+
+        // HSM canvas window.
+        Assert.True(wm.TryGetWindow("ai_canvas_hsm", out var hsmCanvas),
+            "Expected HSM canvas window 'ai_canvas_hsm' to be registered.");
+        Assert.Equal("HSM",             hsmCanvas!.OwningPerspective);
+        Assert.Equal(WindowScope.PerspectiveBound, hsmCanvas.Scope);
+    }
 }

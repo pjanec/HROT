@@ -79,6 +79,17 @@ public sealed class AiDocumentManager
     /// </summary>
     public event Action? ActiveChanged;
 
+    /// <summary>
+    /// Fires when a new document is opened (not when an already-open document is re-activated).
+    /// Subscribers use this to populate <see cref="AiDocument.ViewState"/> via a factory.
+    /// <para>
+    /// Fired <em>before</em> <see cref="Activate"/> is called for the new document, so the
+    /// canvas window will find <see cref="AiDocument.ViewState"/> already populated on the
+    /// first activation.
+    /// </para>
+    /// </summary>
+    public event Action<AiDocument>? DocumentOpened;
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -102,9 +113,11 @@ public sealed class AiDocumentManager
             return existing;
         }
 
-        // Create a new document and activate it.
+        // Create a new document, fire DocumentOpened (so factories can populate ViewState),
+        // then activate it so the canvas window renders it immediately.
         var doc = new AiDocument(asset, asset.Kind);
         _documents.Add(doc);
+        DocumentOpened?.Invoke(doc);
         Activate(doc);
         return doc;
     }

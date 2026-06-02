@@ -1558,6 +1558,49 @@ namespace Hrot.Editor
 
             // Register the global Asset Browser.
             windowManager.RegisterWindow(_aiAssetBrowser);
+
+            // ── AIE-020/021/022: AiGraphCanvasWindow + document factories ────────────────────────
+            // Build the adapter bundle from the engine icon atlas (no GPU calls at construction time).
+            var adapterBundle = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
+
+            // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
+            var btreeCanvasRenderer = new NodeEditor.UI.Canvas.CanvasRenderer();
+            var hsmCanvasRenderer   = new NodeEditor.UI.Canvas.CanvasRenderer();
+
+            // Canvas windows — one per perspective.
+            var btreeCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
+                assetKind:  "BTree",
+                docManager: _aiDocumentManager,
+                renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
+                    view => btreeCanvasRenderer.Render(view, null)));
+
+            var hsmCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
+                assetKind:  "HSM",
+                docManager: _aiDocumentManager,
+                renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
+                    view => hsmCanvasRenderer.Render(view, null)));
+
+            // Register the canvas windows into their respective perspectives via the extension seam.
+            _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);
+            _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
+
+            // Wire AiDocumentManager.Open so that opening a BTree/HSM asset populates ViewState
+            // via the matching document factory.
+            _aiDocumentManager.DocumentOpened += doc =>
+            {
+                if (doc.ViewState != null) return; // already populated (re-open of existing doc)
+                switch (doc.Kind)
+                {
+                    case Hrot.Editor.AiShared.AssetKind.BTree:
+                        doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
+                            doc.Asset, adapterBundle, _btreeSelectionStore);
+                        break;
+                    case Hrot.Editor.AiShared.AssetKind.Hsm:
+                        doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
+                            doc.Asset, adapterBundle);
+                        break;
+                }
+            };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;

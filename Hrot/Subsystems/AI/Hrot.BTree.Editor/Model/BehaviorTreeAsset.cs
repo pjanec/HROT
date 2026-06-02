@@ -108,6 +108,34 @@ public sealed class BTreeEditorNode
     /// <summary>Session-local breakpoint flag; not persisted in the layout method.</summary>
     public bool IsBreakpoint;
 
+    // ── Stable pin IDs derived from VisualId ─────────────────────────────────
+    // Deterministically derived so they survive reload and are not persisted.
+    // XOR with fixed constants avoids collisions when VisualId is the same Guid.
+    //   OutputPinId: child's "up-link" (reversed-pin convention)
+    //   InputPinId:  parent's "down-link" (receives children's output pins)
+
+    private static Guid XorGuid(Guid g, ulong hi, ulong lo)
+    {
+        var bytes = g.ToByteArray();
+        var hiBytes = BitConverter.GetBytes(hi);
+        var loBytes = BitConverter.GetBytes(lo);
+        for (int i = 0; i < 8; i++) bytes[i]     ^= hiBytes[i];
+        for (int i = 0; i < 8; i++) bytes[i + 8] ^= loBytes[i];
+        return new Guid(bytes);
+    }
+
+    /// <summary>
+    /// Stable output-pin ID for this node (child's upward exec link).
+    /// Derived deterministically from <see cref="VisualId"/> — never null.
+    /// </summary>
+    public Guid OutputPinId => XorGuid(VisualId, 0xBB_00_00_00_00_00_00_01UL, 0x00_00_00_00_00_00_00_02UL);
+
+    /// <summary>
+    /// Stable input-pin ID for this node (parent's downward exec link).
+    /// Derived deterministically from <see cref="VisualId"/> — never null.
+    /// </summary>
+    public Guid InputPinId  => XorGuid(VisualId, 0xBB_00_00_00_00_00_00_03UL, 0x00_00_00_00_00_00_00_04UL);
+
     /// <summary>Returns true when this node kind cannot have children in a BTree.</summary>
     public bool IsLeaf =>
         KernelType == NodeType.Action    ||
