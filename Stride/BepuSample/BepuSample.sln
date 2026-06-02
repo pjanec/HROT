@@ -1,0 +1,11 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 16
+VisualStudioVersion = 16.0.0.0
+MinimumVisualStudioVersion = 16.0.0.0
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BepuSample.Windows", "BepuSample.Windows\BepuSample.Windows.csproj", "{36D907EF-C934-4071-AA1F-570F60B101A9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BepuSample.Game", "BepuSample.Game\BepuSample.Game.csproj", "{DD115D3C-36AB-4D2C-A89D-870A8E605FFD}"
+EndProject
+Global
+EndGlobal

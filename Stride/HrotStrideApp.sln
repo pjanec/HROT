@@ -1,0 +1,28 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36915.13 d17.14
+MinimumVisualStudioVersion = 16.0.0.0
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HrotStrideApp.Windows", "HrotStrideApp.Windows\HrotStrideApp.Windows.csproj", "{CAAD8D11-7C75-4FCE-812B-83AF7E388FBE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HrotStrideApp.Game", "HrotStrideApp.Game\HrotStrideApp.Game.csproj", "{A57EA347-4CE6-4E2E-AC28-AA2E2E316E02}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CAAD8D11-7C75-4FCE-812B-83AF7E388FBE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CAAD8D11-7C75-4FCE-812B-83AF7E388FBE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CAAD8D11-7C75-4FCE-812B-83AF7E388FBE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CAAD8D11-7C75-4FCE-812B-83AF7E388FBE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A57EA347-4CE6-4E2E-AC28-AA2E2E316E02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A57EA347-4CE6-4E2E-AC28-AA2E2E316E02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A57EA347-4CE6-4E2E-AC28-AA2E2E316E02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A57EA347-4CE6-4E2E-AC28-AA2E2E316E02}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
