@@ -20,9 +20,9 @@ Status: `[ ]` not done · `[x]` done. Keep this in sync as tasks complete.
 ## Phase 1 — Shared backing + document/perspective infrastructure
 **Goal:** one shared catalog/debug backing; documents + three perspectives; global Asset Browser; Blueprint parallel infra retired.
 
-- [ ] **AIE-010** Unified `AssetCatalog` + contributors + `LoadFrom` [details](./TASK-DETAIL.md#aie-010--unified-assetcatalog--contributors--loadfrom)
-- [ ] **AIE-011** `BlueprintAssetContributor` (retire legacy catalog) [details](./TASK-DETAIL.md#aie-011--blueprintassetcontributor-retire-legacy-filesystemassetcatalog)
-- [ ] **AIE-012** `AiDocumentManager` [details](./TASK-DETAIL.md#aie-012--aidocumentmanager)
+- [x] **AIE-010** Unified `AssetCatalog` + contributors + `LoadFrom` [details](./TASK-DETAIL.md#aie-010--unified-assetcatalog--contributors--loadfrom) — BATCH-02 ✅ (builder; composition-root wiring in AIE-015)
+- [x] **AIE-011** `BlueprintAssetContributor` [details](./TASK-DETAIL.md#aie-011--blueprintassetcontributor-retire-legacy-filesystemassetcatalog) — BATCH-02 ✅ (legacy `FileSystemAssetCatalog` removal deferred to AIE-015)
+- [x] **AIE-012** `AiDocumentManager` [details](./TASK-DETAIL.md#aie-012--aidocumentmanager) — BATCH-02 ✅
 - [ ] **AIE-013** Global `AssetBrowserWindow` + Open-docs section [details](./TASK-DETAIL.md#aie-013--global-assetbrowserwindow-with-open-docs-section)
 - [ ] **AIE-014** `PerspectiveWorkspaceRegistrar` infra + active-asset→perspective [details](./TASK-DETAIL.md#aie-014--perspectiveworkspaceregistrar-infra--active-assetperspective)
 - [ ] **AIE-015** `EditorSubsystem` composition rewrite [details](./TASK-DETAIL.md#aie-015--editorsubsystem-composition-rewrite-retire-blueprint-parallel-infra)

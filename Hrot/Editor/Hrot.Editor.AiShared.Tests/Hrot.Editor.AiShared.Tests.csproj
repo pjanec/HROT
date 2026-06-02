@@ -26,6 +26,11 @@
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Primitives\NodeEditor.Primitives.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
+    <!-- AIE-010: needed to test AiAssetCatalogBuilder with real BTree/HSM contributors -->
+    <ProjectReference Include="..\..\Subsystems\AI\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
+    <ProjectReference Include="..\..\Subsystems\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
+    <!-- BlueprintAssetContributor tests -->
+    <ProjectReference Include="..\..\Subsystems\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
   </ItemGroup>
 
   <ItemGroup>
