@@ -55,8 +55,8 @@
         {
           "kind": "ChannelCommand",
           "Id": "20000099-0000-0000-0000-000000000004",
-          "ChannelType": "CombatChannel",
-          "ActionId": "Fire",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
           "Pins": [],
           "EditorMetadata": { "X": 1020.0, "Y": 220.0 }
         },

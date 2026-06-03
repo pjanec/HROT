@@ -163,7 +163,66 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         if (props != null)
             ApplyInitialProperties(assetNode, props);
 
+        // BCP-BATCH-04 Task 1: honor caller-supplied pin GUIDs (wire-drop auto-connect).
+        ApplyPinIds(assetNode, props);
+
         return assetNode;
+    }
+
+    // ── PinIds honoring (BCP-BATCH-04 Task 1) ─────────────────────────────────
+
+    /// <summary>
+    /// When <paramref name="props"/> carries a <c>"PinIds"</c> entry (a
+    /// <see cref="IReadOnlyList{T}"/> / <see cref="List{T}"/> of <see cref="PinId"/>), populates
+    /// <paramref name="node"/>.<see cref="Node.Pins"/> with the node's canonical pin schema and
+    /// stamps the supplied GUIDs onto those pins in <b>inputs-then-outputs</b> order.
+    /// <para>
+    /// This is the server-side counterpart to NodeEdit's wire-drop create-path
+    /// (<c>CanvasInput</c>): that path pre-generates a <c>List&lt;PinId&gt;</c> sized
+    /// <c>entry.Inputs.Count + entry.Outputs.Count</c> (inputs first, then outputs — exactly how
+    /// <see cref="BlueprintNodeCatalog.DescriptorToEntry"/> splits the canonical pins), forms the
+    /// auto-connect <see cref="GraphCommand.AddLink"/> referencing <c>pinIds[pinIdx]</c>, and ships
+    /// the list as <c>InitialProperties["PinIds"]</c>.  Without this step the new node's pins would
+    /// carry fresh (different) GUIDs, so <see cref="ApplyAddLink"/>'s <c>FindPin</c> would return
+    /// null and the link would be rejected.  By assigning the provided GUIDs to the canonical pins
+    /// in the same inputs-then-outputs order the catalog used, the link resolves and the wire
+    /// connects.
+    /// </para>
+    /// <para>
+    /// The pins are populated <b>in memory only</b> (loaded assets still hydrate via projection;
+    /// nothing is persisted here).  Count mismatches are guarded: only <c>min(supplied, canonical)</c>
+    /// pins are re-stamped; any extra canonical pins keep their generated GUIDs.
+    /// </para>
+    /// </summary>
+    private void ApplyPinIds(Node node, IReadOnlyDictionary<string, object?>? props)
+    {
+        if (props == null || !props.TryGetValue("PinIds", out var raw) || raw == null)
+            return;
+
+        // Accept the concrete List<PinId> the canvas ships, or any IReadOnlyList<PinId>.
+        if (raw is not IReadOnlyList<PinId> pinIds || pinIds.Count == 0)
+            return;
+
+        // Build the canonical pin list the SAME way DescriptorToEntry did (registry-backed,
+        // asset-aware for variable typing) so the count/order aligns with the catalog entry the
+        // canvas walked when generating PinIds.
+        var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset);
+
+        // Re-order into inputs-then-outputs, matching DescriptorToEntry (Inputs = Direction=="In",
+        // Outputs = Direction=="Out") and CanvasInput's pinIdx walk (entry.Inputs then entry.Outputs).
+        var ordered = new List<Pin>(canonical.Count);
+        foreach (var p in canonical)
+            if (p.Direction == "In") ordered.Add(p);
+        foreach (var p in canonical)
+            if (p.Direction == "Out") ordered.Add(p);
+
+        // Stamp the supplied GUIDs onto the ordered pins (guard count mismatch: assign min).
+        int count = Math.Min(ordered.Count, pinIds.Count);
+        for (int i = 0; i < count; i++)
+            ordered[i].Id = pinIds[i].Value;
+
+        // Populate the node's pin list so ApplyAddLink.FindPin resolves the link-referenced GUID.
+        node.Pins = ordered;
     }
 
     // ── Variable Get/Set create-path (BCP-BATCH-02-FIX Task 3) ────────────────
@@ -187,7 +246,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// <see cref="GetVariableNode"/>/<see cref="SetVariableNode"/> so
     /// <see cref="NodePinSchema"/> can type the Value pin from the declared variable.
     /// </summary>
-    private static Node FinishVariableNode(
+    private Node FinishVariableNode(
         Node node,
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
@@ -196,6 +255,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         node.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
         if (props != null)
             ApplyInitialProperties(node, props);
+        // BCP-BATCH-04 Task 1: honor caller-supplied pin GUIDs for the Get/Set wire-drop path too.
+        ApplyPinIds(node, props);
         return node;
     }
 
