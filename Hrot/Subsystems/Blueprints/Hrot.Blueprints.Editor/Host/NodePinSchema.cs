@@ -30,9 +30,16 @@ internal static class NodePinSchema
     /// two-pass GUID-binding step must replace them with the real GUIDs from
     /// incident links before projecting <see cref="BlueprintPinModel"/> instances.
     /// </summary>
+    /// <param name="node">The asset node to build pins for.</param>
+    /// <param name="registry">Optional node-kind registry for registry-backed pin schemas.</param>
+    /// <param name="asset">
+    /// Optional owning asset; when non-null, Get/Set variable node Value pins are typed
+    /// from the declared variable type rather than defaulting to <c>System.Object</c>.
+    /// </param>
     public static IReadOnlyList<Pin> GetCanonicalPins(
         Node node,
-        NodeKindRegistry? registry = null)
+        NodeKindRegistry? registry = null,
+        BlueprintAsset?   asset    = null)
     {
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
@@ -71,8 +78,8 @@ internal static class NodePinSchema
             BranchNode          => BranchPins(),
             SequenceNode        => SequencePins(),
             FunctionCallNode fc => FunctionCallPins(fc),
-            GetVariableNode gv  => GetVariablePins(gv),
-            SetVariableNode sv  => SetVariablePins(sv),
+            GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
+            SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             LiteralNode lt      => LiteralPins(lt),
             CastNode ca         => CastPins(ca),
             LatentDelayNode     => ExecInOut(),
@@ -100,6 +107,35 @@ internal static class NodePinSchema
 
             _ => Array.Empty<Pin>(),
         };
+    }
+
+    // ── variable type resolution ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Look up the <c>TypeId</c> for a variable by its string id (e.g. <c>"var:abc123"</c>
+    /// or plain GUID string) from the asset's variable list.
+    /// Returns <c>"System.Object"</c> when the variable is not found or the asset is null.
+    /// </summary>
+    private static string ResolveVariableTypeId(string variableId, BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(variableId))
+            return "System.Object";
+
+        // CanvasRenderer.PlaceVariableNode passes the raw My-Blueprint item-id which may be
+        // in the form "var:<Guid>" (as built by BlueprintMyBlueprintModel.BuildVariableItems).
+        // Strip the "var:" prefix before parsing.
+        var idStr = variableId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? variableId[4..]
+            : variableId;
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Type?.TypeId))
+                return decl.Type.TypeId;
+        }
+
+        return "System.Object";
     }
 
     // ── per-kind schema helpers ───────────────────────────────────────────────
@@ -143,19 +179,19 @@ internal static class NodePinSchema
         return pins;
     }
 
-    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv)
+    private static IReadOnlyList<Pin> GetVariablePins(GetVariableNode gv, string typeId)
         => new[]
         {
-            MakeData("Value", "Out", "System.Object"),
+            MakeData("Value", "Out", typeId),
         };
 
-    private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv)
+    private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv, string typeId)
         => new[]
         {
             MakeExec("In",    "In"),
             MakeExec("Out",   "Out"),
-            MakeData("Value", "In",  "System.Object"),
-            MakeData("Value", "Out", "System.Object"),
+            MakeData("Value", "In",  typeId),
+            MakeData("Value", "Out", typeId),
         };
 
     private static IReadOnlyList<Pin> LiteralPins(LiteralNode lt)

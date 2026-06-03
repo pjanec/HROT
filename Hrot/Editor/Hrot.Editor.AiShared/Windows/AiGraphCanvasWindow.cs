@@ -1,7 +1,9 @@
 using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.View;
+using NodeEditor.UI.Find;
 
 namespace Hrot.Editor.AiShared.Windows;
 
@@ -29,6 +31,19 @@ public sealed class AiCanvasContext
     public object? AssetRef { get; set; }
 
     /// <summary>
+    /// Optional find bar built by the document factory and threaded into the canvas render call.
+    /// When non-null, Ctrl+F opens the find overlay for this document.
+    /// </summary>
+    public FindBar? FindBar { get; set; }
+
+    /// <summary>
+    /// Optional editor-command dispatcher built by the document factory.
+    /// When non-null, canvas context menus and keyboard shortcuts are wired via
+    /// <see cref="BuiltinCommandHandlers.RegisterAll"/>.
+    /// </summary>
+    public IEditorCommands? Commands { get; set; }
+
+    /// <summary>
     /// Creates a canvas context.
     /// </summary>
     /// <param name="view">Constructed graph view for the document.</param>
@@ -50,6 +65,13 @@ public interface ICanvasRenderSeam
 {
     /// <summary>Render the given view into the current ImGui content region.</summary>
     void Render(GraphView view);
+
+    /// <summary>
+    /// Render the given view with optional find bar and editor commands.
+    /// Default implementation delegates to <see cref="Render(GraphView)"/>.
+    /// </summary>
+    void Render(GraphView view, FindBar? findBar, IEditorCommands? commands)
+        => Render(view);
 }
 
 // ── AiGraphCanvasWindow ───────────────────────────────────────────────────────
@@ -170,8 +192,8 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             return;
         }
 
-        // Render the cached GraphView via the seam.
-        _renderer.Render(ActiveContext.View);
+        // Render the cached GraphView via the seam, threading FindBar and Commands when present.
+        _renderer.Render(ActiveContext.View, ActiveContext.FindBar, ActiveContext.Commands);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -218,25 +240,41 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
 /// Production <see cref="ICanvasRenderSeam"/> that delegates to a
 /// <c>NodeEditor.UI.Canvas.CanvasRenderer</c>.  Construction is deferred to avoid
 /// a dependency on NodeEditor.UI from <c>Hrot.Editor.AiShared</c>; the caller
-/// supplies an <see cref="Action{GraphView}"/> delegate that closes over the
-/// renderer instance.
+/// supplies delegates that close over the renderer instance.
 /// </summary>
 public sealed class DelegatingCanvasRenderSeam : ICanvasRenderSeam
 {
     private readonly Action<GraphView> _renderDelegate;
+    private readonly Action<GraphView, FindBar?, IEditorCommands?>? _renderWithFindBar;
 
     /// <summary>
-    /// Creates the seam.
+    /// Creates the seam with an optional find-bar-aware render delegate.
     /// </summary>
     /// <param name="renderDelegate">
     ///   Delegate that calls <c>canvasRenderer.Render(view, null)</c>
-    ///   (or similar) for the supplied view.
+    ///   for the supplied view (used when no find-bar delegate is given).
     /// </param>
-    public DelegatingCanvasRenderSeam(Action<GraphView> renderDelegate)
+    /// <param name="renderWithFindBar">
+    ///   Optional delegate that calls <c>canvasRenderer.Render(view, findBar, commands)</c>.
+    ///   When supplied, the three-argument overload is used instead of the fallback.
+    /// </param>
+    public DelegatingCanvasRenderSeam(
+        Action<GraphView> renderDelegate,
+        Action<GraphView, FindBar?, IEditorCommands?>? renderWithFindBar = null)
     {
-        _renderDelegate = renderDelegate ?? throw new ArgumentNullException(nameof(renderDelegate));
+        _renderDelegate    = renderDelegate    ?? throw new ArgumentNullException(nameof(renderDelegate));
+        _renderWithFindBar = renderWithFindBar;
     }
 
     /// <inheritdoc/>
     public void Render(GraphView view) => _renderDelegate(view);
+
+    /// <inheritdoc/>
+    public void Render(GraphView view, FindBar? findBar, IEditorCommands? commands)
+    {
+        if (_renderWithFindBar != null)
+            _renderWithFindBar(view, findBar, commands);
+        else
+            _renderDelegate(view);
+    }
 }

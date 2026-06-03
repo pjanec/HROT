@@ -8,8 +8,11 @@ using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
+using NodeEditor.UI.Action;
+using NodeEditor.UI.Find;
 
 namespace Hrot.Blueprints.Editor.Host;
 
@@ -142,11 +145,21 @@ public static class BlueprintDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
+        // ── 8. Picker sources (BCP-E) ─────────────────────────────────────────
+        BlueprintPickerSources.Register(bundle.PickerRegistry, nodeCatalog, bpAsset);
+
+        // ── 9. FindBar + IEditorCommands (BCP-F) ─────────────────────────────
+        var commands = new EditorCommandsImpl();
+        var findBar  = new FindBar(view, new FindEngine(graphModel, null));
+        BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
+
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
         {
             AssetRef = bpAsset,
+            FindBar  = findBar,
+            Commands = commands,
         };
     }
 

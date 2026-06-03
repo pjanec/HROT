@@ -8,8 +8,11 @@ using Hrot.Editor.AiShared.Windows;
 using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Model;
 using Hrot.Hsm.Editor.Renderers;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
+using NodeEditor.UI.Action;
+using NodeEditor.UI.Find;
 
 namespace Hrot.Hsm.Editor.Host;
 
@@ -121,7 +124,16 @@ public static class HsmDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
-        return new AiCanvasContext(view, "HSM");
+        // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
+        var commands = new EditorCommandsImpl();
+        var findBar  = new FindBar(view, new FindEngine(graphModel, null));
+        BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
+
+        return new AiCanvasContext(view, "HSM")
+        {
+            FindBar  = findBar,
+            Commands = commands,
+        };
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

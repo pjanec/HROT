@@ -9,8 +9,9 @@ Phases (impact order; deps: C → B → A → D → E → F → G → H → I). 
 
 ## Batch 02 — editing richness
 - [ ] **BCP-D** Mini-editors / inline pin default values (+ `NodeMetadata.PinDefaults`, ignore-null)
-- [ ] **BCP-E** Pickers fully wired (node-type/add-node, wire-drop, variable, type, asset-grid, flags/enum)
-- [ ] **BCP-F** FindBar + IEditorCommands wired into Render (all 3 perspectives)
+- [x] **BCP-E** Pickers wired (node-type/add-node, wire-drop, variable, type REAL; asset-grid + flags/enum placeholders — DEBT-BCP-003)
+- [x] **BCP-F** FindBar + IEditorCommands wired into Render (all 3 perspectives)
+- [x] Variable Get/Set typed value pin (My-Blueprint drag-create)
 
 ## Batch 03 — canvas metadata features
 - [ ] **BCP-G** Comments + reroutes (editor-only `GraphMetadata`)

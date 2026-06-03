@@ -1,0 +1,100 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000099-0000-0000-0000-000000000001",
+  "Name": "SampleWiredDemo",
+  "Dispatch": "AiPrimitive",
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000099-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Event",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "20000099-0000-0000-0000-000000000001",
+          "EventTypeId": "OnStart",
+          "Pins": [],
+          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "20000099-0000-0000-0000-000000000002",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Pins": [],
+          "EditorMetadata": { "X": 380.0, "Y": 220.0 }
+        },
+        {
+          "kind": "WaitForChannel",
+          "Id": "20000099-0000-0000-0000-000000000003",
+          "ChannelType": "LocomotionChannel",
+          "Pins": [],
+          "EditorMetadata": { "X": 700.0, "Y": 220.0 }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "20000099-0000-0000-0000-000000000004",
+          "ChannelType": "CombatChannel",
+          "ActionId": "Fire",
+          "Pins": [],
+          "EditorMetadata": { "X": 1020.0, "Y": 220.0 }
+        },
+        {
+          "kind": "Return",
+          "Id": "20000099-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": { "X": 1340.0, "Y": 220.0 }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000001",
+          "FromPinId": "e0000099-0000-0000-0000-000000000001",
+          "ToNodeId": "20000099-0000-0000-0000-000000000002",
+          "ToPinId": "e0000099-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000002",
+          "FromPinId": "e0000099-0000-0000-0000-000000000003",
+          "ToNodeId": "20000099-0000-0000-0000-000000000003",
+          "ToPinId": "e0000099-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000003",
+          "FromPinId": "e0000099-0000-0000-0000-000000000005",
+          "ToNodeId": "20000099-0000-0000-0000-000000000004",
+          "ToPinId": "e0000099-0000-0000-0000-000000000006"
+        },
+        {
+          "FromNodeId": "20000099-0000-0000-0000-000000000004",
+          "FromPinId": "e0000099-0000-0000-0000-000000000007",
+          "ToNodeId": "20000099-0000-0000-0000-000000000005",
+          "ToPinId": "e0000099-0000-0000-0000-000000000008"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}

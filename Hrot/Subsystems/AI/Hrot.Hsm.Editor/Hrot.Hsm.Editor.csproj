@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
+    <!-- BCP-F: FindBar, FindEngine, BuiltinCommandHandlers, EditorCommandsImpl -->
+    <ProjectReference Include="..\..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <ProjectReference Include="..\..\..\Editor\Hrot.Editor.AiShared\Hrot.Editor.AiShared.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />

@@ -9,8 +9,11 @@ using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
+using NodeEditor.UI.Action;
+using NodeEditor.UI.Find;
 
 namespace Hrot.BTree.Editor.Host;
 
@@ -132,7 +135,16 @@ public static class BTreeDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
-        return new AiCanvasContext(view, AssetKind.BTree.ToString());
+        // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
+        var commands = new EditorCommandsImpl();
+        var findBar  = new FindBar(view, new FindEngine(graphModel, null));
+        BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
+
+        return new AiCanvasContext(view, AssetKind.BTree.ToString())
+        {
+            FindBar  = findBar,
+            Commands = commands,
+        };
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

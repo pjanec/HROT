@@ -1740,24 +1740,28 @@ namespace Hrot.Editor
             var blueprintCanvasRenderer = new NodeEditor.UI.Canvas.CanvasRenderer();
 
             // Canvas windows — one per perspective.
+            // BCP-F: thread FindBar + IEditorCommands from AiCanvasContext into the render call.
             var btreeCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "BTree",
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
-                    view => btreeCanvasRenderer.Render(view, null)));
+                    renderDelegate:    view => btreeCanvasRenderer.Render(view, null),
+                    renderWithFindBar: (view, fb, cmds) => btreeCanvasRenderer.Render(view, fb, cmds)));
 
             var hsmCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "HSM",
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
-                    view => hsmCanvasRenderer.Render(view, null)));
+                    renderDelegate:    view => hsmCanvasRenderer.Render(view, null),
+                    renderWithFindBar: (view, fb, cmds) => hsmCanvasRenderer.Render(view, fb, cmds)));
 
             // AIE-046: Blueprint canvas window.
             var blueprintCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "Blueprint",
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
-                    view => blueprintCanvasRenderer.Render(view, null)));
+                    renderDelegate:    view => blueprintCanvasRenderer.Render(view, null),
+                    renderWithFindBar: (view, fb, cmds) => blueprintCanvasRenderer.Render(view, fb, cmds)));
 
             // Register the canvas windows into their respective perspectives via the extension seam.
             _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);
