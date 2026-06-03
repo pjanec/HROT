@@ -489,6 +489,157 @@ public sealed class BcpBatch02BlueprintTests
         Assert.Equal("System.Numerics.Vector3", valuePin!.Type!.Value.Id);
     }
 
+    // ── BCP-BATCH-02-FIX Task 3: variable Get/Set create-path ─────────────────
+
+    private static (BlueprintCommandSink sink, BlueprintGraphModel model) MakeSink(
+        BlueprintAsset asset, Graph graph)
+    {
+        var registry   = new NodeKindRegistry();
+        var model      = new BlueprintGraphModel(asset, graph, registry);
+        var catalog    = new BlueprintNodeCatalog(registry);
+        var typeSystem = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
+        var validator  = new BlueprintLinkValidator(model, typeSystem);
+        var history    = new CommandHistory();
+        var editSvc    = new EditService { Context = new EditServiceContext(history, _ => { }) };
+        var sink = new BlueprintCommandSink(
+            asset, graph, model, catalog, validator, history, editSvc, _ => { });
+        return (sink, model);
+    }
+
+    /// <summary>
+    /// Dragging a variable as "Get" (kind "Util.GetVar") through the command sink creates a
+    /// real <see cref="GetVariableNode"/> whose projection is a single Value data-output pin
+    /// of the variable's type — with NO exec pins (a Get is pure).
+    /// </summary>
+    [Fact]
+    public void CreatePath_GetVariable_ProducesPureValueOutPin()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var varId = Guid.NewGuid();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = varId, Name = "Health",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        });
+
+        var (sink, model) = MakeSink(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddNode(
+            new NodeId(Guid.NewGuid()),
+            new NodeKindKey("Util.GetVar"),
+            new System.Numerics.Vector2(10, 20),
+            new Dictionary<string, object?> { ["VariableId"] = $"var:{varId}" }));
+        Assert.True(result.Success, result.Message);
+
+        // The asset graph must contain a real GetVariableNode (NOT a FunctionCallNode).
+        var assetNode = graph.Nodes.OfType<GetVariableNode>().Single();
+        Assert.Equal($"var:{varId}", assetNode.VariableId);
+        Assert.Empty(graph.Nodes.OfType<FunctionCallNode>());
+
+        // Projected pins: exactly one Value data-output, no exec pins.
+        var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(assetNode.Id));
+        Assert.Equal(1, nodeModel.Pins.Count);
+        var pin = nodeModel.Pins[0];
+        Assert.Equal(PinKind.Data,       pin.Kind);
+        Assert.Equal(PinDirection.Output, pin.Direction);
+        Assert.Equal("Value",            pin.Label);
+        Assert.Equal("System.Single",    pin.Type!.Value.Id);
+        Assert.DoesNotContain(nodeModel.Pins, p => p.Kind == PinKind.Exec);
+    }
+
+    /// <summary>
+    /// Dragging a variable as "Set" (kind "Util.SetVar") creates a real
+    /// <see cref="SetVariableNode"/> whose projection has exec in/out plus a typed
+    /// Value data input of the variable's type.
+    /// </summary>
+    [Fact]
+    public void CreatePath_SetVariable_ProducesExecPlusTypedValueInput()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var varId = Guid.NewGuid();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = varId, Name = "Ammo",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        });
+
+        var (sink, model) = MakeSink(asset, graph);
+
+        var result = sink.Apply(new GraphCommand.AddNode(
+            new NodeId(Guid.NewGuid()),
+            new NodeKindKey("Util.SetVar"),
+            new System.Numerics.Vector2(0, 0),
+            new Dictionary<string, object?> { ["VariableId"] = varId.ToString() }));
+        Assert.True(result.Success, result.Message);
+
+        var assetNode = graph.Nodes.OfType<SetVariableNode>().Single();
+        Assert.Empty(graph.Nodes.OfType<FunctionCallNode>());
+
+        var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(assetNode.Id));
+
+        // Exec in + exec out present.
+        Assert.Contains(nodeModel.Pins, p => p.Kind == PinKind.Exec && p.Direction == PinDirection.Input);
+        Assert.Contains(nodeModel.Pins, p => p.Kind == PinKind.Exec && p.Direction == PinDirection.Output);
+
+        // A typed Value data-input of the variable's type.
+        var valueIn = nodeModel.Pins.Single(p =>
+            p.Kind == PinKind.Data && p.Direction == PinDirection.Input);
+        Assert.Equal("Value",        valueIn.Label);
+        Assert.Equal("System.Int32", valueIn.Type!.Value.Id);
+    }
+
+    // ── BCP-BATCH-02-FIX Task 3: My Blueprint "+" create-variable ──────────────
+
+    /// <summary>
+    /// The editor.create-variable handler (My Blueprint "+ Variable") appends a new
+    /// <see cref="VariableDecl"/> to the asset and projects it into the Variables section.
+    /// </summary>
+    [Fact]
+    public void CreateVariableCommand_AddsVariableDecl_AppearsInMyBlueprintModel()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+        Assert.Empty(asset.Variables);
+
+        var commands = new EditorCommandsImpl();
+        bool dirtied = false;
+        Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.RegisterCreateVariableCommand(
+            commands, asset, () => dirtied = true);
+
+        var result = commands.Invoke(NodeEditor.Core.CommandCatalog.CreateVariable);
+        Assert.True(result.Success, result.Message);
+
+        // A real VariableDecl was added to the asset.
+        var decl = Assert.Single(asset.Variables);
+        Assert.False(string.IsNullOrEmpty(decl.Name));
+        Assert.True(dirtied, "Creating a variable must mark the document dirty.");
+
+        // It appears in the My Blueprint model's Variables section.
+        var model = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintModel();
+        model.Retarget(null, asset);
+        var items = model.GetItems(
+            Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintModel.SectionVariables);
+        Assert.Single(items);
+        Assert.Equal(decl.Name, items[0].DisplayName);
+    }
+
+    /// <summary>
+    /// Invoking the create-variable command twice yields two distinctly-named variables.
+    /// </summary>
+    [Fact]
+    public void CreateVariableCommand_Twice_ProducesUniqueNames()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+        var commands = new EditorCommandsImpl();
+        Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.RegisterCreateVariableCommand(
+            commands, asset, () => { });
+
+        commands.Invoke(NodeEditor.Core.CommandCatalog.CreateVariable);
+        commands.Invoke(NodeEditor.Core.CommandCatalog.CreateVariable);
+
+        Assert.Equal(2, asset.Variables.Count);
+        Assert.NotEqual(asset.Variables[0].Name, asset.Variables[1].Name);
+    }
+
     // ── private stubs ─────────────────────────────────────────────────────────
 
     private sealed class StubCommandSink : IGraphCommandSink

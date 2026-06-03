@@ -25,6 +25,12 @@ public interface IPickerRegistry
         System.Action<object> onPick,
         System.Action? onCancel = null,
         IReadOnlyDictionary<string, object?>? context = null);
+
+    /// <summary>
+    /// Per-frame draw call. Must be invoked once every ImGui frame by the host so that
+    /// an open picker window is rendered and can close. No-ops when no picker is open.
+    /// </summary>
+    void DrawFrame();
 }
 
 /// <summary>A source of pickable items. Generic on item type.</summary>

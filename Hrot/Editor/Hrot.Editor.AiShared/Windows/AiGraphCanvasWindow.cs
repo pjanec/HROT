@@ -2,6 +2,7 @@ using System;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Documents;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.UI.Find;
 
@@ -102,8 +103,25 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     private readonly string            _assetKind;
     private readonly ICanvasRenderSeam _renderer;
 
+    // BCP-BATCH-02-FIX Task 1: the shared picker registry whose DrawFrame() must run
+    // once per frame so an opened picker (TAB add-node, wire-drop-to-empty) is visible
+    // and can close. Null only in legacy headless tests that do not exercise the picker.
+    private readonly IPickerRegistry? _pickers;
+
+    // BCP-BATCH-02-FIX Task 1: per-frame hotkey pump (Ctrl+F find, etc.). Null only in
+    // legacy headless tests that do not supply a host input source.
+    private readonly EditorHotkeyDispatcher? _hotkeys;
+
+    // BCP-BATCH-02-FIX Task 2: stable base title (the "{assetKind} Canvas" empty-state
+    // label). The dynamic title is rebuilt from this + the active document name.
+    private readonly string _baseTitle;
+
     // Track whether focus was already activated this activation cycle.
     private AiDocument? _lastActivatedDoc;
+
+    // BCP-BATCH-02-FIX Task 2: the document whose name is currently reflected in Title,
+    // so we only rebuild the title string when the active document actually changes.
+    private AiDocument? _titleDoc;
 
     /// <summary>
     /// Constructs a graph canvas window.
@@ -120,6 +138,16 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     ///   Canvas render seam. In production supply a <see cref="ProductionCanvasRenderSeam"/>
     ///   wrapping a <c>CanvasRenderer</c>; in tests supply a spy/fake.
     /// </param>
+    /// <param name="pickers">
+    ///   Shared picker registry (from <c>AiEditorAdapterBundle.PickerRegistry</c>). Its
+    ///   <see cref="IPickerRegistry.DrawFrame"/> is called once per frame so an opened
+    ///   picker is rendered and can close (BCP-BATCH-02-FIX Task 1). May be <c>null</c>
+    ///   in headless tests that do not exercise the picker overlay.
+    /// </param>
+    /// <param name="input">
+    ///   Host input source used to drive the per-frame <see cref="EditorHotkeyDispatcher"/>
+    ///   (Ctrl+F find and other command shortcuts). May be <c>null</c> in headless tests.
+    /// </param>
     /// <param name="idOverride">
     ///   Optional stable ImGui id suffix. When <c>null</c> a default of
     ///   <c>"ai_canvas_{assetKind.ToLowerInvariant()}"</c> is used.
@@ -128,6 +156,8 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         string            assetKind,
         AiDocumentManager docManager,
         ICanvasRenderSeam renderer,
+        IPickerRegistry?  pickers    = null,
+        IInputSource?     input      = null,
         string?           idOverride = null)
         : base(
             id:                 idOverride ?? $"ai_canvas_{assetKind.ToLowerInvariant()}",
@@ -138,6 +168,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _assetKind  = assetKind  ?? throw new ArgumentNullException(nameof(assetKind));
         _docManager = docManager ?? throw new ArgumentNullException(nameof(docManager));
         _renderer   = renderer   ?? throw new ArgumentNullException(nameof(renderer));
+        _pickers    = pickers;
+        _hotkeys    = input != null ? new EditorHotkeyDispatcher(input) : null;
+        _baseTitle  = $"{assetKind} Canvas";
 
         IsOpen = true;
     }
@@ -186,14 +219,69 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         if (ImGuiAvailable())
             HandleFocusActivation(doc);
 
+        // BCP-BATCH-02-FIX Task 2: reflect the active asset name in the window title,
+        // keeping the stable "###id" so docking identity is preserved. Empty-state title
+        // when no document is active.
+        UpdateTitle(doc);
+
         if (doc == null || ActiveContext == null)
         {
             DrawEmptyState();
             return;
         }
 
+        var context = ActiveContext;
+
         // Render the cached GraphView via the seam, threading FindBar and Commands when present.
-        _renderer.Render(ActiveContext.View, ActiveContext.FindBar, ActiveContext.Commands);
+        _renderer.Render(context.View, context.FindBar, context.Commands);
+
+        // BCP-BATCH-02-FIX Task 1 (THE key fix): draw the picker overlay and pump command
+        // hotkeys once per frame, gated behind an available ImGui context for headless safety.
+        // Without DrawFrame the TAB add-node picker / wire-drop picker open invisibly and the
+        // interaction Mode sticks (PickerOpen / PendingWire), killing RMB-pan, context menu and
+        // wire-drag (all of which live in HandleIdle).
+        if (ImGuiAvailable())
+        {
+            // Yield command hotkeys while the user is typing into a text field so we do not
+            // steal keystrokes from inline editors / search boxes.
+            bool wantText = ImGuiNET.ImGui.GetIO().WantTextInput;
+            DrawPickerAndPumpHotkeys(context, suppressHotkeys: wantText);
+        }
+    }
+
+    /// <summary>
+    /// Draws the shared picker overlay once and pumps the per-frame command hotkeys.
+    /// Extracted from <see cref="DrawClientArea"/> so it can be exercised headlessly
+    /// via <see cref="SimulatePickerAndHotkeyFrame"/> (the <c>DrawFrame</c> spy and the
+    /// hotkey dispatcher do not require an ImGui context themselves).
+    /// </summary>
+    /// <param name="context">The active canvas context (supplies the command set).</param>
+    /// <param name="suppressHotkeys">
+    /// When <c>true</c>, the hotkey pump is skipped (used when the user is typing into a
+    /// text field so command shortcuts do not steal keystrokes).
+    /// </param>
+    private void DrawPickerAndPumpHotkeys(AiCanvasContext context, bool suppressHotkeys)
+    {
+        _pickers?.DrawFrame();
+
+        if (!suppressHotkeys)
+            _hotkeys?.ProcessThisFrame(context.Commands);
+    }
+
+    /// <summary>
+    /// Sets <see cref="ManagedWindow.Title"/> to include the active document's asset name
+    /// when the active document changes. Keeps the stable <c>###Id</c> suffix (provided by
+    /// <see cref="ManagedWindow"/>) so ImGui dock identity is preserved across title changes.
+    /// </summary>
+    private void UpdateTitle(AiDocument? doc)
+    {
+        if (ReferenceEquals(doc, _titleDoc)) return;
+        _titleDoc = doc;
+
+        var assetName = doc?.Asset?.Name;
+        Title = string.IsNullOrEmpty(assetName)
+            ? _baseTitle
+            : $"{assetName} — {_assetKind}";
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -231,6 +319,26 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         if (doc == _lastActivatedDoc) return;
         _lastActivatedDoc = doc;
         _docManager.Activate(doc);
+    }
+
+    /// <summary>
+    /// Test hook: runs the non-ImGui portion of <see cref="DrawClientArea"/> for the active
+    /// document — updates <see cref="ManagedWindow.Title"/> from the asset name and, when a
+    /// context is present, draws the picker overlay and pumps command hotkeys.
+    /// Mirrors the production per-frame path without requiring an ImGui context.
+    /// </summary>
+    /// <param name="suppressHotkeys">
+    /// Simulates the "user is typing into a text field" gate that suppresses the hotkey pump.
+    /// </param>
+    internal void SimulateDrawClientArea(bool suppressHotkeys = false)
+    {
+        var doc = ActiveDocument;
+        UpdateTitle(doc);
+
+        var context = ActiveContext;
+        if (doc == null || context == null) return;
+
+        DrawPickerAndPumpHotkeys(context, suppressHotkeys);
     }
 }
 

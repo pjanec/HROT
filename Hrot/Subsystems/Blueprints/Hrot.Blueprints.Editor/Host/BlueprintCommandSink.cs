@@ -127,6 +127,17 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         Vector2 position,
         IReadOnlyDictionary<string, object?>? props)
     {
+        // BCP-BATCH-02-FIX Task 3: the My-Blueprint variable-drag create-path
+        // (CanvasRenderer.PlaceVariableNode) emits the kind ids "Util.GetVar" / "Util.SetVar".
+        // These are not in the Blueprint palette registry, so without this mapping they fell
+        // through to a generic FunctionCallNode (exec in/out, no data pin). Create the real
+        // GetVariableNode / SetVariableNode so NodePinSchema projects the correct pins:
+        // Get = PURE (single data-out "Value"), Set = exec in/out + typed data "Value".
+        if (IsGetVariableKind(kind.Id))
+            return FinishVariableNode(new GetVariableNode(), position, props);
+        if (IsSetVariableKind(kind.Id))
+            return FinishVariableNode(new SetVariableNode(), position, props);
+
         // Map the NodeKindKey back to the appropriate asset Node subtype.
         // The NodeKindRegistry descriptor has a CreateInstance factory; use it
         // to create a properly-typed node (pins are not relevant here — they are
@@ -153,6 +164,39 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             ApplyInitialProperties(assetNode, props);
 
         return assetNode;
+    }
+
+    // ── Variable Get/Set create-path (BCP-BATCH-02-FIX Task 3) ────────────────
+
+    /// <summary>
+    /// True when <paramref name="kindId"/> denotes a "get variable" node create request
+    /// (the My-Blueprint drag-to-canvas / context-menu "Get" path).
+    /// </summary>
+    private static bool IsGetVariableKind(string kindId) =>
+        kindId is "Util.GetVar" or "Variable.Get" or "Blueprint.GetVariable" or "GetVariable";
+
+    /// <summary>
+    /// True when <paramref name="kindId"/> denotes a "set variable" node create request
+    /// (the My-Blueprint drag-to-canvas / context-menu "Set" path).
+    /// </summary>
+    private static bool IsSetVariableKind(string kindId) =>
+        kindId is "Util.SetVar" or "Variable.Set" or "Blueprint.SetVariable" or "SetVariable";
+
+    /// <summary>
+    /// Stamps id, position and the <c>VariableId</c> property onto a freshly created
+    /// <see cref="GetVariableNode"/>/<see cref="SetVariableNode"/> so
+    /// <see cref="NodePinSchema"/> can type the Value pin from the declared variable.
+    /// </summary>
+    private static Node FinishVariableNode(
+        Node node,
+        Vector2 position,
+        IReadOnlyDictionary<string, object?>? props)
+    {
+        node.Id = Guid.NewGuid();
+        node.EditorMetadata = new NodeMetadata { X = position.X, Y = position.Y };
+        if (props != null)
+            ApplyInitialProperties(node, props);
+        return node;
     }
 
     private static void ApplyInitialProperties(Node node, IReadOnlyDictionary<string, object?> props)

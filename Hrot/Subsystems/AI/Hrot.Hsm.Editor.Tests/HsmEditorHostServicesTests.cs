@@ -55,6 +55,7 @@ public sealed class HsmEditorHostServicesTests
         public IPickerSource<TItem>? Get<TItem>(string sourceKey) => null;
         public void Open(string sourceKey, Vector2 screenPos, Action<object> onPick,
             Action? onCancel = null, IReadOnlyDictionary<string, object?>? context = null) { }
+        public void DrawFrame() { }
     }
 
     private sealed class StubClipboard : IClipboard

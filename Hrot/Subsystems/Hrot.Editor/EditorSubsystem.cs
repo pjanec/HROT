@@ -1667,11 +1667,14 @@ namespace Hrot.Editor
                     var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
 
                     // Retarget My Blueprint window.
+                    // BCP-BATCH-02-FIX Task 3: pass the document's real command set (ctx.Commands)
+                    // so the panel's "+ Variable" hits the registered editor.create-variable handler
+                    // (which appends a VariableDecl) instead of a fresh, empty command instance.
                     _blueprintMyBlueprintWindow?.Retarget(
                         editableAsset:  active.Asset,
                         blueprintAsset: bpAsset,
                         hostServices:   ctx?.View.Host,
-                        commands:       new NodeEditor.Core.Action.EditorCommandsImpl());
+                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl());
 
                     // Retarget Details window (just needs the BlueprintAsset).
                     _blueprintDetailsWindow?.Retarget(bpAsset);
@@ -1741,19 +1744,25 @@ namespace Hrot.Editor
 
             // Canvas windows — one per perspective.
             // BCP-F: thread FindBar + IEditorCommands from AiCanvasContext into the render call.
+            // BCP-BATCH-02-FIX Task 1: pass the shared picker registry + host input so the
+            // canvas draws the picker overlay every frame and pumps command hotkeys (Ctrl+F).
             var btreeCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "BTree",
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => btreeCanvasRenderer.Render(view, null),
-                    renderWithFindBar: (view, fb, cmds) => btreeCanvasRenderer.Render(view, fb, cmds)));
+                    renderWithFindBar: (view, fb, cmds) => btreeCanvasRenderer.Render(view, fb, cmds)),
+                pickers:    adapterBundle.PickerRegistry,
+                input:      adapterBundle.InputSource);
 
             var hsmCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                 assetKind:  "HSM",
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => hsmCanvasRenderer.Render(view, null),
-                    renderWithFindBar: (view, fb, cmds) => hsmCanvasRenderer.Render(view, fb, cmds)));
+                    renderWithFindBar: (view, fb, cmds) => hsmCanvasRenderer.Render(view, fb, cmds)),
+                pickers:    adapterBundle.PickerRegistry,
+                input:      adapterBundle.InputSource);
 
             // AIE-046: Blueprint canvas window.
             var blueprintCanvasWindow = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
@@ -1761,7 +1770,9 @@ namespace Hrot.Editor
                 docManager: _aiDocumentManager,
                 renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                     renderDelegate:    view => blueprintCanvasRenderer.Render(view, null),
-                    renderWithFindBar: (view, fb, cmds) => blueprintCanvasRenderer.Render(view, fb, cmds)));
+                    renderWithFindBar: (view, fb, cmds) => blueprintCanvasRenderer.Render(view, fb, cmds)),
+                pickers:    adapterBundle.PickerRegistry,
+                input:      adapterBundle.InputSource);
 
             // Register the canvas windows into their respective perspectives via the extension seam.
             _btreeRegistrar!.RegisterExtraWindow(windowManager, btreeCanvasWindow);

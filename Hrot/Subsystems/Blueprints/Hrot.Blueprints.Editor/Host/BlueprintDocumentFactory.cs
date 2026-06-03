@@ -153,6 +153,12 @@ public static class BlueprintDocumentFactory
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
+        // BCP-BATCH-02-FIX Task 3: My Blueprint "+" → Create Variable.
+        // The MyBlueprintPanel "+ Variable" item invokes "editor.create-variable"; register a
+        // real handler that appends a VariableDecl to the asset so it shows up in the
+        // Variables section. (Was a no-op since BATCH-13.)
+        RegisterCreateVariableCommand(commands, bpAsset, () => bpFile.MarkDirty());
+
         // Store the BlueprintAsset in AssetRef so the composition root can retarget
         // My Blueprint / Details / Variables windows without a kind-specific dependency.
         return new AiCanvasContext(view, AssetKind.Blueprint.ToString())
@@ -161,6 +167,60 @@ public static class BlueprintDocumentFactory
             FindBar  = findBar,
             Commands = commands,
         };
+    }
+
+    // ── Create-variable command (BCP-BATCH-02-FIX Task 3) ─────────────────────
+
+    /// <summary>
+    /// Registers the <c>editor.create-variable</c> command so the My Blueprint panel's
+    /// "+ Variable" action appends a new <see cref="VariableDecl"/> to <paramref name="asset"/>
+    /// and marks the document dirty. The new variable gets a unique default name and a
+    /// <c>System.Boolean</c> type (the user can retype it in the Variables panel).
+    /// <para>Exposed <c>internal</c> so tests can verify the create path without ImGui.</para>
+    /// </summary>
+    internal static void RegisterCreateVariableCommand(
+        EditorCommandsImpl commands,
+        BlueprintAsset     asset,
+        Action             markDirty)
+    {
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateVariable,
+            "Create Variable", "Add",
+            _ => AddVariable(asset, markDirty),
+            description: "Add a new variable to this blueprint.");
+    }
+
+    /// <summary>
+    /// Appends a new <see cref="VariableDecl"/> with a unique name to the asset's
+    /// <see cref="BlueprintAsset.Variables"/> list and invokes the dirty callback.
+    /// Returns the created declaration.
+    /// </summary>
+    internal static VariableDecl AddVariable(BlueprintAsset asset, Action? markDirty = null)
+    {
+        var decl = new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = MakeUniqueVariableName(asset, "NewVar"),
+            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+        };
+        asset.Variables.Add(decl);
+        markDirty?.Invoke();
+        return decl;
+    }
+
+    private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)
+    {
+        var existing = new HashSet<string>(
+            asset.Variables.Select(v => v.Name),
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!existing.Contains(baseName)) return baseName;
+        for (int i = 1; ; i++)
+        {
+            var candidate = $"{baseName}{i}";
+            if (!existing.Contains(candidate)) return candidate;
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
