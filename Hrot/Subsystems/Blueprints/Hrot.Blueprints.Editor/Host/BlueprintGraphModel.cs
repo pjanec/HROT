@@ -231,7 +231,7 @@ public sealed class BlueprintGraphModel : IGraphModel
         foreach (var assetNode in _graph.Nodes)
         {
             var resolvedPins = resolvedPinLists[assetNode.Id];
-            var nodeModel    = new BlueprintNodeModel(assetNode, resolvedPins);
+            var nodeModel    = new BlueprintNodeModel(assetNode, resolvedPins, _asset);
             nodes[nodeModel.Id] = nodeModel;
             foreach (var pin in resolvedPins)
                 pins[pin.Id] = pin;

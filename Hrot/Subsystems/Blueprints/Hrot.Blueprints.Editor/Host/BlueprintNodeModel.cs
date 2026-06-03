@@ -40,12 +40,22 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// Constructs a node model from a raw asset node, using the pre-resolved
     /// <paramref name="resolvedPins"/> list built by the two-pass GUID-binding algorithm.
     /// </summary>
-    public BlueprintNodeModel(Hrot.Blueprints.Core.Assets.Node node, IReadOnlyList<IPinModel> resolvedPins)
+    /// <param name="node">The asset node to project.</param>
+    /// <param name="resolvedPins">The GUID-bound pin list built by the graph model.</param>
+    /// <param name="asset">
+    /// The owning asset, threaded so Get/Set variable titles can resolve the variable's
+    /// declared NAME (instead of showing the raw <c>var:&lt;guid&gt;</c> id). May be null
+    /// in unit tests that don't exercise variable nodes.
+    /// </param>
+    public BlueprintNodeModel(
+        Hrot.Blueprints.Core.Assets.Node node,
+        IReadOnlyList<IPinModel> resolvedPins,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset = null)
     {
         _node     = node;
         Id        = new NodeId(node.Id);
         Kind      = new NodeKindKey(node.GetType().Name);
-        Title     = BuildTitle(node);
+        Title     = BuildTitle(node, asset);
         Category  = BuildCategory(node);
         _pins     = new List<IPinModel>(resolvedPins);
     }
@@ -63,11 +73,13 @@ internal sealed class BlueprintNodeModel : INodeModel
 
     // ── helpers ────────────────────────────────────────────────────────────
 
-    private static string BuildTitle(Hrot.Blueprints.Core.Assets.Node node) => node switch
+    private static string BuildTitle(
+        Hrot.Blueprints.Core.Assets.Node node,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset) => node switch
     {
         Hrot.Blueprints.Core.Assets.FunctionCallNode fc   => string.IsNullOrEmpty(fc.MethodName) ? "Function Call" : fc.MethodName,
-        Hrot.Blueprints.Core.Assets.GetVariableNode gv    => $"Get {gv.VariableId}",
-        Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set {sv.VariableId}",
+        Hrot.Blueprints.Core.Assets.GetVariableNode gv    => $"Get {ResolveVariableName(gv.VariableId, asset)}",
+        Hrot.Blueprints.Core.Assets.SetVariableNode sv    => $"Set {ResolveVariableName(sv.VariableId, asset)}",
         Hrot.Blueprints.Core.Assets.LiteralNode lt        => $"Literal ({lt.TypeId})",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => $"Event: {ee.EventTypeId}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => $"Call Peer: {cp.FunctionRef}",
@@ -99,4 +111,31 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.SequenceNode             => NodeCategory.FlowControl,
         _                                                    => NodeCategory.Function,
     };
+
+    /// <summary>
+    /// Resolves the display NAME of a variable from the owning asset's variable list.
+    /// Accepts both the raw GUID string and the My-Blueprint <c>var:&lt;guid&gt;</c> item-id
+    /// form. Falls back to the original id string when the asset is null or the variable
+    /// is not found.
+    /// </summary>
+    private static string ResolveVariableName(
+        string variableId,
+        Hrot.Blueprints.Core.Assets.BlueprintAsset? asset)
+    {
+        if (asset == null || string.IsNullOrEmpty(variableId))
+            return variableId;
+
+        var idStr = variableId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? variableId[4..]
+            : variableId;
+
+        if (Guid.TryParse(idStr, out var guid))
+        {
+            var decl = asset.Variables.FirstOrDefault(v => v.Id == guid);
+            if (decl != null && !string.IsNullOrEmpty(decl.Name))
+                return decl.Name;
+        }
+
+        return variableId;
+    }
 }

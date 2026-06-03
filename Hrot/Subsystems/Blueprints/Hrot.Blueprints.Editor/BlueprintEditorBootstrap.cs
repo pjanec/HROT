@@ -55,10 +55,16 @@ public static class BlueprintEditorBootstrap
     {
         var registry = new NodeKindRegistry();
 
-        // WHEN-M11-T2: Register the three When-Node palette entries
+        // WHEN-M11-T2: Register the three When-Node palette entries (hand-authored pins).
         registry.Register(WhenNodePaletteEntries.WhenNode());
         registry.Register(WhenNodePaletteEntries.ReadEqsResult());
         registry.Register(WhenNodePaletteEntries.SpawnEqsSensor());
+
+        // BCP-BATCH-02-FIX2 Task 2: register the full set of built-in blueprint node kinds
+        // so the TAB / wire-drop picker offers the complete vocabulary, grouped by category.
+        // Pins are projected by NodePinSchema at render time (projection-only).
+        foreach (var descriptor in BlueprintNodePaletteEntries.All())
+            registry.Register(descriptor);
 
         return registry;
     }

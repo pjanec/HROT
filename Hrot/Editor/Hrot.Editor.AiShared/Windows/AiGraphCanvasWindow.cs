@@ -279,9 +279,11 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
         _titleDoc = doc;
 
         var assetName = doc?.Asset?.Name;
+        // Use an ASCII hyphen separator: the engine ImGui font cannot render an em-dash
+        // ("—"), which showed up as "?" in the window title (BCP-BATCH-02-FIX2 Task 4).
         Title = string.IsNullOrEmpty(assetName)
             ? _baseTitle
-            : $"{assetName} — {_assetKind}";
+            : $"{assetName} - {_assetKind}";
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

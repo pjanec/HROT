@@ -124,6 +124,16 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     public bool IsImplicitCast(TypeKey from, TypeKey to)
         => from.Id == Int32 && to.Id == Single;
 
+    /// <summary>
+    /// The selectable variable type ids offered by the editor (e.g. the variable-create
+    /// modal's type dropdown). Ordered for a stable UI; the first entry is a sensible default.
+    /// </summary>
+    public static IReadOnlyList<string> SelectableTypeIds { get; } = new[]
+    {
+        Bool, Int32, Single, Float64, String, Byte, UInt32,
+        Vector2, Vector3, Entity,
+    };
+
     // ── Static helpers ────────────────────────────────────────────────────────
 
     /// <summary>

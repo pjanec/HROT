@@ -163,6 +163,20 @@ public sealed class HitTesterZOrderTests
     }
 
     [Fact]
+    public void Pin_coincident_with_wire_endpoint_resolves_to_pin_not_link()
+    {
+        // Regression (BCP-BATCH-02 Task 1): a pin whose screen position coincides with a
+        // wire endpoint must resolve to HoverKind.Pin so a NEW wire drag can start from an
+        // already-connected pin. The pin hit is submitted at ZLayerPin and the wire at
+        // ZLayerWire — exactly the (z, subLayer, priority) tuples HitTester.UpdateHover uses.
+        var winner = SelectWinner(
+            (HitTester.ZLayerWire, 1, 1, HoverKind.Link),   // wire crossing the pin location
+            (HitTester.ZLayerPin,  1, 1, HoverKind.Pin));   // the connected pin at the same point
+
+        winner.Should().Be(HoverKind.Pin);
+    }
+
+    [Fact]
     public void Higher_stack_index_attachment_wins_over_lower_at_same_position()
     {
         // Two overlapping attachments: StackIndex used as subLayer, higher wins.

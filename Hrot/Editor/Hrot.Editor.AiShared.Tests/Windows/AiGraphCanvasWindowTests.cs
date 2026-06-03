@@ -264,6 +264,33 @@ public sealed class AiGraphCanvasWindowTests
         Assert.Equal("BTree", ctx.Kind);
     }
 
+    // ── BCP-BATCH-02-FIX2 Task 4: ASCII window title (no em-dash → no "?") ──────
+
+    [Fact]
+    public void UpdateTitle_UsesAsciiSeparator_AndContainsAssetName()
+    {
+        var dm  = MakeDocManager();
+        var win = new AiGraphCanvasWindow("Blueprint", dm, new RecordingRenderSeam());
+
+        var asset = new FakeAsset(AssetKind.Blueprint, "PatrolBehavior");
+        var doc   = dm.Open(asset);
+        doc.ViewState = MakeContext("Blueprint");
+
+        // Run the non-ImGui per-frame path that refreshes the title.
+        win.SimulateDrawClientArea();
+
+        // Title must contain the asset name.
+        Assert.Contains("PatrolBehavior", win.Title);
+
+        // Title must be pure ASCII — the old em-dash "—" (U+2014) rendered as "?".
+        Assert.DoesNotContain("—", win.Title);
+        foreach (var ch in win.Title)
+            Assert.True(ch <= 0x7F, $"Title contains non-ASCII char U+{(int)ch:X4}: '{win.Title}'");
+
+        // And it must use the plain ASCII hyphen separator.
+        Assert.Contains("PatrolBehavior - ", win.Title);
+    }
+
     [Fact]
     public void DocumentOpened_Event_FiresOnNewDocument()
     {

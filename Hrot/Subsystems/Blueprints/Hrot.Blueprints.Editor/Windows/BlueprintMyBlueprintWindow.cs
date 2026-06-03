@@ -1,8 +1,10 @@
 using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor.Host;
 using Hrot.Editor.AiShared;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.UI.Action;
 using NodeEditor.UI.Panels;
 
 namespace Hrot.Blueprints.Editor.Windows;
@@ -26,6 +28,10 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
     // Last known host services (updated on Retarget when AiCanvasContext is present).
     private IEditorHostServices? _hostServices;
     private IEditorCommands? _commands;
+
+    // BCP-BATCH-02-FIX2 Task 5: variable-create modal (name + type). Rebuilt per active
+    // asset so its confirm callback targets the current asset.
+    private VariableCreateModal? _createVariableModal;
 
     // ── ctor ─────────────────────────────────────────────────────────────────
 
@@ -62,6 +68,26 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
             _commands     = commands;
             _panel        = null; // will be created lazily in DrawClientArea
         }
+
+        // Build the variable-create modal for the active asset and route the My Blueprint
+        // "+" command (editor.create-variable) to open it. On confirm the modal calls the
+        // headless-tested create path (BlueprintDocumentFactory.CreateVariable).
+        if (blueprintAsset != null && commands is EditorCommandsImpl cmdImpl)
+        {
+            var markDirty = editableAsset is Catalog.BlueprintFileAsset bpFile
+                ? (Action)bpFile.MarkDirty
+                : null;
+            _createVariableModal = new VariableCreateModal(
+                (name, typeId) => BlueprintDocumentFactory.CreateVariable(
+                    blueprintAsset, name, typeId, markDirty));
+
+            BlueprintDocumentFactory.RegisterCreateVariableCommand(
+                cmdImpl, _createVariableModal.Open);
+        }
+        else
+        {
+            _createVariableModal = null;
+        }
     }
 
     /// <summary>
@@ -92,5 +118,8 @@ public sealed class BlueprintMyBlueprintWindow : ManagedWindow
         }
 
         _panel.Draw();
+
+        // Draw the variable-create modal (opened by the "+" command). No-op when closed.
+        _createVariableModal?.Draw();
     }
 }

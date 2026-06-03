@@ -192,17 +192,67 @@ public static class BlueprintDocumentFactory
     }
 
     /// <summary>
-    /// Appends a new <see cref="VariableDecl"/> with a unique name to the asset's
+    /// Registers the <c>editor.create-variable</c> command so that invoking it opens the
+    /// variable-create modal (name + type) rather than immediately creating a variable with
+    /// a default name. The modal's confirm callback is responsible for calling
+    /// <see cref="CreateVariable"/>. Used in production wiring; the parameterless-create
+    /// overload remains for headless tests of the create path.
+    /// </summary>
+    /// <param name="commands">The editor command catalog.</param>
+    /// <param name="openModal">Opens the variable-create modal (e.g. <c>modal.Open</c>).</param>
+    public static void RegisterCreateVariableCommand(
+        EditorCommandsImpl commands,
+        Action             openModal)
+    {
+        ArgumentNullException.ThrowIfNull(openModal);
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            NodeEditor.Core.CommandCatalog.CreateVariable,
+            "Create Variable", "Add",
+            _ => openModal(),
+            description: "Add a new variable to this blueprint.");
+    }
+
+    /// <summary>
+    /// Appends a new <see cref="VariableDecl"/> with a unique default name to the asset's
     /// <see cref="BlueprintAsset.Variables"/> list and invokes the dirty callback.
     /// Returns the created declaration.
     /// </summary>
     internal static VariableDecl AddVariable(BlueprintAsset asset, Action? markDirty = null)
+        => CreateVariable(asset, "NewVar", BlueprintTypeSystem.Bool, markDirty);
+
+    /// <summary>
+    /// Headless-testable create path used by the variable-create modal: appends a new
+    /// <see cref="VariableDecl"/> with the supplied <paramref name="name"/> and
+    /// <paramref name="typeId"/> to the asset, deduplicating the name against existing
+    /// variables, and invokes the dirty callback. Returns the created declaration.
+    /// </summary>
+    /// <param name="asset">The asset to append the variable to.</param>
+    /// <param name="name">
+    /// The desired variable name; blank/whitespace falls back to <c>"NewVar"</c>. Trimmed,
+    /// then made unique against the asset's existing variable names.
+    /// </param>
+    /// <param name="typeId">
+    /// The variable's type id (e.g. <c>"System.Single"</c>); blank falls back to
+    /// <see cref="BlueprintTypeSystem.Bool"/>.
+    /// </param>
+    /// <param name="markDirty">Optional dirty-marking callback.</param>
+    internal static VariableDecl CreateVariable(
+        BlueprintAsset asset,
+        string         name,
+        string         typeId,
+        Action?        markDirty = null)
     {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var trimmed   = string.IsNullOrWhiteSpace(name) ? "NewVar" : name.Trim();
+        var finalType = string.IsNullOrWhiteSpace(typeId) ? BlueprintTypeSystem.Bool : typeId.Trim();
+
         var decl = new VariableDecl
         {
             Id   = Guid.NewGuid(),
-            Name = MakeUniqueVariableName(asset, "NewVar"),
-            Type = new BlueprintTypeRef { TypeId = "System.Boolean" },
+            Name = MakeUniqueVariableName(asset, trimmed),
+            Type = new BlueprintTypeRef { TypeId = finalType },
         };
         asset.Variables.Add(decl);
         markDirty?.Invoke();

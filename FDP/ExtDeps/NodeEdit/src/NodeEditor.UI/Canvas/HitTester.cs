@@ -203,7 +203,7 @@ internal sealed class HitTester
                     if (!pinPositions.TryGetValue(pin.Id, out var screenPos)) continue;
                     if (Vector2.Distance(mouse, screenPos) <= pinHitRadius)
                     {
-                        SubmitHit(new HoverInfo { Kind = HoverKind.Pin, Pin = pin.Id }, ZLayerNodeElement, nodeSubLayer, 1);
+                        SubmitHit(new HoverInfo { Kind = HoverKind.Pin, Pin = pin.Id }, ZLayerPin, nodeSubLayer, 1);
                     }
                 }
             }

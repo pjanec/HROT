@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -638,6 +639,224 @@ public sealed class BcpBatch02BlueprintTests
 
         Assert.Equal(2, asset.Variables.Count);
         Assert.NotEqual(asset.Variables[0].Name, asset.Variables[1].Name);
+    }
+
+    // ── BCP-BATCH-02-FIX2 Task 2: full node palette ───────────────────────────
+
+    /// <summary>
+    /// CreatePaletteRegistry registers the full blueprint node vocabulary (>= 25 kinds),
+    /// and BlueprintNodeCatalog.Query("") surfaces every one of them grouped by category.
+    /// </summary>
+    [Fact]
+    public void Palette_RegistersFullBlueprintNodeSet_WithCategories()
+    {
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
+
+        var kinds = registry.EnumerateAll().ToList();
+        Assert.True(kinds.Count >= 25,
+            $"Expected >= 25 palette kinds, got {kinds.Count}.");
+
+        // The When/EQS trio must still be present.
+        Assert.Contains(kinds, k => k.Kind == "When");
+        Assert.Contains(kinds, k => k.Kind == "ReadEqsResult");
+        Assert.Contains(kinds, k => k.Kind == "SpawnEqsSensor");
+
+        // Spot-check core kinds + their categories.
+        var branch   = kinds.Single(k => k.Kind == "Branch");
+        var sequence = kinds.Single(k => k.Kind == "Sequence");
+        var funcCall = kinds.Single(k => k.Kind == "FunctionCall");
+        var getVar   = kinds.Single(k => k.Kind == "GetVariable");
+
+        Assert.Equal(BlueprintNodePaletteEntries.Categories.FlowControl, branch.Category);
+        Assert.Equal(BlueprintNodePaletteEntries.Categories.FlowControl, sequence.Category);
+        Assert.Equal(BlueprintNodePaletteEntries.Categories.Function,    funcCall.Category);
+        Assert.Equal(BlueprintNodePaletteEntries.Categories.Variables,   getVar.Category);
+
+        // Every registered kind must surface through the catalog's empty query.
+        var catalog = new BlueprintNodeCatalog(registry);
+        var all     = catalog.Query(new NodeSearchQuery(""));
+        Assert.Equal(kinds.Count, all.Count);
+        Assert.Contains(all, e => e.Kind.Id == "Branch");
+        Assert.Contains(all, e => e.Kind.Id == "Sequence");
+        Assert.Contains(all, e => e.Kind.Id == "FunctionCall");
+        Assert.Contains(all, e => e.Kind.Id == "GetVariable");
+    }
+
+    /// <summary>
+    /// Each palette descriptor's CreateInstance returns a real, distinctly-typed Node with a
+    /// fresh Id (so the same kind dragged twice yields two independent nodes).
+    /// </summary>
+    [Fact]
+    public void Palette_CreateInstance_ReturnsTypedNodesWithFreshIds()
+    {
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
+
+        var branch = registry.TryGet("Branch")!;
+        var n1 = branch.CreateInstance();
+        var n2 = branch.CreateInstance();
+        Assert.IsType<BranchNode>(n1);
+        Assert.IsType<BranchNode>(n2);
+        Assert.NotEqual(Guid.Empty, n1.Id);
+        Assert.NotEqual(n1.Id, n2.Id);
+
+        Assert.IsType<SequenceNode>(registry.TryGet("Sequence")!.CreateInstance());
+        Assert.IsType<GetVariableNode>(registry.TryGet("GetVariable")!.CreateInstance());
+        Assert.IsType<FunctionCallNode>(registry.TryGet("FunctionCall")!.CreateInstance());
+        Assert.IsType<AcquireSlotNode>(registry.TryGet("AcquireSlot")!.CreateInstance());
+    }
+
+    // ── BCP-BATCH-02-FIX2 Task 3: variable node title shows NAME, not UUID ─────
+
+    /// <summary>
+    /// A Get node for a variable named "Health" projects Title == "Get Health"
+    /// (resolved from the asset), not "Get var:&lt;guid&gt;".
+    /// </summary>
+    [Fact]
+    public void VariableNodeTitle_GetNode_ShowsVariableName_NotUuid()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var varId = Guid.NewGuid();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = varId, Name = "Health",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        });
+
+        // Use the My-Blueprint "var:<guid>" item-id form to prove prefix stripping.
+        var getNode = new GetVariableNode { Id = Guid.NewGuid(), VariableId = $"var:{varId}" };
+        graph.Nodes.Add(getNode);
+
+        var model     = new BlueprintGraphModel(asset, graph);
+        var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(getNode.Id));
+
+        Assert.Equal("Get Health", nodeModel.Title);
+        Assert.DoesNotContain(varId.ToString(), nodeModel.Title);
+    }
+
+    /// <summary>A Set node for "Health" projects Title == "Set Health".</summary>
+    [Fact]
+    public void VariableNodeTitle_SetNode_ShowsVariableName()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var varId = Guid.NewGuid();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = varId, Name = "Health",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        });
+
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = varId.ToString() };
+        graph.Nodes.Add(setNode);
+
+        var model     = new BlueprintGraphModel(asset, graph);
+        var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(setNode.Id));
+
+        Assert.Equal("Set Health", nodeModel.Title);
+    }
+
+    /// <summary>
+    /// When the variable id cannot be resolved (no matching decl), the title falls back to
+    /// the raw id string rather than throwing.
+    /// </summary>
+    [Fact]
+    public void VariableNodeTitle_UnknownVariable_FallsBackToId()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var unknownId = Guid.NewGuid().ToString();
+        var getNode = new GetVariableNode { Id = Guid.NewGuid(), VariableId = unknownId };
+        graph.Nodes.Add(getNode);
+
+        var model     = new BlueprintGraphModel(asset, graph);
+        var nodeModel = model.Nodes.Single(n => n.Id == new NodeId(getNode.Id));
+
+        Assert.Equal($"Get {unknownId}", nodeModel.Title);
+    }
+
+    // ── BCP-BATCH-02-FIX2 Task 5: variable-create with name + type ─────────────
+
+    /// <summary>
+    /// The headless create path (CreateVariable, invoked by the modal's confirm) adds a
+    /// VariableDecl with the entered name and type to the asset.
+    /// </summary>
+    [Fact]
+    public void CreateVariable_WithNameAndType_AddsMatchingVariableDecl()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+        Assert.Empty(asset.Variables);
+
+        bool dirtied = false;
+        var decl = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "Speed", "System.Single", () => dirtied = true);
+
+        var added = Assert.Single(asset.Variables);
+        Assert.Same(decl, added);
+        Assert.Equal("Speed", added.Name);
+        Assert.Equal("System.Single", added.Type!.TypeId);
+        Assert.True(dirtied, "Creating a variable must mark the document dirty.");
+    }
+
+    /// <summary>
+    /// Two creates with the same requested name produce distinct, deduplicated names so the
+    /// modal can be used repeatedly without clobbering.
+    /// </summary>
+    [Fact]
+    public void CreateVariable_DuplicateName_IsMadeUnique()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+
+        var a = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "Speed", "System.Single");
+        var b = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "Speed", "System.Single");
+
+        Assert.Equal("Speed", a.Name);
+        Assert.NotEqual(a.Name, b.Name);
+        Assert.Equal(2, asset.Variables.Count);
+    }
+
+    /// <summary>
+    /// Blank name/type fall back to sensible defaults rather than producing an empty-named
+    /// or untyped variable.
+    /// </summary>
+    [Fact]
+    public void CreateVariable_BlankInputs_FallBackToDefaults()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+
+        var decl = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "   ", "");
+
+        Assert.False(string.IsNullOrWhiteSpace(decl.Name));
+        Assert.Equal(BlueprintTypeSystem.Bool, decl.Type!.TypeId);
+    }
+
+    /// <summary>
+    /// The variable-create modal's confirm callback (the same delegate the modal's Create
+    /// button invokes) creates a matching VariableDecl. Draw() is verified to be a safe
+    /// no-op without an ImGui context (headless).
+    /// </summary>
+    [Fact]
+    public void VariableCreateModal_ConfirmCallback_CreatesVariable()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+
+        // The confirm callback is exactly what production wires: route to CreateVariable.
+        Action<string, string> confirm = (name, typeId) =>
+            Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(asset, name, typeId);
+
+        var modal = new Hrot.Blueprints.Editor.Windows.VariableCreateModal(confirm);
+
+        // Draw() must be a safe no-op when there is no ImGui context.
+        modal.Open();
+        modal.Draw();
+        Assert.Empty(asset.Variables); // Draw alone (no confirm) creates nothing.
+
+        // Fire the confirm callback as the Create button would.
+        confirm("Speed", "System.Single");
+
+        var decl = Assert.Single(asset.Variables);
+        Assert.Equal("Speed", decl.Name);
+        Assert.Equal("System.Single", decl.Type!.TypeId);
     }
 
     // ── private stubs ─────────────────────────────────────────────────────────
