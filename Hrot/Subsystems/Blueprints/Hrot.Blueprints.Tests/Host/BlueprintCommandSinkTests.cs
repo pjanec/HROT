@@ -9,6 +9,8 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 using Xunit;
 
+// ChangeParentMove is defined in NodeEditor.Core.Commands, same namespace as GraphCommand.
+
 namespace Hrot.Blueprints.Tests.Host;
 
 /// <summary>
@@ -425,6 +427,88 @@ public sealed class BlueprintCommandSinkTests
         }));
 
         Assert.False(result.Success);
+    }
+
+    // ── ChangeParentMultiple (BCP-BATCH-01-FIX BUG 1) ────────────────────────
+
+    /// <summary>
+    /// ChangeParentMultiple (the command the canvas issues for every node drop, BPF-029)
+    /// must persist NewLocalPosition to the asset so the node does not jump back.
+    /// </summary>
+    [Fact]
+    public void CommandSink_ChangeParentMultiple_PersistsPosition()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new FunctionCallNode { Id = Guid.NewGuid(),
+            EditorMetadata = new NodeMetadata { X = 0f, Y = 0f } };
+        graph.Nodes.Add(node);
+        var (sink, model, _, _, _, _) = MakeSut(asset, graph);
+
+        var newPos = new Vector2(99f, 111f);
+        var result = sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(new NodeId(node.Id), null, null, newPos) }));
+
+        Assert.True(result.Success);
+        // Asset metadata updated.
+        Assert.Equal(99f,  node.EditorMetadata.X, precision: 2);
+        Assert.Equal(111f, node.EditorMetadata.Y, precision: 2);
+        // Model reflects the new position (reads live from metadata).
+        var modelNode = model.FindNode(new NodeId(node.Id));
+        Assert.NotNull(modelNode);
+        Assert.Equal(99f,  modelNode!.Position.X, precision: 2);
+        Assert.Equal(111f, modelNode.Position.Y,  precision: 2);
+    }
+
+    /// <summary>
+    /// ChangeParentMultiple fires NodesMoved (not Wholesale) — no full rebuild.
+    /// </summary>
+    [Fact]
+    public void CommandSink_ChangeParentMultiple_FiresNodesMoved_NotWholesale()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new FunctionCallNode { Id = Guid.NewGuid(),
+            EditorMetadata = new NodeMetadata { X = 0f, Y = 0f } };
+        graph.Nodes.Add(node);
+        var (sink, model, _, _, _, _) = MakeSut(asset, graph);
+
+        int wholesaleCount  = 0;
+        int nodesMovedCount = 0;
+        model.Changed += n =>
+        {
+            if (n.Kind == GraphChangeKind.Wholesale)  wholesaleCount++;
+            if (n.Kind == GraphChangeKind.NodesMoved) nodesMovedCount++;
+        };
+
+        sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(new NodeId(node.Id), null, null, new Vector2(50f, 75f)) }));
+
+        Assert.Equal(0, wholesaleCount);
+        Assert.Equal(1, nodesMovedCount);
+    }
+
+    /// <summary>
+    /// After ChangeParentMultiple, FindNode returns the same INodeModel instance
+    /// (no rebuild replaced it) and its Position matches NewLocalPosition.
+    /// </summary>
+    [Fact]
+    public void CommandSink_ChangeParentMultiple_SameInstanceIdentityPreserved()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var node = new FunctionCallNode { Id = Guid.NewGuid(),
+            EditorMetadata = new NodeMetadata { X = 0f, Y = 0f } };
+        graph.Nodes.Add(node);
+        var (sink, model, _, _, _, _) = MakeSut(asset, graph);
+
+        var instanceBefore = model.FindNode(new NodeId(node.Id));
+        Assert.NotNull(instanceBefore);
+
+        sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(new NodeId(node.Id), null, null, new Vector2(22f, 33f)) }));
+
+        var instanceAfter = model.FindNode(new NodeId(node.Id));
+        Assert.Same(instanceBefore, instanceAfter);
+        Assert.Equal(22f, instanceAfter!.Position.X, precision: 2);
+        Assert.Equal(33f, instanceAfter.Position.Y,  precision: 2);
     }
 
     // ── Undo ─────────────────────────────────────────────────────────────────

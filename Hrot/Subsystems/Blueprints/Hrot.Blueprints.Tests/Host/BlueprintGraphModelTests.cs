@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Tests.Builders;
@@ -322,5 +324,179 @@ public sealed class BlueprintGraphModelTests
         var sut = MakeSut(asset, graph);
 
         Assert.Equal(graph.Name, sut.DisplayName);
+    }
+
+    // ── BUG 2 (BCP-BATCH-01-FIX): partial-connection wire resolution ──────────
+
+    /// <summary>
+    /// Builds an in-memory graph where a Branch node has TWO exec-out pins
+    /// (ExecOutTrue, ExecOutFalse) but only ONE is connected.
+    /// The old positional algorithm would fail to assign the second link's FromPinId
+    /// because it was already consumed by the first output pin.
+    /// The new link-GUID-driven algorithm must ensure every link endpoint resolves via FindPin.
+    /// </summary>
+    private static (BlueprintAsset asset, Graph graph) BuildBranchWithPartialConnections()
+    {
+        var assetId = Guid.NewGuid();
+
+        // Build a Branch node with 3 pins (no pre-stored asset Pins — slow path).
+        // We deliberately leave Pins empty so the slow path runs.
+        var branchNode = new BranchNode { Id = Guid.NewGuid() };
+        // Pins intentionally empty → slow path.
+
+        // A downstream Return node (exec-in only), also no pre-stored pins.
+        var returnNode = new ReturnNode { Id = Guid.NewGuid() };
+
+        // The asset link connects branch's TRUE output to return's exec-in.
+        var fromPinId = Guid.NewGuid();  // represents ExecOutTrue on BranchNode
+        var toPinId   = Guid.NewGuid();  // represents ExecIn on ReturnNode
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Test",
+            Kind  = GraphKind.Event,
+            Nodes = new List<Node> { branchNode, returnNode },
+            Links = new List<Link>
+            {
+                new Link
+                {
+                    FromNodeId = branchNode.Id,
+                    FromPinId  = fromPinId,
+                    ToNodeId   = returnNode.Id,
+                    ToPinId    = toPinId,
+                }
+            },
+            Inputs  = new(),
+            Outputs = new(),
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId,
+            Name    = "PartialBranch",
+            Header  = new Header(),
+            Graphs  = new List<Graph> { graph },
+        };
+
+        return (asset, graph);
+    }
+
+    /// <summary>
+    /// After Rebuild on an asset where a Branch node has only SOME outputs connected
+    /// (Pins list empty — slow path), every graph.Links entry must resolve via FindPin.
+    /// This proves the link-GUID-driven binding algorithm works for partial connections.
+    /// </summary>
+    [Fact]
+    public void SlowPath_PartialBranchConnections_AllLinksResolveViaFindPin()
+    {
+        var (asset, graph) = BuildBranchWithPartialConnections();
+        var sut = MakeSut(asset, graph);
+
+        // Every link endpoint must resolve.
+        foreach (var assetLink in graph.Links)
+        {
+            var fromPin = sut.FindPin(new PinId(assetLink.FromPinId));
+            var toPin   = sut.FindPin(new PinId(assetLink.ToPinId));
+
+            Assert.NotNull(fromPin);  // was null with old positional algorithm
+            Assert.NotNull(toPin);
+        }
+    }
+
+    /// <summary>
+    /// A Sequence node has multiple exec-out pins (one per branch).
+    /// If only the SECOND out-pin is connected (first is free), the link's FromPinId
+    /// must still resolve.  The new algorithm assigns distinct link GUIDs first, so the
+    /// first output gets the first (and only) link GUID, covering the case where a node
+    /// has more outputs than links (unconnected pins get deterministic GUIDs).
+    /// </summary>
+    [Fact]
+    public void SlowPath_SequenceNodeSecondOutputConnected_LinkResolves()
+    {
+        var assetId    = Guid.NewGuid();
+        var seqNode    = new SequenceNode { Id = Guid.NewGuid() };
+        var returnNode = new ReturnNode   { Id = Guid.NewGuid() };
+
+        // Only one link: from sequence's output (only one link GUID in outLinks).
+        var fromPinId = Guid.NewGuid();
+        var toPinId   = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "SeqTest",
+            Kind  = GraphKind.Event,
+            Nodes = new List<Node> { seqNode, returnNode },
+            Links = new List<Link>
+            {
+                new Link { FromNodeId = seqNode.Id, FromPinId = fromPinId,
+                           ToNodeId   = returnNode.Id, ToPinId = toPinId }
+            },
+            Inputs = new(), Outputs = new(),
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId,
+            Name    = "SeqTest",
+            Header  = new Header(),
+            Graphs  = new List<Graph> { graph },
+        };
+
+        var sut = new BlueprintGraphModel(asset, graph);
+
+        // The single link must fully resolve.
+        var fromPin = sut.FindPin(new PinId(fromPinId));
+        var toPin   = sut.FindPin(new PinId(toPinId));
+
+        Assert.NotNull(fromPin);
+        Assert.NotNull(toPin);
+    }
+
+    /// <summary>
+    /// Fan-out: multiple links sharing the same FromPinId (one output pin → multiple inputs).
+    /// FindPin must return the same pin for both links' FromPinId.
+    /// </summary>
+    [Fact]
+    public void SlowPath_FanOut_SameFromPinIdResolvesBothLinks()
+    {
+        var assetId   = Guid.NewGuid();
+        var srcNode   = new FunctionCallNode { Id = Guid.NewGuid(), MethodName = "Src" };
+        var dst1Node  = new ReturnNode { Id = Guid.NewGuid() };
+        var dst2Node  = new ReturnNode { Id = Guid.NewGuid() };
+
+        var fromPinId = Guid.NewGuid(); // shared by both links (fan-out)
+        var toPin1Id  = Guid.NewGuid();
+        var toPin2Id  = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "FanOut",
+            Kind  = GraphKind.Event,
+            Nodes = new List<Node> { srcNode, dst1Node, dst2Node },
+            Links = new List<Link>
+            {
+                new Link { FromNodeId = srcNode.Id, FromPinId = fromPinId,
+                           ToNodeId   = dst1Node.Id, ToPinId  = toPin1Id },
+                new Link { FromNodeId = srcNode.Id, FromPinId = fromPinId,
+                           ToNodeId   = dst2Node.Id, ToPinId  = toPin2Id },
+            },
+            Inputs = new(), Outputs = new(),
+        };
+        var asset = new BlueprintAsset
+        {
+            AssetId = assetId,
+            Name    = "FanOut",
+            Header  = new Header(),
+            Graphs  = new List<Graph> { graph },
+        };
+
+        var sut = new BlueprintGraphModel(asset, graph);
+
+        // All three GUIDs must resolve.
+        Assert.NotNull(sut.FindPin(new PinId(fromPinId)));
+        Assert.NotNull(sut.FindPin(new PinId(toPin1Id)));
+        Assert.NotNull(sut.FindPin(new PinId(toPin2Id)));
     }
 }

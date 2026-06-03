@@ -73,6 +73,12 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 ApplyReorderPills(reorder.HostNodeId, reorder.NewOrder);
                 break;
 
+            case GraphCommand.ChangeParentMultiple cpm:
+                // Canvas always sends ChangeParentMultiple for node drops (BPF-029).
+                // Reuse the existing MoveNodes path: persist NewLocalPosition for each move.
+                ApplyNodeMoves(cpm.Moves.Select(m => new NodeMove(m.NodeId, m.NewLocalPosition)).ToList());
+                break;
+
             case GraphCommand.Batch batch:
                 foreach (var sub in batch.Commands)
                     Apply(sub);

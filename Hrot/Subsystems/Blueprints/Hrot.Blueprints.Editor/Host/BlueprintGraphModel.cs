@@ -86,16 +86,17 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// <c>Link.ToPinId</c> fields, making wires resolve even when the asset
     /// stores <c>"Pins": []</c>.
     ///
-    /// <para><b>Pass 1 — pin GUID resolution per node:</b></para>
+    /// <para><b>Pass 1 — pin GUID resolution per node (link-GUID-driven slow path):</b></para>
     /// <list type="number">
     ///   <item>Get the canonical pin list via <see cref="NodePinSchema.GetCanonicalPins"/>.</item>
     ///   <item>Collect all links incident on this node.</item>
     ///   <item>
-    ///     For each output pin (in order), if a link from this node uses that
-    ///     position as its source, assign <c>link.FromPinId</c> as the pin's GUID.
-    ///     For each input pin (in order), if a link to this node uses that
-    ///     position, assign <c>link.ToPinId</c> as the pin's GUID.
+    ///     Collect the distinct <c>FromPinId</c> GUIDs from outgoing links and distinct
+    ///     <c>ToPinId</c> GUIDs from incoming links (deduplication handles fan-out).
+    ///     Assign each distinct outgoing GUID to the next output pin in declaration order;
+    ///     same for incoming GUIDs → input pins.
     ///     Unconnected pins receive <c>IdGenerator.Deterministic("pin:{nodeId}:{name}:{dir}")</c>.
+    ///     Invariant: every link endpoint GUID maps to a pin, so wires always resolve.
     ///   </item>
     /// </list>
     ///
@@ -156,28 +157,50 @@ public sealed class BlueprintGraphModel : IGraphModel
             else
             {
                 // SLOW PATH: JSON-loaded assets (Pins: []).
-                // Strategy: iterate output pins in declaration order; match them to
-                // the outLinks list in order (first out-pin matches first out-link, etc.).
-                // Same for input pins vs inLinks.
+                // LINK-GUID-DRIVEN: driven by the distinct link pin GUIDs, not by pin index.
+                //
+                // 1. Collect the distinct FromPinId GUIDs from all outgoing links and
+                //    the distinct ToPinId GUIDs from all incoming links.  (Fan-out shares
+                //    one FromPinId so deduplication is critical.)
+                // 2. Assign each distinct outgoing GUID to the next available output pin
+                //    (in pin declaration order).  Same for incoming GUIDs → input pins.
+                // 3. Any pin with no link GUID assigned gets a deterministic synthetic GUID.
+                //
+                // Invariant: every link endpoint GUID is assigned to exactly one pin of the
+                // matching direction, so FindPin succeeds for every link in the graph.
+
                 var outPins = canonicalPins.Where(p => p.Direction == "Out").ToList();
                 var inPins  = canonicalPins.Where(p => p.Direction == "In").ToList();
 
+                // Collect distinct link-endpoint GUIDs in order of first occurrence.
+                var distinctOutGuids = new List<Guid>();
+                var seenOut = new HashSet<Guid>();
+                foreach (var link in outLinks)
+                    if (seenOut.Add(link.FromPinId))
+                        distinctOutGuids.Add(link.FromPinId);
+
+                var distinctInGuids = new List<Guid>();
+                var seenIn = new HashSet<Guid>();
+                foreach (var link in inLinks)
+                    if (seenIn.Add(link.ToPinId))
+                        distinctInGuids.Add(link.ToPinId);
+
+                // Assign output pins: first N pins get the N distinct link GUIDs; rest get deterministic.
                 for (int i = 0; i < outPins.Count; i++)
                 {
-                    var pin = outPins[i];
-                    var link = outLinks.ElementAtOrDefault(i);
-                    var guid = (link != null)
-                        ? link.FromPinId
+                    var pin  = outPins[i];
+                    var guid = (i < distinctOutGuids.Count)
+                        ? distinctOutGuids[i]
                         : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:Out");
                     pinGuidMap[pin] = guid;
                 }
 
+                // Assign input pins: first N pins get the N distinct link GUIDs; rest get deterministic.
                 for (int i = 0; i < inPins.Count; i++)
                 {
-                    var pin = inPins[i];
-                    var link = inLinks.ElementAtOrDefault(i);
-                    var guid = (link != null)
-                        ? link.ToPinId
+                    var pin  = inPins[i];
+                    var guid = (i < distinctInGuids.Count)
+                        ? distinctInGuids[i]
                         : IdGenerator.Deterministic($"pin:{assetNode.Id:N}:{pin.Name}:In");
                     pinGuidMap[pin] = guid;
                 }

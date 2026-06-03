@@ -89,6 +89,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.MoveNodes move:
                 return ApplyMoveNodes(move);
 
+            case GraphCommand.ChangeParentMultiple cpm:
+                return ApplyChangeParentMultiple(cpm);
+
             case GraphCommand.SetNodeProperty prop:
                 return ApplySetNodeProperty(prop);
 
@@ -298,6 +301,37 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // Move is not pushed to CommandHistory — continuous drag would overflow it.
         _markDirty(_asset);
         // Fire a lightweight NodesMoved notification; do NOT call RebuildAndNotify().
+        _model.NotifyMoved(movedIds);
+        return new GraphCommandResult(true, null);
+    }
+
+    // ── ChangeParentMultiple ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.ChangeParentMultiple"/> — the command the canvas
+    /// issues for every node drop (BPF-029).  Persists <c>NewLocalPosition</c> to the
+    /// asset's <see cref="NodeMetadata"/> so position survives save/reload.
+    /// Blueprint graphs are flat (no real container hierarchy), so only position is updated;
+    /// no reparent bookkeeping is required.
+    /// </summary>
+    private GraphCommandResult ApplyChangeParentMultiple(GraphCommand.ChangeParentMultiple cpm)
+    {
+        var movedIds = new List<NodeId>(cpm.Moves.Count);
+
+        foreach (var m in cpm.Moves)
+        {
+            var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == m.NodeId.Value);
+            if (assetNode == null) continue;
+
+            // Persist to asset so saving captures the new position.
+            assetNode.EditorMetadata.X = m.NewLocalPosition.X;
+            assetNode.EditorMetadata.Y = m.NewLocalPosition.Y;
+
+            movedIds.Add(m.NodeId);
+        }
+
+        _markDirty(_asset);
+        // Lightweight notification — no full rebuild needed.
         _model.NotifyMoved(movedIds);
         return new GraphCommandResult(true, null);
     }

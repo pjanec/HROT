@@ -45,6 +45,9 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             case GraphCommand.ChangeParent cmd:
                 ApplyChangeParent(cmd);
                 break;
+            case GraphCommand.ChangeParentMultiple cmd:
+                ApplyChangeParentMultiple(cmd);
+                break;
             case GraphCommand.SetContainerCollapsed cmd:
                 ApplySetContainerCollapsed(cmd);
                 break;
@@ -81,7 +84,57 @@ internal sealed class HsmCommandSink : IGraphCommandSink
 
     // ---- Per-command stubs (populated in later tasks) ----
 
-    private void ApplyMoveNodes(GraphCommand.MoveNodes cmd)           { /* TODO */ }
+    private void ApplyMoveNodes(GraphCommand.MoveNodes cmd)
+    {
+        foreach (var m in cmd.Moves)
+        {
+            var state = _asset.FindStateByStableId(m.Node.Value);
+            if (state is not null)
+                state.Position = m.NewPosition;
+        }
+    }
+
+    private void ApplyChangeParentMultiple(GraphCommand.ChangeParentMultiple cmd)
+    {
+        foreach (var m in cmd.Moves)
+        {
+            var state = _asset.FindStateByStableId(m.NodeId.Value);
+            if (state is null) continue;
+
+            // Always persist the new position so nodes don't jump back.
+            state.Position = m.NewLocalPosition;
+
+            // Reparent: if the new parent / region differs from current, update the hierarchy.
+            // Resolve the new parent state (null means top-level / child of root).
+            StateNode? newParent = m.NewParentContainerId.HasValue
+                ? _asset.FindStateByStableId(m.NewParentContainerId.Value.Value)
+                : _asset.RootState;
+            newParent ??= _asset.RootState;
+
+            var currentParent = state.Parent;
+            var currentRegion = state.RegionIndex;
+            // When the canvas does not specify a region (null), keep the state's current
+            // region rather than forcing region 0 — otherwise an in-region drag inside a
+            // nested parallel composite would silently reparent the state to region 0.
+            var newRegion     = m.NewRegionIndex ?? currentRegion;
+
+            bool parentChanged = !ReferenceEquals(currentParent, newParent);
+            bool regionChanged = currentRegion != newRegion;
+
+            if (parentChanged || regionChanged)
+            {
+                // Remove from old parent's children list.
+                currentParent?.Children.Remove(state);
+
+                // Insert into new parent's children list.
+                state.Parent      = newParent;
+                state.RegionIndex = newRegion;
+                if (!newParent.Children.Contains(state))
+                    newParent.Children.Add(state);
+            }
+        }
+    }
+
     private void ApplyAddNode(GraphCommand.AddNode cmd)               { /* TODO */ }
     private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)       { /* TODO */ }
     private void ApplyAddLink(GraphCommand.AddLink cmd)               { /* TODO */ }
@@ -109,7 +162,12 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             // Other property keys are silently ignored (forward-compatible).
         }
     }
-    private void ApplyChangeParent(GraphCommand.ChangeParent cmd)     { /* TODO */ }
+    private void ApplyChangeParent(GraphCommand.ChangeParent cmd)
+    {
+        // Delegate to the multiple-move implementation (single-item path).
+        ApplyChangeParentMultiple(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(cmd.NodeId, cmd.NewParentContainerId, cmd.NewRegionIndex, cmd.NewLocalPosition) }));
+    }
     private void ApplySetContainerCollapsed(GraphCommand.SetContainerCollapsed cmd) { /* TODO */ }
     private void ApplyAddRegion(GraphCommand.AddRegion cmd)
     {

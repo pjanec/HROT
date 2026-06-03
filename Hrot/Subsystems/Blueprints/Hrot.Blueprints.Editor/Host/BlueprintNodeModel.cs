@@ -8,22 +8,26 @@ namespace Hrot.Blueprints.Editor.Host;
 /// <see cref="INodeModel"/> adapter projecting a <see cref="Hrot.Blueprints.Core.Assets.Node"/>
 /// onto the NodeEdit canvas contract.
 /// <para>
-/// <see cref="Position"/> is mutable via <see cref="SetPosition"/> so that
-/// <see cref="BlueprintCommandSink.ApplyMoveNodes"/> can update the existing instance
-/// in place without a full model rebuild on every drag frame.
+/// <see cref="Position"/> reads live from <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/>
+/// so it is always in sync with the asset after any mutation (no stale snapshot).
 /// </para>
 /// </summary>
 internal sealed class BlueprintNodeModel : INodeModel
 {
     private readonly List<IPinModel> _pins;
-    private Vector2 _position;
+    // Keep the asset node reference so Position reads live from EditorMetadata.
+    private readonly Hrot.Blueprints.Core.Assets.Node _node;
 
     public NodeId      Id               { get; }
     public NodeKindKey Kind             { get; }
     public string      Title            { get; }
     public string?     Subtitle         => null;
     public NodeCategory Category        { get; }
-    public Vector2     Position         => _position;
+    /// <summary>
+    /// Reads live from the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/>
+    /// so it cannot go stale after a move or a <c>ChangeParentMultiple</c> command.
+    /// </summary>
+    public Vector2     Position         => new(_node.EditorMetadata.X, _node.EditorMetadata.Y);
     public Vector2?    SizeOverride     => null;
     public NodeState   State            { get; } = NodeState.Normal;
     public string?     StatusTooltip    => null;
@@ -38,16 +42,24 @@ internal sealed class BlueprintNodeModel : INodeModel
     /// </summary>
     public BlueprintNodeModel(Hrot.Blueprints.Core.Assets.Node node, IReadOnlyList<IPinModel> resolvedPins)
     {
+        _node     = node;
         Id        = new NodeId(node.Id);
         Kind      = new NodeKindKey(node.GetType().Name);
         Title     = BuildTitle(node);
         Category  = BuildCategory(node);
-        _position = new Vector2(node.EditorMetadata.X, node.EditorMetadata.Y);
         _pins     = new List<IPinModel>(resolvedPins);
     }
 
-    /// <summary>Updates <see cref="Position"/> in place without rebuilding the model graph.</summary>
-    internal void SetPosition(Vector2 pos) => _position = pos;
+    /// <summary>
+    /// Updates the asset's <see cref="Hrot.Blueprints.Core.Assets.NodeMetadata"/> position in place.
+    /// Because <see cref="Position"/> reads live from the asset, the canvas sees the new value
+    /// immediately without a full model rebuild.
+    /// </summary>
+    internal void SetPosition(Vector2 pos)
+    {
+        _node.EditorMetadata.X = pos.X;
+        _node.EditorMetadata.Y = pos.Y;
+    }
 
     // ── helpers ────────────────────────────────────────────────────────────
 

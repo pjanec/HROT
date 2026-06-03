@@ -313,4 +313,57 @@ public sealed class BTreeCommandSinkTests
         result.Success.Should().BeFalse();
         result.Message.Should().NotBeNullOrEmpty();
     }
+
+    // ---- ChangeParentMultiple (BCP-BATCH-01-FIX BUG 1) ----------------------
+
+    /// <summary>
+    /// ChangeParentMultiple (the command the canvas issues for every node drop, BPF-029)
+    /// must persist NewLocalPosition to the asset so the node does not jump back.
+    /// </summary>
+    [Fact]
+    public void ChangeParentMultiple_persists_new_position()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+
+        // Add a node at origin.
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        asset.FindNode(nodeId.Value)!.Position.Should().Be(Vector2.Zero);
+
+        // Drop the node to a new position via ChangeParentMultiple.
+        var newPos = new Vector2(123f, 456f);
+        var result = sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(nodeId, null, null, newPos) }));
+
+        result.Success.Should().BeTrue();
+        // Asset node position must be updated.
+        asset.FindNode(nodeId.Value)!.Position.Should().Be(newPos);
+    }
+
+    /// <summary>
+    /// ChangeParentMultiple with multiple nodes must update all of them.
+    /// </summary>
+    [Fact]
+    public void ChangeParentMultiple_multiple_nodes_all_positions_updated()
+    {
+        var (asset, _, sink) = Build();
+        var id1 = NodeId.NewId();
+        var id2 = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(id1, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(id2, new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        var pos1 = new Vector2(10f, 20f);
+        var pos2 = new Vector2(30f, 40f);
+        var result = sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[]
+            {
+                new ChangeParentMove(id1, null, null, pos1),
+                new ChangeParentMove(id2, null, null, pos2),
+            }));
+
+        result.Success.Should().BeTrue();
+        asset.FindNode(id1.Value)!.Position.Should().Be(pos1);
+        asset.FindNode(id2.Value)!.Position.Should().Be(pos2);
+    }
 }

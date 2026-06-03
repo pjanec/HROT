@@ -137,4 +137,102 @@ public sealed class HsmCommandSinkRegionTests
 
         asset.GetAttachmentsForNode(hostId).Count.Should().Be(0);
     }
+
+    // ---- ChangeParentMultiple (BCP-BATCH-01-FIX BUG 1) ----------------------
+
+    // Helper: build an asset with a simple state (not parallel, no regions).
+    private static (HsmAsset asset, HsmCommandSink sink, StateNode state) BuildSimpleStateAsset()
+    {
+        var stateId = Guid.NewGuid();
+        var sState  = new StateNode("Simple") { StableId = stateId };
+        var rootNode = new StateNode("__root__");
+        sState.Parent = rootNode;
+        rootNode.Children.Add(sState);
+
+        var asset = new HsmAsset(
+            Guid.NewGuid(), "Test", "", false, "",
+            new HsmDefinitionBlob(), new MachineMetadata(),
+            rootNode,
+            new List<StateNode> { sState },
+            new List<TransitionNode>(),
+            new List<GlobalTransitionNode>(),
+            new List<RegionNode>(),
+            new List<EventDefinition>());
+
+        return (asset, new HsmCommandSink(asset), sState);
+    }
+
+    /// <summary>
+    /// ChangeParentMultiple (the command the canvas issues for every node drop, BPF-029)
+    /// must persist NewLocalPosition so the state does not jump back.
+    /// </summary>
+    [Fact]
+    public void ChangeParentMultiple_persists_new_position()
+    {
+        var (asset, sink, state) = BuildSimpleStateAsset();
+        state.Position.Should().Be(System.Numerics.Vector2.Zero);
+
+        var newPos = new System.Numerics.Vector2(77f, 88f);
+        var result = sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(new NodeId(state.StableId), null, null, newPos) }));
+
+        result.Success.Should().BeTrue();
+        state.Position.Should().Be(newPos);
+    }
+
+    /// <summary>
+    /// ChangeParentMultiple with multiple states must update all positions.
+    /// </summary>
+    [Fact]
+    public void ChangeParentMultiple_multiple_states_all_positions_updated()
+    {
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var s1  = new StateNode("S1") { StableId = id1 };
+        var s2  = new StateNode("S2") { StableId = id2 };
+        var root = new StateNode("__root__");
+        s1.Parent = root; root.Children.Add(s1);
+        s2.Parent = root; root.Children.Add(s2);
+
+        var asset = new HsmAsset(
+            Guid.NewGuid(), "Test", "", false, "",
+            new HsmDefinitionBlob(), new MachineMetadata(),
+            root,
+            new List<StateNode> { s1, s2 },
+            new List<TransitionNode>(),
+            new List<GlobalTransitionNode>(),
+            new List<RegionNode>(),
+            new List<EventDefinition>());
+
+        var sink = new HsmCommandSink(asset);
+        var pos1 = new System.Numerics.Vector2(10f, 20f);
+        var pos2 = new System.Numerics.Vector2(30f, 40f);
+
+        var result = sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[]
+            {
+                new ChangeParentMove(new NodeId(id1), null, null, pos1),
+                new ChangeParentMove(new NodeId(id2), null, null, pos2),
+            }));
+
+        result.Success.Should().BeTrue();
+        s1.Position.Should().Be(pos1);
+        s2.Position.Should().Be(pos2);
+    }
+
+    /// <summary>
+    /// ChangeParentMultiple marks the asset dirty.
+    /// </summary>
+    [Fact]
+    public void ChangeParentMultiple_marks_asset_dirty()
+    {
+        var (asset, sink, state) = BuildSimpleStateAsset();
+        asset.ClearDirty();
+        asset.IsDirty.Should().BeFalse();
+
+        sink.Apply(new GraphCommand.ChangeParentMultiple(
+            new[] { new ChangeParentMove(new NodeId(state.StableId), null, null, new System.Numerics.Vector2(5f, 5f)) }));
+
+        asset.IsDirty.Should().BeTrue();
+    }
 }
