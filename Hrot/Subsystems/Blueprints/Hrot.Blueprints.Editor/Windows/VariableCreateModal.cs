@@ -1,3 +1,4 @@
+using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
 using ImGuiNET;
 
@@ -20,6 +21,7 @@ public sealed class VariableCreateModal
     private const string PopupId = "Create Variable##bp_create_var";
 
     private readonly Action<string, string> _onConfirm;
+    private readonly BlueprintAsset?         _asset;
 
     private bool   _openRequested;
     private string _name = "NewVar";
@@ -29,8 +31,17 @@ public sealed class VariableCreateModal
     /// Invoked with <c>(name, typeId)</c> when the user confirms. Wire this to
     /// <see cref="Host.BlueprintDocumentFactory.CreateVariable"/>.
     /// </param>
-    public VariableCreateModal(Action<string, string> onConfirm)
-        => _onConfirm = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
+    /// <param name="asset">
+    /// The owning asset, used to validate the entered name against existing variables
+    /// (case-insensitive). When a collision is detected the modal shows an inline warning
+    /// and disables Confirm rather than auto-renaming. May be <see langword="null"/> in
+    /// tests, in which case duplicate-checking is skipped.
+    /// </param>
+    public VariableCreateModal(Action<string, string> onConfirm, BlueprintAsset? asset = null)
+    {
+        _onConfirm = onConfirm ?? throw new ArgumentNullException(nameof(onConfirm));
+        _asset     = asset;
+    }
 
     /// <summary>
     /// Requests the modal to open on the next <see cref="Draw"/> call, resetting the
@@ -83,9 +94,23 @@ public sealed class VariableCreateModal
             ImGui.EndCombo();
         }
 
+        // Inline validation: blank name, or a name that collides (case-insensitively) with an
+        // existing variable. On collision we warn and disable Confirm — never auto-rename.
+        bool isBlank     = string.IsNullOrWhiteSpace(_name);
+        bool isDuplicate = !isBlank
+            && _asset != null
+            && BlueprintDocumentFactory.IsDuplicateVariableName(_asset, _name);
+
+        if (isBlank)
+            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
+                "Name cannot be empty.");
+        else if (isDuplicate)
+            ImGui.TextColored(new System.Numerics.Vector4(0.95f, 0.55f, 0.20f, 1f),
+                $"A variable named '{_name.Trim()}' already exists.");
+
         ImGui.Separator();
 
-        bool canCreate = !string.IsNullOrWhiteSpace(_name);
+        bool canCreate = !isBlank && !isDuplicate;
         if (!canCreate) ImGui.BeginDisabled();
         if (ImGui.Button("Create", new System.Numerics.Vector2(100, 0)))
         {

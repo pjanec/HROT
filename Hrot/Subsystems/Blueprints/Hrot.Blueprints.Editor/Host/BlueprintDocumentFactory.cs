@@ -214,30 +214,44 @@ public static class BlueprintDocumentFactory
     }
 
     /// <summary>
-    /// Appends a new <see cref="VariableDecl"/> with a unique default name to the asset's
-    /// <see cref="BlueprintAsset.Variables"/> list and invokes the dirty callback.
-    /// Returns the created declaration.
+    /// The "+ Variable" quick-add path (no modal): appends a new <see cref="VariableDecl"/>
+    /// with an auto-generated unique default name. Unlike <see cref="CreateVariable"/> this
+    /// path picks a free name itself (e.g. <c>NewVar</c>, <c>NewVar1</c>, …) so repeated
+    /// clicks never collide; it never rejects. Returns the created declaration.
     /// </summary>
     internal static VariableDecl AddVariable(BlueprintAsset asset, Action? markDirty = null)
-        => CreateVariable(asset, "NewVar", BlueprintTypeSystem.Bool, markDirty);
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var name = MakeUniqueVariableName(asset, "NewVar");
+        var decl = CreateVariable(asset, name, BlueprintTypeSystem.Bool, markDirty);
+        // MakeUniqueVariableName guarantees a free name, so CreateVariable cannot reject here.
+        return decl!;
+    }
 
     /// <summary>
     /// Headless-testable create path used by the variable-create modal: appends a new
     /// <see cref="VariableDecl"/> with the supplied <paramref name="name"/> and
-    /// <paramref name="typeId"/> to the asset, deduplicating the name against existing
-    /// variables, and invokes the dirty callback. Returns the created declaration.
+    /// <paramref name="typeId"/> to the asset and invokes the dirty callback.
+    /// <para>
+    /// <b>Rejects</b> (returns <see langword="null"/>, adds nothing) when
+    /// <paramref name="name"/> is blank/whitespace or collides (case-insensitively) with an
+    /// existing variable name. The caller (modal) is responsible for warning the user up
+    /// front and disabling Confirm on collision; this method is the authoritative guard so
+    /// the invariant holds even if a caller skips that check. No silent numeric suffixing.
+    /// </para>
     /// </summary>
     /// <param name="asset">The asset to append the variable to.</param>
     /// <param name="name">
-    /// The desired variable name; blank/whitespace falls back to <c>"NewVar"</c>. Trimmed,
-    /// then made unique against the asset's existing variable names.
+    /// The desired variable name. Blank/whitespace or a duplicate name causes rejection.
     /// </param>
     /// <param name="typeId">
     /// The variable's type id (e.g. <c>"System.Single"</c>); blank falls back to
     /// <see cref="BlueprintTypeSystem.Bool"/>.
     /// </param>
-    /// <param name="markDirty">Optional dirty-marking callback.</param>
-    internal static VariableDecl CreateVariable(
+    /// <param name="markDirty">Optional dirty-marking callback (invoked only on success).</param>
+    /// <returns>The created declaration, or <see langword="null"/> if the name was rejected.</returns>
+    internal static VariableDecl? CreateVariable(
         BlueprintAsset asset,
         string         name,
         string         typeId,
@@ -245,18 +259,39 @@ public static class BlueprintDocumentFactory
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        var trimmed   = string.IsNullOrWhiteSpace(name) ? "NewVar" : name.Trim();
+        // Reject blank/whitespace and duplicate names rather than silently renaming.
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var trimmed = name.Trim();
+        if (IsDuplicateVariableName(asset, trimmed))
+            return null;
+
         var finalType = string.IsNullOrWhiteSpace(typeId) ? BlueprintTypeSystem.Bool : typeId.Trim();
 
         var decl = new VariableDecl
         {
             Id   = Guid.NewGuid(),
-            Name = MakeUniqueVariableName(asset, trimmed),
+            Name = trimmed,
             Type = new BlueprintTypeRef { TypeId = finalType },
         };
         asset.Variables.Add(decl);
         markDirty?.Invoke();
         return decl;
+    }
+
+    /// <summary>
+    /// True when <paramref name="name"/> matches an existing variable name (case-insensitive).
+    /// Exposed <c>internal</c> so the variable-create modal can validate the live input and
+    /// disable Confirm before invoking <see cref="CreateVariable"/>.
+    /// </summary>
+    internal static bool IsDuplicateVariableName(BlueprintAsset asset, string name)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var trimmed = name.Trim();
+        return asset.Variables.Any(v =>
+            string.Equals(v.Name, trimmed, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string MakeUniqueVariableName(BlueprintAsset asset, string baseName)

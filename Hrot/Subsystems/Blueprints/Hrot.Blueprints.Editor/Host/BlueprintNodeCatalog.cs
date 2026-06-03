@@ -156,7 +156,7 @@ public sealed class BlueprintNodeCatalog : INodeCatalog
 
     // ── conversion helpers ────────────────────────────────────────────────────
 
-    private static NodeCatalogEntry DescriptorToEntry(NodeKindDescriptor d)
+    private NodeCatalogEntry DescriptorToEntry(NodeKindDescriptor d)
     {
         // Build pin signatures from a default-constructed node.
         Node defaultNode;
@@ -174,11 +174,22 @@ public sealed class BlueprintNodeCatalog : INodeCatalog
 
         if (defaultNode is not null)
         {
-            inputs  = defaultNode.Pins
+            // The 24 FIX2 palette kinds construct nodes with EMPTY Pins (their pins are
+            // projected by NodePinSchema at render time, never persisted — projection-only).
+            // Building signatures straight from defaultNode.Pins would leave those entries
+            // with no pin signatures, so QueryForPinContext would filter them out (only the
+            // hand-authored When/EQS kinds carry pins) and NodeEdit's wire-drop auto-connect
+            // would find no compatible pin → no link. Derive the canonical pin list via the
+            // same NodePinSchema the graph model uses so the wire-drop picker offers every
+            // compatible kind AND the dragged wire has a compatible pin to bind to.
+            // When defaultNode.Pins is already populated (When/EQS), use it as-is.
+            var canonicalPins = NodePinSchema.GetCanonicalPins(defaultNode, _registry);
+
+            inputs  = canonicalPins
                 .Where(p => p.Direction == "In")
                 .Select(PinToSignature)
                 .ToList();
-            outputs = defaultNode.Pins
+            outputs = canonicalPins
                 .Where(p => p.Direction == "Out")
                 .Select(PinToSignature)
                 .ToList();

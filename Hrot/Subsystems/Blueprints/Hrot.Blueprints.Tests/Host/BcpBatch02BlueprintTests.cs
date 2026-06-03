@@ -796,38 +796,93 @@ public sealed class BcpBatch02BlueprintTests
     }
 
     /// <summary>
-    /// Two creates with the same requested name produce distinct, deduplicated names so the
-    /// modal can be used repeatedly without clobbering.
+    /// BCP-BATCH-02-FIX3 Task 2: a second create with the same name (case-insensitive) is
+    /// REJECTED — no silent numeric suffix, no new VariableDecl, the original is untouched.
     /// </summary>
     [Fact]
-    public void CreateVariable_DuplicateName_IsMadeUnique()
+    public void CreateVariable_DuplicateName_IsRejected()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+
+        var a = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "Speed", "System.Single");
+        Assert.NotNull(a);
+        Assert.Equal("Speed", a!.Name);
+
+        // Exact duplicate → rejected (null), nothing added.
+        var dup = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "Speed", "System.Single");
+        Assert.Null(dup);
+        Assert.Single(asset.Variables);
+
+        // Case-insensitive duplicate → also rejected.
+        var dupCase = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "SPEED", "System.Int32");
+        Assert.Null(dupCase);
+        Assert.Single(asset.Variables);
+
+        // The single surviving variable is the original, unchanged.
+        Assert.Equal("Speed", asset.Variables[0].Name);
+        Assert.Equal("System.Single", asset.Variables[0].Type!.TypeId);
+    }
+
+    /// <summary>
+    /// BCP-BATCH-02-FIX3 Task 2: a unique name is accepted and added with the requested
+    /// name verbatim (no suffix).
+    /// </summary>
+    [Fact]
+    public void CreateVariable_UniqueName_IsAdded()
     {
         var (asset, _) = MakeAssetWithGraph();
 
         var a = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
             asset, "Speed", "System.Single");
         var b = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
-            asset, "Speed", "System.Single");
+            asset, "Health", "System.Int32");
 
-        Assert.Equal("Speed", a.Name);
-        Assert.NotEqual(a.Name, b.Name);
+        Assert.NotNull(a);
+        Assert.NotNull(b);
+        Assert.Equal("Speed",  a!.Name);
+        Assert.Equal("Health", b!.Name);
         Assert.Equal(2, asset.Variables.Count);
     }
 
     /// <summary>
-    /// Blank name/type fall back to sensible defaults rather than producing an empty-named
-    /// or untyped variable.
+    /// BCP-BATCH-02-FIX3 Task 2: blank/whitespace names are rejected (no fallback rename).
     /// </summary>
     [Fact]
-    public void CreateVariable_BlankInputs_FallBackToDefaults()
+    public void CreateVariable_BlankName_IsRejected()
     {
         var (asset, _) = MakeAssetWithGraph();
 
-        var decl = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
-            asset, "   ", "");
+        var blank = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.CreateVariable(
+            asset, "   ", "System.Single");
+        Assert.Null(blank);
+        Assert.Empty(asset.Variables);
+    }
 
-        Assert.False(string.IsNullOrWhiteSpace(decl.Name));
-        Assert.Equal(BlueprintTypeSystem.Bool, decl.Type!.TypeId);
+    /// <summary>
+    /// BCP-BATCH-02-FIX3 Task 2: IsDuplicateVariableName reports collisions (case-insensitive)
+    /// — the predicate the modal uses to gate its Confirm button.
+    /// </summary>
+    [Fact]
+    public void IsDuplicateVariableName_DetectsCaseInsensitiveCollision()
+    {
+        var (asset, _) = MakeAssetWithGraph();
+        asset.Variables.Add(new VariableDecl
+        {
+            Id = Guid.NewGuid(), Name = "Speed",
+            Type = new BlueprintTypeRef { TypeId = "System.Single" },
+        });
+
+        Assert.True(Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory
+            .IsDuplicateVariableName(asset, "Speed"));
+        Assert.True(Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory
+            .IsDuplicateVariableName(asset, "speed"));
+        Assert.True(Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory
+            .IsDuplicateVariableName(asset, "  SPEED  "));
+        Assert.False(Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory
+            .IsDuplicateVariableName(asset, "Health"));
     }
 
     /// <summary>
@@ -857,6 +912,73 @@ public sealed class BcpBatch02BlueprintTests
         var decl = Assert.Single(asset.Variables);
         Assert.Equal("Speed", decl.Name);
         Assert.Equal("System.Single", decl.Type!.TypeId);
+    }
+
+    // ── BCP-BATCH-02-FIX3 Task 1: wire-drop new node auto-connects ─────────────
+
+    /// <summary>
+    /// End-to-end wire-drop auto-connect: an existing node has an exec-OUT pin; the user drops
+    /// the wire on empty canvas, picks a kind, and a fresh PINLESS node is created with a brand
+    /// new link whose ToPinId is a never-seen GUID on that new node. After Rebuild, the
+    /// two-pass slow-path must bind that GUID to the new node's first exec-IN canonical pin so
+    /// BOTH link endpoints resolve (FindPin != null) and the resolved To-pin belongs to the new
+    /// node — i.e. the wire is drawn connected.
+    /// </summary>
+    [Fact]
+    public void WireDrop_AddPinlessNode_PlusLinkToFreshPin_ResolvesAndConnectsAfterRebuild()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+
+        // Source node: an EventEntry with a REAL exec-out pin (authored pins → stable GUID).
+        var sourceNode = new EventEntryNode { Id = Guid.NewGuid() };
+        var sourceOutPinId = Guid.NewGuid();
+        sourceNode.Pins.Add(new Pin
+        {
+            Id = sourceOutPinId, Name = "Out", Direction = "Out", IsExec = true,
+            TypeRef = new BlueprintTypeRef(),
+        });
+        graph.Nodes.Add(sourceNode);
+
+        // New node from the picker: a BranchNode with EMPTY pins (exactly how the wire-drop
+        // create-path adds it — pins are projected by NodePinSchema, never authored).
+        var newNode = new BranchNode { Id = Guid.NewGuid() };
+        Assert.Empty(newNode.Pins);
+        graph.Nodes.Add(newNode);
+
+        // The wire-drop link: from the real source exec-out to a FRESH pin GUID on the new node.
+        var freshTargetPinId = Guid.NewGuid();
+        graph.Links.Add(new Link
+        {
+            FromNodeId = sourceNode.Id, FromPinId = sourceOutPinId,
+            ToNodeId   = newNode.Id,    ToPinId   = freshTargetPinId,
+        });
+
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry();
+        var model    = new BlueprintGraphModel(asset, graph, registry);
+        // Constructor already calls Rebuild(); call again to prove idempotent resolution.
+        model.Rebuild();
+
+        // Both endpoints resolve.
+        var fromPin = model.FindPin(new PinId(sourceOutPinId));
+        var toPin   = model.FindPin(new PinId(freshTargetPinId));
+        Assert.NotNull(fromPin);
+        Assert.NotNull(toPin);
+
+        // The resolved target pin belongs to the NEW node and is the exec-IN pin (auto-connect target).
+        Assert.Equal(new NodeId(newNode.Id), toPin!.OwnerNodeId);
+        Assert.Equal(PinKind.Exec,           toPin.Kind);
+        Assert.Equal(PinDirection.Input,     toPin.Direction);
+
+        // The link itself resolves to a model link wiring source-out → new-node-in.
+        var linkId = BlueprintGraphModel.MakeLinkId(sourceOutPinId, freshTargetPinId);
+        var link   = model.FindLink(linkId);
+        Assert.NotNull(link);
+        Assert.Equal(new PinId(sourceOutPinId),   link!.FromPin);
+        Assert.Equal(new PinId(freshTargetPinId), link.ToPin);
+
+        // And the new node is actually present in the projection with its canonical pins.
+        var newModel = model.Nodes.Single(n => n.Id == new NodeId(newNode.Id));
+        Assert.Contains(newModel.Pins, p => p.Kind == PinKind.Exec && p.Direction == PinDirection.Input);
     }
 
     // ── private stubs ─────────────────────────────────────────────────────────

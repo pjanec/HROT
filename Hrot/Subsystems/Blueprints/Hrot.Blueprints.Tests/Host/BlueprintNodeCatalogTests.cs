@@ -156,6 +156,89 @@ public sealed class BlueprintNodeCatalogTests
         }
     }
 
+    // ── BCP-BATCH-02-FIX3 Task 1: wire-drop picker offers the full compatible set ──
+
+    /// <summary>
+    /// Regression for the "wire-drop picker shows only 3 kinds" bug. The 24 FIX2 palette
+    /// kinds construct nodes with empty <c>Pins</c>; DescriptorToEntry must derive pin
+    /// signatures from <c>NodePinSchema</c> so an exec-output source returns MANY compatible
+    /// kinds (Branch / Sequence / ChannelCommand / …), each with a real exec-input pin —
+    /// not just the 3 hand-authored When/EQS entries.
+    /// </summary>
+    [Fact]
+    public void QueryForPinContext_ExecOutputSource_ReturnsFullFlowSet_WithCompatibleExecInput()
+    {
+        var sut = MakeSut(); // full bootstrap palette
+        var q   = new PinContextQuery(
+            SourcePin:       PinId.Empty,
+            SourceDirection: PinDirection.Output,
+            SourceKind:      PinKind.Exec,
+            SourceType:      null,
+            Text:            "");
+
+        var results = sut.QueryForPinContext(q);
+
+        // Far more than the 3 hand-authored kinds.
+        Assert.True(results.Count > 3,
+            $"Expected the full compatible flow set (>3), got {results.Count}.");
+
+        // The exec-flow staples must be present.
+        foreach (var kind in new[] { "Branch", "Sequence", "ChannelCommand" })
+        {
+            var entry = results.SingleOrDefault(e => e.Kind.Id == kind);
+            Assert.True(entry != null,
+                $"Exec-output wire-drop picker is missing compatible kind '{kind}'.");
+            // And it really does expose a compatible exec INPUT pin (the auto-connect target).
+            Assert.Contains(entry!.Inputs, p => p.Kind == PinKind.Exec);
+        }
+
+        // Every returned entry must genuinely have an exec input pin.
+        Assert.All(results, e =>
+            Assert.Contains(e.Inputs, p => p.Kind == PinKind.Exec));
+    }
+
+    /// <summary>
+    /// A node kind that only has a data-OUTPUT (a literal-style node) must NOT appear for an
+    /// exec-output source — proves the pin-derived signatures actually filter by compatibility
+    /// rather than blindly returning everything.
+    /// </summary>
+    [Fact]
+    public void QueryForPinContext_ExecOutputSource_ExcludesPureDataOutputKinds()
+    {
+        var sut = MakeSut();
+        var q   = new PinContextQuery(
+            PinId.Empty, PinDirection.Output, PinKind.Exec, null, "");
+
+        var results = sut.QueryForPinContext(q);
+
+        // GetVariable projects a single Value data-OUTPUT pin (pure, no exec) → must be excluded.
+        Assert.DoesNotContain(results, e => e.Kind.Id == "GetVariable");
+    }
+
+    /// <summary>
+    /// The pin signatures are derived for the empty-Pins palette kinds: a freshly built
+    /// catalog entry for "Branch" exposes exec In + two exec Outs (True/False), proving
+    /// DescriptorToEntry now goes through NodePinSchema rather than reading defaultNode.Pins
+    /// (which would be empty for these kinds).
+    /// </summary>
+    [Fact]
+    public void DescriptorToEntry_EmptyPinsPaletteKind_DerivesCanonicalPinSignatures()
+    {
+        var sut    = MakeSut();
+        var branch = sut.All.Single(e => e.Kind.Id == "Branch");
+
+        // exec input "In"
+        Assert.Contains(branch.Inputs, p => p.Kind == PinKind.Exec);
+        // exec outputs True/False
+        Assert.True(branch.Outputs.Count(p => p.Kind == PinKind.Exec) >= 2,
+            "Branch should project two exec output pins (True/False).");
+
+        // Sequence: exec in + at least one exec out.
+        var seq = sut.All.Single(e => e.Kind.Id == "Sequence");
+        Assert.Contains(seq.Inputs,  p => p.Kind == PinKind.Exec);
+        Assert.Contains(seq.Outputs, p => p.Kind == PinKind.Exec);
+    }
+
     // ── Dynamic entries: callable peers ──────────────────────────────────────
 
     [Fact]
