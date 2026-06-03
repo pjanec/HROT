@@ -289,6 +289,14 @@ namespace Hrot.Editor
         // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
         private Action? _blueprintRunButtonCallback;
         private string _blueprintRunStatus = string.Empty;
+
+        // MVE-BATCH-04: "Save" toolbar button + Ctrl+S shortcut.
+        // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
+        private Action? _blueprintSaveCallback;
+        private string _blueprintSaveStatus = string.Empty;
+        // DirtyTracker shared between Save wiring and the blueprint document pipeline.
+        // Allocated in RegisterWindows (together with the rest of the blueprint composition).
+        private Hrot.Blueprints.Editor.DirtyTracker _blueprintSaveDirtyTracker = new();
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -1475,6 +1483,35 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── MVE-BATCH-04: Blueprint Save button + Ctrl+S ────────────────────────────────────
+            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
+            if (_blueprintSaveCallback != null &&
+                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            {
+                if (ImGuiNET.ImGui.Begin("Blueprint Save"))
+                {
+                    // Ctrl+S shortcut (detected inside the ImGui window scope).
+                    if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows)
+                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl)
+                        && ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S))
+                    {
+                        _blueprintSaveCallback.Invoke();
+                    }
+
+                    if (ImGuiNET.ImGui.Button("Save Blueprint"))
+                    {
+                        _blueprintSaveCallback.Invoke();
+                    }
+                    if (!string.IsNullOrEmpty(_blueprintSaveStatus))
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
+                    }
+                }
+                ImGuiNET.ImGui.End();
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // Render hover tooltip with entity info (label, health, cognitive state).
             if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
             {
@@ -1771,6 +1808,21 @@ namespace Hrot.Editor
                 });
             _blueprintRunButtonCallback = bpWindowRegistrar.GetToolbarCallback(
                 Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel);
+
+            // ── MVE-BATCH-04: "Save Blueprint" toolbar entry + Ctrl+S ────────────────────────────
+            // Resolves active asset via AiDocumentManager (same path as run-button).
+            // _blueprintSaveDirtyTracker is initialised at field declaration; reused here.
+            var saveRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            saveRegistrar.RegisterToolbarEntry(
+                "Save Blueprint",
+                () =>
+                {
+                    Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.SaveFromActiveDocument(
+                        _aiDocumentManager,
+                        _blueprintSaveDirtyTracker,
+                        msg => _blueprintSaveStatus = msg);
+                });
+            _blueprintSaveCallback = saveRegistrar.GetToolbarCallback("Save Blueprint");
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
