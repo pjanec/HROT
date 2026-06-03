@@ -284,6 +284,11 @@ namespace Hrot.Editor
         private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeDebugSession;
         private Hrot.Hsm.Editor.Debug.HsmDebugSession?     _hsmDebugSession;
         // ─────────────────────────────────────────────────────────────────────────────────────
+
+        // MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button.
+        // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
+        private Action? _blueprintRunButtonCallback;
+        private string _blueprintRunStatus = string.Empty;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -1448,6 +1453,28 @@ namespace Hrot.Editor
         {
             if (_headless) return;
 
+            // ── MVE-BATCH-03: Blueprint toolbar button ──────────────────────────────────────────
+            // Gate on ImGui context availability (the button is skipped in non-ImGui test paths).
+            if (_blueprintRunButtonCallback != null &&
+                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            {
+                if (ImGuiNET.ImGui.Begin("Blueprint Tools"))
+                {
+                    if (ImGuiNET.ImGui.Button(
+                            Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
+                    {
+                        _blueprintRunButtonCallback.Invoke();
+                    }
+                    if (!string.IsNullOrEmpty(_blueprintRunStatus))
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
+                    }
+                }
+                ImGuiNET.ImGui.End();
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // Render hover tooltip with entity info (label, health, cognitive state).
             if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
             {
@@ -1720,6 +1747,31 @@ namespace Hrot.Editor
             _btreeRegistrar.RegisterWindows(windowManager);
             _hsmRegistrar.RegisterWindows(windowManager);
             _blueprintRegistrar.RegisterWindows(windowManager);
+
+            // ── MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button ────────────────
+            // Register via IWindowRegistrar.RegisterToolbarEntry so the button appears in the
+            // Blueprint toolbar. The callback is ImGui-free and headlessly testable; DrawUI renders
+            // the ImGui button gated on ImGui.GetCurrentContext() != Zero.
+            var bpWindowRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            bpWindowRegistrar.RegisterToolbarEntry(
+                Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel,
+                () =>
+                {
+                    // Resolve active asset: document manager → active doc → ViewState → AssetRef.
+                    var activeCtx = _aiDocumentManager?.Active?.ViewState
+                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var activeAssetRef = activeCtx?.AssetRef;
+
+                    Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.Execute(
+                        world:           _world,
+                        registry:        _blueprintRegistry,
+                        selectedEntity:  _aiEditorSelectionStore.SelectedEntity,
+                        activeAssetRef:  activeAssetRef,
+                        report:          msg => _blueprintRunStatus = msg);
+                });
+            _blueprintRunButtonCallback = bpWindowRegistrar.GetToolbarCallback(
+                Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel);
+            // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
             // Each pane holds a reference to its session; the window selects the matching pane
