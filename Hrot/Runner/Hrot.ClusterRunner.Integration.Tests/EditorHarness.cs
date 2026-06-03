@@ -62,6 +62,13 @@ public sealed class EditorHarness : IDisposable
     public FdpEventBus        OrchBus   { get; }
     public ModuleHostKernel   Kernel    { get; }
     public NetworkEntityMap   EntityMap { get; }
+
+    /// <summary>
+    /// The shared Blueprint registry this harness's kernel ticks against. Mirrors the
+    /// editor's <c>_blueprintRegistry</c>: register blueprints here, attach via
+    /// <c>BlueprintAttachService</c>, and the in-kernel <c>BlueprintTickSystem</c> runs them.
+    /// </summary>
+    public Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry { get; }
     public IEditorLogic       Editor    { get; private set; } = null!;
     public ScenarioFileService FileService  => _fileService;
     public ZoneManagerService  ZoneService  => _zoneService;
@@ -197,9 +204,21 @@ public sealed class EditorHarness : IDisposable
         foreach (var sys in simHostCorePack.InputSystems)          Kernel.RegisterGlobalSystem(sys);
         foreach (var sys in simHostCorePack.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
 
-        // Simulation-phase systems must go through a module (kernel forbids global registration)
+        // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
+        // Mirror the EditorSubsystem wiring through the SAME shared helper so the headless
+        // real-kernel test exercises the identical composition (no sandbox world). The helper
+        // registers the tier components on Repo and the BeforeSync maintenance system as a
+        // global, and returns the Simulation-phase tick system to splice into the sim module.
+        BlueprintRegistry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();
+        var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
+            Kernel, Repo, BlueprintRegistry);
+
+        // Simulation-phase systems must go through a module (kernel forbids global registration).
+        // bpTick is appended to the CGF sim list; its [UpdateBefore] dispatcher ordering is not
+        // re-applied inside the group, but the demo blueprint only mutates its own slot state.
+        var cgfSimWithBlueprint = new List<IEcsModuleSystem>(cgfLogicPackInst.SimulationSystems) { bpTick };
         Kernel.RegisterModule(new EditorSimulationModule(
-            cgfLogicPackInst.SimulationSystems,
+            cgfSimWithBlueprint,
             simHostCorePack.SimulationSystems));
 
         // Register editor-specific ECS systems (cargo, perception, zone authoring).

@@ -663,10 +663,23 @@ namespace Hrot.Editor
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
                 cgfLogicPackInst.InputSystems.Concat(simHostCorePack.InputSystems).ToArray());
-    
+
+            // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
+            // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
+            // running editor uses — no sandbox world). The shared helper registers the three
+            // blackboard tier components on _world and registers BlueprintMaintenanceSystem
+            // (BeforeSync) as a global system; it returns the Simulation-phase tick system,
+            // which must be scheduled inside a module's sim list. We tick against the SAME
+            // _blueprintRegistry the editor's AiHotReloadCoordinator compiles blueprints into
+            // (see field declaration + _aiCoordinator construction above), so editor-registered
+            // blueprints run live. Both this composition and the integration-test EditorHarness
+            // call WireBlueprintRuntime so the wiring stays a single source of truth.
+            var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
+                _kernel, _world!, _blueprintRegistry);
+
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).ToArray());
+                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).Append(bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",

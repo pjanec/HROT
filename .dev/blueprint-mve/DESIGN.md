@@ -31,7 +31,12 @@
 - **MVE-03 (save):** implement editor Save (`BlueprintJsonServices.Serialize` → disk; validate pin round-trip / DEBT-BCP-005); headless test: load → mutate → save → reload-from-disk identical-or-expected.
 - **MVE-04 (hot-reload):** running instance + recompile changed `.bp.json` → `AiHotReloadCoordinator` commit → assert the live instance picks up the change (soft-reload preserves state where hash unchanged).
 - **MVE-05 (debug):** breakpoint/watch on a running instance via `BlueprintDebugSession` observed headlessly.
-- **MVE-06 (editor button):** "Run Opened Blueprint on a Test Entity" in the editor, reusing the MVE-01 helper.
+- **MVE-06 (editor button):** "Run Opened Blueprint on a Test Entity" in the editor — spawns a test entity into the **real running ClusterRunner sim world** (the same kernel/`EntityRepository` the editor hosts) and attaches the opened blueprint; observable in the real sim. Reuses the MVE-01 attach+run logic via a production-side service.
+
+> **Note:** MVE-BATCH-02 (the kernel `BlueprintModule`) is the actual foundation that must land before the button — it wires `BlueprintTickSystem`/`MaintenanceSystem` + tier components + registry into the **shared kernel composition the real app loads** (not test-only). The DESIGN's original MVE-02/03/04/05 (compile-on-demand/save/hot-reload/debug) follow.
+
+## Architectural rule (user, non-negotiable)
+Blueprints run in the **REAL system**. Do **NOT** spin up a separate/sandbox world for running/previewing a blueprint — that defeats the integration. The runtime module is part of the real ClusterRunner kernel composition; the run-button and previews target the live sim world.
 
 ## Constraints
-Projection-only for loaded assets stays (byte-stability). GizmoMap.Contracts 0.2.2; don't touch Hrot.IG/DDS. Reuse existing harnesses; don't reimplement runtime.
+Projection-only for loaded assets stays (byte-stability). GizmoMap.Contracts 0.2.2; don't touch Hrot.IG/DDS. Reuse existing harnesses + the real kernel; don't reimplement runtime; don't create a parallel world.
