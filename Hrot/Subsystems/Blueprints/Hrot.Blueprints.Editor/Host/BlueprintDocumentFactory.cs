@@ -1,5 +1,6 @@
 using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core namespace, Compiler assembly)
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -60,6 +61,11 @@ public static class BlueprintDocumentFactory
     /// <param name="extraRenderers">
     ///   Optional extra custom canvas renderers appended after the built-in Blueprint set.
     /// </param>
+    /// <param name="channelCommands">
+    ///   Optional channel-command catalog forwarded to <see cref="BlueprintGraphModel"/> so that
+    ///   <see cref="ChannelCommandNode"/>s project their parameter data-IN pins from the matching
+    ///   catalog entry's params type.  When null, channel-command nodes are exec-only.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -72,7 +78,8 @@ public static class BlueprintDocumentFactory
         AiEditorAdapterBundle   bundle,
         EditService?            editService    = null,
         NodeKindRegistry?       paletteRegistry = null,
-        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
+        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
+        IChannelCommandCatalog? channelCommands = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -95,7 +102,9 @@ public static class BlueprintDocumentFactory
         var kindRegistry = paletteRegistry ?? new NodeKindRegistry();
 
         // ── 2. Graph model (pass registry for pin hydration of JSON-loaded assets) ──
-        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry);
+        // The channel-command catalog (when supplied) lets ChannelCommandNodes project their
+        // parameter data-IN pins from the matching catalog entry's params type (projection-only).
+        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);

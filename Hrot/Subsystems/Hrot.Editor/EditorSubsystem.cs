@@ -1824,9 +1824,12 @@ namespace Hrot.Editor
                         // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
                         // Injects per-document EditServiceContext into the shared EditService
                         // so node drawers route property edits through this document's CommandHistory.
+                        // BCP-BATCH-03 Task 1: forward the channel-command catalog so
+                        // ChannelCommandNodes project their parameter data-IN pins (projection-only).
                         doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
                             doc.Asset, adapterBundle, _blueprintEditService,
-                            _blueprintPaletteEntries);
+                            _blueprintPaletteEntries,
+                            channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance);
                         break;
                 }
 

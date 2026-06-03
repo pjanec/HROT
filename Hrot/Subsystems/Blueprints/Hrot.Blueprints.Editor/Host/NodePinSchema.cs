@@ -1,4 +1,6 @@
+using System.Reflection;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
 
 namespace Hrot.Blueprints.Editor.Host;
@@ -21,6 +23,12 @@ namespace Hrot.Blueprints.Editor.Host;
 ///     (core compiler kinds that appear in the JSON test fixtures).</item>
 /// </list>
 /// </para>
+/// <para>
+/// All projected pins (exec + data) are the pins the <b>compiler actually consumes</b>
+/// for that kind (verified against <c>Stage2_Validate</c>/<c>Stage4_TypeResolve</c>/
+/// <c>Stage5_Schedule</c>); a wired data pin is therefore meaningful.  Pins remain
+/// projection-only — nothing is persisted to the asset or to disk.
+/// </para>
 /// </summary>
 internal static class NodePinSchema
 {
@@ -36,10 +44,19 @@ internal static class NodePinSchema
     /// Optional owning asset; when non-null, Get/Set variable node Value pins are typed
     /// from the declared variable type rather than defaulting to <c>System.Object</c>.
     /// </param>
+    /// <param name="channelCommands">
+    /// Optional channel-command catalog.  When non-null it is used to resolve the parameter
+    /// data-IN pins of a <see cref="ChannelCommandNode"/> from the matching
+    /// <see cref="ChannelCommandCatalogEntry.ParamsTypeFqn"/> (the compiler's source of truth,
+    /// Stage2_Validate §V_ChannelCommandReferences / Stage5_Schedule §ChannelCommand).
+    /// When null (or the action/params type cannot be resolved) the node falls back to
+    /// exec-only, matching the prior behavior.
+    /// </param>
     public static IReadOnlyList<Pin> GetCanonicalPins(
         Node node,
-        NodeKindRegistry? registry = null,
-        BlueprintAsset?   asset    = null)
+        NodeKindRegistry?       registry        = null,
+        BlueprintAsset?         asset           = null,
+        IChannelCommandCatalog? channelCommands = null)
     {
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
@@ -82,23 +99,23 @@ internal static class NodePinSchema
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             LiteralNode lt      => LiteralPins(lt),
             CastNode ca         => CastPins(ca),
-            LatentDelayNode     => ExecInOut(),
-            ChannelCommandNode  => ExecInOut(),
+            LatentDelayNode     => LatentDelayPins(),
+            ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands),
             WaitForChannelNode  => ExecInOut(),
             WaitForEventNode    => ExecInOut(),
             CallCustomEventNode => ExecInOut(),
             CallPeerBlueprintNode => ExecInOut(),
             CallEventDispatcherNode => ExecInOut(),
             BindEventDispatcherNode => ExecInOut(),
-            ArrayMakeNode       => ExecOnly("Out"),
-            ArrayGetNode        => ExecInOut(),
+            ArrayMakeNode am    => ArrayMakePins(am),
+            ArrayGetNode        => ArrayGetPins(),
 
             // Newer node kinds whose full pin schemas are in the registry;
             // if they reach here with empty pins just give them exec in/out.
             WhenNode            => ExecInOut(),
             ReadEqsResultNode   => Array.Empty<Pin>(),
             SpawnEqsSensorNode  => ExecInOut(),
-            ScoreDecisionNode   => ExecInOut(),
+            ScoreDecisionNode   => ScoreDecisionPins(),
             ReadRankedResultNode => Array.Empty<Pin>(),
             PartitionElementsNode => ExecInOut(),
             AssignRolesNode     => ExecInOut(),
@@ -152,12 +169,19 @@ internal static class NodePinSchema
             MakeExec("Out", "Out"),
         };
 
+    /// <summary>
+    /// Branch: exec In + True/False exec outs + a <c>Condition</c> (System.Boolean) data-IN.
+    /// Stage5_Schedule.ScheduleBranchNode reads the first non-exec data-IN pin as the
+    /// branch condition (falling back to a <c>false</c> const when unconnected), so the
+    /// Condition pin is compiler-consumed.
+    /// </summary>
     private static IReadOnlyList<Pin> BranchPins()
         => new[]
         {
             MakeExec("In",    "In"),
             MakeExec("True",  "Out"),
             MakeExec("False", "Out"),
+            MakeData("Condition", "In", "System.Boolean"),
         };
 
     private static IReadOnlyList<Pin> SequencePins()
@@ -168,6 +192,77 @@ internal static class NodePinSchema
             MakeExec("Then1", "Out"),
         };
 
+    /// <summary>
+    /// LatentDelay: exec In/Out + a <c>Duration</c> (System.Single) data-IN.
+    /// Stage5_Schedule.BuildLatentDelayOp resolves the first non-exec data-IN pin as the
+    /// delay seconds (defaulting to <c>0f</c> when unconnected).
+    /// </summary>
+    private static IReadOnlyList<Pin> LatentDelayPins()
+        => new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Duration", "In", "System.Single"),
+        };
+
+    /// <summary>
+    /// ScoreDecision: exec In/Out + a <c>WinningOptionId</c> (System.Byte) data-OUT.
+    /// Stage5_Schedule caches the score result on the out pin named "WinningOptionId".
+    /// </summary>
+    private static IReadOnlyList<Pin> ScoreDecisionPins()
+        => new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("WinningOptionId", "Out", "System.Byte"),
+        };
+
+    /// <summary>
+    /// ArrayGet: exec In/Out + <c>Array</c> data-IN (first data-IN, the source array),
+    /// <c>Index</c> (System.Int32) data-IN, and <c>Element</c> data-OUT.
+    /// Stage4_TypeResolve uses the first non-exec data-IN pin as the array and the
+    /// first non-exec data-OUT pin as the element; element/array CLR type is a compile-time
+    /// wildcard (System.Object here) resolved from incident links.  <c>Array</c> must be the
+    /// first data-IN pin so Stage4 picks it (not Index) as the array input.
+    /// </summary>
+    private static IReadOnlyList<Pin> ArrayGetPins()
+        => new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Array",   "In",  "System.Object"),
+            MakeData("Index",   "In",  "System.Int32"),
+            MakeData("Element", "Out", "System.Object"),
+        };
+
+    /// <summary>
+    /// ArrayMake: exec In/Out + a small fixed set of element data-IN pins ("0","1") typed
+    /// from <see cref="ArrayMakeNode.ElementTypeId"/> (or System.Object) + an <c>Array</c>
+    /// data-OUT.  Stage4_TypeResolve infers the array type from the first non-exec data-IN
+    /// pin's type and writes it onto the first non-exec data-OUT pin.  Dynamic element-count
+    /// tracking is out of scope; two element slots is a sensible default.
+    /// </summary>
+    private static IReadOnlyList<Pin> ArrayMakePins(ArrayMakeNode am)
+    {
+        var elemType = string.IsNullOrEmpty(am.ElementTypeId) ? "System.Object" : am.ElementTypeId;
+        return new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("0",     "In",  elemType),
+            MakeData("1",     "In",  elemType),
+            MakeData("Array", "Out", elemType + "[]"),
+        };
+    }
+
+    /// <summary>
+    /// FunctionCall: exec In/Out (only when <see cref="FunctionCallNode.IsPure"/> is false)
+    /// plus one data-IN pin per method parameter (in declaration order, matching
+    /// Stage5_Schedule.ResolveAllDataInputs) and a single <c>Return</c> data-OUT pin when the
+    /// method has a non-void return type.  The target <see cref="Type"/> is resolved by FQN
+    /// across loaded assemblies; when the type/method cannot be found the node degrades
+    /// gracefully to exec-only (pure → empty), matching the prior behavior.
+    /// </summary>
     private static IReadOnlyList<Pin> FunctionCallPins(FunctionCallNode fc)
     {
         var pins = new List<Pin>();
@@ -176,6 +271,22 @@ internal static class NodePinSchema
             pins.Add(MakeExec("In",  "In"));
             pins.Add(MakeExec("Out", "Out"));
         }
+
+        var method = ResolveMethod(fc.TargetTypeId, fc.MethodName);
+        if (method == null)
+            return pins; // graceful fallback: exec-only (or empty for pure).
+
+        foreach (var param in method.GetParameters())
+        {
+            var pt = param.ParameterType;
+            if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
+            pins.Add(MakeData(param.Name ?? "arg", "In", pt.FullName ?? pt.Name));
+        }
+
+        if (method.ReturnType != typeof(void))
+            pins.Add(MakeData("Return", "Out",
+                method.ReturnType.FullName ?? method.ReturnType.Name));
+
         return pins;
     }
 
@@ -208,6 +319,167 @@ internal static class NodePinSchema
             MakeData("In",  "In",  "System.Object"),
             MakeData("Out", "Out", string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
         };
+
+    // ── ChannelCommand parameter resolution (DYNAMIC) ─────────────────────────
+
+    /// <summary>
+    /// ChannelCommand: exec In/Out + parameter data-IN pins resolved from the channel-command
+    /// catalog.  The matching <see cref="ChannelCommandCatalogEntry"/> is found exactly the way
+    /// Stage2_Validate.V_ChannelCommandReferences matches it:
+    /// <c>LastSegment(ChannelTypeFqn) == node.ChannelType &amp;&amp; entry.Name == node.ActionId</c>.
+    /// The entry's <see cref="ChannelCommandCatalogEntry.ParamsTypeFqn"/> is resolved to a CLR
+    /// <see cref="Type"/> across loaded assemblies and projected as:
+    /// <list type="bullet">
+    ///   <item>one data-IN pin per public instance field/property when the params type is a
+    ///     decomposable struct/class (e.g. <c>AimAndFireParams</c> → Target, CooldownSeconds);</item>
+    ///   <item>a single data-IN pin (named after the type's short name) when the params type is a
+    ///     primitive/enum (e.g. <c>System.Int32</c>) — Stage5 consumes channel-command data-IN
+    ///     pins by <c>(Name, value)</c>, so one value pin is meaningful.</item>
+    /// </list>
+    /// Unknown action / unresolvable params type / null catalog → exec-only (no throw).
+    /// </summary>
+    private static IReadOnlyList<Pin> ChannelCommandPins(
+        ChannelCommandNode cc, IChannelCommandCatalog? channelCommands)
+    {
+        var pins = new List<Pin>
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+
+        if (channelCommands == null)
+            return pins;
+
+        ChannelCommandCatalogEntry? entry;
+        try
+        {
+            entry = channelCommands.GetEntries().FirstOrDefault(e =>
+                LastSegment(e.ChannelTypeFqn) == cc.ChannelType
+                && e.Name == cc.ActionId);
+        }
+        catch
+        {
+            return pins; // catalog failure → exec-only.
+        }
+
+        if (entry == null || string.IsNullOrEmpty(entry.ParamsTypeFqn))
+            return pins; // unknown action → exec-only.
+
+        var paramsType = ResolveType(entry.ParamsTypeFqn);
+        if (paramsType == null)
+        {
+            // Type not loadable: still surface a single typed param pin so the wire is meaningful.
+            pins.Add(MakeData(LastSegment(entry.ParamsTypeFqn), "In", entry.ParamsTypeFqn));
+            return pins;
+        }
+
+        var members = ReflectDataMembers(paramsType);
+        if (members.Count == 0)
+        {
+            // Primitive/enum/opaque params: a single value pin typed as the params type.
+            pins.Add(MakeData(LastSegment(entry.ParamsTypeFqn), "In", entry.ParamsTypeFqn));
+            return pins;
+        }
+
+        foreach (var (name, typeFqn) in members)
+            pins.Add(MakeData(name, "In", typeFqn));
+
+        return pins;
+    }
+
+    /// <summary>
+    /// Returns the public instance fields and read/write properties of <paramref name="type"/>
+    /// as <c>(Name, TypeFqn)</c> pairs, in declaration order.  Returns an empty list for
+    /// primitives, enums and types with no decomposable members.
+    /// </summary>
+    private static List<(string Name, string TypeFqn)> ReflectDataMembers(Type type)
+    {
+        var result = new List<(string, string)>();
+        if (type.IsPrimitive || type.IsEnum || type == typeof(string))
+            return result;
+
+        try
+        {
+            foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+                result.Add((field.Name, field.FieldType.FullName ?? field.FieldType.Name));
+
+            foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (prop.GetIndexParameters().Length > 0) continue; // skip indexers
+                if (!prop.CanRead) continue;
+                result.Add((prop.Name, prop.PropertyType.FullName ?? prop.PropertyType.Name));
+            }
+        }
+        catch
+        {
+            return new List<(string, string)>();
+        }
+
+        return result;
+    }
+
+    // ── reflection helpers ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves a <see cref="Type"/> by its fully-qualified name across all loaded assemblies.
+    /// Tries <see cref="Type.GetType(string)"/> first, then scans
+    /// <see cref="AppDomain.CurrentDomain"/>.  Returns null when not found.
+    /// </summary>
+    private static Type? ResolveType(string fqn)
+    {
+        if (string.IsNullOrEmpty(fqn)) return null;
+
+        var direct = Type.GetType(fqn, throwOnError: false);
+        if (direct != null) return direct;
+
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            try
+            {
+                var t = asm.GetType(fqn, throwOnError: false);
+                if (t != null) return t;
+            }
+            catch
+            {
+                // Ignore assemblies that fail type resolution.
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves a method by declaring-type FQN and method name across loaded assemblies.
+    /// Returns the first public/non-public, static/instance method matching
+    /// <paramref name="methodName"/>; null when the type or method cannot be found.
+    /// </summary>
+    private static MethodInfo? ResolveMethod(string targetTypeId, string methodName)
+    {
+        if (string.IsNullOrEmpty(targetTypeId) || string.IsNullOrEmpty(methodName))
+            return null;
+
+        var type = ResolveType(targetTypeId);
+        if (type == null) return null;
+
+        try
+        {
+            return type.GetMethods(
+                    BindingFlags.Public | BindingFlags.NonPublic |
+                    BindingFlags.Static | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == methodName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Returns the last dotted segment of <paramref name="fqn"/> (e.g. "LocomotionChannel").</summary>
+    private static string LastSegment(string fqn)
+    {
+        if (string.IsNullOrEmpty(fqn)) return fqn;
+        var idx = fqn.LastIndexOf('.');
+        return idx >= 0 && idx < fqn.Length - 1 ? fqn[(idx + 1)..] : fqn;
+    }
 
     // ── primitive factory helpers ─────────────────────────────────────────────
 

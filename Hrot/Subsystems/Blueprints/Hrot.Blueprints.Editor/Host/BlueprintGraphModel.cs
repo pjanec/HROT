@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
@@ -34,6 +35,7 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly BlueprintAsset    _asset;
     private readonly Graph             _graph;
     private readonly NodeKindRegistry? _kindRegistry;
+    private readonly IChannelCommandCatalog? _channelCommands;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -49,14 +51,22 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// pin lists for node kinds registered at editor startup (e.g. WhenNode, ReadEqsResult).
     /// Pass <see langword="null"/> in unit tests that don't exercise those kinds.
     /// </param>
+    /// <param name="channelCommands">
+    /// Optional channel-command catalog forwarded to <see cref="NodePinSchema.GetCanonicalPins"/>
+    /// so <see cref="ChannelCommandNode"/> projects its parameter data-IN pins from the matching
+    /// catalog entry's params type.  When <see langword="null"/> channel-command nodes fall back
+    /// to exec-only (the prior behavior).
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
-        NodeKindRegistry? kindRegistry = null)
+        NodeKindRegistry? kindRegistry = null,
+        IChannelCommandCatalog? channelCommands = null)
     {
-        _asset        = asset        ?? throw new ArgumentNullException(nameof(asset));
-        _graph        = graph        ?? throw new ArgumentNullException(nameof(graph));
-        _kindRegistry = kindRegistry;
+        _asset           = asset ?? throw new ArgumentNullException(nameof(asset));
+        _graph           = graph ?? throw new ArgumentNullException(nameof(graph));
+        _kindRegistry    = kindRegistry;
+        _channelCommands = channelCommands;
         Rebuild();
     }
 
@@ -132,7 +142,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         foreach (var assetNode in _graph.Nodes)
         {
-            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset);
+            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands);
 
             // Separate incident links by direction.
             linksFromNode.TryGetValue(assetNode.Id, out var outLinks);
