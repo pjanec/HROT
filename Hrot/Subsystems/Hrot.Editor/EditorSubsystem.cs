@@ -1908,6 +1908,20 @@ namespace Hrot.Editor
                 hsmPane.SetSession(_hsmDebugSession);
                 _hsmRegistrar.RuntimeInspector.RegisterPane(hsmPane);
             }
+            if (_blueprintDebugSession != null)
+            {
+                var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
+                blueprintPane.SetSession(_blueprintDebugSession);
+                blueprintPane.SetResolvers(
+                    selectedEntityResolver: () => _blueprintSelectionStore?.SelectedEntity,
+                    activeAssetIdResolver:  () =>
+                    {
+                        var ctx = _aiDocumentManager?.Active?.ViewState
+                            as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                        return (ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset)?.AssetId;
+                    });
+                _blueprintRegistrar.RuntimeInspector.RegisterPane(blueprintPane);
+            }
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-032: Register BTree/HSM trace lane providers ────────────────────────────────

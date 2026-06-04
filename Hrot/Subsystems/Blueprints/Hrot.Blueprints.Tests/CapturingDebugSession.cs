@@ -84,6 +84,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
     public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;
+    public BlueprintStateSnapshot? CaptureLiveState(Entity self, Guid assetId) => null;
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
         => throw new NotImplementedException();
     public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)

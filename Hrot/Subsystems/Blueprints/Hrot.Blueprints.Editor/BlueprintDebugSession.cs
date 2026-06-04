@@ -454,6 +454,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         return CaptureStateSnapshot(_pausedOnEntity.Value, _pausedAt.AssetId);
     }
 
+    /// <summary>
+    /// Returns a live (non-pause-gated) snapshot of the working-state for the given entity
+    /// and blueprint asset. Calls <see cref="CaptureStateSnapshot"/> directly without
+    /// requiring the session to be paused.
+    /// </summary>
+    public BlueprintStateSnapshot? CaptureLiveState(Entity self, Guid assetId)
+        => CaptureStateSnapshot(self, assetId);
+
     private BlueprintStateSnapshot? CaptureStateSnapshot(Entity self, Guid assetId)
     {
         _debugMaps.TryGetValue(assetId, out var mapIndex);

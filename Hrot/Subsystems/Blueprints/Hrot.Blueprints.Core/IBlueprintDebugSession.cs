@@ -175,6 +175,16 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
 
     // -- Inspection --
     BlueprintStateSnapshot? GetCurrentStateSnapshot();
+
+    /// <summary>
+    /// Returns a live (non-pause-gated) snapshot of the working-state for the given entity
+    /// and blueprint asset. Unlike <see cref="GetCurrentStateSnapshot"/>, this method does
+    /// NOT require the session to be paused — it reads state directly from the entity's
+    /// blackboard partition. Returns null when the entity has no slot for the asset or when
+    /// no DebugMap has been registered for the asset.
+    /// </summary>
+    BlueprintStateSnapshot? CaptureLiveState(Entity self, Guid assetId);
+
     IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100);
     /// <summary>
     /// Returns the peer-call frame stack for the currently paused entity, ordered shallowest-first
