@@ -142,7 +142,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         foreach (var assetNode in _graph.Nodes)
         {
-            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands);
+            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands, _graph);
 
             // Separate incident links by direction.
             linksFromNode.TryGetValue(assetNode.Id, out var outLinks);

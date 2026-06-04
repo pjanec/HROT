@@ -206,7 +206,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // Build the canonical pin list the SAME way DescriptorToEntry did (registry-backed,
         // asset-aware for variable typing) so the count/order aligns with the catalog entry the
         // canvas walked when generating PinIds.
-        var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset);
+        var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset, containingGraph: _graph);
 
         // Re-order into inputs-then-outputs, matching DescriptorToEntry (Inputs = Direction=="In",
         // Outputs = Direction=="Out") and CanvasInput's pinIdx walk (entry.Inputs then entry.Outputs).

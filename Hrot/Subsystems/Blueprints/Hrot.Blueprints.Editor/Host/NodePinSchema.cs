@@ -52,11 +52,21 @@ internal static class NodePinSchema
     /// When null (or the action/params type cannot be resolved) the node falls back to
     /// exec-only, matching the prior behavior.
     /// </param>
+    /// <param name="containingGraph">
+    /// Optional graph that owns <paramref name="node"/>.  Required to project value pins for
+    /// <see cref="EventEntryNode"/> (outputs from <c>Graph.Inputs</c>) and
+    /// <see cref="ReturnNode"/> (output from <c>Graph.Outputs[0]</c>) when the graph has
+    /// <see cref="GraphKind.Function"/> kind.  Also used by <see cref="FunctionCallNode"/> to
+    /// resolve a <c>TargetGraphId</c> within the containing asset's graph list.
+    /// Pass <c>null</c> (default) for catalog contexts where the containing graph is not known;
+    /// behavior degrades gracefully to the original exec-only pins.
+    /// </param>
     public static IReadOnlyList<Pin> GetCanonicalPins(
         Node node,
         NodeKindRegistry?       registry        = null,
         BlueprintAsset?         asset           = null,
-        IChannelCommandCatalog? channelCommands = null)
+        IChannelCommandCatalog? channelCommands = null,
+        Graph?                  containingGraph = null)
     {
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
@@ -90,11 +100,11 @@ internal static class NodePinSchema
         // Pass 2: built-in fallback table for core compiler node kinds.
         return node switch
         {
-            EventEntryNode      => ExecOnly("Out"),
-            ReturnNode          => ExecOnly("In"),
+            EventEntryNode      => EventEntryNodePins(containingGraph),
+            ReturnNode          => ReturnNodePins(containingGraph),
             BranchNode          => BranchPins(),
             SequenceNode        => SequencePins(),
-            FunctionCallNode fc => FunctionCallPins(fc),
+            FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
             LiteralNode lt      => LiteralPins(lt),
@@ -168,6 +178,134 @@ internal static class NodePinSchema
             MakeExec("In",  "In"),
             MakeExec("Out", "Out"),
         };
+
+    /// <summary>
+    /// EventEntryNode: when the containing graph is a <see cref="GraphKind.Function"/> graph
+    /// with inputs, emit <c>exec-Out</c> + one data-Out pin per <c>Graph.Inputs</c> entry
+    /// (name from <c>inp.Name</c>, type from <c>inp.Type.TypeId</c>; fallback
+    /// <c>System.Object</c>).
+    /// <para>
+    /// Compiler contract (Stage5_Schedule.cs ~1157-1189): the compiler reads
+    /// <c>!IsExec &amp;&amp; Direction=="Out"</c> data pins on EventEntryNode and matches each
+    /// to <c>Graph.Inputs</c> by name (OrdinalIgnoreCase) to emit
+    /// <c>IrOp_ReadInputArg(argIndex)</c>.  Pin names and <c>Direction="Out"</c> are therefore
+    /// load-bearing; the projected pins are the compiler's source of truth.
+    /// </para>
+    /// Fallback to exec-only for Event/AiPrimitive graphs and Function graphs with no inputs.
+    /// </summary>
+    private static IReadOnlyList<Pin> EventEntryNodePins(Graph? containingGraph)
+    {
+        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Inputs.Count > 0)
+        {
+            var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
+            pins.Add(MakeExec("Out", "Out"));
+            foreach (var inp in containingGraph.Inputs)
+            {
+                var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
+                pins.Add(MakeData(inp.Name, "Out", typeId));
+            }
+            return pins;
+        }
+        return ExecOnly("Out");
+    }
+
+    /// <summary>
+    /// ReturnNode: when the containing graph is a <see cref="GraphKind.Function"/> graph
+    /// with at least one output, emit <c>exec-In</c> + one data-Out pin from
+    /// <c>Graph.Outputs[0]</c> (name from <c>out.Name</c>, type from <c>out.Type.TypeId</c>;
+    /// fallback <c>System.Object</c>).
+    /// <para>
+    /// Compiler contract (Stage5_Schedule.cs ~881-897 <c>BuildReturnTerminator</c>): Stage5
+    /// reads <c>rn.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>.
+    /// The value pin therefore MUST have <c>Direction="Out"</c>, NOT <c>"In"</c> — this
+    /// mirrors the GetVariable convention where data flows OUT of the node toward consumers.
+    /// The compiler reads the pin as a producer (it resolves the wired source value and caches
+    /// it for the return terminator), so "Out" is semantically correct: the node <em>provides</em>
+    /// the return value on that pin.
+    /// </para>
+    /// Only the single first output is projected; multi-output support is deferred to a later batch.
+    /// Fallback to exec-only for non-Function graphs and Function graphs with no outputs.
+    /// </summary>
+    private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph)
+    {
+        if (containingGraph?.Kind == GraphKind.Function && containingGraph.Outputs.Count > 0)
+        {
+            var output = containingGraph.Outputs[0];
+            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
+            return new[]
+            {
+                MakeExec("In", "In"),
+                MakeData(output.Name, "Out", typeId),
+            };
+        }
+        return ExecOnly("In");
+    }
+
+    /// <summary>
+    /// Dispatch helper: routes a <see cref="FunctionCallNode"/> to either
+    /// <see cref="FunctionGraphCallPins"/> (when <c>TargetGraphId</c> resolves to a
+    /// <see cref="GraphKind.Function"/> graph in the asset) or the existing CLR-reflection
+    /// <see cref="FunctionCallPins"/> path (graceful fallback; no throw).
+    /// </summary>
+    private static IReadOnlyList<Pin> FunctionCallPinsDispatch(
+        FunctionCallNode fc, BlueprintAsset? asset, Graph? containingGraph)
+    {
+        // Graph-call path: non-empty TargetGraphId + resolvable target Function graph.
+        if (!string.IsNullOrEmpty(fc.TargetGraphId) && asset != null)
+        {
+            if (Guid.TryParse(fc.TargetGraphId, out var targetGuid))
+            {
+                var target = asset.Graphs.FirstOrDefault(
+                    g => g.Id == targetGuid && g.Kind == GraphKind.Function);
+                if (target != null)
+                    return FunctionGraphCallPins(fc, target);
+            }
+        }
+
+        // CLR-reflection path (unchanged existing behavior).
+        return FunctionCallPins(fc);
+    }
+
+    /// <summary>
+    /// FunctionCall targeting an in-blueprint <see cref="GraphKind.Function"/> graph.
+    /// <para>
+    /// Compiler contract (Stage5_Schedule.cs ~642-679):
+    /// <list type="bullet">
+    ///   <item>Data-IN pins are consumed <em>positionally</em> by
+    ///     <c>ResolveAllDataInputs(node, stmts)</c> as the call arguments (order matches
+    ///     <c>target.Inputs</c>; pin names are used only for readability on the canvas).</item>
+    ///   <item>The first data-OUT pin (<c>gcOutPin</c>) is the return-value slot
+    ///     (<c>!p.IsExec &amp;&amp; p.Direction == "Out"</c>).</item>
+    /// </list>
+    /// </para>
+    /// Exec In/Out are omitted for pure calls (<see cref="FunctionCallNode.IsPure"/>).
+    /// Only the first output is projected as data-OUT (BATCH-03A is single-output).
+    /// </summary>
+    private static IReadOnlyList<Pin> FunctionGraphCallPins(FunctionCallNode fc, Graph target)
+    {
+        var pins = new List<Pin>();
+
+        if (!fc.IsPure)
+        {
+            pins.Add(MakeExec("In",  "In"));
+            pins.Add(MakeExec("Out", "Out"));
+        }
+
+        foreach (var inp in target.Inputs)
+        {
+            var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
+            pins.Add(MakeData(inp.Name, "In", typeId));
+        }
+
+        if (target.Outputs.Count > 0)
+        {
+            var output = target.Outputs[0];
+            var typeId = string.IsNullOrEmpty(output.Type?.TypeId) ? "System.Object" : output.Type.TypeId;
+            pins.Add(MakeData(output.Name, "Out", typeId));
+        }
+
+        return pins;
+    }
 
     /// <summary>
     /// Branch: exec In + True/False exec outs + a <c>Condition</c> (System.Boolean) data-IN.

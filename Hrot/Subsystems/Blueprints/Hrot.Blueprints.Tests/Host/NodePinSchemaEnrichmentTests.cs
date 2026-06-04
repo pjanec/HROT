@@ -432,6 +432,371 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Equal("Return",        ret.Name);
         Assert.Equal("System.Object", ret.TypeId);
     }
+
+    // ── BATCH-03C: EventEntryNode in Function graph ─────────────────────────────
+
+    /// <summary>
+    /// EventEntryNode in a Function graph with 2 inputs → exec-Out + 2 data-Out pins,
+    /// each named and typed from Graph.Inputs.
+    /// Satisfies Stage5_Schedule.cs~1157-1189: compiler reads !IsExec &amp;&amp; Direction=="Out" pins
+    /// and name-matches to Graph.Inputs.
+    /// </summary>
+    [Fact]
+    public void EventEntryNode_FunctionGraph_TwoInputs_ProjectsExecOutPlusTwoDataOut()
+    {
+        var graphId = Guid.NewGuid();
+        var graph = new Graph
+        {
+            Id   = graphId,
+            Kind = GraphKind.Function,
+            Inputs = new List<ParameterDecl>
+            {
+                new ParameterDecl { Name = "Target",     Type = new BlueprintTypeRef { TypeId = "System.Int64"   } },
+                new ParameterDecl { Name = "Confidence", Type = new BlueprintTypeRef { TypeId = "System.Single"  } },
+            },
+        };
+        var node = new EventEntryNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: graph);
+
+        // Exactly one exec-Out pin.
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+        Assert.False(HasExec(pins, "In", "In"), "EventEntry must not have exec In");
+
+        // Two data-Out pins in declaration order.
+        var dataOut = Data(pins, "Out");
+        Assert.Equal(2, dataOut.Length);
+        Assert.Equal("Target",      dataOut[0].Name);
+        Assert.Equal("System.Int64",  dataOut[0].TypeId);
+        Assert.Equal("Confidence",  dataOut[1].Name);
+        Assert.Equal("System.Single", dataOut[1].TypeId);
+
+        // No data-In pins.
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    /// <summary>
+    /// EventEntryNode in an Event graph (non-Function) → exec-only (unchanged behavior).
+    /// </summary>
+    [Fact]
+    public void EventEntryNode_EventGraph_ExecOnly()
+    {
+        var graph = new Graph { Kind = GraphKind.Event };
+        var node  = new EventEntryNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: graph);
+
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+        Assert.Empty(Data(pins, "Out"));
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    /// <summary>
+    /// EventEntryNode in a Function graph with NO inputs → exec-only (unchanged behavior).
+    /// </summary>
+    [Fact]
+    public void EventEntryNode_FunctionGraph_NoInputs_ExecOnly()
+    {
+        var graph = new Graph { Kind = GraphKind.Function, Inputs = new List<ParameterDecl>() };
+        var node  = new EventEntryNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: graph);
+
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+        Assert.Empty(Data(pins, "Out"));
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    /// <summary>
+    /// EventEntryNode with containingGraph=null → exec-only (graceful fallback).
+    /// </summary>
+    [Fact]
+    public void EventEntryNode_NullGraph_ExecOnly()
+    {
+        var node = new EventEntryNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: null);
+
+        Assert.True(HasExec(pins, "Out", "Out"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    // ── BATCH-03C: ReturnNode in Function graph ─────────────────────────────────
+
+    /// <summary>
+    /// ReturnNode in a Function graph with 1 output → exec-In + 1 data-Out pin (Direction=="Out")
+    /// named and typed from Graph.Outputs[0].
+    /// Satisfies Stage5_Schedule.cs~881-897 BuildReturnTerminator:
+    /// <c>rn.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>.
+    /// </summary>
+    [Fact]
+    public void ReturnNode_FunctionGraph_OneOutput_ProjectsExecInPlusDataOut()
+    {
+        var graph = new Graph
+        {
+            Kind = GraphKind.Function,
+            Outputs = new List<ParameterDecl>
+            {
+                new ParameterDecl { Name = "Result", Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+            },
+        };
+        var node = new ReturnNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: graph);
+
+        Assert.True(HasExec(pins, "In", "In"), "exec In missing");
+        Assert.False(HasExec(pins, "Out", "Out"), "ReturnNode must not have exec Out");
+
+        // The value pin MUST have Direction=="Out" (compiler contract: BuildReturnTerminator reads
+        // !IsExec && Direction=="Out").
+        var dataOut = Data(pins, "Out");
+        var ret = Assert.Single(dataOut);
+        Assert.Equal("Result",       ret.Name);
+        Assert.Equal("System.Int32", ret.TypeId);
+        Assert.Equal("Out",          ret.Direction); // critical: compiler reads data-OUT not data-IN
+
+        // No data-In pins.
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    /// <summary>
+    /// ReturnNode in a Function graph with NO outputs → exec-only (unchanged behavior).
+    /// </summary>
+    [Fact]
+    public void ReturnNode_FunctionGraph_NoOutputs_ExecOnly()
+    {
+        var graph = new Graph { Kind = GraphKind.Function, Outputs = new List<ParameterDecl>() };
+        var node  = new ReturnNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: graph);
+
+        Assert.True(HasExec(pins, "In", "In"), "exec In missing");
+        Assert.Empty(Data(pins, "Out"));
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    /// <summary>
+    /// ReturnNode with containingGraph=null → exec-only (graceful fallback).
+    /// </summary>
+    [Fact]
+    public void ReturnNode_NullGraph_ExecOnly()
+    {
+        var node = new ReturnNode();
+
+        var pins = NodePinSchema.GetCanonicalPins(node, containingGraph: null);
+
+        Assert.True(HasExec(pins, "In", "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.Empty(Data(pins, "In"));
+    }
+
+    // ── BATCH-03C: FunctionCallNode with TargetGraphId ─────────────────────────
+
+    /// <summary>
+    /// FunctionCall with TargetGraphId pointing to a Function graph (impure):
+    /// exec In/Out + data-IN per target.Inputs + 1 data-OUT for target.Outputs[0].
+    /// Satisfies Stage5_Schedule.cs~642-679:
+    /// - ResolveAllDataInputs consumes data-IN pins positionally as call arguments.
+    /// - gcOutPin = first !IsExec &amp;&amp; Direction=="Out" pin as return slot.
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TargetGraphId_ImpureFunction_ProjectsExecAndDataPins()
+    {
+        var targetGraphId = Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            Graphs = new List<Graph>
+            {
+                new Graph
+                {
+                    Id   = targetGraphId,
+                    Kind = GraphKind.Function,
+                    Inputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Threshold", Type = new BlueprintTypeRef { TypeId = "System.Single" } },
+                        new ParameterDecl { Name = "Count",     Type = new BlueprintTypeRef { TypeId = "System.Int32"  } },
+                    },
+                    Outputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Score", Type = new BlueprintTypeRef { TypeId = "System.Single" } },
+                    },
+                },
+            },
+        };
+        var node = new FunctionCallNode
+        {
+            TargetGraphId = targetGraphId.ToString(),
+            IsPure        = false,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        // Exec In/Out for impure call.
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        // Data-IN pins in declaration order (Stage5 ResolveAllDataInputs reads positionally).
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        Assert.Equal("Threshold",    dataIn[0].Name);
+        Assert.Equal("System.Single", dataIn[0].TypeId);
+        Assert.Equal("Count",        dataIn[1].Name);
+        Assert.Equal("System.Int32",  dataIn[1].TypeId);
+
+        // Single data-OUT pin for return value.
+        var dataOut = Data(pins, "Out");
+        var ret = Assert.Single(dataOut);
+        Assert.Equal("Score",        ret.Name);
+        Assert.Equal("System.Single", ret.TypeId);
+    }
+
+    /// <summary>
+    /// FunctionCall with TargetGraphId (pure variant): no exec pins, only data-IN + data-OUT.
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TargetGraphId_PureFunction_NoExecPins()
+    {
+        var targetGraphId = Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            Graphs = new List<Graph>
+            {
+                new Graph
+                {
+                    Id   = targetGraphId,
+                    Kind = GraphKind.Function,
+                    Inputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Value", Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+                    },
+                    Outputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Result", Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+                    },
+                },
+            },
+        };
+        var node = new FunctionCallNode
+        {
+            TargetGraphId = targetGraphId.ToString(),
+            IsPure        = true,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        Assert.False(pins.Any(p => p.IsExec), "pure function must have no exec pins");
+        Assert.Single(Data(pins, "In"));
+        Assert.Single(Data(pins, "Out"));
+    }
+
+    /// <summary>
+    /// FunctionCall with unknown TargetGraphId (GUID doesn't match any graph in asset):
+    /// falls through to CLR-reflection path gracefully (no throw).
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TargetGraphId_UnknownGuid_FallsBackToCLRPath_NoThrow()
+    {
+        var asset = new BlueprintAsset { Graphs = new List<Graph>() }; // empty graph list
+        var node = new FunctionCallNode
+        {
+            TargetGraphId = Guid.NewGuid().ToString(),
+            TargetTypeId  = "No.Such.CLR.Type",  // CLR path also fails gracefully
+            MethodName    = "Whatever",
+            IsPure        = false,
+        };
+
+        // Must not throw; falls back to CLR exec-only (type not found).
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    /// <summary>
+    /// FunctionCall with TargetGraphId pointing to an Event graph (not Function):
+    /// also falls through to CLR-reflection path (guard: g.Kind == GraphKind.Function).
+    /// </summary>
+    [Fact]
+    public void FunctionCall_TargetGraphId_EventGraph_NotFunction_FallsBackToCLRPath()
+    {
+        var targetGraphId = Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            Graphs = new List<Graph>
+            {
+                new Graph { Id = targetGraphId, Kind = GraphKind.Event }, // Event, not Function
+            },
+        };
+        var node = new FunctionCallNode
+        {
+            TargetGraphId = targetGraphId.ToString(),
+            TargetTypeId  = "No.Such.CLR.Type",
+            IsPure        = false,
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        // CLR path: exec-only (type not found).
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    // ── BATCH-03C: Compiler-selector round-trip check ───────────────────────────
+
+    /// <summary>
+    /// Round-trip verification: projected Entry/Return/FunctionCall pins satisfy the exact
+    /// compiler selectors from Stage5_Schedule.cs.
+    /// - Entry: data-OUT pins (Stage5~1162: <c>!IsExec &amp;&amp; Direction=="Out"</c>) are present and named.
+    /// - Return: value pin has Direction=="Out" (Stage5~891: <c>!IsExec &amp;&amp; Direction=="Out"</c>).
+    /// - FunctionCall data-IN pins are present for args (Stage5~661: ResolveAllDataInputs reads
+    ///   all !IsExec &amp;&amp; Direction=="In" pins positionally); first data-OUT is the return slot.
+    /// </summary>
+    [Fact]
+    public void CompilerSelectors_EntryReturnFunctionCall_AllProjectedPinsSatisfySelectors()
+    {
+        var targetGraphId = Guid.NewGuid();
+        var graph = new Graph
+        {
+            Id   = targetGraphId,
+            Kind = GraphKind.Function,
+            Inputs = new List<ParameterDecl>
+            {
+                new ParameterDecl { Name = "X", Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+            },
+            Outputs = new List<ParameterDecl>
+            {
+                new ParameterDecl { Name = "Out", Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+            },
+        };
+        var asset = new BlueprintAsset { Graphs = new List<Graph> { graph } };
+
+        // ── Entry node (data-OUT pins → IrOp_ReadInputArg) ──
+        var entryPins = NodePinSchema.GetCanonicalPins(new EventEntryNode(), containingGraph: graph);
+        var entryDataOut = entryPins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+        Assert.Single(entryDataOut); // one input → one data-Out
+        Assert.Equal("X", entryDataOut[0].Name);
+
+        // ── Return node (first !IsExec && Direction=="Out" → return value) ──
+        var returnPins = NodePinSchema.GetCanonicalPins(new ReturnNode(), containingGraph: graph);
+        var returnValPin = returnPins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+        Assert.NotNull(returnValPin);  // compiler requires this
+        Assert.Equal("Out", returnValPin!.Name);
+
+        // ── FunctionCall node (data-IN positional args + first data-OUT return slot) ──
+        var callNode = new FunctionCallNode { TargetGraphId = targetGraphId.ToString(), IsPure = false };
+        var callPins = NodePinSchema.GetCanonicalPins(callNode, asset: asset);
+        var callDataIn  = callPins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        var callDataOut = callPins.Where(p => !p.IsExec && p.Direction == "Out").ToList();
+        Assert.Single(callDataIn);   // one input arg
+        Assert.Single(callDataOut);  // one return slot
+        Assert.Equal("X",   callDataIn[0].Name);   // readable name matches input
+        Assert.Equal("Out", callDataOut[0].Name);  // readable name matches output
+    }
 }
 
 /// <summary>Local helper struct used by the enrichment tests to capture pin shape.</summary>

@@ -86,9 +86,10 @@ Completed batches reference their report for full file:line detail rather than d
   `Outputs[0]` (Direction `"Out"` -- compiler reads `!IsExec && Direction=="Out"`; GetVariable convention).
   FunctionCall with `TargetGraphId` -> exec In/Out + data-IN per target Input (positional order) + data-OUT
   for target Output; falls back to the existing CLR-reflection path when unset/unresolved. Headless tests.
-- **Status:** PENDING (spec ready: `batches/BATCH-03C-INSTRUCTIONS.md`). Queued behind 03B to avoid
-  concurrent solution builds.
-- **Gate:** NodePinSchema tests green; full suite subset of 7 / 0 new / no golden changed; boot 10/10.
+- **Status:** DONE -- committed. Report: `reports/BATCH-03C-REPORT.md`. Added `containingGraph` param +
+  4 helpers (`EventEntryNodePins`/`ReturnNodePins`/`FunctionCallPinsDispatch`/`FunctionGraphCallPins`);
+  call sites in `BlueprintGraphModel`/`BlueprintCommandSink` pass `_graph`.
+- **Gate:** NodePinSchema 31/31; full suite 7 fail / 0 new / no golden changed; boot 10/10.
 
 ## BATCH-03C2 -- CallPeerBlueprint arg pins via extended BlueprintSignature
 - **Goal:** Resolve the BATCH-02 deferral -- project a `CallPeerBlueprintNode`'s argument data-IN pins
