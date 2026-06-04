@@ -1,5 +1,11 @@
 - *
-! Hrot/**/*.Tests*
+
++ Stride
+- Stride/Bin
+- Stride/Assets
+- Stride/Resources
+- Stride/BepuSample
+
 - **/docs
 - **/Docs
 - **/.*
@@ -10,13 +16,14 @@
 - **/build
 - **/artifacts
 - **/Generated/*
-- **/TestResults
 - **/*.png
 - **/*.dll
 - **/*.exe
 - **/*.md
 - **/*.fdp
-
-
-
+- **/*.ico
+- scripts
+- TestResults
+- *.txt
+- *.log
 

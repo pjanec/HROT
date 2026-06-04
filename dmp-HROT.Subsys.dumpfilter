@@ -1,4 +1,5 @@
-+ *
+- *
++ Hrot/Subsystems
 - **/docs
 - **/Docs
 - **/.*
@@ -21,10 +22,4 @@
 - TestResults
 - *.txt
 - *.log
-- FDP
-- Hrot/Subsystems
-+ Hrot.ClusterRunner.Integration.Tests
-+ Hrot.Orchestrator.Integration.Tests
-+ Hrot.SimHost.Integration.Tests
-
 

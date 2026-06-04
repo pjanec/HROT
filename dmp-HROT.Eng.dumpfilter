@@ -1,5 +1,5 @@
 - *
-+ Hrot/Subsystems
++ Hrot
 - **/docs
 - **/Docs
 - **/.*
@@ -8,9 +8,6 @@
 - **/tests
 - **/Tests
 - **/*.Tests*
-
-+ Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests
-
 - **/*Benchmark*
 - **/*benchmark*
 - **/build
@@ -25,4 +22,11 @@
 - TestResults
 - *.txt
 - *.log
+- FDP
+- Hrot/Subsystems
++ Hrot/Subsystems/Hrot.ClusterRunner.Integration.Tests
++ Hrot/Subsystems/Hrot.Orchestrator.Integration.Tests
++ Hrot/Subsystems/Hrot.SimHost.Integration.Tests
 
+
++ *.sln
