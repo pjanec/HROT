@@ -297,6 +297,14 @@ namespace Hrot.Editor
         // DirtyTracker shared between Save wiring and the blueprint document pipeline.
         // Allocated in RegisterWindows (together with the rest of the blueprint composition).
         private Hrot.Blueprints.Editor.DirtyTracker _blueprintSaveDirtyTracker = new();
+
+        // MVE-BATCH-05: "Compile / Reload Blueprint" toolbar button.
+        // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
+        // Compile works from the in-memory asset (no disk-save required); the result is
+        // committed into _blueprintRegistry via _aiCoordinator.ApplyQuickReload so the
+        // SAME registry instance the kernel ticks immediately sees the new definition.
+        private Action? _blueprintCompileCallback;
+        private string _blueprintCompileStatus = string.Empty;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -424,6 +432,15 @@ namespace Hrot.Editor
         // Kept as a null-returning stub so any external reference during migration compiles.
         [System.Obsolete("Retired by AIE-015. Use the perspective registrar infrastructure instead.")]
         internal Fdp.Toolkit.Runner.IWindowRegistrar? BlueprintWindowRegistrar => null;
+
+        /// <summary>Internal test hook: exposes the "Compile / Reload Blueprint" toolbar callback (MVE-BATCH-05).</summary>
+        internal Action? BlueprintCompileCallback => _blueprintCompileCallback;
+
+        /// <summary>Internal test hook: exposes the compile status string (MVE-BATCH-05).</summary>
+        internal string BlueprintCompileStatus => _blueprintCompileStatus;
+
+        /// <summary>Internal test hook: exposes the BlueprintRegistry instance (MVE-BATCH-05).</summary>
+        internal Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry => _blueprintRegistry;
 
         /// <inheritdoc/>
         public MapCameraView? GetCameraView() => _camera?.GetCameraView();
@@ -1512,6 +1529,27 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── MVE-BATCH-05: Compile / Reload Blueprint button ─────────────────────────────────
+            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
+            if (_blueprintCompileCallback != null &&
+                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            {
+                if (ImGuiNET.ImGui.Begin("Blueprint Compile"))
+                {
+                    if (ImGuiNET.ImGui.Button("Compile / Reload Blueprint"))
+                    {
+                        _blueprintCompileCallback.Invoke();
+                    }
+                    if (!string.IsNullOrEmpty(_blueprintCompileStatus))
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
+                    }
+                }
+                ImGuiNET.ImGui.End();
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // Render hover tooltip with entity info (label, health, cognitive state).
             if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
             {
@@ -1825,6 +1863,36 @@ namespace Hrot.Editor
             _blueprintSaveCallback = saveRegistrar.GetToolbarCallback("Save Blueprint");
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── MVE-BATCH-05: "Compile / Reload Blueprint" toolbar entry ─────────────────────────
+            // Save-then-compile decision: QuickReloadService compiles from the in-memory asset
+            // (via _editorState.GetInMemoryAsset / the asset reference in the active document),
+            // NOT from the .bp.json on disk.  Therefore no pre-save is required; the callback
+            // triggers the _blueprintQuickReloadTrigger which calls QuickReloadService.TriggerAsync
+            // with the live in-memory BlueprintAsset.  If the user WANTS the compiled output
+            // persisted they should Save first (MVE-04) — but compilation itself works from RAM.
+            var compileRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+            compileRegistrar.RegisterToolbarEntry(
+                "Compile / Reload Blueprint",
+                () =>
+                {
+                    var activeCtx = _aiDocumentManager?.Active?.ViewState
+                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var activeAssetRef = activeCtx?.AssetRef
+                        as Hrot.Blueprints.Core.Assets.BlueprintAsset;
+
+                    if (activeAssetRef == null)
+                    {
+                        _blueprintCompileStatus = "No active blueprint document.";
+                        return;
+                    }
+
+                    // Re-use the trigger wired up in RegisterWindows (RegenerationScheduler path).
+                    // The trigger was also wired directly, so invoke it here for the button.
+                    _blueprintQuickReloadTrigger?.Invoke(_aiDocumentManager!.Active!.Asset);
+                });
+            _blueprintCompileCallback = compileRegistrar.GetToolbarCallback("Compile / Reload Blueprint");
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
             // Each pane holds a reference to its session; the window selects the matching pane
             // at draw time based on the active asset kind.
@@ -1983,11 +2051,55 @@ namespace Hrot.Editor
                         hsmAsset.ClearDirty();
                 });
 
-            // AIE-026 (Blueprint): Light wiring — store a QuickReload trigger that Phase 4 can fill.
-            // In Phase 2, Blueprint editing is not yet implemented (Phase 4 concern); the trigger is
-            // a no-op placeholder so that the scheduler route exists without rebuilding the full pipeline.
-            // Phase 4 replaces _blueprintQuickReloadTrigger with a real QuickReloadService.TriggerAsync call.
-            _blueprintQuickReloadTrigger = null; // populated by Phase 4 composition
+            // MVE-BATCH-05 (Blueprint): Wire the QuickReloadService so that every dirty Blueprint
+            // asset that the RegenerationScheduler flushes is automatically compiled and committed
+            // into the SAME _blueprintRegistry instance that the kernel ticks.
+            //
+            // QuickReloadService (Hrot.Blueprints.Editor.Reload) requires a
+            // Fdp.Toolkit.Behavior.AiHotReloadCoordinator (the lightweight FDP variant, not
+            // the file-watching Hrot.Editor variant).  A new instance is constructed with the
+            // SAME _behaviorRegistry and _blueprintRegistry references, so ApplyQuickReload
+            // commits into the exact registry BlueprintTickSystem reads — instance sharing proven.
+            //
+            // TriggerAsync is synchronous internally (returns Task.FromResult), so
+            // .GetAwaiter().GetResult() is safe here — it never yields to the thread pool.
+            // Result/diagnostics are surfaced to _blueprintCompileStatus.
+            {
+                var bpDir      = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                var qrsCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpDir);
+                var qrsState   = new Hrot.Blueprints.Editor.EditorState();
+                var qrsConsole = new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
+                var qrsCompiler = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler();
+
+                // Lightweight FDP coordinator — shares _blueprintRegistry with the kernel.
+                var qrsCoordinator = new Fdp.Toolkit.Behavior.AiHotReloadCoordinator(
+                    _behaviorRegistry!,
+                    _blueprintRegistry,
+                    new Fdp.Toolkit.Behavior.AiHotReloadCoordinatorOptions());
+
+                var quickReloadService = new Hrot.Blueprints.Editor.Reload.QuickReloadService(
+                    qrsCatalog,
+                    qrsState,
+                    qrsConsole,
+                    qrsCompiler,
+                    qrsCoordinator,
+                    session: _blueprintDebugSession);
+
+                _blueprintQuickReloadTrigger = editableAsset =>
+                {
+                    // Resolve the BlueprintAsset from the active document's canvas context.
+                    var ctx     = _aiDocumentManager?.Active?.ViewState
+                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
+                    if (bpAsset == null) return;
+
+                    // TriggerAsync is synchronous (Task.FromResult) — .GetResult() is safe.
+                    var result = quickReloadService.TriggerAsync(bpAsset).GetAwaiter().GetResult();
+                    _blueprintCompileStatus = result.Succeeded
+                        ? $"Compiled in {result.DurationMs}ms"
+                        : $"Compile failed: {result.ErrorMessage}";
+                };
+            }
 
             _regenerationScheduler = new Hrot.Editor.AiShared.Emit.RegenerationScheduler(
                 flushAction: asset =>
