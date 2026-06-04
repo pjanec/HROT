@@ -85,6 +85,11 @@ public static class BlueprintRegistrar_HealthRegen_9EC49CD9_Bp
             StateClrType = typeof(HealthRegen_9EC49CD9_Bp.State),
             InitDefault = HealthRegen_9EC49CD9_Bp.InitDefault,
             Tick = HealthRegen_9EC49CD9_Bp.TickThunk,
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["CurrentHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("CurrentHealth", typeof(float), 16, 4, ""),
+                ["MaxHealth"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("MaxHealth", typeof(float), 20, 4, ""),
+            },
         });
     }
 }

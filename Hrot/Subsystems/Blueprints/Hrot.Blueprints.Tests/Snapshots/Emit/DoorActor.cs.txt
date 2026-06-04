@@ -82,6 +82,10 @@ public static class BlueprintRegistrar_DoorActor_FFB212F0_Bp
             StateClrType = typeof(DoorActor_FFB212F0_Bp.State),
             InitDefault = DoorActor_FFB212F0_Bp.InitDefault,
             Tick = DoorActor_FFB212F0_Bp.TickThunk,
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["IsOpen"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("IsOpen", typeof(bool), 16, 1, ""),
+            },
         });
     }
 }

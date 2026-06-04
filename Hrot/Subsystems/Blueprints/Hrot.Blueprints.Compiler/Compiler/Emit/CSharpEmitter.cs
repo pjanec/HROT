@@ -219,10 +219,29 @@ internal sealed class CSharpEmitter
             WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, bool>)&{className}.HsmGuard);");
     }
 
+    /// <summary>
+    /// Returns true when <paramref name="t"/> resolves to a C# type name that is referencable
+    /// from the registrar class scope.  Synthesized internal-state structs generated inside the
+    /// blueprint class have a <c>FullName</c> starting with <c>'_'</c> (mirroring the
+    /// <c>_ when t.FullName.StartsWith("_")</c> arm of <see cref="StatementEmitter.TypeRefToCSharp"/>)
+    /// and are NOT referencable outside the generated class, so they must be excluded from
+    /// <c>StateFields</c>.
+    /// </summary>
+    private static bool IsReferencableStateFieldType(IrTypeRef t)
+    {
+        // Unwrap arrays: an array of a synthesized type is also not referencable.
+        var underlying = t.IsArray ? t.ElementType! : t;
+        return !underlying.FullName.StartsWith("_");
+    }
+
     private void EmitInstanceRegistration(string className, IrAsset asset)
     {
         var eventHandlers = asset.Graphs
             .Where(g => g.Kind == IrGraphKind.Event)
+            .ToList();
+
+        var emittableVariables = asset.Variables
+            .Where(f => IsReferencableStateFieldType(f.Type))
             .ToList();
 
         WriteLine($"staging.Add({className}.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition");
@@ -235,6 +254,19 @@ internal sealed class CSharpEmitter
         WriteLine($"StateClrType = typeof({className}.State),");
         WriteLine($"InitDefault = {className}.InitDefault,");
         WriteLine($"Tick = {className}.TickThunk,");
+        if (emittableVariables.Count > 0)
+        {
+            WriteLine("StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)");
+            WriteLine("{");
+            Indent();
+            foreach (var f in emittableVariables)
+            {
+                var csharpType = StatementEmitter.TypeRefToCSharp(f.Type);
+                WriteLine($"[\"{f.Name}\"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor(\"{f.Name}\", typeof({csharpType}), {f.Offset}, {f.Size}, \"\"),");
+            }
+            Outdent();
+            WriteLine("},");
+        }
         if (eventHandlers.Count > 0)
         {
             WriteLine("EventHandlers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate>(global::System.StringComparer.Ordinal)");

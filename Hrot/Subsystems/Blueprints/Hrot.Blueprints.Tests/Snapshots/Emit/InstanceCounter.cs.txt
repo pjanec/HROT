@@ -81,6 +81,10 @@ public static class BlueprintRegistrar_InstanceCounter_D1201BF4_Bp
             StateClrType = typeof(InstanceCounter_D1201BF4_Bp.State),
             InitDefault = InstanceCounter_D1201BF4_Bp.InitDefault,
             Tick = InstanceCounter_D1201BF4_Bp.TickThunk,
+            StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)
+            {
+                ["Count"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("Count", typeof(int), 16, 4, ""),
+            },
         });
     }
 }
