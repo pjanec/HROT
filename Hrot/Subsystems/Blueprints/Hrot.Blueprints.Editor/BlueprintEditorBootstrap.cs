@@ -37,6 +37,9 @@ public static class BlueprintEditorBootstrap
         registry.Register(typeof(ReadEqsResultNode), new ReadEqsResultNodeDrawer());
         registry.Register(typeof(SpawnEqsSensorNode), new SpawnEqsSensorNodeDrawer(eqsTemplates));
 
+        // BATCH-03D1: Register FunctionCallNode drawer
+        registry.Register(typeof(FunctionCallNode), new FunctionCallNodeDrawer(editService));
+
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
         {

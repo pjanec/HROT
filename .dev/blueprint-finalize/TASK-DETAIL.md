@@ -122,9 +122,20 @@ Completed batches reference their report for full file:line detail rather than d
   and `Graph.Outputs` (`ParameterDecl` rows). Reference NodeEdit demos S18_FunctionAuthoring,
   S19_MultipleReturnNodes, S30_GoToDefinition. UI rendering (`Draw()`) is not headless-testable; the
   drawer `Handles`/`CreateSession`/dirty-tracking and command `Execute`/`Undo` logic ARE.
-- **Status:** PENDING. Hardest to verify (canvas/ImGui). Plan: headless-test the non-rendering logic +
-  a manual editor smoke test; consider the `/run` skill to launch the editor for a visual pass.
-- **Gate:** drawer/command unit tests green; full suite subset of 7 / 0 new; boot 10/10; manual smoke.
+- **Split into 03D1 (FunctionCall drawer) + 03D2 (graph-signature panel).** The node-drawer pump already
+  exists: `BlueprintDetailsWindow` resolves drawers from `BlueprintNodeDrawerRegistry` and calls
+  `session.Draw()` (headless `ResolveSession()` seam). A full reflection-based CLR method *browser* is
+  deferred (no method catalog exists; `StaticTypeRegistry` lists primitives only).
+- **BATCH-03D1 status:** DONE -- committed. `FunctionCallNodeDrawer` + `FunctionCallNodeSession`
+  (CLR type/method text fields + in-blueprint Function-graph picker + IsPure; mutually-exclusive modes;
+  edits mark the asset dirty via `IEditService`). Registered in `CreateNodeDrawerRegistry`. Lead added a
+  mode-persistence fix so the graph picker doesn't flicker back to CLR before a graph is chosen. 19 headless
+  tests; `Draw()` body still needs a manual visual smoke. Report: `reports/BATCH-03D1-REPORT.md`.
+- **BATCH-03D2 status:** PENDING -- graph-signature editing panel for `Graph.Inputs/Outputs` via
+  `VariablesPanelControl` + a `GraphSignatureSchemaSource` (mirror `BlueprintVariableSchemaSource`), scoped
+  by a graph-picker combo (the active *graph* is not exposed by `EditorSelectionStore` -- only the active
+  asset; combo sidesteps that gap).
+- **Gate (each):** drawer/schema unit tests green; full suite subset of 7 / 0 new; boot 10/10; manual smoke.
 
 ---
 
