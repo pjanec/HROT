@@ -137,6 +137,53 @@ public sealed class BlueprintRegistry
         OnRegistryChanged?.Invoke();
     }
 
+    /// <summary>
+    /// Atomically merges <paramref name="staging"/> into the current snapshot by UPSERTING each
+    /// staged definition by id, preserving every definition not present in staging. Used by the
+    /// Quick-Reload path, where staging contains only the recompiled blueprint(s); siblings and
+    /// code-defined definitions must survive. Contrast with <see cref="CommitStaging"/>, which
+    /// fully replaces the snapshot (file-watcher full-rebuild path). Fires OnRegistryChanged.
+    /// <para>
+    /// Note: merge upserts world-singleton markings; it does not remove a singleton marking for
+    /// a blueprint that stops being a singleton. Acceptable for the quick-reload path.
+    /// </para>
+    /// </summary>
+    public void CommitStagingMerge(BlueprintRegistryStaging staging)
+    {
+        var prev = _current; // single atomic read
+
+        var byId            = new Dictionary<int, BlueprintDefinition>(prev.ById);
+        var byName          = new Dictionary<string, int>(prev.ByName, StringComparer.Ordinal);
+        var worldSingletons = new Dictionary<int, BlackboardTier>(prev.WorldSingletons);
+
+        foreach (var kv in staging.Definitions)
+        {
+            // Upsert by id. If the id already maps to a different name, drop the stale name entry
+            // so ByName never points at a replaced definition.
+            if (byId.TryGetValue(kv.Key, out var old) &&
+                !string.Equals(old.Name, kv.Value.Name, StringComparison.Ordinal))
+            {
+                byName.Remove(old.Name);
+            }
+            byId[kv.Key]          = kv.Value;
+            byName[kv.Value.Name] = kv.Key;
+        }
+
+        foreach (var kv in staging.WorldSingletons)
+            worldSingletons[kv.Key] = kv.Value;
+
+        var next = new Snapshot
+        {
+            ById               = byId,
+            ByName             = byName,
+            WorldSingletons    = worldSingletons,
+            WorldSingletonList = BuildWorldSingletonList(worldSingletons),
+        };
+
+        Interlocked.Exchange(ref _current, next);
+        OnRegistryChanged?.Invoke();
+    }
+
     // ---- Private helpers ----------------------------------------------------
 
     private void RegisterDirect(int blueprintId, BlueprintDefinition def)
@@ -176,6 +223,9 @@ public sealed class BlueprintRegistryStaging
 {
     internal readonly Dictionary<int, BlueprintDefinition> Definitions   = new();
     internal readonly Dictionary<int, BlackboardTier>      WorldSingletons = new();
+
+    /// <summary>The blueprint ids staged in this buffer (the recompiled set for a Quick-Reload).</summary>
+    public IReadOnlyCollection<int> StagedBlueprintIds => Definitions.Keys;
 
     /// <summary>
     /// Adds a Blueprint definition to the staging buffer.

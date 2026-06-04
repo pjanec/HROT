@@ -39,13 +39,12 @@ public sealed record AiHotReloadCoordinatorOptions
     public TimeSpan FileWatcherDebounce { get; init; } = TimeSpan.FromMilliseconds(500);
 }
 
-// Per Patch 1 — no OldAlc field; _currentAlc is main-thread-only.
+// File-watcher full-rebuild path. No OldAlc field; ApplyReload manages _alcByBlueprintId.
 internal sealed class PendingReload
 {
     public required AssemblyLoadContext NewAlc   { get; init; }
     public required Assembly            NewAssembly { get; init; }
     public required IReadOnlyList<ResolvedRegistrar> Registrars { get; init; }
-    // No OldAlc: main-thread ApplyReload reads _currentAlc directly (Patch 1).
 }
 
 public sealed record ResolvedRegistrar(
@@ -77,8 +76,9 @@ public sealed class AiHotReloadCoordinator : IDisposable
     private readonly BlueprintRegistry             _blueprintRegistry;
     private readonly AiHotReloadCoordinatorOptions _options;
 
-    // ---- ALC state (main-thread-only, Patch 1) -----------------------------
-    private AssemblyLoadContext? _currentAlc;
+    // ---- ALC state (main-thread-only). One collectible ALC retained per blueprint id so that
+    //      quick-reloading one blueprint never unloads a sibling's still-live Tick/InitDefault. ----
+    private readonly Dictionary<int, AssemblyLoadContext> _alcByBlueprintId = new();
 
     // ---- Queues ------------------------------------------------------------
     private readonly ConcurrentQueue<PendingReload> _pendingReloads  = new();
@@ -157,7 +157,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
         }
         catch (Exception ex)
         {
-            // _currentAlc is untouched (Patch 1 failure path).
+            // Per-blueprint ALC map is untouched on failure path.
             OnReloadFailed?.Invoke(ex);
             try { pending.NewAlc.Unload(); }
             catch { /* best-effort unload */ }
@@ -165,10 +165,12 @@ public sealed class AiHotReloadCoordinator : IDisposable
     }
 
     /// <summary>
-    /// Apply an in-memory Quick Reload (Patch 3).
+    /// Apply an in-memory Quick Reload (DEBT-MVE-003 fix).
     /// The caller (<c>QuickReloadService</c>) handles <see cref="HsmActionDispatcher.ClearAll"/>
     /// and registrar invocation into staging buffers; this method performs only the staging
-    /// commits, ALC swap, and event notification.
+    /// commits, per-blueprint ALC retention, and event notification.
+    /// Uses <see cref="BlueprintRegistry.CommitStagingMerge"/> so sibling blueprints and
+    /// code-defined definitions survive the reload of a single blueprint.
     /// Throws on failure; coordinator unloads <paramref name="newAlc"/> on failure.
     /// </summary>
     public void ApplyQuickReload(
@@ -178,33 +180,60 @@ public sealed class AiHotReloadCoordinator : IDisposable
     {
         try
         {
-            // Step 1: atomic commit of BlueprintRegistry.
-            _blueprintRegistry.CommitStaging(blueprintStaging);
+            // Step 1: MERGE-commit so sibling + code-defined definitions survive (DEBT-MVE-003).
+            _blueprintRegistry.CommitStagingMerge(blueprintStaging);
 
             // Step 2: apply staging behavior registry -> live registry.
             _behaviorRegistry.MergeFrom(behaviorStaging);
 
-            // Step 3: swap _currentAlc - ONLY after successful commits (Patch 1).
-            var oldAlc = _currentAlc;
-            _currentAlc = newAlc;
-            oldAlc?.Unload();
+            // Step 3: retain newAlc per recompiled id; unload only ALCs no longer referenced.
+            var supersededAlcs = new List<AssemblyLoadContext>();
+            foreach (var id in blueprintStaging.StagedBlueprintIds)
+            {
+                if (_alcByBlueprintId.TryGetValue(id, out var prevAlc) &&
+                    !ReferenceEquals(prevAlc, newAlc))
+                {
+                    supersededAlcs.Add(prevAlc);
+                }
+                _alcByBlueprintId[id] = newAlc;
+            }
+            foreach (var old in supersededAlcs.Distinct())
+            {
+                // Only unload if no retained id still references this ALC.
+                bool stillReferenced = false;
+                foreach (var a in _alcByBlueprintId.Values)
+                    if (ReferenceEquals(a, old)) { stillReferenced = true; break; }
+                if (!stillReferenced)
+                    old.Unload();
+            }
 
             // Step 4: fire completion event.
             OnReloadCompleted?.Invoke();
         }
         catch (Exception ex)
         {
-            // Unload the new patch ALC on failure; old _currentAlc stays live.
+            // newAlc was never retained on the failure paths above commit; unload it.
             try { newAlc.Unload(); } catch { /* best-effort */ }
             OnReloadFailed?.Invoke(ex);
             throw;
         }
     }
 
-    // ---- Internal: test access to current ALC ------------------------------
+    // ---- Internal: test seams for ALC retention ----------------------------
 
-    /// <summary>Internal for test access; verifies ALC identity after reload.</summary>
-    internal AssemblyLoadContext? GetCurrentAlc() => _currentAlc;
+    /// <summary>Test seam: number of distinct ALCs currently retained.</summary>
+    internal int RetainedAlcCountForTest => _alcByBlueprintId.Values.Distinct().Count();
+
+    /// <summary>Test seam: the ALC currently retained for a blueprint id, or null.</summary>
+    internal AssemblyLoadContext? GetRetainedAlcForTest(int blueprintId)
+        => _alcByBlueprintId.TryGetValue(blueprintId, out var alc) ? alc : null;
+
+    /// <summary>
+    /// Test seam: returns all distinct ALCs currently retained, for type-lookup
+    /// helpers that must search all loaded assemblies.
+    /// </summary>
+    internal IEnumerable<AssemblyLoadContext> GetAllRetainedAlcsForTest()
+        => _alcByBlueprintId.Values.Distinct();
 
     /// <summary>
     /// Test seam: enqueues a set of registrars as a pending reload so unit tests can
@@ -243,8 +272,11 @@ public sealed class AiHotReloadCoordinator : IDisposable
         // Release BehaviorDefinition delegate references (ParseParams, ParamsDtoType, etc.)
         // from collectible assemblies so they can be GC-reclaimed.
         _behaviorRegistry.Clear();
-        var alc = Interlocked.Exchange(ref _currentAlc, null);
-        alc?.Unload();
+        foreach (var alc in _alcByBlueprintId.Values.Distinct())
+        {
+            try { alc.Unload(); } catch { /* best-effort */ }
+        }
+        _alcByBlueprintId.Clear();
     }
 
     // ---- Private: apply ----------------------------------------------------
@@ -264,16 +296,26 @@ public sealed class AiHotReloadCoordinator : IDisposable
         foreach (var registrar in pending.Registrars)
             InvokeRegistrar(registrar, blueprintStaging, behaviorStaging);
 
-        // Step 4: atomic commit of BlueprintRegistry.
+        // Step 4: atomic full-replace commit (file-watcher full-rebuild path).
         _blueprintRegistry.CommitStaging(blueprintStaging);
 
         // Step 5: merge staging BehaviorRegistry -> live registry (only on full success).
         _behaviorRegistry.MergeFrom(behaviorStaging);
 
-        // Step 6: swap _currentAlc — ONLY after successful commits (Patch 1).
-        var oldAlc = _currentAlc;
-        _currentAlc = pending.NewAlc;
-        oldAlc?.Unload();
+        // Step 6: replace per-blueprint ALCs. Full rebuild means all old ALCs for
+        // superseded ids are replaced; unload those no longer referenced.
+        var oldAlcs = _alcByBlueprintId.Values.Distinct().ToList();
+        _alcByBlueprintId.Clear();
+        foreach (var id in blueprintStaging.StagedBlueprintIds)
+            _alcByBlueprintId[id] = pending.NewAlc;
+        foreach (var old in oldAlcs)
+        {
+            bool stillReferenced = false;
+            foreach (var a in _alcByBlueprintId.Values)
+                if (ReferenceEquals(a, old)) { stillReferenced = true; break; }
+            if (!stillReferenced)
+                old.Unload();
+        }
     }
 
     private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)

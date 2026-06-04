@@ -74,6 +74,10 @@ public sealed class BlueprintTestFixture : IDisposable
     // Persistent working-state per (assetId, entity) for TickCore reflection invocation.
     private readonly Dictionary<(Guid assetId, Entity entity), object> _persistedWorkingState = new();
 
+    // Tracks the most recently applied blueprint id so GetCurrentAlc() can return
+    // the ALC for that id from the coordinator's per-blueprint map.
+    private int _lastAppliedBlueprintId;
+
     // ---- Constructor --------------------------------------------------------
 
     public BlueprintTestFixture(BlueprintTestFixtureOptions? options = null)
@@ -385,11 +389,13 @@ public sealed class BlueprintTestFixture : IDisposable
         => SimulateReload(new[] { asset });
 
     /// <summary>
-    /// Returns the coordinator's current ALC.
+    /// Returns the ALC for the most recently applied blueprint reload.
     /// Used by hot reload tests to verify ALC identity across reloads.
     /// </summary>
     public AssemblyLoadContext? GetCurrentAlc()
-        => _coordinator.GetCurrentAlc();
+        => _lastAppliedBlueprintId != 0
+            ? _coordinator.GetRetainedAlcForTest(_lastAppliedBlueprintId)
+            : null;
 
     /// <summary>
     /// Compiles a minimal assembly with a [BlueprintRegistrar] whose Register method
@@ -487,6 +493,9 @@ public static class ThrowingRegistrar
             }
 
             _coordinator.ApplyQuickReload(alc, behaviorStaging, blueprintStaging);
+            // Track the last reloaded blueprint id for GetCurrentAlc().
+            foreach (var id in blueprintStaging.StagedBlueprintIds)
+                _lastAppliedBlueprintId = id;
         }
         catch
         {
@@ -597,11 +606,11 @@ public static class ThrowingRegistrar
     {
         var prefix = SanitizeNameForClass(asset.Name) + "_";
 
-        // Check coordinator's current ALC first (normal CompileAndLoad path).
-        var currentAlc = _coordinator.GetCurrentAlc();
-        if (currentAlc != null)
+        // Search all coordinator-retained ALCs (normal CompileAndLoad path).
+        // The per-blueprint map may hold ALCs for several blueprints simultaneously.
+        foreach (var retainedAlc in _coordinator.GetAllRetainedAlcsForTest())
         {
-            foreach (var asm in currentAlc.Assemblies)
+            foreach (var asm in retainedAlc.Assemblies)
             {
                 var t = asm.GetTypes().FirstOrDefault(
                     t => t.Name.StartsWith(prefix, StringComparison.Ordinal)

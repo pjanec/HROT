@@ -209,6 +209,103 @@ public sealed class BlueprintRegistryTests : IDisposable
         Assert.Equal(1, count);
     }
 
+    // ---- CommitStagingMerge: upsert (DEBT-MVE-003 fix) ----------------------
+
+    [Fact]
+    public void CommitStagingMerge_PreservesExistingEntries_WhenUpsertingOne()
+    {
+        // Pre-populate registry with two entries via CommitStaging.
+        var staging1 = _registry.BeginStaging();
+        staging1.Add(11001, new BlueprintDefinition { Name = "Alpha", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        staging1.Add(11002, new BlueprintDefinition { Name = "Beta",  Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStaging(staging1);
+
+        // Merge-commit only changes Alpha — Beta must survive.
+        var stagingMerge = _registry.BeginStaging();
+        var alphaV2 = new BlueprintDefinition { Name = "Alpha", Kind = BlueprintDispatchKind.Instance, StructureHash = 99, StateSize = 16 };
+        stagingMerge.Add(11001, alphaV2);
+        _registry.CommitStagingMerge(stagingMerge);
+
+        Assert.True(_registry.TryGetById(11001, out var def1));
+        Assert.Equal(BlueprintDispatchKind.Instance, def1!.Kind);
+        Assert.Equal(99UL, def1.StructureHash);
+
+        // Beta must still be present (merge does not wipe siblings).
+        Assert.True(_registry.TryGetById(11002, out _),
+            "CommitStagingMerge must preserve sibling entries (Beta) not in staging.");
+
+        Assert.Equal(2, _registry.GetAll().Count);
+    }
+
+    [Fact]
+    public void CommitStagingMerge_AddsNewEntry_WhenIdNotPresent()
+    {
+        var staging1 = _registry.BeginStaging();
+        staging1.Add(12001, new BlueprintDefinition { Name = "Existing", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStaging(staging1);
+
+        // Merge-commit a brand-new id.
+        var stagingMerge = _registry.BeginStaging();
+        stagingMerge.Add(12002, new BlueprintDefinition { Name = "New", Kind = BlueprintDispatchKind.Instance, StructureHash = 1, StateSize = 8 });
+        _registry.CommitStagingMerge(stagingMerge);
+
+        Assert.True(_registry.TryGetById(12001, out _));
+        Assert.True(_registry.TryGetById(12002, out var newDef));
+        Assert.Equal("New", newDef!.Name);
+        Assert.Equal(2, _registry.GetAll().Count);
+    }
+
+    [Fact]
+    public void CommitStagingMerge_FiresOnRegistryChanged()
+    {
+        int count = 0;
+        _registry.OnRegistryChanged += () => count++;
+
+        var staging = _registry.BeginStaging();
+        staging.Add(13001, new BlueprintDefinition { Name = "Merge1", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStagingMerge(staging);
+
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void CommitStagingMerge_DoesNotAffectCommitStaging_Semantics()
+    {
+        // CommitStaging must still fully replace (existing contract unchanged).
+        var staging1 = _registry.BeginStaging();
+        staging1.Add(14001, new BlueprintDefinition { Name = "Old", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStaging(staging1);
+
+        // CommitStagingMerge adds a new entry.
+        var stagingMerge = _registry.BeginStaging();
+        stagingMerge.Add(14002, new BlueprintDefinition { Name = "Merged", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStagingMerge(stagingMerge);
+        Assert.True(_registry.TryGetById(14001, out _)); // Old survives merge
+
+        // Full CommitStaging wipes everything (full-replace semantics unchanged).
+        var staging3 = _registry.BeginStaging();
+        staging3.Add(14003, new BlueprintDefinition { Name = "FreshStart", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        _registry.CommitStaging(staging3);
+
+        Assert.False(_registry.TryGetById(14001, out _), "CommitStaging must still fully replace the snapshot.");
+        Assert.False(_registry.TryGetById(14002, out _), "CommitStaging must still fully replace the snapshot.");
+        Assert.True(_registry.TryGetById(14003, out _));
+        Assert.Equal(1, _registry.GetAll().Count);
+    }
+
+    [Fact]
+    public void CommitStagingMerge_StagedBlueprintIds_ReturnsCorrectIds()
+    {
+        var staging = _registry.BeginStaging();
+        staging.Add(15001, new BlueprintDefinition { Name = "A", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+        staging.Add(15002, new BlueprintDefinition { Name = "B", Kind = BlueprintDispatchKind.Library, StructureHash = 0, StateSize = 0 });
+
+        var ids = staging.StagedBlueprintIds;
+        Assert.Contains(15001, ids);
+        Assert.Contains(15002, ids);
+        Assert.Equal(2, ids.Count);
+    }
+
     // ---- BPF-007: GetAll returns (Id, Def) tuples ---------------------------
 
     [Fact]

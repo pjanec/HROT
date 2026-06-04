@@ -356,6 +356,158 @@ public sealed class BlueprintHotReloadMveTests
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Test 1d — DEBT-MVE-003 regression proof: multi-blueprint quick-reload safety
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Second blueprint identity (distinct from AssetGuid / BpId above).
+    private static readonly Guid AssetGuidB = new Guid("07000007-0000-0000-0000-000000000002");
+    private static readonly int  BpIdB      = BlueprintIdHash.Compute(AssetGuidB);
+
+    private const ulong HashDef = 0x0700000700000010UL; // shared by all parameterized defs
+
+    /// <summary>
+    /// DEBT-MVE-003 regression proof — multi-blueprint quick-reload safety.
+    ///
+    /// <para><b>Defect halves being proved:</b></para>
+    /// <para>
+    /// <b>Half 1 — Registry wipe</b> (assertions 3 and 5):
+    /// Under the old <c>CommitStaging</c> (full-replace) path, reloading blueprint B with a
+    /// 1-entry staging buffer wiped all other entries from the registry snapshot — including
+    /// blueprint A. <c>fixture.Registry.TryGetById(idA)</c> would return <c>false</c> and
+    /// A's next tick would find no definition, causing <c>ReadIntField</c> to throw
+    /// ("No blueprint state slot…" / "No int field…"). The assertion at step 3
+    /// (<c>TryGetById(idA) == true</c>) and the continued-ticking assertion at step 5
+    /// (<c>A.Count == 5</c> after 2 more pumps, not 0 or exception) directly prove this half.
+    /// </para>
+    /// <para>
+    /// <b>Half 2 — ALC dangle</b> (assertion 7):
+    /// Under the old single-<c>_currentAlc</c> field, reloading A a second time would unload
+    /// the ALC that was holding B's delegates (since both A's first reload and B's reload shared
+    /// the same <c>_currentAlc</c> slot). The assertion
+    /// <c>coordinator.RetainedAlcCountForTest == 2</c> (A's latest + B's) and the identity
+    /// check <c>GetRetainedAlcForTest(idB) == alcForB_before</c> prove structurally that B's
+    /// ALC is not displaced. Note: the test delegates live in the test assembly (not a
+    /// throwaway ALC), so the tick-correctness assertions prove registry survival directly;
+    /// the ALC-retention assertions prove the structural fix structurally.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void MultiBlueprintReload_SiblingDefinitionAndAlcSurvive_DEBT_MVE_003()
+    {
+        using var fixture     = new BlueprintTestFixture();
+        var       coordinator = MakeCoordinator(fixture.Registry);
+        var       harness     = new BlueprintRunHarness(fixture);
+
+        // ── Build two distinct assets (A and B) ──────────────────────────────
+
+        var assetA = MakeAsset(AssetGuid,  "HotReloadA");
+        var assetB = MakeAsset(AssetGuidB, "HotReloadB");
+
+        var defAv1 = MakeCountingDef("HotReloadA", HashDef, delta: 1);
+        var defBv1 = MakeCountingDef("HotReloadB", HashDef, delta: 1);
+        var defAv2 = MakeCountingDef("HotReloadA", HashDef, delta: 2); // for second A reload
+
+        // ── Step 1: hot-reload A (delta+1), spawn entity, pump 3 frames ──────
+        HotReload(coordinator, BpId,  defAv1);
+        var entityA = harness.SpawnAndAttach(assetA);
+        harness.Pump(3);
+        Assert.Equal(3, harness.ReadIntField(entityA, assetA, "Count"));
+
+        // ── Step 2: hot-reload B — this is the operation that WIPES A under the bug ──
+        // (Old CommitStaging: 1-entry staging for B fully replaces the snapshot, erasing A.)
+        HotReload(coordinator, BpIdB, defBv1);
+
+        // ── Step 3: Assert A still in registry (proves registry-wipe half of DEBT-MVE-003) ──
+        // Under the bug: TryGetById(BpId) == false (A erased from snapshot).
+        Assert.True(fixture.Registry.TryGetById(BpId, out _),
+            "Blueprint A must still be in the registry after reloading blueprint B. " +
+            "Under the bug (CommitStaging full-replace), A would be wiped from the snapshot.");
+
+        // ── Step 4: spawn entity for B, pump 2 more frames (A and B both tick) ──
+        var entityB = harness.SpawnAndAttach(assetB);
+        harness.Pump(2);
+
+        // ── Step 5: A keeps ticking with no reset/crash (continues from 3, not 0) ──
+        // Under the bug: ReadIntField throws "No blueprint state slot" or returns 0 (hard-reset).
+        int countA_after5 = harness.ReadIntField(entityA, assetA, "Count");
+        Assert.True(countA_after5 == 5,
+            $"Blueprint A's Count must continue from 3 (not reset to 0 or throw) after B's reload. " +
+            $"Expected 5, got {countA_after5}. Under the bug the registry wipe prevents tick system from finding A's def.");
+
+        // ── Step 6: B ticks correctly ────────────────────────────────────────
+        Assert.Equal(2, harness.ReadIntField(entityB, assetB, "Count"));
+
+        // ── Step 7: ALC retention (proves ALC-dangle half of DEBT-MVE-003) ──
+        // Capture B's ALC BEFORE reloading A again.
+        var alcForB_before = coordinator.GetRetainedAlcForTest(BpIdB);
+        Assert.NotNull(alcForB_before);
+
+        // Reload A a second time (new ALC for A only; B's ALC must be preserved).
+        HotReload(coordinator, BpId, defAv2);
+
+        // Two distinct ALCs must be retained: A's latest and B's.
+        // Under the old single-_currentAlc: after the A reload the count would be 1
+        // (B's ALC was displaced/unloaded when A was last loaded).
+        int retainedCount = coordinator.RetainedAlcCountForTest;
+        Assert.True(retainedCount == 2,
+            $"Exactly 2 distinct ALCs must be retained: A's latest + B's (unchanged). " +
+            $"Got {retainedCount}. Under the old single-_currentAlc the count would be 1 — B's ALC displaced.");
+
+        // B's ALC must be unchanged (not unloaded and replaced).
+        var alcForB_after = coordinator.GetRetainedAlcForTest(BpIdB);
+        Assert.Same(alcForB_before, alcForB_after); // B's ALC must be same instance before and after reloading A
+
+        // A's retained ALC must have changed (new ALC for defAv2).
+        var alcForA_after = coordinator.GetRetainedAlcForTest(BpId);
+        Assert.NotNull(alcForA_after);
+        Assert.NotSame(alcForB_after, alcForA_after);
+
+        // Verify A's tick now uses defAv2 (delta+2): pump 1 more frame → Count = 5+2 = 7.
+        harness.Pump(1);
+        int countA_final = harness.ReadIntField(entityA, assetA, "Count");
+        Assert.True(countA_final == 7,
+            $"After the second A reload (delta+2), A's Count must advance by 2 per tick. " +
+            $"Expected 7, got {countA_final}. Proves new def is live and A's state was preserved (not reset).");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Parameterized def / asset factories for the multi-blueprint test
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates an Instance-dispatch blueprint definition whose Tick increments the
+    /// "Count" int field (at offset <see cref="OffsetCount"/>) by <paramref name="delta"/>
+    /// per frame. Uses <see cref="StateV1V2"/> layout.
+    /// </summary>
+    private static BlueprintDefinition MakeCountingDef(string name, ulong hash, int delta)
+        => new BlueprintDefinition
+    {
+        Name          = name,
+        Kind          = Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
+        StructureHash = hash,
+        StateSize     = Unsafe.SizeOf<StateV1V2>(),
+        InitDefault   = bytes => bytes.Clear(),
+        Tick          = (bytes, _, _, _, _, _, _) =>
+        {
+            ref var s = ref Unsafe.As<byte, StateV1V2>(ref MemoryMarshal.GetReference(bytes));
+            s.Count += delta;
+        },
+        StateFields = new Dictionary<string, BlueprintFieldDescriptor>(StringComparer.Ordinal)
+        {
+            ["Count"] = new BlueprintFieldDescriptor(
+                "Count", typeof(int), OffsetBytes: OffsetCount, SizeBytes: sizeof(int), CategoryOrEmpty: ""),
+        },
+    };
+
+    /// <summary>Asset stub parameterized by guid and name (identity only).</summary>
+    private static BlueprintAsset MakeAsset(Guid assetId, string name) => new BlueprintAsset
+    {
+        AssetId  = assetId,
+        Name     = name,
+        Dispatch = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
+    };
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
 
