@@ -69,6 +69,10 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in BlueprintNodePaletteEntries.All())
             registry.Register(descriptor);
 
+        // BATCH-05B: register BlueprintMath function-call presets (Math/* categories).
+        foreach (var descriptor in BlueprintMathPaletteEntries.All())
+            registry.Register(descriptor);
+
         return registry;
     }
 
