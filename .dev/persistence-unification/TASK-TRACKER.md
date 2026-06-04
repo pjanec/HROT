@@ -9,11 +9,11 @@
 ## Phase 1: JSON substrate and emit core  *(keystone; zero behavior change)*
 **Goal:** JSON fully serializable/round-trippable; emit logic relocated to a `netstandard2.0` core. Nothing decommitted yet.
 
-- [ ] **PU-101** Emit-core extraction (`netstandard2.0`) [details](./TASK-DETAIL.md#pu-101-emit-core-extraction)
-- [ ] **PU-102** Persisted DTO + mapping (BTree) [details](./TASK-DETAIL.md#pu-102-persisted-dto-and-mapping-for-btree)
-- [ ] **PU-103** Persisted DTO + mapping (HSM) [details](./TASK-DETAIL.md#pu-103-persisted-dto-and-mapping-for-hsm)
-- [ ] **PU-104** JSON services + header-lazy discovery [details](./TASK-DETAIL.md#pu-104-json-services-and-discovery)
-- [ ] **PU-105** Round-trip + determinism tests [details](./TASK-DETAIL.md#pu-105-round-trip-and-determinism-tests)
+- [ ] **PU-101** Emit-core extraction (`netstandard2.0`) — deferred to BATCH-02 (emit core consumes the BATCH-01 DTO) [details](./TASK-DETAIL.md#pu-101-emit-core-extraction)
+- [x] **PU-102** Persisted DTO + mapping (BTree) — BATCH-01 [details](./TASK-DETAIL.md#pu-102-persisted-dto-and-mapping-for-btree)
+- [x] **PU-103** Persisted DTO + mapping (HSM) — BATCH-01 [details](./TASK-DETAIL.md#pu-103-persisted-dto-and-mapping-for-hsm)
+- [x] **PU-104** JSON services + header-lazy discovery — BATCH-01 [details](./TASK-DETAIL.md#pu-104-json-services-and-discovery)
+- [~] **PU-105** Round-trip + determinism tests — BATCH-01 did the RT byte-stability + determinism portion; the `SaveBTree/HsmEmitTests` re-base onto the emit core lands with PU-101 in BATCH-02 [details](./TASK-DETAIL.md#pu-105-round-trip-and-determinism-tests)
 
 ## Phase 2: Build-time generation  *(JSON → C#)*
 **Goal:** MSBuild generates runtime C# from JSON; editor-owned `.cs` becomes a non-committed artifact.

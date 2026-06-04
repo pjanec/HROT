@@ -13,9 +13,11 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Hrot.Hsm.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.Diagnostics.Breakpoints.Tests" />
+    <InternalsVisibleTo Include="Hrot.AiEditor.Persistence.Tests" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
     <ProjectReference Include="..\..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.Core\NodeEditor.Core.csproj" />
     <!-- BCP-F: FindBar, FindEngine, BuiltinCommandHandlers, EditorCommandsImpl -->

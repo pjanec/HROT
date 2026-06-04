@@ -22,6 +22,18 @@ namespace Hrot.Common.Scenario
         public const string Blueprint     = "Hrot.Blueprints";
 
         /// <summary>
+        /// Behavior-tree (BTree) persisted asset (*.btree.json).
+        /// Added in BATCH-01 of the Persistence Unification thread.
+        /// </summary>
+        public const string BTree         = "Hrot.BTree";
+
+        /// <summary>
+        /// Hierarchical state machine (HSM) persisted asset (*.hsm.json).
+        /// Added in BATCH-01 of the Persistence Unification thread.
+        /// </summary>
+        public const string Hsm           = "Hrot.Hsm";
+
+        /// <summary>
         /// Behavior-tree format constant.
         /// Registered as a passthrough at version 1 in <c>BehaviorTreeMigrationModule</c>.
         /// </summary>

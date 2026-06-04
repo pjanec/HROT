@@ -6,7 +6,9 @@
 
 | ID | Source | Description | Priority | Target Batch | Status |
 |----|--------|-------------|----------|--------------|--------|
-| _(none yet)_ | | | | | |
+| PU-D01 | BATCH-01 | HSM `FromDto` lives in net8 `Hrot.Hsm.Editor` (uses `HsmAsset`'s internal ctor). The Phase-2 Roslyn generator (netstandard2.0) needs a public factory seam or an ns2.0 HSM builder to construct from the DTO. | P2 | PU-202 | OPEN |
+| PU-D02 | BATCH-01 | HSM DTO persists `EventName`, not `EventId` (ids reassigned sequentially on `FromDto`). The JSON load path must match events by name, not id. | P2 | PU-301 | OPEN |
+| PU-D03 | BATCH-01 | `HrotDocumentTypes.BTree`/`.Hsm` constants added but NOT registered with the migration system (no `RegisterDocType` passthrough) — intentional for zero-behavior-change; wire when the load/migration path lands. | P3 | PU-301 | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
