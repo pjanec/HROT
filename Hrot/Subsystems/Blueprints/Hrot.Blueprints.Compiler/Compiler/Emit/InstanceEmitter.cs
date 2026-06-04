@@ -77,6 +77,15 @@ internal static class InstanceEmitter
         EmitTickMethod(e, asset);
         e.WriteLine();
 
+        // Emit private helper methods for each non-Tick Function graph (BATCH-03A).
+        var tickGraph = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function && g.Name == "Tick")
+            ?? asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function);
+        foreach (var fg in asset.Graphs.Where(g => g.Kind == IrGraphKind.Function && g != tickGraph))
+        {
+            EmitInstanceFunctionMethod(e, asset, fg);
+            e.WriteLine();
+        }
+
         EmitTickThunk(e);
         e.WriteLine();
 
@@ -198,6 +207,43 @@ internal static class InstanceEmitter
         e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
         e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(bytes));");
         e.WriteLine("Tick(ref s, view, ecb, self, time, deltaTime, instanceVersion);");
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// Emits a private static helper method for an in-blueprint Function graph (BATCH-03A).
+    /// Mirrors LibraryEmitter.EmitFunctionGraph but prepends the 7 context parameters
+    /// (ref State s, ISimulationView view, IEntityCommandBuffer ecb, Entity self,
+    ///  float time, float deltaTime, uint instanceVersion) so that ops like
+    /// IrOp_Self/IrOp_Time/IrOp_WriteVariable etc. resolve correctly inside the body.
+    /// </summary>
+    private static void EmitInstanceFunctionMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
+    {
+        var retType = graph.Outputs.Count > 0
+            ? CSharpType(graph.Outputs[0].Type)
+            : "void";
+
+        var sanitized = Sanitizer.SanitizeName(graph.Name);
+
+        // Build the extra input parameters after the 7 context params.
+        var extraParams = graph.Inputs.Count > 0
+            ? ", " + string.Join(", ", graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}"))
+            : "";
+
+        e.WriteLine($"private static {retType} Func_{sanitized}(");
+        e.Indent();
+        e.WriteLine("ref State s,");
+        e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
+        e.WriteLine("global::Fdp.Core.Entity self,");
+        e.WriteLine("float time,");
+        e.WriteLine("float deltaTime,");
+        e.WriteLine($"uint instanceVersion{extraParams})");
+        e.Outdent();
+        e.WriteLine("{");
+        e.Indent();
+        LibraryEmitter.EmitGraphBody(e, asset, graph);
         e.Outdent();
         e.WriteLine("}");
     }

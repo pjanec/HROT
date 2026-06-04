@@ -53,6 +53,9 @@ public static class DiagnosticCodes
     public const string BP1601 = "BP1601";  // GraphHasNoReturn
     public const string BP1602 = "BP1602";  // GraphHasNoEntry
 
+    // Stage 2 -- Validate (function-graph call rules)
+    public const string BP1650 = "BP1650";  // Latent node inside a function graph referenced by FunctionCallNode.TargetGraphId
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

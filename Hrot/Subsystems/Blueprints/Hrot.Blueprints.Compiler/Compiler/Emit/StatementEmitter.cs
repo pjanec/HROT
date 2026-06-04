@@ -117,6 +117,28 @@ internal static class StatementEmitter
                 break;
             }
 
+            case IrOp_GraphCall op:
+            {
+                // In-blueprint function-graph call (BATCH-03A).
+                var fg = ctx.Asset.Graphs.FirstOrDefault(g => g.Id == op.TargetGraphId);
+                if (fg is null)
+                {
+                    // Target graph not found -- emit a comment so the generated code still compiles.
+                    e.WriteLine($"/* IrOp_GraphCall: target graph {op.TargetGraphId} not found */");
+                    break;
+                }
+                var sanitized = Sanitizer.SanitizeName(fg.Name);
+                var contextArgs = new[] { $"ref {sv}", "view", "ecb", "self", "time", "deltaTime", "instanceVersion" };
+                var dataArgs = op.Args.Select(a => $"__t{a.Index}");
+                var allArgs = string.Join(", ", contextArgs.Concat(dataArgs));
+                var gcCall = $"Func_{sanitized}({allArgs})";
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = {gcCall};");
+                else
+                    e.WriteLine($"{gcCall};");
+                break;
+            }
+
             // ------------------------------------------------------------------
             // Custom events
             // ------------------------------------------------------------------

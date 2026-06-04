@@ -41,6 +41,7 @@ internal static class Stage2_Validate
         new V_WhenNodeRules(),
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
+        new V_FunctionGraphCallRules(),
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -1033,6 +1034,56 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2032,
                         $"SpawnEqsSensorNode has InstanceId collision (hash {collision.Key}) with another SpawnEqsSensorNode in this asset. Use distinct node IDs.",
                         asset.AssetId, graph.Id, collider.Id));
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V_FunctionGraphCallRules  (BATCH-03A)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Validates that any Function graph referenced by a FunctionCallNode.TargetGraphId
+/// does not contain latent nodes. Because there is ONE BlueprintLatentCursor per
+/// instance (single flat s.Cursor.ResumeAt), a function graph emitted as a separate
+/// method cannot own a cursor. Latent nodes inside called function graphs are REJECTED
+/// (BP1650), not supported.
+/// </summary>
+internal sealed class V_FunctionGraphCallRules : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        // Collect all TargetGraphIds referenced by FunctionCallNodes across all graphs.
+        var calledGraphIds = new HashSet<Guid>();
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var node in graph.Nodes.OfType<FunctionCallNode>())
+            {
+                if (!string.IsNullOrEmpty(node.TargetGraphId)
+                    && Guid.TryParse(node.TargetGraphId, out var id))
+                {
+                    calledGraphIds.Add(id);
+                }
+            }
+        }
+
+        if (calledGraphIds.Count == 0) return;
+
+        // For each referenced Function graph, check for latent nodes.
+        foreach (var targetGraph in asset.Graphs.Where(g => calledGraphIds.Contains(g.Id)))
+        {
+            foreach (var node in targetGraph.Nodes)
+            {
+                if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1650,
+                        $"Function graph '{targetGraph.Name}' (id={targetGraph.Id}) is called via FunctionCallNode " +
+                        $"but contains latent node '{node.GetType().Name}' (id={node.Id}). " +
+                        $"A function graph invoked by FunctionCall must not contain latent nodes; " +
+                        $"latent execution is only supported in the top-level Tick/event graphs.",
+                        asset.AssetId, targetGraph.Id, node.Id));
                 }
             }
         }

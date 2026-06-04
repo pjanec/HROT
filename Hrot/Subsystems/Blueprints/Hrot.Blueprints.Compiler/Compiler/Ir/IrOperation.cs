@@ -39,6 +39,17 @@ public sealed record IrOp_AiPrimitiveCall(
     IReadOnlyList<IrValue> Args,
     IrTypeRef ReturnType) : IrOperation;
 
+/// <summary>
+/// Synchronous call to a local Function graph defined within the same blueprint instance.
+/// Emitted by Stage 5 when FunctionCallNode.TargetGraphId is non-empty.
+/// Stage 7 renders this as Func_{Sanitize(name)}(ref s, view, ecb, self, time, deltaTime, instanceVersion, args...).
+/// LATENT NODES inside the target graph are FORBIDDEN (BP1650) — validated in Stage 2.
+/// </summary>
+public sealed record IrOp_GraphCall(
+    System.Guid TargetGraphId,
+    IReadOnlyList<IrValue> Args,
+    IrTypeRef ReturnType) : IrOperation;
+
 public sealed record IrOp_RaiseCustomEvent(
     int CustomEventIndex,
     IReadOnlyList<IrValue> Args) : IrOperation;

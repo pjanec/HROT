@@ -203,13 +203,20 @@ internal sealed class GraphScheduler
         foreach (var (blockId, stmt) in _whenPostActions)
             _blockBuilders[blockId].Statements.Add(stmt);
 
+        // Propagate graph-level Inputs and Outputs (BATCH-03A: needed by EmitInstanceFunctionMethod
+        // to generate the correct parameter list and by IrOp_ReadInputArg rendering).
+        var irInputs = BuildIrFieldsFromGraphParams(_graph.Inputs);
+        var irOutputs = BuildIrFieldsFromGraphParams(_graph.Outputs);
+
         return new IrGraph
         {
-            Id     = _graph.Id,
-            Name   = _graph.Name,
-            Kind   = MapGraphKind(_graph.Kind),
-            Blocks = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
-            Entry  = new IrBlockId(0),
+            Id      = _graph.Id,
+            Name    = _graph.Name,
+            Kind    = MapGraphKind(_graph.Kind),
+            Inputs  = irInputs,
+            Outputs = irOutputs,
+            Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
+            Entry   = new IrBlockId(0),
         };
     }
 
@@ -632,6 +639,46 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case FunctionCallNode fc when !fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
+            {
+                // Impure in-blueprint function-graph call (BATCH-03A).
+                // Discriminator wins over the CLR library case below.
+                if (!Guid.TryParse(fc.TargetGraphId, out var targetGraphGuid))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                        $"FunctionCallNode TargetGraphId '{fc.TargetGraphId}' is not a valid GUID -- no IR emitted.",
+                        _ctx.AssetId, _graph.Id, node.Id));
+                    break;
+                }
+                var targetGraph = _typed.Asset.Graphs.FirstOrDefault(g => g.Id == targetGraphGuid);
+                if (targetGraph is null || targetGraph.Kind != GraphKind.Function)
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                        $"FunctionCallNode references unknown or non-Function graph '{fc.TargetGraphId}' -- no IR emitted.",
+                        _ctx.AssetId, _graph.Id, node.Id));
+                    break;
+                }
+                var gcArgs   = ResolveAllDataInputs(node, stmts);
+                var gcOutPin = node.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out");
+                IrTypeRef gcRetType;
+                if (gcOutPin is not null && _typed.PinTypes.TryGetValue(gcOutPin.Id, out var gcPinType))
+                    gcRetType = gcPinType;
+                else if (targetGraph.Outputs.Count > 0 && _ctx.TypeRegistry.TryResolve(targetGraph.Outputs[0].Type, out var resolvedOut))
+                    gcRetType = resolvedOut;
+                else
+                    gcRetType = Stage5_Schedule.UnknownType;
+                var gcResult = AllocValue(gcRetType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = gcResult,
+                    Operation   = new IrOp_GraphCall(targetGraphGuid, gcArgs, gcRetType),
+                    Debug       = DebugOf(node),
+                });
+                if (gcOutPin is not null)
+                    _pinValueCache[gcOutPin.Id] = gcResult;
+                break;
+            }
+
             case FunctionCallNode fc when !fc.IsPure:
             {
                 // Impure library call -- resolve inputs, emit call, cache output.
@@ -918,6 +965,48 @@ internal sealed class GraphScheduler
                 });
                 break;
 
+            case FunctionCallNode fc when fc.IsPure && !string.IsNullOrEmpty(fc.TargetGraphId):
+            {
+                // Pure in-blueprint function-graph call (BATCH-03A).
+                if (!Guid.TryParse(fc.TargetGraphId, out var pureGcGuid))
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    break;
+                }
+                var pureTargetGraph = _typed.Asset.Graphs.FirstOrDefault(g => g.Id == pureGcGuid);
+                if (pureTargetGraph is null || pureTargetGraph.Kind != GraphKind.Function)
+                {
+                    result = AllocValue(pinType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = result,
+                        Operation   = new IrOp_Const("default", pinType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id },
+                    });
+                    break;
+                }
+                var pureGcArgs = ResolveAllDataInputs(sourceNode, stmts);
+                IrTypeRef pureGcRetType;
+                if (pureTargetGraph.Outputs.Count > 0 && _ctx.TypeRegistry.TryResolve(pureTargetGraph.Outputs[0].Type, out var pureResolved))
+                    pureGcRetType = pureResolved;
+                else
+                    pureGcRetType = pinType;
+                result = AllocValue(pureGcRetType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_GraphCall(pureGcGuid, pureGcArgs, pureGcRetType),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fc.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
             case FunctionCallNode fc when fc.IsPure:
                 var inputArgs = ResolveAllDataInputs(sourceNode, stmts);
                 result = AllocValue(pinType);
@@ -1065,6 +1154,41 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            case EventEntryNode entry:
+            {
+                // Entry node data-out pin → IrOp_ReadInputArg(i) where i is the
+                // ordinal index into graph.Inputs matched by pin name (fallback: pin ordinal).
+                var dataOutPins = entry.Pins
+                    .Where(p => !p.IsExec && p.Direction == "Out")
+                    .ToList();
+                int ordinal = dataOutPins.FindIndex(p => p.Id == sourcePinId);
+                if (ordinal < 0) ordinal = 0;
+
+                // Try name-match against graph.Inputs first.
+                int argIndex = ordinal;
+                var sourcePin = dataOutPins.Count > ordinal ? dataOutPins[ordinal] : null;
+                if (sourcePin is not null && _graph.Inputs.Count > 0)
+                {
+                    int nameMatch = _graph.Inputs.FindIndex(
+                        inp => string.Equals(inp.Name, sourcePin.Name, StringComparison.OrdinalIgnoreCase));
+                    if (nameMatch >= 0) argIndex = nameMatch;
+                }
+
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadInputArg(argIndex),
+                    Debug       = new IrDebugAnnotation
+                    {
+                        GraphId = _graph.Id,
+                        NodeId  = entry.Id,
+                        PinId   = sourcePinId,
+                    },
+                });
+                break;
+            }
+
             default:
             {
                 // Unknown pure source -- dummy value.
@@ -1160,6 +1284,34 @@ internal sealed class GraphScheduler
         for (int i = 0; i < events.Count; i++)
             if (events[i].Name == eventId) return i;
         return -1;
+    }
+
+    // -----------------------------------------------------------------------
+    // Graph-level Inputs/Outputs propagation (BATCH-03A)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Converts a list of ParameterDecl (from Graph.Inputs or Graph.Outputs) to IrFields,
+    /// resolving each type via the context TypeRegistry. Falls back to UnknownType on miss.
+    /// </summary>
+    private IReadOnlyList<IrField> BuildIrFieldsFromGraphParams(IEnumerable<ParameterDecl> decls)
+    {
+        var result = new List<IrField>();
+        foreach (var d in decls)
+        {
+            IrTypeRef irType;
+            if (!_ctx.TypeRegistry.TryResolve(d.Type, out irType))
+                irType = Stage5_Schedule.UnknownType;
+            result.Add(new IrField
+            {
+                Id   = d.Id,
+                Name = d.Name,
+                Type = irType,
+                DefaultValueCSharp = d.DefaultValueJson ?? "",
+                Comment = d.Comment,
+            });
+        }
+        return result;
     }
 
     // -----------------------------------------------------------------------

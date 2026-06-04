@@ -46,6 +46,11 @@ public sealed class FunctionCallNode : Node
     public string TargetTypeId { get; set; } = "";
     public string MethodName { get; set; } = "";
     public bool IsPure { get; set; }
+    /// <summary>
+    /// When non-empty, this is the GUID string of an in-blueprint Function graph to call.
+    /// Empty (default) = existing CLR library call (unchanged behaviour).
+    /// </summary>
+    public string TargetGraphId { get; set; } = "";
 }
 
 public sealed class BranchNode : Node { }
