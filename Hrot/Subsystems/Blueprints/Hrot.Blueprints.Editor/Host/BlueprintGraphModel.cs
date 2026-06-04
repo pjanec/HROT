@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using NodeEditor.Core.Interfaces;
@@ -36,6 +37,7 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly Graph             _graph;
     private readonly NodeKindRegistry? _kindRegistry;
     private readonly IChannelCommandCatalog? _channelCommands;
+    private readonly Func<Guid, BlueprintSignature?>? _peerSignatureLookup;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -57,16 +59,25 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// catalog entry's params type.  When <see langword="null"/> channel-command nodes fall back
     /// to exec-only (the prior behavior).
     /// </param>
+    /// <param name="peerSignatureLookup">
+    /// Optional delegate that resolves a peer asset's <see cref="BlueprintSignature"/> by GUID.
+    /// Forwarded to <see cref="NodePinSchema.GetCanonicalPins"/> so
+    /// <see cref="CallPeerBlueprintNode"/> can project typed argument pins from the peer's
+    /// exported function signature.  When <see langword="null"/> those nodes fall back to the
+    /// static exec In/Out + Return:System.Object shape.
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
         NodeKindRegistry? kindRegistry = null,
-        IChannelCommandCatalog? channelCommands = null)
+        IChannelCommandCatalog? channelCommands = null,
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null)
     {
-        _asset           = asset ?? throw new ArgumentNullException(nameof(asset));
-        _graph           = graph ?? throw new ArgumentNullException(nameof(graph));
-        _kindRegistry    = kindRegistry;
-        _channelCommands = channelCommands;
+        _asset                = asset ?? throw new ArgumentNullException(nameof(asset));
+        _graph                = graph ?? throw new ArgumentNullException(nameof(graph));
+        _kindRegistry         = kindRegistry;
+        _channelCommands      = channelCommands;
+        _peerSignatureLookup  = peerSignatureLookup;
         Rebuild();
     }
 
@@ -142,7 +153,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         foreach (var assetNode in _graph.Nodes)
         {
-            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands, _graph);
+            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands, _graph, _peerSignatureLookup);
 
             // Separate incident links by direction.
             linksFromNode.TryGetValue(assetNode.Id, out var outLinks);

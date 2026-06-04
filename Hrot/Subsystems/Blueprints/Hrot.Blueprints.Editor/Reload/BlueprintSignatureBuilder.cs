@@ -18,18 +18,27 @@ public static class BlueprintSignatureBuilder
         string sanitized = Sanitizer.SanitizeName(asset.Name);
 
         return new BlueprintSignature(
-            Path:                  string.Empty,
-            AssetId:               asset.AssetId,
-            Name:                  asset.Name,
-            SanitizedName:         sanitized,
-            BlueprintId:           blueprintId,
-            Dispatch:              asset.Dispatch,
-            ExportedFunctionNames: asset.Graphs
+            Path:              string.Empty,
+            AssetId:           asset.AssetId,
+            Name:              asset.Name,
+            SanitizedName:     sanitized,
+            BlueprintId:       blueprintId,
+            Dispatch:          asset.Dispatch,
+            ExportedFunctions: asset.Graphs
                 .Where(g => g.Kind == GraphKind.Function)
-                .Select(g => g.Name)
+                .Select(g => new BlueprintFunctionSig(
+                    g.Name,
+                    g.Inputs.Select(p => new BlueprintParamSig(
+                        p.Name,
+                        string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId))
+                        .ToArray(),
+                    g.Outputs.Select(p => new BlueprintParamSig(
+                        p.Name,
+                        string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId))
+                        .ToArray()))
                 .ToArray(),
-            Hostings:              (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings
-                                   ?? Array.Empty<AiPrimitiveHosting>(),
+            Hostings:          (IReadOnlyList<AiPrimitiveHosting>?)asset.Primitive?.Hostings
+                               ?? Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: asset.CallablePeers);
     }
 }

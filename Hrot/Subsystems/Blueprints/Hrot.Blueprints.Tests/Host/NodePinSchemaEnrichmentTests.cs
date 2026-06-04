@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Blueprints.Editor.Reload;
 using Xunit;
 
 namespace Hrot.Blueprints.Tests.Host;
@@ -796,6 +798,330 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Single(callDataOut);  // one return slot
         Assert.Equal("X",   callDataIn[0].Name);   // readable name matches input
         Assert.Equal("Out", callDataOut[0].Name);  // readable name matches output
+    }
+
+    // ── BATCH-03C2: CallPeerBlueprintNode with peerSignatureLookup ──────────────
+
+    /// <summary>
+    /// Builds a stub <see cref="BlueprintSignature"/> for a peer with one Function graph
+    /// that has 2 typed inputs + 1 typed output.
+    /// </summary>
+    private static BlueprintSignature MakePeerSig(Guid assetId, string funcName,
+        (string Name, string TypeId)[] inputs, (string Name, string TypeId)[] outputs)
+    {
+        var funcSig = new BlueprintFunctionSig(
+            funcName,
+            inputs.Select(x  => new BlueprintParamSig(x.Name, x.TypeId)).ToArray(),
+            outputs.Select(x => new BlueprintParamSig(x.Name, x.TypeId)).ToArray());
+
+        return new BlueprintSignature(
+            Path:              "Peer.bp.json",
+            AssetId:           assetId,
+            Name:              "PeerLib",
+            SanitizedName:     "PeerLib",
+            BlueprintId:       42,
+            Dispatch:          Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Library,
+            ExportedFunctions: new[] { funcSig },
+            Hostings:          Array.Empty<AiPrimitiveHosting>(),
+            DeclaredCallablePeers: Array.Empty<Guid>());
+    }
+
+    /// <summary>
+    /// CallPeerBlueprint with a stub lookup providing a peer signature with matching
+    /// FunctionRef (2 typed inputs + 1 typed output) → exec In/Out + 2 data-IN (names/types/order)
+    /// + Return data-OUT typed from the output.
+    /// Grounded in Stage5_Schedule.cs:656-673: ResolveAllDataInputs reads all data-IN pins
+    /// positionally; first data-OUT is the return slot.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_WithLookup_MatchingFunctionRef_ProjectsTypedPins()
+    {
+        var peerId   = Guid.NewGuid();
+        var peerSig  = MakePeerSig(
+            peerId,
+            "Compute",
+            inputs:  new[] { ("Threshold", "System.Single"), ("Count", "System.Int32") },
+            outputs: new[] { ("Result",    "System.Double") });
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "Compute",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
+        // Exec In/Out always present.
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        // Two data-IN pins in declaration order (Stage5 ResolveAllDataInputs positional).
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        Assert.Equal("Threshold",    dataIn[0].Name);
+        Assert.Equal("System.Single", dataIn[0].TypeId);
+        Assert.Equal("Count",        dataIn[1].Name);
+        Assert.Equal("System.Int32",  dataIn[1].TypeId);
+
+        // Single Return data-OUT pin typed from Outputs[0].
+        var dataOut = Data(pins, "Out");
+        var ret = Assert.Single(dataOut);
+        Assert.Equal("Return",        ret.Name);
+        Assert.Equal("System.Double", ret.TypeId);
+    }
+
+    /// <summary>
+    /// CallPeerBlueprint with NO lookup → static fallback: exec In/Out + Return:System.Object,
+    /// no data-IN pins.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_NullLookup_StaticFallback()
+    {
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = Guid.NewGuid().ToString(),
+            FunctionRef     = "Compute",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: null);
+
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+        Assert.Empty(Data(pins, "In"));
+
+        var ret = Assert.Single(Data(pins, "Out"));
+        Assert.Equal("Return",        ret.Name);
+        Assert.Equal("System.Object", ret.TypeId);
+    }
+
+    /// <summary>
+    /// CallPeerBlueprint with a lookup that returns null for the peer GUID
+    /// → static fallback (exec In/Out + Return:System.Object).
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_UnknownPeer_StaticFallback()
+    {
+        var peerId  = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId, "Compute",
+            inputs:  new[] { ("X", "System.Int32") },
+            outputs: new[] { ("Y", "System.Int32") });
+
+        // Lookup only knows peerId, not otherId.
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = otherId.ToString(),  // unknown peer
+            FunctionRef     = "Compute",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+        Assert.Empty(Data(pins, "In"));
+        var ret = Assert.Single(Data(pins, "Out"));
+        Assert.Equal("Return",        ret.Name);
+        Assert.Equal("System.Object", ret.TypeId);
+    }
+
+    /// <summary>
+    /// CallPeerBlueprint with a lookup that returns a peer signature, but the FunctionRef
+    /// does not match any exported function → static fallback.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_UnknownFunctionRef_StaticFallback()
+    {
+        var peerId  = Guid.NewGuid();
+        var peerSig = MakePeerSig(
+            peerId, "Compute",
+            inputs:  new[] { ("X", "System.Int32") },
+            outputs: new[] { ("Y", "System.Int32") });
+
+        var lookup = (Guid id) => id == peerId ? peerSig : null;
+        var node = new CallPeerBlueprintNode
+        {
+            PeerBlueprintId = peerId.ToString(),
+            FunctionRef     = "NoSuchFunction",  // not in peer sig
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, peerSignatureLookup: lookup);
+
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+        Assert.Empty(Data(pins, "In"));
+        var ret = Assert.Single(Data(pins, "Out"));
+        Assert.Equal("Return",        ret.Name);
+        Assert.Equal("System.Object", ret.TypeId);
+    }
+
+    // ── BATCH-03C2: BlueprintSignatureBuilder.FromInMemoryAsset ExportedFunctions ──
+
+    /// <summary>
+    /// FromInMemoryAsset on an asset with one Function graph (2 inputs, 1 output) →
+    /// ExportedFunctions contains the correct BlueprintFunctionSig with correct names/types;
+    /// ExportedFunctionNames (computed property) still returns the function names.
+    /// </summary>
+    [Fact]
+    public void FromInMemoryAsset_FunctionGraph_PopulatesExportedFunctions_AndExportedFunctionNames()
+    {
+        var assetId = Guid.NewGuid();
+        var asset   = new BlueprintAsset
+        {
+            AssetId  = assetId,
+            Name     = "TestLib",
+            Dispatch = BlueprintDispatchKind.Library,
+            Graphs   = new List<Graph>
+            {
+                new Graph
+                {
+                    Id   = Guid.NewGuid(),
+                    Name = "Compute",
+                    Kind = GraphKind.Function,
+                    Inputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Value",  Type = new BlueprintTypeRef { TypeId = "System.Single" } },
+                        new ParameterDecl { Name = "Factor", Type = new BlueprintTypeRef { TypeId = "System.Int32"  } },
+                    },
+                    Outputs = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "Result", Type = new BlueprintTypeRef { TypeId = "System.Double" } },
+                    },
+                },
+            },
+        };
+
+        var sig = BlueprintSignatureBuilder.FromInMemoryAsset(asset);
+
+        // ExportedFunctions populated.
+        Assert.Single(sig.ExportedFunctions);
+        var func = sig.ExportedFunctions[0];
+        Assert.Equal("Compute", func.Name);
+
+        // Inputs.
+        Assert.Equal(2, func.Inputs.Count);
+        Assert.Equal("Value",         func.Inputs[0].Name);
+        Assert.Equal("System.Single", func.Inputs[0].TypeId);
+        Assert.Equal("Factor",        func.Inputs[1].Name);
+        Assert.Equal("System.Int32",  func.Inputs[1].TypeId);
+
+        // Outputs.
+        Assert.Single(func.Outputs);
+        Assert.Equal("Result",        func.Outputs[0].Name);
+        Assert.Equal("System.Double", func.Outputs[0].TypeId);
+
+        // ExportedFunctionNames computed property still works (backward compat).
+        Assert.Contains("Compute", sig.ExportedFunctionNames);
+        Assert.Single(sig.ExportedFunctionNames);
+    }
+
+    /// <summary>
+    /// FromInMemoryAsset with zero Function graphs → ExportedFunctions empty,
+    /// ExportedFunctionNames empty.
+    /// </summary>
+    [Fact]
+    public void FromInMemoryAsset_NoFunctionGraphs_ExportedFunctionsEmpty()
+    {
+        var asset = new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "EmptyLib",
+            Dispatch = BlueprintDispatchKind.Library,
+        };
+
+        var sig = BlueprintSignatureBuilder.FromInMemoryAsset(asset);
+
+        Assert.Empty(sig.ExportedFunctions);
+        Assert.Empty(sig.ExportedFunctionNames);
+    }
+
+    // ── BATCH-03C2: BlueprintSignatureParser round-trip ──────────────────────────
+
+    /// <summary>
+    /// Parser round-trip: a .bp.json snippet with a Function graph that has inputs + outputs
+    /// → ExportedFunctions populated with correct names/types, agreeing with FromInMemoryAsset.
+    /// Verifies the parser uses lowercase JSON property names ("inputs", "outputs", "name", "type",
+    /// "typeid") consistent with the Stage8 test fixture convention.
+    /// </summary>
+    [Fact]
+    public void BlueprintSignatureParser_FunctionGraphWithParams_ParsesExportedFunctions()
+    {
+        var json = """
+        {
+            "assetId": "aaaabbbb-cccc-dddd-eeee-ffffffffffff",
+            "name": "TestLib",
+            "dispatch": "Library",
+            "graphs": [
+                {
+                    "id": "g1",
+                    "name": "Compute",
+                    "kind": "Function",
+                    "inputs": [
+                        { "name": "Value",  "type": { "typeid": "System.Single" } },
+                        { "name": "Factor", "type": { "typeid": "System.Int32"  } }
+                    ],
+                    "outputs": [
+                        { "name": "Result", "type": { "typeid": "System.Double" } }
+                    ],
+                    "nodes": [],
+                    "links": []
+                }
+            ]
+        }
+        """;
+
+        var sig = Hrot.Blueprints.Core.Compiler.BlueprintSignatureParser.Parse("test.bp.json", json);
+
+        Assert.Single(sig.ExportedFunctions);
+        var func = sig.ExportedFunctions[0];
+        Assert.Equal("Compute", func.Name);
+
+        Assert.Equal(2, func.Inputs.Count);
+        Assert.Equal("Value",         func.Inputs[0].Name);
+        Assert.Equal("System.Single", func.Inputs[0].TypeId);
+        Assert.Equal("Factor",        func.Inputs[1].Name);
+        Assert.Equal("System.Int32",  func.Inputs[1].TypeId);
+
+        Assert.Single(func.Outputs);
+        Assert.Equal("Result",        func.Outputs[0].Name);
+        Assert.Equal("System.Double", func.Outputs[0].TypeId);
+
+        // ExportedFunctionNames backward-compat.
+        Assert.Contains("Compute", sig.ExportedFunctionNames);
+    }
+
+    /// <summary>
+    /// Parser round-trip with missing "inputs"/"outputs" arrays → empty lists (graceful).
+    /// </summary>
+    [Fact]
+    public void BlueprintSignatureParser_FunctionGraphMissingInputsOutputs_EmptyLists()
+    {
+        var json = """
+        {
+            "assetId": "aaaabbbb-cccc-dddd-eeee-000000000001",
+            "name": "TestLib",
+            "dispatch": "Library",
+            "graphs": [
+                {
+                    "id": "g1",
+                    "name": "Execute",
+                    "kind": "Function",
+                    "nodes": [],
+                    "links": []
+                }
+            ]
+        }
+        """;
+
+        var sig = Hrot.Blueprints.Core.Compiler.BlueprintSignatureParser.Parse("test.bp.json", json);
+
+        Assert.Single(sig.ExportedFunctions);
+        var func = sig.ExportedFunctions[0];
+        Assert.Equal("Execute", func.Name);
+        Assert.Empty(func.Inputs);
+        Assert.Empty(func.Outputs);
     }
 }
 

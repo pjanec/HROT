@@ -57,17 +57,26 @@ public sealed class RecipeIntegrityTests
     {
         var squadState = LoadRecipe("SquadState");
         return new BlueprintSignature(
-            Path:                  "",
-            AssetId:               squadState.AssetId,
-            Name:                  squadState.Name,
-            SanitizedName:         squadState.Name,
-            BlueprintId:           0,
-            Dispatch:              squadState.Dispatch,
-            ExportedFunctionNames: squadState.Graphs
+            Path:              "",
+            AssetId:           squadState.AssetId,
+            Name:              squadState.Name,
+            SanitizedName:     squadState.Name,
+            BlueprintId:       0,
+            Dispatch:          squadState.Dispatch,
+            ExportedFunctions: squadState.Graphs
                 .Where(g => g.Kind == GraphKind.Function)
-                .Select(g => g.Name)
+                .Select(g => new BlueprintFunctionSig(
+                    g.Name,
+                    g.Inputs.Select(p => new BlueprintParamSig(
+                        p.Name,
+                        string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId))
+                        .ToArray(),
+                    g.Outputs.Select(p => new BlueprintParamSig(
+                        p.Name,
+                        string.IsNullOrEmpty(p.Type?.TypeId) ? "System.Object" : p.Type.TypeId))
+                        .ToArray()))
                 .ToArray(),
-            Hostings:              Array.Empty<AiPrimitiveHosting>(),
+            Hostings:          Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: squadState.CallablePeers.ToArray());
     }
 

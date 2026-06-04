@@ -1,5 +1,6 @@
 using System.Reflection;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -61,12 +62,20 @@ internal static class NodePinSchema
     /// Pass <c>null</c> (default) for catalog contexts where the containing graph is not known;
     /// behavior degrades gracefully to the original exec-only pins.
     /// </param>
+    /// <param name="peerSignatureLookup">
+    /// Optional delegate that resolves a peer asset's <see cref="BlueprintSignature"/> by its
+    /// asset GUID.  When non-null and a <see cref="CallPeerBlueprintNode"/>'s peer + function
+    /// are found, the projection emits typed argument data-IN pins + a typed Return data-OUT pin.
+    /// When null (or the peer/function cannot be resolved) the node falls back to the static
+    /// exec In/Out + <c>Return:System.Object</c> shape.
+    /// </param>
     public static IReadOnlyList<Pin> GetCanonicalPins(
         Node node,
-        NodeKindRegistry?       registry        = null,
-        BlueprintAsset?         asset           = null,
-        IChannelCommandCatalog? channelCommands = null,
-        Graph?                  containingGraph = null)
+        NodeKindRegistry?               registry             = null,
+        BlueprintAsset?                 asset                = null,
+        IChannelCommandCatalog?         channelCommands      = null,
+        Graph?                          containingGraph      = null,
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null)
     {
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
@@ -114,7 +123,7 @@ internal static class NodePinSchema
             WaitForChannelNode  => ExecInOut(),
             WaitForEventNode    => ExecInOut(),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
-            CallPeerBlueprintNode => CallPeerBlueprintPins(),
+            CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
             CallEventDispatcherNode => ExecInOut(),
             BindEventDispatcherNode => ExecInOut(),
             ArrayMakeNode am    => ArrayMakePins(am),
@@ -413,26 +422,70 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// CallPeerBlueprint: exec In + exec Out + a single <c>Return</c> data-OUT pin
-    /// (<c>System.Object</c> wildcard, resolved by Stage4 from incident links).
-    /// Grounded in Stage5_Schedule.cs:661:
-    /// <c>var outPin = node.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>;
-    /// the compiler always reads the first data-OUT pin as the return slot, then caches the peer
-    /// function's return value on it (Stage5_Schedule.cs:664-672).
+    /// CallPeerBlueprint: exec In + exec Out + one data-IN per peer function parameter
+    /// (positional, Stage5_Schedule.cs:660 <c>ResolveAllDataInputs</c>) + a <c>Return</c>
+    /// data-OUT pin typed from the function's first output (or <c>System.Object</c>).
     /// <para>
-    /// TODO(BATCH-03): add one data-IN pin per peer function parameter (Stage5_Schedule.cs:660
-    /// calls <c>ResolveAllDataInputs</c> to consume all data-IN pins as call arguments).  Deferred
-    /// because it requires resolving the peer blueprint's exported function signature (the
-    /// graph-signature work tracked in BATCH-03).
+    /// When <paramref name="peerSignatureLookup"/> is non-null and the peer signature and its
+    /// matching <see cref="BlueprintFunctionSig"/> are found, the projection emits typed pins.
+    /// Otherwise falls back to the static shape: exec In/Out + <c>Return:System.Object</c>.
+    /// This graceful fallback preserves backward-compatible behavior when no lookup is wired.
     /// </para>
+    /// Grounded in Stage5_Schedule.cs:656-673: <c>ResolveAllDataInputs</c> consumes all
+    /// data-IN pins positionally as call arguments; the first data-OUT pin is the return slot.
     /// </summary>
-    private static IReadOnlyList<Pin> CallPeerBlueprintPins()
-        => new[]
+    private static IReadOnlyList<Pin> CallPeerBlueprintPins(
+        CallPeerBlueprintNode          cpb,
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup)
+    {
+        // Static fallback shape (used when no lookup or peer/function not resolved).
+        var fallback = new Pin[]
         {
             MakeExec("In",  "In"),
             MakeExec("Out", "Out"),
             MakeData("Return", "Out", "System.Object"),
         };
+
+        if (peerSignatureLookup == null)
+            return fallback;
+
+        if (!Guid.TryParse(cpb.PeerBlueprintId, out var peerGuid))
+            return fallback;
+
+        BlueprintSignature? peerSig;
+        try { peerSig = peerSignatureLookup(peerGuid); }
+        catch { return fallback; }
+
+        if (peerSig == null)
+            return fallback;
+
+        var funcSig = peerSig.ExportedFunctions
+            .FirstOrDefault(f => string.Equals(f.Name, cpb.FunctionRef, StringComparison.Ordinal));
+        if (funcSig == null)
+            return fallback;
+
+        // Signature-aware projection.
+        var pins = new List<Pin>
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+
+        // Data-IN: one per peer function input (positional, declaration order).
+        foreach (var inp in funcSig.Inputs)
+        {
+            var typeId = string.IsNullOrEmpty(inp.TypeId) ? "System.Object" : inp.TypeId;
+            pins.Add(MakeData(inp.Name, "In", typeId));
+        }
+
+        // Data-OUT: Return pin typed from Outputs[0] (or System.Object when no outputs).
+        var returnTypeId = funcSig.Outputs.Count > 0 && !string.IsNullOrEmpty(funcSig.Outputs[0].TypeId)
+            ? funcSig.Outputs[0].TypeId
+            : "System.Object";
+        pins.Add(MakeData("Return", "Out", returnTypeId));
+
+        return pins;
+    }
 
     /// <summary>
     /// ArrayGet: exec In/Out + <c>Array</c> data-IN (first data-IN, the source array),

@@ -102,8 +102,14 @@ Completed batches reference their report for full file:line detail rather than d
   `GetCanonicalPins`. Project `CallPeerBlueprintNode` pins: data-IN per peer-function Input + `Return`
   data-OUT (compiler consumes data-IN positionally + first data-OUT, Stage5:656-673). Headless tests with
   a stub registry.
-- **Status:** PENDING. (Heavier than 03C -- changes the signature contract used by the compiler.)
-- **Gate:** new tests green; full suite subset of 7 / 0 new; boot 10/10.
+- **Status:** DONE -- committed. Report: `reports/BATCH-03C2-REPORT.md`. `BlueprintSignature` gained
+  `ExportedFunctions` (`BlueprintFunctionSig`/`BlueprintParamSig`); `ExportedFunctionNames` kept as a
+  computed property (no breaking change); builder + parser project Inputs/Outputs; `GetCanonicalPins`/
+  `BlueprintGraphModel` gained a `Func<Guid,BlueprintSignature?> peerSignatureLookup`;
+  `BlueprintDocumentFactory` builds a disk-backed lookup; **live-wired** in `EditorSubsystem` (a
+  `FileSystemAssetCatalog` over `blueprints/` passed to the factory). 4 test construction sites updated.
+- **Gate:** NodePinSchema 39/39; whole-solution build 0 warnings (contract change); full suite 7 / 0 new /
+  no golden changed; boot 10/10.
 
 ## BATCH-03D -- Editor UI: FunctionCall picker + graph-signature editing panel
 - **Goal:** Answer "how do we configure Function Call?" with real UI, and let authors edit a graph's

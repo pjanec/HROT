@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -73,14 +74,19 @@ public sealed class V_PeerReferencesTests
 
     private static BlueprintSignature MakeSiblingSignature(params string[] functionNames) =>
         new BlueprintSignature(
-            Path:                  "Peer.bp.json",
-            AssetId:               PeerId,
-            Name:                  "PeerLib",
-            SanitizedName:         "PeerLib",
-            BlueprintId:           42,
-            Dispatch:              AssetDispatchKind.Library,
-            ExportedFunctionNames: functionNames,
-            Hostings:              Array.Empty<AiPrimitiveHosting>(),
+            Path:              "Peer.bp.json",
+            AssetId:           PeerId,
+            Name:              "PeerLib",
+            SanitizedName:     "PeerLib",
+            BlueprintId:       42,
+            Dispatch:          AssetDispatchKind.Library,
+            ExportedFunctions: functionNames
+                .Select(n => new BlueprintFunctionSig(
+                    n,
+                    Array.Empty<BlueprintParamSig>(),
+                    Array.Empty<BlueprintParamSig>()))
+                .ToArray(),
+            Hostings:          Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: Array.Empty<Guid>());
 
     private static IReadOnlyList<Diagnostic> Validate(BlueprintAsset asset,

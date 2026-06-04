@@ -51,7 +51,7 @@ public static class BlueprintSignatureParser
                 SanitizedName: sanitized,
                 BlueprintId: blueprintId,
                 Dispatch: dispatch,
-                ExportedFunctionNames: exportedFunctions,
+                ExportedFunctions: exportedFunctions,
                 Hostings: hostings,
                 DeclaredCallablePeers: callablePeers);
         }
@@ -72,16 +72,38 @@ public static class BlueprintSignatureParser
         };
     }
 
-    private static IReadOnlyList<string> ParseExportedFunctions(JsonElement root)
+    private static IReadOnlyList<BlueprintFunctionSig> ParseExportedFunctions(JsonElement root)
     {
-        var result = new List<string>();
+        var result = new List<BlueprintFunctionSig>();
         if (!root.TryGetProperty("graphs", out var graphs)) return result;
         foreach (var graph in graphs.EnumerateArray())
         {
+            // Accept both string "Function" and integer 0 (GraphKind.Function == 0).
             var kind = graph.TryGetProperty("kind", out var kp) ? kp.GetString() : null;
             if (kind?.Equals("Function", StringComparison.OrdinalIgnoreCase) != true) continue;
             var name = graph.TryGetProperty("name", out var np) ? np.GetString() : null;
-            if (!string.IsNullOrEmpty(name)) result.Add(name!);
+            if (string.IsNullOrEmpty(name)) continue;
+
+            var inputs  = ParseParamList(graph, "inputs");
+            var outputs = ParseParamList(graph, "outputs");
+            result.Add(new BlueprintFunctionSig(name!, inputs, outputs));
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<BlueprintParamSig> ParseParamList(JsonElement graph, string propertyName)
+    {
+        if (!graph.TryGetProperty(propertyName, out var arr)) return Array.Empty<BlueprintParamSig>();
+        var result = new List<BlueprintParamSig>();
+        foreach (var item in arr.EnumerateArray())
+        {
+            var name   = item.TryGetProperty("name",   out var np) ? np.GetString() : null;
+            var typeId = item.TryGetProperty("type",   out var tp)
+                         && tp.TryGetProperty("typeid", out var tidp)
+                         ? tidp.GetString()
+                         : null;
+            if (!string.IsNullOrEmpty(name))
+                result.Add(new BlueprintParamSig(name!, typeId ?? "System.Object"));
         }
         return result;
     }
@@ -120,7 +142,7 @@ public static class BlueprintSignatureParser
             SanitizedName: "_",
             BlueprintId: 0,
             Dispatch: BlueprintDispatchKind.Library,
-            ExportedFunctionNames: Array.Empty<string>(),
+            ExportedFunctions: Array.Empty<BlueprintFunctionSig>(),
             Hostings: Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: Array.Empty<Guid>());
 }

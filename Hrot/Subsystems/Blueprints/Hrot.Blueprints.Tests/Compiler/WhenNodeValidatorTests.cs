@@ -589,14 +589,14 @@ public sealed class WhenNodeValidatorTests
         // PeerBlueprintVariable does NOT require ComponentTypeId/PropertyPath.
         var peerId = Guid.NewGuid();
         var sig = new BlueprintSignature(
-            Path:                  "",
-            AssetId:               peerId,
-            Name:                  "SquadState",
-            SanitizedName:         "SquadState",
-            BlueprintId:           1,
-            Dispatch:              Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
-            ExportedFunctionNames: Array.Empty<string>(),
-            Hostings:              Array.Empty<AiPrimitiveHosting>(),
+            Path:              "",
+            AssetId:           peerId,
+            Name:              "SquadState",
+            SanitizedName:     "SquadState",
+            BlueprintId:       1,
+            Dispatch:          Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
+            ExportedFunctions: Array.Empty<BlueprintFunctionSig>(),
+            Hostings:          Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: Array.Empty<Guid>());
         var node = new WhenNode
         {

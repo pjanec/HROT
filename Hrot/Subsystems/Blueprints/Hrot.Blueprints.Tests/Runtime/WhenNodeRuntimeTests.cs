@@ -63,7 +63,7 @@ public sealed class WhenNodeRuntimeTests
                 Path: "", AssetId: peerAssetId, Name: "PeerBp", SanitizedName: "PeerBp",
                 BlueprintId: 0,
                 Dispatch: Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
-                ExportedFunctionNames: Array.Empty<string>(),
+                ExportedFunctions: Array.Empty<BlueprintFunctionSig>(),
                 Hostings: Array.Empty<AiPrimitiveHosting>(),
                 DeclaredCallablePeers: Array.Empty<Guid>()),
         });

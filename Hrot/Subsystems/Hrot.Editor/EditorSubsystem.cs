@@ -1997,6 +1997,12 @@ namespace Hrot.Editor
                 refactorService:      refactorService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintVariablesWindow);
 
+            // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
+            // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the
+            // peer blueprint's exported function signature (read on demand from disk).
+            var blueprintPeerCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(
+                System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints"));
+
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.
             _aiDocumentManager.DocumentOpened += doc =>
@@ -2028,7 +2034,8 @@ namespace Hrot.Editor
                         doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
                             doc.Asset, adapterBundle, _blueprintEditService,
                             _blueprintPaletteEntries,
-                            channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance);
+                            channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
+                            peerAssetCatalog: blueprintPeerCatalog);
                         break;
                 }
 

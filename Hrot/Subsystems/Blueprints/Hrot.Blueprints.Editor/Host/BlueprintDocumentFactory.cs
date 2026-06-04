@@ -1,5 +1,6 @@
 using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core namespace, Compiler assembly)
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.GraphEditor;
@@ -66,6 +67,14 @@ public static class BlueprintDocumentFactory
     ///   <see cref="ChannelCommandNode"/>s project their parameter data-IN pins from the matching
     ///   catalog entry's params type.  When null, channel-command nodes are exec-only.
     /// </param>
+    /// <param name="peerAssetCatalog">
+    ///   Optional asset catalog used to build a peer-signature lookup delegate for
+    ///   <see cref="CallPeerBlueprintNode"/> pin projection.  When non-null, the factory
+    ///   constructs a delegate that parses each peer blueprint's <see cref="BlueprintSignature"/>
+    ///   from disk (via <see cref="BlueprintSignatureParser"/>), mirroring
+    ///   <c>QuickReloadService.BuildSiblingSignatures</c>.  When null,
+    ///   <see cref="CallPeerBlueprintNode"/>s fall back to static exec+Return pins.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -76,10 +85,11 @@ public static class BlueprintDocumentFactory
     public static AiCanvasContext Build(
         IEditableAsset          asset,
         AiEditorAdapterBundle   bundle,
-        EditService?            editService    = null,
+        EditService?            editService     = null,
         NodeKindRegistry?       paletteRegistry = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
-        IChannelCommandCatalog? channelCommands = null)
+        IChannelCommandCatalog? channelCommands = null,
+        IAssetCatalog?          peerAssetCatalog = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -104,7 +114,10 @@ public static class BlueprintDocumentFactory
         // ── 2. Graph model (pass registry for pin hydration of JSON-loaded assets) ──
         // The channel-command catalog (when supplied) lets ChannelCommandNodes project their
         // parameter data-IN pins from the matching catalog entry's params type (projection-only).
-        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands);
+        // The peerSignatureLookup (when peerAssetCatalog is non-null) lets CallPeerBlueprintNodes
+        // project typed argument pins from the peer's exported function signature.
+        Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
+        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
@@ -318,6 +331,35 @@ public static class BlueprintDocumentFactory
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a peer-signature lookup delegate from <paramref name="catalog"/>.
+    /// The delegate reads each peer's .bp.json from disk on demand (lazy, not cached) and
+    /// returns the parsed <see cref="BlueprintSignature"/>, mirroring
+    /// <c>QuickReloadService.BuildSiblingSignatures</c> for the factory context.
+    /// Returns <see langword="null"/> when <paramref name="catalog"/> is null (no lookup).
+    /// </summary>
+    private static Func<Guid, BlueprintSignature?>? BuildPeerSignatureLookup(IAssetCatalog? catalog)
+    {
+        if (catalog == null) return null;
+
+        return peerGuid =>
+        {
+            try
+            {
+                var entry = catalog.EnumerateAll()
+                    .FirstOrDefault(e => e.AssetId == peerGuid);
+                if (entry == null || !File.Exists(entry.Path))
+                    return null;
+                var json = File.ReadAllText(entry.Path);
+                return BlueprintSignatureParser.Parse(entry.Path, json);
+            }
+            catch
+            {
+                return null;
+            }
+        };
+    }
 
     private static BlueprintAsset LoadAsset(BlueprintFileAsset file)
     {
