@@ -277,6 +277,8 @@ namespace Hrot.Editor
         // AIE-048: Blueprint Details + Variables windows.
         private Hrot.Blueprints.Editor.Windows.BlueprintDetailsWindow? _blueprintDetailsWindow;
         private Hrot.Blueprints.Editor.Windows.BlueprintVariablesManagedWindow? _blueprintVariablesWindow;
+        // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
+        private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
         private readonly Hrot.Blueprints.Editor.EditorSelectionStore _blueprintLegacySelectionStore = new();
         // AIE-030: shared debug session infrastructure (created in Initialize, wired in RegisterWindows)
@@ -1796,6 +1798,9 @@ namespace Hrot.Editor
 
                     // Retarget Variables window via legacy bridge store.
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
+
+                    // BATCH-03D2: Retarget Graph Signature window.
+                    _blueprintSignatureWindow?.Retarget(bpAsset);
                 }
                 else
                 {
@@ -1803,6 +1808,7 @@ namespace Hrot.Editor
                     _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
                     _blueprintDetailsWindow?.Retarget(null);
                     _blueprintLegacySelectionStore.SelectAsset(null);
+                    _blueprintSignatureWindow?.Retarget(null);
                 }
             };
 
@@ -1996,6 +2002,13 @@ namespace Hrot.Editor
                 legacySelectionStore: _blueprintLegacySelectionStore,
                 refactorService:      refactorService);
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintVariablesWindow);
+
+            // BATCH-03D2: Graph Signature window — edits Function graph Inputs/Outputs.
+            // Uses the same legacy selection store bridge (SelectAsset is called in ActiveChanged).
+            _blueprintSignatureWindow = new Hrot.Blueprints.Editor.Windows.GraphSignatureWindow(
+                selectionStore: _blueprintLegacySelectionStore,
+                dirtyTracker:   _blueprintSaveDirtyTracker);
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, _blueprintSignatureWindow);
 
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
             // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the

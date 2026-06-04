@@ -24,7 +24,7 @@ Status legend: `[ ]` open / `[~]` in progress / `[x]` done (verified + committed
 - [x] **BATCH-03C** -- Editor projection: Entry/Return value pins from `Graph.Inputs/Outputs` + FunctionCall mirrors in-blueprint target-graph signature -> committed -> [details](./TASK-DETAIL.md#batch-03c----editor-projection-entryreturn-value-pins--functioncall-mirrors-graph-signature)
 - [x] **BATCH-03C2** -- Editor: `CallPeerBlueprintNode` arg pins via extended `BlueprintSignature` (per-function Inputs/Outputs) + sibling-signature lookup threaded to projection AND live-wired in `EditorSubsystem` (BATCH-02 deferral) -> committed -> [details](./TASK-DETAIL.md#batch-03c2----callpeerblueprint-arg-pins-via-extended-blueprintsignature)
 - [x] **BATCH-03D1** -- Editor UI: FunctionCall Details drawer (CLR type/method fields + in-blueprint Function-graph picker + IsPure) -> committed -> [details](./TASK-DETAIL.md#batch-03d----editor-ui-functioncall-picker--graph-signature-editing-panel)
-- [ ] **BATCH-03D2** -- Editor UI: graph-signature editing panel for `Graph.Inputs/Outputs` (VariablesPanelControl + GraphSignatureSchemaSource + graph-picker combo) -> [details](./TASK-DETAIL.md#batch-03d----editor-ui-functioncall-picker--graph-signature-editing-panel)
+- [x] **BATCH-03D2** -- Editor UI: graph-signature editing panel for `Graph.Inputs/Outputs` (`GraphSignatureEditModel` + `GraphSignatureWindow`, bespoke rows panel, graph-picker combo) -> committed -> [details](./TASK-DETAIL.md#batch-03d----editor-ui-functioncall-picker--graph-signature-editing-panel)
 
 ## Phase 3 -- Demonstrable authoring
 

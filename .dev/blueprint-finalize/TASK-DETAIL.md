@@ -131,10 +131,13 @@ Completed batches reference their report for full file:line detail rather than d
   edits mark the asset dirty via `IEditService`). Registered in `CreateNodeDrawerRegistry`. Lead added a
   mode-persistence fix so the graph picker doesn't flicker back to CLR before a graph is chosen. 19 headless
   tests; `Draw()` body still needs a manual visual smoke. Report: `reports/BATCH-03D1-REPORT.md`.
-- **BATCH-03D2 status:** PENDING -- graph-signature editing panel for `Graph.Inputs/Outputs` via
-  `VariablesPanelControl` + a `GraphSignatureSchemaSource` (mirror `BlueprintVariableSchemaSource`), scoped
-  by a graph-picker combo (the active *graph* is not exposed by `EditorSelectionStore` -- only the active
-  asset; combo sidesteps that gap).
+- **BATCH-03D2 status:** DONE -- committed. `GraphSignatureEditModel` (headless: Add/Remove/Rename/Retype/
+  Move on a graph's Inputs or Outputs, fires `onChanged`) + `GraphSignatureWindow` (graph-picker combo over
+  Function graphs; a **bespoke** 3-column ImGui rows panel — `VariablesPanelControl` was rejected as it
+  carries blackboard byte-budget/pack-warning UI inappropriate for a function signature; headless
+  `ResolveEditModels` seam). Wired in `EditorSubsystem` via the legacy selection bridge + `RegisterExtraWindow`
+  + `Retarget`. 26 tests incl. a round-trip proving an added input projects a matching Entry data-OUT pin
+  (BATCH-03C). `Draw()` needs manual smoke. Report: `reports/BATCH-03D2-REPORT.md`.
 - **Gate (each):** drawer/schema unit tests green; full suite subset of 7 / 0 new; boot 10/10; manual smoke.
 
 ---
