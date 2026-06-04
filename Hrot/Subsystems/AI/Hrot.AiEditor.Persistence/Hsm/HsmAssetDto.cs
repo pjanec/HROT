@@ -57,6 +57,9 @@ public sealed class StateNodeDto
     // Region membership
     public int RegionIndex { get; set; }
 
+    // Deferred events (by name; emit core resolves to IDs using DTO event order)
+    public List<string> DeferredEventNames { get; set; } = new();
+
     // Layout
     public float X { get; set; }
     public float Y { get; set; }
@@ -121,10 +124,19 @@ public sealed class GlobalTransitionNodeDto
 
 public sealed class EventDefinitionDto
 {
-    /// <summary>Runtime EventId is excluded; name is the canonical identity.</summary>
+    /// <summary>Canonical identity.</summary>
     public string Name { get; set; } = string.Empty;
     public int PayloadSize { get; set; }
     public bool IsIndirect { get; set; }
+    /// <summary>True when at least one state defers this event (from StateNode.DeferredEventIds).</summary>
+    public bool IsDeferrable { get; set; }
+    /// <summary>
+    /// The EventId assigned by HsmBuilder at compile time.
+    /// Needed by the emit core to reproduce the original builder.Event(..., eventId, ...) call
+    /// byte-identically. Under JSON-SoT (PU-02+) this will be replaced by sequential reassignment
+    /// in the generator; for now it is preserved for emit-core byte-identity.
+    /// </summary>
+    public ushort EventId { get; set; }
 }
 
 // ── Blackboard block (§5.4) ───────────────────────────────────────────────────

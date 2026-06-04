@@ -36,6 +36,11 @@ public static class HsmAssetMapper
             },
         };
 
+        // Build event-id-to-name lookup for DeferredEventNames mapping
+        var eventIdToName = new Dictionary<ushort, string>();
+        foreach (var ev in asset.AllEvents)
+            eventIdToName[ev.EventId] = ev.Name;
+
         // States (excluding synthetic RootState)
         foreach (var s in asset.AllStates)
         {
@@ -65,6 +70,13 @@ public static class HsmAssetMapper
             {
                 stateDto.SizeOverrideX = s.SizeOverride.Value.X;
                 stateDto.SizeOverrideY = s.SizeOverride.Value.Y;
+            }
+
+            // Deferred event names (preserve ordering from DeferredEventIds for round-trip stability)
+            foreach (var deferredId in s.DeferredEventIds)
+            {
+                if (eventIdToName.TryGetValue(deferredId, out var evName))
+                    stateDto.DeferredEventNames.Add(evName);
             }
 
             foreach (var child in s.Children)
@@ -124,14 +136,17 @@ public static class HsmAssetMapper
             });
         }
 
-        // Events
+        // Events (EventId included for emit-core byte-identity; re-assigned sequentially
+        // by the Phase-2 generator once JSON becomes the source of truth).
         foreach (var ev in asset.AllEvents)
         {
             dto.Events.Add(new EventDefinitionDto
             {
-                Name        = ev.Name,
-                PayloadSize = ev.PayloadSize,
-                IsIndirect  = ev.IsIndirect,
+                Name         = ev.Name,
+                PayloadSize  = ev.PayloadSize,
+                IsIndirect   = ev.IsIndirect,
+                IsDeferrable = ev.IsDeferrable,
+                EventId      = ev.EventId,
             });
         }
 
@@ -281,16 +296,38 @@ public static class HsmAssetMapper
             });
         }
 
-        // Build events
+        // Build events; EventId is stored in DTO for emit-core byte-identity.
+        // For new assets created from JSON (PU-03+), IDs will be reassigned sequentially.
         var events = new List<EventDefinition>();
-        ushort evId = 1;
+        var eventNameToId = new Dictionary<string, ushort>(StringComparer.Ordinal);
+        ushort fallbackId = 1;
         foreach (var eDto in dto.Events)
         {
-            events.Add(new EventDefinition(eDto.Name, evId++)
+            // Use stored EventId when present (non-zero); fall back to sequential for new JSON assets.
+            ushort id = eDto.EventId != 0 ? eDto.EventId : fallbackId;
+            var ev = new EventDefinition(eDto.Name, id)
             {
-                PayloadSize = eDto.PayloadSize,
-                IsIndirect  = eDto.IsIndirect,
-            });
+                PayloadSize  = eDto.PayloadSize,
+                IsIndirect   = eDto.IsIndirect,
+                IsDeferrable = eDto.IsDeferrable,
+            };
+            events.Add(ev);
+            eventNameToId[eDto.Name] = id;
+            if (eDto.EventId == 0) fallbackId++;
+        }
+
+        // Restore DeferredEventIds from DeferredEventNames
+        foreach (var sDto in dto.States)
+        {
+            if (sDto.DeferredEventNames.Count > 0 &&
+                stableIdToState.TryGetValue(sDto.StableId, out var state))
+            {
+                foreach (var evName in sDto.DeferredEventNames)
+                {
+                    if (eventNameToId.TryGetValue(evName, out var id))
+                        state.DeferredEventIds.Add(id);
+                }
+            }
         }
 
         var asset = new HsmAsset(

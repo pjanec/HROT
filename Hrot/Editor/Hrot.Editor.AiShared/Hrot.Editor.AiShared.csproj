@@ -22,6 +22,8 @@
   <ItemGroup>
     <!-- Layout-contract types live in the lightweight AiContracts assembly. -->
     <ProjectReference Include="..\Hrot.Editor.AiContracts\Hrot.Editor.AiContracts.csproj" />
+    <!-- Emit core (netstandard2.0): marker, header, SortUsings, WriteAtomic — shared with Phase-2 generator. Design §6.1. -->
+    <ProjectReference Include="..\..\Subsystems\AI\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Presentation\Fdp.Presentation.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />

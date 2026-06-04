@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using Fhsm.Compiler;
 using FluentAssertions;
 using Hrot.AiEditor.Persistence.Hsm;
 using Hrot.Editor.AiShared.Blackboard;
@@ -220,5 +221,92 @@ public sealed class HsmMapperRoundTripTests
         var original = LoadSampleGuard();
         var restored = HsmAssetMapper.FromDto(HsmAssetMapper.ToDto(original));
         restored.IsDirty.Should().BeFalse("IsDirty is not persisted");
+    }
+
+    // ── BATCH-02 DTO extension round-trip assertions ──────────────────────────
+    // These assert the fields added to EventDefinitionDto + StateNodeDto for
+    // byte-identical emit-core output (BATCH-02 allowed re-touch of BATCH-01 files).
+
+    [Fact]
+    public void Event_IsDeferrable_FieldExistsInDto_AndRoundTrips()
+    {
+        // Verify IsDeferrable field is present in EventDefinitionDto and round-trips correctly.
+        // Note: IsDeferrable is set by the projector from metadata.DeferredEventsByState;
+        // SampleGuard events have IsDeferrable=false (no deferred states).
+        var original = LoadSampleGuard();
+
+        var dto = HsmAssetMapper.ToDto(original);
+
+        // All events must have the IsDeferrable field present in the DTO
+        foreach (var ev in dto.Events)
+            ev.IsDeferrable.Should().Be(
+                original.AllEvents.First(e => e.Name == ev.Name).IsDeferrable,
+                $"EventDefinitionDto.IsDeferrable must match model for event '{ev.Name}'");
+
+        // Round-trip: IsDeferrable preserved after FromDto
+        var restored = HsmAssetMapper.FromDto(dto);
+        foreach (var origEv in original.AllEvents)
+        {
+            var restEv = restored.AllEvents.FirstOrDefault(e => e.Name == origEv.Name);
+            restEv.Should().NotBeNull();
+            restEv!.IsDeferrable.Should().Be(origEv.IsDeferrable,
+                $"IsDeferrable must survive DTO round-trip for event '{origEv.Name}'");
+        }
+    }
+
+    [Fact]
+    public void Event_EventId_RoundTrips_ThroughDto()
+    {
+        // EventId must be stored in DTO and restored after FromDto (for emit-core byte-identity).
+        var original = LoadSampleGuard();
+
+        var dto = HsmAssetMapper.ToDto(original);
+
+        // All events must have EventId stored in DTO
+        foreach (var ev in dto.Events)
+            ev.EventId.Should().BeGreaterThan(0, $"EventId for '{ev.Name}' must be persisted in DTO");
+
+        // After FromDto, EventIds must be restored (not sequential re-assignment)
+        var restored = HsmAssetMapper.FromDto(dto);
+        foreach (var origEv in original.AllEvents)
+        {
+            var restEv = restored.AllEvents.FirstOrDefault(e => e.Name == origEv.Name);
+            restEv.Should().NotBeNull();
+            restEv!.EventId.Should().Be(origEv.EventId,
+                $"EventId for '{origEv.Name}' must be preserved through DTO round-trip");
+        }
+    }
+
+    [Fact]
+    public void State_DeferredEventNames_RoundTrips_ThroughDto()
+    {
+        // DeferredEventNames must survive DTO round-trip with correct names.
+        var builder = new HsmBuilder("M");
+        builder.Event("Tick",  1);
+        builder.Event("Fire",  2);
+        builder.State("Idle").Initial().DeferEvent(1).DeferEvent(2);
+
+        var graph    = builder.Build();
+        HsmNormalizer.Normalize(graph);
+        var flat     = HsmFlattener.Flatten(graph);
+        var blob     = HsmEmitter.Emit(flat);
+        var metadata = HsmEmitter.BuildMachineMetadata(graph);
+        var asset    = HsmAssetProjector.Project(blob, metadata, null,
+            Guid.NewGuid(), "M", "", false, "");
+
+        var dto = HsmAssetMapper.ToDto(asset);
+
+        // Find the Idle state DTO and check DeferredEventNames
+        var idleDto = dto.States.FirstOrDefault(s => s.Name == "Idle");
+        idleDto.Should().NotBeNull();
+        idleDto!.DeferredEventNames.Should().BeEquivalentTo(new[] { "Tick", "Fire" },
+            "DeferredEventNames must contain the names corresponding to deferred event IDs");
+
+        // After round-trip, DeferredEventIds must be restored
+        var restored = HsmAssetMapper.FromDto(dto);
+        var idleState = restored.AllStates.FirstOrDefault(s => s.Name == "Idle");
+        idleState.Should().NotBeNull();
+        idleState!.DeferredEventIds.Should().BeEquivalentTo(new ushort[] { 1, 2 },
+            "DeferredEventIds must be restored from DeferredEventNames after DTO round-trip");
     }
 }
