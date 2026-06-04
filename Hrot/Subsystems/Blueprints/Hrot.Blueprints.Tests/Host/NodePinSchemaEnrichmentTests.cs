@@ -281,6 +281,157 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.True(HasExec(pins, "True",  "Out"));
         Assert.True(HasExec(pins, "False", "Out"));
     }
+
+    // ── BATCH-02 Gap 1: ReadRankedResultNode ────────────────────────────────────
+
+    /// <summary>
+    /// ReadRankedResult must expose exactly the three struct fields emitted by
+    /// InstanceEmitter.EmitReadRankedResultHelpers (lines 539-541) as data-OUT pins,
+    /// because Stage5_Schedule.cs:1049-1062 does IrOp_FieldRead by pin name.
+    /// </summary>
+    [Fact]
+    public void ReadRankedResult_HasThreeDataOutPins_IsValid_Entity_Score_NoExecNoDataIn()
+    {
+        var pins = NodePinSchema.GetCanonicalPins(new ReadRankedResultNode());
+
+        // No exec pins — ReadRankedResult is a pure data-output node.
+        Assert.False(pins.Any(p => p.IsExec), "ReadRankedResult must have no exec pins");
+
+        // No data-IN pins — Rank is a node field baked at compile time (Stage5:1039).
+        Assert.Empty(Data(pins, "In"));
+
+        // Exactly 3 data-OUT pins in order: IsValid, Entity, Score.
+        var dataOut = Data(pins, "Out");
+        Assert.Equal(3, dataOut.Length);
+
+        Assert.Equal("IsValid", dataOut[0].Name);
+        Assert.Equal("System.Boolean", dataOut[0].TypeId);
+
+        Assert.Equal("Entity", dataOut[1].Name);
+        Assert.Equal("System.Int64", dataOut[1].TypeId);
+
+        Assert.Equal("Score", dataOut[2].Name);
+        Assert.Equal("System.Single", dataOut[2].TypeId);
+    }
+
+    // ── BATCH-02 Gap 2: CallCustomEventNode ─────────────────────────────────────
+
+    /// <summary>
+    /// CallCustomEvent with a declared event that has two typed parameters must yield
+    /// exec In/Out + those two data-IN pins in declaration order.
+    /// Grounded in Stage5_Schedule.cs:695-703 (ResolveAllDataInputs → IrOp_RaiseCustomEvent).
+    /// </summary>
+    [Fact]
+    public void CallCustomEvent_KnownEvent_TwoParams_ProjectsExecAndDataInPinsInOrder()
+    {
+        var eventId = Guid.NewGuid();
+        var asset = new BlueprintAsset
+        {
+            CustomEvents = new List<CustomEventDecl>
+            {
+                new CustomEventDecl
+                {
+                    Id   = eventId,
+                    Name = "OnTargetAcquired",
+                    Parameters = new List<ParameterDecl>
+                    {
+                        new ParameterDecl { Name = "TargetEntity", Type = new BlueprintTypeRef { TypeId = "System.Int64"  } },
+                        new ParameterDecl { Name = "Confidence",   Type = new BlueprintTypeRef { TypeId = "System.Single" } },
+                    },
+                },
+            },
+        };
+        var node = new CallCustomEventNode { EventId = eventId.ToString() };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        // Declaration order preserved (Stage5 ResolveAllDataInputs reads pins positionally).
+        Assert.Equal("TargetEntity", dataIn[0].Name);
+        Assert.Equal("System.Int64",  dataIn[0].TypeId);
+        Assert.Equal("Confidence",   dataIn[1].Name);
+        Assert.Equal("System.Single", dataIn[1].TypeId);
+
+        Assert.Empty(Data(pins, "Out")); // no data-OUT pins
+    }
+
+    /// <summary>
+    /// CallCustomEvent graceful fallback when asset is null: exec-only, no throw.
+    /// </summary>
+    [Fact]
+    public void CallCustomEvent_NullAsset_FallsBackToExecOnly()
+    {
+        var node = new CallCustomEventNode { EventId = Guid.NewGuid().ToString() };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: null);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    /// <summary>
+    /// CallCustomEvent graceful fallback when EventId is not a valid Guid: exec-only.
+    /// </summary>
+    [Fact]
+    public void CallCustomEvent_InvalidEventId_FallsBackToExecOnly()
+    {
+        var asset = new BlueprintAsset();
+        var node  = new CallCustomEventNode { EventId = "not-a-guid" };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    /// <summary>
+    /// CallCustomEvent graceful fallback when EventId parses but no matching event in asset:
+    /// exec-only.
+    /// </summary>
+    [Fact]
+    public void CallCustomEvent_EventNotFound_FallsBackToExecOnly()
+    {
+        var asset = new BlueprintAsset(); // empty CustomEvents
+        var node  = new CallCustomEventNode { EventId = Guid.NewGuid().ToString() };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, asset: asset);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    // ── BATCH-02 Gap 3: CallPeerBlueprintNode ───────────────────────────────────
+
+    /// <summary>
+    /// CallPeerBlueprint must expose exec In/Out + a single Return data-OUT pin (System.Object).
+    /// Grounded in Stage5_Schedule.cs:661: the compiler reads the first data-OUT pin as the
+    /// return-value slot.  Dynamic data-IN argument pins are deferred to BATCH-03.
+    /// </summary>
+    [Fact]
+    public void CallPeerBlueprint_HasExecInOut_AndSingleReturnDataOut_TypedSystemObject()
+    {
+        var pins = NodePinSchema.GetCanonicalPins(new CallPeerBlueprintNode());
+
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        // No data-IN pins in this batch (deferred to BATCH-03).
+        Assert.Empty(Data(pins, "In"));
+
+        var ret = Assert.Single(Data(pins, "Out"));
+        Assert.Equal("Return",        ret.Name);
+        Assert.Equal("System.Object", ret.TypeId);
+    }
 }
 
 /// <summary>Local helper struct used by the enrichment tests to capture pin shape.</summary>

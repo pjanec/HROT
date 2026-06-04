@@ -103,8 +103,8 @@ internal static class NodePinSchema
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands),
             WaitForChannelNode  => ExecInOut(),
             WaitForEventNode    => ExecInOut(),
-            CallCustomEventNode => ExecInOut(),
-            CallPeerBlueprintNode => ExecInOut(),
+            CallCustomEventNode cce => CallCustomEventPins(cce, asset),
+            CallPeerBlueprintNode => CallPeerBlueprintPins(),
             CallEventDispatcherNode => ExecInOut(),
             BindEventDispatcherNode => ExecInOut(),
             ArrayMakeNode am    => ArrayMakePins(am),
@@ -116,7 +116,7 @@ internal static class NodePinSchema
             ReadEqsResultNode   => Array.Empty<Pin>(),
             SpawnEqsSensorNode  => ExecInOut(),
             ScoreDecisionNode   => ScoreDecisionPins(),
-            ReadRankedResultNode => Array.Empty<Pin>(),
+            ReadRankedResultNode => ReadRankedResultPins(),
             PartitionElementsNode => ExecInOut(),
             AssignRolesNode     => ExecInOut(),
             AdvancePhaseNode    => ExecInOut(),
@@ -215,6 +215,85 @@ internal static class NodePinSchema
             MakeExec("In",  "In"),
             MakeExec("Out", "Out"),
             MakeData("WinningOptionId", "Out", "System.Byte"),
+        };
+
+    /// <summary>
+    /// ReadRankedResult: three data-OUT pins corresponding to the fields of the emitted result
+    /// struct declared in <c>InstanceEmitter.EmitReadRankedResultHelpers</c> (lines 539-541):
+    /// <c>public bool IsValid; public long Entity; public float Score;</c>.
+    /// Stage5_Schedule.cs:1049-1062 iterates these data-OUT pins by name and emits
+    /// <c>IrOp_FieldRead(helperResult2, outPin.Name, fieldType)</c> for each; pin names must
+    /// therefore match the struct field names exactly.  No data-IN pins — Rank is a node field
+    /// baked at compile time (Stage5_Schedule.cs:1039).
+    /// </summary>
+    private static IReadOnlyList<Pin> ReadRankedResultPins()
+        => new[]
+        {
+            MakeData("IsValid", "Out", "System.Boolean"),
+            MakeData("Entity",  "Out", "System.Int64"),
+            MakeData("Score",   "Out", "System.Single"),
+        };
+
+    /// <summary>
+    /// CallCustomEvent: exec In + exec Out + one data-IN pin per custom-event parameter in
+    /// declaration order, typed from <c>param.Type.TypeId</c> (fallback: <c>System.Object</c>).
+    /// Grounded in Stage5_Schedule.cs:695-703: <c>ResolveAllDataInputs(node, stmts)</c> maps
+    /// all non-exec data-IN pins positionally to the raised event's parameters
+    /// (<c>IrOp_RaiseCustomEvent(idx, inputVals)</c>).
+    /// The event is matched by <c>Guid.TryParse(EventId) &amp;&amp; events[i].Id == guid</c>
+    /// (Stage5_Schedule.cs:1157-1159 — primary key is <see cref="CustomEventDecl.Id"/>, with
+    /// a Name fallback at line 1160).
+    /// Graceful fallback to exec-only when: asset is null, EventId does not parse to a Guid,
+    /// no matching <see cref="CustomEventDecl"/> found, or the event has zero parameters.
+    /// </summary>
+    private static IReadOnlyList<Pin> CallCustomEventPins(CallCustomEventNode cce, BlueprintAsset? asset)
+    {
+        var execPins = new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+
+        if (asset == null)
+            return execPins;
+
+        if (!Guid.TryParse(cce.EventId, out var eventGuid))
+            return execPins;
+
+        var decl = asset.CustomEvents.FirstOrDefault(e => e.Id == eventGuid);
+        if (decl == null || decl.Parameters.Count == 0)
+            return execPins;
+
+        var pins = new List<Pin>(2 + decl.Parameters.Count);
+        pins.AddRange(execPins);
+        foreach (var param in decl.Parameters)
+        {
+            var typeId = string.IsNullOrEmpty(param.Type?.TypeId) ? "System.Object" : param.Type.TypeId;
+            pins.Add(MakeData(param.Name, "In", typeId));
+        }
+        return pins;
+    }
+
+    /// <summary>
+    /// CallPeerBlueprint: exec In + exec Out + a single <c>Return</c> data-OUT pin
+    /// (<c>System.Object</c> wildcard, resolved by Stage4 from incident links).
+    /// Grounded in Stage5_Schedule.cs:661:
+    /// <c>var outPin = node.Pins.FirstOrDefault(p =&gt; !p.IsExec &amp;&amp; p.Direction == "Out")</c>;
+    /// the compiler always reads the first data-OUT pin as the return slot, then caches the peer
+    /// function's return value on it (Stage5_Schedule.cs:664-672).
+    /// <para>
+    /// TODO(BATCH-03): add one data-IN pin per peer function parameter (Stage5_Schedule.cs:660
+    /// calls <c>ResolveAllDataInputs</c> to consume all data-IN pins as call arguments).  Deferred
+    /// because it requires resolving the peer blueprint's exported function signature (the
+    /// graph-signature work tracked in BATCH-03).
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<Pin> CallPeerBlueprintPins()
+        => new[]
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Return", "Out", "System.Object"),
         };
 
     /// <summary>
