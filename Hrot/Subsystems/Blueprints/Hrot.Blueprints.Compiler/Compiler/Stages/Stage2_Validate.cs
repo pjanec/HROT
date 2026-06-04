@@ -1041,37 +1041,118 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
-// V_FunctionGraphCallRules  (BATCH-03A)
+// V_FunctionGraphCallRules  (BATCH-03A + BATCH-03B)
 // ---------------------------------------------------------------------------
 
 /// <summary>
-/// Validates that any Function graph referenced by a FunctionCallNode.TargetGraphId
-/// does not contain latent nodes. Because there is ONE BlueprintLatentCursor per
-/// instance (single flat s.Cursor.ResumeAt), a function graph emitted as a separate
-/// method cannot own a cursor. Latent nodes inside called function graphs are REJECTED
-/// (BP1650), not supported.
+/// Validates all FunctionCallNode.TargetGraphId references across all graphs in the asset.
+///
+/// BP1650 — Latent node inside a called Function graph (BATCH-03A).
+/// BP1651 — TargetGraphId does not resolve to a GraphKind.Function graph (BATCH-03B).
+/// BP1652 — Caller data-IN pin count ≠ target graph Inputs.Count (BATCH-03B).
+/// BP1653 — Positional argument type mismatch (conservative TypeId string comparison; BATCH-03B).
+/// BP1654 — Function-graph call cycle (direct self-recursion or transitive A→B→A; BATCH-03B).
+///
+/// Type-compat mechanism (BP1653): Stage 2 runs before Stage 4 (TypeResolve), so full type
+/// resolution is not yet available.  We compare BlueprintTypeRef.TypeId strings directly.
+/// An empty TypeId or "System.Object" is treated as a wildcard (no flag).  This is
+/// deliberately conservative: we only flag clear mismatches like "System.Int32" vs
+/// "System.Single".  Limitation: generic type arguments and array wrapping are not compared
+/// (only the top-level TypeId is checked), so e.g. List&lt;int&gt; vs List&lt;float&gt; would
+/// not be caught unless TypeId itself differs.
 /// </summary>
 internal sealed class V_FunctionGraphCallRules : IValidator
 {
+    // Wildcards: an empty TypeId or System.Object means "any type accepted" – do not flag.
+    private static bool IsWildcard(string typeId) =>
+        string.IsNullOrEmpty(typeId) || typeId == "System.Object";
+
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
-        // Collect all TargetGraphIds referenced by FunctionCallNodes across all graphs.
-        var calledGraphIds = new HashSet<Guid>();
-        foreach (var graph in asset.Graphs)
+        // Build a lookup: graphId → Graph for all graphs in the asset.
+        var graphById = asset.Graphs.ToDictionary(g => g.Id);
+
+        // ---------------------------------------------------------------
+        // Pass 1: per-node checks (BP1651, BP1652, BP1653) and
+        //         build the directed call graph for cycle detection.
+        // ---------------------------------------------------------------
+
+        // callEdges[callerGraphId] = set of resolved target Graph.Id values
+        var callEdges = new Dictionary<Guid, HashSet<Guid>>();
+
+        foreach (var callerGraph in asset.Graphs)
         {
-            foreach (var node in graph.Nodes.OfType<FunctionCallNode>())
+            foreach (var node in callerGraph.Nodes.OfType<FunctionCallNode>())
             {
-                if (!string.IsNullOrEmpty(node.TargetGraphId)
-                    && Guid.TryParse(node.TargetGraphId, out var id))
+                if (string.IsNullOrEmpty(node.TargetGraphId)) continue;
+
+                // ----- BP1651: resolve target graph -----
+                if (!Guid.TryParse(node.TargetGraphId, out var targetId)
+                    || !graphById.TryGetValue(targetId, out var targetGraph)
+                    || targetGraph.Kind != GraphKind.Function)
                 {
-                    calledGraphIds.Add(id);
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1651,
+                        $"FunctionCallNode (id={node.Id}) in graph '{callerGraph.Name}' references " +
+                        $"TargetGraphId='{node.TargetGraphId}' which does not resolve to a " +
+                        $"GraphKind.Function graph in this asset.",
+                        asset.AssetId, callerGraph.Id, node.Id));
+                    continue; // skip BP1652/BP1653 for this node
+                }
+
+                // Record call edge for cycle detection (BP1654).
+                if (!callEdges.TryGetValue(callerGraph.Id, out var targets))
+                {
+                    targets = new HashSet<Guid>();
+                    callEdges[callerGraph.Id] = targets;
+                }
+                targets.Add(targetGraph.Id);
+
+                // ----- BP1652: argument count -----
+                var dataInPins = node.Pins
+                    .Where(p => !p.IsExec && string.Equals(p.Direction, "In", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (dataInPins.Count != targetGraph.Inputs.Count)
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1652,
+                        $"FunctionCallNode (id={node.Id}) in graph '{callerGraph.Name}' passes " +
+                        $"{dataInPins.Count} data-IN arg(s) but target Function graph " +
+                        $"'{targetGraph.Name}' (id={targetGraph.Id}) declares " +
+                        $"{targetGraph.Inputs.Count} input(s).",
+                        asset.AssetId, callerGraph.Id, node.Id));
+                    // Still check latent nodes (BP1650) below; skip type check.
+                    continue;
+                }
+
+                // ----- BP1653: positional argument types (conservative) -----
+                for (int i = 0; i < dataInPins.Count; i++)
+                {
+                    var callerTypeId = dataInPins[i].TypeRef?.TypeId ?? "";
+                    var targetTypeId = targetGraph.Inputs[i].Type?.TypeId ?? "";
+
+                    // Skip if either side is a wildcard / unresolved.
+                    if (IsWildcard(callerTypeId) || IsWildcard(targetTypeId)) continue;
+
+                    if (!string.Equals(callerTypeId, targetTypeId, StringComparison.Ordinal))
+                    {
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1653,
+                            $"FunctionCallNode (id={node.Id}) in graph '{callerGraph.Name}': " +
+                            $"argument {i} (pin '{dataInPins[i].Name}') has type '{callerTypeId}' " +
+                            $"but target input '{targetGraph.Inputs[i].Name}' of graph " +
+                            $"'{targetGraph.Name}' expects '{targetTypeId}'.",
+                            asset.AssetId, callerGraph.Id, node.Id));
+                    }
                 }
             }
         }
 
-        if (calledGraphIds.Count == 0) return;
+        // ---------------------------------------------------------------
+        // Pass 2: BP1650 — latent nodes inside any called Function graph.
+        // (Preserved from BATCH-03A; re-implemented inline to share graphById.)
+        // ---------------------------------------------------------------
+        var calledGraphIds = new HashSet<Guid>(
+            callEdges.Values.SelectMany(s => s));
 
-        // For each referenced Function graph, check for latent nodes.
         foreach (var targetGraph in asset.Graphs.Where(g => calledGraphIds.Contains(g.Id)))
         {
             foreach (var node in targetGraph.Nodes)
@@ -1087,6 +1168,105 @@ internal sealed class V_FunctionGraphCallRules : IValidator
                 }
             }
         }
+
+        // ---------------------------------------------------------------
+        // Pass 3: BP1654 — cycle detection via DFS over call graph.
+        // Only Function graphs participate (non-Function graphs cannot be
+        // called via FunctionCallNode after BP1651 has been checked).
+        // ---------------------------------------------------------------
+        if (callEdges.Count == 0) return;
+
+        // Three-colour DFS: 0=white(unvisited), 1=grey(in-stack), 2=black(done).
+        var colour  = new Dictionary<Guid, int>();
+        var parent  = new Dictionary<Guid, Guid>();
+        var emittedCycles = new HashSet<string>(); // deduplicate cycle reports
+
+        // Initialise all Function graphs to white.
+        foreach (var g in asset.Graphs)
+            if (g.Kind == GraphKind.Function)
+                colour[g.Id] = 0;
+
+        foreach (var startId in colour.Keys.ToList())
+        {
+            if (colour[startId] != 0) continue;
+            DfsVisit(startId, graphById, callEdges, colour, parent,
+                     asset.AssetId, ctx, emittedCycles);
+        }
+    }
+
+    private static void DfsVisit(
+        Guid nodeId,
+        Dictionary<Guid, Graph> graphById,
+        Dictionary<Guid, HashSet<Guid>> callEdges,
+        Dictionary<Guid, int> colour,
+        Dictionary<Guid, Guid> parent,
+        Guid assetId,
+        ValidationContext ctx,
+        HashSet<string> emittedCycles)
+    {
+        colour[nodeId] = 1; // grey
+
+        if (callEdges.TryGetValue(nodeId, out var neighbours))
+        {
+            foreach (var neighbourId in neighbours)
+            {
+                if (!colour.TryGetValue(neighbourId, out var nc))
+                    continue; // not a Function graph — skip
+
+                if (nc == 1)
+                {
+                    // Back-edge: reconstruct cycle path.
+                    var cyclePath = BuildCyclePath(nodeId, neighbourId, parent, graphById);
+                    var key = string.Join("→", cyclePath.OrderBy(s => s)); // canonical key
+                    if (emittedCycles.Add(key))
+                    {
+                        var path = string.Join(" → ", cyclePath);
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1654,
+                            $"Function-graph call cycle detected: {path}. " +
+                            $"Function graphs compile to synchronous C# methods; a cycle would " +
+                            $"cause a stack overflow at runtime.",
+                            assetId));
+                    }
+                }
+                else if (nc == 0)
+                {
+                    parent[neighbourId] = nodeId;
+                    DfsVisit(neighbourId, graphById, callEdges, colour, parent,
+                             assetId, ctx, emittedCycles);
+                }
+            }
+        }
+
+        colour[nodeId] = 2; // black
+    }
+
+    /// <summary>
+    /// Reconstructs the cycle path from the back-edge (currentId → cycleStartId)
+    /// by walking parent pointers from currentId back to cycleStartId.
+    /// </summary>
+    private static List<string> BuildCyclePath(
+        Guid currentId,
+        Guid cycleStartId,
+        Dictionary<Guid, Guid> parent,
+        Dictionary<Guid, Graph> graphById)
+    {
+        var path = new List<string>();
+        var visited = new HashSet<Guid>();
+        var id = currentId;
+
+        while (id != cycleStartId && !visited.Contains(id))
+        {
+            visited.Add(id);
+            path.Add(graphById.TryGetValue(id, out var g) ? g.Name : id.ToString());
+            if (!parent.TryGetValue(id, out id)) break;
+        }
+
+        // Add the cycle-start node name at both ends to show the loop.
+        var startName = graphById.TryGetValue(cycleStartId, out var sg) ? sg.Name : cycleStartId.ToString();
+        path.Add(startName);
+        path.Reverse();
+        path.Add(startName); // close the cycle notation: A → B → A
+        return path;
     }
 }
 

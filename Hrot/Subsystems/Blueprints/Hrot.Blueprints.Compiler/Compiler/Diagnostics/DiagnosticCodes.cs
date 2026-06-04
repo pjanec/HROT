@@ -55,6 +55,10 @@ public static class DiagnosticCodes
 
     // Stage 2 -- Validate (function-graph call rules)
     public const string BP1650 = "BP1650";  // Latent node inside a function graph referenced by FunctionCallNode.TargetGraphId
+    public const string BP1651 = "BP1651";  // FunctionCallNode.TargetGraphId not found or target graph is not GraphKind.Function
+    public const string BP1652 = "BP1652";  // FunctionCallNode argument count mismatch (caller data-IN pin count ≠ target graph Inputs.Count)
+    public const string BP1653 = "BP1653";  // FunctionCallNode argument type mismatch (positional: caller data-IN pin type incompatible with target Input type)
+    public const string BP1654 = "BP1654";  // Function-graph call cycle detected (direct or transitive recursion)
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
