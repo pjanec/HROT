@@ -19,6 +19,7 @@ public static class TestData
         public const string MoveToAndFire                = "MoveToAndFire";
         public const string DoorActor                    = "DoorActor";
         public const string DoorSensor                   = "DoorSensor";
+        public const string CountingDemo                 = "CountingDemo";
     }
 
     public static BlueprintAsset LoadAsset(string name)

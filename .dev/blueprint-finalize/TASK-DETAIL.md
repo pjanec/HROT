@@ -150,8 +150,21 @@ Completed batches reference their report for full file:line detail rather than d
   GetVariable(Count) -> increment (via a CLR/in-blueprint Add FunctionCall once BATCH-03A/C land) ->
   SetVariable(Count). Add a test that compiles it and asserts `Count` climbs via `TryGetField`
   (BATCH-04 StateFields make this observable). Depends on BATCH-03A/C (authorable increment).
-- **Status:** PENDING (depends on BATCH-03).
-- **Gate:** demo compiles + runs; Count increments across ticks; full suite subset of 7 / 0 new.
+- **Status:** DONE -- committed. Report: `reports/BATCH-05-REPORT.md`. Added `BlueprintMath`
+  (`FDP/Toolkits/Fdp.Toolkits/Blueprints/BlueprintMath.cs`, 38 pure fns: float/int arithmetic, comparisons,
+  bool logic, Vector3 ops — div/mod-by-zero → 0) in `Fdp.Toolkits` (auto in the Roslyn reference set);
+  `CountingDemo.bp.json` (Instance; Tick: `EventEntry → SetVariable(Count) ← AddInt(GetVariable(Count),
+  Literal(1))`); proof tests (Count==0 after attach, ==5 after 5 ticks). 69 BlueprintMath tests.
+- **Pin authoring finding:** the compiler reads `node.Pins` directly (Stage4 `TypeRef.TypeId`, Stage5
+  `SetVariableNode`); there is NO hydration pass. Every existing `.bp.json` with a real Tick is actually a
+  variable-only stub (`"Graphs": []`) — `CountingDemo` is the FIRST compilable data-flow `.bp.json`, so it
+  uses **explicit** pins. This compiles+runs and does not perturb goldens.
+- **OPEN (DEBT-MVE-004?):** the projection-only invariant says editor-saved `.bp.json` store `"Pins": []`,
+  but the compiler needs pins. Whether the editor's in-memory compile path hydrates pins into the asset
+  before `Compiler.Compile` (making canvas-authored data-flow graphs compile) is UNVERIFIED — flagged for
+  investigation. The hand-authored demo satisfies "compiles + runs + counts up"; the full canvas
+  authoring→save→compile round-trip for data-flow graphs is the open piece.
+- **Gate:** demo compiles + runs (0→5); 71/71 math+demo tests; full suite 7 / 0 new / no golden changed; boot 10/10.
 
 ---
 

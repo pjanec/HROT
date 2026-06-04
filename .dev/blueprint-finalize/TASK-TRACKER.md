@@ -28,7 +28,9 @@ Status legend: `[ ]` open / `[~]` in progress / `[x]` done (verified + committed
 
 ## Phase 3 -- Demonstrable authoring
 
-- [ ] **BATCH-05** -- Task 6: hand-authored `.bp.json` that increments a blackboard `Count` and visibly counts up in the running editor inspector -> [details](./TASK-DETAIL.md#batch-05----task-6-canvas-authorable-counting-demo)
+- [x] **BATCH-05** -- `BlueprintMath` library (38 pure fns) + `CountingDemo.bp.json` (increments `Count` via `BlueprintMath.AddInt`) + compile-and-run proof (Count 0→5) -> committed -> [details](./TASK-DETAIL.md#batch-05----task-6-canvas-authorable-counting-demo)
+- [ ] **BATCH-05B** -- Math node-palette entries: surface `BlueprintMath` functions in the node picker (pre-configured FunctionCall presets, pins auto-projected) -> [details](./TASK-DETAIL.md#batch-05----task-6-canvas-authorable-counting-demo)
+- [ ] **OPEN QUESTION (DEBT-MVE-004?)** -- canvas round-trip: the compiler reads `node.Pins` directly (no hydration pass); editor-saved `.bp.json` are projection-only (`"Pins": []`). Confirm whether the editor's in-memory **compile** path hydrates pins into the asset before `Compiler.Compile` (so canvas-authored data-flow blueprints actually compile), or whether that's a gap. `CountingDemo.bp.json` uses explicit pins (hand-authored) and compiles+runs; the editor authoring→save→compile round-trip for data-flow graphs is unverified.
 
 ## Phase 4 -- Canvas polish backlog (Task 4, lower priority)
 

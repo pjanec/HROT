@@ -1,0 +1,205 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000006-0000-0000-0000-000000000001",
+  "Name": "CountingDemo",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [
+    {
+      "Id": "a0000006-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": {
+        "TypeId": "System.Int32"
+      },
+      "DefaultValueJson": "0"
+    }
+  ],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000006-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "20000006-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "ee000006-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "SetVariable",
+          "Id": "20000006-0000-0000-0000-000000000002",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "ee000006-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "ee000006-0000-0000-0000-000000000003",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            },
+            {
+              "Id": "dd000006-0000-0000-0000-000000000001",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "20000006-0000-0000-0000-000000000003",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "AddInt",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "dd000006-0000-0000-0000-000000000002",
+              "Name": "A",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            },
+            {
+              "Id": "dd000006-0000-0000-0000-000000000003",
+              "Name": "B",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            },
+            {
+              "Id": "dd000006-0000-0000-0000-000000000004",
+              "Name": "Result",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "GetVariable",
+          "Id": "20000006-0000-0000-0000-000000000004",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "dd000006-0000-0000-0000-000000000005",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Literal",
+          "Id": "20000006-0000-0000-0000-000000000005",
+          "TypeId": "System.Int32",
+          "ValueJson": "1",
+          "Pins": [
+            {
+              "Id": "dd000006-0000-0000-0000-000000000006",
+              "Name": "Value",
+              "Direction": "Out",
+              "IsExec": false,
+              "TypeRef": {
+                "TypeId": "System.Int32"
+              }
+            }
+          ],
+          "EditorMetadata": {}
+        },
+        {
+          "kind": "Return",
+          "Id": "20000006-0000-0000-0000-000000000006",
+          "Pins": [
+            {
+              "Id": "ee000006-0000-0000-0000-000000000004",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {}
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000001",
+          "FromPinId": "ee000006-0000-0000-0000-000000000001",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "ee000006-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000002",
+          "FromPinId": "ee000006-0000-0000-0000-000000000003",
+          "ToNodeId": "20000006-0000-0000-0000-000000000006",
+          "ToPinId": "ee000006-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000003",
+          "FromPinId": "dd000006-0000-0000-0000-000000000004",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "dd000006-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000004",
+          "FromPinId": "dd000006-0000-0000-0000-000000000005",
+          "ToNodeId": "20000006-0000-0000-0000-000000000003",
+          "ToPinId": "dd000006-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000005",
+          "FromPinId": "dd000006-0000-0000-0000-000000000006",
+          "ToNodeId": "20000006-0000-0000-0000-000000000003",
+          "ToPinId": "dd000006-0000-0000-0000-000000000003"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {}
+}
