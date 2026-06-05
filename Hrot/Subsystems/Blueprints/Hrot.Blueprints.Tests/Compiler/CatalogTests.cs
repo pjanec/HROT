@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Tests.Builders;
 
 namespace Hrot.Blueprints.Tests.Compiler;
@@ -174,5 +175,131 @@ public sealed class CatalogTests
         var animEntries = entries.Where(e => e.Category.StartsWith("Animation/"));
         foreach (var entry in animEntries)
             Assert.StartsWith(animNs, entry.EventTypeFqn);
+    }
+
+    // ---- BF-06: ChannelCommand nodes project rich per-field data-IN pins ------
+    // Verifies that NodePinSchema.ChannelCommandPins, when given the updated catalog
+    // (real ParamsTypeFqn), reflects the executor param struct's public instance fields
+    // and produces one data-IN pin per field — not the System.Int32 placeholder pin.
+    // This test runs in the net8 editor context where Fdp.Toolkits types are loadable.
+
+    [Fact]
+    public void ChannelCommandPins_MoveTo_ProjectsOneDataPinPerMoveToParamsField()
+    {
+        // ChannelCommandNode for MoveTo (ChannelType matches last segment of catalog FQN).
+        var node = new ChannelCommandNode
+        {
+            ChannelType = "LocomotionChannel",
+            ActionId    = "MoveTo",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChannelCommandCatalog.Instance);
+
+        // Exec In + Exec Out must always be present.
+        Assert.Contains(pins, p => p.Name == "In"  && p.Direction == "In"  && p.IsExec);
+        Assert.Contains(pins, p => p.Name == "Out" && p.Direction == "Out" && p.IsExec);
+
+        // MoveToParams public instance fields: Destination, ArrivalRadius, Speed,
+        // RouteHandle, LayerMask, ReverseAllowed, Flags, MaxReplans, BackendForce.
+        // We assert all expected field names appear as data-IN pins.
+        var dataPins = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        var dataNames = dataPins.Select(p => p.Name).ToHashSet();
+
+        Assert.Contains("Destination",    dataNames);
+        Assert.Contains("ArrivalRadius",  dataNames);
+        Assert.Contains("Speed",          dataNames);
+        Assert.Contains("RouteHandle",    dataNames);
+        Assert.Contains("LayerMask",      dataNames);
+        Assert.Contains("ReverseAllowed", dataNames);
+        Assert.Contains("Flags",          dataNames);
+        Assert.Contains("MaxReplans",     dataNames);
+        Assert.Contains("BackendForce",   dataNames);
+
+        // Must NOT be the Int32 placeholder (would produce a single "Int32" pin).
+        Assert.DoesNotContain("Int32", dataNames);
+
+        // Total data-IN pins == 9 (one per MoveToParams field, no extras).
+        Assert.Equal(9, dataPins.Count);
+    }
+
+    [Fact]
+    public void ChannelCommandPins_AimAndFire_ProjectsTargetAndCooldownPins()
+    {
+        var node = new ChannelCommandNode
+        {
+            ChannelType = "WeaponChannel",
+            ActionId    = "AimAndFire",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChannelCommandCatalog.Instance);
+
+        var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        var dataNames = dataPins.Select(p => p.Name).ToHashSet();
+
+        // AimAndFireParams fields: Target (Entity), CooldownSeconds (float).
+        Assert.Contains("Target",          dataNames);
+        Assert.Contains("CooldownSeconds", dataNames);
+        Assert.Equal(2, dataPins.Count);
+    }
+
+    [Fact]
+    public void ChannelCommandPins_FollowRoute_ProjectsTrajectoryIdAndIsLoopedPins()
+    {
+        var node = new ChannelCommandNode
+        {
+            ChannelType = "LocomotionChannel",
+            ActionId    = "FollowRoute",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChannelCommandCatalog.Instance);
+
+        var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        var dataNames = dataPins.Select(p => p.Name).ToHashSet();
+
+        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte).
+        Assert.Contains("TrajectoryId", dataNames);
+        Assert.Contains("IsLooped",     dataNames);
+        Assert.Equal(2, dataPins.Count);
+    }
+
+    [Fact]
+    public void ChannelCommandPins_OpenDoor_ProjectsTargetDoorPin()
+    {
+        var node = new ChannelCommandNode
+        {
+            ChannelType = "InteractionChannel",
+            ActionId    = "OpenDoor",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChannelCommandCatalog.Instance);
+
+        var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        var dataNames = dataPins.Select(p => p.Name).ToHashSet();
+
+        // OpenDoorParams fields: TargetDoor (Entity).
+        Assert.Contains("TargetDoor", dataNames);
+        Assert.Equal(1, dataPins.Count);
+    }
+
+    [Fact]
+    public void ChannelCommandPins_EjectPassengers_FallsBackToSingleValuePin()
+    {
+        // EjectPassengers uses the System.Int32 placeholder (no param struct).
+        // NodePinSchema emits a single value pin for a primitive params type (graceful path).
+        var node = new ChannelCommandNode
+        {
+            ChannelType = "InteractionChannel",
+            ActionId    = "EjectPassengers",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: BuiltInChannelCommandCatalog.Instance);
+
+        // Exec In + Exec Out are always present.
+        Assert.Contains(pins, p => p.Name == "In"  && p.IsExec);
+        Assert.Contains(pins, p => p.Name == "Out" && p.IsExec);
+
+        // One data-IN value pin (the System.Int32 primitive fallback).
+        var dataPins = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
+        Assert.Equal(1, dataPins.Count);
     }
 }
