@@ -70,13 +70,16 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         {
             asset = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(text);
         }
-        catch
+        catch (Exception ex)
         {
-            return FailedParse(path);
+            // BP-1: never swallow — surface the full exception (type + message + stack + inner)
+            // so the real deserialization failure (e.g. System.Text.Json polymorphism in the
+            // analyzer host) is visible in the build output instead of a generic message.
+            return FailedParse(path, ex.ToString());
         }
 
         if (asset is null)
-            return FailedParse(path);
+            return FailedParse(path, "BlueprintJsonServices.Deserialize returned null (no exception thrown).");
 
         var compiler = new BpCompiler();
         var options = new CompileOptions(
@@ -105,7 +108,7 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
                 Diagnostics:       new[]
                 {
                     BpDiagnostic.Error(DiagnosticCodes.BP0002_JsonParseError,
-                        $"Blueprint '{path}' threw during compile: {ex.Message}")
+                        $"Blueprint '{path}' threw during compile: {ex}")
                 },
                 CanonicalAsset:    null,
                 PortablePdb:       null,
@@ -113,7 +116,7 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
         }
     }
 
-    private static CompileResult FailedParse(string path) =>
+    private static CompileResult FailedParse(string path, string? detail = null) =>
         new CompileResult(
             Succeeded:         false,
             GeneratedSource:   null,
@@ -124,7 +127,8 @@ public sealed class BlueprintIncrementalGenerator : IIncrementalGenerator
             Diagnostics:       new[]
             {
                 BpDiagnostic.Error(DiagnosticCodes.BP0002_JsonParseError,
-                    $"Blueprint file '{path}' could not be parsed.")
+                    $"Blueprint file '{path}' could not be parsed."
+                    + (string.IsNullOrEmpty(detail) ? "" : $" Detail: {detail}"))
             },
             CanonicalAsset:    null,
             PortablePdb:       null,
