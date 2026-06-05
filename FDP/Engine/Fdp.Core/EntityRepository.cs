@@ -26,6 +26,7 @@ namespace Fdp.Core
         private readonly ComponentMetadataTable _metadata;
         private readonly object _tableLock = new object();
         private bool _disposed;
+        private BitMask512 _borrowedSingletons;
 
         // Allocated once at construction; freed in Dispose.
         // Provides an unmanaged IntPtr that HSM action delegates (via HsmKernelBridge.WorldHandle)
@@ -1982,12 +1983,13 @@ namespace Fdp.Core
             // Dispose singletons
             for (int i = 0; i < _singletons.Length; i++)
             {
-                if (_singletons[i] is IDisposable disposable)
+                if (!_borrowedSingletons.IsSet(i) && _singletons[i] is IDisposable disposable)
                 {
                     disposable.Dispose();
                 }
                 _singletons[i] = default!;
             }
+            _borrowedSingletons.Clear();
             
             // Dispose metadata
             _metadata?.Dispose();

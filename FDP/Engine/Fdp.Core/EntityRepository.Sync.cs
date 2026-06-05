@@ -140,7 +140,11 @@ namespace Fdp.Core
             if (srcTable == null)
                 return;
             EnsureSingletonCapacity(typeId);
-            _singletons[typeId] = srcTable;
+            if (!ReferenceEquals(_singletons[typeId], srcTable))
+            {
+                _singletons[typeId] = srcTable;
+                _borrowedSingletons.SetBit(typeId);
+            }
         }
 
         /// <summary>
