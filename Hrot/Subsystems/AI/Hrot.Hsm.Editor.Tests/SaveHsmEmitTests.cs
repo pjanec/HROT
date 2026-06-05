@@ -2,18 +2,22 @@ using System;
 using System.IO;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.Editor.AiShared.Emit;
 using Hrot.Hsm.Editor.Emit;
 using Hrot.Hsm.Editor.Model;
+using Hrot.Hsm.Editor.Persistence;
 using Xunit;
 
 namespace Hrot.Hsm.Editor.Tests;
 
 /// <summary>
 /// AIE-026: Save_Hsm_EmitsDeterministicCSharp
+/// PU-105 (re-based): verifies that HsmFluentEmitter (thin adapter) and HsmEmitCore
+/// produce identical byte-for-byte output for the same asset.
 ///
 /// Verifies that:
-///   1. HsmFluentEmitter produces byte-for-byte identical output for the same asset.
+///   1. HsmFluentEmitter (adapter → core) produces identical output as HsmEmitCore directly.
 ///   2. Emitting the same (unchanged) model results in WriteAtomic returning false
 ///      (byte-identical no-op write).
 ///   3. A modified asset produces different output.
@@ -46,6 +50,23 @@ public sealed class SaveHsmEmitTests
             isEditorOwned: false, assemblyNamespace: "Hrot.AI.Behaviors.Machines");
     }
 
+    // ── AIE-026 SC1: HsmFluentEmitter adapter matches core ───────────────────
+
+    [Fact]
+    public void Save_Hsm_EmitterAdapter_MatchesCore_DirectCall()
+    {
+        var asset = BuildAndProject();
+
+        // Adapter path (emitter → mapper → core)
+        string adapterOutput = new HsmFluentEmitter().Emit(asset);
+
+        // Direct core path (mapper → core, no emitter wrapper)
+        var dto = HsmAssetMapper.ToDto(asset);
+        string coreOutput = HsmEmitCore.Emit(dto);
+
+        Assert.Equal(adapterOutput, coreOutput);
+    }
+
     // ── AIE-026 SC3: byte-identical re-emit → WriteAtomic no-op ──────────────
 
     [Fact]
@@ -63,13 +84,45 @@ public sealed class SaveHsmEmitTests
         Assert.Equal(code1, code2);
 
         // Assert: WriteAtomic is a no-op when the file already matches.
+        // Tests AiEmitCoreBase.WriteAtomic (authoritative); FluentCSharpEmitterBase delegates to it.
         string tmp = Path.GetTempFileName();
         try
         {
             File.WriteAllText(tmp, code1);
-            bool written = FluentCSharpEmitterBase.WriteAtomic(tmp, code2);
+            bool written = AiEmitCoreBase.WriteAtomic(tmp, code2);
             Assert.False(written, "WriteAtomic must not write when content is byte-identical.");
             Assert.Equal(code1, File.ReadAllText(tmp));
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void Save_Hsm_Core_IsDeterministic_DirectPath()
+    {
+        var asset = BuildAndProject();
+        var dto = HsmAssetMapper.ToDto(asset);
+
+        string first  = HsmEmitCore.Emit(dto);
+        string second = HsmEmitCore.Emit(dto);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void Save_Hsm_WriteAtomic_ReturnsFalse_WhenByteIdentical()
+    {
+        var dto = HsmAssetMapper.ToDto(BuildAndProject());
+        string content = HsmEmitCore.Emit(dto);
+
+        string tmp = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tmp, content);
+            bool written = FluentCSharpEmitterBase.WriteAtomic(tmp, content);
+            Assert.False(written, "FluentCSharpEmitterBase.WriteAtomic must delegate to AiEmitCoreBase and be a no-op.");
         }
         finally
         {
@@ -114,9 +167,6 @@ public sealed class SaveHsmEmitTests
             var emitter = new HsmFluentEmitter();
             var asset   = BuildAndProject(sourceFile: tmpPath);
 
-            // Simulate a command-sink edit that marks dirty.
-            // (HsmAsset.MarkDirty is internal; we fake dirtiness via direct IsDirty property
-            // which has an internal setter — so we test the public ClearDirty path instead.)
             bool cleared = false;
             var svc = new AiAssetEmitService(
                 emitDelegate: a => (a is HsmAsset hs) ? emitter.Emit(hs) : null,
@@ -157,5 +207,17 @@ public sealed class SaveHsmEmitTests
         Assert.Contains("Running", code);
         Assert.Contains(FluentCSharpEmitterBase.EditorGeneratedMarker, code);
         Assert.Contains(asset.AssetId.ToString("D"), code);
+    }
+
+    [Fact]
+    public void Save_Hsm_Core_ContainsHsmDefinitionConst_AssetId()
+    {
+        // Verify the [HsmDefinition(..., AssetId = "...")] const form is present.
+        var asset = BuildAndProject("GuardFSM");
+        var dto = HsmAssetMapper.ToDto(asset);
+        string code = HsmEmitCore.Emit(dto);
+
+        // Design §6.1 + batch instruction: the const AssetId form must be present.
+        Assert.Contains($"[HsmDefinition(\"GuardFSM\", AssetId = \"{asset.AssetId:D}\")]", code);
     }
 }

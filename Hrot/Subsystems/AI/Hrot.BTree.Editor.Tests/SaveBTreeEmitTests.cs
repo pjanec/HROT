@@ -1,8 +1,10 @@
 using System;
 using System.IO;
 using Fbt;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.BTree.Editor.Emit;
 using Hrot.BTree.Editor.Model;
+using Hrot.BTree.Editor.Persistence;
 using Hrot.Editor.AiShared.Emit;
 using Xunit;
 
@@ -10,13 +12,16 @@ namespace Hrot.BTree.Editor.Tests;
 
 /// <summary>
 /// AIE-026: Save_BTree_EmitsDeterministicCSharp
+/// PU-105 (re-based): verifies that BTreeFluentEmitter (thin adapter) and BTreeEmitCore
+/// produce identical byte-for-byte output for the same asset.
 ///
 /// Verifies that:
-///   1. BTreeFluentEmitter produces identical byte-for-byte output for the same asset.
-///   2. Emitting the same (unchanged) model results in WriteAtomic returning false
+///   1. BTreeFluentEmitter (adapter → core) produces identical output for the same asset.
+///   2. BTreeEmitCore directly produces the same output as BTreeFluentEmitter.
+///   3. Emitting the same (unchanged) model results in WriteAtomic returning false
 ///      (no-op write — file is already byte-identical).
-///   3. A modified asset produces different output.
-///   4. AiAssetEmitService wraps the emitter and writes atomically.
+///   4. A modified asset produces different output.
+///   5. AiAssetEmitService wraps the emitter and writes atomically.
 /// </summary>
 public sealed class SaveBTreeEmitTests
 {
@@ -62,6 +67,23 @@ public sealed class SaveBTreeEmitTests
         return asset;
     }
 
+    // ── AIE-026 SC1: BTreeFluentEmitter adapter produces same output as core ──
+
+    [Fact]
+    public void Save_BTree_EmitterAdapter_MatchesCore_DirectCall()
+    {
+        var asset = MakeAsset();
+
+        // Adapter path (emitter → mapper → core)
+        string adapterOutput = new BTreeFluentEmitter().Emit(asset);
+
+        // Direct core path (mapper → core, no emitter wrapper)
+        var dto = BehaviorTreeAssetMapper.ToDto(asset);
+        string coreOutput = BTreeEmitCore.Emit(dto);
+
+        Assert.Equal(adapterOutput, coreOutput);
+    }
+
     // ── AIE-026 SC2: byte-identical re-emit → WriteAtomic no-op ──────────────
 
     [Fact]
@@ -80,13 +102,46 @@ public sealed class SaveBTreeEmitTests
         Assert.Equal(code1, code2);
 
         // Assert: WriteAtomic returns false when content already matches file.
+        // Uses AiEmitCoreBase.WriteAtomic (the authoritative source; FluentCSharpEmitterBase delegates to it).
         string tmp = Path.GetTempFileName();
         try
         {
             File.WriteAllText(tmp, code1);
-            bool written = FluentCSharpEmitterBase.WriteAtomic(tmp, code2);
+            bool written = AiEmitCoreBase.WriteAtomic(tmp, code2);
             Assert.False(written, "WriteAtomic must be a no-op when content is byte-identical.");
             Assert.Equal(code1, File.ReadAllText(tmp));
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
+        }
+    }
+
+    [Fact]
+    public void Save_BTree_Core_IsDeterministic_DirectPath()
+    {
+        // Core directly (bypassing the editor adapter): same model → same output.
+        var asset = MakeAsset();
+        var dto = BehaviorTreeAssetMapper.ToDto(asset);
+
+        string first  = BTreeEmitCore.Emit(dto);
+        string second = BTreeEmitCore.Emit(dto);
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void Save_BTree_WriteAtomic_ReturnsFalse_WhenByteIdentical()
+    {
+        var dto = BehaviorTreeAssetMapper.ToDto(MakeAsset());
+        string content = BTreeEmitCore.Emit(dto);
+
+        string tmp = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tmp, content);
+            bool written = FluentCSharpEmitterBase.WriteAtomic(tmp, content);
+            Assert.False(written, "FluentCSharpEmitterBase.WriteAtomic must delegate to AiEmitCoreBase and be a no-op.");
         }
         finally
         {
