@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Documents;
 
 namespace Hrot.Editor.AiShared;
@@ -118,6 +120,14 @@ public static class SaveAllAiDocumentsCommand
                     case AssetKind.BTree:
                         if (saveBTreeDelegate != null)
                         {
+                            var btreeCollision = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
+                                path, dir => Directory.EnumerateFiles(dir));
+                            if (btreeCollision != null)
+                            {
+                                // D5 collision: block the write, leave dirty, never throw.
+                                report?.Invoke($"[BLOCKED] '{asset.Name}': {btreeCollision}");
+                                break;
+                            }
                             saveBTreeDelegate(asset, path);
                             doc.MarkClean();
                             report?.Invoke($"Saved BTree '{asset.Name}' → {path}");
@@ -127,6 +137,14 @@ public static class SaveAllAiDocumentsCommand
                     case AssetKind.Hsm:
                         if (saveHsmDelegate != null)
                         {
+                            var hsmCollision = AssetBaseNameCollisionGuard.CheckCollisionOnDisk(
+                                path, dir => Directory.EnumerateFiles(dir));
+                            if (hsmCollision != null)
+                            {
+                                // D5 collision: block the write, leave dirty, never throw.
+                                report?.Invoke($"[BLOCKED] '{asset.Name}': {hsmCollision}");
+                                break;
+                            }
                             saveHsmDelegate(asset, path);
                             doc.MarkClean();
                             report?.Invoke($"Saved HSM '{asset.Name}' → {path}");

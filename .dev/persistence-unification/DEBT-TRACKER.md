@@ -16,6 +16,7 @@
 | PU-D08 | BATCH-04 | `BTreeAssetContributor` drops BB/context type names (`ToDtoWithTypeNames` test workaround). Root-cause fix at PU-301. | P3 | PU-301 | OPEN |
 | PU-D09 | BATCH-05 | Stitch uses `BlackboardLoadState.StructParseFailed` as the unmatched-node diagnostic — semantically stretched; add a dedicated stitch/diagnostic state. | P3 | — | OPEN |
 | PU-D11 | BATCH-06 | Debounced `flushAction` still writes `.cs` for BTree/HSM (edit-to-live). The switch to writing JSON (retiring `.cs` auto-emit) is deferred to PU-401 (flipping before assets are `.json` would break edit-to-live). Deferred-by-design, not a defect. | P2 | PU-401 | OPEN |
+| PU-D12 | BATCH-07 | **PU-501 path-at-creation is blocked on PU-D06 (same root cause).** Writing `.btree.json`/`.hsm.json` at creation requires setting `SourceFilePath` to the `.json`, but the unchanged debounced `flushAction` (PU-D11) writes C# source to `SourceFilePath` on the next edit → it would overwrite the JSON. Safe only after the flushAction→JSON switch (PU-401). Also: BTree/HSM have NO new-asset creation flow today (assembly-reflection projections only). **BATCH-07 ships PU-502 (collision guard) only**; PU-501 rides with PU-401. | P2 | PU-401 | OPEN |
 | PU-D10 | BATCH-05 | `InternalsVisibleTo` added to `Hrot.BTree.Editor`/`Hrot.Hsm.Editor` for `Hrot.Editor.AiShared.Tests` (projector access). Acceptable; flagged. `HsmAsset.Blob`/`Metadata` converted getter-only→backing fields for `UpdateBlob` (HSM suite green). | P3 | — | OPEN |
 
 Legend:

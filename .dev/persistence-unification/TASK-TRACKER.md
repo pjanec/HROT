@@ -46,8 +46,10 @@
 ## Phase 5: Path-at-creation + fixed roots
 **Goal:** every asset gets a real path at creation; no `.cs`/`.json` base-name collisions.
 
-- [ ] **PU-501** Fixed roots + path-at-creation [details](./TASK-DETAIL.md#pu-501-fixed-roots-and-path-at-creation)
-- [ ] **PU-502** Base-name collision guard [details](./TASK-DETAIL.md#pu-502-base-name-collision-guard)
+- [~] **PU-501** Fixed roots + path-at-creation — **DEFERRED to PU-401** (debt PU-D12: SourceFilePath→.json would be clobbered by the unchanged .cs flushAction; BTree/HSM have no creation flow yet) [details](./TASK-DETAIL.md#pu-501-fixed-roots-and-path-at-creation)
+- [x] **PU-502** Base-name collision guard — BATCH-07 (`AssetBaseNameCollisionGuard` + Save-All wiring; both directions) [details](./TASK-DETAIL.md#pu-502-base-name-collision-guard)
+
+> **Phase 5 partial:** PU-502 ✅. PU-501 deferred to the migration batch (PU-401, blocked on PU-D06) — see DEBT PU-D12.
 
 ## Phase 6: Unified Save / Save-All
 **Goal:** all dirty open docs flush to JSON on demand + on close; no debounce data loss.
