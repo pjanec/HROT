@@ -159,7 +159,8 @@ public sealed class AiDocumentManager
         _active = doc;
 
         // Switch the editor perspective to match the document's kind.
-        _perspectiveSwitchCallback(doc.Kind.ToString());
+        // Use ToPerspectiveName() for the canonical map (e.g. Hsm → "HSM").
+        _perspectiveSwitchCallback(doc.Kind.ToPerspectiveName());
 
         // Notify any focus handler (e.g. to bring the canvas to front).
         _focusCallback?.Invoke(_active);

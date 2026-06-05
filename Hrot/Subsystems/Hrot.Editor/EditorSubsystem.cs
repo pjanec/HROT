@@ -598,8 +598,13 @@ namespace Hrot.Editor
             var hsmJsonRootDir     = System.IO.Path.Combine(aiRootDir, "Machines");
             var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
             var hsmJsonContrib     = new HsmJsonAssetContributor();
-            btreeJsonContrib.Discover(rootDirectory: btreeJsonRootDir);
-            hsmJsonContrib.Discover(rootDirectory: hsmJsonRootDir);
+            if (!System.IO.Directory.Exists(btreeJsonRootDir))
+                Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
+            btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
+
+            if (!System.IO.Directory.Exists(hsmJsonRootDir))
+                Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
+            hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
 
             _aiCatalogBuilder = new AiAssetCatalogBuilder(
                 btreeContrib,
@@ -2198,11 +2203,14 @@ namespace Hrot.Editor
 
                 // AIE-026: subscribe to this asset's Changed event so dirty edits
                 // get queued into the regeneration scheduler.
+                // PU-BATCH-10: also mark the document dirty so SaveAllAiDocumentsCommand
+                // includes it (it skips docs where doc.IsDirty == false).
                 if (_regenerationScheduler != null)
                 {
                     var schedulerRef = _regenerationScheduler;
                     doc.Asset.Changed += () =>
                     {
+                        doc.MarkDirty();
                         if (doc.Asset.IsDirty)
                             schedulerRef.Schedule(doc.Asset);
                     };

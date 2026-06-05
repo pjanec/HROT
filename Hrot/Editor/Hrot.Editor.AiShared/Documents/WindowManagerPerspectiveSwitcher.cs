@@ -67,7 +67,8 @@ public sealed class WindowManagerPerspectiveSwitcher : IPerspectiveSwitcher
         AiDocument? candidate = null;
         foreach (var doc in _documentManager.OpenDocuments)
         {
-            if (doc.Kind.ToString() == newPerspective)
+            // Use ToPerspectiveName() for the canonical map (e.g. Hsm → "HSM").
+            if (doc.Kind.ToPerspectiveName() == newPerspective)
                 candidate = doc; // take the last match
         }
 

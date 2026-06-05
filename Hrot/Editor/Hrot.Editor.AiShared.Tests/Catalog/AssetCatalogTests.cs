@@ -1,3 +1,4 @@
+using System.Linq;
 using Hrot.Editor.AiShared.Catalog;
 
 namespace Hrot.Editor.AiShared.Tests.Catalog;
@@ -12,6 +13,8 @@ public sealed class AssetCatalogTests
         public string SourceFilePath { get; init; } = "/test.cs";
         public bool IsDirty { get; init; }
         public bool IsEditorOwned { get; init; }
+        /// <summary>A simple Position proxy for testing: non-zero = JSON (layout-bearing) instance.</summary>
+        public float PositionX { get; init; }
 #pragma warning disable 67
         public event Action? Changed;
 #pragma warning restore 67
@@ -129,5 +132,82 @@ public sealed class AssetCatalogTests
         contributor.AddAsset(asset);
 
         Assert.Contains(asset, catalog.All);
+    }
+
+    // ── BATCH-10 Bug #1b: dedup by AssetId, last-writer (JSON) wins ──────────
+
+    /// <summary>
+    /// Two contributors expose the SAME AssetId:
+    /// assembly contributor first (layout-less, PositionX=0),
+    /// JSON contributor second (layout-bearing, PositionX=42).
+    /// All must contain exactly ONE entry for that id, and it must be the JSON instance.
+    /// </summary>
+    [Fact]
+    public void All_Deduped_ByAssetId_LastWriterWins()
+    {
+        var sharedId = Guid.NewGuid();
+        var assemblyAsset = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 0f };
+        var jsonAsset     = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 42f };
+
+        var catalog = new AssetCatalog();
+        catalog.AddContributor(new FakeContributor(assemblyAsset)); // added first (assembly)
+        catalog.AddContributor(new FakeContributor(jsonAsset));      // added second (JSON)
+
+        // There must be exactly one entry for this id.
+        var entries = catalog.All.Where(a => a.AssetId == sharedId).ToList();
+        Assert.Single(entries);
+
+        // That entry must be the JSON (last-writer) instance.
+        var winner = entries[0];
+        Assert.Equal(42f, ((FakeAsset)winner).PositionX);
+    }
+
+    [Fact]
+    public void FindByAssetId_ReturnsJsonInstance_WhenDuplicate()
+    {
+        var sharedId = Guid.NewGuid();
+        var assemblyAsset = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 0f };
+        var jsonAsset     = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 42f };
+
+        var catalog = new AssetCatalog();
+        catalog.AddContributor(new FakeContributor(assemblyAsset));
+        catalog.AddContributor(new FakeContributor(jsonAsset));
+
+        var result = catalog.FindByAssetId(sharedId);
+        Assert.NotNull(result);
+        Assert.Equal(42f, ((FakeAsset)result!).PositionX);
+    }
+
+    [Fact]
+    public void FindByName_ReturnsJsonInstance_WhenDuplicate()
+    {
+        var sharedId = Guid.NewGuid();
+        var assemblyAsset = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 0f };
+        var jsonAsset     = new FakeAsset { AssetId = sharedId, Name = "SampleScout", PositionX = 42f };
+
+        var catalog = new AssetCatalog();
+        catalog.AddContributor(new FakeContributor(assemblyAsset));
+        catalog.AddContributor(new FakeContributor(jsonAsset));
+
+        var result = catalog.FindByName("SampleScout");
+        Assert.NotNull(result);
+        Assert.Equal(42f, ((FakeAsset)result!).PositionX);
+    }
+
+    [Fact]
+    public void All_TotalCount_IsDeduped_NotRaw()
+    {
+        // 2 contributors, each with the same asset id → All should have 1 entry, not 2.
+        var sharedId = Guid.NewGuid();
+        var a1 = new FakeAsset { AssetId = sharedId, Name = "Shared" };
+        var a2 = new FakeAsset { AssetId = sharedId, Name = "Shared" };
+        var unrelated = new FakeAsset { Name = "Other" };
+
+        var catalog = new AssetCatalog();
+        catalog.AddContributor(new FakeContributor(a1, unrelated));
+        catalog.AddContributor(new FakeContributor(a2));
+
+        // One deduplicated entry for the shared id + one for the unrelated asset = 2 total.
+        Assert.Equal(2, catalog.All.Count);
     }
 }

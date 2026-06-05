@@ -35,13 +35,28 @@ public sealed class AssetCatalog : IAssetCatalog
 
     private void Rebuild()
     {
-        var merged = new List<IEditableAsset>();
+        // Build _byId with last-writer-wins semantics (JSON contributors are added after
+        // assembly contributors by AiAssetCatalogBuilder, so JSON wins the AssetId collision).
+        var byId = new Dictionary<Guid, IEditableAsset>();
         foreach (var contributor in _contributors)
-            merged.AddRange(contributor.Enumerate());
+            foreach (var asset in contributor.Enumerate())
+                byId[asset.AssetId] = asset;
 
-        _cache = merged;
-        _byId = new Dictionary<Guid, IEditableAsset>(merged.Count);
-        foreach (var asset in merged)
-            _byId[asset.AssetId] = asset;
+        // Build _cache as a deduped list (same last-writer order as _byId).
+        // Preserves stable ordering: first occurrence of each AssetId wins the slot,
+        // but the VALUE stored is the last-writer's instance (from byId lookup).
+        var seen  = new HashSet<Guid>(byId.Count);
+        var cache = new List<IEditableAsset>(byId.Count);
+        foreach (var contributor in _contributors)
+        {
+            foreach (var asset in contributor.Enumerate())
+            {
+                if (seen.Add(asset.AssetId))
+                    cache.Add(byId[asset.AssetId]); // resolved to last-writer instance
+            }
+        }
+
+        _cache = cache;
+        _byId  = byId;
     }
 }

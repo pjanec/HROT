@@ -98,10 +98,11 @@ public sealed class AiDocumentManagerTests
         // Re-activate the BTree doc.
         manager.Activate(bTreeDoc);
 
-        // Expected switch sequence: "BTree" (Open BTree), "Hsm" (Open HSM), "BTree" (re-activate).
+        // Expected switch sequence: "BTree" (Open BTree), "HSM" (Open HSM), "BTree" (re-activate).
+        // Note: Hsm.ToPerspectiveName() = "HSM" (canonical name, not enum.ToString() "Hsm").
         Assert.Equal(3, switchLog.Count);
         Assert.Equal("BTree",     switchLog[0]);
-        Assert.Equal("Hsm",       switchLog[1]);
+        Assert.Equal("HSM",       switchLog[1]);
         Assert.Equal("BTree",     switchLog[2]);
     }
 
@@ -239,8 +240,9 @@ public sealed class AiDocumentManagerTests
     }
 
     /// <summary>
-    /// The perspective-switch callback receives the exact enum name
-    /// ("BTree", "Hsm", "Blueprint") — confirming AssetKind.ToString() is the convention.
+    /// The perspective-switch callback receives the canonical perspective name
+    /// ("BTree", "HSM", "Blueprint") — using AssetKindExtensions.ToPerspectiveName().
+    /// Note: Hsm maps to "HSM" (not "Hsm") to match the registered perspective name.
     /// </summary>
     [Fact]
     public void AiDocumentManager_SwitchCallback_ReceivesKindName()
@@ -252,6 +254,6 @@ public sealed class AiDocumentManagerTests
         mgr.Open(new FakeAsset(AssetKind.Hsm,       "Hsm1"));
         mgr.Open(new FakeAsset(AssetKind.BTree,     "Bt1"));
 
-        Assert.Equal(new[] { "Blueprint", "Hsm", "BTree" }, log);
+        Assert.Equal(new[] { "Blueprint", "HSM", "BTree" }, log);
     }
 }
