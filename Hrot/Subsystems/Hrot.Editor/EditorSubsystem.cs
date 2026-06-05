@@ -588,23 +588,53 @@ namespace Hrot.Editor
             var hsmContrib    = new HsmAssetContributor();
             var bpContrib     = new BlueprintAssetContributor(bpRootDir);
 
-            // PU-301: JSON file-based contributors for the dual-load strategy (§3 D4).
-            // No *.btree.json / *.hsm.json exist under Hrot.AI.Behaviors yet (migration is PU-401).
-            // The contributors are dormant in the live editor (discover zero files) but are fully
-            // exercised by synthesized *.json files in tests.
-            // Root directories follow the storage layout described in §2.7: Trees/ and Machines/.
-            var aiRootDir          = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Hrot", "Subsystems", "Hrot.AI.Behaviors");
-            var btreeJsonRootDir   = System.IO.Path.Combine(aiRootDir, "Trees");
-            var hsmJsonRootDir     = System.IO.Path.Combine(aiRootDir, "Machines");
+            // PU-301/PU-402: JSON file-based contributors for the dual-load strategy (§3 D4).
+            // Editor-owned *.btree.json / *.hsm.json live in the SOURCE tree (Trees/ Machines/ under
+            // the Hrot.AI.Behaviors project) — committed + regenerated to C# on build. The editor's
+            // BaseDirectory is the deploy/bin dir, NOT the source tree, so we resolve the project
+            // directory the same robust way RebuildAndReloadAI does: walk up from CWD and BaseDirectory
+            // looking for the .csproj (AiBehaviorsProjectPath). A hard-coded "../../../" is fragile and
+            // breaks when the editor runs from a different bin depth (BATCH-11 fix).
+            static string? ResolveAiBehaviorsDir(string[] csprojSegments)
+            {
+                var relative = System.IO.Path.Combine(csprojSegments);
+                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
+                {
+                    var dir = start;
+                    while (!string.IsNullOrEmpty(dir))
+                    {
+                        var candidate = System.IO.Path.Combine(dir, relative);
+                        if (System.IO.File.Exists(candidate))
+                            return System.IO.Path.GetDirectoryName(candidate);
+                        dir = System.IO.Path.GetDirectoryName(dir);
+                    }
+                }
+                return null;
+            }
+
+            var aiRootDir          = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
             var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
             var hsmJsonContrib     = new HsmJsonAssetContributor();
-            if (!System.IO.Directory.Exists(btreeJsonRootDir))
-                Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
-            btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
+            if (aiRootDir == null)
+            {
+                Console.WriteLine("[EditorSubsystem] WARNING: Hrot.AI.Behaviors project dir not found " +
+                    $"(searched up from CWD + BaseDirectory for {System.IO.Path.Combine(AiBehaviorsProjectPath)}); " +
+                    "editor-owned BTree/HSM JSON assets will not load with layout.");
+            }
+            else
+            {
+                var btreeJsonRootDir = System.IO.Path.Combine(aiRootDir, "Trees");
+                var hsmJsonRootDir   = System.IO.Path.Combine(aiRootDir, "Machines");
+                if (System.IO.Directory.Exists(btreeJsonRootDir))
+                    btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
+                else
+                    Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
 
-            if (!System.IO.Directory.Exists(hsmJsonRootDir))
-                Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
-            hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
+                if (System.IO.Directory.Exists(hsmJsonRootDir))
+                    hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
+                else
+                    Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
+            }
 
             _aiCatalogBuilder = new AiAssetCatalogBuilder(
                 btreeContrib,

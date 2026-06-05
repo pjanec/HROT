@@ -20,3 +20,26 @@ Note: SampleScout is a BTree — "Run blueprint on selected entity" is Blueprint
 
 ## Plan (next session)
 One small batch (call it BATCH-10, "editor smoke fixes"): fix #1, #2, #3 in `EditorSubsystem.cs`; re-verify the canvas→model position sync (#2 deeper half) and the JSON-vs-assembly collision winner (#1 caveat); headless tests where possible + a manual re-smoke by the user. #4/#5 are not our regressions.
+
+---
+
+## Re-smoke #2 (after BATCH-10) — corrected root cause + new classifications
+
+BATCH-10 fixed perspective switching but NOT the BTree/HSM layout (#1/#2). Reason: the JSON-contributor
+**root path was wrong** — the pre-existing `BaseDirectory/../../../Hrot/Subsystems/Hrot.AI.Behaviors` heuristic
+does not resolve at the editor's real run location (e.g. `.../Hrot.ClusterRunner/bin/Debug/net8.0`), so `Refresh`
+loaded zero JSON assets and the flat assembly-projected asset still won. (Because Refresh loaded nothing, the
+BATCH-10 `Refresh`+dedup had no runtime effect — which also means the new GUID error below is NOT from BATCH-10.)
+
+- **#1/#2 FIX (BATCH-11):** `EditorSubsystem` now resolves the Hrot.AI.Behaviors project dir by walking up from
+  CWD + BaseDirectory to find `AiBehaviorsProjectPath` (the same proven strategy as RebuildAndReloadAI), then
+  uses `<projDir>/Trees` + `<projDir>/Machines`. Build + boot green; needs user re-smoke (editor render).
+- **[x] close (OPEN section):** confirmed by user = ImGui hit-test — the `[x]` renders inside the full-row
+  selectable, which eats the click. Minor UI fix (render the `[x]` as a separate item / reserve its rect / use
+  an ID-scoped button outside the row selectable). Low priority; not migration-related.
+- **"Compile/Reload Blueprint" → "an item with the same key has already been added; Key: 0000…-0000":**
+  PRE-EXISTING, separate from this project. `QuickReloadService.BuildSiblingSignatures` enumerates the blueprint
+  catalog and the generated emitter does `staging.Add(BlueprintId, …)`; two blueprints resolving to
+  `BlueprintId = Guid.Empty` collide. Not caused by the BTree/HSM migration (the BTree/HSM bridges register by
+  their own real ids). Needs a separate look (dedup/guard empty BlueprintId in the blueprint compile path) — out
+  of persistence-unification scope; flagged for the user.
