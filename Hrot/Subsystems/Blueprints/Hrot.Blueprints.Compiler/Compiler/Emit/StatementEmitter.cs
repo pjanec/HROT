@@ -26,7 +26,14 @@ internal static class StatementEmitter
             // ------------------------------------------------------------------
 
             case IrOp_Const op:
-                if (idx >= 0) e.WriteLine($"var __t{idx} = {op.CSharpLiteral};");
+                if (idx >= 0)
+                {
+                    // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
+                    var literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
+                        ? $"global::Hrot.Blueprints.Core.Assets.{op.CSharpLiteral}"
+                        : op.CSharpLiteral;
+                    e.WriteLine($"var __t{idx} = {literal};");
+                }
                 break;
 
             case IrOp_ReadParam op:
@@ -73,7 +80,18 @@ internal static class StatementEmitter
             case IrOp_PureCall op:
             {
                 var argList = string.Join(", ", op.Args.Select(a => $"__t{a.Index}"));
-                var call = $"global::{op.MethodFqn}({argList})";
+                string call;
+                // Intercept synthesized comparison/arithmetic operators produced by WaitLowering_*.
+                // These use the naming convention op_<Operation>_<Type> and must be emitted as
+                // native C# infix expressions rather than global:: method calls (which would be invalid).
+                if (TryGetSynthesizedOpInfix(op.MethodFqn, op.Args, out var infixExpr))
+                {
+                    call = infixExpr!;
+                }
+                else
+                {
+                    call = $"global::{op.MethodFqn}({argList})";
+                }
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = {call};");
                 else
@@ -736,6 +754,97 @@ internal static class StatementEmitter
             return synthFieldName.Substring(prefix.Length,
                 synthFieldName.Length - prefix.Length - suffix.Length);
         return synthFieldName;
+    }
+
+    /// <summary>
+    /// Attempts to map a synthesized operator method name (e.g. "op_Eq_Byte") produced by
+    /// WaitLowering stages to a native C# infix expression.  These are NOT real global methods
+    /// and must never be emitted as <c>global::op_Eq_Byte(...)</c>.
+    /// Returns true and sets <paramref name="infixExpr"/> when the method is a known synthesized op.
+    /// </summary>
+    private static bool TryGetSynthesizedOpInfix(
+        string methodFqn,
+        IReadOnlyList<IrValue> args,
+        out string? infixExpr)
+    {
+        // Only intercept the well-known op_<Operation>_<Type> pattern.
+        // Real FQN methods always contain at least one '.' separator.
+        if (methodFqn.IndexOf('.') >= 0)
+        {
+            infixExpr = null;
+            return false;
+        }
+
+        if (!methodFqn.StartsWith("op_", StringComparison.Ordinal))
+        {
+            infixExpr = null;
+            return false;
+        }
+
+        // Extract the operation part (everything between "op_" and the final "_<Type>" suffix).
+        // e.g. "op_Eq_Byte" -> operation = "Eq", "op_LessThan_Single" -> operation = "LessThan"
+        // Strategy: split on '_', skip first token "op", last token is type, remainder is op name.
+        var parts = methodFqn.Split('_');
+        if (parts.Length < 3)
+        {
+            infixExpr = null;
+            return false;
+        }
+
+        // parts[0] = "op", parts[1..^1] = operation words, parts[^1] = type suffix
+        var operationWords = new System.ArraySegment<string>(parts, 1, parts.Length - 2);
+        string operation = string.Join("", operationWords.Array!
+            .Skip(operationWords.Offset).Take(operationWords.Count));
+
+        string? infix = operation switch
+        {
+            "Eq"                  => "==",
+            "NotEq"               => "!=",
+            "LessThan"            => "<",
+            "LessThanOrEqual"     => "<=",
+            "GreaterThan"         => ">",
+            "GreaterThanOrEqual"  => ">=",
+            "Add"                 => "+",
+            "Sub"                 => "-",
+            "Mul"                 => "*",
+            "Div"                 => "/",
+            _                     => null,
+        };
+
+        if (infix == null)
+        {
+            infixExpr = null;
+            return false;
+        }
+
+        if (args.Count == 2)
+        {
+            // The type suffix of the op name (last segment after the final '_').
+            string typeSuffix = parts[parts.Length - 1];
+
+            // NodeStatus comparison: the channel struct uses Fbt.NodeStatus while the compiler
+            // WaitLowering constants use Hrot.Blueprints.Core.Assets.NodeStatus.  These are
+            // two different enums; C# won't allow == between them directly (CS0019).
+            // Cast both sides to int so the underlying byte/int value is compared.
+            if (typeSuffix == "NodeStatus" && (infix == "==" || infix == "!="))
+            {
+                infixExpr = $"((int)__t{args[0].Index} {infix} (int)__t{args[1].Index})";
+                return true;
+            }
+
+            infixExpr = $"(__t{args[0].Index} {infix} __t{args[1].Index})";
+            return true;
+        }
+
+        if (args.Count == 1)
+        {
+            // Unary (e.g. op_Not_Bool) — emit prefix operator.
+            infixExpr = $"({infix}__t{args[0].Index})";
+            return true;
+        }
+
+        infixExpr = null;
+        return false;
     }
 
     internal static string TypeRefToCSharp(IrTypeRef t)

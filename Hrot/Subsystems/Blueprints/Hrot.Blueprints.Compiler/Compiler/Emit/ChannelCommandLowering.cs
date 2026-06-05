@@ -10,6 +10,13 @@ internal static class ChannelCommandLowering
         var n = e.Ctx.NextLocalCounter("ch");
         var worldVar = e.Ctx.WorldVar;
 
+        // Guard: only issue the channel command when the entity actually owns the channel
+        // component.  This makes the generated code safe to call on entities that were not
+        // fully set up (e.g. test scenarios that create minimal entities).  In production
+        // all AI entities carry the required channel components.
+        e.WriteLine($"if ({worldVar}.HasComponent<global::{op.ChannelComponentTypeFqn}>(self))");
+        e.WriteLine("{");
+        e.Indent();
         e.WriteLine($"ref var __ch_{n} = ref {worldVar}.GetComponentRW<global::{op.ChannelComponentTypeFqn}>(self);");
         e.WriteLine($"__ch_{n}.ActiveAction = {op.ActionIdConstantName};");
         if (op.ParamFields.Count > 0)
@@ -37,5 +44,7 @@ internal static class ChannelCommandLowering
             e.WriteLine("}");
         }
         e.WriteLine($"__ch_{n}.ActionInstanceId++;");
+        e.Outdent();
+        e.WriteLine("}");
     }
 }

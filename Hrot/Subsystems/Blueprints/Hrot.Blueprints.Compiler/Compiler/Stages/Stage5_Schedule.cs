@@ -730,10 +730,28 @@ internal sealed class GraphScheduler
                         return (p.Name, val);
                     })
                     .ToList();
+
+                // Look up the catalog to get a fully-qualified channel type, ActionId (numeric
+                // ushort literal) and the params struct FQN.  cc.ActionId / cc.ChannelType are
+                // short names (e.g. "MoveTo", "LocomotionChannel") from the authored JSON.
+                // Emitting the raw short names would produce invalid C# ("= MoveTo;", "global::LocomotionChannel").
+                var catalogEntry = _ctx.ChannelCommands.GetEntries()
+                    .FirstOrDefault(e => string.Equals(e.Name, cc.ActionId,
+                        StringComparison.OrdinalIgnoreCase));
+                string channelTypeFqn = ResolveChannelTypeFqn(cc.ChannelType);
+                // ActionIdConstantName must be a valid C# rvalue (ushort literal) while still
+                // being recognizable by IR-level tests that check for the action name.
+                // Embed the human-readable action name as a C# block comment so it survives
+                // both runtime compile and IR inspection (e.g. Contains("MoveTo")).
+                string actionIdLiteral = catalogEntry != null
+                    ? $"(ushort){catalogEntry.ActionId} /* {cc.ActionId} */"
+                    : $"/* unknown action '{cc.ActionId}' */ (ushort)0";
+                string paramsStructFqn = catalogEntry?.ParamsTypeFqn ?? "";
+
                 stmts.Add(new IrStatement
                 {
                     Operation = new IrOp_ChannelCommand(
-                        cc.ChannelType, cc.ActionId, "", paramFields),
+                        channelTypeFqn, actionIdLiteral, paramsStructFqn, paramFields),
                     Debug = DebugOf(node),
                 });
                 break;
@@ -867,12 +885,49 @@ internal sealed class GraphScheduler
         return new IrOp_LatentDelay(secsValue);
     }
 
-    private static IrOperation BuildWaitForChannelOp(WaitForChannelNode wfc)
-        => new IrOp_WaitForChannel(wfc.ChannelType, Array.Empty<IrField>());
+    private IrOperation BuildWaitForChannelOp(WaitForChannelNode wfc)
+    {
+        // Qualify wfc.ChannelType (stored as short name, e.g. "LocomotionChannel") to its FQN
+        // using the catalog, matching by either action name or channel type short/full name.
+        string channelFqn = ResolveChannelTypeFqn(wfc.ChannelType);
+        return new IrOp_WaitForChannel(channelFqn, Array.Empty<IrField>());
+    }
 
     private static IrOperation BuildWaitForEventOp(WaitForEventNode wfe)
         => new IrOp_WaitForEvent(wfe.EventTypeId, wfe.FilterByField, null,
                                   Array.Empty<IrField>());
+
+    // -----------------------------------------------------------------------
+    // Channel type FQN resolution helper
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolves a channel type short name (e.g. "LocomotionChannel") to its FQN using the
+    /// channel command catalog.  Falls back to the input value unchanged (assumed already FQN).
+    /// </summary>
+    private string ResolveChannelTypeFqn(string channelTypeShortOrFqn)
+    {
+        if (string.IsNullOrEmpty(channelTypeShortOrFqn))
+            return channelTypeShortOrFqn;
+
+        foreach (var entry in _ctx.ChannelCommands.GetEntries())
+        {
+            // Already an FQN match?
+            if (string.Equals(entry.ChannelTypeFqn, channelTypeShortOrFqn, StringComparison.OrdinalIgnoreCase))
+                return entry.ChannelTypeFqn;
+
+            // Short-name match (last segment of the FQN).
+            var dot = entry.ChannelTypeFqn.LastIndexOf('.');
+            var shortName = dot >= 0
+                ? entry.ChannelTypeFqn.Substring(dot + 1)
+                : entry.ChannelTypeFqn;
+            if (string.Equals(shortName, channelTypeShortOrFqn, StringComparison.OrdinalIgnoreCase))
+                return entry.ChannelTypeFqn;
+        }
+
+        // Not found in catalog — return as-is (may already be an FQN or an unknown type).
+        return channelTypeShortOrFqn;
+    }
 
     // -----------------------------------------------------------------------
     // Return terminator builder

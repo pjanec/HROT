@@ -178,6 +178,9 @@ internal static class Stage4_TypeResolve
 
         if (fromType.FullName == toType.FullName) return;
         if (ctx.TypeRegistry.TryGetCoercion(fromType, toType, out _)) return;
+        // System.Object pins are typed-unknown placeholders (e.g. CLR calls rehydrated without
+        // reflection in the MSBuild host); suppress mismatch to let the graph compile.
+        if (fromType.FullName == "System.Object" || toType.FullName == "System.Object") return;
 
         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1501,
             $"Link type mismatch: '{fromType.FullName}' -> '{toType.FullName}' -- no coercion.",

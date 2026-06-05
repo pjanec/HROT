@@ -173,11 +173,24 @@ internal static class Stage3_Normalize
                 $"Orphan node '{orphan.Id}' in graph '{graph.Name}' was eliminated.",
                 asset.AssetId, graph.Id, orphan.Id));
 
-        graph.Nodes = graph.Nodes.Where(n => !orphanIds.Contains(n.Id)).ToList();
-        graph.Links = graph.Links
-            .Where(l => !orphanIds.Contains(l.FromNodeId) && !orphanIds.Contains(l.ToNodeId))
-            .ToList();
-        return graph;
+        // Return a NEW Graph with filtered Nodes/Links rather than mutating the
+        // original Graph object (which may be referenced by the caller's asset variable).
+        // Mutating in place would cause subsequent compiles of the same asset object to
+        // see a pruned graph (e.g. hot-reload re-compiling an identical asset twice).
+        var newGraph = new Graph
+        {
+            Id            = graph.Id,
+            Name          = graph.Name,
+            Kind          = graph.Kind,
+            Inputs        = graph.Inputs,
+            Outputs       = graph.Outputs,
+            EditorMetadata = graph.EditorMetadata,
+            Nodes = graph.Nodes.Where(n => !orphanIds.Contains(n.Id)).ToList(),
+            Links = graph.Links
+                .Where(l => !orphanIds.Contains(l.FromNodeId) && !orphanIds.Contains(l.ToNodeId))
+                .ToList(),
+        };
+        return newGraph;
     }
 
     private static void CollectReachable(Graph graph, Guid startId, HashSet<Guid> visited)

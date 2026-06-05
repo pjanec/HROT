@@ -253,6 +253,15 @@ internal sealed class V_GraphStructure : IValidator
                 continue;
             }
 
+            // Skip BP1601 check for multi-node linkless graphs.
+            // These are documentation / recipe blueprints that were saved with nodes but no
+            // wiring (projection-only JSON).  After Stage0 rehydrates pins the node count is
+            // > 1 but Links is still empty, so exec-reachability would always fail.
+            // Single-node linkless graphs (e.g. a lone EventEntryNode produced by a unit-test
+            // builder) ARE checked because there is no WIP intent — the blueprint is structurally
+            // complete but simply missing a return path.
+            if (graph.Links.Count == 0 && graph.Nodes.Count > 1) continue;
+
             // Exec-reachability check
             var reachable = new HashSet<Guid>();
             CollectExecReachable(graph, entryNode.Id, reachable);

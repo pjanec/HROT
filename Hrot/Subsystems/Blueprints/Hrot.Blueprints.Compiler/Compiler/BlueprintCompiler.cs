@@ -24,6 +24,35 @@ public sealed class BlueprintCompiler : IBlueprintCompiler
         var sink = new DiagnosticSink();
         var ctx  = new ValidationContext(sink, options);
 
+        // Stage 0 -- Rehydrate pin-less nodes (saved projection-only assets have Pins:[]).
+        // NOTE: Stage0 mutates node.Pins in place; later stages (Stage3) may also replace
+        // asset.Graphs.  To prevent mutations from leaking back to the caller we work on a
+        // shallow copy of the asset that owns a new Graphs list (graphs themselves are shared
+        // and stage0 pin mutation IS visible to caller — that is intentional rehydration).
+        asset = new BlueprintAsset
+        {
+            Header             = asset.Header,
+            AssetId            = asset.AssetId,
+            Name               = asset.Name,
+            Dispatch           = asset.Dispatch,
+            TierHint           = asset.TierHint,
+            IsWorldSingleton   = asset.IsWorldSingleton,
+            Primitive          = asset.Primitive,
+            Parameters         = asset.Parameters,
+            ParameterOrder     = asset.ParameterOrder,
+            WorkingState       = asset.WorkingState,
+            WorkingStateOrder  = asset.WorkingStateOrder,
+            Variables          = asset.Variables,
+            VariableOrder      = asset.VariableOrder,
+            EventDispatchers   = asset.EventDispatchers,
+            CustomEvents       = asset.CustomEvents,
+            CallablePeers      = asset.CallablePeers,
+            Graphs             = new List<Graph>(asset.Graphs),  // new list, same graph objects
+            EditorMetadata     = asset.EditorMetadata,
+        };
+
+        Stage0_Rehydrate.Run(asset, options);
+
         // Stage 2 -- Validate
         Stage2_Validate.Run(asset, ctx);
         if (sink.HasErrors) return FailResult(sink, asset);
