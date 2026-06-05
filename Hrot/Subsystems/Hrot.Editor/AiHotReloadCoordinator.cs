@@ -252,11 +252,28 @@ namespace Hrot.Editor
 
                 foreach (var registrar in pending.Registrars)
                 {
-                    var args = registrar.Parameters
-                        .OrderBy(p => p.OrdinalIndex)
-                        .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
-                        .ToArray();
-                    registrar.RegisterMethod.Invoke(null, args);
+                    // PU-402 resilience: a single broken editor-owned asset (e.g. an HSM whose saved
+                    // .hsm.json has an invalid structure — an orphaned transition target) must NOT abort
+                    // the whole reload batch or crash the editor. Invoke each registrar in isolation;
+                    // skip + report the failing one so the rest still register and the editor stays usable.
+                    try
+                    {
+                        var args = registrar.Parameters
+                            .OrderBy(p => p.OrdinalIndex)
+                            .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
+                            .ToArray();
+                        registrar.RegisterMethod.Invoke(null, args);
+                    }
+                    catch (Exception regEx)
+                    {
+                        // Unwrap reflection's TargetInvocationException for a useful message.
+                        var inner = (regEx as TargetInvocationException)?.InnerException ?? regEx;
+                        var assetName = registrar.RegisterMethod.DeclaringType?.Name ?? "<unknown>";
+                        Console.WriteLine(
+                            $"[AiHotReload] WARNING: registrar '{assetName}' failed to register and was skipped: {inner.Message}");
+                        OnReloadFailed?.Invoke(pending.DllPath, inner);
+                        // continue: register the remaining assets
+                    }
                 }
 
                 // Step 3: atomic commit of BlueprintRegistry.
