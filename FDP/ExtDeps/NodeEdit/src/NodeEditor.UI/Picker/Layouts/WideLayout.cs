@@ -21,18 +21,38 @@ internal static class WideLayout
         if (ImGui.BeginChild("##picker_cats", new Vector2(SidebarWidth, height),
                 ImGuiChildFlags.None, ImGuiWindowFlags.NoScrollbar))
         {
-            DrawCategorySidebar(state, ctx);
+            try
+            {
+                DrawCategorySidebar(state, ctx);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
 
         ImGui.SameLine(0f, 4f);
 
         // Item list.
         if (ImGui.BeginChild("##picker_wide_list", new Vector2(0f, height), ImGuiChildFlags.None))
         {
-            DrawWideItems(state, ctx);
+            try
+            {
+                DrawWideItems(state, ctx);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 
     // ── sidebar ───────────────────────────────────────────────────────────────

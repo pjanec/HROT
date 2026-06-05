@@ -147,21 +147,25 @@ public sealed class PickerWindow
         bool windowOpen = true;
         bool visible    = ImGui.Begin(_title + "##picker", ref windowOpen, flags);
 
-        if (!windowOpen)
+        try
+        {
+            if (!windowOpen)
+            {
+                Cancel();
+                return;
+            }
+
+            if (!visible)
+            {
+                return;
+            }
+
+            DrawContent();
+        }
+        finally
         {
             ImGui.End();
-            Cancel();
-            return;
         }
-
-        if (!visible)
-        {
-            ImGui.End();
-            return;
-        }
-
-        DrawContent();
-        ImGui.End();
     }
 
     // ── content ───────────────────────────────────────────────────────────────

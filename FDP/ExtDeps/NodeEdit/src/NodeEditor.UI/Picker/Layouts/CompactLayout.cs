@@ -16,8 +16,18 @@ internal static class CompactLayout
         float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
         if (ImGui.BeginChild("##picker_compact", new Vector2(0f, height), ImGuiChildFlags.None))
         {
-            PickerItemListHelper.DrawItems(state, ctx, singleColumn: true);
+            try
+            {
+                PickerItemListHelper.DrawItems(state, ctx, singleColumn: true);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 }

@@ -204,6 +204,9 @@ internal static class NodePinSchema
     /// </summary>
     private static IReadOnlyList<Pin> EventEntryNodePins(Graph? containingGraph)
     {
+        if (containingGraph is null)
+            return ExecOnly("Out");
+
         if (containingGraph?.Kind == GraphKind.Function && containingGraph.Inputs.Count > 0)
         {
             var pins = new List<Pin>(1 + containingGraph.Inputs.Count);
@@ -237,6 +240,9 @@ internal static class NodePinSchema
     /// </summary>
     private static IReadOnlyList<Pin> ReturnNodePins(Graph? containingGraph)
     {
+        if (containingGraph is null)
+            return ExecOnly("In");
+
         if (containingGraph?.Kind == GraphKind.Function && containingGraph.Outputs.Count > 0)
         {
             var output = containingGraph.Outputs[0];

@@ -19,12 +19,22 @@ internal static class TreeLayout
         float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing();
         if (ImGui.BeginChild("##picker_tree", new Vector2(0f, height), ImGuiChildFlags.None))
         {
-            if (explicitRoot is not null)
-                DrawExplicitTree(state, ctx, explicitRoot, 0);
-            else
-                DrawImplicitTree(state, ctx);
+            try
+            {
+                if (explicitRoot is not null)
+                    DrawExplicitTree(state, ctx, explicitRoot, 0);
+                else
+                    DrawImplicitTree(state, ctx);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 
     // ── implicit tree (built from Category strings) ───────────────────────────

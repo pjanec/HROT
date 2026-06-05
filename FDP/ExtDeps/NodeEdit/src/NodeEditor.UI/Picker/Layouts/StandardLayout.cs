@@ -37,9 +37,19 @@ internal static class StandardLayout
         float height = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing(); // leave room for OK/Cancel
         if (ImGui.BeginChild("##picker_list", new Vector2(width, height), ImGuiChildFlags.None))
         {
-            PickerItemListHelper.DrawItems(state, ctx, singleColumn: true);
+            try
+            {
+                PickerItemListHelper.DrawItems(state, ctx, singleColumn: true);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 
     // ── detail ────────────────────────────────────────────────────────────────
@@ -50,26 +60,36 @@ internal static class StandardLayout
         if (ImGui.BeginChild("##picker_detail", new Vector2(width, height), ImGuiChildFlags.None,
                 ImGuiWindowFlags.NoScrollbar))
         {
-            int focused = state.KeyboardFocusIndex;
-            PickerEntry? entry = (focused >= 0 && focused < state.Filtered.Count)
-                ? state.Filtered[focused].Entry
-                : null;
+            try
+            {
+                int focused = state.KeyboardFocusIndex;
+                PickerEntry? entry = (focused >= 0 && focused < state.Filtered.Count)
+                    ? state.Filtered[focused].Entry
+                    : null;
 
-            if (entry is not null)
-            {
-                ImGui.PushTextWrapPos(width - 8f);
-                ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
-                if (entry.Category is { Length: > 0 })
-                    ImGui.TextColored(ctx.Theme.TextMuted, entry.Category);
-                if (entry.Description is { Length: > 0 })
-                    ImGui.TextWrapped(entry.Description);
-                ImGui.PopTextWrapPos();
+                if (entry is not null)
+                {
+                    ImGui.PushTextWrapPos(width - 8f);
+                    ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
+                    if (entry.Category is { Length: > 0 })
+                        ImGui.TextColored(ctx.Theme.TextMuted, entry.Category);
+                    if (entry.Description is { Length: > 0 })
+                        ImGui.TextWrapped(entry.Description);
+                    ImGui.PopTextWrapPos();
+                }
+                else
+                {
+                    ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                }
             }
-            else
+            finally
             {
-                ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                ImGui.EndChild();
             }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 }

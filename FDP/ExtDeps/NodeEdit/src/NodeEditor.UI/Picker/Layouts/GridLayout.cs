@@ -24,9 +24,19 @@ internal static class GridLayout
 
         if (ImGui.BeginChild("##picker_grid", new Vector2(0f, listH2), ImGuiChildFlags.None))
         {
-            DrawGrid(state, ctx);
+            try
+            {
+                DrawGrid(state, ctx);
+            }
+            finally
+            {
+                ImGui.EndChild();
+            }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
 
         ImGui.Separator();
         DrawDetailStrip(state, ctx);
@@ -116,19 +126,29 @@ internal static class GridLayout
 
         if (ImGui.BeginChild("##picker_grid_detail", new Vector2(0f, PreviewH), ImGuiChildFlags.None))
         {
-            if (entry is not null)
+            try
             {
-                ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
-                if (entry.Category is { Length: > 0 })
-                    ImGui.TextColored(ctx.Theme.TextMuted, entry.Category);
-                if (entry.Description is { Length: > 0 })
-                    ImGui.TextWrapped(entry.Description);
+                if (entry is not null)
+                {
+                    ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
+                    if (entry.Category is { Length: > 0 })
+                        ImGui.TextColored(ctx.Theme.TextMuted, entry.Category);
+                    if (entry.Description is { Length: > 0 })
+                        ImGui.TextWrapped(entry.Description);
+                }
+                else
+                {
+                    ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                }
             }
-            else
+            finally
             {
-                ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                ImGui.EndChild();
             }
         }
-        ImGui.EndChild();
+        else
+        {
+            ImGui.EndChild();
+        }
     }
 }
