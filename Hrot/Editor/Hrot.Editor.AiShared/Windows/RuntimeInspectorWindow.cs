@@ -46,7 +46,25 @@ public sealed class RuntimeInspectorWindow : ManagedWindow
 
     protected override void DrawClientArea()
     {
-        // Shell: show empty state until subsystem panes are registered.
-        ImGuiNET.ImGui.TextDisabled("No active session.");
+        var activeAsset = _store.ActiveAsset;
+    
+        // If no asset is focused in the editor, we have nothing to inspect
+        if (activeAsset == null)
+        {
+            ImGuiNET.ImGui.TextDisabled("No active session.");
+            return;
+        }
+
+        // Find the pane that matches the currently active asset's kind (Blueprint, BTree, or HSM)
+        var pane = _panes.Find(p => p.TargetKind == activeAsset.Kind);
+    
+        if (pane != null)
+        {
+            pane.Draw();
+        }
+        else
+        {
+            ImGuiNET.ImGui.TextDisabled("No active session.");
+        }
     }
 }

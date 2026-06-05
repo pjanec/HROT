@@ -306,6 +306,7 @@ namespace Hrot.Editor
         // committed into _blueprintRegistry via _aiCoordinator.ApplyQuickReload so the
         // SAME registry instance the kernel ticks immediately sees the new definition.
         private Action? _blueprintCompileCallback;
+        private Action? _blueprintFullRebuildCallback;
         private string _blueprintCompileStatus = string.Empty;
 
         // PU-603: "Save All" toolbar button + Ctrl+Shift+S shortcut.
@@ -582,11 +583,9 @@ namespace Hrot.Editor
             // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
             // Contributors are created and registered in one step via AiAssetCatalogBuilder.
             // The blueprints directory mirrors the path used by the retired CreateBlueprintWindowRegistrar.
-            var bpRootDir     = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
             // AIE-030: pass _btreeDebugSession so LoadFrom wires NodeDebugMetadata for symbolication.
             var btreeContrib  = new BTreeAssetContributor(_btreeDebugSession);
             var hsmContrib    = new HsmAssetContributor();
-            var bpContrib     = new BlueprintAssetContributor(bpRootDir);
 
             // PU-301/PU-402: JSON file-based contributors for the dual-load strategy (§3 D4).
             // Editor-owned *.btree.json / *.hsm.json live in the SOURCE tree (Trees/ Machines/ under
@@ -613,6 +612,10 @@ namespace Hrot.Editor
             }
 
             var aiRootDir          = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
+            var bpRootDir          = aiRootDir != null
+                ? System.IO.Path.Combine(aiRootDir, "Blueprints")
+                : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+            var bpContrib          = new BlueprintAssetContributor(bpRootDir);
             var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
             var hsmJsonContrib     = new HsmJsonAssetContributor();
             if (aiRootDir == null)
@@ -1601,6 +1604,14 @@ namespace Hrot.Editor
                     {
                         _blueprintCompileCallback.Invoke();
                     }
+                    if (_blueprintFullRebuildCallback != null)
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        if (ImGuiNET.ImGui.Button("Full Rebuild"))
+                        {
+                            _blueprintFullRebuildCallback.Invoke();
+                        }
+                    }
                     if (!string.IsNullOrEmpty(_blueprintCompileStatus))
                     {
                         ImGuiNET.ImGui.SameLine();
@@ -1918,7 +1929,29 @@ namespace Hrot.Editor
                 var service = new Hrot.Blueprints.Editor.NewFromRecipeService();
                 var newAsset = service.CreateFromRecipe(recipe, newName);
 
-                string saveDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                string? recipeProjectDir = null;
+                var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
+                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
+                {
+                    var dir = start;
+                    while (!string.IsNullOrEmpty(dir))
+                    {
+                        var candidate = System.IO.Path.Combine(dir, relativeProjectPath);
+                        if (System.IO.File.Exists(candidate))
+                        {
+                            recipeProjectDir = System.IO.Path.GetDirectoryName(candidate);
+                            break;
+                        }
+                        dir = System.IO.Path.GetDirectoryName(dir);
+                    }
+
+                    if (recipeProjectDir != null)
+                        break;
+                }
+
+                string saveDir = recipeProjectDir != null
+                    ? System.IO.Path.Combine(recipeProjectDir, "Blueprints")
+                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
                 System.IO.Directory.CreateDirectory(saveDir);
                 string path = System.IO.Path.Combine(saveDir, $"{newName}.bp.json");
 
@@ -2131,7 +2164,7 @@ namespace Hrot.Editor
                 var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
                 blueprintPane.SetSession(_blueprintDebugSession);
                 blueprintPane.SetResolvers(
-                    selectedEntityResolver: () => _blueprintSelectionStore?.SelectedEntity,
+                    selectedEntityResolver: () => _aiEditorSelectionStore?.SelectedEntity,
                     activeAssetIdResolver:  () =>
                     {
                         var ctx = _aiDocumentManager?.Active?.ViewState
@@ -2319,10 +2352,33 @@ namespace Hrot.Editor
             // .GetAwaiter().GetResult() is safe here — it never yields to the thread pool.
             // Result/diagnostics are surfaced to _blueprintCompileStatus.
             {
-                var bpDir      = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                string? quickReloadProjectDir = null;
+                var quickReloadRelativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
+                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
+                {
+                    var dir = start;
+                    while (!string.IsNullOrEmpty(dir))
+                    {
+                        var candidate = System.IO.Path.Combine(dir, quickReloadRelativeProjectPath);
+                        if (System.IO.File.Exists(candidate))
+                        {
+                            quickReloadProjectDir = System.IO.Path.GetDirectoryName(candidate);
+                            break;
+                        }
+                        dir = System.IO.Path.GetDirectoryName(dir);
+                    }
+
+                    if (quickReloadProjectDir != null)
+                        break;
+                }
+                var bpDir      = quickReloadProjectDir != null
+                    ? System.IO.Path.Combine(quickReloadProjectDir, "Blueprints")
+                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
                 var qrsCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpDir);
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();
-                var qrsConsole = new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
+                var qrsConsole = _hotReloadSource != null
+                    ? (Hrot.Blueprints.Editor.IOutputConsole)new MessageLogOutputConsole(_hotReloadSource)
+                    : new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
                 var qrsCompiler = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler();
 
                 // Lightweight FDP coordinator — shares _blueprintRegistry with the kernel.
@@ -2339,6 +2395,31 @@ namespace Hrot.Editor
                     qrsCoordinator,
                     session: _blueprintDebugSession);
 
+                string? fullRebuildProjectDir = null;
+                var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
+                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
+                {
+                    var dir = start;
+                    while (!string.IsNullOrEmpty(dir))
+                    {
+                        var candidate = System.IO.Path.Combine(dir, relativeProjectPath);
+                        if (System.IO.File.Exists(candidate))
+                        {
+                            fullRebuildProjectDir = System.IO.Path.GetDirectoryName(candidate);
+                            break;
+                        }
+                        dir = System.IO.Path.GetDirectoryName(dir);
+                    }
+
+                    if (fullRebuildProjectDir != null)
+                        break;
+                }
+
+                string buildTarget = fullRebuildProjectDir != null
+                    ? $"\"{System.IO.Path.Combine(fullRebuildProjectDir, "Hrot.AI.Behaviors.csproj")}\""
+                    : string.Empty;
+                var fullRebuildService = new Hrot.Blueprints.Editor.Reload.FullRebuildService(qrsConsole, buildTarget);
+
                 _blueprintQuickReloadTrigger = editableAsset =>
                 {
                     // Resolve the BlueprintAsset from the active document's canvas context.
@@ -2353,6 +2434,16 @@ namespace Hrot.Editor
                         ? $"Compiled in {result.DurationMs}ms"
                         : $"Compile failed: {result.ErrorMessage}";
                 };
+
+                var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
+                rebuildRegistrar.RegisterToolbarEntry(
+                    "Full Rebuild",
+                    () =>
+                    {
+                        _saveAllCallback?.Invoke();
+                        _ = fullRebuildService.TriggerAsync();
+                    });
+                _blueprintFullRebuildCallback = rebuildRegistrar.GetToolbarCallback("Full Rebuild");
             }
 
             _regenerationScheduler = new Hrot.Editor.AiShared.Emit.RegenerationScheduler(
@@ -2815,6 +2906,46 @@ namespace Hrot.Editor
                 => registry.RegisterSystem(_simulationGroup);
 
             public void Tick(ISimulationView view, float deltaTime) { }
+        }
+
+        private sealed class MessageLogOutputConsole : Hrot.Blueprints.Editor.IOutputConsole
+        {
+            private readonly HotReloadMessageLogSource _source;
+
+            public MessageLogOutputConsole(HotReloadMessageLogSource source)
+            {
+                _source = source;
+            }
+
+            public void LogInfo(string message)
+            {
+                Console.WriteLine($"[BP] INFO: {message}");
+                _source.PushLine(message);
+            }
+
+            public void LogWarning(string message)
+            {
+                Console.WriteLine($"[BP] WARN: {message}");
+                _source.PushLine($"warning: {message}");
+            }
+
+            public void LogError(string message)
+            {
+                Console.WriteLine($"[BP] ERR:  {message}");
+                _source.PushLine($"error: {message}");
+            }
+
+            public void LogDebug(string message)
+            {
+                Console.WriteLine($"[BP] DBG:  {message}");
+                _source.PushLine(message);
+            }
+
+            public void LogDiagnostic(Microsoft.CodeAnalysis.Diagnostic diagnostic)
+            {
+                Console.WriteLine($"[BP] {diagnostic.Severity}: {diagnostic.GetMessage()}");
+                _source.PushLine($"{diagnostic.Severity}: {diagnostic.GetMessage()}");
+            }
         }
     }
 }
