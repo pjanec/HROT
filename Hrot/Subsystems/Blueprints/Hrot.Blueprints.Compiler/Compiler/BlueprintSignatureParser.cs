@@ -22,11 +22,11 @@ public static class BlueprintSignatureParser
             using var doc = JsonDocument.Parse(jsonText);
             var root = doc.RootElement;
 
-            var assetId = root.TryGetProperty("assetId", out var idProp)
+            var assetId = root.TryGetPropCI("assetId", out var idProp)
                 ? Guid.TryParse(idProp.GetString(), out var g) ? g : Guid.Empty
                 : Guid.Empty;
 
-            var name = root.TryGetProperty("name", out var nameProp)
+            var name = root.TryGetPropCI("name", out var nameProp)
                 ? nameProp.GetString() ?? ""
                 : "";
 
@@ -63,8 +63,14 @@ public static class BlueprintSignatureParser
 
     private static BlueprintDispatchKind ParseDispatch(JsonElement root)
     {
-        if (!root.TryGetProperty("dispatch", out var dispProp)) return BlueprintDispatchKind.Library;
-        return dispProp.GetString()?.ToLowerInvariant() switch
+        if (!root.TryGetPropCI("dispatch", out var dispProp)) return BlueprintDispatchKind.Library;
+        // The real .bp.json serializes the enum as a NUMBER (Library=0, AiPrimitive=1, Instance=2);
+        // some fixtures use the string name. Handle both (GetString() on a number would throw).
+        if (dispProp.ValueKind == JsonValueKind.Number && dispProp.TryGetInt32(out var n)
+            && Enum.IsDefined(typeof(BlueprintDispatchKind), n))
+            return (BlueprintDispatchKind)n;
+        var s = dispProp.ValueKind == JsonValueKind.String ? dispProp.GetString() : null;
+        return s?.ToLowerInvariant() switch
         {
             "aiprimitive" => BlueprintDispatchKind.AiPrimitive,
             "instance"    => BlueprintDispatchKind.Instance,
@@ -75,13 +81,16 @@ public static class BlueprintSignatureParser
     private static IReadOnlyList<BlueprintFunctionSig> ParseExportedFunctions(JsonElement root)
     {
         var result = new List<BlueprintFunctionSig>();
-        if (!root.TryGetProperty("graphs", out var graphs)) return result;
+        if (!root.TryGetPropCI("graphs", out var graphs)) return result;
         foreach (var graph in graphs.EnumerateArray())
         {
             // Accept both string "Function" and integer 0 (GraphKind.Function == 0).
-            var kind = graph.TryGetProperty("kind", out var kp) ? kp.GetString() : null;
-            if (kind?.Equals("Function", StringComparison.OrdinalIgnoreCase) != true) continue;
-            var name = graph.TryGetProperty("name", out var np) ? np.GetString() : null;
+            if (!graph.TryGetPropCI("kind", out var kp)) continue;
+            bool isFunction = kp.ValueKind == JsonValueKind.String
+                ? string.Equals(kp.GetString(), "Function", StringComparison.OrdinalIgnoreCase)
+                : kp.ValueKind == JsonValueKind.Number && kp.TryGetInt32(out var gk) && gk == 0;
+            if (!isFunction) continue;
+            var name = graph.TryGetPropCI("name", out var np) ? np.GetString() : null;
             if (string.IsNullOrEmpty(name)) continue;
 
             var inputs  = ParseParamList(graph, "inputs");
@@ -93,13 +102,13 @@ public static class BlueprintSignatureParser
 
     private static IReadOnlyList<BlueprintParamSig> ParseParamList(JsonElement graph, string propertyName)
     {
-        if (!graph.TryGetProperty(propertyName, out var arr)) return Array.Empty<BlueprintParamSig>();
+        if (!graph.TryGetPropCI(propertyName, out var arr)) return Array.Empty<BlueprintParamSig>();
         var result = new List<BlueprintParamSig>();
         foreach (var item in arr.EnumerateArray())
         {
-            var name   = item.TryGetProperty("name",   out var np) ? np.GetString() : null;
-            var typeId = item.TryGetProperty("type",   out var tp)
-                         && tp.TryGetProperty("typeid", out var tidp)
+            var name   = item.TryGetPropCI("name",   out var np) ? np.GetString() : null;
+            var typeId = item.TryGetPropCI("type",   out var tp)
+                         && tp.TryGetPropCI("typeid", out var tidp)
                          ? tidp.GetString()
                          : null;
             if (!string.IsNullOrEmpty(name))
@@ -111,13 +120,21 @@ public static class BlueprintSignatureParser
     private static IReadOnlyList<AiPrimitiveHosting> ParseHostings(JsonElement root)
     {
         var result = new List<AiPrimitiveHosting>();
-        if (!root.TryGetProperty("primitive", out var prim)) return result;
-        if (!prim.TryGetProperty("hostings", out var hostings)) return result;
+        if (!root.TryGetPropCI("primitive", out var prim)) return result;
+        if (!prim.TryGetPropCI("hostings", out var hostings)) return result;
         foreach (var h in hostings.EnumerateArray())
         {
-            var val = h.GetString();
-            if (Enum.TryParse<AiPrimitiveHosting>(val, ignoreCase: true, out var hosting))
-                result.Add(hosting);
+            // Hostings may be serialized as enum names (string) or numbers; tolerate both.
+            if (h.ValueKind == JsonValueKind.String)
+            {
+                if (Enum.TryParse<AiPrimitiveHosting>(h.GetString(), ignoreCase: true, out var hosting))
+                    result.Add(hosting);
+            }
+            else if (h.ValueKind == JsonValueKind.Number && h.TryGetInt32(out var hn)
+                     && Enum.IsDefined(typeof(AiPrimitiveHosting), hn))
+            {
+                result.Add((AiPrimitiveHosting)hn);
+            }
         }
         return result;
     }
@@ -125,7 +142,7 @@ public static class BlueprintSignatureParser
     private static IReadOnlyList<Guid> ParseCallablePeers(JsonElement root)
     {
         var result = new List<Guid>();
-        if (!root.TryGetProperty("callablePeers", out var peers)) return result;
+        if (!root.TryGetPropCI("callablePeers", out var peers)) return result;
         foreach (var p in peers.EnumerateArray())
         {
             if (Guid.TryParse(p.GetString(), out var id))
@@ -145,4 +162,32 @@ public static class BlueprintSignatureParser
             ExportedFunctions: Array.Empty<BlueprintFunctionSig>(),
             Hostings: Array.Empty<AiPrimitiveHosting>(),
             DeclaredCallablePeers: Array.Empty<Guid>());
+}
+
+/// <summary>
+/// Case-insensitive JSON property lookup. The on-disk <c>.bp.json</c> is serialized PascalCase
+/// (<c>AssetId</c>, <c>Name</c>, <c>Dispatch</c>, …) while some legacy/test fixtures are camelCase;
+/// <see cref="JsonElement.TryGetProperty(string, out JsonElement)"/> is case-sensitive, so reading
+/// camelCase names against PascalCase files silently failed (every parsed sibling got
+/// <c>AssetId = Guid.Empty</c>, which then collided in <c>ValidationContext</c>'s
+/// <c>ToDictionary(s =&gt; s.AssetId)</c>). JSON parsing must be case-insensitive.
+/// </summary>
+internal static class JsonElementCaseInsensitiveExtensions
+{
+    public static bool TryGetPropCI(this JsonElement el, string name, out JsonElement value)
+    {
+        if (el.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in el.EnumerateObject())
+            {
+                if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = prop.Value;
+                    return true;
+                }
+            }
+        }
+        value = default;
+        return false;
+    }
 }
