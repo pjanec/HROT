@@ -67,7 +67,7 @@ public sealed class BTreeJsonGeneratorTests
         return driver.GetRunResult();
     }
 
-    // ── (a) valid *.btree.json produces topology core ─────────────────────────────
+    // ── (a) valid *.btree.json produces topology core + bridge (PU-203) ─────────────
 
     [Fact]
     public void ValidBTreeJson_ProducesGeneratedSource_ContainingCreateBuilderAndThunk()
@@ -83,23 +83,31 @@ public sealed class BTreeJsonGeneratorTests
         // Act
         var result = RunGenerator(additionalText);
 
-        // Assert: one generated source file
-        result.GeneratedTrees.Should().HaveCount(1,
-            "one valid asset should produce exactly one generated source");
+        // Assert: PU-203 — 2 files per asset: topology core + bridge
+        result.GeneratedTrees.Should().HaveCount(2,
+            "one valid asset produces 2 files: topology core ({Name}.g.cs) + bridge ({Name}.Registrar.g.cs)");
 
-        var source = result.GeneratedTrees[0].ToString();
+        // Topology-core file: contains CreateBuilder and [BTreeDefinition] thunk
+        var coreSource = result.GeneratedTrees
+            .First(t => !t.FilePath.Contains("Registrar"))
+            .ToString();
 
-        // Contains CreateBuilder (topology)
-        source.Should().Contain("CreateBuilder()",
-            "generated .g.cs must contain CreateBuilder()");
+        coreSource.Should().Contain("CreateBuilder()",
+            "topology-core .g.cs must contain CreateBuilder()");
+        coreSource.Should().Contain("[BTreeDefinition(",
+            "topology-core .g.cs must contain the [BTreeDefinition] thunk attribute");
+        coreSource.Should().NotContain("[BTreeLayout(",
+            "topology-core .g.cs must NOT contain [BTreeLayout( — layout is JSON-only (§6.2)");
 
-        // Contains [BTreeDefinition] thunk
-        source.Should().Contain("[BTreeDefinition(",
-            "generated .g.cs must contain the [BTreeDefinition] thunk attribute");
+        // Bridge file: contains [BlueprintRegistrar] and Register method
+        var bridgeSource = result.GeneratedTrees
+            .First(t => t.FilePath.Contains("Registrar"))
+            .ToString();
 
-        // Does NOT contain [BTreeLayout — layout excluded from generator output
-        source.Should().NotContain("[BTreeLayout(",
-            "generated .g.cs must NOT contain [BTreeLayout( — layout is JSON-only (§6.2)");
+        bridgeSource.Should().Contain("[BlueprintRegistrar]",
+            "bridge .g.cs must carry [BlueprintRegistrar]");
+        bridgeSource.Should().Contain("Register(BehaviorRegistry",
+            "bridge .g.cs must have Register(BehaviorRegistry ...) method");
 
         // No diagnostics
         result.Diagnostics.Should().BeEmpty(
@@ -116,10 +124,14 @@ public sealed class BTreeJsonGeneratorTests
         var additionalText = MakeAdditionalText("/path/SampleScout.btree.json", json);
         var result = RunGenerator(additionalText);
 
-        result.GeneratedTrees.Should().HaveCount(1);
-        var tree = result.GeneratedTrees[0];
-        tree.FilePath.Should().EndWith("SampleScout.g.cs",
-            "hint name must be {AssetName}.g.cs");
+        result.GeneratedTrees.Should().HaveCount(2,
+            "must produce topology core + bridge files");
+        // Topology core hint name
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleScout.g.cs"),
+            "topology-core hint name must be {AssetName}.g.cs");
+        // Bridge hint name
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleScout.Registrar.g.cs"),
+            "bridge hint name must be {AssetName}.Registrar.g.cs");
     }
 
     [Fact]
@@ -130,10 +142,13 @@ public sealed class BTreeJsonGeneratorTests
         string json = BTreeJsonServices.Serialize(dto);
 
         var result = RunGenerator(MakeAdditionalText("/p/SampleScout.btree.json", json));
-        result.GeneratedTrees.Should().HaveCount(1);
-        string source = result.GeneratedTrees[0].ToString();
+        result.GeneratedTrees.Should().HaveCount(2);
 
-        source.Should().NotContain("Hrot.Editor.AiShared.Layout",
+        // The topology-core file must not reference the layout namespace
+        var coreSource = result.GeneratedTrees
+            .First(t => !t.FilePath.Contains("Registrar"))
+            .ToString();
+        coreSource.Should().NotContain("Hrot.Editor.AiShared.Layout",
             "the layout namespace must not be in topology-core-only output");
     }
 
@@ -173,10 +188,13 @@ public sealed class BTreeJsonGeneratorTests
         // Act: run with both
         var result = RunGenerator(goodText, badText);
 
-        // Assert: the good asset still emits
-        result.GeneratedTrees.Should().HaveCount(1,
-            "the valid sibling must still emit despite the malformed asset");
-        result.GeneratedTrees[0].FilePath.Should().EndWith("SampleScout.g.cs");
+        // Assert: the good asset still emits 2 files (core + bridge)
+        result.GeneratedTrees.Should().HaveCount(2,
+            "the valid sibling must still emit core+bridge despite the malformed asset");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleScout.g.cs"),
+            "topology-core file must be present");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleScout.Registrar.g.cs"),
+            "bridge file must be present");
 
         // The bad asset reports a diagnostic
         result.Diagnostics.Should().HaveCount(1,

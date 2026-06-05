@@ -60,7 +60,7 @@ public sealed class HsmJsonGeneratorTests
         return driver.GetRunResult();
     }
 
-    // ── (a) valid *.hsm.json produces topology core ───────────────────────────────
+    // ── (a) valid *.hsm.json produces topology core + bridge (PU-203) ───────────────
 
     [Fact]
     public void ValidHsmJson_ProducesGeneratedSource_ContainingCreateBuilderAndThunk()
@@ -72,18 +72,31 @@ public sealed class HsmJsonGeneratorTests
 
         var result = RunGenerator(MakeAdditionalText("/p/SampleGuard.hsm.json", json));
 
-        // Assert
-        result.GeneratedTrees.Should().HaveCount(1,
-            "one valid asset should produce exactly one generated source");
+        // Assert: PU-203 — 2 files per asset: topology core + bridge
+        result.GeneratedTrees.Should().HaveCount(2,
+            "one valid asset produces 2 files: topology core + bridge (PU-203)");
 
-        string source = result.GeneratedTrees[0].ToString();
+        // Topology-core file
+        string coreSource = result.GeneratedTrees
+            .First(t => !t.FilePath.Contains("Registrar"))
+            .ToString();
 
-        source.Should().Contain("CreateBuilder()",
-            "generated .g.cs must contain CreateBuilder()");
-        source.Should().Contain("[HsmDefinition(",
-            "generated .g.cs must contain the [HsmDefinition] thunk attribute");
-        source.Should().NotContain("[HsmLayout(",
-            "generated .g.cs must NOT contain [HsmLayout( — layout is JSON-only (§6.2)");
+        coreSource.Should().Contain("CreateBuilder()",
+            "topology-core .g.cs must contain CreateBuilder()");
+        coreSource.Should().Contain("[HsmDefinition(",
+            "topology-core .g.cs must contain the [HsmDefinition] thunk attribute");
+        coreSource.Should().NotContain("[HsmLayout(",
+            "topology-core .g.cs must NOT contain [HsmLayout( — layout is JSON-only (§6.2)");
+
+        // Bridge file
+        string bridgeSource = result.GeneratedTrees
+            .First(t => t.FilePath.Contains("Registrar"))
+            .ToString();
+
+        bridgeSource.Should().Contain("[BlueprintRegistrar]",
+            "bridge .g.cs must carry [BlueprintRegistrar]");
+        bridgeSource.Should().Contain("Register(BehaviorRegistry",
+            "bridge .g.cs must have Register(BehaviorRegistry ...) method");
 
         result.Diagnostics.Should().BeEmpty("a valid asset must not produce diagnostics");
     }
@@ -97,9 +110,12 @@ public sealed class HsmJsonGeneratorTests
 
         var result = RunGenerator(MakeAdditionalText("/p/SampleGuard.hsm.json", json));
 
-        result.GeneratedTrees.Should().HaveCount(1);
-        result.GeneratedTrees[0].FilePath.Should().EndWith("SampleGuard.g.cs",
-            "hint name must be {AssetName}.g.cs");
+        result.GeneratedTrees.Should().HaveCount(2,
+            "must produce topology core + bridge files");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleGuard.g.cs"),
+            "topology-core hint name must be {AssetName}.g.cs");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleGuard.Registrar.g.cs"),
+            "bridge hint name must be {AssetName}.Registrar.g.cs");
     }
 
     [Fact]
@@ -110,10 +126,12 @@ public sealed class HsmJsonGeneratorTests
         string json = HsmJsonServices.Serialize(dto);
 
         var result = RunGenerator(MakeAdditionalText("/p/SampleGuard.hsm.json", json));
-        result.GeneratedTrees.Should().HaveCount(1);
-        string source = result.GeneratedTrees[0].ToString();
+        result.GeneratedTrees.Should().HaveCount(2);
 
-        source.Should().NotContain("Hrot.Editor.AiShared.Layout",
+        string coreSource = result.GeneratedTrees
+            .First(t => !t.FilePath.Contains("Registrar"))
+            .ToString();
+        coreSource.Should().NotContain("Hrot.Editor.AiShared.Layout",
             "the layout namespace must not be in topology-core-only output");
     }
 
@@ -147,9 +165,13 @@ public sealed class HsmJsonGeneratorTests
 
         var result = RunGenerator(goodText, badText);
 
-        result.GeneratedTrees.Should().HaveCount(1,
-            "valid sibling must still emit despite malformed asset");
-        result.GeneratedTrees[0].FilePath.Should().EndWith("SampleGuard.g.cs");
+        // Good asset emits 2 files (core + bridge); bad asset emits 0.
+        result.GeneratedTrees.Should().HaveCount(2,
+            "valid sibling must still emit core+bridge despite malformed asset");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleGuard.g.cs"),
+            "topology-core file must be present");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("SampleGuard.Registrar.g.cs"),
+            "bridge file must be present");
         result.Diagnostics.Should().HaveCount(1,
             "one diagnostic for the one malformed asset");
         result.Diagnostics[0].Id.Should().Be(HsmJsonGenerator.DiagnosticId);

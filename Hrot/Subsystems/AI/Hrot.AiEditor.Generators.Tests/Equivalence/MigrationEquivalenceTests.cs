@@ -80,6 +80,11 @@ public sealed class MigrationEquivalenceTests
             new[] { MetadataReference.CreateFromFile(typeof(object).Assembly.Location) },
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
+    /// <summary>
+    /// Runs the BTree generator and returns the TOPOLOGY CORE source file
+    /// ({Name}.g.cs, not the bridge {Name}.Registrar.g.cs).
+    /// PU-205 §14 item 3: the equivalence gate compares only the topology core.
+    /// </summary>
     private static string RunBTreeGenerator(string json, string assetName)
     {
         var text   = new StringAdditionalText($"/p/{assetName}.btree.json", json);
@@ -90,11 +95,20 @@ public sealed class MigrationEquivalenceTests
         var result = driver.GetRunResult();
         result.Diagnostics.Should().BeEmpty(
             $"generating '{assetName}' must not produce diagnostics");
-        result.GeneratedTrees.Should().HaveCount(1,
-            $"generating '{assetName}' must produce exactly one source file");
-        return result.GeneratedTrees[0].ToString();
+        // PU-203: generator now produces 2 files: topology core + bridge (Registrar).
+        result.GeneratedTrees.Should().HaveCount(2,
+            $"generating '{assetName}' must produce 2 files: topology core + bridge (PU-203)");
+        // Select the topology-core file (not the bridge): the one without "Registrar" in the path.
+        var coreTree = result.GeneratedTrees
+            .FirstOrDefault(t => !t.FilePath.Contains("Registrar"));
+        coreTree.Should().NotBeNull(
+            "generator must produce a topology-core source file (hint name not containing 'Registrar')");
+        return coreTree!.ToString();
     }
 
+    /// <summary>
+    /// Runs the HSM generator and returns the TOPOLOGY CORE source file.
+    /// </summary>
     private static string RunHsmGenerator(string json, string assetName)
     {
         var text   = new StringAdditionalText($"/p/{assetName}.hsm.json", json);
@@ -105,9 +119,13 @@ public sealed class MigrationEquivalenceTests
         var result = driver.GetRunResult();
         result.Diagnostics.Should().BeEmpty(
             $"generating '{assetName}' must not produce diagnostics");
-        result.GeneratedTrees.Should().HaveCount(1,
-            $"generating '{assetName}' must produce exactly one source file");
-        return result.GeneratedTrees[0].ToString();
+        result.GeneratedTrees.Should().HaveCount(2,
+            $"generating '{assetName}' must produce 2 files: topology core + bridge (PU-203)");
+        var coreTree = result.GeneratedTrees
+            .FirstOrDefault(t => !t.FilePath.Contains("Registrar"));
+        coreTree.Should().NotBeNull(
+            "generator must produce a topology-core source file (hint name not containing 'Registrar')");
+        return coreTree!.ToString();
     }
 
     // ── PU-205 BTree: SampleScout byte-identical topology core ───────────────────

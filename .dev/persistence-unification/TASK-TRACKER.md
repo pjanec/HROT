@@ -22,8 +22,10 @@
 
 - [x] **PU-201** IncrementalGenerator: topology + thunk (BTree) — BATCH-03 [details](./TASK-DETAIL.md#pu-201-incrementalgenerator-topology-and-thunk-for-btree)
 - [x] **PU-202** IncrementalGenerator: topology + thunk (HSM) — BATCH-03 [details](./TASK-DETAIL.md#pu-202-incrementalgenerator-topology-and-thunk-for-hsm)
-- [ ] **PU-203** `[BlueprintRegistrar]` self-registration bridge — BATCH-04 [details](./TASK-DETAIL.md#pu-203-blueprintregistrar-self-registration-bridge)
-- [ ] **PU-204** `Hrot.AI.Behaviors.csproj` wiring (AdditionalFiles + obj output) — BATCH-04 [details](./TASK-DETAIL.md#pu-204-hrotaibehaviors-csproj-wiring)
+- [x] **PU-203** `[BlueprintRegistrar]` self-registration bridge — BATCH-04 (JSON-owned BTree/HSM discovered→registered→tickable) [details](./TASK-DETAIL.md#pu-203-blueprintregistrar-self-registration-bridge)
+- [x] **PU-204** `Hrot.AI.Behaviors.csproj` wiring (AdditionalFiles + analyzer ref; dormant until migration) — BATCH-04 [details](./TASK-DETAIL.md#pu-204-hrotaibehaviors-csproj-wiring)
+
+> **Phase 2 COMPLETE** (PU-201..205). ⚠ **PU-D06 escalated:** migration-equivalence criterion (byte-identical `.cs` → blob/behavioral equivalence) needs user/architect sign-off before PU-401.
 - [~] **PU-205** Migration-equivalence test harness — BATCH-03 (faithful-routing equivalence; DIRECT committed-`.cs` compare deferred to PU-401, see DEBT PU-D04) [details](./TASK-DETAIL.md#pu-205-migration-equivalence-test-harness)
 
 ## Phase 3: Editor load path + reconciliation stitching

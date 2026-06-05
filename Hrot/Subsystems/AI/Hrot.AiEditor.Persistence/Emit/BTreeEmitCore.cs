@@ -189,14 +189,24 @@ public static class BTreeEmitCore
         // Build lookup: VisualId → node
         var nodeById = dto.Nodes.ToDictionary(n => n.VisualId);
 
-        // Find root node
+        // Find the entry node:
+        // 1. If the DTO has an explicit BTreeRootNodeDto (from a hand-authored model with an explicit root),
+        //    use its first child as the entry.
+        // 2. Otherwise (reflection-loaded blob: builder emits Sequence directly, no implicit root wrapper),
+        //    use the first node in the DTO as the entry — matching the .Sequence(...)/.Wait(...) chain pattern.
         var root = dto.Nodes.FirstOrDefault(n => n is BTreeRootNodeDto);
-        if (root != null && root.ChildVisualIds.Count > 0)
+        if (root != null)
         {
-            if (nodeById.TryGetValue(root.ChildVisualIds[0], out var entryChild))
+            if (root.ChildVisualIds.Count > 0 && nodeById.TryGetValue(root.ChildVisualIds[0], out var entryChild))
                 EmitNode(sb, dto, nodeById, entryChild, depth: 3, isLast: true);
             else
                 sb.AppendLine($"{Indent}{Indent};");
+        }
+        else if (dto.Nodes.Count > 0)
+        {
+            // No explicit root — emit the first node directly (reflection-loaded blob pattern).
+            // The generated CreateBuilder() chains: new BTreeBuilder<>().FirstNode(...)
+            EmitNode(sb, dto, nodeById, dto.Nodes[0], depth: 3, isLast: true);
         }
         else
         {
@@ -498,7 +508,9 @@ public static class BTreeEmitCore
 
     private static void EmitBuild(StringBuilder sb, BehaviorTreeAssetDto dto)
     {
-        sb.AppendLine($"{Indent}[BTreeDefinition(\"{dto.Name}\", AssetId = \"{dto.AssetId:D}\")]");
+        // Note: BTreeDefinitionAttribute does not have an AssetId property (unlike HsmDefinitionAttribute).
+        // The AssetId is recorded in the file header comment only.
+        sb.AppendLine($"{Indent}[BTreeDefinition(\"{dto.Name}\")]");
         sb.AppendLine($"{Indent}public static BehaviorTreeBlob Build() =>");
         sb.AppendLine($"{Indent}{Indent}CreateBuilder().Compile(\"{dto.Name}\");");
     }

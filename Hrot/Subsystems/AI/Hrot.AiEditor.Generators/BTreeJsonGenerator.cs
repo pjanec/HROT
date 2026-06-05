@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Threading;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
@@ -77,10 +75,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
-        string hintName = System.IO.Path.GetFileNameWithoutExtension(
-                              System.IO.Path.GetFileNameWithoutExtension(path)) + ".g.cs";
+        string baseName = System.IO.Path.GetFileNameWithoutExtension(
+                              System.IO.Path.GetFileNameWithoutExtension(path));
 
-        spc.AddSource(hintName, source);
+        // Topology core: {Name}.g.cs
+        spc.AddSource(baseName + ".g.cs", source);
+
+        // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
+        string bridge;
+        try
+        {
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto);
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
+                "Exception during bridge code generation: " + ex.Message));
+            return;
+        }
+
+        spc.AddSource(baseName + ".Registrar.g.cs", bridge);
     }
 
     /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/emit error.</summary>

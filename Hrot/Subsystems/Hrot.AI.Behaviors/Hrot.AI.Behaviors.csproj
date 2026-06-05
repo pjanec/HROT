@@ -55,12 +55,28 @@
     <!-- Blueprint generator dependency assembly (netstandard2.0, VS-safe analyzer load). -->
     <ProjectReference Include="..\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- BTree/HSM JSON source generator: emits C# from *.btree.json/*.hsm.json AdditionalFiles.
+         PU-204 (§9, §2.7): wired exactly as Hrot.Blueprints.Generators above.
+         No .btree.json/.hsm.json files exist yet → glob matches zero → dormant-but-correct. -->
+    <ProjectReference Include="..\AI\Hrot.AiEditor.Generators\Hrot.AiEditor.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- AiEditor generator dependency assembly (netstandard2.0 emit core + JSON services). -->
+    <ProjectReference Include="..\AI\Hrot.AiEditor.Persistence\Hrot.AiEditor.Persistence.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!-- Blueprint asset files: picked up by the incremental generator. -->
   <!-- Exclude Recipes folder - these are templates, not compiled blueprints. -->
   <ItemGroup>
     <AdditionalFiles Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
+  </ItemGroup>
+
+  <!-- BTree/HSM JSON asset files: picked up by BTreeJsonGenerator/HsmJsonGenerator.
+       PU-204 (§9): dormant until PU-401 migration produces the first *.btree.json/*.hsm.json.
+       No .json files exist yet → zero matches → no generated output, no break. -->
+  <ItemGroup>
+    <AdditionalFiles Include="Trees\**\*.btree.json" />
+    <AdditionalFiles Include="Machines\**\*.hsm.json" />
   </ItemGroup>
 
   <!-- Recipe blueprint files: bundled as content for editor discovery (WHEN-M11-T4). -->

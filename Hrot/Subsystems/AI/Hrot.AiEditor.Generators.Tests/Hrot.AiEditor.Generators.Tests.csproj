@@ -32,6 +32,10 @@
     <!-- Generator project referenced directly (not as analyzer) so tests can
          instantiate the generator classes and drive them via CSharpGeneratorDriver. -->
     <ProjectReference Include="..\Hrot.AiEditor.Generators\Hrot.AiEditor.Generators.csproj" />
+    <!-- Roslyn in-memory compiler for PU-203 integration tests (compiles bridge C# + loads ALC). -->
+    <ProjectReference Include="..\..\Blueprints\Hrot.Blueprints.Compiler\Hrot.Blueprints.Compiler.csproj" />
+    <!-- FDP Toolkits: BehaviorRegistry, BrainBlackboard, AiHotReloadCoordinator, BehaviorConstants. -->
+    <ProjectReference Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
   </ItemGroup>
 
 </Project>

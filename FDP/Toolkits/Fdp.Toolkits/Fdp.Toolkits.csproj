@@ -22,6 +22,8 @@
     <InternalsVisibleTo Include="Hrot.Utility.Editor" />
     <InternalsVisibleTo Include="Hrot.Diagnostics.Tuning.Tests" />
     <InternalsVisibleTo Include="Hrot.Utility.Editor.Tests" />
+    <!-- PU-203: bridge integration tests require ScanForRegistrars + ResolveRegistrarArgument -->
+    <InternalsVisibleTo Include="Hrot.AiEditor.Generators.Tests" />
   </ItemGroup>
 
   <!-- Fdp.Diagnostics.Contracts: Phase 1 primitive protocol types -->
