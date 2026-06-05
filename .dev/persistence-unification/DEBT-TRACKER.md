@@ -9,6 +9,8 @@
 | PU-D01 | BATCH-01 | HSM `FromDto` lives in net8 `Hrot.Hsm.Editor` (uses `HsmAsset`'s internal ctor). The Phase-2 Roslyn generator (netstandard2.0) needs a public factory seam or an ns2.0 HSM builder to construct from the DTO. | P2 | PU-202 | OPEN |
 | PU-D02 | BATCH-01 | HSM DTO persists `EventName`, not `EventId` (ids reassigned sequentially on `FromDto`). The JSON load path must match events by name, not id. | P2 | PU-301 | OPEN |
 | PU-D03 | BATCH-01 | `HrotDocumentTypes.BTree`/`.Hsm` constants added but NOT registered with the migration system (no `RegisterDocType` passthrough) — intentional for zero-behavior-change; wire when the load/migration path lands. | P3 | PU-301 | OPEN |
+| PU-D04 | BATCH-03 | PU-205 migration-equivalence asserts `generatorOutput == EmitTopologyCore(ToDto(model))` (faithful JSON→core routing), not a DIRECT compare to the committed `SampleScout.cs`/`SampleGuard.cs` topology core. Transitively covered (BATCH-02 full byte-identical gate + shared `EmitInternal`), but the direct "behavior unchanged vs today" compare should land at PU-401 when real generated `.cs` exists in `obj/` (strip the committed `.cs` `[*Layout]` method block; exact-string compare before decommit). | P2 | PU-401 | OPEN |
+| PU-D05 | BATCH-03 | Two `*_EquivalenceTest_FailsLoudly_WhenDiverged` tests are vacuous (`reference + "// DIVERGED" != reference` is a tautology). Remove/replace with a real divergence-detection test when PU-D04 lands. | P3 | PU-401 | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

@@ -23,10 +23,32 @@ public static class BTreeEmitCore
     private const string Indent          = "    ";
 
     /// <summary>Emits the complete .cs file content for the given BTree asset DTO.</summary>
+    /// <remarks>
+    /// Output includes the <c>[BTreeLayout]</c> method.
+    /// Byte-identical to <c>BTreeFluentEmitter.Emit(model)</c> when given
+    /// <c>mapper.ToDto(model)</c>.  Used by the editor adapter + BATCH-02 gate.
+    /// </remarks>
     public static string Emit(BehaviorTreeAssetDto dto)
     {
+        return EmitInternal(dto, includeLayout: true);
+    }
+
+    /// <summary>
+    /// Emits the topology core (.cs file content) for the given BTree asset DTO,
+    /// EXCLUDING the <c>[BTreeLayout]</c> method.
+    /// Design §6.2: generated <c>.g.cs</c> = <c>CreateBuilder()</c> + <c>[BTreeDefinition]</c> thunk only.
+    /// Layout lives in JSON; read by the future JSON loader (PU-301).
+    /// </summary>
+    public static string EmitTopologyCore(BehaviorTreeAssetDto dto)
+    {
+        return EmitInternal(dto, includeLayout: false);
+    }
+
+    /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
+    private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout)
+    {
         var sb = new StringBuilder();
-        var usings = CollectUsings(dto);
+        var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -58,13 +80,16 @@ public static class BTreeEmitCore
 
         sb.AppendLine();
 
-        // Method 2: Build
+        // Method 2: Build (the [BTreeDefinition] thunk)
         EmitBuild(sb, dto);
 
-        sb.AppendLine();
+        if (includeLayout)
+        {
+            sb.AppendLine();
 
-        // Method 3: Layout
-        EmitLayout(sb, dto);
+            // Method 3: Layout
+            EmitLayout(sb, dto);
+        }
 
         sb.AppendLine("}");
 
@@ -73,6 +98,10 @@ public static class BTreeEmitCore
 
     // ---- Using collection ----
 
+    /// <summary>
+    /// Collects usings for the full file (includes <c>Hrot.Editor.AiShared.Layout</c> for the
+    /// <c>[BTreeLayout]</c> method).  Used by <see cref="Emit"/>.
+    /// </summary>
     private static IReadOnlyList<string> CollectUsings(BehaviorTreeAssetDto dto)
     {
         var set = new HashSet<string>
@@ -82,6 +111,38 @@ public static class BTreeEmitCore
             FbtNamespace,
             "Fbt.Compiler",
             LayoutNamespace,
+        };
+
+        // Add namespaces from blackboard / context type names.
+        AddNamespaceFromTypeName(set, dto.BlackboardTypeName);
+        AddNamespaceFromTypeName(set, dto.ContextTypeName);
+
+        // Scan nodes for action/condition FQNs.
+        foreach (var node in dto.Nodes)
+        {
+            if (node is BTreeActionNodeDto actNode && actNode.Action != null)
+                AddNamespaceFromFqn(set, actNode.Action.MethodFqn);
+            if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
+                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn);
+        }
+
+        return AiEmitCoreBase.SortUsings(set);
+    }
+
+    /// <summary>
+    /// Collects usings for the topology-core-only file (excludes
+    /// <c>Hrot.Editor.AiShared.Layout</c> — no <c>[BTreeLayout]</c> method).
+    /// Used by <see cref="EmitTopologyCore"/>.
+    /// </summary>
+    private static IReadOnlyList<string> CollectUsingsTopologyOnly(BehaviorTreeAssetDto dto)
+    {
+        var set = new HashSet<string>
+        {
+            "System",
+            "System.Numerics",
+            FbtNamespace,
+            "Fbt.Compiler",
+            // NOTE: LayoutNamespace intentionally excluded — no [BTreeLayout] in topology core.
         };
 
         // Add namespaces from blackboard / context type names.

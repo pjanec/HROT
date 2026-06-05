@@ -20,11 +20,11 @@
 ## Phase 2: Build-time generation  *(JSON → C#)*
 **Goal:** MSBuild generates runtime C# from JSON; editor-owned `.cs` becomes a non-committed artifact.
 
-- [ ] **PU-201** IncrementalGenerator: topology + thunk (BTree) [details](./TASK-DETAIL.md#pu-201-incrementalgenerator-topology-and-thunk-for-btree)
-- [ ] **PU-202** IncrementalGenerator: topology + thunk (HSM) [details](./TASK-DETAIL.md#pu-202-incrementalgenerator-topology-and-thunk-for-hsm)
-- [ ] **PU-203** `[BlueprintRegistrar]` self-registration bridge [details](./TASK-DETAIL.md#pu-203-blueprintregistrar-self-registration-bridge)
-- [ ] **PU-204** `Hrot.AI.Behaviors.csproj` wiring (AdditionalFiles + obj output) [details](./TASK-DETAIL.md#pu-204-hrotaibehaviors-csproj-wiring)
-- [ ] **PU-205** Migration-equivalence test harness [details](./TASK-DETAIL.md#pu-205-migration-equivalence-test-harness)
+- [x] **PU-201** IncrementalGenerator: topology + thunk (BTree) — BATCH-03 [details](./TASK-DETAIL.md#pu-201-incrementalgenerator-topology-and-thunk-for-btree)
+- [x] **PU-202** IncrementalGenerator: topology + thunk (HSM) — BATCH-03 [details](./TASK-DETAIL.md#pu-202-incrementalgenerator-topology-and-thunk-for-hsm)
+- [ ] **PU-203** `[BlueprintRegistrar]` self-registration bridge — BATCH-04 [details](./TASK-DETAIL.md#pu-203-blueprintregistrar-self-registration-bridge)
+- [ ] **PU-204** `Hrot.AI.Behaviors.csproj` wiring (AdditionalFiles + obj output) — BATCH-04 [details](./TASK-DETAIL.md#pu-204-hrotaibehaviors-csproj-wiring)
+- [~] **PU-205** Migration-equivalence test harness — BATCH-03 (faithful-routing equivalence; DIRECT committed-`.cs` compare deferred to PU-401, see DEBT PU-D04) [details](./TASK-DETAIL.md#pu-205-migration-equivalence-test-harness)
 
 ## Phase 3: Editor load path + reconciliation stitching
 **Goal:** editor opens editor-owned assets from JSON (no compile needed to reopen); hand-authored stays reflection; debug overlay survives reload.

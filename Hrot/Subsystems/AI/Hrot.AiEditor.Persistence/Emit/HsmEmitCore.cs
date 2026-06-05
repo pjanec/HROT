@@ -21,10 +21,32 @@ public static class HsmEmitCore
     private const string Indent          = "    ";
 
     /// <summary>Emits the complete .cs file content for the given HSM asset DTO.</summary>
+    /// <remarks>
+    /// Output includes the <c>[HsmLayout]</c> method.
+    /// Byte-identical to <c>HsmFluentEmitter.Emit(model)</c> when given
+    /// <c>mapper.ToDto(model)</c>.  Used by the editor adapter + BATCH-02 gate.
+    /// </remarks>
     public static string Emit(HsmAssetDto dto)
     {
+        return EmitInternal(dto, includeLayout: true);
+    }
+
+    /// <summary>
+    /// Emits the topology core (.cs file content) for the given HSM asset DTO,
+    /// EXCLUDING the <c>[HsmLayout]</c> method.
+    /// Design §6.2: generated <c>.g.cs</c> = <c>CreateBuilder()</c> + <c>[HsmDefinition]</c> thunk only.
+    /// Layout lives in JSON; read by the future JSON loader (PU-301).
+    /// </summary>
+    public static string EmitTopologyCore(HsmAssetDto dto)
+    {
+        return EmitInternal(dto, includeLayout: false);
+    }
+
+    /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
+    private static string EmitInternal(HsmAssetDto dto, bool includeLayout)
+    {
         var sb = new StringBuilder();
-        var usings = CollectUsings(dto);
+        var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -53,8 +75,12 @@ public static class HsmEmitCore
         EmitCreateBuilder(sb, dto);
         sb.AppendLine();
         EmitCompile(sb, dto);
-        sb.AppendLine();
-        EmitLayout(sb, dto);
+
+        if (includeLayout)
+        {
+            sb.AppendLine();
+            EmitLayout(sb, dto);
+        }
 
         sb.AppendLine("}");
 
@@ -63,6 +89,10 @@ public static class HsmEmitCore
 
     // ---- Using collection ----
 
+    /// <summary>
+    /// Collects usings for the full file (includes <c>Hrot.Editor.AiShared.Layout</c> for the
+    /// <c>[HsmLayout]</c> method).  Used by <see cref="Emit"/>.
+    /// </summary>
     private static IReadOnlyList<string> CollectUsings(HsmAssetDto dto)
     {
         var set = new HashSet<string>
@@ -73,6 +103,46 @@ public static class HsmEmitCore
             "Fhsm.Kernel.Attributes",
             "Fhsm.Kernel.Data",
             LayoutNamespace,
+        };
+
+        // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
+        foreach (var s in dto.States)
+        {
+            AddNsFromFqn(set, s.OnEntryAction);
+            AddNsFromFqn(set, s.OnExitAction);
+            AddNsFromFqn(set, s.ActivityAction);
+            AddNsFromFqn(set, s.TimerAction);
+        }
+        foreach (var t in dto.Transitions)
+        {
+            AddNsFromFqn(set, t.GuardFunction);
+            AddNsFromFqn(set, t.ActionFunction);
+        }
+        foreach (var gt in dto.GlobalTransitions)
+        {
+            AddNsFromFqn(set, gt.GuardFunction);
+            AddNsFromFqn(set, gt.ActionFunction);
+        }
+
+        return AiEmitCoreBase.SortUsings(set);
+    }
+
+    /// <summary>
+    /// Collects usings for the topology-core-only file (excludes
+    /// <c>Hrot.Editor.AiShared.Layout</c> — no <c>[HsmLayout]</c> method, no
+    /// <c>System.Numerics</c> since that is only used in layout).
+    /// Used by <see cref="EmitTopologyCore"/>.
+    /// </summary>
+    private static IReadOnlyList<string> CollectUsingsTopologyOnly(HsmAssetDto dto)
+    {
+        var set = new HashSet<string>
+        {
+            "System",
+            // System.Numerics is only needed for Vector2 in the layout method.
+            // NOTE: LayoutNamespace intentionally excluded — no [HsmLayout] in topology core.
+            "Fhsm.Compiler",
+            "Fhsm.Kernel.Attributes",
+            "Fhsm.Kernel.Data",
         };
 
         // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
