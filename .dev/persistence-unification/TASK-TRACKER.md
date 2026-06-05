@@ -25,7 +25,7 @@
 - [x] **PU-203** `[BlueprintRegistrar]` self-registration bridge — BATCH-04 (JSON-owned BTree/HSM discovered→registered→tickable) [details](./TASK-DETAIL.md#pu-203-blueprintregistrar-self-registration-bridge)
 - [x] **PU-204** `Hrot.AI.Behaviors.csproj` wiring (AdditionalFiles + analyzer ref; dormant until migration) — BATCH-04 [details](./TASK-DETAIL.md#pu-204-hrotaibehaviors-csproj-wiring)
 
-> **Phase 2 COMPLETE** (PU-201..205). ⚠ **PU-D06 escalated:** migration-equivalence criterion (byte-identical `.cs` → blob/behavioral equivalence) needs user/architect sign-off before PU-401.
+> **Phase 2 COMPLETE** (PU-201..205). ✅ **PU-D06 RESOLVED 2026-06-05:** user approved **blob/behavioral equivalence** (compile committed `.cs` + regenerated `.cs`, compare resulting blobs) over byte-identical `.cs`. Phase 4 unblocked.
 - [~] **PU-205** Migration-equivalence test harness — BATCH-03 (faithful-routing equivalence; DIRECT committed-`.cs` compare deferred to PU-401, see DEBT PU-D04) [details](./TASK-DETAIL.md#pu-205-migration-equivalence-test-harness)
 
 ## Phase 3: Editor load path + reconciliation stitching
@@ -40,8 +40,8 @@
 ## Phase 4: Migration of existing assets
 **Goal:** existing editor-owned `.cs` → `.json`; equivalence proven; old `.cs` decommitted.
 
-- [ ] **PU-401** Migration pass (`.cs` → `.json`) [details](./TASK-DETAIL.md#pu-401-migration-pass-cs-to-json)
-- [ ] **PU-402** Decommit generated `.cs` [details](./TASK-DETAIL.md#pu-402-decommit-generated-cs)
+- [x] **PU-401** Migration pass (`.cs` → `.json`) — BATCH-08 (blob/behavioral equivalence PROVEN per PU-D06; migration JSON staged to `migration-artifacts/`; live tree untouched) [details](./TASK-DETAIL.md#pu-401-migration-pass-cs-to-json)
+- [ ] **PU-402** Decommit generated `.cs` — BATCH-09 (atomic swap: stage `.json`→live, delete `.cs`) [details](./TASK-DETAIL.md#pu-402-decommit-generated-cs)
 
 ## Phase 5: Path-at-creation + fixed roots
 **Goal:** every asset gets a real path at creation; no `.cs`/`.json` base-name collisions.
