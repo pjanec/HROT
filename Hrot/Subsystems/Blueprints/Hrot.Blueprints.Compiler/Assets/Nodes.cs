@@ -1,7 +1,5 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-#if NET8_0_OR_GREATER
-using Fdp.Toolkit.ReplayBrowser.Search;
-#endif
 
 namespace Hrot.Blueprints.Core.Assets;
 
@@ -199,11 +197,13 @@ public enum ComparisonOperator
 
 public sealed class ConditionMetPayload
 {
-#if NET8_0_OR_GREATER
-    public SearchPredicateDto? Condition { get; set; }
-#else
-    public object? Condition { get; set; }
-#endif
+    /// <summary>
+    /// The predicate tree serialized as a raw JSON node.
+    /// Stored as <see cref="JsonNode"/> so deserialization never requires
+    /// Fdp.Toolkits to be loaded (e.g. in the netstandard2.0 analyzer host).
+    /// The net8 editor converts to/from SearchPredicateDto at its own boundary.
+    /// </summary>
+    public JsonNode? Condition { get; set; }
 }
 
 public sealed class EqsResultPayload

@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
+using System.Text.Json.Nodes;
 using FDP.Eqs;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
@@ -94,16 +95,11 @@ public sealed class WhenNodeHotReloadTests
             Edges = WhenEdge.RisingEdge,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new PropertyMatchDto
-                {
-                    ComponentType = typeof(object), // passes BP2009 (non-null)
-                    PropertyPath  = "Value",
-                    Predicate     = new NumericPredicateDto
-                    {
-                        MinValue = minValue,
-                        MaxValue = double.MaxValue,
-                    },
-                },
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Object\",\"PropertyPath\":\"Value\"," +
+                    "\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":" +
+                    minValue.ToString("G17", System.Globalization.CultureInfo.InvariantCulture) +
+                    ",\"MaxValue\":1.7976931348623157E+308}}"), // passes BP2009 (non-null)
             },
         };
         var whenExecIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() };

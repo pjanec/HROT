@@ -1,9 +1,7 @@
+using System.Text.Json.Nodes;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
-#if NET8_0_OR_GREATER
-using Fdp.Toolkit.ReplayBrowser.Search;
-#endif
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -853,34 +851,62 @@ internal sealed class V_WhenNodeRules : IValidator
             return;
         }
 
-#if NET8_0_OR_GREATER
-        if (cm.Condition is CompoundPredicateDto compound && compound.Conditions.Count == 0)
+        // BP2008 -- compound predicate with no children (inspect via JsonNode)
+        if (IsEmptyCompoundPredicate(cm.Condition))
         {
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2008,
                 "WhenNode ConditionMet: CompoundPredicateDto has no conditions.",
                 asset.AssetId, graph.Id, node.Id));
         }
 
-        // BP2009 -- predicate DTO references unknown type
+        // BP2009 -- predicate DTO references unknown type (inspect via JsonNode)
         if (HasUnresolvableComponentType(cm.Condition))
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2009,
                 "WhenNode ConditionMet: predicate tree references a component type that could not be resolved.",
                 asset.AssetId, graph.Id, node.Id));
-#endif
     }
 
-#if NET8_0_OR_GREATER
-    private static bool HasUnresolvableComponentType(SearchPredicateDto? predicate)
+    /// <summary>
+    /// Returns true if the JsonNode represents a CompoundPredicateDto with an empty conditions array.
+    /// Works by inspecting the "$type" discriminator and "Conditions" array in the raw JSON node.
+    /// </summary>
+    private static bool IsEmptyCompoundPredicate(JsonNode? node)
     {
-        return predicate switch
-        {
-            null                    => false,
-            PropertyMatchDto p      => p.ComponentType == null,
-            CompoundPredicateDto c  => c.Conditions.Any(HasUnresolvableComponentType),
-            _                       => false,
-        };
+        if (node is not JsonObject obj) return false;
+        var typeDiscriminator = obj["$type"]?.GetValue<string>();
+        if (!string.Equals(typeDiscriminator, "Compound", StringComparison.OrdinalIgnoreCase))
+            return false;
+        // Try both "Conditions" (PascalCase from editor serialization) and "conditions" (camelCase)
+        var conditions = (obj["Conditions"] ?? obj["conditions"]) as JsonArray;
+        return conditions == null || conditions.Count == 0;
     }
-#endif
+
+    /// <summary>
+    /// Returns true if any PropertyMatchDto node in the predicate tree has a null ComponentType.
+    /// Works by inspecting the raw JsonNode tree without loading Fdp.Toolkits.
+    /// </summary>
+    private static bool HasUnresolvableComponentType(JsonNode? node)
+    {
+        if (node is not JsonObject obj) return false;
+        var typeDiscriminator = obj["$type"]?.GetValue<string>();
+        if (string.Equals(typeDiscriminator, "PropertyMatch", StringComparison.OrdinalIgnoreCase))
+        {
+            // ComponentType null or explicit JSON null means unresolvable.
+            // Try both PascalCase (editor-serialized) and camelCase (fallback).
+            var ct = obj["ComponentType"] ?? obj["componentType"];
+            return ct == null; // null means key missing OR explicit JSON null
+        }
+        if (string.Equals(typeDiscriminator, "Compound", StringComparison.OrdinalIgnoreCase))
+        {
+            var conditions = (obj["Conditions"] ?? obj["conditions"]) as JsonArray;
+            if (conditions == null) return false;
+            foreach (var child in conditions)
+            {
+                if (HasUnresolvableComponentType(child)) return true;
+            }
+        }
+        return false;
+    }
 
     private static void ValidateEqsResult(
         BlueprintAsset asset, Graph graph, WhenNode node,

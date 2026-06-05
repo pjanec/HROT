@@ -1,10 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
-using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Spatial.Eqs;
 using FDP.Eqs;
 using Hrot.Blueprints.Core.Assets;
@@ -220,12 +221,9 @@ public sealed class WhenNodePerfTests
             Edges = WhenEdge.RisingEdge,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new PropertyMatchDto
-                {
-                    ComponentType = typeof(object),
-                    PropertyPath  = "Value",
-                    Predicate     = new NumericPredicateDto { MinValue = 5.0, MaxValue = double.MaxValue },
-                },
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Object\",\"PropertyPath\":\"Value\"," +
+                    "\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":5.0,\"MaxValue\":1.7976931348623157E+308}}"),
             },
         };
         var whenExecIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() };

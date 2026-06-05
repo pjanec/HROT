@@ -1,4 +1,5 @@
-﻿using Fdp.Toolkit.Blueprints;
+﻿using System.Text.Json.Nodes;
+using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
@@ -6,7 +7,6 @@ using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Ir;
 using Hrot.Blueprints.Core.Compiler.Stages;
 using Hrot.Blueprints.Tests.Builders;
-using Fdp.Toolkit.ReplayBrowser.Search;
 using AssetDispatchKind = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind;
 
 namespace Hrot.Blueprints.Tests.Compiler;
@@ -634,16 +634,11 @@ public sealed class WhenNodeLoweringTests
             Edges = edges,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new PropertyMatchDto
-                {
-                    ComponentType = typeof(object),  // dummy; Stage 2 validation is skipped
-                    PropertyPath  = "Value",
-                    Predicate     = new NumericPredicateDto
-                    {
-                        MinValue = 10.0,
-                        MaxValue = double.MaxValue,
-                    },
-                },
+                // Condition stored as JsonNode (Fdp.Toolkits-free serialized model).
+                // Dummy PropertyMatch predicate; Stage 2 validation is skipped in these lowering tests.
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Object\",\"PropertyPath\":\"Value\"," +
+                    "\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":10.0,\"MaxValue\":1.7976931348623157E+308}}"),
             },
         };
 

@@ -1,5 +1,5 @@
+using System.Text.Json.Nodes;
 using Fdp.Toolkit.Blueprints;
-using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
@@ -287,10 +287,9 @@ public sealed class WhenNodeValidatorTests
             Edges = WhenEdge.RisingEdge,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new CompoundPredicateDto
-                {
-                    Conditions = new List<SearchPredicateDto>(),   // empty compound
-                },
+                // Condition stored as JsonNode — Compound discriminator with empty Conditions array.
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"Compound\",\"Operator\":\"And\",\"Conditions\":[],\"ReadOnlyChildIndices\":[]}"),
             },
         };
         var diags = ValidateInstance(node);
@@ -310,12 +309,10 @@ public sealed class WhenNodeValidatorTests
             Edges = WhenEdge.RisingEdge,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new PropertyMatchDto
-                {
-                    ComponentType = null!,        // null simulates failed type resolution
-                    PropertyPath  = "SomeField",
-                    Predicate     = new NumericPredicateDto(),
-                },
+                // Condition stored as JsonNode — PropertyMatch with null ComponentType simulates
+                // failed type resolution (null ComponentType means unresolvable).
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"PropertyMatch\",\"ComponentType\":null,\"PropertyPath\":\"SomeField\",\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":-1.7976931348623157E+308,\"MaxValue\":1.7976931348623157E+308}}"),
             },
         };
         var diags = ValidateInstance(node);

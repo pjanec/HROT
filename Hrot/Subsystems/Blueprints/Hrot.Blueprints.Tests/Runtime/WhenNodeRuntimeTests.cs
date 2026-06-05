@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.ReplayBrowser.Search;
@@ -387,13 +388,9 @@ public sealed class WhenNodeRuntimeTests
         var whenNode    = new WhenNode { Id = nodeId, Mode = WhenMode.ConditionMet, Edges = edges,
             ConditionMet = new ConditionMetPayload
             {
-                Condition = new PropertyMatchDto
-                {
-                    ComponentType = typeof(object),
-                    PropertyPath  = "Value",
-                    Predicate     = new NumericPredicateDto
-                        { MinValue = 5.0, MaxValue = double.MaxValue },
-                },
+                Condition = JsonNode.Parse(
+                    "{\"$type\":\"PropertyMatch\",\"ComponentType\":\"Object\",\"PropertyPath\":\"Value\"," +
+                    "\"Predicate\":{\"$type\":\"Numeric\",\"MinValue\":5.0,\"MaxValue\":1.7976931348623157E+308}}"),
             },
         };
         var whenExecIn  = new Pin { Id = Guid.NewGuid(), Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() };
