@@ -1,9 +1,9 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using FluentAssertions;
 using Hrot.Editor.AiShared;
-using Hrot.Editor.AiShared.Layout;
 using Hrot.Hsm.Editor.Catalog;
 using Xunit;
 
@@ -13,6 +13,10 @@ namespace Hrot.Hsm.Editor.Tests;
 /// Tests for AIE-ENABLE-2: verifies that HsmAssetContributor discovers SampleGuard
 /// from the Hrot.AI.Behaviors assembly, and that the HSM layout method resolves
 /// against the contracts assembly.
+///
+/// PU-402: SampleGuard.cs is decommitted; SampleGuard.Compile() is now generated from
+/// Machines/SampleGuard.hsm.json. The [HsmLayout] method no longer exists in the
+/// assembly. Layout coverage migrated to HsmJsonAssetContributor reading the live JSON.
 /// </summary>
 public sealed class SampleGuardDiscoveryTests
 {
@@ -58,34 +62,47 @@ public sealed class SampleGuardDiscoveryTests
         guard!.Kind.Should().Be(AssetKind.Hsm);
     }
 
+    // PU-402 MIGRATED: Layout is now in Machines/SampleGuard.hsm.json (not in the assembly).
+    // Assert layout via HsmJsonAssetContributor reading the live committed JSON file.
     [Fact]
     public void HsmAssetContributor_LoadFrom_SampleGuard_LayoutIsApplied()
     {
-        var contributor = new HsmAssetContributor();
-        contributor.LoadFrom(BehaviorsAssembly);
+        // Locate the live JSON — it lives at Machines/SampleGuard.hsm.json under
+        // Hrot/Subsystems/Hrot.AI.Behaviors/ relative to the repo root.
+        // Walk up from test assembly output dir (net8.0 → Debug → bin →
+        // Hrot.Hsm.Editor.Tests → AI → Subsystems → Hrot → repo root).
+        var asmDir = Path.GetDirectoryName(typeof(SampleGuardDiscoveryTests).Assembly.Location)!;
+        var repoRoot = asmDir;
+        for (int i = 0; i < 7; i++)
+            repoRoot = Path.GetDirectoryName(repoRoot)!;
+        var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
+            "Machines", "SampleGuard.hsm.json");
 
-        var guard = contributor.Enumerate().FirstOrDefault(a => a.Name == "SampleGuard")
+        jsonPath.Should().NotBeNullOrEmpty();
+        File.Exists(jsonPath).Should().BeTrue(
+            $"live SampleGuard.hsm.json must exist at {jsonPath} (PU-402 decommit)");
+
+        var contrib = new HsmJsonAssetContributor();
+        // Trigger full load via Refresh with explicit paths
+        contrib.Refresh(jsonPaths: new[] { jsonPath });
+
+        var assets = contrib.Enumerate();
+        assets.Should().Contain(a => a.Name == "SampleGuard",
+            "JSON contributor must discover SampleGuard from the live .hsm.json");
+
+        var guard = assets.FirstOrDefault(a => a.Name == "SampleGuard")
                     as Hrot.Hsm.Editor.Model.HsmAsset;
-        guard.Should().NotBeNull("contributor must return an HsmAsset");
+        guard.Should().NotBeNull("JSON contributor must return an HsmAsset");
 
-        // At least one state must have a non-zero canvas position — proves layout was applied.
+        // At least one state must have non-zero X or Y — proves layout from JSON was applied.
+        // (SampleGuard layout: Idle at (100,100), Scanning at (400,100))
         guard!.AllStates.Should().Contain(s => s.Position.X != 0f || s.Position.Y != 0f,
-            "layout positions must be applied from the [HsmLayout] method");
+            "layout positions must be applied from Machines/SampleGuard.hsm.json (PU-402)");
     }
 
-    // ── layout method round-trip ─────────────────────────────────────────────
-
-    [Fact]
-    public void SampleGuard_Layout_ReturnsNonNullWithExpectedStates()
-    {
-        var layout = Hrot.AI.Behaviors.Machines.SampleGuard.Layout();
-
-        layout.Should().NotBeNull();
-        layout.States.Should().HaveCount(2,
-            "SampleGuard declares Idle and Scanning");
-        layout.Transitions.Should().HaveCount(2,
-            "SampleGuard declares Alert and Clear transitions");
-    }
+    // PU-402 DELETED: SampleGuard_Layout_ReturnsNonNullWithExpectedStates
+    // The [HsmLayout] method no longer exists in the generated assembly. Layout lives
+    // in Machines/SampleGuard.hsm.json; use HsmJsonAssetContributor to read it (above).
 
     [Fact]
     public void SampleGuard_Compile_ReturnsValidBlob()
@@ -95,17 +112,9 @@ public sealed class SampleGuardDiscoveryTests
         blob.Should().NotBeNull();
     }
 
-    [Fact]
-    public void SampleGuard_LayoutNamespace_IsResolvableFromBehaviorsAssembly()
-    {
-        // The [HsmLayout] attribute lives in Hrot.Editor.AiShared.Layout (via AiContracts).
-        // Verify the behaviors assembly carries a reference to Hrot.Editor.AiContracts.
-        var referencedAssemblyNames = BehaviorsAssembly
-            .GetReferencedAssemblies()
-            .Select(n => n.Name)
-            .ToHashSet();
-
-        referencedAssemblyNames.Should().Contain("Hrot.Editor.AiContracts",
-            "Hrot.AI.Behaviors must reference Hrot.Editor.AiContracts to resolve HsmLayoutAttribute");
-    }
+    // PU-402 NOTE: SampleGuard_LayoutNamespace_IsResolvableFromBehaviorsAssembly was removed.
+    // After decommit, the generated SampleGuard.g.cs no longer has [HsmLayout] and the
+    // Hrot.AI.Behaviors assembly no longer needs a reference to Hrot.Editor.AiContracts
+    // purely for layout resolution. Layout lives in Machines/SampleGuard.hsm.json.
+    // The test LayoutIsApplied above (via HsmJsonAssetContributor) covers layout correctness.
 }

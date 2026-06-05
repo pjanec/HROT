@@ -443,116 +443,106 @@ public sealed class MigrationEquivalenceTests
         weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
     }
 
-    // ── PU-401 Task 3: Migration JSON generation + validation ────────────────────
+    // ── PU-402 Task 3 (CONVERTED): Read the live committed JSON from disk ────────
 
     /// <summary>
-    /// PU-401 Task 3: Generate migration JSON for SampleScout (BTree).
-    /// Asserts: round-trips byte-stable, carries non-empty per-node layout (X/Y),
-    /// and has populated BlackboardTypeName/ContextTypeName (from ToDtoWithTypeNames).
-    /// Writes the validated file to .dev/persistence-unification/migration-artifacts/SampleScout.btree.json.
+    /// PU-402 CONVERTED: The migration JSON is now the live committed file at
+    /// Trees/SampleScout.btree.json (decommit complete; migration-artifacts staging dir removed).
+    ///
+    /// Asserts: the live file round-trips byte-stable, carries per-node layout (X/Y),
+    /// and has populated BlackboardTypeName/ContextTypeName.
+    /// No longer regenerates from LoadBTree — the assembly no longer carries [BTreeLayout].
     /// </summary>
     [Fact]
     public void BTree_SampleScout_MigrationJson_RoundTrips_And_CarriesLayout()
     {
-        var model = LoadBTree("SampleScout");
-        var dto   = ToDtoWithTypeNames(model, "SampleScout");
+        // Locate the live committed JSON
+        var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
+            "Trees", "SampleScout.btree.json"));
+        File.Exists(jsonPath).Should().BeTrue(
+            $"live SampleScout.btree.json must exist at {jsonPath} (PU-402 decommit)");
 
-        // 1. Serialize to JSON
-        string json = BTreeJsonServices.Serialize(dto);
-        json.Should().NotBeNullOrWhiteSpace("migration JSON must not be empty");
+        // 1. Read from disk
+        string json = File.ReadAllText(jsonPath, System.Text.Encoding.UTF8);
+        json.Should().NotBeNullOrWhiteSpace("live SampleScout.btree.json must not be empty");
 
-        // 2. Deserialize back → assert structural round-trip
+        // 2. Deserialize → assert structural round-trip
         var dto2 = BTreeJsonServices.Deserialize(json);
-        dto2.Should().NotBeNull("deserialization of migration JSON must succeed");
+        dto2.Should().NotBeNull("deserialization of live SampleScout.btree.json must succeed");
 
         // 3. Re-serialize and compare → byte-stable
         string json2 = BTreeJsonServices.Serialize(dto2!);
-        json2.Should().Be(json, "migration JSON must be byte-stable after Serialize→Deserialize→Serialize");
+        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize");
 
-        // 4. Layout: assert every non-root node has non-zero X or Y (committed layout has canvas positions)
+        // 4. Layout: assert every non-root node has non-zero X or Y
         var nodesWithLayout = dto2!.Nodes
             .Where(n => n.EditorMetadata.X != 0f || n.EditorMetadata.Y != 0f)
             .ToList();
         nodesWithLayout.Should().NotBeEmpty(
-            "SampleScout migration JSON must carry per-node layout (X/Y) from the committed [BTreeLayout] " +
-            "(decommit safety: editor restores layout from JSON via PU-301). " +
-            $"All {dto2.Nodes.Count} nodes have X=0/Y=0 — check ToDtoWithTypeNames/BTreeAssetMapper layout application.");
+            "SampleScout.btree.json must carry per-node layout (X/Y). " +
+            $"All {dto2.Nodes.Count} nodes have X=0/Y=0 — check the committed JSON.");
 
-        // 5. Type names populated (required for compiler — plain ToDto leaves them empty)
+        // 5. Type names populated
         dto2.BlackboardTypeName.Should().NotBeNullOrWhiteSpace(
-            "BlackboardTypeName must be populated by ToDtoWithTypeNames (required for BTreeBuilder<BB,Ctx> emit). " +
-            "Plain BehaviorTreeAssetMapper.ToDto() leaves it empty.");
+            "BlackboardTypeName must be populated in the live JSON " +
+            "(required for BTreeBuilder<BB,Ctx> emit).");
         dto2.ContextTypeName.Should().NotBeNullOrWhiteSpace(
-            "ContextTypeName must be populated by ToDtoWithTypeNames.");
-
-        // 6. Write to migration-artifacts (staging file — NOT the live Trees/ folder)
-        string artifactPath = GetMigrationArtifactPath("SampleScout.btree.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(artifactPath)!);
-        File.WriteAllText(artifactPath, json, System.Text.Encoding.UTF8);
-
-        // Verify written file can be deserialized (end-to-end validation)
-        string readBack = File.ReadAllText(artifactPath, System.Text.Encoding.UTF8);
-        readBack.Should().Be(json, "written migration artifact must match in-memory JSON");
+            "ContextTypeName must be populated in the live JSON.");
     }
 
     /// <summary>
-    /// PU-401 Task 3: Generate migration JSON for SampleGuard (HSM).
-    /// Asserts: round-trips byte-stable, carries per-state layout (X/Y).
-    /// Writes the validated file to .dev/persistence-unification/migration-artifacts/Machines/SampleGuard.hsm.json.
+    /// PU-402 CONVERTED: The migration JSON is now the live committed file at
+    /// Machines/SampleGuard.hsm.json (decommit complete; migration-artifacts staging dir removed).
+    ///
+    /// Asserts: the live file round-trips byte-stable and carries per-state layout (X/Y).
+    /// No longer regenerates from LoadHsm — the assembly no longer carries [HsmLayout].
     /// </summary>
     [Fact]
     public void Hsm_SampleGuard_MigrationJson_RoundTrips_And_CarriesLayout()
     {
-        var model = LoadHsm("SampleGuard");
-        var dto   = HsmAssetMapper.ToDto(model);
+        // Locate the live committed JSON
+        var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
+            "Machines", "SampleGuard.hsm.json"));
+        File.Exists(jsonPath).Should().BeTrue(
+            $"live SampleGuard.hsm.json must exist at {jsonPath} (PU-402 decommit)");
 
-        // 1. Serialize to JSON
-        string json = HsmJsonServices.Serialize(dto);
-        json.Should().NotBeNullOrWhiteSpace("migration JSON must not be empty");
+        // 1. Read from disk
+        string json = File.ReadAllText(jsonPath, System.Text.Encoding.UTF8);
+        json.Should().NotBeNullOrWhiteSpace("live SampleGuard.hsm.json must not be empty");
 
-        // 2. Deserialize back → assert structural round-trip
+        // 2. Deserialize → assert structural round-trip
         var dto2 = HsmJsonServices.Deserialize(json);
-        dto2.Should().NotBeNull("deserialization of migration JSON must succeed");
+        dto2.Should().NotBeNull("deserialization of live SampleGuard.hsm.json must succeed");
 
         // 3. Re-serialize and compare → byte-stable
         string json2 = HsmJsonServices.Serialize(dto2!);
-        json2.Should().Be(json, "migration JSON must be byte-stable after Serialize→Deserialize→Serialize");
+        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize");
 
         // 4. Layout: assert at least one state has non-zero X or Y
         var statesWithLayout = dto2!.States
             .Where(s => s.X != 0f || s.Y != 0f)
             .ToList();
         statesWithLayout.Should().NotBeEmpty(
-            "SampleGuard migration JSON must carry per-state layout (X/Y) from the committed [HsmLayout] " +
-            "(decommit safety: editor restores layout from JSON via PU-301). " +
-            $"All {dto2.States.Count} states have X=0/Y=0 — check HsmAssetMapper layout application.");
-
-        // 5. Write to migration-artifacts/Machines/ (NOT the live Machines/ folder)
-        string artifactPath = GetMigrationArtifactPath("Machines/SampleGuard.hsm.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(artifactPath)!);
-        File.WriteAllText(artifactPath, json, System.Text.Encoding.UTF8);
-
-        // Verify written file can be deserialized (end-to-end validation)
-        string readBack = File.ReadAllText(artifactPath, System.Text.Encoding.UTF8);
-        readBack.Should().Be(json, "written migration artifact must match in-memory JSON");
+            "SampleGuard.hsm.json must carry per-state layout (X/Y). " +
+            $"All {dto2.States.Count} states have X=0/Y=0 — check the committed JSON.");
     }
 
-    // ── Shared helpers for PU-401 tests ──────────────────────────────────────────
+    // ── Shared helpers for PU-401/PU-402 tests ───────────────────────────────────
 
     /// <summary>
-    /// Returns the absolute path to the migration artifact at the given relative path
-    /// under .dev/persistence-unification/migration-artifacts/.
+    /// Returns the absolute path to the live asset at the given repo-relative path.
+    /// The test assembly lives at:
+    ///   &lt;repo&gt;/Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/bin/Debug/net8.0/
+    /// Walk up 7 levels: net8.0 → Debug → bin → Hrot.AiEditor.Generators.Tests
+    ///   → AI → Subsystems → Hrot → repo root.
     /// </summary>
-    private static string GetMigrationArtifactPath(string relativePath)
+    private static string GetLiveJsonPath(string repoRelativePath)
     {
-        // Walk up from the test assembly directory to the repo root, then to .dev/
-        // The test assembly lives at: <repo>/Hrot/Subsystems/AI/Hrot.AiEditor.Generators.Tests/bin/Debug/net8.0/
         var asmDir = Path.GetDirectoryName(typeof(MigrationEquivalenceTests).Assembly.Location)!;
-        // Walk up 6 levels: net8.0 → Debug → bin → Hrot.AiEditor.Generators.Tests → AI → Subsystems → Hrot → repo root
         var repoRoot = asmDir;
         for (int i = 0; i < 7; i++)
             repoRoot = Path.GetDirectoryName(repoRoot)!;
-        return Path.Combine(repoRoot, ".dev", "persistence-unification", "migration-artifacts", relativePath);
+        return Path.Combine(repoRoot, repoRelativePath);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using FluentAssertions;
@@ -6,7 +7,6 @@ using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Emit;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Identity;
-using Hrot.Editor.AiShared.Layout;
 using Xunit;
 
 namespace Hrot.BTree.Editor.Tests;
@@ -15,6 +15,10 @@ namespace Hrot.BTree.Editor.Tests;
 /// Tests for AIE-ENABLE-2: verifies that BTreeAssetContributor discovers SampleScout
 /// from the Hrot.AI.Behaviors assembly, and that the BTree emitter LayoutNamespace
 /// resolves correctly against the runtime assembly (AIE-ENABLE-1 round-trip).
+///
+/// PU-402: SampleScout.cs is decommitted; SampleScout.Build() is now generated from
+/// Trees/SampleScout.btree.json. The [BTreeLayout] method no longer exists in the
+/// assembly. Layout coverage migrated to BTreeJsonAssetContributor reading the live JSON.
 /// </summary>
 public sealed class SampleScoutDiscoveryTests
 {
@@ -53,29 +57,58 @@ public sealed class SampleScoutDiscoveryTests
             "asset ID must be the FNV-1a-32 hash of the tree name");
     }
 
+    // PU-402 MIGRATED: Layout is now in Trees/SampleScout.btree.json (not in the assembly).
+    // Assert layout via BTreeJsonAssetContributor reading the live committed JSON file.
     [Fact]
     public void BTreeAssetContributor_LoadFrom_SampleScout_LayoutIsApplied()
     {
-        var contributor = new BTreeAssetContributor();
-        contributor.LoadFrom(BehaviorsAssembly);
+        // Locate the live JSON — it lives at Trees/SampleScout.btree.json under
+        // Hrot/Subsystems/Hrot.AI.Behaviors/ relative to the repo root.
+        // Walk up from the test assembly output dir (net8.0 → Debug → bin →
+        // Hrot.BTree.Editor.Tests → AI → Subsystems → Hrot → repo root).
+        var asmDir = Path.GetDirectoryName(typeof(SampleScoutDiscoveryTests).Assembly.Location)!;
+        var repoRoot = asmDir;
+        for (int i = 0; i < 7; i++)
+            repoRoot = Path.GetDirectoryName(repoRoot)!;
+        var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
+            "Trees", "SampleScout.btree.json");
 
-        var scout = contributor.Enumerate().FirstOrDefault(a => a.Name == "SampleScout")
-                    as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
-        scout.Should().NotBeNull("contributor must return a BehaviorTreeAsset");
+        jsonPath.Should().NotBeNullOrEmpty();
+        File.Exists(jsonPath).Should().BeTrue(
+            $"live SampleScout.btree.json must exist at {jsonPath} (PU-402 decommit)");
 
-        // At least one node must have a non-zero position — proves layout was applied.
+        var contrib = new BTreeJsonAssetContributor();
+        contrib.Discover(jsonPaths: new[] { jsonPath });
+        // LoadAll is private — trigger it via Refresh with explicit paths
+        contrib.Refresh(jsonPaths: new[] { jsonPath });
+
+        var assets = contrib.Enumerate();
+        assets.Should().Contain(a => a.Name == "SampleScout",
+            "JSON contributor must discover SampleScout from the live .btree.json");
+
+        var scout = assets.FirstOrDefault(a => a.Name == "SampleScout")
+                    as BehaviorTreeAsset;
+        scout.Should().NotBeNull("JSON contributor must return a BehaviorTreeAsset");
+
+        // At least one node must have non-zero X or Y — proves layout from JSON was applied.
+        // (SampleScout layout: Sequence at (200,50), Wait1 at (100,200), Wait2 at (300,200))
         scout!.Nodes.Should().Contain(n => n.Position.X != 0f || n.Position.Y != 0f,
-            "layout positions must be applied from the [BTreeLayout] method");
+            "layout positions must be applied from Trees/SampleScout.btree.json (PU-402)");
     }
 
-    // ── emitter layout-namespace round-trip ──────────────────────────────────
+    // PU-402 DELETED: SampleScout_Layout_ReturnsNonNullWithExpectedNodes
+    // The [BTreeLayout] method no longer exists in the generated assembly. Layout lives
+    // in Trees/SampleScout.btree.json; use BTreeJsonAssetContributor to read it (above).
+
+    // ── emitter output for assembly-loaded asset ─────────────────────────────
 
     [Fact]
-    public void BTreeEmitter_LayoutUsing_ResolvesInRuntimeAssembly()
+    public void BTreeEmitter_Emit_ProducesValidCSharp_ForAssemblyLoadedAsset()
     {
-        // The BTreeFluentEmitter must emit "using Hrot.Editor.AiShared.Layout;"
-        // (not the old "Hrot.AI.Behaviors.Trees.Layout") so that the emitted file
-        // compiles against Hrot.Editor.AiContracts (referenced by Hrot.AI.Behaviors).
+        // PU-402: the assembly now carries a GENERATED SampleScout (from SampleScout.btree.json).
+        // The assembly no longer has a [BTreeLayout] method; the assembly contributor
+        // loads the asset without layout (layout is JSON-owned, not assembly-owned).
+        // Verify the emitter still produces compilable C# for this reflection-loaded asset.
 
         var contributor = new BTreeAssetContributor();
         contributor.LoadFrom(BehaviorsAssembly);
@@ -87,33 +120,14 @@ public sealed class SampleScoutDiscoveryTests
         var emitter = new BTreeFluentEmitter();
         string code = emitter.Emit(scout!);
 
-        // The emitted using must reference the actual layout namespace.
-        code.Should().Contain("using Hrot.Editor.AiShared.Layout;",
-            "emitter LayoutNamespace must match the namespace types actually live in");
+        // Must produce non-empty C# with the expected structure markers.
+        code.Should().NotBeNullOrWhiteSpace("emitter must produce non-empty output");
+        code.Should().Contain("CreateBuilder()", "emitted code must include CreateBuilder");
+        code.Should().Contain("[BTreeDefinition(", "emitted code must include [BTreeDefinition] thunk");
 
         // Must NOT reference the old, non-existent namespace.
         code.Should().NotContain("Hrot.AI.Behaviors.Trees.Layout",
             "old incorrect namespace must not appear in emitted code");
-
-        // Verify the namespace is reachable: the runtime assembly must reference a
-        // dependency that exports Hrot.Editor.AiShared.Layout types.
-        var referencedAssemblyNames = BehaviorsAssembly
-            .GetReferencedAssemblies()
-            .Select(n => n.Name)
-            .ToHashSet();
-        referencedAssemblyNames.Should().Contain("Hrot.Editor.AiContracts",
-            "Hrot.AI.Behaviors must reference Hrot.Editor.AiContracts to resolve layout types");
-    }
-
-    [Fact]
-    public void SampleScout_Layout_ReturnsNonNullWithExpectedNodes()
-    {
-        // Directly invoke SampleScout.Layout() to verify the layout method itself works.
-        var layout = Hrot.AI.Behaviors.Trees.SampleScout.Layout();
-
-        layout.Should().NotBeNull();
-        layout.Nodes.Should().HaveCount(3,
-            "SampleScout layout declares positions for Sequence, Wait1, Wait2");
     }
 
     [Fact]

@@ -1953,13 +1953,12 @@ namespace Hrot.Editor
             _blueprintCompileCallback = compileRegistrar.GetToolbarCallback("Compile / Reload Blueprint");
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            // ── PU-603: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ────────────────
+            // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
             // Build per-kind save delegates (injected to avoid circular assembly refs, design §PU-602).
             // Blueprint: reuse SaveActiveBlueprintCommand.Save (unchanged write path).
-            // BTree/HSM: mapper → JSON serializer → AtomicFileWriter (new JSON path, additive).
-            // NOTE: the debounced flushAction BTree/HSM .cs routing is UNCHANGED (edit-to-live
-            // safety). Save-All writes JSON for path'd docs; no-path docs are skipped with a warning.
-            // The .cs route switch is DEFERRED to PU-401 (migration batch).
+            // BTree/HSM: mapper → JSON serializer → AtomicFileWriter.
+            // PU-D11 (PU-402): these delegates are also reused by the debounced RegenerationScheduler
+            // flushAction so BTree/HSM flush writes JSON (not C#) — see the scheduler wiring below.
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBlueprintDelegate =
                 (asset, path) =>
                 {
@@ -2214,6 +2213,10 @@ namespace Hrot.Editor
             var btreeEmitter = new Hrot.BTree.Editor.Emit.BTreeFluentEmitter();
             var hsmEmitter   = new Hrot.Hsm.Editor.Emit.HsmFluentEmitter();
 
+            // PU-D11 (PU-402): emitService is no longer used by the RegenerationScheduler
+            // flushAction (which now writes JSON via saveBTreeDelegate/saveHsmDelegate instead
+            // of C#). The emitters + emitService remain available for any future direct C# emit
+            // path (e.g. hand-authored assets). AiAssetEmitService is NOT removed per spec.
             var emitService = new Hrot.Editor.AiShared.Emit.AiAssetEmitService(
                 emitDelegate: asset => asset switch
                 {
@@ -2229,6 +2232,7 @@ namespace Hrot.Editor
                     else if (asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
                         hsmAsset.ClearDirty();
                 });
+            _ = emitService; // suppress unused-variable lint; see comment above
 
             // MVE-BATCH-05 (Blueprint): Wire the QuickReloadService so that every dirty Blueprint
             // asset that the RegenerationScheduler flushes is automatically compiled and committed
@@ -2290,7 +2294,46 @@ namespace Hrot.Editor
                         _blueprintQuickReloadTrigger?.Invoke(asset);
                         return;
                     }
-                    emitService.Emit(asset);
+
+                    // PU-D11 (PU-402): BTree/HSM assets are now JSON-owned (SampleScout.btree.json /
+                    // SampleGuard.hsm.json are the only two editor-owned assets and are now committed).
+                    // Writing C# here would clobber the .json with C# (wrong source-of-truth).
+                    // Reuse the same saveBTreeDelegate / saveHsmDelegate wired for Save-All (§PU-602):
+                    //   mapper.ToDto → JsonServices.Serialize → AtomicFileWriter.Write.
+                    // Guards:
+                    //   - No-path (empty SourceFilePath) → skip silently; never throw.
+                    //   - AssetBaseNameCollisionGuard: checked before write (D5; won't fire post-migration).
+                    //   - Blueprint path: UNCHANGED (handled above).
+                    // NOTE: end-to-end edit→MSBuild-regen→hot-reload latency is Phase 9 / manual smoke.
+                    // This change ensures the flush PERSISTS correctly (valid JSON, not C#).
+                    try
+                    {
+                        var path = asset.SourceFilePath;
+                        if (string.IsNullOrEmpty(path))
+                            return; // no path → skip silently (awaiting path-at-creation)
+
+                        if (asset.Kind == Hrot.Editor.AiShared.AssetKind.BTree)
+                        {
+                            var collision = Hrot.AiEditor.Persistence.AssetBaseNameCollisionGuard
+                                .CheckCollisionOnDisk(path, System.IO.Directory.EnumerateFiles);
+                            if (collision != null)
+                                return; // D5 collision: block the write, leave dirty, never throw
+                            saveBTreeDelegate(asset, path);
+                        }
+                        else if (asset.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)
+                        {
+                            var collision = Hrot.AiEditor.Persistence.AssetBaseNameCollisionGuard
+                                .CheckCollisionOnDisk(path, System.IO.Directory.EnumerateFiles);
+                            if (collision != null)
+                                return; // D5 collision: block the write, leave dirty, never throw
+                            saveHsmDelegate(asset, path);
+                        }
+                        // else: unknown kind — skip silently
+                    }
+                    catch
+                    {
+                        // Never throw out of the flush — debounced callbacks must not crash the frame loop.
+                    }
                 },
                 debounceTicks: 500);
 

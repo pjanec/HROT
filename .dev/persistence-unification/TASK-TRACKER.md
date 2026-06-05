@@ -41,7 +41,9 @@
 **Goal:** existing editor-owned `.cs` → `.json`; equivalence proven; old `.cs` decommitted.
 
 - [x] **PU-401** Migration pass (`.cs` → `.json`) — BATCH-08 (blob/behavioral equivalence PROVEN per PU-D06; migration JSON staged to `migration-artifacts/`; live tree untouched) [details](./TASK-DETAIL.md#pu-401-migration-pass-cs-to-json)
-- [ ] **PU-402** Decommit generated `.cs` — BATCH-09 (atomic swap: stage `.json`→live, delete `.cs`) [details](./TASK-DETAIL.md#pu-402-decommit-generated-cs)
+- [x] **PU-402** Decommit generated `.cs` — BATCH-09 (atomic swap done; clean-build-safe; flushAction→JSON, PU-D11 resolved) [details](./TASK-DETAIL.md#pu-402-decommit-generated-cs)
+
+> **Phase 4 COMPLETE** (PU-401..402). Migration critical path delivered: editor-owned BTree/HSM are JSON-owned, build-time generated, bridge-registered, layout-from-JSON, flush-writes-JSON. **PU-501 now UNBLOCKED** (path-at-creation safe).
 
 ## Phase 5: Path-at-creation + fixed roots
 **Goal:** every asset gets a real path at creation; no `.cs`/`.json` base-name collisions.
