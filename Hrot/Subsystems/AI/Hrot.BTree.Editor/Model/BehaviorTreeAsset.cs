@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fbt;
+using Hrot.BTree.Editor.Debug;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 
@@ -161,7 +162,7 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset
 {
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
@@ -178,6 +179,10 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     private readonly Dictionary<Guid, int>              _visualIdToBlobIndex = new();
     private readonly Dictionary<Guid, BTreeEditorNode>  _visualIdToNode      = new();
     private readonly Dictionary<Guid, BTreeEditorPill>  _visualIdToPill      = new();
+
+    // PU-302: debug session reference set by the JSON contributor so StitchKernelIndices
+    // can re-wire symbolication without needing external injection at stitch time.
+    private BTreeDebugSession? _debugSession;
 
     // ---- IEditableAsset ----
     public Guid AssetId { get; }
@@ -571,6 +576,20 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         TargetNamespace      = targetNamespace;
     }
 
+    /// <summary>
+    /// Attaches a debug session so that <see cref="StitchKernelIndices"/> can re-wire
+    /// symbolication without external injection at stitch time.
+    /// Called by <see cref="BTree.Editor.Catalog.BTreeJsonAssetContributor"/> during load.
+    /// </summary>
+    internal void SetDebugSession(BTreeDebugSession? session)
+        => _debugSession = session;
+
+    // ---- IStitchableAsset ----
+
+    /// <inheritdoc/>
+    void IStitchableAsset.StitchRuntimeIndices(IEditableAsset? fresh)
+        => StitchKernelIndices(fresh as BehaviorTreeAsset, _debugSession);
+
     // ---- Mutation helpers ----
 
     /// <summary>Marks the asset as dirty and fires the Changed event.</summary>
@@ -659,5 +678,100 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         _pills.Remove(pill);
         _visualIdToPill.Remove(visualId);
         return true;
+    }
+
+    // ── PU-302: Post-reload stitch ───────────────────────────────────────────
+
+    /// <summary>
+    /// Stitches runtime indices from a freshly assembly-projected asset (<paramref name="fresh"/>)
+    /// onto this JSON-loaded editor model (design §6.6 / D13).
+    /// <para>
+    /// The JSON model is the authoritative source for topology and layout.
+    /// For each editor node, the matching blob node is found in <paramref name="fresh"/> by
+    /// <c>VisualId</c> via <see cref="NodeDebugMetadata.VisualId"/>, and its
+    /// <c>KernelBlobIndex</c> is copied across.  The blob reference is updated to the
+    /// recompiled blob from <paramref name="fresh"/>.
+    /// </para>
+    /// <para>
+    /// Unmatched nodes (e.g. the assembly did not compile yet) are left visible with
+    /// <c>KernelBlobIndex = -1</c> and a load diagnostic is set on the asset —
+    /// the debug overlay is inert for those nodes until the blob catches up.
+    /// </para>
+    /// <para>
+    /// <b>Must NOT call <see cref="MarkDirty"/> anywhere</b> — that would enqueue a stale
+    /// emit/write until PU-602.
+    /// </para>
+    /// </summary>
+    /// <param name="fresh">
+    ///   The freshly assembly-projected <see cref="BehaviorTreeAsset"/>.
+    ///   Must have the same <see cref="AssetId"/>.  May be null (compile failed) — in
+    ///   that case all indices stay at sentinel and diagnostics are set.
+    /// </param>
+    /// <param name="debugSession">
+    ///   Optional debug session to re-wire after index assignment.
+    /// </param>
+    public void StitchKernelIndices(BehaviorTreeAsset? fresh, BTreeDebugSession? debugSession = null)
+    {
+        if (fresh is null || fresh.AssetId != AssetId)
+        {
+            // Nothing to match against — reset all indices to sentinel and record diagnostic
+            foreach (var node in _nodes)
+                node.KernelBlobIndex = -1;
+            _visualIdToBlobIndex.Clear();
+            SetLoadDiagnostic(BlackboardLoadState.AssemblyFailed,
+                "Assembly blob unavailable; runtime indices unset (debug overlay inert).");
+            return;
+        }
+
+        // Build a map from VisualId string → blob index from the fresh blob's DebugMetadata
+        var freshBlob = fresh.Blob;
+        var visualIdToFreshIndex = new Dictionary<string, int>(
+            freshBlob.DebugMetadata?.Length ?? 0,
+            StringComparer.OrdinalIgnoreCase);
+
+        if (freshBlob.DebugMetadata != null)
+        {
+            for (int i = 0; i < freshBlob.DebugMetadata.Length; i++)
+            {
+                var meta = freshBlob.DebugMetadata[i];
+                if (!string.IsNullOrEmpty(meta.VisualId))
+                    visualIdToFreshIndex[meta.VisualId] = i;
+            }
+        }
+
+        bool anyUnmatched = false;
+        foreach (var node in _nodes)
+        {
+            var visualIdStr = node.VisualId.ToString();
+            if (visualIdToFreshIndex.TryGetValue(visualIdStr, out var idx))
+            {
+                node.KernelBlobIndex = idx;
+                _visualIdToBlobIndex[node.VisualId] = idx;
+            }
+            else
+            {
+                node.KernelBlobIndex = -1;
+                _visualIdToBlobIndex.Remove(node.VisualId);
+                anyUnmatched = true;
+            }
+        }
+
+        // Update the blob reference to the recompiled one
+        Blob = freshBlob;
+
+        if (anyUnmatched)
+        {
+            SetLoadDiagnostic(BlackboardLoadState.StructParseFailed,
+                "One or more nodes have no blob match (compile incomplete); overlay partially inert.");
+        }
+        else
+        {
+            // Clear any stale diagnostic
+            SetLoadDiagnostic(BlackboardLoadState.Clean, null);
+        }
+
+        // Re-wire the debug session so the overlay symbolication is up-to-date.
+        debugSession?.SetDebugMetadata(freshBlob.DebugMetadata, AssetId);
+        // Do NOT call MarkDirty — stitch is a reload-only operation (PU-602 constraint).
     }
 }

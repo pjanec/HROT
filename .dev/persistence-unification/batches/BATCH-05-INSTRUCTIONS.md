@@ -1,0 +1,45 @@
+# BATCH-05: Editor JSON dual-load + post-reload stitching (the headline)
+**Tasks:** PU-301, PU-302, PU-303  **Phase:** 3 (editor load path)  **Est:** ~16h
+**Dependencies:** BATCH-01 (JSON services + mappers), BATCH-03/04 (generators + bridge). **Independent of PU-D06** (that gates only PU-401). This batch delivers the thread's core promise: **assets reopen from JSON even when the C# won't compile** (PU-301 acceptance).
+
+## Onboarding (read in order)
+1. `.dev/.guides/DEV-GUIDE_claude.md` — your contract.
+2. `.dev/persistence-unification/BTree_HSM_JSON_Persistence_Detailed_Design.md` — §2.1 (current assembly-reflection load), §3 **D4** (dual-load) + **D13** (stitch by VisualId/StableId), §4 (target arch), **§6.6** (post-reload stitch steps). Cite.
+3. `.dev/persistence-unification/TASK-DETAIL.md` — PU-301/302/303 success conditions.
+4. `reviews/BATCH-01-REVIEW.md` … `BATCH-04-REVIEW.md` (esp. the BATCH-01 mapper API + BATCH-04 findings).
+5. Codebase Memory MCP first; never `search_code`.
+
+## Verified seams (lead-confirmed via research — re-verify, cite)
+- **Load today (assembly-only):** `BTreeAssetContributor.LoadFrom(Assembly)` (`…/Catalog/BTreeAssetContributor.cs:34`) reflects `[BTreeDefinition]`→invoke→blob→`BehaviorTreeAssetProjector.Project(..., sourceFilePath:"" , isEditorOwned:false, …)` (`RegisterBlobCore`:78). HSM symmetric (`HsmAssetContributor.cs:27`). No file scan; no marker read. Both hardcode `""`/`false`.
+- **Mappers (BATCH-01):** `BehaviorTreeAssetMapper`/`HsmAssetMapper` `ToDto`/`FromDto`. You will need a model-construction entry that also sets `SourceFilePath` + `IsEditorOwned` (extend/confirm `FromDto` or add `ToModel(dto, sourceFilePath, isEditorOwned)`).
+- **Reconcile today:** `AiDocumentManager.ReconcileFromCatalog` (`Hrot.Editor.AiShared/Documents/AiDocumentManager.cs:174`) calls `doc.ReconcileAsset(fresh)` (full replace from the re-projected assembly asset). Wired at `EditorSubsystem.cs:~2152` (`OnReloadCompleted → ReconcileFromCatalog`).
+- **Stitch lookups already exist:** `BehaviorTreeAsset.FindBlobIndex(Guid visualId)` (:565), `HsmAsset.FindStateByStableId(Guid)` (:344), `HsmAsset.FindTransitionByVisualId(Guid)` (:347). Runtime index fields: `BTreeEditorNode.KernelBlobIndex`, `StateNode.FlatIndex`, `TransitionNode.FlatIndex`. Blob debug identity: `NodeDebugMetadata.VisualId` (BTree), `MachineMetadata.StateStableIds[i]`/`TransitionVisualIds[i]` (HSM).
+- **Blueprint path is SEPARATE:** `BlueprintEditorModule.OnReloadCompleted` does its own reconcile; Blueprints are `AssetKind.Blueprint` with `IsEditorOwned=true`. **The stitch branch MUST NOT touch Blueprint docs.**
+
+## Tasks (sequence; don't start the next until the current's tests pass.)
+
+### Task 1 — PU-301: JSON dual-load contributors + ownership + SourceFilePath — files: NEW `BTreeJsonAssetContributor` / `HsmJsonAssetContributor` (+ EditorSubsystem wiring)
+New file-based `IAssetCatalogContributor`s (one BTree, one HSM): header-lazy `Discover(jsonPaths)` via `BTreeJsonServices.ReadHeader`/`HsmJsonServices.ReadHeader` (AssetId+Name only, skip malformed — never throw); lazy `LoadFull(assetId)` → `Deserialize` → mapper → `BehaviorTreeAsset`/`HsmAsset` with **`IsEditorOwned=true`** and **`SourceFilePath`=the `.json` path**. Add a model-construction path that sets these (extend `FromDto`/add `ToModel`). **Ownership under JSON SoT = presence of a `.json` file** (no marker read). On `AssetId` collision with the assembly contributor, **JSON wins** (assembly entry superseded). Wire both contributors into the AI catalog builder in `EditorSubsystem` alongside the existing assembly contributors; `Discover` on startup + on the asset-source file-watcher. **No `.btree.json`/`.hsm.json` exist under `Hrot.AI.Behaviors` yet (migration is PU-401)** → in the live editor the JSON contributors discover zero files (dormant-but-correct); the mechanism is exercised by tests with synthesized `.json`.
+**Tests required (headless):** write a temp `.btree.json` (built from a fixture DTO via the services) → `Discover` → header has AssetId+Name; `LoadFull` → model with the right topology, `IsEditorOwned==true`, `SourceFilePath==jsonPath`; malformed `.json` skipped (sibling still discovered). HSM symmetric.
+
+### Task 2 — PU-301 acceptance: reopen-when-C#-won't-compile — file: test(s) (NEW)
+The crux promise. **Test:** a valid `.btree.json` on disk + NO assembly contribution for that AssetId (simulating "assembly failed to compile") → the JSON contributor still `LoadFull`s the asset (model populated, `Nodes` present), `AiDocumentManager.Open(asset)` succeeds, and `ReconcileFromCatalog(empty)` leaves the document open with topology intact (no throw). Assert the runtime indices are unset/sentinel (stitch inert — no blob). HSM symmetric. This proves JSON load has no assembly dependency.
+
+### Task 3 — PU-302: post-reload stitching (replace re-project for editor-owned BTree/HSM) — files: `AiDocumentManager.cs`, `AiDocument.cs`, `BehaviorTreeAsset.cs`, `HsmAsset.cs` (UPDATE)
+In `ReconcileFromCatalog`: **guard by Kind** — `if (doc.Asset.Kind is AssetKind.BTree or AssetKind.Hsm && doc.Asset.IsEditorOwned) doc.StitchRuntimeIndices(fresh); else doc.ReconcileAsset(fresh);` (Blueprint + hand-authored keep the existing full-replace path — DO NOT regress them). `AiDocument.StitchRuntimeIndices(fresh)` dispatches to `BehaviorTreeAsset.StitchKernelIndices(fresh)` / `HsmAsset.StitchKernelIndices(fresh)`:
+- keep the JSON-loaded model authoritative (topology+layout); for each node match by `VisualId` (BTree) / `StableId`+`VisualId` (HSM) into `fresh` (the assembly-projected asset) via the existing Find* helpers; assign `KernelBlobIndex`/`FlatIndex`; **update the `Blob`(+`Metadata`) reference** to the recompiled blob (add `HsmAsset.UpdateBlob(blob, metadata)` if `Blob`/`Metadata` are constructor-only — mirror `BehaviorTreeAsset.ReplaceAll`'s blob update at :575); re-wire the debug overlay (`BTreeDebugSession.SetDebugMetadata(blob.DebugMetadata, assetId)` — find the right call site).
+- **unmatched node → diagnostic** (`SetLoadDiagnostic(...)`) + leave the node visible with a sentinel index (overlay inert). **Must NOT call `MarkDirty`** anywhere on load or stitch (would enqueue a stale `.cs`/emit until PU-602).
+**Tests required (headless):** build a JSON-loaded model + a separate "fresh" assembly-projected asset (reuse the projector with a blob) for the SAME asset; `StitchKernelIndices(fresh)` assigns the correct `KernelBlobIndex`/`FlatIndex` per `VisualId`/`StableId`, updates `Blob`, and a node with no blob match gets a sentinel + diagnostic. **Kind-guard test:** a Blueprint (or hand-authored) doc routed through `ReconcileFromCatalog` still takes the full-replace path (StitchRuntimeIndices NOT invoked). **No-dirty test:** load + stitch leave `IsDirty==false`.
+
+## Success Criteria
+- [ ] PU-301: JSON contributors discover/lazy-load editor-owned BTree/HSM from `.json`; `IsEditorOwned=true`, `SourceFilePath=.json`; malformed skipped; JSON wins AssetId collision; wired into the catalog (dormant in live editor — zero `.json` today).
+- [ ] PU-301 acceptance: editor-owned asset **opens from JSON with no assembly / when C# won't compile**; `ReconcileFromCatalog(empty)` doesn't drop it.
+- [ ] PU-302: `ReconcileFromCatalog` **Kind-guarded** (BTree/HSM editor-owned → stitch; Blueprint/hand-authored → full replace, unchanged); `StitchKernelIndices` maps VisualId/StableId→indices, updates Blob, diagnostics unmatched; **no MarkDirty on load/stitch**; debug overlay re-wired.
+- [ ] Global gate: `dotnet build IOS-IG-SimHost.sln` 0 errors / 0 new warnings (touched); new tests green; **`EditorSubsystemBoot` 10/10** (composition with new contributors); `Hrot.Editor.AiShared.Tests` green; `Hrot.BTree.Editor.Tests`/`Hrot.Hsm.Editor.Tests` green; persistence/generator gates green; `Hrot.Blueprints.Tests` only pre-existing (0 new — **prove the Blueprint reconcile path is untouched**). Report exact counts/classification.
+- [ ] Report → `.dev/persistence-unification/reports/BATCH-05-REPORT.md`.
+
+## Report Requirements
+The dual-load branch point + ownership decision; the mapper model-construction entry used; exactly how `ReconcileFromCatalog` is Kind-guarded (paste the branch) and proof Blueprint docs are unaffected; the stitch mapping (VisualId/StableId→index) + Blob/Metadata update (+ any `UpdateBlob` added); where the debug overlay is re-wired; confirmation nothing calls `MarkDirty` on load/stitch; the reopen-when-broken test; weak points; suggested commit message. No comprehension questions.
+
+## Constraints
+Branch `blueprint-integ-1`. GizmoMap.Contracts 0.2.2. No `Hrot.IG`/DDS/`Stride/`. No `editor_stride`. **Do NOT regress the Blueprint reconcile/load path** (it's separate — verify). **Do NOT decommit any `.cs`** (PU-402) and **do NOT change the dirty-flush emit routing** (PU-602). The live editor's BTree/HSM behavior stays assembly-loaded until migration (PU-401) — this batch adds the JSON mechanism + proves it via synthesized `.json`. Do NOT commit (the lead commits).

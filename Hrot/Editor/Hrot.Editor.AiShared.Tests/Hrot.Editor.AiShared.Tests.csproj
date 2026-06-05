@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
       <PrivateAssets>all</PrivateAssets>
@@ -31,6 +32,9 @@
     <ProjectReference Include="..\..\Subsystems\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
     <!-- BlueprintAssetContributor tests -->
     <ProjectReference Include="..\..\Subsystems\Blueprints\Hrot.Blueprints.Editor\Hrot.Blueprints.Editor.csproj" />
+    <!-- PU-301/302 tests: need Fhsm.Compiler for HsmAssetProjector + AI.Behaviors for fixtures -->
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+    <ProjectReference Include="..\..\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
   </ItemGroup>
 
   <ItemGroup>

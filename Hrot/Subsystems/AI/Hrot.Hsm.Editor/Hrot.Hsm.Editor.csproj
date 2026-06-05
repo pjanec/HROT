@@ -14,6 +14,7 @@
     <InternalsVisibleTo Include="Hrot.Hsm.Editor.Tests" />
     <InternalsVisibleTo Include="Hrot.Diagnostics.Breakpoints.Tests" />
     <InternalsVisibleTo Include="Hrot.AiEditor.Persistence.Tests" />
+    <InternalsVisibleTo Include="Hrot.Editor.AiShared.Tests" />
   </ItemGroup>
 
   <ItemGroup>

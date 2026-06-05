@@ -31,9 +31,11 @@
 ## Phase 3: Editor load path + reconciliation stitching
 **Goal:** editor opens editor-owned assets from JSON (no compile needed to reopen); hand-authored stays reflection; debug overlay survives reload.
 
-- [ ] **PU-301** JSON load path (dual-load) [details](./TASK-DETAIL.md#pu-301-json-load-path-dual-load)
-- [ ] **PU-302** Post-reload stitching (VisualId/StableId → KernelBlobIndex) [details](./TASK-DETAIL.md#pu-302-post-reload-stitching)
-- [ ] **PU-303** Load-path tests [details](./TASK-DETAIL.md#pu-303-load-path-tests)
+- [x] **PU-301** JSON load path (dual-load) — BATCH-05 (reopen-when-C#-broken proven) [details](./TASK-DETAIL.md#pu-301-json-load-path-dual-load)
+- [x] **PU-302** Post-reload stitching (VisualId/StableId → KernelBlobIndex), Kind-guarded — BATCH-05 [details](./TASK-DETAIL.md#pu-302-post-reload-stitching)
+- [x] **PU-303** Load-path tests — BATCH-05 [details](./TASK-DETAIL.md#pu-303-load-path-tests)
+
+> **Phase 3 COMPLETE** (PU-301..303). Editor-owned BTree/HSM load from JSON + reopen even when C# won't compile; stitch is Kind-guarded (Blueprint path untouched). Mechanism dormant in the live editor until migration (PU-401, blocked on PU-D06).
 
 ## Phase 4: Migration of existing assets
 **Goal:** existing editor-owned `.cs` → `.json`; equivalence proven; old `.cs` decommitted.

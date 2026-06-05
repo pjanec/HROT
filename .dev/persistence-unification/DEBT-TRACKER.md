@@ -14,6 +14,8 @@
 | PU-D06 | BATCH-04 | **Migration-equivalence criterion contradiction (escalated to user).** BATCH-02's "byte-identical gate" was tautological (adapter↔core + `.Contain()` on committed `.cs`), so the emit core was never proven byte-identical to the committed `SampleScout.cs`/`SampleGuard.cs` — and diverged (invalid `[BTreeDefinition]` AssetId; interleaved HSM order), fixed in BATCH-04. Committed `.cs` are hand-structured → exact text reproduction likely unachievable. Contradicts D1/§6.4/§11 ("regenerated `.cs` byte-identical to committed `.cs`"). **Recommended:** PU-401 equivalence = compile committed `.cs` AND regenerated `.cs`, compare resulting `BehaviorTreeBlob`/`HsmDefinitionBlob` (blob/behavioral equivalence). Subsumes PU-D04/PU-D05. | P1 (escalated) | PU-401 | OPEN |
 | PU-D07 | BATCH-04 | `InternalsVisibleTo` added to `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj` for `Hrot.AiEditor.Generators.Tests` (integration test drives registration internals). Acceptable; flagged. | P3 | — | OPEN |
 | PU-D08 | BATCH-04 | `BTreeAssetContributor` drops BB/context type names (`ToDtoWithTypeNames` test workaround). Root-cause fix at PU-301. | P3 | PU-301 | OPEN |
+| PU-D09 | BATCH-05 | Stitch uses `BlackboardLoadState.StructParseFailed` as the unmatched-node diagnostic — semantically stretched; add a dedicated stitch/diagnostic state. | P3 | — | OPEN |
+| PU-D10 | BATCH-05 | `InternalsVisibleTo` added to `Hrot.BTree.Editor`/`Hrot.Hsm.Editor` for `Hrot.Editor.AiShared.Tests` (projector access). Acceptable; flagged. `HsmAsset.Blob`/`Metadata` converted getter-only→backing fields for `UpdateBlob` (HSM suite green). | P3 | — | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

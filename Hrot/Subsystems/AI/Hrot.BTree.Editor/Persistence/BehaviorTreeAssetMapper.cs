@@ -87,6 +87,18 @@ public static class BehaviorTreeAssetMapper
     /// (blob is filled in when the assembly is reflected or a generator runs).
     /// </summary>
     public static BehaviorTreeAsset FromDto(BehaviorTreeAssetDto dto)
+        => ToModel(dto, string.Empty, true);
+
+    /// <summary>
+    /// Maps a BehaviorTreeAssetDto to a BehaviorTreeAsset, setting SourceFilePath and
+    /// IsEditorOwned explicitly.
+    /// Design §3 D4 / PU-301: used by the JSON file-based contributor so the loaded
+    /// model carries the correct SourceFilePath and ownership flag.
+    /// </summary>
+    public static BehaviorTreeAsset ToModel(
+        BehaviorTreeAssetDto dto,
+        string sourceFilePath,
+        bool isEditorOwned)
     {
         // Blob is not persisted (runtime-only). Provide an empty placeholder.
         var emptyBlob = new BehaviorTreeBlob
@@ -102,8 +114,8 @@ public static class BehaviorTreeAssetMapper
         var asset = new BehaviorTreeAsset(
             dto.AssetId,
             dto.Name,
-            sourceFilePath:       string.Empty,    // set externally after loading
-            isEditorOwned:        true,
+            sourceFilePath:       sourceFilePath,
+            isEditorOwned:        isEditorOwned,
             dto.BlackboardTypeName,
             dto.ContextTypeName,
             emptyBlob,

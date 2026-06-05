@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.Editor.AiShared.Documents;
 
@@ -186,7 +187,18 @@ public sealed class AiDocumentManager
             if (!byId.TryGetValue(doc.Asset.AssetId, out var fresh))
                 continue;
 
-            doc.ReconcileAsset(fresh);
+            // PU-302 kind-guard: editor-owned BTree/HSM assets use the stitch path to
+            // keep the JSON-authoritative topology and only update runtime indices.
+            // Blueprint assets and hand-authored (IsEditorOwned=false) BTree/HSM use the
+            // existing full-replace path (ReconcileAsset).
+            // CRITICAL: Blueprint assets are AssetKind.Blueprint with IsEditorOwned=true
+            // and have a SEPARATE reload path in BlueprintEditorModule.OnReloadCompleted —
+            // the stitch branch must NOT touch them (Kind guard, design §3 D13 / BATCH-05).
+            if (doc.Asset.Kind is AssetKind.BTree or AssetKind.Hsm && doc.Asset.IsEditorOwned)
+                doc.StitchRuntimeIndices(fresh);
+            else
+                doc.ReconcileAsset(fresh);
+
             if (doc == _active)
                 activeReconciled = true;
         }

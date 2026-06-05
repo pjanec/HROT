@@ -169,6 +169,17 @@ public static class HsmAssetMapper
     /// The returned asset has empty Blob/Metadata (runtime-only; filled in after assembly load).
     /// </summary>
     public static HsmAsset FromDto(HsmAssetDto dto)
+        => ToModel(dto, string.Empty, true);
+
+    /// <summary>
+    /// Maps an HsmAssetDto to an HsmAsset, setting SourceFilePath and IsEditorOwned explicitly.
+    /// Design §3 D4 / PU-301: used by the JSON file-based contributor so the loaded model
+    /// carries the correct SourceFilePath and ownership flag.
+    /// </summary>
+    public static HsmAsset ToModel(
+        HsmAssetDto dto,
+        string sourceFilePath,
+        bool isEditorOwned)
     {
         // Build empty blob / metadata placeholders (runtime-only fields)
         var emptyBlob     = new HsmDefinitionBlob();
@@ -333,8 +344,8 @@ public static class HsmAssetMapper
         var asset = new HsmAsset(
             dto.AssetId,
             dto.Name,
-            sourceFilePath:    string.Empty,
-            isEditorOwned:     true,
+            sourceFilePath:    sourceFilePath,
+            isEditorOwned:     isEditorOwned,
             dto.TargetNamespace,
             emptyBlob,
             emptyMetadata,

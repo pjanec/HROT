@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -32,9 +32,12 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
     /// </summary>
     public string BlackboardTypeName { get; set; }
 
-    // Kernel-side data (read-only after projection)
-    public HsmDefinitionBlob Blob { get; }
-    public MachineMetadata Metadata { get; }
+    // Kernel-side data (mutable via UpdateBlob for PU-302 stitch; read-only otherwise)
+    private HsmDefinitionBlob _blob;
+    private MachineMetadata _metadata;
+
+    public HsmDefinitionBlob Blob => _blob;
+    public MachineMetadata Metadata => _metadata;
 
     // Editor-side state hierarchy
     // RootState is the synthetic root (never rendered; parent of top-level states)
@@ -308,8 +311,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
         IsEditorOwned = isEditorOwned;
         TargetNamespace = targetNamespace;
         BlackboardTypeName = SanitizeIdentifier(name) + "_Blackboard";
-        Blob = blob;
-        Metadata = metadata;
+        _blob = blob;
+        _metadata = metadata;
         RootState = rootState;
         AllStates = allStates.AsReadOnly();
         AllTransitions = allTransitions.AsReadOnly();
@@ -360,6 +363,108 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset
 
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);
+
+    // ── PU-302: Post-reload stitch ───────────────────────────────────────────
+
+    /// <summary>
+    /// Replaces the runtime blob and metadata references after a hot reload.
+    /// Used by <see cref="StitchKernelIndices"/> to point the asset at the freshly
+    /// recompiled blob without replacing the JSON-authoritative topology/layout.
+    /// Must NOT call <see cref="MarkDirty"/> (PU-602 constraint).
+    /// </summary>
+    internal void UpdateBlob(HsmDefinitionBlob blob, MachineMetadata metadata)
+    {
+        _blob     = blob;
+        _metadata = metadata;
+    }
+
+    /// <summary>
+    /// Stitches runtime indices from a freshly assembly-projected asset onto this
+    /// JSON-loaded editor model (design §6.6 / D13).
+    /// <para>
+    /// For each <see cref="StateNode"/> in <see cref="AllStates"/>, the matching state
+    /// in <paramref name="fresh"/> is found by <c>StableId</c> via
+    /// <see cref="MachineMetadata.StateStableIds"/> and its <c>FlatIndex</c> is copied
+    /// across.  For each <see cref="TransitionNode"/>, the match is by <c>VisualId</c>
+    /// via <see cref="MachineMetadata.TransitionVisualIds"/>.
+    /// </para>
+    /// <para>
+    /// Unmatched nodes remain visible with <c>FlatIndex = 0</c> (sentinel) and a
+    /// <see cref="BlackboardLoadState.Warning"/> diagnostic is set on the asset.
+    /// </para>
+    /// <para>
+    /// <b>Must NOT call <see cref="MarkDirty"/></b> (PU-602 constraint).
+    /// </para>
+    /// </summary>
+    public void StitchKernelIndices(HsmAsset? fresh)
+    {
+        if (fresh is null || fresh.AssetId != AssetId)
+        {
+            SetLoadDiagnostic(BlackboardLoadState.AssemblyFailed,
+                "Assembly blob unavailable; runtime indices unset (debug overlay inert).");
+            return;
+        }
+
+        var freshMeta = fresh.Metadata;
+
+        // Build reverse maps: StableId → FlatIndex, VisualId string → FlatIndex
+        var stableIdToFlatIndex    = new Dictionary<Guid, ushort>(freshMeta.StateStableIds.Count);
+        var visualIdToTransFlat    = new Dictionary<Guid, ushort>(freshMeta.TransitionVisualIds.Count);
+
+        foreach (var kv in freshMeta.StateStableIds)
+            stableIdToFlatIndex[kv.Value] = kv.Key;
+
+        foreach (var kv in freshMeta.TransitionVisualIds)
+            visualIdToTransFlat[kv.Value] = kv.Key;
+
+        bool anyUnmatched = false;
+
+        foreach (var state in AllStates)
+        {
+            if (stableIdToFlatIndex.TryGetValue(state.StableId, out var flatIdx))
+            {
+                state.FlatIndex = flatIdx;
+            }
+            else
+            {
+                state.FlatIndex = 0; // sentinel
+                anyUnmatched = true;
+            }
+        }
+
+        foreach (var transition in AllTransitions)
+        {
+            if (visualIdToTransFlat.TryGetValue(transition.VisualId, out var flatIdx))
+            {
+                transition.FlatIndex = flatIdx;
+            }
+            else
+            {
+                transition.FlatIndex = 0; // sentinel
+                anyUnmatched = true;
+            }
+        }
+
+        // Update blob/metadata references to the recompiled versions
+        UpdateBlob(fresh.Blob, fresh.Metadata);
+
+        if (anyUnmatched)
+        {
+            SetLoadDiagnostic(BlackboardLoadState.StructParseFailed,
+                "One or more states/transitions have no blob match; debug overlay partially inert.");
+        }
+        else
+        {
+            SetLoadDiagnostic(BlackboardLoadState.Clean, null);
+        }
+        // Do NOT call MarkDirty — stitch is a reload-only operation (PU-602 constraint).
+    }
+
+    // ---- IStitchableAsset ----
+
+    /// <inheritdoc/>
+    void IStitchableAsset.StitchRuntimeIndices(IEditableAsset? fresh)
+        => StitchKernelIndices(fresh as HsmAsset);
 
     internal void MarkDirty()
     {

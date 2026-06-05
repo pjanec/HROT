@@ -250,9 +250,11 @@ public sealed class ReloadReconciliationTests
     [Fact]
     public void Reload_ReconcileFromCatalog_UpdatesMatchingOpenDoc()
     {
-        // Arrange: a document manager with one open document.
+        // Arrange: a document manager with one open Blueprint document.
+        // PU-302: editor-owned BTree/HSM now use the stitch path rather than full-replace.
+        // Blueprint (and hand-authored non-IsEditorOwned assets) still use ReconcileAsset.
         var assetId  = Guid.NewGuid();
-        var original = new _FakeEditableAsset { AssetId = assetId, Name = "Before" };
+        var original = new _FakeEditableAsset { AssetId = assetId, Kind = AssetKind.Blueprint, Name = "Before" };
 
         int activeChangedCount = 0;
         var mgr = new AiDocumentManager(perspectiveSwitchCallback: _ => { });
@@ -262,12 +264,12 @@ public sealed class ReloadReconciliationTests
         int baseChangedCount = activeChangedCount; // from Open → Activate
 
         // Simulated reload produces a freshly projected version.
-        var reloaded = new _FakeEditableAsset { AssetId = assetId, Name = "After" };
+        var reloaded = new _FakeEditableAsset { AssetId = assetId, Kind = AssetKind.Blueprint, Name = "After" };
 
         // Act: reconcile from catalog.
         mgr.ReconcileFromCatalog(new[] { reloaded });
 
-        // Assert: active doc now has the freshly projected asset.
+        // Assert: active Blueprint doc now has the freshly projected asset (full-replace path).
         Assert.Same(reloaded, doc.Asset);
         Assert.Equal("After", doc.Asset.Name);
 

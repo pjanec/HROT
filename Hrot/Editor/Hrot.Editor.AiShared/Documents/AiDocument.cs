@@ -60,4 +60,24 @@ public sealed class AiDocument
 
     /// <summary>Clears the dirty flag (called after a successful save).</summary>
     public void MarkClean()  { _isDirty = false; }
+
+    /// <summary>
+    /// Stitches runtime indices (KernelBlobIndex / FlatIndex) from the freshly
+    /// assembly-projected <paramref name="fresh"/> asset onto this document's
+    /// JSON-loaded editor model (design §6.6 / PU-302).
+    /// <para>
+    /// Dispatches to <see cref="IStitchableAsset.StitchRuntimeIndices"/> on the
+    /// backing asset.  No-op when <see cref="Asset"/> does not implement the interface.
+    /// </para>
+    /// <para>
+    /// <b>Must NOT call MarkDirty</b> (PU-602 constraint).
+    /// </para>
+    /// </summary>
+    public void StitchRuntimeIndices(IEditableAsset? fresh)
+    {
+        if (Asset is IStitchableAsset stitchable)
+            stitchable.StitchRuntimeIndices(fresh);
+        // Non-stitchable assets (Blueprint, hand-authored) are a no-op here;
+        // ReconcileFromCatalog routes them through ReconcileAsset instead.
+    }
 }

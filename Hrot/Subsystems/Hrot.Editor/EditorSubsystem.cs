@@ -579,13 +579,28 @@ namespace Hrot.Editor
             var hsmContrib    = new HsmAssetContributor();
             var bpContrib     = new BlueprintAssetContributor(bpRootDir);
 
+            // PU-301: JSON file-based contributors for the dual-load strategy (§3 D4).
+            // No *.btree.json / *.hsm.json exist under Hrot.AI.Behaviors yet (migration is PU-401).
+            // The contributors are dormant in the live editor (discover zero files) but are fully
+            // exercised by synthesized *.json files in tests.
+            // Root directories follow the storage layout described in §2.7: Trees/ and Machines/.
+            var aiRootDir          = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Hrot", "Subsystems", "Hrot.AI.Behaviors");
+            var btreeJsonRootDir   = System.IO.Path.Combine(aiRootDir, "Trees");
+            var hsmJsonRootDir     = System.IO.Path.Combine(aiRootDir, "Machines");
+            var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
+            var hsmJsonContrib     = new HsmJsonAssetContributor();
+            btreeJsonContrib.Discover(rootDirectory: btreeJsonRootDir);
+            hsmJsonContrib.Discover(rootDirectory: hsmJsonRootDir);
+
             _aiCatalogBuilder = new AiAssetCatalogBuilder(
                 btreeContrib,
                 hsmContrib,
                 bpContrib,
                 asm => btreeContrib.LoadFrom(asm),
                 asm => hsmContrib.LoadFrom(asm),
-                ()  => bpContrib.Refresh());
+                ()  => bpContrib.Refresh(),
+                bTreeJsonContributor: btreeJsonContrib,
+                hsmJsonContributor:   hsmJsonContrib);
 
             // Wire hot-reload: refresh the catalog whenever AI behaviors are reloaded.
             // On initial load the OnReloadCompleted fires via DrainPendingCallbacks; each
