@@ -112,7 +112,35 @@ public sealed class RegenerationScheduler
         if (elapsed < DebounceTicks)
             return 0;
 
-        // Flush: copy and clear atomically so re-entrant Schedule calls are safe.
+        return Drain();
+    }
+
+    /// <summary>
+    /// Drains all pending assets immediately, bypassing the debounce window.
+    /// Invokes <c>flushAction</c> for every pending asset and clears the queue.
+    /// Re-entrancy-safe: copies the pending set before clearing so that any
+    /// <see cref="Schedule"/> calls made <em>during</em> a flush action are
+    /// queued for the next <see cref="Tick"/> or <see cref="FlushNow"/> call.
+    /// </summary>
+    /// <returns>The number of assets flushed (0 when nothing was pending).</returns>
+    public int FlushNow()
+    {
+        if (!_hasPending)
+            return 0;
+
+        return Drain();
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Copies the pending set, clears it, then invokes <c>_flushAction</c> for each asset.
+    /// Shared by <see cref="Tick"/> and <see cref="FlushNow"/>; must only be called when
+    /// <c>_hasPending</c> is already verified to be true.
+    /// </summary>
+    private int Drain()
+    {
+        // Copy and clear atomically so re-entrant Schedule calls are safe.
         var toFlush = new List<IEditableAsset>(_pending.Values);
         _pending.Clear();
         _hasPending = false;

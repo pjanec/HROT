@@ -93,6 +93,17 @@ public sealed class AiDocumentManager
     /// </summary>
     public event Action<AiDocument>? DocumentOpened;
 
+    /// <summary>
+    /// Fires <em>before</em> a document is removed from <see cref="OpenDocuments"/>.
+    /// Subscribers (e.g. the persistence layer in <c>EditorSubsystem</c>) can use this
+    /// to flush unsaved changes for the document before it is closed.
+    /// <para>
+    /// The manager remains persistence-agnostic — it fires the event and then proceeds
+    /// with the close regardless of what the subscriber does.
+    /// </para>
+    /// </summary>
+    public event Action<AiDocument>? BeforeDocumentClosed;
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -219,6 +230,9 @@ public sealed class AiDocumentManager
 
         int idx = _documents.IndexOf(doc);
         if (idx < 0) return; // not our document
+
+        // Notify persistence subscribers before removing so they can flush unsaved changes.
+        BeforeDocumentClosed?.Invoke(doc);
 
         _documents.RemoveAt(idx);
 

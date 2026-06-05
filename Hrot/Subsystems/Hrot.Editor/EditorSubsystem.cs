@@ -307,6 +307,12 @@ namespace Hrot.Editor
         // SAME registry instance the kernel ticks immediately sees the new definition.
         private Action? _blueprintCompileCallback;
         private string _blueprintCompileStatus = string.Empty;
+
+        // PU-603: "Save All" toolbar button + Ctrl+Shift+S shortcut.
+        // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
+        // FlushNow()s the regeneration scheduler then calls SaveAllAiDocumentsCommand.Execute.
+        private Action? _saveAllCallback;
+        private string _saveAllStatus = string.Empty;
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -440,6 +446,9 @@ namespace Hrot.Editor
 
         /// <summary>Internal test hook: exposes the compile status string (MVE-BATCH-05).</summary>
         internal string BlueprintCompileStatus => _blueprintCompileStatus;
+
+        /// <summary>Internal test hook: exposes the "Save All" callback (PU-603).</summary>
+        internal Action? SaveAllCallback => _saveAllCallback;
 
         /// <summary>Internal test hook: exposes the BlueprintRegistry instance (MVE-BATCH-05).</summary>
         internal Fdp.Toolkit.Blueprints.BlueprintRegistry BlueprintRegistry => _blueprintRegistry;
@@ -1567,6 +1576,36 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── PU-603: Save All button + Ctrl+Shift+S ───────────────────────────────────────────
+            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
+            if (_saveAllCallback != null &&
+                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            {
+                if (ImGuiNET.ImGui.Begin("Save All"))
+                {
+                    // Ctrl+Shift+S shortcut (detected inside the ImGui window scope).
+                    if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows)
+                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl)
+                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModShift)
+                        && ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S))
+                    {
+                        _saveAllCallback.Invoke();
+                    }
+
+                    if (ImGuiNET.ImGui.Button("Save All"))
+                    {
+                        _saveAllCallback.Invoke();
+                    }
+                    if (!string.IsNullOrEmpty(_saveAllStatus))
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
+                    }
+                }
+                ImGuiNET.ImGui.End();
+            }
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // Render hover tooltip with entity info (label, health, cognitive state).
             if (_isActiveMapOwner() && !ImGuiNET.ImGui.GetIO().WantCaptureMouse && _canvas != null && _world != null)
             {
@@ -1912,6 +1951,97 @@ namespace Hrot.Editor
                     _blueprintQuickReloadTrigger?.Invoke(_aiDocumentManager!.Active!.Asset);
                 });
             _blueprintCompileCallback = compileRegistrar.GetToolbarCallback("Compile / Reload Blueprint");
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
+            // ── PU-603: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ────────────────
+            // Build per-kind save delegates (injected to avoid circular assembly refs, design §PU-602).
+            // Blueprint: reuse SaveActiveBlueprintCommand.Save (unchanged write path).
+            // BTree/HSM: mapper → JSON serializer → AtomicFileWriter (new JSON path, additive).
+            // NOTE: the debounced flushAction BTree/HSM .cs routing is UNCHANGED (edit-to-live
+            // safety). Save-All writes JSON for path'd docs; no-path docs are skipped with a warning.
+            // The .cs route switch is DEFERRED to PU-401 (migration batch).
+            Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBlueprintDelegate =
+                (asset, path) =>
+                {
+                    // doc.Asset is BlueprintFileAsset (IEditableAsset wrapper); the real
+                    // BlueprintAsset is stored in the AiCanvasContext.AssetRef of the document.
+                    // Find the matching document by AssetId to get the canvas context.
+                    var doc = _aiDocumentManager?.OpenDocuments
+                        .FirstOrDefault(d => d.Asset.AssetId == asset.AssetId);
+                    var ctx     = doc?.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
+                    if (bpAsset == null) return;
+                    Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(bpAsset, path);
+                    _blueprintSaveDirtyTracker.MarkClean(bpAsset.AssetId);
+                };
+
+            Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveBTreeDelegate =
+                (asset, path) =>
+                {
+                    var btreeAsset = asset as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
+                    if (btreeAsset == null) return;
+                    var dto  = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset);
+                    var json = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
+                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, json);
+                };
+
+            Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveHsmDelegate =
+                (asset, path) =>
+                {
+                    var hsmAsset = asset as Hrot.Hsm.Editor.Model.HsmAsset;
+                    if (hsmAsset == null) return;
+                    var dto  = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
+                    var json = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
+                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, json);
+                };
+
+            _saveAllCallback = () =>
+            {
+                // FlushNow() drains any debounced .cs regeneration before saving JSON.
+                _regenerationScheduler?.FlushNow();
+
+                Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.Execute(
+                    _aiDocumentManager,
+                    saveBlueprintDelegate,
+                    saveBTreeDelegate,
+                    saveHsmDelegate,
+                    msg => _saveAllStatus = msg);
+            };
+
+            // PU-603: flush-on-close — save dirty path'd docs before close.
+            // Manager fires BeforeDocumentClosed before removing the doc from its list.
+            // _aiDocumentManager is guaranteed non-null here (assigned 3 lines above).
+            _aiDocumentManager.BeforeDocumentClosed += doc =>
+            {
+                    if (!doc.IsDirty) return;
+                    var asset = doc.Asset;
+                    var path  = asset.SourceFilePath;
+                    if (string.IsNullOrEmpty(path)) return; // no path → skip silently
+
+                    try
+                    {
+                        switch (doc.Kind)
+                        {
+                            case Hrot.Editor.AiShared.AssetKind.Blueprint:
+                                // saveBlueprintDelegate resolves BlueprintAsset via ViewState.
+                                saveBlueprintDelegate(asset, path);
+                                doc.MarkClean();
+                                break;
+                            case Hrot.Editor.AiShared.AssetKind.BTree:
+                                saveBTreeDelegate(asset, path);
+                                doc.MarkClean();
+                                break;
+                            case Hrot.Editor.AiShared.AssetKind.Hsm:
+                                saveHsmDelegate(asset, path);
+                                doc.MarkClean();
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[PU-603] Failed to save '{asset.Name}' on close: {ex.Message}");
+                    }
+                };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
@@ -2323,6 +2453,13 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void Shutdown()
         {
+            // ── PU-603: flush pending regeneration + save all dirty open docs ──────────────────────
+            // FlushNow() drains any debounced .cs regeneration before we tear down.
+            // SaveAllAiDocumentsCommand skips no-path docs (warns via Console); never throws.
+            _regenerationScheduler?.FlushNow();
+            _saveAllCallback?.Invoke();
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // ── UBP-P10T6: clear blueprint debug session ──────────────────────────────────────────
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = null;
             _blueprintDebugSession = null;

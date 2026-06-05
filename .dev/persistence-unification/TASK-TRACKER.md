@@ -52,9 +52,9 @@
 ## Phase 6: Unified Save / Save-All
 **Goal:** all dirty open docs flush to JSON on demand + on close; no debounce data loss.
 
-- [ ] **PU-601** `RegenerationScheduler.FlushNow()` [details](./TASK-DETAIL.md#pu-601-regenerationscheduler-flushnow)
-- [ ] **PU-602** Save-All command (all dirty docs, by kind) [details](./TASK-DETAIL.md#pu-602-save-all-command)
-- [ ] **PU-603** Save-All wiring (`Ctrl+Shift+S`) + flush-on-close [details](./TASK-DETAIL.md#pu-603-save-all-wiring-and-flush-on-close)
+- [x] **PU-601** `RegenerationScheduler.FlushNow()` — BATCH-06 [details](./TASK-DETAIL.md#pu-601-regenerationscheduler-flushnow)
+- [x] **PU-602** Save-All command (all dirty docs, by kind) — BATCH-06 [details](./TASK-DETAIL.md#pu-602-save-all-command)
+- [x] **PU-603** Save-All wiring (`Ctrl+Shift+S`) + flush-on-close — BATCH-06 [details](./TASK-DETAIL.md#pu-603-save-all-wiring-and-flush-on-close)
 
 ## Phase 7: Unified tree asset browser  *(does not gate the persistence core)*
 **Goal:** one folder-tree browser across all three kinds.

@@ -186,6 +186,158 @@ public sealed class RegenerationSchedulerTests
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
+/// PU-601 tests for <see cref="RegenerationScheduler.FlushNow"/>:
+///   • FlushNow on a scheduled asset drains immediately (no debounce elapsed)
+///   • FlushNow on empty queue returns 0
+///   • After FlushNow the queue is empty
+///   • FlushNow does not affect the debounced Tick path — re-schedule + Tick still works
+/// </summary>
+public sealed class FlushNowTests
+{
+    private long _clock;
+    private long TickNow() => _clock;
+    private void Advance(long ms) => _clock += ms;
+
+    [Fact]
+    public void FlushNow_WithScheduledAsset_FlushesDespiteNoClock()
+    {
+        // Arrange — schedule an asset but do NOT advance the clock (debounce has NOT elapsed).
+        var flushed = new List<IEditableAsset>();
+        var scheduler = new RegenerationScheduler(
+            flushAction:   a => flushed.Add(a),
+            tickProvider:  TickNow,
+            debounceTicks: 500);
+
+        var asset = new _StubAsset { Name = "X" };
+        scheduler.Schedule(asset);
+
+        // Confirm debounce guard prevents Tick from flushing.
+        Advance(100); // < 500 ms
+        Assert.Equal(0, scheduler.Tick());
+        Assert.Empty(flushed);
+
+        // Act — FlushNow ignores the debounce window.
+        int count = scheduler.FlushNow();
+
+        // Assert — asset flushed immediately.
+        Assert.Equal(1, count);
+        Assert.Single(flushed);
+        Assert.Same(asset, flushed[0]);
+    }
+
+    [Fact]
+    public void FlushNow_EmptyQueue_ReturnsZero()
+    {
+        var scheduler = new RegenerationScheduler(
+            flushAction:   _ => { },
+            tickProvider:  TickNow,
+            debounceTicks: 500);
+
+        Advance(1000);
+        int count = scheduler.FlushNow();
+
+        Assert.Equal(0, count);
+        Assert.False(scheduler.HasPending);
+    }
+
+    [Fact]
+    public void FlushNow_ClearsQueue_SubsequentFlushNowReturnsZero()
+    {
+        var flushed = new List<IEditableAsset>();
+        var scheduler = new RegenerationScheduler(
+            flushAction:   a => flushed.Add(a),
+            tickProvider:  TickNow,
+            debounceTicks: 500);
+
+        var asset = new _StubAsset();
+        scheduler.Schedule(asset);
+
+        int first  = scheduler.FlushNow();
+        int second = scheduler.FlushNow(); // queue already empty
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, second);
+        Assert.Single(flushed); // only one flush total
+        Assert.False(scheduler.HasPending);
+        Assert.Equal(0, scheduler.PendingCount);
+    }
+
+    [Fact]
+    public void FlushNow_ReentrancySafe_ScheduleDuringFlush_QueuesToNextTick()
+    {
+        // If flushAction re-schedules an asset, that re-queued asset should NOT be
+        // flushed in the same FlushNow call — only after the next debounce/FlushNow.
+        var flushCount = 0;
+        IEditableAsset? requeued = null;
+        RegenerationScheduler? schedulerRef = null;
+
+        var asset1 = new _StubAsset { Name = "First" };
+        var asset2 = new _StubAsset { Name = "Requeued" };
+
+        schedulerRef = new RegenerationScheduler(
+            flushAction: a =>
+            {
+                flushCount++;
+                if (ReferenceEquals(a, asset1) && requeued == null)
+                {
+                    requeued = asset2;
+                    schedulerRef!.Schedule(asset2);
+                }
+            },
+            tickProvider:  TickNow,
+            debounceTicks: 500);
+
+        schedulerRef.Schedule(asset1);
+
+        int count = schedulerRef.FlushNow();
+
+        // Only asset1 should have been flushed in this call.
+        Assert.Equal(1, count);
+        Assert.Equal(1, flushCount);
+        // asset2 was scheduled during flush — it is still pending.
+        Assert.True(schedulerRef.HasPending);
+        Assert.Equal(1, schedulerRef.PendingCount);
+
+        // A subsequent FlushNow flushes asset2.
+        int count2 = schedulerRef.FlushNow();
+        Assert.Equal(1, count2);
+        Assert.Equal(2, flushCount);
+        Assert.False(schedulerRef.HasPending);
+    }
+
+    [Fact]
+    public void Tick_DebounceUnaffected_AfterFlushNow_RescheduleAndTickStillWork()
+    {
+        // Verify FlushNow does not corrupt the debounce state.
+        var flushed = new List<IEditableAsset>();
+        var scheduler = new RegenerationScheduler(
+            flushAction:   a => flushed.Add(a),
+            tickProvider:  TickNow,
+            debounceTicks: 200);
+
+        var asset = new _StubAsset { Name = "A" };
+        scheduler.Schedule(asset);
+
+        // FlushNow drains the first schedule.
+        int first = scheduler.FlushNow();
+        Assert.Equal(1, first);
+        Assert.False(scheduler.HasPending);
+
+        // Re-schedule and verify Tick still respects debounce.
+        scheduler.Schedule(asset);
+        Advance(100);
+        Assert.Equal(0, scheduler.Tick()); // debounce not elapsed
+
+        Advance(200); // now elapsed
+        int second = scheduler.Tick();
+        Assert.Equal(1, second);
+        Assert.Equal(2, flushed.Count);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
 /// AIE-026 tests for <see cref="AiDocument.ReconcileAsset"/> and
 /// <see cref="AiDocumentManager.ReconcileFromCatalog"/>:
 ///   • Reconcile updates asset reference by AssetId/StableId
