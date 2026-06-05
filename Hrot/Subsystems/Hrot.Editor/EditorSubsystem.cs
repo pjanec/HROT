@@ -1913,6 +1913,39 @@ namespace Hrot.Editor
                 liveProvider:    liveProvider,
                 documentManager: _aiDocumentManager);
 
+            var recipeModal = new Hrot.Blueprints.Editor.Windows.RecipeCreateModal((recipe, newName) =>
+            {
+                var service = new Hrot.Blueprints.Editor.NewFromRecipeService();
+                var newAsset = service.CreateFromRecipe(recipe, newName);
+
+                string saveDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                System.IO.Directory.CreateDirectory(saveDir);
+                string path = System.IO.Path.Combine(saveDir, $"{newName}.bp.json");
+
+                Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(newAsset, path);
+
+                var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+
+                if (aiAsm != null)
+                {
+                    _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
+
+                    var editableAsset = _aiCatalogBuilder?.Catalog.FindByAssetId(newAsset.AssetId);
+                    if (editableAsset != null)
+                        _aiDocumentManager?.Open(editableAsset);
+                }
+            });
+
+            _aiAssetBrowser.CustomToolbarDraw = () =>
+            {
+                if (ImGuiNET.ImGui.Button("+ New from Recipe..."))
+                    recipeModal.Open();
+
+                ImGuiNET.ImGui.Separator();
+                recipeModal.Draw();
+            };
+
             // Register all three perspective side-panel sets.
             _btreeRegistrar.RegisterWindows(windowManager);
             _hsmRegistrar.RegisterWindows(windowManager);

@@ -64,6 +64,8 @@ public sealed class AssetBrowserWindow : ManagedWindow
     private readonly byte[] _browserRenameBuf = new byte[512];
     private bool _openBrowserRenameModal;
 
+    public Action? CustomToolbarDraw { get; set; }
+
     /// <summary>
     /// Creates the global Asset Browser.
     /// </summary>
@@ -145,6 +147,7 @@ public sealed class AssetBrowserWindow : ManagedWindow
 
     protected override void DrawClientArea()
     {
+        CustomToolbarDraw?.Invoke();
         // ── Open section ──────────────────────────────────────────────────────
         if (_documentManager is not null)
         {

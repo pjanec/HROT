@@ -40,6 +40,15 @@ namespace Hrot.SimHost
             // Per-entity stuck-detection counter (replaces static dictionary).
             world.RegisterComponent<FrustrationTicks>();
 
+            world.RegisterEvent<MoveStartedEvent>();
+            world.RegisterEvent<OffMeshTraversalStartedEvent>();
+            world.RegisterEvent<MoveCompletedEvent>();
+            world.RegisterEvent<MoveBlockedEvent>();
+            world.RegisterEvent<WaypointReachedEvent>();
+            world.RegisterEvent<PathReplannedEvent>();
+            world.RegisterEvent<OffMeshTraversalEndedEvent>();
+            world.RegisterEvent<NavigationPathDetailsResponseEvent>();
+
             // Commander-Subordinate hierarchy components (AI tier)
             world.RegisterComponent<UnitSubordinate>();
             world.RegisterComponent<UnitRoster>();
