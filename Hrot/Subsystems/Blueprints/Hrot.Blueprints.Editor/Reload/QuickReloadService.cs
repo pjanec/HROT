@@ -181,6 +181,8 @@ public sealed class QuickReloadService
         {
             sw.Stop();
             _outputConsole.LogError($"Quick Reload failed: {ex.Message}");
+            // Full stack trace to the output console for diagnosis (the ImGui status only shows ex.Message).
+            _outputConsole.LogError($"Quick Reload failure detail:\n{ex}");
             return Task.FromResult(new QuickReloadResult(false, ex.Message, sw.ElapsedMilliseconds));
         }
     }
