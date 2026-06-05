@@ -1123,6 +1123,72 @@ public sealed class NodePinSchemaEnrichmentTests
         Assert.Empty(func.Inputs);
         Assert.Empty(func.Outputs);
     }
+
+    // ── BP-4: Single-source invariant (NodePinSchema delegates to BuiltInNodeRegistry) ──────────
+
+    /// <summary>
+    /// BP-4 single-source invariant: for a representative static node (BranchNode),
+    /// the editor canonical pins produced by <see cref="NodePinSchema.GetCanonicalPins"/>
+    /// exactly match the compiler registry shapes from
+    /// <see cref="BuiltInNodeRegistry.Instance.GetStaticPins"/> in count, name, direction,
+    /// IsExec and TypeId — and in the same order (order is load-bearing for link-GUID assignment).
+    ///
+    /// This test locks the refactoring invariant: there is one source of truth for static pin
+    /// shapes and the editor will never silently drift from it.
+    /// </summary>
+    [Fact]
+    public void StaticNode_EditorPins_ExactlyMatchRegistryShapes_InOrder()
+    {
+        // Use BranchNode as the representative static node: it has a rich set of pins
+        // (exec In + exec True/Out + exec False/Out + data-In Condition) that cover all
+        // Name, Direction, IsExec, and TypeId fields.
+        var node     = new BranchNode();
+        var registry = BuiltInNodeRegistry.Instance;
+
+        // Editor canonical pins (via the refactored NodePinSchema delegation path).
+        var editorPins   = NodePinSchema.GetCanonicalPins(node);
+
+        // Compiler registry shapes (the single source of truth post-BP-4).
+        var registryPins = registry.GetStaticPins(node);
+
+        // Same count.
+        Assert.Equal(registryPins.Count, editorPins.Count);
+
+        // Same shape in the same order (order is load-bearing for BlueprintGraphModel's
+        // positional link-GUID assignment).
+        for (var i = 0; i < registryPins.Count; i++)
+        {
+            var r = registryPins[i];
+            var e = editorPins[i];
+            Assert.Equal(r.Name,      e.Name);
+            Assert.Equal(r.Direction, e.Direction);
+            Assert.Equal(r.IsExec,    e.IsExec);
+            Assert.Equal(r.TypeId,    e.TypeRef?.TypeId ?? "");
+        }
+    }
+
+    /// <summary>
+    /// BP-4 single-source invariant: ScoreDecisionNode (exec In/Out + WinningOptionId data-OUT)
+    /// verifies the data pin TypeId (System.Byte) also matches between editor and registry.
+    /// </summary>
+    [Fact]
+    public void StaticNode_ScoreDecision_EditorPins_ExactlyMatchRegistryShapes_InOrder()
+    {
+        var node         = new ScoreDecisionNode();
+        var registryPins = BuiltInNodeRegistry.Instance.GetStaticPins(node);
+        var editorPins   = NodePinSchema.GetCanonicalPins(node);
+
+        Assert.Equal(registryPins.Count, editorPins.Count);
+        for (var i = 0; i < registryPins.Count; i++)
+        {
+            var r = registryPins[i];
+            var e = editorPins[i];
+            Assert.Equal(r.Name,      e.Name);
+            Assert.Equal(r.Direction, e.Direction);
+            Assert.Equal(r.IsExec,    e.IsExec);
+            Assert.Equal(r.TypeId,    e.TypeRef?.TypeId ?? "");
+        }
+    }
 }
 
 /// <summary>Local helper struct used by the enrichment tests to capture pin shape.</summary>

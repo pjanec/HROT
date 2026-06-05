@@ -107,41 +107,25 @@ internal static class NodePinSchema
         }
 
         // Pass 2: built-in fallback table for core compiler node kinds.
+        // Static kinds delegate to BuiltInNodeRegistry (single source of truth).
+        // Dynamic kinds keep their editor-side computation (need asset/graph/catalog/peer context).
         return node switch
         {
+            // ── Dynamic kinds: editor-side computation required ───────────────────
             EventEntryNode      => EventEntryNodePins(containingGraph),
             ReturnNode          => ReturnNodePins(containingGraph),
-            BranchNode          => BranchPins(),
-            SequenceNode        => SequencePins(),
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
-            LiteralNode lt      => LiteralPins(lt),
-            CastNode ca         => CastPins(ca),
-            LatentDelayNode     => LatentDelayPins(),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands),
-            WaitForChannelNode  => ExecInOut(),
-            WaitForEventNode    => ExecInOut(),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
-            CallEventDispatcherNode => ExecInOut(),
-            BindEventDispatcherNode => ExecInOut(),
-            ArrayMakeNode am    => ArrayMakePins(am),
-            ArrayGetNode        => ArrayGetPins(),
 
-            // Newer node kinds whose full pin schemas are in the registry;
-            // if they reach here with empty pins just give them exec in/out.
-            WhenNode            => ExecInOut(),
-            ReadEqsResultNode   => Array.Empty<Pin>(),
-            SpawnEqsSensorNode  => ExecInOut(),
-            ScoreDecisionNode   => ScoreDecisionPins(),
-            ReadRankedResultNode => ReadRankedResultPins(),
-            PartitionElementsNode => ExecInOut(),
-            AssignRolesNode     => ExecInOut(),
-            AdvancePhaseNode    => ExecInOut(),
-            AcquireSlotNode     => ExecInOut(),
-
-            _ => Array.Empty<Pin>(),
+            // ── Static kinds: delegate to BuiltInNodeRegistry ────────────────────
+            // BranchNode, SequenceNode, LiteralNode, CastNode, LatentDelayNode,
+            // ArrayMakeNode, ArrayGetNode, ScoreDecisionNode, ReadRankedResultNode,
+            // WhenNode, ReadEqsResultNode, and exec-only kinds.
+            _ => FromRegistry(node),
         };
     }
 
@@ -174,19 +158,48 @@ internal static class NodePinSchema
         return "System.Object";
     }
 
+    // ── registry delegation (static kinds) ───────────────────────────────────
+
+    /// <summary>
+    /// Converts a compiler <see cref="PinSchema"/> (GUID-less) to an editor <see cref="Pin"/>
+    /// with a freshly generated Id and the same Name / Direction / IsExec / TypeId.
+    /// The caller's two-pass GUID-binding step replaces these temporary GUIDs with the
+    /// real GUIDs from incident links before projecting <see cref="BlueprintPinModel"/> instances.
+    /// </summary>
+    private static Pin FromPinSchema(PinSchema schema) => new()
+    {
+        Id        = Guid.NewGuid(),
+        Name      = schema.Name,
+        Direction = schema.Direction,
+        IsExec    = schema.IsExec,
+        TypeRef   = new BlueprintTypeRef { TypeId = schema.TypeId },
+    };
+
+    /// <summary>
+    /// Delegates to <see cref="BuiltInNodeRegistry.Instance"/> to obtain the canonical static
+    /// pin shapes for <paramref name="node"/> and converts them to editor <see cref="Pin"/>s
+    /// in registry order (order is load-bearing for <see cref="BlueprintGraphModel"/>'s
+    /// link-GUID positional assignment).
+    /// Returns an empty array when the registry returns no shapes for the node kind.
+    /// </summary>
+    private static IReadOnlyList<Pin> FromRegistry(Node node)
+    {
+        var schemas = BuiltInNodeRegistry.Instance.GetStaticPins(node);
+        if (schemas.Count == 0)
+            return Array.Empty<Pin>();
+        var pins = new Pin[schemas.Count];
+        for (var i = 0; i < schemas.Count; i++)
+            pins[i] = FromPinSchema(schemas[i]);
+        return pins;
+    }
+
     // ── per-kind schema helpers ───────────────────────────────────────────────
 
     /// <summary>A single exec pin in the given direction.</summary>
     private static IReadOnlyList<Pin> ExecOnly(string direction)
         => new[] { MakeExec(direction == "In" ? "In" : "Out", direction) };
 
-    /// <summary>Exec-in + exec-out, named "In" and "Out".</summary>
-    private static IReadOnlyList<Pin> ExecInOut()
-        => new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-        };
+    // ExecInOut() removed: exec-only static kinds now delegate to FromRegistry().
 
     /// <summary>
     /// EventEntryNode: when the containing graph is a <see cref="GraphKind.Function"/> graph
@@ -323,71 +336,6 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// Branch: exec In + True/False exec outs + a <c>Condition</c> (System.Boolean) data-IN.
-    /// Stage5_Schedule.ScheduleBranchNode reads the first non-exec data-IN pin as the
-    /// branch condition (falling back to a <c>false</c> const when unconnected), so the
-    /// Condition pin is compiler-consumed.
-    /// </summary>
-    private static IReadOnlyList<Pin> BranchPins()
-        => new[]
-        {
-            MakeExec("In",    "In"),
-            MakeExec("True",  "Out"),
-            MakeExec("False", "Out"),
-            MakeData("Condition", "In", "System.Boolean"),
-        };
-
-    private static IReadOnlyList<Pin> SequencePins()
-        => new[]
-        {
-            MakeExec("In",    "In"),
-            MakeExec("Then0", "Out"),
-            MakeExec("Then1", "Out"),
-        };
-
-    /// <summary>
-    /// LatentDelay: exec In/Out + a <c>Duration</c> (System.Single) data-IN.
-    /// Stage5_Schedule.BuildLatentDelayOp resolves the first non-exec data-IN pin as the
-    /// delay seconds (defaulting to <c>0f</c> when unconnected).
-    /// </summary>
-    private static IReadOnlyList<Pin> LatentDelayPins()
-        => new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-            MakeData("Duration", "In", "System.Single"),
-        };
-
-    /// <summary>
-    /// ScoreDecision: exec In/Out + a <c>WinningOptionId</c> (System.Byte) data-OUT.
-    /// Stage5_Schedule caches the score result on the out pin named "WinningOptionId".
-    /// </summary>
-    private static IReadOnlyList<Pin> ScoreDecisionPins()
-        => new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-            MakeData("WinningOptionId", "Out", "System.Byte"),
-        };
-
-    /// <summary>
-    /// ReadRankedResult: three data-OUT pins corresponding to the fields of the emitted result
-    /// struct declared in <c>InstanceEmitter.EmitReadRankedResultHelpers</c> (lines 539-541):
-    /// <c>public bool IsValid; public long Entity; public float Score;</c>.
-    /// Stage5_Schedule.cs:1049-1062 iterates these data-OUT pins by name and emits
-    /// <c>IrOp_FieldRead(helperResult2, outPin.Name, fieldType)</c> for each; pin names must
-    /// therefore match the struct field names exactly.  No data-IN pins — Rank is a node field
-    /// baked at compile time (Stage5_Schedule.cs:1039).
-    /// </summary>
-    private static IReadOnlyList<Pin> ReadRankedResultPins()
-        => new[]
-        {
-            MakeData("IsValid", "Out", "System.Boolean"),
-            MakeData("Entity",  "Out", "System.Int64"),
-            MakeData("Score",   "Out", "System.Single"),
-        };
-
-    /// <summary>
     /// CallCustomEvent: exec In + exec Out + one data-IN pin per custom-event parameter in
     /// declaration order, typed from <c>param.Type.TypeId</c> (fallback: <c>System.Object</c>).
     /// Grounded in Stage5_Schedule.cs:695-703: <c>ResolveAllDataInputs(node, stmts)</c> maps
@@ -494,44 +442,6 @@ internal static class NodePinSchema
     }
 
     /// <summary>
-    /// ArrayGet: exec In/Out + <c>Array</c> data-IN (first data-IN, the source array),
-    /// <c>Index</c> (System.Int32) data-IN, and <c>Element</c> data-OUT.
-    /// Stage4_TypeResolve uses the first non-exec data-IN pin as the array and the
-    /// first non-exec data-OUT pin as the element; element/array CLR type is a compile-time
-    /// wildcard (System.Object here) resolved from incident links.  <c>Array</c> must be the
-    /// first data-IN pin so Stage4 picks it (not Index) as the array input.
-    /// </summary>
-    private static IReadOnlyList<Pin> ArrayGetPins()
-        => new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-            MakeData("Array",   "In",  "System.Object"),
-            MakeData("Index",   "In",  "System.Int32"),
-            MakeData("Element", "Out", "System.Object"),
-        };
-
-    /// <summary>
-    /// ArrayMake: exec In/Out + a small fixed set of element data-IN pins ("0","1") typed
-    /// from <see cref="ArrayMakeNode.ElementTypeId"/> (or System.Object) + an <c>Array</c>
-    /// data-OUT.  Stage4_TypeResolve infers the array type from the first non-exec data-IN
-    /// pin's type and writes it onto the first non-exec data-OUT pin.  Dynamic element-count
-    /// tracking is out of scope; two element slots is a sensible default.
-    /// </summary>
-    private static IReadOnlyList<Pin> ArrayMakePins(ArrayMakeNode am)
-    {
-        var elemType = string.IsNullOrEmpty(am.ElementTypeId) ? "System.Object" : am.ElementTypeId;
-        return new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-            MakeData("0",     "In",  elemType),
-            MakeData("1",     "In",  elemType),
-            MakeData("Array", "Out", elemType + "[]"),
-        };
-    }
-
-    /// <summary>
     /// FunctionCall: exec In/Out (only when <see cref="FunctionCallNode.IsPure"/> is false)
     /// plus one data-IN pin per method parameter (in declaration order, matching
     /// Stage5_Schedule.ResolveAllDataInputs) and a single <c>Return</c> data-OUT pin when the
@@ -579,21 +489,6 @@ internal static class NodePinSchema
             MakeExec("Out",   "Out"),
             MakeData("Value", "In",  typeId),
             MakeData("Value", "Out", typeId),
-        };
-
-    private static IReadOnlyList<Pin> LiteralPins(LiteralNode lt)
-        => new[]
-        {
-            MakeData("Value", "Out", string.IsNullOrEmpty(lt.TypeId) ? "System.Object" : lt.TypeId),
-        };
-
-    private static IReadOnlyList<Pin> CastPins(CastNode ca)
-        => new[]
-        {
-            MakeExec("In",  "In"),
-            MakeExec("Out", "Out"),
-            MakeData("In",  "In",  "System.Object"),
-            MakeData("Out", "Out", string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
         };
 
     // ── ChannelCommand parameter resolution (DYNAMIC) ─────────────────────────
