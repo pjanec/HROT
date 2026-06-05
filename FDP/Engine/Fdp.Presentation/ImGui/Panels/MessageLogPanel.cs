@@ -123,6 +123,15 @@ namespace Fdp.Presentation.Panels
             }
         }
 
+        /// <summary>
+        /// Requests the panel to switch to a specific tab on the next rendered
+        /// frame.
+        /// </summary>
+        public void SelectTab(string sourceId)
+        {
+            _forceSelectTabId = sourceId;
+        }
+
         // ── Public draw entry point ──────────────────────────────────────────
         /// <summary>
         /// Renders the full message log content. Call from

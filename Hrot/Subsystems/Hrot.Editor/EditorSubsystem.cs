@@ -307,6 +307,7 @@ namespace Hrot.Editor
         // SAME registry instance the kernel ticks immediately sees the new definition.
         private Action? _blueprintCompileCallback;
         private Action? _blueprintFullRebuildCallback;
+        private Fdp.Presentation.WindowManager.WindowManager? _wm;
         private string _blueprintCompileStatus = string.Empty;
 
         // PU-603: "Save All" toolbar button + Ctrl+Shift+S shortcut.
@@ -1768,6 +1769,8 @@ namespace Hrot.Editor
         /// <inheritdoc/>
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
+            _wm = windowManager;
+
             // ── AIE-015: Shared AI editor — document manager + perspective switcher ───────────
             // Wire the perspective switcher to the window manager so manual toolbar
             // switches can activate the most-recently-opened doc of that kind.
@@ -2441,6 +2444,13 @@ namespace Hrot.Editor
                     () =>
                     {
                         _saveAllCallback?.Invoke();
+                        if (_wm != null &&
+                            _wm.TryGetWindow("fdp_message_log", out var msgLogWindow) &&
+                            msgLogWindow is Fdp.Presentation.Windows.MessageLogWindow typedMsgLogWindow)
+                        {
+                            _wm.FocusWindow("fdp_message_log");
+                            typedMsgLogWindow.SelectTab("fbt_hotreload");
+                        }
                         _ = fullRebuildService.TriggerAsync();
                     });
                 _blueprintFullRebuildCallback = rebuildRegistrar.GetToolbarCallback("Full Rebuild");

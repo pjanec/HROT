@@ -43,6 +43,12 @@ namespace Fdp.Presentation.Windows
         /// </summary>
         public void FocusFirstAttentionTab() => _panel.FocusFirstAttentionTab();
 
+        /// <summary>
+        /// Instructs the panel to switch to a specific tab by its SourceId on the
+        /// next rendered frame.
+        /// </summary>
+        public void SelectTab(string sourceId) => _panel.SelectTab(sourceId);
+
         protected override void DrawClientArea() => _panel.DrawContent();
     }
 }
