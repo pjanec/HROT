@@ -22,6 +22,14 @@ public sealed class Pin
     public BlueprintTypeRef TypeRef { get; set; } = new();
     public bool IsExec { get; set; }
     public List<Guid> LinkedToIds { get; set; } = new();
+
+    /// <summary>
+    /// Inline default value for this pin, stored as a JSON-compatible string
+    /// (e.g. "42" for int, "3.14" for float, "true" for bool, "hello" for string).
+    /// Null when no default has been set. Written to disk only when non-null.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? DefaultValue { get; set; }
 }
 
 public sealed class Link

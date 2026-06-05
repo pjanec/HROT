@@ -15,6 +15,7 @@ using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
 using NodeEditor.UI.Action;
 using NodeEditor.UI.Find;
+using NodeEditor.UI.MiniEditors;
 
 namespace Hrot.Blueprints.Editor.Host;
 
@@ -119,7 +120,8 @@ public static class BlueprintDocumentFactory
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
-        var typeSystem   = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
+        var typeSystem   = new BlueprintTypeSystem(
+            PinDefaultValueEditorRegistry.CreateWithBuiltins());
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
         var history      = new CommandHistory();
 

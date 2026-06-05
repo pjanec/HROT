@@ -37,6 +37,14 @@ public abstract class Node
     public Guid Id { get; set; }
     public List<Pin> Pins { get; set; } = new();
     public NodeMetadata EditorMetadata { get; set; } = new();
+
+    /// <summary>
+    /// Persisted map of pin-name → default-value-string for input data pins.
+    /// Survives save/load even when <see cref="Pins"/> is serialized as <c>[]</c>
+    /// (projection-only).  Null (and omitted from JSON) when no defaults have been set.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? PinDefaults { get; set; }
 }
 
 public sealed class FunctionCallNode : Node

@@ -95,6 +95,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.SetNodeProperty prop:
                 return ApplySetNodeProperty(prop);
 
+            case GraphCommand.SetPinDefault setPinDefault:
+                return ApplySetPinDefault(setPinDefault);
+
             case GraphCommand.Batch batch:
                 return ApplyBatch(batch);
 
@@ -498,6 +501,59 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 ee.EventTypeId = value as string ?? "";
                 break;
             // "isBreakpoint" is runtime-only; silently skip.
+        }
+    }
+
+    // ── SetPinDefault ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles <see cref="GraphCommand.SetPinDefault"/>.
+    /// Stores the new value in <see cref="Node.PinDefaults"/> (keyed by pin name),
+    /// marks the asset dirty, and rebuilds the canvas model.
+    /// The <see cref="EditService"/> is used so the operation participates in undo/redo.
+    /// </summary>
+    private GraphCommandResult ApplySetPinDefault(GraphCommand.SetPinDefault cmd)
+    {
+        // Resolve which pin + node this refers to via the current model.
+        var pinModel = _model.FindPin(cmd.Pin);
+        if (pinModel == null)
+            return new GraphCommandResult(false, $"Pin {cmd.Pin} not found.");
+
+        // Find the asset node that owns this pin.
+        var assetNode = _graph.Nodes.FirstOrDefault(n => n.Id == pinModel.OwnerNodeId.Value);
+        if (assetNode == null)
+            return new GraphCommandResult(false, $"Node {pinModel.OwnerNodeId} not found.");
+
+        string pinName  = pinModel.Label;
+        string typeId   = pinModel.Type?.Id ?? "";
+        string? newStr  = BlueprintPinDefaultValue.FormatValue(cmd.NewValue);
+
+        // Capture old value for undo.
+        string? oldStr  = assetNode.PinDefaults?.TryGetValue(pinName, out var o) == true ? o : null;
+
+        _editService.RecordPropertyEdit(
+            _asset,
+            $"Set pin default '{pinName}'",
+            apply: () => SetPinDefaultOnNode(assetNode, pinName, newStr),
+            undo:  () => SetPinDefaultOnNode(assetNode, pinName, oldStr));
+
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private static void SetPinDefaultOnNode(Node node, string pinName, string? value)
+    {
+        if (value == null)
+        {
+            // Remove entry when value is cleared.
+            node.PinDefaults?.Remove(pinName);
+            if (node.PinDefaults?.Count == 0)
+                node.PinDefaults = null;
+        }
+        else
+        {
+            node.PinDefaults ??= new Dictionary<string, string>();
+            node.PinDefaults[pinName] = value;
         }
     }
 

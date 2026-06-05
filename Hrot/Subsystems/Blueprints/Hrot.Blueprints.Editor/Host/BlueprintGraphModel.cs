@@ -234,13 +234,18 @@ public sealed class BlueprintGraphModel : IGraphModel
             {
                 var resolvedGuid = pinGuidMap.TryGetValue(pin, out var g) ? g : Guid.NewGuid();
                 // Construct a synthetic Pin with the resolved GUID so BlueprintPinModel works.
+                // Carry over DefaultValue from node.PinDefaults (persisted on the asset) so the
+                // canvas inline editor reads the previously-set value after reload.
+                string? defaultVal = null;
+                assetNode.PinDefaults?.TryGetValue(pin.Name, out defaultVal);
                 var resolvedPin = new Hrot.Blueprints.Core.Assets.Pin
                 {
-                    Id        = resolvedGuid,
-                    Name      = pin.Name,
-                    Direction = pin.Direction,
-                    IsExec    = pin.IsExec,
-                    TypeRef   = pin.TypeRef,
+                    Id           = resolvedGuid,
+                    Name         = pin.Name,
+                    Direction    = pin.Direction,
+                    IsExec       = pin.IsExec,
+                    TypeRef      = pin.TypeRef,
+                    DefaultValue = defaultVal,
                 };
                 resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId));
             }

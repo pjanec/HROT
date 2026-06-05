@@ -36,7 +36,7 @@ Status legend: `[ ]` open / `[~]` in progress / `[x]` done (verified + committed
 ## Phase 4 -- Canvas polish backlog (Task 4, lower priority)
 
 - [x] **BATCH-06** -- ChannelCommand param enrichment (DEBT-BCP-006) — real ParamsTypeFqn for MoveTo/FollowRoute/AimAndFire/OpenDoor; EjectPassengers has no params -> [details](./TASK-DETAIL.md#batch-06----channelcommand-param-enrichment-debt-bcp-006)
-- [ ] **BATCH-07** -- Inline mini-editors for node value pins -> [details](./TASK-DETAIL.md#batch-07----inline-mini-editors)
+- [x] **BATCH-07** -- Inline mini-editors for node value pins (real PinDefaultValueEditorRegistry; persisted via Node.PinDefaults; visual pending user verify) -> [details](./TASK-DETAIL.md#batch-07----inline-mini-editors)
 - [ ] **BATCH-08** -- Fonts: engine multi-size atlas (NodeEdit S05 / font handling) -> [details](./TASK-DETAIL.md#batch-08----fonts-multi-size-atlas)
 - [ ] **BATCH-09** -- Comments / reroutes / containers (NodeEdit S06 / S26 / S27 / S35) -> [details](./TASK-DETAIL.md#batch-09----comments--reroutes--containers)
 
