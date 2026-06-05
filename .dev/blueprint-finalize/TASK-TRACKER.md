@@ -37,8 +37,8 @@ Status legend: `[ ]` open / `[~]` in progress / `[x]` done (verified + committed
 
 - [x] **BATCH-06** -- ChannelCommand param enrichment (DEBT-BCP-006) — real ParamsTypeFqn for MoveTo/FollowRoute/AimAndFire/OpenDoor; EjectPassengers has no params -> [details](./TASK-DETAIL.md#batch-06----channelcommand-param-enrichment-debt-bcp-006)
 - [x] **BATCH-07** -- Inline mini-editors for node value pins (real PinDefaultValueEditorRegistry; persisted via Node.PinDefaults; visual pending user verify) -> [details](./TASK-DETAIL.md#batch-07----inline-mini-editors)
-- [ ] **BATCH-08** -- Fonts: engine multi-size atlas (NodeEdit S05 / font handling) -> [details](./TASK-DETAIL.md#batch-08----fonts-multi-size-atlas)
-- [ ] **BATCH-09** -- Comments / reroutes / containers (NodeEdit S06 / S26 / S27 / S35) -> [details](./TASK-DETAIL.md#batch-09----comments--reroutes--containers)
+- [~] **BATCH-08** -- Fonts: engine multi-size atlas — DEFERRED (lead): engine-level font RENDERING (no NodeEdit wire-up path); genuinely needs visual/engine iteration in the running editor, not headless-doable with confidence. -> [details](./TASK-DETAIL.md#batch-08----fonts-multi-size-atlas)
+- [~] **BATCH-09** -- Comments / reroutes / containers — READY but DEFERRED pending a visual checkpoint: NodeEdit infra exists (ICommentModel/IContainerNodeModel, renderers, demo Fakes S06/S26/S27/S35) so it's wire-able, BUT it's a LARGE multi-feature batch that adds NEW persisted asset model (comment boxes/containers/reroutes — must stay JsonIgnore-when-empty for byte-stability) and is deeply visual (unverifiable headlessly). Recommend visually smoke-testing BATCH-06/07 first, then do this with quick visual course-correction. -> [details](./TASK-DETAIL.md#batch-09----comments--reroutes--containers)
 
 ---
 
