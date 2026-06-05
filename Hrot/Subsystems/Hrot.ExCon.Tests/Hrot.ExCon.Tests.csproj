@@ -27,7 +27,7 @@
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.2.3-gc40f8c1444" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.2.3" />
   </ItemGroup>
 
 </Project>

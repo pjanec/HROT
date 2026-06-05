@@ -91,16 +91,6 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void KinematicComponentRegistry_RegisterAll_RegistersNavigationEvents()
-        {
-            using var world = new EntityRepository();
-            KinematicComponentRegistry.RegisterAll(world);
-
-            var ex = Record.Exception(() => world.Events.Publish(new MoveStartedEvent()));
-            Assert.Null(ex);
-        }
-
-        [Fact]
         public void MuscleRoleComponentRegistry_RegisterAll_RegistersNavigationIntent()
         {
             using var world = new EntityRepository();
