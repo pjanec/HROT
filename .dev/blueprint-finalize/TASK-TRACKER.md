@@ -68,16 +68,21 @@ The generalized "behavior-action invocation" node (ChannelCommandNode repurposed
 just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT used for behavior actions.
 - [x] **ENUM-SAMPLE** -- a sample behavior action with an enum-typed parameter so the enum pin editor (AN6) is
       live-testable (combo render + persist + compile). -> [details](./TASK-DETAIL.md#enum-sample----enum-param-action-for-live-testing)
-- [ ] **AN7** -- Editor: generalize node + palette to non-channel actions. The node carries an action FQN
+- [x] **AN7** (COMMITTED `6e02027a`, incl. live wiring) -- Editor: generalize node + palette to non-channel actions. The node carries an action FQN
       (alongside channel ChannelType/ActionId); palette emits one entry per `ActionSchemaExporter` action (named
       by FQN, via the AN3 unified catalog); `NodePinSchema` projects pins from the non-channel action's
       `ParamsTypeFqn`; drawer shows the action identity read-only (AN5 pattern). -> [details](./TASK-DETAIL.md#an7----generalize-node--palette-to-non-channel-actions)
-- [ ] **AN8** -- Compiler (LARGE): lower a non-channel behavior-action invocation in a Blueprint. **UNBLOCKED
+- [x] **AN8** (COMMITTED `c93eccf0`; AiPrimitive/BlueprintCall path) -- Compiler (LARGE): lower a non-channel behavior-action invocation in a Blueprint. **UNBLOCKED
       (ROUND-4): model = INLINE-LATENT** — direct synchronous call `(self, ctx, paramsDTO) -> NodeStatus`;
       `Running` → inline `BlueprintLatentCursor` suspend + resume at the SAME node next tick (reuse the
       WaitForChannel latent path); Success/Failure route exec. AiPrimitive working state inline over
       `Blackboard1024` (StructureHash@0, state@8). **Slice-1: one stateful AiPrimitive per entity** (enforce/doc;
       Slice-2 partition allocator is future). No handle, no Wait node. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
+- [ ] **AN8b** -- `[SharedAiAction]` (hardcoded) direct-invocation lowering. AN8 emits a compile-time `#error` for
+      the non-AiPrimitive branch (safe), but AN7 SURFACES `[SharedAiAction]` in the blueprint palette → those
+      `#error` on compile. **DECISION:** implement AN8b (direct `Ns.Type.Method(ref dto, ctx)` invocation — note its
+      ref-field/offset contract differs from the `.Call` thunk) OR constrain AN7's palette to AiPrimitive(BlueprintCall)
+      only until then. -> [details](./TASK-DETAIL.md#an8b----sharedaiaction-direct-invocation-lowering)
 - [ ] **AN9** -- "Wait Until Completed" static metadata (ROUND-5; ACTION-NODE-DESIGN.md §ROUND-5 RESOLVED): add a
       static bool to the generalized action node (default **true**), shown as a Details checkbox (disabled+locked-true
       for non-channel actions; Stage-2 **BP1405** if a non-channel action has it false). Stage-5 fuses it:
@@ -128,10 +133,10 @@ visual bits confirmed at the gate.
       params in-context → compile/assign uses them; node-owned var dimmed/hidden + auto-deleted with the node.
 
 ## Phase 8 -- Follow-ups (smaller; after BB1 / on demand)
-- [ ] **HSM-TRANS** -- extend the FIX-A bridge to HSM **transitions** (links/`ILinkModel`), not just states, so
+- [x] **HSM-TRANS** (COMMITTED `6495f536`) -- extend the FIX-A bridge to HSM **transitions** (links/`ILinkModel`), not just states, so
       clicking a transition shows its facet. -> [details](./TASK-DETAIL.md#hsm-trans----hsm-transition-facets)
-- [ ] **JSON-PRETTY-BTHSM** -- apply `JsonAestheticFormatter` to BTree/HSM `.json` saves too (consistency with
-      JSON-PRETTY). -> [details](./TASK-DETAIL.md#json-pretty-bthsm----pretty-print-btreehsm-json)
+- [x] **JSON-PRETTY-BTHSM** (COMMITTED `28d3e586`) -- apply `JsonAestheticFormatter` to BTree/HSM `.json` saves too
+      (consistency with JSON-PRETTY).
 - [ ] (debt) AN1 vector/Quaternion inline-default literal materialization (currently skipped); enums assume int-backed.
 - [ ] (debt) DD-1..DD-4 (DESIGN-DEBT.md): ChannelCommand→per-action generalization (partly done via AN4/AN7), Stage3
       done (AN1), rare collapse watch, StructEdit param grid (BB1).
