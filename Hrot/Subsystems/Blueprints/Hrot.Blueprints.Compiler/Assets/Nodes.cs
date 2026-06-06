@@ -132,15 +132,24 @@ public sealed class ChannelCommandNode : Node
     /// <summary>
     /// AN7 — non-channel action identity.
     /// When non-null and non-empty, this node represents a non-channel behavior action
-    /// (e.g. <c>[SharedAiAction]</c> / AiPrimitive <c>BlueprintCall</c>) identified by its
+    /// (e.g. AiPrimitive <c>BlueprintCall</c>) identified by its
     /// FQN (<c>"{Namespace}.{Type}.{Method}"</c>).
     /// When null/empty the node is a channel command (ChannelType + ActionId path; unchanged).
     /// Omitted from JSON when null to preserve byte-stability of existing channel-command assets.
-    /// Compiler lowering of non-channel nodes is deferred to AN8.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ActionFqn { get; set; }
+
+    /// <summary>
+    /// AN8 — FQN of the action's parameter DTO type (e.g. <c>"Hrot.AI.Behaviors.Generated.MyAction_A1B2C3D4_Bp+Params"</c>).
+    /// Set by the editor when baking a non-channel action node (ActionFqn non-null).
+    /// Used by the compiler to emit <c>new global::{ParamsTypeFqn} { ... }</c> initialization.
+    /// Omitted from JSON when null.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActionParamsTypeFqn { get; set; }
 }
 
 public sealed class WaitForChannelNode : Node

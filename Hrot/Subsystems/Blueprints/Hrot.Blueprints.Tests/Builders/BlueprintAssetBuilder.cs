@@ -209,6 +209,29 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>
+    /// AN8 — Adds a ChannelCommandNode with ActionFqn set (non-channel behavior action, inline-latent).
+    /// <paramref name="actionFqn"/> = <c>"{ClassFqn}.Call"</c>, e.g.
+    /// <c>"Hrot.AI.Behaviors.Generated.MyAction_12345678_Bp.Call"</c>.
+    /// <paramref name="paramsTypeFqn"/> = nested Params type ('+' or '.' separator accepted).
+    /// </summary>
+    public GraphBuilder ActionInvocation(
+        string actionFqn,
+        string? paramsTypeFqn = null,
+        Action<NodeBuilder>? configure = null)
+    {
+        var nodeId = MakeNodeId("ActionInvocation", _nodes.Count);
+        var node = new ChannelCommandNode
+        {
+            Id                  = nodeId,
+            ActionFqn           = actionFqn,
+            ActionParamsTypeFqn = paramsTypeFqn,
+        };
+        RegisterNode(node, hasExecIn: true, hasExecOut: true);
+        configure?.Invoke(new NodeBuilder(node, _assetId, _graphId));
+        return this;
+    }
+
     /// <summary>Adds a CallCustomEventNode referencing the named custom event by name (name-based lookup).</summary>
     public GraphBuilder CallCustomEvent(string eventName)
     {

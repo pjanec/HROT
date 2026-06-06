@@ -74,6 +74,37 @@ public sealed record IrOp_PublishEvent(
     string EventTypeFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields) : IrOperation;
 
+/// <summary>
+/// AN8 — Inline-latent non-channel behavior-action invocation.
+/// Emitted by Stage 5 for a <c>ChannelCommandNode</c> whose <c>ActionFqn</c> is non-null.
+/// The action is called synchronously; on <c>NodeStatus.Running</c> the graph suspends inline
+/// (resumes at the same node next tick) until Success/Failure is returned.
+/// Stage 6 (<c>WaitLowering_AiPrimitive</c>) converts the <c>IrTerm_Suspend</c> that follows
+/// into a phase-byte re-dispatch that re-invokes the action.
+/// Stage 7 (<c>StatementEmitter</c>) emits the call inline.
+/// </summary>
+/// <param name="ActionFqn">
+/// Fully-qualified name of the action in <c>"{DeclaringTypeFqn}.{MethodName}"</c> format.
+/// For AiPrimitive (BlueprintCall): <c>"Hrot.AI.Behaviors.Generated.{ClassName}.Call"</c>.
+/// Compiler splits at the last '.' to get the static class FQN and method name.
+/// </param>
+/// <param name="ParamsTypeFqn">
+/// FQN of the action's parameter DTO, e.g.
+/// <c>"Hrot.AI.Behaviors.Generated.MyAction_A1B2C3D4_Bp+Params"</c>.
+/// Used to emit <c>new global::{ParamsTypeFqn} { Field = value }</c>.
+/// </param>
+/// <param name="ParamFields">Ordered list of (DTO field name, resolved IR value) pairs from data-IN pins.</param>
+/// <param name="IsAiPrimitive">
+/// True when the action is an AiPrimitive (BlueprintCall) — the call signature includes
+/// <c>ref WorkingState ws</c> projected over <c>Blackboard1024</c>.
+/// False for future stateless-action paths.
+/// </param>
+public sealed record IrOp_InlineActionCall(
+    string ActionFqn,
+    string ParamsTypeFqn,
+    IReadOnlyList<(string FieldName, IrValue Value)> ParamFields,
+    bool IsAiPrimitive) : IrOperation;
+
 // Channel command (lowered from ChannelCommandNode in Stage 6)
 public sealed record IrOp_ChannelCommand(
     string ChannelComponentTypeFqn,

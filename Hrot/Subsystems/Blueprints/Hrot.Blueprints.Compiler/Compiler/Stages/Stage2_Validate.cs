@@ -479,6 +479,9 @@ internal sealed class V_ChannelCommandReferences : IValidator
         {
             foreach (var node in graph.Nodes.OfType<ChannelCommandNode>())
             {
+                // AN8: ActionFqn-set nodes are non-channel behavior actions; skip catalog check.
+                if (!string.IsNullOrEmpty(node.ActionFqn)) continue;
+
                 bool found = entries.Any(e =>
                     Stage2Helpers.LastSegment(e.ChannelTypeFqn) == node.ChannelType
                     && e.Name == node.ActionId);

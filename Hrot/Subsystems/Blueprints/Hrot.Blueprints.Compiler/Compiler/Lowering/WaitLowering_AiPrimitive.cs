@@ -89,11 +89,11 @@ internal static class WaitLowering_AiPrimitive
             // Find the wait op for this suspend.
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay);
+                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
 
             // Filter out: the wait-op stmt and the resume-point Const stmt.
             var keptStmts = sb.Statements
-                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay))
+                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall))
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
@@ -195,9 +195,78 @@ internal static class WaitLowering_AiPrimitive
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay);
+                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
 
-            if (waitOp is IrOp_LatentDelay)
+            if (waitOp is IrOp_InlineActionCall iac)
+            {
+                // Inline-latent action call: re-invoke the action every tick until non-Running.
+                // Check block: call action → if Running return Running; if Failure → failureBlock; else → resumeBlock.
+                var statusV    = Alloc(NodeStatusType);
+                var constRunV  = Alloc(NodeStatusType);
+                var isRunV     = Alloc(BoolType);
+
+                var checkStmts = new List<IrStatement>
+                {
+                    Stmt(statusV,   new IrOp_InlineActionCall(iac.ActionFqn, iac.ParamsTypeFqn, iac.ParamFields, iac.IsAiPrimitive)),
+                    Stmt(constRunV, new IrOp_Const("NodeStatus.Running", NodeStatusType)),
+                    Stmt(isRunV,    new IrOp_PureCall("op_Eq_NodeStatus",
+                                        new[] { statusV, constRunV }, BoolType)),
+                };
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = checkBlockId[k],
+                    Label      = $"phase{k}_action_check",
+                    Statements = checkStmts,
+                    Terminator = new IrTerm_Branch(isRunV,
+                        retRunningBlockId[k], notRunningBlockId[k]) { Debug = Synth() },
+                });
+
+                // Return-running block.
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = retRunningBlockId[k],
+                    Label      = $"phase{k}_ret_running",
+                    Statements = Array.Empty<IrStatement>(),
+                    Terminator = new IrTerm_ReturnStatus(
+                        Hrot.Blueprints.Core.Assets.NodeStatus.Running) { Debug = Synth() },
+                });
+
+                // Not-running check: distinguish Success from Failure.
+                // The check block branched on Running; we land here when status != Running.
+                // statusV was assigned in checkBlock; in generated C# it is a local variable
+                // in the same method scope and remains accessible across goto targets.
+                var constFailV2 = Alloc(NodeStatusType);
+                var isFailV2    = Alloc(BoolType);
+
+                var notRunStmts = new List<IrStatement>
+                {
+                    // statusV is the action result from the checkBlock — same C# local.
+                    Stmt(constFailV2, new IrOp_Const("NodeStatus.Failure", NodeStatusType)),
+                    Stmt(isFailV2,    new IrOp_PureCall("op_Eq_NodeStatus",
+                                          new[] { statusV, constFailV2 }, BoolType)),
+                };
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = notRunningBlockId[k],
+                    Label      = $"phase{k}_not_running",
+                    Statements = notRunStmts,
+                    Terminator = new IrTerm_Branch(isFailV2,
+                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                });
+
+                // Failure block: reset phase to 0 and return Failure.
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = failureBlockId[k],
+                    Label      = $"phase{k}_failure",
+                    Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
+                    Terminator = new IrTerm_ReturnStatus(
+                        Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
+                });
+            }
+            else if (waitOp is IrOp_LatentDelay)
             {
                 // Delay check: if (time < workingState.WaitUntilTime) Running else continue.
                 var timeV     = Alloc(SingleType);

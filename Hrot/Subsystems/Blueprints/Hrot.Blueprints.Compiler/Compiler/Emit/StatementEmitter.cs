@@ -258,6 +258,14 @@ internal static class StatementEmitter
                 break;
 
             // ------------------------------------------------------------------
+            // AN8: inline-latent non-channel action call
+            // ------------------------------------------------------------------
+
+            case IrOp_InlineActionCall op:
+                InlineActionLowering.Emit(e, op, idx);
+                break;
+
+            // ------------------------------------------------------------------
             // Wait primitives -- should not reach Stage 7
             // ------------------------------------------------------------------
 

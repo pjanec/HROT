@@ -78,6 +78,7 @@ internal static class AiPrimitiveLowering
     private static bool HasAnyLatentOp(IrGraph graph)
         => graph.Blocks
             .SelectMany(b => b.Statements)
-            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent);
+            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
+                                  or IrOp_InlineActionCall);
 }
 

@@ -48,8 +48,9 @@ internal static class IrPrinter
         IrOp_LatentDelay d    => $"latent_delay t{d.Seconds.Index}",
         IrOp_WaitForChannel w => $"wait_for_channel {w.ChannelComponentTypeFqn}",
         IrOp_WaitForEvent w   => $"wait_for_event {w.EventTypeFqn}",
-        IrOp_ChannelCommand c => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
-        _                      => op.GetType().Name,
+        IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
+        IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
+        _                        => op.GetType().Name,
     };
 
     private static string PrintTerminator(IrTerminator term) => term switch

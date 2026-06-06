@@ -78,10 +78,10 @@ internal static class WaitLowering_Instance
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay);
+                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
 
             var keptStmts = sb.Statements
-                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay))
+                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall))
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
@@ -170,9 +170,69 @@ internal static class WaitLowering_Instance
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay);
+                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
 
-            if (waitOp is IrOp_LatentDelay)
+            if (waitOp is IrOp_InlineActionCall iac)
+            {
+                // AN8 inline-latent: cursor-based re-invoke (Instance blueprint).
+                // Check block: CheckCursorVersion + re-call action + branch on Running.
+                var statusV    = Alloc(NodeStatusType);
+                var constRunV  = Alloc(NodeStatusType);
+                var isRunV     = Alloc(BoolType);
+
+                var checkStmts = new List<IrStatement>
+                {
+                    Stmt(null,      new IrOp_CheckCursorVersion()),
+                    Stmt(statusV,   new IrOp_InlineActionCall(iac.ActionFqn, iac.ParamsTypeFqn, iac.ParamFields, iac.IsAiPrimitive)),
+                    Stmt(constRunV, new IrOp_Const("NodeStatus.Running", NodeStatusType)),
+                    Stmt(isRunV,    new IrOp_PureCall("op_Eq_NodeStatus",
+                                        new[] { statusV, constRunV }, BoolType)),
+                };
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = resumeCheckBlockId[k],
+                    Label      = $"resume_{k}_action_check",
+                    Statements = checkStmts,
+                    Terminator = new IrTerm_Branch(isRunV,
+                        retReturnBlockId[k], notRunningBlockId[k]) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = retReturnBlockId[k],
+                    Label      = $"resume_{k}_ret_void",
+                    Statements = Array.Empty<IrStatement>(),
+                    Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                });
+
+                // Not-running: distinguish Success from Failure using statusV (same C# local).
+                var constFailV2 = Alloc(NodeStatusType);
+                var isFailV2    = Alloc(BoolType);
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = notRunningBlockId[k],
+                    Label      = $"resume_{k}_not_running",
+                    Statements = new List<IrStatement>
+                    {
+                        Stmt(constFailV2, new IrOp_Const("NodeStatus.Failure", NodeStatusType)),
+                        Stmt(isFailV2,    new IrOp_PureCall("op_Eq_NodeStatus",
+                                              new[] { statusV, constFailV2 }, BoolType)),
+                    },
+                    Terminator = new IrTerm_Branch(isFailV2,
+                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = failureBlockId[k],
+                    Label      = $"resume_{k}_failure",
+                    Statements = new[] { Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
+                    Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                });
+            }
+            else if (waitOp is IrOp_LatentDelay)
             {
                 // Delay check: IrOp_CheckCursorVersion first, then time comparison.
                 var timeV      = Alloc(SingleType);

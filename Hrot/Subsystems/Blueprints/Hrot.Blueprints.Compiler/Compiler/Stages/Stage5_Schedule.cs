@@ -271,6 +271,11 @@ internal sealed class GraphScheduler
                     ScheduleWhenNode(wn, bb);
                     return;
 
+                // AN8: non-channel action node (ActionFqn set) — inline-latent invocation.
+                case ChannelCommandNode { ActionFqn: { } fqn } cc when !string.IsNullOrEmpty(fqn):
+                    ScheduleInlineActionNode(cc, bb);
+                    return;
+
                 default:
                     // Regular node: emit statements, then follow exec chain.
                     EmitNodeStatements(node, bb.Statements);
@@ -333,6 +338,49 @@ internal sealed class GraphScheduler
         else
             // No successor -- resume block is empty with fall-through.
             _scheduledBlocks.Add(resumeBlockId.Value);
+    }
+
+    // -----------------------------------------------------------------------
+    // AN8: inline-latent action node handling
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Schedules a non-channel behavior-action node (ChannelCommandNode with ActionFqn set).
+    /// Emits an <see cref="IrOp_InlineActionCall"/> statement then delegates to
+    /// <see cref="ScheduleLatentNode"/> to produce the suspend/resume block split.
+    /// On each tick the action is re-invoked; Success/Failure routes exec-out; Running suspends.
+    /// Stage 6 (WaitLowering_AiPrimitive) converts the IrTerm_Suspend into a phase-byte
+    /// re-dispatch that re-calls the action every tick until non-Running.
+    /// </summary>
+    private void ScheduleInlineActionNode(ChannelCommandNode cc, BlockBuilder bb)
+    {
+        var actionFqn      = cc.ActionFqn!;
+        var paramsTypeFqn  = cc.ActionParamsTypeFqn ?? "";
+
+        // Collect data-IN pin values (field name → resolved SSA value).
+        var paramFields = cc.Pins
+            .Where(p => !p.IsExec && p.Direction == "In")
+            .Select(p =>
+            {
+                var val = ResolveDataPin(cc.Id, p.Id, bb.Statements);
+                return (p.Name, val);
+            })
+            .ToList();
+
+        // Determine if this is an AiPrimitive (BlueprintCall) path.
+        // Convention: AiPrimitive generated classes live in Hrot.AI.Behaviors.Generated and
+        // the method is "Call". All non-channel actions in AN8 Slice-1 are AiPrimitive.
+        bool isAiPrimitive = true; // Slice-1: only AiPrimitive path implemented.
+
+        var actionCallOp = new IrOp_InlineActionCall(
+            actionFqn,
+            paramsTypeFqn,
+            paramFields,
+            isAiPrimitive);
+
+        // ScheduleLatentNode will: emit the op as a statement, split the block,
+        // and enqueue the exec-successor in the resume block.
+        ScheduleLatentNode(cc, bb, actionCallOp);
     }
 
     // -----------------------------------------------------------------------

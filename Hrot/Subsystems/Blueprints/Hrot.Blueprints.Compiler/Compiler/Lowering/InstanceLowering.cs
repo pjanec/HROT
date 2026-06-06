@@ -15,7 +15,8 @@ internal static class InstanceLowering
         {
             bool hasLatent = graph.Blocks
                 .SelectMany(b => b.Statements)
-                .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent);
+                .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
+                                       or IrOp_InlineActionCall);
 
             newGraphs.Add(hasLatent ? WaitLowering_Instance.Apply(graph) : graph);
         }

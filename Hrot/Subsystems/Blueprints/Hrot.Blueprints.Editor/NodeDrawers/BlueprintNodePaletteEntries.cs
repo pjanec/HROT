@@ -273,7 +273,8 @@ public static class BlueprintNodePaletteEntries
             var tooltip     = $"Invoke the {entry.DisplayName} non-channel behavior action. (AN8: compile lowering pending)";
 
             // Capture for closure.
-            var bakedFqn = entry.Id; // FQN is the canonical identity (AQ2).
+            var bakedFqn        = entry.Id;           // FQN is the canonical identity (AQ2).
+            var bakedParamsFqn  = entry.ParamsTypeFqn; // AN8: bake ParamsTypeFqn for compiler.
 
             yield return new NodeKindDescriptor
             {
@@ -282,12 +283,13 @@ public static class BlueprintNodePaletteEntries
                 Category    = category,
                 Tooltip     = tooltip,
                 Icon        = "",
-                // AN7: bake ActionFqn at create-time — node is immutably pre-configured.
+                // AN7/AN8: bake ActionFqn + ActionParamsTypeFqn at create-time.
                 // ChannelType + ActionId remain empty (non-channel path).
                 CreateInstance = () => new ChannelCommandNode
                 {
-                    Id        = Guid.NewGuid(),
-                    ActionFqn = bakedFqn,
+                    Id                   = Guid.NewGuid(),
+                    ActionFqn            = bakedFqn,
+                    ActionParamsTypeFqn  = bakedParamsFqn,
                 },
             };
         }
