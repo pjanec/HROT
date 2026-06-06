@@ -78,12 +78,63 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
       WaitForChannel latent path); Success/Failure route exec. AiPrimitive working state inline over
       `Blackboard1024` (StructureHash@0, state@8). **Slice-1: one stateful AiPrimitive per entity** (enforce/doc;
       Slice-2 partition allocator is future). No handle, no Wait node. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
+- [ ] **AN9** -- "Wait Until Completed" static metadata (ROUND-5; ACTION-NODE-DESIGN.md §ROUND-5 RESOLVED): add a
+      static bool to the generalized action node (default **true**), shown as a Details checkbox (disabled+locked-true
+      for non-channel actions; Stage-2 **BP1405** if a non-channel action has it false). Stage-5 fuses it:
+      channel+true → ChannelCommand + WaitForChannel (latent); channel+false → fire-and-forget; non-channel+true →
+      inline-latent (AN8). Makes channel + non-channel action nodes block-by-default consistent. Reuses the existing
+      WaitForChannel/BlueprintLatentCursor lowering. -> [details](./TASK-DETAIL.md#an9----wait-until-completed-static-metadata)
 
 ## Phase 6 -- BTree/HSM StructEdit inspector + param binding (Blackboard Slice 1.5)
 - [x] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop -> commit `2bd9ba67`. Facet fields render live (enum→combo, bool→checkbox, number/string) + composition-root wiring; pickers plain-text (completed in SE2).
 - [x] **SE2** -- Per-asset facet picker dropdowns (BTree BehaviorHash/BlackboardField; HSM action/guard/state/event) via re-register on ActiveChanged -> commit `98992bda`.
 - [~] **REVIEW-V2** -- SKIPPED per user (overnight run); folded into the morning review (see MORNING-HANDOFF.md): confirm facet rows render+edit, enum combos, picker dropdowns.
-- [ ] **BB1+** -- BTree/HSM per-param binding [B6]: project the action DTO's fields -> per-field static literal OR `[BlackboardFieldPicker]` blackboard-var binding; sub-tree sync (Approach A/B). **DEFERRED from the overnight run (STOP-LINE): needs a NEW persisted binding schema + doesn't fit the static-facet model = a design decision to make WITH the user, not blind-built.** Next major task. -> [details](./TASK-DETAIL.md#bb1----btreehsm-per-param-binding)
+- [x] **FIX-A** -- BTree/HSM canvas selection→facet bridge: SetFacetDispatcher per active asset + canvas `AfterDraw`
+      + `AiCanvasContext.AssetRef` (3 gaps) so the SE1/SE2 facet Inspector actually renders on node click ->
+      commit `31c9d4b1`. (HSM **transitions** = links, not wired — see HSM-TRANS below.)
+- [x] **FIX-B** -- vector pin-default locale-independent `[x, y, z]` (was culture-dependent `<0  4,5  0>`) ->
+      commit `31c9d4b1`.
+- [x] **FIX-C** -- Inspector facet session keyed by node identity (was per-type → stale across same-type nodes;
+      Wait(1s)/Wait(2s)) -> commit `8d411bf5`. User-confirmed per-node values + read-only Details + vector format.
+
+## Phase 6.1 -- Enum/JSON polish (2026-06-06; DONE)
+- [x] **ENUM-NAME** -- persist enum defaults as member NAME + emit `global::FQN.Member` (readable JSON + codegen;
+      reorder-robust; integer back-compat) -> commit `7c9b7189`.
+- [x] **JSON-PRETTY** -- pretty-print `.bp.json` saves via `JsonAestheticFormatter.FlattenNumericArrays` (indented +
+      numeric arrays inlined; reformatted committed assets) -> commit `5e1b97be`. **Follow-up:** BTree/HSM JSON still
+      minified (apply the same formatter for consistency) -> see JSON-PRETTY-BTHSM below.
+
+## Phase 7 -- BB1: Action-parameter authoring + node-owned variables (Blackboard Addendum v3)
+**Design (APPROVED):** [Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md](../../docs/blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md)
++ [ACTION-NODE-DESIGN.md](./ACTION-NODE-DESIGN.md) "BB1 MODEL RESOLVED". Action nodes bind their WHOLE param DTO to
+ONE variable (per-field binding rejected); "+ Promote to new variable" auto-creates a **node-owned** variable
+(`IsAutoManaged`) for the blueprint-like node-local feel. Builds on SE1/SE2. Each batch: lead reviews + commits;
+visual bits confirmed at the gate.
+- [ ] **B-1** -- Type-filtered binding picker: `[BlackboardFieldPicker]` shows only variables of the action's
+      `DtoType` (from `IActionSchemaExporter`); `(no compatible variables)` + Promote affordance otherwise. (DD §11.2)
+      -> [details](./TASK-DETAIL.md#b-1----type-filtered-binding-picker)
+- [ ] **B-2** -- "+ Promote to new variable" + `IsAutoManaged`: add `IsAutoManaged` to `BlackboardVariableDto`
+      (persisted) + `BlackboardVariableEntry`; Promote creates an `_auto_{VisualId:N}` (BTree) / `_auto_{StableId:N}`
+      (HSM) variable of the action's DtoType, `IsAutoManaged=true`, binds `ExpressionTargetField`. (DD §11.3)
+      -> [details](./TASK-DETAIL.md#b-2----promote-to-new-variable--isautomanaged)
+- [ ] **B-3** -- Edit the bound (node-owned or shared) variable's `DefaultValueJson` via the SE1 StructEdit surface
+      (enums/vectors/etc.) — the static-param authoring. -> [details](./TASK-DETAIL.md#b-3----structedit-editing-of-the-variable-default)
+- [ ] **B-4** -- Node-owned presentation + lifecycle: `VariablesPanelControl` filters `IsAutoManaged` into a dimmed
+      read-only "Node-Owned Allocations" group; EXCLUDE from Approach-A alias drop-targets; `BTreeCommandSink`/
+      `HsmCommandSink` auto-delete the node-owned var + re-pack on owning-node delete. -> [details](./TASK-DETAIL.md#b-4----node-owned-variable-presentation--lifecycle)
+- [ ] **B-5** -- Inspector one-line static-vs-dynamic tooltip (BTree/HSM static = applied once at assignment; bind a
+      variable for live values). -> [details](./TASK-DETAIL.md#b-5----static-vs-dynamic-tooltip)
+- [ ] **REVIEW-BB1** -- user smoke: select a BTree action/HSM state → type-filtered picker; Promote → set static
+      params in-context → compile/assign uses them; node-owned var dimmed/hidden + auto-deleted with the node.
+
+## Phase 8 -- Follow-ups (smaller; after BB1 / on demand)
+- [ ] **HSM-TRANS** -- extend the FIX-A bridge to HSM **transitions** (links/`ILinkModel`), not just states, so
+      clicking a transition shows its facet. -> [details](./TASK-DETAIL.md#hsm-trans----hsm-transition-facets)
+- [ ] **JSON-PRETTY-BTHSM** -- apply `JsonAestheticFormatter` to BTree/HSM `.json` saves too (consistency with
+      JSON-PRETTY). -> [details](./TASK-DETAIL.md#json-pretty-bthsm----pretty-print-btreehsm-json)
+- [ ] (debt) AN1 vector/Quaternion inline-default literal materialization (currently skipped); enums assume int-backed.
+- [ ] (debt) DD-1..DD-4 (DESIGN-DEBT.md): ChannelCommand→per-action generalization (partly done via AN4/AN7), Stage3
+      done (AN1), rare collapse watch, StructEdit param grid (BB1).
 
 ---
 

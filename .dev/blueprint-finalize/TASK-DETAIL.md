@@ -297,14 +297,57 @@ Phase 5A is intended as ONE large autonomous (headless-verifiable) push; 5B is t
 ## REVIEW-V2 (gate)
 - Running editor: BTree/HSM facet fields render + edit in the Inspector; enum fields show combos.
 
-## BB1+ -- BTree/HSM per-param binding
-- **Goal:** per-action-param authoring in BTree/HSM: static literal OR bind to a blackboard variable.
-- **Do (LARGE; break down per Blackboard DD §15 TASK-BB-*):** extend `BTreeActionFacet`/HSM facets to **project the
-  action DTO's fields** (today only `MethodFqn` + single `ExpressionTargetField`); per-field type-filtered
-  `[BlackboardFieldPicker]` (dropdown of matching blackboard vars) + static-literal entry; sub-tree Parameter
-  Synchronization sub-panel (Approach A alias / Approach B sync, Blackboard DD §7/§8). Aligns with
-  `docs/blueprints/Blackboard_Authoring_Detailed_Design.md`.
-- **Verify:** headless facet/binding tests; multiple REVIEW gates for the visual binding UX.
+# Phase 7 -- BB1: Action-parameter authoring + node-owned variables
+**Design (APPROVED):** `docs/blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` + ACTION-NODE-DESIGN.md
+"BB1 MODEL RESOLVED". Action node binds its WHOLE param DTO to ONE blackboard variable (`ExpressionTargetField`);
+per-field binding REJECTED (breaks the kernel's contiguous zero-alloc projection). "+ Promote to new variable"
+auto-creates a node-owned variable for the blueprint-like node-local feel. Static defaults baked into the generated
+`ParseParamsDelegate` at assignment; dynamic via Approach A (alias) / B (Subtree sync). Builds on SE1/SE2.
+
+## B-1 -- Type-filtered binding picker
+- **Goal:** the action's binding dropdown shows only compatible variables.
+- **Do:** `[BlackboardFieldPicker]` (BTree `BlackboardFieldPickerDrawer` / HSM equivalents) consults the action's
+  schema `DtoType` (`IActionSchemaExporter`) and lists only blackboard variables of that type; show
+  `(no compatible variables)` + the Promote affordance (B-2) when none. (DD §11.2)
+- **Files:** `BTreePickerDrawers.cs` (BlackboardFieldPickerDrawer), HSM picker drawers, the facet mapping.
+- **Verify:** headless — given an action with DtoType T and a blackboard with vars of T and U, the picker offers only
+  the T vars.
+
+## B-2 -- Promote to new variable + IsAutoManaged
+- **Goal:** in-context creation of a correctly-typed, node-owned variable.
+- **Do:** add **`IsAutoManaged`** (bool) to `BlackboardVariableDto` (persisted JSON) + `BlackboardVariableEntry`
+  (editor). The picker's inline "+ Promote to new variable" creates a variable named `_auto_{VisualId:N}` (BTree) /
+  `_auto_{StableId:N}` (HSM) of the action's DtoType, sets `IsAutoManaged=true`, binds the node's
+  `ExpressionTargetField` to it. Downstream (generator/bin-packer/ParseParamsDelegate) ignores the flag. (DD §11.3,
+  Addendum §3)
+- **Verify:** headless — Promote yields a uniquely-named auto var of the right type, bound; round-trips through JSON
+  with `IsAutoManaged=true`.
+
+## B-3 -- StructEdit editing of the variable default
+- **Goal:** author the static param values (the bound variable's `DefaultValueJson`) in-context.
+- **Do:** render the bound variable's default via the SE1 StructEdit surface (DTO fields → enums combos, vectors,
+  FixedString, etc.); writes back to `DefaultValueJson`. Works for both node-owned and shared variables.
+- **Verify:** headless — set a DTO field's default via the edit service → persisted in the variable's
+  `DefaultValueJson`; an enum field round-trips by name.
+
+## B-4 -- Node-owned variable presentation + lifecycle
+- **Goal:** keep the panel clean + the auto var node-local; no orphans.
+- **Do:** `VariablesPanelControl` filters `IsAutoManaged==true` OUT of the main "Defined Variables" list → renders a
+  dimmed, read-only **"Node-Owned Allocations"** sub-group (or behind a toggle). **EXCLUDE** node-owned vars from the
+  Approach-A alias drop-target list. `BTreeCommandSink`/`HsmCommandSink`: on owning-action-node delete, remove the
+  node-owned variable + trigger re-pack. (Addendum §3.5–§3.7)
+- **Verify:** headless — auto var filtered from the defined list + excluded from alias targets; deleting the owning
+  node removes the auto var.
+
+## B-5 -- Static-vs-dynamic tooltip
+- **Goal:** prevent designer surprise about timing.
+- **Do:** one-line Inspector tooltip on the param-binding row: BTree/HSM static value = applied once at behavior
+  assignment; bind a variable for live/dynamic values. (Addendum §4.1)
+- **Verify:** present (visual); no functional test needed.
+
+## REVIEW-BB1 (gate)
+- Running editor: type-filtered picker; Promote → set static params in-context → assign/compile uses them; node-owned
+  var dimmed/hidden + auto-deleted with the node.
 
 ---
 
@@ -344,6 +387,57 @@ Phase 5A is intended as ONE large autonomous (headless-verifiable) push; 5B is t
   how the blueprint obtains/calls it.
 - **Verify:** e2e compile + (where feasible) execute a blueprint invoking a non-channel action; golden/emit tests;
   0 new failures. Sequence after AN7.
+
+## AN9 -- "Wait Until Completed" static metadata
+- **Goal (ROUND-5):** make channel + non-channel action nodes block-by-default consistent, WITHOUT a runtime pin
+  (latency must be compile-time-static) and WITHOUT a fused node.
+- **Do:** add a STATIC bool `WaitUntilCompleted` (default **true**) to the generalized action node (persisted),
+  rendered as a Details checkbox. Stage-5 fuses by the static value: channel + true → emit `IrOp_ChannelCommand`
+  then split the block + `IrOp_WaitForChannel` (reuse the existing WaitForChannel latent lowering); channel + false →
+  ChannelCommand only (fire-and-forget); non-channel + true → inline-latent (AN8); non-channel + false → **forbidden**.
+  UI: checkbox disabled+locked-true for non-channel actions (Inspector reads the action schema). Stage-2 `Validate`
+  emits **BP1405** if a non-channel action has WaitUntilCompleted=false in JSON. `WaitForChannelNode` REMAINS a
+  separate palette node for the manual fire-then-sync-later path.
+- **Files:** the generalized action node model + drawer; `Stage5_Schedule` (fuse), `Stage2_Validate` (BP1405),
+  ChannelCommandNodeDrawer/Inspector (checkbox).
+- **Verify:** golden/emit — channel+true emits ChannelCommand+WaitForChannel; channel+false emits ChannelCommand
+  only; BP1405 fires for non-channel+false; existing tests green.
+
+---
+
+# Phase 6.1 -- Enum/JSON polish + morning fixes (DONE; recorded for history)
+
+## ENUM-NAME -- enum persisted + emitted by member name
+- **Done** `7c9b7189`. PinDefaults stores the enum member NAME ("Crouching"); codegen emits `global::FQN.Member`
+  (integer back-compat kept). Conversion at the editor seam (ParseValue name→long via the provider; FormatEnumValue
+  long→name). Reorder-robust; rename → CS error (compiler safety net).
+
+## JSON-PRETTY -- pretty-print .bp.json saves
+- **Done** `5e1b97be`. `SaveActiveBlueprintCommand.Save` applies `JsonAestheticFormatter.FlattenNumericArrays`
+  (indented + numeric arrays inlined). Compiler `Serialize` stays minified (golden tests). Committed assets
+  reformatted (semantically identical). User experiment files untouched.
+
+## FIX-A / FIX-B / FIX-C -- morning Inspector + vector fixes
+- **Done** `31c9d4b1` (A+B), `8d411bf5` (C). A: BTree/HSM canvas selection→facet bridge (SetFacetDispatcher per
+  asset + canvas AfterDraw + AiCanvasContext.AssetRef) — new BTree/HSM SelectionBridgeHelpers. B: vector pin-default
+  invariant `[x, y, z]` (was culture-dependent `<0  4,5  0>`). C: Inspector facet session keyed by node identity
+  (sub-selection), not just facet type, so same-type nodes show their own values.
+
+# Phase 8 -- Follow-ups (smaller; after BB1 / on demand)
+
+## HSM-TRANS -- HSM transition facets
+- **Goal:** clicking an HSM **transition** (not just a state) shows its facet in the Inspector.
+- **Do:** extend `HsmSelectionBridgeHelper.MapSelection` to map a selected canvas **link** (`ILinkModel`, the
+  transition) → the right HSM transition sub-selection, so `HsmFacetDispatcher.GetFacet` returns the transition
+  facet. FIX-A wired states only.
+- **Verify:** headless map test (transition link → transition sub-selection); visual at review.
+
+## JSON-PRETTY-BTHSM -- pretty-print BTree/HSM JSON
+- **Goal:** consistency with JSON-PRETTY (blueprint).
+- **Do:** apply `JsonAestheticFormatter.FlattenNumericArrays` at the BTree/HSM save path(s)
+  (`Hrot.AiEditor.Persistence` / the BTree/HSM save commands), mirroring JSON-PRETTY; update any byte-stability
+  tests; reformat committed `.btree.json`/`.hsm.json` (verify semantically identical).
+- **Verify:** saved BTree/HSM JSON indented + arrays inlined; round-trips; suites 0 new failures.
 
 ---
 
