@@ -2141,19 +2141,21 @@ namespace Hrot.Editor
                 {
                     var btreeAsset = asset as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
                     if (btreeAsset == null) return;
-                    var dto  = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset);
-                    var json = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, json);
+                    var dto        = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btreeAsset);
+                    var json       = Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(dto);
+                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
+                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
                 };
 
             Hrot.Editor.AiShared.SaveAllAiDocumentsCommand.SaveDelegate saveHsmDelegate =
                 (asset, path) =>
                 {
-                    var hsmAsset = asset as Hrot.Hsm.Editor.Model.HsmAsset;
+                    var hsmAsset   = asset as Hrot.Hsm.Editor.Model.HsmAsset;
                     if (hsmAsset == null) return;
-                    var dto  = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
-                    var json = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
-                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, json);
+                    var dto        = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
+                    var json       = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Serialize(dto);
+                    var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(json);
+                    Hrot.AiEditor.Persistence.AtomicFileWriter.Write(path, prettyJson);
                 };
 
             _saveAllCallback = () =>

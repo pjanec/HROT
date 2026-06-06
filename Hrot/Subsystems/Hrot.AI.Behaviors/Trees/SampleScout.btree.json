@@ -1,1 +1,78 @@
-﻿{"$meta":{"docType":"Hrot.BTree","schemaVersion":1},"AssetId":"54ef3847-0000-0000-0000-000000000000","Name":"SampleScout","TargetNamespace":"Hrot.AI.Behaviors.Trees","BlackboardTypeName":"Fdp.Toolkit.Behavior.Components.BrainBlackboard","ContextTypeName":"Fdp.Toolkit.Behavior.BTreeContext","Nodes":[{"kind":"Sequence","VisualId":"20000000-0000-0000-0000-000000000001","ChildVisualIds":["30000000-0000-0000-0000-000000000001","40000000-0000-0000-0000-000000000001"],"DisplayLabel":"Sequence","EditorMetadata":{"X":200,"Y":50,"Comment":"patrol sequence","Collapsed":false,"Color":null}},{"kind":"Wait","Wait":{"Duration":1},"VisualId":"30000000-0000-0000-0000-000000000001","ChildVisualIds":[],"DisplayLabel":"Wait(1s)","EditorMetadata":{"X":100,"Y":200,"Comment":"pause at waypoint A","Collapsed":false,"Color":null}},{"kind":"Wait","Wait":{"Duration":2},"VisualId":"40000000-0000-0000-0000-000000000001","ChildVisualIds":[],"DisplayLabel":"Wait(2s)","EditorMetadata":{"X":300,"Y":200,"Comment":"pause at waypoint B","Collapsed":false,"Color":null}}],"Pills":[],"Canvas":{"PanX":0,"PanY":0,"Zoom":1},"SubtreeSyncBindings":{},"Suppressions":{"Conflict":[],"Unused":[]},"Blackboard":{"Managed":false,"TypeName":"","HeavyDtoType":null,"Variables":[]}}
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "54ef3847-0000-0000-0000-000000000000",
+  "Name": "SampleScout",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Sequence",
+      "VisualId": "20000000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "30000000-0000-0000-0000-000000000001",
+        "40000000-0000-0000-0000-000000000001"
+      ],
+      "DisplayLabel": "Sequence",
+      "EditorMetadata": {
+        "X": 200,
+        "Y": 50,
+        "Comment": "patrol sequence",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Wait",
+      "Wait": {
+        "Duration": 1
+      },
+      "VisualId": "30000000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Wait(1s)",
+      "EditorMetadata": {
+        "X": 100,
+        "Y": 200,
+        "Comment": "pause at waypoint A",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Wait",
+      "Wait": {
+        "Duration": 2
+      },
+      "VisualId": "40000000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Wait(2s)",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 200,
+        "Comment": "pause at waypoint B",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": false,
+    "TypeName": "",
+    "HeavyDtoType": null,
+    "Variables": []
+  }
+}
