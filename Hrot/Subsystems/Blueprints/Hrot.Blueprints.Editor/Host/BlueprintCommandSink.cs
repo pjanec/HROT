@@ -1,5 +1,6 @@
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using NodeEditor.Core.Commands;
@@ -35,6 +36,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private readonly CommandHistory      _history;
     private readonly EditService         _editService;
     private readonly Action<BlueprintAsset> _markDirty;
+    // BF-UX1 FIX B: channel-command catalog so ApplyPinIds can pass it to
+    // NodePinSchema.GetCanonicalPins — without it ChannelCommandNode projects exec-only pins.
+    private readonly IChannelCommandCatalog? _channelCommands;
 
     /// <summary>
     /// Constructs a command sink bound to the given asset graph.
@@ -47,6 +51,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// <param name="history">Command history for structural operations.</param>
     /// <param name="editService">Property-edit service for <see cref="GraphCommand.SetNodeProperty"/>.</param>
     /// <param name="markDirty">Callback invoked after every successful mutation to mark the asset dirty.</param>
+    /// <param name="channelCommands">
+    /// Optional channel-command catalog forwarded to <see cref="NodePinSchema.GetCanonicalPins"/>
+    /// so that <see cref="ChannelCommandNode"/>s project their parameter data-IN pins rather than
+    /// collapsing to exec-only when <see cref="ApplyPinIds"/> re-stamps canonical pins on create.
+    /// </param>
     public BlueprintCommandSink(
         BlueprintAsset       asset,
         Graph                graph,
@@ -55,16 +64,18 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         BlueprintLinkValidator validator,
         CommandHistory       history,
         EditService          editService,
-        Action<BlueprintAsset> markDirty)
+        Action<BlueprintAsset> markDirty,
+        IChannelCommandCatalog? channelCommands = null)
     {
-        _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
-        _graph       = graph       ?? throw new ArgumentNullException(nameof(graph));
-        _model       = model       ?? throw new ArgumentNullException(nameof(model));
-        _catalog     = catalog     ?? throw new ArgumentNullException(nameof(catalog));
-        _validator   = validator   ?? throw new ArgumentNullException(nameof(validator));
-        _history     = history     ?? throw new ArgumentNullException(nameof(history));
-        _editService = editService ?? throw new ArgumentNullException(nameof(editService));
-        _markDirty   = markDirty   ?? throw new ArgumentNullException(nameof(markDirty));
+        _asset           = asset           ?? throw new ArgumentNullException(nameof(asset));
+        _graph           = graph           ?? throw new ArgumentNullException(nameof(graph));
+        _model           = model           ?? throw new ArgumentNullException(nameof(model));
+        _catalog         = catalog         ?? throw new ArgumentNullException(nameof(catalog));
+        _validator       = validator       ?? throw new ArgumentNullException(nameof(validator));
+        _history         = history         ?? throw new ArgumentNullException(nameof(history));
+        _editService     = editService     ?? throw new ArgumentNullException(nameof(editService));
+        _markDirty       = markDirty       ?? throw new ArgumentNullException(nameof(markDirty));
+        _channelCommands = channelCommands;
     }
 
     // ── IGraphCommandSink ────────────────────────────────────────────────────
@@ -209,7 +220,10 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // Build the canonical pin list the SAME way DescriptorToEntry did (registry-backed,
         // asset-aware for variable typing) so the count/order aligns with the catalog entry the
         // canvas walked when generating PinIds.
-        var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset, containingGraph: _graph);
+        // BF-UX1 FIX B: pass _channelCommands so ChannelCommandNode projects its param data-IN
+        // pins instead of collapsing to exec-only (the root cause of BF-UX1 FIX B).
+        var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset,
+            channelCommands: _channelCommands, containingGraph: _graph);
 
         // Re-order into inputs-then-outputs, matching DescriptorToEntry (Inputs = Direction=="In",
         // Outputs = Direction=="Out") and CanvasInput's pinIdx walk (entry.Inputs then entry.Outputs).
@@ -290,6 +304,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         else if (node is EventEntryNode ee)
         {
             if (props.TryGetValue("EventTypeId", out var eid) && eid is string es) ee.EventTypeId = es;
+        }
+        else if (node is ChannelCommandNode cc)
+        {
+            if (props.TryGetValue("ChannelType", out var ct) && ct is string cts) cc.ChannelType = cts;
+            if (props.TryGetValue("ActionId",    out var ai) && ai is string ais) cc.ActionId    = ais;
         }
     }
 

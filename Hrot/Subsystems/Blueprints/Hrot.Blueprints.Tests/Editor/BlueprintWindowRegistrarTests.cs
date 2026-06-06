@@ -1,11 +1,8 @@
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
-using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.Inspector;
-using Hrot.Blueprints.Editor.Reload;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -34,23 +31,15 @@ public sealed class BlueprintWindowRegistrarTests
 
     private static BlueprintWindowRegistrar MakeRegistrar()
     {
-        var console     = new MockOutputConsole();
-        var catalog     = new StubAssetCatalog();
-        var store       = new EditorSelectionStore();
-        var dirty       = new DirtyTracker();
-        var state       = new EditorState();
-        var session     = new MockDebugSession();
-        var coord       = new FakeEditorCoordinator();
-        var fdpCoord    = new AiHotReloadCoordinator(
-            new BehaviorRegistry(),
-            new BlueprintRegistry(),
-            new AiHotReloadCoordinatorOptions());
-        var qrs         = new QuickReloadService(catalog, state, console,
-                              new Core.Compiler.BlueprintCompiler(), fdpCoord);
-        var frs         = new FullRebuildService(console);
-        var drawers     = new DrawerRegistry();
+        var catalog = new StubAssetCatalog();
+        var store   = new EditorSelectionStore();
+        var dirty   = new DirtyTracker();
+        var state   = new EditorState();
+        var session = new MockDebugSession();
+        var coord   = new FakeEditorCoordinator();
+        var drawers = new DrawerRegistry();
 
-        return new BlueprintWindowRegistrar(catalog, store, dirty, state, session, coord, qrs, frs, drawers);
+        return new BlueprintWindowRegistrar(catalog, store, dirty, state, session, coord, drawers);
     }
 
     [Fact]
@@ -64,7 +53,6 @@ public sealed class BlueprintWindowRegistrarTests
         var expected = new[]
         {
             "Asset Browser",
-            "Graph Editor",
             "Inspector",
             "Debug Panel",
             "Watch Panel",
@@ -76,9 +64,10 @@ public sealed class BlueprintWindowRegistrarTests
             Assert.Contains(name, registry.RegisteredNames);
     }
 
-    // FIX2-005: engine IWindowRegistrar path must register all 7 windows in WindowManager.
+    // FIX2-005: engine IWindowRegistrar path must register all 6 windows in WindowManager
+    // (GraphEditorWindow removed — BF-UX1 FIX D).
     [Fact]
-    public void BlueprintWindowRegistrar_RegistersAllSevenWindows_ViaEngineInterface()
+    public void BlueprintWindowRegistrar_RegistersAllWindows_ViaEngineInterface()
     {
         var registrar       = MakeRegistrar();
         var engineRegistrar = (Fdp.Toolkit.Runner.IWindowRegistrar)registrar;
@@ -90,7 +79,6 @@ public sealed class BlueprintWindowRegistrarTests
         var expected = new[]
         {
             "Asset Browser",
-            "Graph Editor",
             "Inspector",
             "Debug Panel",
             "Watch Panel",

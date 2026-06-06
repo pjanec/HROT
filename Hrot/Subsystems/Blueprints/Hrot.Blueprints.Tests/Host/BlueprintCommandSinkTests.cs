@@ -1,5 +1,7 @@
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -531,5 +533,119 @@ public sealed class BlueprintCommandSinkTests
 
         // The AddNodeCommand's Undo() removes the node from the graph.
         Assert.Equal(before, graph.Nodes.Count);
+    }
+
+    // ── BF-UX1 FIX B: ChannelCommandNode pin preservation (channel catalog) ────
+
+    /// <summary>
+    /// Helper: builds a sink with a full palette registry + channel catalog so
+    /// ChannelCommandNode resolves its param data-IN pins via NodePinSchema.
+    /// </summary>
+    private static (BlueprintCommandSink sink,
+                    BlueprintGraphModel  model,
+                    List<BlueprintAsset> dirtyLog)
+        MakeSutWithChannelCatalog(BlueprintAsset? asset = null, Graph? graph = null)
+    {
+        if (asset == null)
+            (asset, graph) = MakeAssetWithGraph();
+        else if (graph == null)
+            throw new ArgumentNullException(nameof(graph));
+
+        var typeSystem      = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
+        var kindRegistry    = BlueprintEditorBootstrap.CreatePaletteRegistry();
+        var channelCatalog  = BuiltInChannelCommandCatalog.Instance;
+        var model           = new BlueprintGraphModel(asset, graph!, kindRegistry,
+                                 channelCommands: channelCatalog);
+        var catalog         = new BlueprintNodeCatalog(kindRegistry);
+        var validator    = new BlueprintLinkValidator(model, typeSystem);
+        var history      = new CommandHistory();
+        var dirtyLog     = new List<BlueprintAsset>();
+        var editService  = new EditService
+        {
+            Context = new EditServiceContext(history, a => dirtyLog.Add(a))
+        };
+
+        var sink = new BlueprintCommandSink(
+            asset, graph!, model, catalog, validator, history, editService,
+            markDirty:       a => dirtyLog.Add(a),
+            channelCommands: channelCatalog);
+
+        return (sink, model, dirtyLog);
+    }
+
+    /// <summary>
+    /// BF-UX1 FIX B: A ChannelCommandNode created via the add-node path (ApplyAddNode →
+    /// CreateAssetNode → ApplyPinIds) must retain its parameter data-IN pins, not collapse
+    /// to exec-only.  This was broken because ApplyPinIds called GetCanonicalPins without
+    /// the channel catalog.
+    ///
+    /// ChannelCommandPins matches by LastSegment(ChannelTypeFqn) == node.ChannelType, so
+    /// we pass the short segment "LocomotionChannel" as the ChannelType.
+    /// We also supply a PinIds list (required for ApplyPinIds to do any work) sized to the
+    /// expected pin count (execIn + execOut + at least 1 data pin = 3+).
+    /// </summary>
+    [Fact]
+    public void CommandSink_AddChannelCommandNode_RetainsParamPins_WithChannelCatalog()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (sink, model, _) = MakeSutWithChannelCatalog(asset, graph);
+
+        // Supply enough PinIds for the canonical pins: at minimum execIn + execOut + data pins.
+        // We provide 8 ids — more than needed; ApplyPinIds stamps min(supplied, canonical).
+        var pinIds = Enumerable.Range(0, 8).Select(_ => new PinId(Guid.NewGuid())).ToList();
+
+        var props = new Dictionary<string, object?>
+        {
+            // ChannelCommandPins matches by LastSegment(FQN) == node.ChannelType.
+            ["ChannelType"] = "LocomotionChannel",
+            ["ActionId"]    = "MoveTo",
+            ["PinIds"]      = (IReadOnlyList<PinId>)pinIds,
+        };
+
+        var result = sink.Apply(new GraphCommand.AddNode(
+            new NodeId(Guid.NewGuid()),
+            new NodeKindKey("ChannelCommand"),
+            Vector2.Zero,
+            props));
+
+        Assert.True(result.Success);
+        var node = graph.Nodes.Last() as ChannelCommandNode;
+        Assert.NotNull(node);
+
+        // ChannelCommandNode must have more than 2 exec-only pins; MoveTo
+        // projects execIn, execOut + the MoveTo param data-IN pins (≥ 3 total).
+        Assert.True(node!.Pins.Count > 2,
+            $"Expected >2 pins (exec + param data-IN) but got {node.Pins.Count}.");
+    }
+
+    /// <summary>
+    /// BF-UX1 FIX B: After SetPinDefault + RebuildAndNotify, the model node for a
+    /// ChannelCommandNode still exposes the param pins (not just exec-only).
+    /// Regression guard: the bug caused RebuildAndNotify to short-circuit at
+    /// NodePinSchema pass-0 with only the exec pins stamped by the collapsed ApplyPinIds.
+    /// </summary>
+    [Fact]
+    public void CommandSink_ChannelCommandNode_AfterRebuild_RetainsParamPins()
+    {
+        var (asset, graph) = MakeAssetWithGraph();
+        var (sink, model, _) = MakeSutWithChannelCatalog(asset, graph);
+
+        // Populate ChannelType/ActionId so NodePinSchema can resolve the MoveTo param type.
+        // ChannelCommandPins matches by LastSegment(ChannelTypeFqn) == node.ChannelType.
+        var ccNode = new ChannelCommandNode
+        {
+            Id          = Guid.NewGuid(),
+            ChannelType = "LocomotionChannel",
+            ActionId    = "MoveTo",
+        };
+        graph.Nodes.Add(ccNode);
+        model.RebuildAndNotify();
+
+        var modelNode = model.FindNode(new NodeId(ccNode.Id));
+        Assert.NotNull(modelNode);
+
+        // The model node should expose more than 2 pins (exec-only would be exactly 2).
+        Assert.True(modelNode!.Pins.Count > 2,
+            $"Model node should expose param data-IN pins. Got {modelNode.Pins.Count}.");
     }
 }

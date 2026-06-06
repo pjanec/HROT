@@ -265,6 +265,11 @@ namespace Hrot.Editor
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
         // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
+        // BF-UX1 FIX A: gate auto-reload on edit; defaults false so node moves/edits do NOT trigger
+        // a Roslyn compile. The user compiles via the toolbar Quick Reload / Full Rebuild buttons.
+        // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
+        //       reachable here (the prefs window lives in a different composition scope).
+        private bool _blueprintAutoReloadOnEdit = false;
         private EditorSelectionStore           _btreeSelectionStore  = new();
         private EditorSelectionStore           _hsmSelectionStore    = new();
         private EditorSelectionStore           _blueprintSelectionStore = new();
@@ -2232,6 +2237,10 @@ namespace Hrot.Editor
             _hsmRegistrar!.RegisterExtraWindow(windowManager, hsmCanvasWindow);
             // AIE-046: Register Blueprint canvas window into the Blueprint perspective.
             _blueprintRegistrar!.RegisterExtraWindow(windowManager, blueprintCanvasWindow);
+            // BF-UX1 FIX C: wire the per-frame selection→Details bridge.
+            blueprintCanvasWindow.AfterDraw =
+                Hrot.Blueprints.Editor.Host.BlueprintSelectionBridgeHelper.BuildAfterDrawAction(
+                    _blueprintSelectionStore);
 
             // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
             _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
@@ -2461,9 +2470,10 @@ namespace Hrot.Editor
                 {
                     if (asset.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
                     {
-                        // Route dirty Blueprint through the shared Quick Reload path if wired.
-                        // (_blueprintQuickReloadTrigger is set by Phase 4 when QuickReloadService is wired.)
-                        _blueprintQuickReloadTrigger?.Invoke(asset);
+                        // BF-UX1 FIX A: only auto-recompile when the opt-in flag is set (default false).
+                        // The user triggers compilation via the Quick Reload / Full Rebuild toolbar buttons.
+                        if (_blueprintAutoReloadOnEdit)
+                            _blueprintQuickReloadTrigger?.Invoke(asset);
                         return;
                     }
 

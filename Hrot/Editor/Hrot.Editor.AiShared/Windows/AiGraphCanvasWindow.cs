@@ -119,6 +119,14 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
     // Track whether focus was already activated this activation cycle.
     private AiDocument? _lastActivatedDoc;
 
+    /// <summary>
+    /// Optional per-frame callback invoked at the end of <see cref="DrawClientArea"/> when an
+    /// active document context is present.  Receives the active <see cref="AiCanvasContext"/>.
+    /// Used to wire cross-cutting per-frame logic (e.g. selection→details bridge) without
+    /// requiring a subclass of the sealed window.
+    /// </summary>
+    public Action<AiCanvasContext>? AfterDraw { get; set; }
+
     // BCP-BATCH-02-FIX Task 2: the document whose name is currently reflected in Title,
     // so we only rebuild the title string when the active document actually changes.
     private AiDocument? _titleDoc;
@@ -247,6 +255,9 @@ public sealed class AiGraphCanvasWindow : ManagedWindow
             bool wantText = ImGuiNET.ImGui.GetIO().WantTextInput;
             DrawPickerAndPumpHotkeys(context, suppressHotkeys: wantText);
         }
+
+        // BF-UX1 FIX C: per-frame hook for cross-cutting logic (e.g. selection→details bridge).
+        AfterDraw?.Invoke(context);
     }
 
     /// <summary>

@@ -2,7 +2,6 @@ using Fdp.Presentation.WindowManager;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.Inspector;
-using Hrot.Blueprints.Editor.Reload;
 using EngineWindowRegistrar = Fdp.Toolkit.Runner.IWindowRegistrar;
 
 namespace Hrot.Blueprints.Editor;
@@ -20,8 +19,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
     private readonly EditorState _editorState;
     private readonly IBlueprintDebugSession _session;
     private readonly IBlueprintEditorCoordinator _coordinator;
-    private readonly QuickReloadService _quickReloadService;
-    private readonly FullRebuildService _fullRebuildService;
     private readonly DrawerRegistry _drawerRegistry;
 
     public BlueprintWindowRegistrar(
@@ -31,19 +28,15 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
         EditorState editorState,
         IBlueprintDebugSession session,
         IBlueprintEditorCoordinator coordinator,
-        QuickReloadService quickReloadService,
-        FullRebuildService fullRebuildService,
         DrawerRegistry drawerRegistry)
     {
-        _catalog             = catalog             ?? throw new ArgumentNullException(nameof(catalog));
-        _selectionStore      = selectionStore      ?? throw new ArgumentNullException(nameof(selectionStore));
-        _dirtyTracker        = dirtyTracker        ?? throw new ArgumentNullException(nameof(dirtyTracker));
-        _editorState         = editorState         ?? throw new ArgumentNullException(nameof(editorState));
-        _session             = session             ?? throw new ArgumentNullException(nameof(session));
-        _coordinator         = coordinator         ?? throw new ArgumentNullException(nameof(coordinator));
-        _quickReloadService  = quickReloadService  ?? throw new ArgumentNullException(nameof(quickReloadService));
-        _fullRebuildService  = fullRebuildService  ?? throw new ArgumentNullException(nameof(fullRebuildService));
-        _drawerRegistry      = drawerRegistry      ?? throw new ArgumentNullException(nameof(drawerRegistry));
+        _catalog        = catalog        ?? throw new ArgumentNullException(nameof(catalog));
+        _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
+        _dirtyTracker   = dirtyTracker   ?? throw new ArgumentNullException(nameof(dirtyTracker));
+        _editorState    = editorState    ?? throw new ArgumentNullException(nameof(editorState));
+        _session        = session        ?? throw new ArgumentNullException(nameof(session));
+        _coordinator    = coordinator    ?? throw new ArgumentNullException(nameof(coordinator));
+        _drawerRegistry = drawerRegistry ?? throw new ArgumentNullException(nameof(drawerRegistry));
     }
 
     /// <summary>
@@ -55,10 +48,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
 
         registry.Register("Asset Browser",
             () => new AssetBrowserWindow(_catalog, _selectionStore, _dirtyTracker, _editorState));
-
-        registry.Register("Graph Editor",
-            () => new GraphEditorWindow(_selectionStore, _dirtyTracker, _editorState,
-                                        _quickReloadService, _fullRebuildService));
 
         registry.Register("Inspector",
             () => new InspectorWindow(_selectionStore, _dirtyTracker, _drawerRegistry));

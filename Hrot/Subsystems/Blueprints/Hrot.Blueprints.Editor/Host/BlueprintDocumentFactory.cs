@@ -142,9 +142,11 @@ public static class BlueprintDocumentFactory
         // Create a local EditService for the command sink even when the shared one is null.
         var localEditService = editService ?? new EditService { Context = ctx };
 
+        // BF-UX1 FIX B: pass channelCommands so BlueprintCommandSink.ApplyPinIds threads it into
+        // NodePinSchema.GetCanonicalPins — ChannelCommandNode then projects param data-IN pins.
         var commandSink = new BlueprintCommandSink(
             bpAsset, graph, graphModel, nodeCatalog, validator, history,
-            localEditService, markDirty);
+            localEditService, markDirty, channelCommands: channelCommands);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
         var renderers = BuildRenderers(extraRenderers);
