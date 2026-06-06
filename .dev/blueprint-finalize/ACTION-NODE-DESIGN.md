@@ -1,5 +1,32 @@
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
+## ✅ ROUND-4 RESOLVED (architect, 2026-06-06) — non-channel action execution model (UNBLOCKS AN8)
+
+**Non-channel behavior actions use (A) INLINE-LATENT — NOT handle-based. No "Wait" node, no handle.**
+
+- **Why (mechanics):** a channel command is driven by a background dispatcher system
+  (`LocomotionDispatcherSystem` etc.) that ticks the executor every frame — so the blueprint can
+  fire-and-forget + optionally `WaitForChannel`. A non-channel action (`AiPrimitive` via `BlueprintCall`, or a
+  `[SharedAiAction]`) compiles to a **direct synchronous C# call** with **no background driver** — so the
+  **blueprint itself is the execution driver**. If it didn't suspend, the action would tick once and starve.
+- **Lowering (AN8):** the generalized behavior-action node invokes the action synchronously; if it returns
+  `NodeStatus.Running`, the compiler lowers an **inline latent suspension** (Instance → a `BlueprintLatentCursor`
+  switch that halts the frame and **resumes at the SAME node** next tick, re-invoking until Success/Failure).
+  Reuses the existing latent path (same machinery as `WaitForChannel`, dispatch-aware). Success/Failure route exec.
+- **Working state:** params in `BrainBlackboard.BehaviorParameters` (100 B); AiPrimitive working state projected
+  inline over `Blackboard1024` — 8-byte `StructureHash` header @0, working-state struct @8 (mirrors the existing
+  AiPrimitive emit).
+- **⚠ Slice-1 constraint (must enforce/document):** because AiPrimitive working state sits at a FIXED offset in
+  `Blackboard1024`, **only ONE stateful AiPrimitive may run per entity at a time**. A second stateful AiPrimitive
+  overwrites the first's `StructureHash` → hard reset (zeroes the block). Concurrent stateful non-channel actions
+  are FORBIDDEN in Slice 1.
+- **Future parallelism (Slice 2, not now):** a **partition allocator** for AiPrimitive working state (a
+  Blueprint-owned `BlueprintAiWorking1024` component handing out isolated fixed-size slots) — NOT a managed
+  handle→state registry. The slot is the parallelism substrate; preserves zero-alloc/blittable invariants.
+- **Net for the design:** if you want background/parallel async behavior, it MUST be a **channel command** (a
+  dispatcher drives it). Non-channel actions are inline-latent and (Slice 1) one-stateful-at-a-time per entity.
+  **AN8 is now unblocked** with this model.
+
 ## ✅ ROUND-3 RESOLVED (architect + user, 2026-06-06) — generalized behavior-action node
 
 **Decision (user agrees): behavior actions are standalone, multi-tick NODES — NOT `FunctionCall` (CLR) calls.**

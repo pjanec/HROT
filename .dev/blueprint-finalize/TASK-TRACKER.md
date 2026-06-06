@@ -72,9 +72,12 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
       (alongside channel ChannelType/ActionId); palette emits one entry per `ActionSchemaExporter` action (named
       by FQN, via the AN3 unified catalog); `NodePinSchema` projects pins from the non-channel action's
       `ParamsTypeFqn`; drawer shows the action identity read-only (AN5 pattern). -> [details](./TASK-DETAIL.md#an7----generalize-node--palette-to-non-channel-actions)
-- [ ] **AN8** -- Compiler (LARGE): lower a non-channel behavior-action invocation in a Blueprint —
-      `(self, ctx, paramsDTO) -> NodeStatus` via `BehaviorRegistry`, Success/Failure exec routing + Running/suspend
-      (mirror the channel-command + WaitForChannel latent path). New emit path. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
+- [ ] **AN8** -- Compiler (LARGE): lower a non-channel behavior-action invocation in a Blueprint. **UNBLOCKED
+      (ROUND-4): model = INLINE-LATENT** — direct synchronous call `(self, ctx, paramsDTO) -> NodeStatus`;
+      `Running` → inline `BlueprintLatentCursor` suspend + resume at the SAME node next tick (reuse the
+      WaitForChannel latent path); Success/Failure route exec. AiPrimitive working state inline over
+      `Blackboard1024` (StructureHash@0, state@8). **Slice-1: one stateful AiPrimitive per entity** (enforce/doc;
+      Slice-2 partition allocator is future). No handle, no Wait node. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
 
 ## Phase 6 -- BTree/HSM StructEdit inspector + param binding (Blackboard Slice 1.5)
 - [ ] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop [B5; architect gotcha "foundational first step"]: replace the stubbed `DrawClientArea` "Apply" button with the active `StructEdit IComponentEditService` dispatch over the mapped facets. BTree/HSM facet fields render + edit; **enum combos come free** (ComponentEditDrawer reflection). -> [details](./TASK-DETAIL.md#se1----wire-inspectorwindow-structedit)
