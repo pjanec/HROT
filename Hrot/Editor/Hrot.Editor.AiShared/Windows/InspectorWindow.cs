@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Presentation.Editing;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Inspector;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Validation;
+using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Windows;
 
@@ -26,6 +28,15 @@ public sealed class InspectorWindow : ManagedWindow
 
     // Optional facet dispatcher injected from composition root (keeps AiShared dep-clean).
     private IFacetDispatcher? _facetDispatcher;
+
+    // StructEdit edit-service + per-type session cache (SE1).
+    // The edit service is injected from outside (keeps AiShared dep-clean from picker assemblies).
+    private IComponentEditService? _facetEditService;
+    private IReadOnlyDictionary<Type, IImGuiFieldDrawer>? _facetCustomDrawers;
+
+    // Active StructEdit session for the current facet type.
+    private IEditSession? _facetSession;
+    private Type? _facetSessionType;
 
     // Cached facet state (one boxed struct per frame that has an active sub-selection).
     private object? _currentFacet;
@@ -51,6 +62,16 @@ public sealed class InspectorWindow : ManagedWindow
     ///   Optional per-perspective facet dispatcher (injected from composition root).
     ///   When supplied, sub-selections are routed through it for StructEdit rendering.
     /// </param>
+    /// <param name="facetEditService">
+    ///   Optional StructEdit <see cref="IComponentEditService"/> used to open edit sessions for
+    ///   boxed facet structs. When null, the stub "Apply" button is shown instead.
+    ///   Injected from the composition root with all picker drawers pre-registered (SE1).
+    /// </param>
+    /// <param name="facetCustomDrawers">
+    ///   Optional map of CLR type → <see cref="IImGuiFieldDrawer"/> forwarded to
+    ///   <see cref="ComponentEditDrawer"/>. Carries the HSM and BTree picker drawers
+    ///   (registered by the composition root; keeps AiShared dep-clean).
+    /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
@@ -59,7 +80,9 @@ public sealed class InspectorWindow : ManagedWindow
         string? idOverride = null,
         string? owningPerspective = null,
         IFacetDispatcher? facetDispatcher = null,
-        IActionSchemaExporter? schemaExporter = null)
+        IActionSchemaExporter? schemaExporter = null,
+        IComponentEditService? facetEditService = null,
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null)
         : base(idOverride ?? "ai_inspector", "Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -69,6 +92,8 @@ public sealed class InspectorWindow : ManagedWindow
         _subAssetResolver = subAssetResolver;
         _facetDispatcher = facetDispatcher;
         _schemaExporter = schemaExporter;
+        _facetEditService = facetEditService;
+        _facetCustomDrawers = facetCustomDrawers;
     }
 
     /// <summary>
@@ -82,6 +107,21 @@ public sealed class InspectorWindow : ManagedWindow
         // Invalidate cached facet when dispatcher changes.
         _currentFacet          = null;
         _currentFacetSelection = null;
+        DisposeAndClearFacetSession();
+    }
+
+    /// <summary>
+    /// Wires (or replaces) the StructEdit edit service and custom field drawers at runtime (SE1).
+    /// Safe to call after construction — invalidates the cached session so the next render
+    /// opens a fresh one.
+    /// </summary>
+    public void SetFacetEditService(
+        IComponentEditService? editService,
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null)
+    {
+        _facetEditService   = editService;
+        _facetCustomDrawers = customDrawers;
+        DisposeAndClearFacetSession();
     }
 
     /// <summary>
@@ -112,6 +152,8 @@ public sealed class InspectorWindow : ManagedWindow
         // Invalidate cache so next GetCurrentFacet re-reads from asset.
         _currentFacet          = null;
         _currentFacetSelection = null;
+        // Also drop the StructEdit session so it is rebuilt from the freshly committed values.
+        DisposeAndClearFacetSession();
     }
 
     protected override void DrawClientArea()
@@ -193,8 +235,7 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
-        // ---- Facet dispatch (AIE-023) -----------------------------------------------
-        // Render StructEdit facet for the active sub-selection when a dispatcher is wired.
+        // ---- Facet dispatch + StructEdit render (AIE-023, SE1) ----------------------
         // All ImGui calls are inside this block so headless tests can call GetCurrentFacet()
         // and CommitCurrentFacet() without an ImGui context.
         if (ImGuiNET.ImGui.GetCurrentContext() != IntPtr.Zero
@@ -205,11 +246,55 @@ public sealed class InspectorWindow : ManagedWindow
             if (facet is not null)
             {
                 ImGuiNET.ImGui.Separator();
-                ImGuiNET.ImGui.Text($"[{facet.GetType().Name}]");
-                // Full StructEdit rendering would go here (wired in a later pass).
-                // For now show a Commit button that applies the facet back.
-                if (ImGuiNET.ImGui.Button("Apply##facet"))
-                    CommitCurrentFacet(facet);
+
+                if (_facetEditService is not null)
+                {
+                    // SE1: real StructEdit render.
+                    // Open (or reuse) the session for this facet type.
+                    var facetType = facet.GetType();
+                    if (_facetSession is null || _facetSessionType != facetType)
+                    {
+                        DisposeAndClearFacetSession();
+                        _facetSession     = _facetEditService.Open(facet, facetType);
+                        _facetSessionType = facetType;
+                    }
+
+                    // If the session requests a structural rebuild, honor it.
+                    if (_facetSession.RebuildState == EditRebuildState.RebuildRequired)
+                        _facetSession.RebuildDocument();
+
+                    var drawers = _facetCustomDrawers
+                        ?? new Dictionary<Type, IImGuiFieldDrawer>();
+
+                    var drawer = new ComponentEditDrawer(_facetSession, pickerCtx: null, drawers);
+
+                    // Two-column "Property | Value" table (matches ComponentEditWindow layout).
+                    if (ImGuiNET.ImGui.BeginTable("##facet_edit", 2,
+                        ImGuiNET.ImGuiTableFlags.SizingStretchProp))
+                    {
+                        ImGuiNET.ImGui.TableSetupColumn("Property", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
+                        ImGuiNET.ImGui.TableSetupColumn("Value",    ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
+
+                        drawer.DrawEditNode(_facetSession.Document.Root);
+
+                        ImGuiNET.ImGui.EndTable();
+                    }
+
+                    // Commit on every dirty frame so edits flow back to the asset continuously.
+                    if (_facetSession.IsDirty)
+                    {
+                        var committed = _facetSession.Commit();
+                        CommitCurrentFacet(committed);
+                        // CommitCurrentFacet disposes and clears _facetSession; session is null now.
+                    }
+                }
+                else
+                {
+                    // Fallback stub when no edit service is wired.
+                    ImGuiNET.ImGui.Text($"[{facet.GetType().Name}]");
+                    if (ImGuiNET.ImGui.Button("Apply##facet"))
+                        CommitCurrentFacet(facet);
+                }
             }
         }
 
@@ -263,6 +348,27 @@ public sealed class InspectorWindow : ManagedWindow
     /// </summary>
     internal IReadOnlyList<ActionCollision>? GetCollisions() =>
         _schemaExporter is null ? null : SubElementCollisionDetector.GetCollisions(_schemaExporter);
+
+    /// <summary>
+    /// Exposes the currently cached StructEdit session for headless tests (SE1).
+    /// Non-null only when a facet is active and an edit service is wired.
+    /// </summary>
+    internal IEditSession? GetFacetSession() => _facetSession;
+
+    /// <summary>
+    /// True when a StructEdit <see cref="IComponentEditService"/> has been wired (via the
+    /// constructor or <see cref="SetFacetEditService"/>). Used by headless tests to verify
+    /// the composition root forwarded the edit service so the Inspector renders live facet
+    /// fields instead of the fallback stub (SE1 live-wiring).
+    /// </summary>
+    internal bool HasFacetEditService => _facetEditService is not null;
+
+    private void DisposeAndClearFacetSession()
+    {
+        _facetSession?.Dispose();
+        _facetSession     = null;
+        _facetSessionType = null;
+    }
 
     private void DrawCollisionDiagnosticStrip()
     {

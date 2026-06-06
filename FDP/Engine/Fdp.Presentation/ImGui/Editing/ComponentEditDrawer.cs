@@ -15,14 +15,14 @@ using ImGuiApi = ImGuiNET.ImGui;
 /// Draws each <see cref="EditNode"/> as one or more rows in the two-column
 /// "Property | Value" table owned by <see cref="ComponentEditWindow"/>.
 /// </summary>
-internal sealed class ComponentEditDrawer
+public sealed class ComponentEditDrawer
 {
     private readonly IEditSession _session;
     private readonly IComponentPickerContext? _pickerCtx;
     private readonly IReadOnlyDictionary<Type, IImGuiFieldDrawer> _customDrawers;
     private readonly ISpatialPickerContext? _spatialPickerCtx;
 
-    internal ComponentEditDrawer(
+    public ComponentEditDrawer(
         IEditSession session,
         IComponentPickerContext? pickerCtx,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? customDrawers = null,

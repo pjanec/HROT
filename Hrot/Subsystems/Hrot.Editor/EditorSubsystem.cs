@@ -1847,6 +1847,16 @@ namespace Hrot.Editor
             // AIE-034: pass _bpManager so each perspective gets Watch + Breakpoints windows.
             // AIE-050: pass comparison services so BlackboardAuthoringWindow shows comparison toolbar.
             // AIE-052: pass aggregatorService so BlackboardAuthoringWindow runs bin-packing with sub-tree requirements.
+            // SE1: build a StructEdit IComponentEditService so the Inspector renders facet
+            // structs as live, editable field rows (enum→combo, bool→checkbox, number/text inputs)
+            // instead of the "[FacetTypeName] + Apply" stub. The attribute picker drawers
+            // (BehaviorHash/BlackboardField/HSM action/guard/state/event) require the *active*
+            // asset, which changes per opened document; the existing drawers capture a fixed
+            // asset in their ctor and a single registered drawer cannot follow the selection
+            // store dynamically. Per SE1 scope, picker drawers are deferred — facet picker
+            // fields fall through to plain text inputs (acceptable). The edit service alone is
+            // the core win.
+            var facetEditService = new ComponentEditServiceBuilder().Build();
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
                 "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,
@@ -1854,7 +1864,8 @@ namespace Hrot.Editor
                 exportBuilder:        comparisonExportBuilder,
                 sessionRegistry:      comparisonSessionRegistry,
                 aggregatorService:    aggregatorService,
-                schemaExporter:       sharedSchemaExporter);
+                schemaExporter:       sharedSchemaExporter,
+                facetEditService:     facetEditService);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,
@@ -1862,7 +1873,8 @@ namespace Hrot.Editor
                 exportBuilder:        comparisonExportBuilder,
                 sessionRegistry:      comparisonSessionRegistry,
                 aggregatorService:    aggregatorService,
-                schemaExporter:       sharedSchemaExporter);
+                schemaExporter:       sharedSchemaExporter,
+                facetEditService:     facetEditService);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,

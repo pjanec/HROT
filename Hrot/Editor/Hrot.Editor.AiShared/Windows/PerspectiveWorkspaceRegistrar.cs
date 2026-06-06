@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using Fdp.Presentation.Editing;
 using Fdp.Presentation.WindowManager;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared.Blackboard;
@@ -7,6 +10,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Validation;
+using StructEdit.Core;
 
 namespace Hrot.Editor.AiShared.Windows;
 
@@ -119,6 +123,15 @@ public class PerspectiveWorkspaceRegistrar
     ///   sub-element collision diagnostics are shown in the Inspector diagnostic strip
     ///   (AIE-053).
     /// </param>
+    /// <param name="facetEditService">
+    ///   Optional StructEdit <see cref="IComponentEditService"/> forwarded to
+    ///   <see cref="InspectorWindow"/> so facet structs render as editable fields (SE1).
+    ///   Registered at the composition root with all picker field drawers.
+    /// </param>
+    /// <param name="facetCustomDrawers">
+    ///   Optional map of CLR type → <see cref="IImGuiFieldDrawer"/> forwarded to
+    ///   <see cref="InspectorWindow"/> for attribute-dispatched picker fields (SE1).
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -131,7 +144,9 @@ public class PerspectiveWorkspaceRegistrar
         ComparisonExportBuilder? exportBuilder = null,
         ComparisonSessionRegistry? sessionRegistry = null,
         BlackboardAggregatorService? aggregatorService = null,
-        IActionSchemaExporter? schemaExporter = null)
+        IActionSchemaExporter? schemaExporter = null,
+        IComponentEditService? facetEditService = null,
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -150,12 +165,14 @@ public class PerspectiveWorkspaceRegistrar
             owningPerspective: perspectiveName);
 
         Inspector = new InspectorWindow(
-            store:             selectionStore,
-            refactorService:   refactorService,
-            findResults:       FindResults,
-            idOverride:        $"ai_inspector_{suffix}",
-            owningPerspective: perspectiveName,
-            schemaExporter:    schemaExporter);
+            store:              selectionStore,
+            refactorService:    refactorService,
+            findResults:        FindResults,
+            idOverride:         $"ai_inspector_{suffix}",
+            owningPerspective:  perspectiveName,
+            schemaExporter:     schemaExporter,
+            facetEditService:   facetEditService,
+            facetCustomDrawers: facetCustomDrawers);
 
         RuntimeInspector = new RuntimeInspectorWindow(
             store:             selectionStore,

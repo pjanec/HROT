@@ -163,6 +163,41 @@ public class PerspectiveWorkspaceRegistrarTests : IDisposable
         Assert.NotNull(reg.Diagnostics);
     }
 
+    // ── SE1 live-wiring: facetEditService forwarded to the Inspector ──────────
+
+    /// <summary>
+    /// SE1: when the composition root passes a <c>facetEditService</c> to the registrar
+    /// ctor, it must flow through to the Inspector so facets render as live editable fields
+    /// (not the fallback stub). This mirrors the exact wiring done in EditorSubsystem.
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_ForwardsFacetEditService_ToInspector()
+    {
+        var editSvc = new StructEdit.Reflection.ComponentEditServiceBuilder().Build();
+
+        var reg = new PerspectiveWorkspaceRegistrar(
+            perspectiveName:  "BTree",
+            selectionStore:   new EditorSelectionStore(),
+            catalog:          new AssetCatalog(),
+            refactorService:  StubRefactor(),
+            debugRegistry:    new DebugSessionRegistry(),
+            facetEditService: editSvc);
+
+        Assert.True(reg.Inspector.HasFacetEditService,
+            "the facetEditService passed to the registrar ctor must reach the Inspector");
+    }
+
+    /// <summary>
+    /// SE1 negative control: without a facetEditService the Inspector falls back to the stub
+    /// (HasFacetEditService == false), confirming the wiring is what enables live rendering.
+    /// </summary>
+    [Fact]
+    public void PerspectiveRegistrar_WithoutFacetEditService_InspectorHasNone()
+    {
+        var reg = MakeRegistrar("BTree");
+        Assert.False(reg.Inspector.HasFacetEditService);
+    }
+
     /// <summary>
     /// RegisterExtraWindow adds to the RegisteredWindows list and registers in WM.
     /// </summary>
