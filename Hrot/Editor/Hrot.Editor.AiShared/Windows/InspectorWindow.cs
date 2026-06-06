@@ -34,9 +34,13 @@ public sealed class InspectorWindow : ManagedWindow
     private IComponentEditService? _facetEditService;
     private IReadOnlyDictionary<Type, IImGuiFieldDrawer>? _facetCustomDrawers;
 
-    // Active StructEdit session for the current facet type.
+    // Active StructEdit session for the current facet. Keyed by BOTH the facet type AND the
+    // sub-selection it was opened for, so selecting a different node of the SAME facet type
+    // (e.g. Wait(1s) -> Wait(2s)) rebuilds the session against that node's values rather than
+    // reusing the stale first node's session.
     private IEditSession? _facetSession;
     private Type? _facetSessionType;
+    private IAssetSubSelection? _facetSessionSub;
 
     // Cached facet state (one boxed struct per frame that has an active sub-selection).
     private object? _currentFacet;
@@ -252,11 +256,16 @@ public sealed class InspectorWindow : ManagedWindow
                     // SE1: real StructEdit render.
                     // Open (or reuse) the session for this facet type.
                     var facetType = facet.GetType();
-                    if (_facetSession is null || _facetSessionType != facetType)
+                    // Rebuild when the facet TYPE changes OR the selected node changes (records →
+                    // value equality), so per-node values are shown/edited correctly.
+                    if (_facetSession is null
+                        || _facetSessionType != facetType
+                        || !Equals(_facetSessionSub, activeSub))
                     {
                         DisposeAndClearFacetSession();
                         _facetSession     = _facetEditService.Open(facet, facetType);
                         _facetSessionType = facetType;
+                        _facetSessionSub  = activeSub;
                     }
 
                     // If the session requests a structural rebuild, honor it.
@@ -368,6 +377,7 @@ public sealed class InspectorWindow : ManagedWindow
         _facetSession?.Dispose();
         _facetSession     = null;
         _facetSessionType = null;
+        _facetSessionSub  = null;
     }
 
     private void DrawCollisionDiagnosticStrip()
