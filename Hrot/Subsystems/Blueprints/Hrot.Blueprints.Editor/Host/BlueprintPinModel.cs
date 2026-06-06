@@ -197,10 +197,15 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "System.Double"  => (object)0.0,
                 "System.Byte"    => (object)(byte)0,
                 "System.UInt32"  => (object)0u,
-                "System.String"       => (object)"",
-                "Fdp.Core.FixedString32" => (object)"",
-                "Fdp.Core.FixedString64" => (object)"",
-                _                     => null,   // unsupported type — no widget shown
+                "System.String"           => (object)"",
+                "Fdp.Core.FixedString32"  => (object)"",
+                "Fdp.Core.FixedString64"  => (object)"",
+                // FIX-B: vector zero-values for freshly-placed unset pins.
+                "System.Numerics.Vector2"    => (object)System.Numerics.Vector2.Zero,
+                "System.Numerics.Vector3"    => (object)System.Numerics.Vector3.Zero,
+                "System.Numerics.Vector4"    => (object)System.Numerics.Vector4.Zero,
+                "System.Numerics.Quaternion" => (object)System.Numerics.Quaternion.Identity,
+                _                            => null,   // unsupported type — no widget shown
             };
         }
         return typeId switch
@@ -217,6 +222,13 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                                     out var d) ? d : 0.0,
             "System.Byte"    => byte.TryParse(rawValue,   out var by) ? by  : (byte)0,
             "System.UInt32"  => uint.TryParse(rawValue,   out var u)  ? u   : 0u,
+            // FIX-B: Vector types — parse the InvariantCulture bracket format [x, y, z, …].
+            // The old culture-dependent <x  y  z> form from value.ToString() is also tolerated
+            // via the same float-parse path (whitespace is consumed by TryParse).
+            "System.Numerics.Vector2"     => ParseVector2(rawValue),
+            "System.Numerics.Vector3"     => ParseVector3(rawValue),
+            "System.Numerics.Vector4"     => ParseVector4(rawValue),
+            "System.Numerics.Quaternion"  => ParseQuaternion(rawValue),
             _                => rawValue,   // string, unknown → raw string
         };
     }
@@ -225,15 +237,32 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     /// Convert the boxed CLR value back to the persisted string representation.
     /// For non-enum types, this is a simple ToString / invariant-culture format.
     /// For enum pins use <see cref="FormatEnumValue"/> instead.
+    /// <para>
+    /// Vector2/3/4 and Quaternion are formatted as <c>[x, y]</c> / <c>[x, y, z]</c> /
+    /// <c>[x, y, z, w]</c> using <see cref="System.Globalization.CultureInfo.InvariantCulture"/>
+    /// so the value is locale-independent and round-trips correctly on every machine (FIX-B).
+    /// </para>
     /// </summary>
-    public static string? FormatValue(object? value) => value switch
+    public static string? FormatValue(object? value)
     {
-        null      => null,
-        bool b    => b.ToString().ToLowerInvariant(),
-        float f   => f.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        double d  => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        _         => value.ToString(),
-    };
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return value switch
+        {
+            null      => null,
+            bool b    => b.ToString().ToLowerInvariant(),
+            float f   => f.ToString(inv),
+            double d  => d.ToString(inv),
+            System.Numerics.Vector2 v2 =>
+                $"[{v2.X.ToString(inv)}, {v2.Y.ToString(inv)}]",
+            System.Numerics.Vector3 v3 =>
+                $"[{v3.X.ToString(inv)}, {v3.Y.ToString(inv)}, {v3.Z.ToString(inv)}]",
+            System.Numerics.Vector4 v4 =>
+                $"[{v4.X.ToString(inv)}, {v4.Y.ToString(inv)}, {v4.Z.ToString(inv)}, {v4.W.ToString(inv)}]",
+            System.Numerics.Quaternion q =>
+                $"[{q.X.ToString(inv)}, {q.Y.ToString(inv)}, {q.Z.ToString(inv)}, {q.W.ToString(inv)}]",
+            _         => value.ToString(),
+        };
+    }
 
     /// <summary>
     /// Converts the long integer value selected by <see cref="NodeEditor.UI.MiniEditors.EnumPinEditor"/>
@@ -255,5 +284,56 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
         }
         // Fallback: decimal integer string (still readable by FormatDefaultLiteral back-compat branch).
         return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // ── FIX-B: Vector / Quaternion parse helpers ──────────────────────────────
+    // Accepts the new InvariantCulture bracket format "[x, y, z]" produced by FormatValue,
+    // AND the old locale-dependent "<x  y  z>" form from value.ToString() for migration.
+    // Parsing strips any leading/trailing bracket characters and splits on commas / whitespace.
+
+    private static float[] SplitFloats(string raw)
+    {
+        // Strip bracket/angle-bracket delimiters: "[", "]", "<", ">" then split.
+        var stripped = raw.Trim().TrimStart('[', '<').TrimEnd(']', '>');
+        var parts    = stripped.Split(new[] { ',', ' ', '\t' },
+                           System.StringSplitOptions.RemoveEmptyEntries);
+        var inv      = System.Globalization.CultureInfo.InvariantCulture;
+        var result   = new float[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+            float.TryParse(parts[i],
+                System.Globalization.NumberStyles.Float, inv, out result[i]);
+        return result;
+    }
+
+    private static object ParseVector2(string raw)
+    {
+        var c = SplitFloats(raw);
+        return c.Length >= 2
+            ? new System.Numerics.Vector2(c[0], c[1])
+            : System.Numerics.Vector2.Zero;
+    }
+
+    private static object ParseVector3(string raw)
+    {
+        var c = SplitFloats(raw);
+        return c.Length >= 3
+            ? new System.Numerics.Vector3(c[0], c[1], c[2])
+            : System.Numerics.Vector3.Zero;
+    }
+
+    private static object ParseVector4(string raw)
+    {
+        var c = SplitFloats(raw);
+        return c.Length >= 4
+            ? new System.Numerics.Vector4(c[0], c[1], c[2], c[3])
+            : System.Numerics.Vector4.Zero;
+    }
+
+    private static object ParseQuaternion(string raw)
+    {
+        var c = SplitFloats(raw);
+        return c.Length >= 4
+            ? new System.Numerics.Quaternion(c[0], c[1], c[2], c[3])
+            : System.Numerics.Quaternion.Identity;
     }
 }

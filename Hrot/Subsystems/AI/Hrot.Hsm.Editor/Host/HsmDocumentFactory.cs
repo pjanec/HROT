@@ -129,8 +129,12 @@ public static class HsmDocumentFactory
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
+        // Store the HsmAsset in AssetRef so the composition root can wire
+        // the selection→Inspector bridge (HsmSelectionBridgeHelper.BuildAfterDrawAction)
+        // without a kind-specific dependency in AiShared.
         return new AiCanvasContext(view, "HSM")
         {
+            AssetRef = hsmAsset,
             FindBar  = findBar,
             Commands = commands,
         };

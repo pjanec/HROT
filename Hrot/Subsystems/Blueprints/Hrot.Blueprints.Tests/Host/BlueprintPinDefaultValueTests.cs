@@ -281,4 +281,115 @@ public sealed class BlueprintPinDefaultValueTests
         // PinDefaults should be null or empty after clearing the only entry.
         Assert.True(node.PinDefaults == null || node.PinDefaults.Count == 0);
     }
+
+    // ── FIX-B: Vector pin-default format tests ────────────────────────────────
+
+    [Fact]
+    public void FormatValue_Vector3_ProducesInvariantBracketFormat()
+    {
+        var v = new System.Numerics.Vector3(0f, 4.5f, 0f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(v);
+
+        // Must use dot-decimal (invariant culture) and bracket notation.
+        Assert.Equal("[0, 4.5, 0]", formatted);
+        // Strip component separators then verify no culture-decimal comma remains.
+        var inner = formatted!.Split('[', ']')[1].Replace(", ", " ");
+        Assert.DoesNotContain(",", inner);
+    }
+
+    [Fact]
+    public void FormatValue_Vector3_UsesDotDecimal_NotCommaDecimal()
+    {
+        var v = new System.Numerics.Vector3(1.5f, 2.75f, 3.125f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(v);
+
+        // All components must use dot as decimal separator.
+        Assert.NotNull(formatted);
+        Assert.Contains("1.5",   formatted!);
+        Assert.Contains("2.75",  formatted);
+        Assert.Contains("3.125", formatted);
+        // Must not contain a raw comma used as decimal separator (e.g. "1,5").
+        // The bracket format does use ", " between components — strip those first.
+        var noSeparators = formatted.Replace("[", "").Replace("]", "").Replace(", ", " ");
+        foreach (var token in noSeparators.Split(' '))
+            Assert.DoesNotContain(",", token);
+    }
+
+    [Fact]
+    public void ParseValue_Vector3_BracketFormat_RoundTrips()
+    {
+        var original  = new System.Numerics.Vector3(0f, 4.5f, 0f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(original);
+        var parsed    = BlueprintPinDefaultValue.ParseValue("System.Numerics.Vector3", formatted);
+
+        Assert.IsType<System.Numerics.Vector3>(parsed);
+        var v = (System.Numerics.Vector3)parsed!;
+        Assert.Equal(0f,   v.X, precision: 5);
+        Assert.Equal(4.5f, v.Y, precision: 5);
+        Assert.Equal(0f,   v.Z, precision: 5);
+    }
+
+    [Fact]
+    public void ParseValue_Vector2_RoundTrips()
+    {
+        var original  = new System.Numerics.Vector2(3.14f, -1f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(original);
+        var parsed    = BlueprintPinDefaultValue.ParseValue("System.Numerics.Vector2", formatted);
+
+        Assert.IsType<System.Numerics.Vector2>(parsed);
+        var v = (System.Numerics.Vector2)parsed!;
+        Assert.Equal(3.14f, v.X, precision: 4);
+        Assert.Equal(-1f,   v.Y, precision: 5);
+    }
+
+    [Fact]
+    public void ParseValue_Vector4_RoundTrips()
+    {
+        var original  = new System.Numerics.Vector4(1f, 2f, 3f, 4f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(original);
+        var parsed    = BlueprintPinDefaultValue.ParseValue("System.Numerics.Vector4", formatted);
+
+        Assert.IsType<System.Numerics.Vector4>(parsed);
+        var v = (System.Numerics.Vector4)parsed!;
+        Assert.Equal(1f, v.X, precision: 5);
+        Assert.Equal(2f, v.Y, precision: 5);
+        Assert.Equal(3f, v.Z, precision: 5);
+        Assert.Equal(4f, v.W, precision: 5);
+    }
+
+    [Fact]
+    public void ParseValue_Quaternion_RoundTrips()
+    {
+        var original  = new System.Numerics.Quaternion(0f, 0f, 0f, 1f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(original);
+        var parsed    = BlueprintPinDefaultValue.ParseValue("System.Numerics.Quaternion", formatted);
+
+        Assert.IsType<System.Numerics.Quaternion>(parsed);
+        var q = (System.Numerics.Quaternion)parsed!;
+        Assert.Equal(0f, q.X, precision: 5);
+        Assert.Equal(0f, q.Y, precision: 5);
+        Assert.Equal(0f, q.Z, precision: 5);
+        Assert.Equal(1f, q.W, precision: 5);
+    }
+
+    [Fact]
+    public void ParseValue_Vector3_NullRaw_ReturnsZero()
+    {
+        var parsed = BlueprintPinDefaultValue.ParseValue("System.Numerics.Vector3", null);
+
+        Assert.IsType<System.Numerics.Vector3>(parsed);
+        var v = (System.Numerics.Vector3)parsed!;
+        Assert.Equal(System.Numerics.Vector3.Zero, v);
+    }
+
+    [Fact]
+    public void FormatValue_Vector3_Format_StartsWithBracket_EndsWithBracket()
+    {
+        var v = new System.Numerics.Vector3(0f, 0f, 0f);
+        var formatted = BlueprintPinDefaultValue.FormatValue(v);
+
+        Assert.NotNull(formatted);
+        Assert.StartsWith("[", formatted!);
+        Assert.EndsWith("]", formatted);
+    }
 }

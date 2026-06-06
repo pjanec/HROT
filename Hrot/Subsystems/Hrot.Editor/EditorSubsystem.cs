@@ -1911,12 +1911,20 @@ namespace Hrot.Editor
                 {
                     var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(btreeAsset, _behaviorRegistry);
                     _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
+                    // FIX-A: wire the per-asset facet dispatcher so InspectorWindow.GetCurrentFacet()
+                    // returns a non-null facet when a BTree node is selected.
+                    _btreeRegistrar?.Inspector.SetFacetDispatcher(
+                        BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset));
                 }
                 else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
                     && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
                 {
                     var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(hsmAsset);
                     _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
+                    // FIX-A: wire the per-asset facet dispatcher so InspectorWindow.GetCurrentFacet()
+                    // returns a non-null facet when an HSM state is selected.
+                    _hsmRegistrar?.Inspector.SetFacetDispatcher(
+                        HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset));
                 }
                 else
                 {
@@ -1924,6 +1932,9 @@ namespace Hrot.Editor
                     // The edit service itself remains so the inspector still renders struct fields.
                     _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
                     _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
+                    // FIX-A: clear facet dispatchers when no BTree/HSM is active.
+                    _btreeRegistrar?.Inspector.SetFacetDispatcher(null);
+                    _hsmRegistrar?.Inspector.SetFacetDispatcher(null);
                 }
 
                 // AIE-047/048: Retarget Blueprint-specific windows.
@@ -2283,6 +2294,14 @@ namespace Hrot.Editor
             blueprintCanvasWindow.AfterDraw =
                 Hrot.Blueprints.Editor.Host.BlueprintSelectionBridgeHelper.BuildAfterDrawAction(
                     _blueprintSelectionStore);
+            // FIX-A: wire per-frame canvas selection→Inspector bridges for BTree and HSM.
+            // Each AfterDraw reads ctx.AssetRef (set by the document factory) and maps
+            // the single selected node to a BTreeNodeSelection / HsmStateSelection published
+            // to the perspective's EditorSelectionStore so GetCurrentFacet() returns non-null.
+            btreeCanvasWindow.AfterDraw =
+                BTreeSelectionBridgeHelper.BuildAfterDrawAction(_btreeSelectionStore);
+            hsmCanvasWindow.AfterDraw =
+                HsmSelectionBridgeHelper.BuildAfterDrawAction(_hsmSelectionStore);
 
             // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
             _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();

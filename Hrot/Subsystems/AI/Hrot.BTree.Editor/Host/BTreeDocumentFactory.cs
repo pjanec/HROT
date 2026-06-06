@@ -140,8 +140,12 @@ public static class BTreeDocumentFactory
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
+        // Store the BehaviorTreeAsset in AssetRef so the composition root can wire
+        // the selection→Inspector bridge (BTreeSelectionBridgeHelper.BuildAfterDrawAction)
+        // without a kind-specific dependency in AiShared.
         return new AiCanvasContext(view, AssetKind.BTree.ToString())
         {
+            AssetRef = btAsset,
             FindBar  = findBar,
             Commands = commands,
         };
