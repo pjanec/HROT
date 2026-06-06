@@ -45,6 +45,49 @@ internal sealed class ChannelCommandNodeSession : INodeEditSession
 
     public void Draw()
     {
+        // AN7: dispatch on whether this is a non-channel action (ActionFqn set) or a channel
+        // command (existing ChannelType/ActionId path).
+        if (!string.IsNullOrEmpty(_node.ActionFqn))
+        {
+            DrawNonChannelAction();
+            return;
+        }
+
+        DrawChannelCommand();
+    }
+
+    /// <summary>
+    /// AN7 — non-channel action display (ActionFqn set).
+    /// Shows the action identity read-only (D-B: action is immutable after creation).
+    /// No mutation path: action selection is create-time-only via the per-action palette.
+    /// </summary>
+    private void DrawNonChannelAction()
+    {
+        ImGui.Text("Behavior Action");
+        ImGui.Separator();
+
+        // AN5/AN7 (D-B): action is baked at creation — render as read-only label only.
+        // Extract the short method name for a friendlier display (last segment of FQN).
+        var fqn         = _node.ActionFqn!;
+        var dotIdx      = fqn.LastIndexOf('.');
+        var shortName   = dotIdx >= 0 ? fqn[(dotIdx + 1)..] : fqn;
+        var typePortion = dotIdx > 0  ? fqn[..dotIdx]       : "";
+
+        ImGui.LabelText("Action", shortName);
+        if (!string.IsNullOrEmpty(typePortion))
+            ImGui.LabelText("Type",   typePortion);
+        ImGui.LabelText("FQN",    fqn);
+
+        ImGui.Spacing();
+        ImGui.TextDisabled("(compile lowering via AN8 — not yet emittable)");
+    }
+
+    /// <summary>
+    /// Existing channel-command display (ActionFqn null/empty).
+    /// AN5 (D-B): action is baked at creation — render as read-only labels.
+    /// </summary>
+    private void DrawChannelCommand()
+    {
         ImGui.Text("Channel Command");
         ImGui.Separator();
 

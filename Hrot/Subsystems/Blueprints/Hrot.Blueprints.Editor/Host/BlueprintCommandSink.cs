@@ -41,6 +41,9 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private readonly IChannelCommandCatalog? _channelCommands;
     // ENUM-NAME: provider used to convert a long enum value → member name at the persistence boundary.
     private readonly IEnumValueProvider? _enumProvider;
+    // AN7: unified behavior-action catalog so ApplyPinIds re-stamps a non-channel ChannelCommandNode
+    // (ActionFqn set) with its projected param data-IN pins instead of collapsing to exec-only.
+    private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
 
     /// <summary>
     /// Constructs a command sink bound to the given asset graph.
@@ -64,6 +67,12 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// string stored in <see cref="Node.PinDefaults"/> (ENUM-NAME).
     /// When null, the decimal integer string is stored instead (backward compat / headless tests).
     /// </param>
+    /// <param name="behaviorActions">
+    /// AN7 — optional unified behavior-action catalog forwarded to
+    /// <see cref="NodePinSchema.GetCanonicalPins"/> so that a non-channel <see cref="ChannelCommandNode"/>
+    /// (one whose <c>ActionFqn</c> is set) projects its parameter data-IN pins when
+    /// <see cref="ApplyPinIds"/> re-stamps canonical pins on create.
+    /// </param>
     public BlueprintCommandSink(
         BlueprintAsset       asset,
         Graph                graph,
@@ -74,7 +83,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         EditService          editService,
         Action<BlueprintAsset> markDirty,
         IChannelCommandCatalog? channelCommands = null,
-        IEnumValueProvider?     enumProvider    = null)
+        IEnumValueProvider?     enumProvider    = null,
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null)
     {
         _asset           = asset           ?? throw new ArgumentNullException(nameof(asset));
         _graph           = graph           ?? throw new ArgumentNullException(nameof(graph));
@@ -86,6 +96,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         _markDirty       = markDirty       ?? throw new ArgumentNullException(nameof(markDirty));
         _channelCommands = channelCommands;
         _enumProvider    = enumProvider;
+        _behaviorActions = behaviorActions;
     }
 
     // ── IGraphCommandSink ────────────────────────────────────────────────────
@@ -233,7 +244,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         // BF-UX1 FIX B: pass _channelCommands so ChannelCommandNode projects its param data-IN
         // pins instead of collapsing to exec-only (the root cause of BF-UX1 FIX B).
         var canonical = NodePinSchema.GetCanonicalPins(node, _catalog.KindRegistry, _asset,
-            channelCommands: _channelCommands, containingGraph: _graph);
+            channelCommands: _channelCommands, containingGraph: _graph,
+            behaviorActions: _behaviorActions);
 
         // Re-order into inputs-then-outputs, matching DescriptorToEntry (Inputs = Direction=="In",
         // Outputs = Direction=="Out") and CanvasInput's pinIdx walk (entry.Inputs then entry.Outputs).

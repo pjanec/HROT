@@ -2,6 +2,7 @@ using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor;
+using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -432,5 +433,141 @@ public sealed class AN4_PerActionPaletteTests
         // Generic "ChannelCommand" must NOT be present (AN4 D-B).
         Assert.True(registry.TryGet("ChannelCommand") == null,
             "Generic 'ChannelCommand' kind must not exist after AN4.");
+    }
+
+    // ── AN7: Non-channel action palette entries ───────────────────────────────
+
+    /// <summary>Stub IBehaviorActionCatalog backed by a fixed list of entries.</summary>
+    private sealed class StubBehaviorActionCatalog : IBehaviorActionCatalog
+    {
+        private readonly IReadOnlyList<BehaviorActionEntry> _entries;
+        public StubBehaviorActionCatalog(params BehaviorActionEntry[] entries) => _entries = entries;
+        public IReadOnlyList<BehaviorActionEntry> GetActions() => _entries;
+        public IReadOnlyList<BehaviorActionEntry> GetActions(BehaviorActionHosts host)
+        {
+            var result = new System.Collections.Generic.List<BehaviorActionEntry>();
+            foreach (var e in _entries)
+                if ((e.ValidHosts & host) != 0)
+                    result.Add(e);
+            return result;
+        }
+        public event Action? Changed { add { } remove { } }
+    }
+
+    private static BehaviorActionEntry MakeNonChannelEntry(string fqn, string category = "FakeActions") =>
+        new BehaviorActionEntry(
+            Id:             fqn,
+            DisplayName:    fqn.Split('.').Last(),
+            Category:       category,
+            ChannelTypeFqn: null,
+            ActionId:       0,
+            ParamsTypeFqn:  "System.Object",
+            ValidHosts:     BehaviorActionHosts.Blueprint | BehaviorActionHosts.BTree | BehaviorActionHosts.Hsm,
+            Source:         BehaviorActionSource.Hardcoded);
+
+    /// <summary>
+    /// AN7: NonChannelActionEntries yields one descriptor per Blueprint-valid non-channel entry.
+    /// </summary>
+    [Fact]
+    public void NonChannelActionEntries_NActions_YieldsNDescriptors_AN7()
+    {
+        var catalog = new StubBehaviorActionCatalog(
+            MakeNonChannelEntry("Foo.Ns.Actions.DoThing"),
+            MakeNonChannelEntry("Foo.Ns.Actions.DoOther"));
+
+        var entries = BlueprintNodePaletteEntries.NonChannelActionEntries(catalog).ToList();
+
+        Assert.Equal(2, entries.Count);
+    }
+
+    /// <summary>
+    /// AN7: NonChannelActionEntries kind = "Action:{FQN}", unique per entry.
+    /// </summary>
+    [Fact]
+    public void NonChannelActionEntries_KindFormat_IsActionColonFqn_AN7()
+    {
+        var fqn     = "Foo.Ns.Actions.DoThing";
+        var catalog = new StubBehaviorActionCatalog(MakeNonChannelEntry(fqn));
+
+        var entry = BlueprintNodePaletteEntries.NonChannelActionEntries(catalog).Single();
+
+        Assert.Equal($"Action:{fqn}", entry.Kind);
+    }
+
+    /// <summary>
+    /// AN7: CreateInstance bakes ActionFqn, leaves ChannelType/ActionId empty (D-B).
+    /// </summary>
+    [Fact]
+    public void NonChannelActionEntries_CreateInstance_BakesActionFqn_AN7()
+    {
+        var fqn     = "Foo.Ns.Actions.DoThing";
+        var catalog = new StubBehaviorActionCatalog(MakeNonChannelEntry(fqn));
+
+        var descriptor = BlueprintNodePaletteEntries.NonChannelActionEntries(catalog).Single();
+        var node       = descriptor.CreateInstance() as ChannelCommandNode;
+
+        Assert.NotNull(node);
+        Assert.Equal(fqn, node!.ActionFqn);         // baked FQN
+        Assert.Equal("",  node.ChannelType);         // non-channel: no channel type
+        Assert.Equal("",  node.ActionId);            // non-channel: no action id
+    }
+
+    /// <summary>
+    /// AN7: Channel-command entries in the unified catalog are NOT emitted by
+    /// NonChannelActionEntries (they belong to ChannelCommandEntries).
+    /// </summary>
+    [Fact]
+    public void NonChannelActionEntries_SkipsChannelCommandEntries_AN7()
+    {
+        var channelEntry = new BehaviorActionEntry(
+            Id:             "Fdp.Toolkit.Behavior.Components.LocomotionChannel::1",
+            DisplayName:    "MoveTo",
+            Category:       "Locomotion",
+            ChannelTypeFqn: "Fdp.Toolkit.Behavior.Components.LocomotionChannel",
+            ActionId:       1,
+            ParamsTypeFqn:  "Fdp.Toolkit.Navigation.MoveToParams",
+            ValidHosts:     BehaviorActionHosts.Blueprint,
+            Source:         BehaviorActionSource.ChannelCommand); // CHANNEL COMMAND → skip
+
+        var catalog = new StubBehaviorActionCatalog(channelEntry);
+
+        var entries = BlueprintNodePaletteEntries.NonChannelActionEntries(catalog).ToList();
+
+        Assert.Empty(entries); // channel commands filtered out
+    }
+
+    /// <summary>
+    /// AN7: CreatePaletteRegistry with a behavior-action catalog registers non-channel
+    /// action kinds in addition to channel-command kinds.
+    /// </summary>
+    [Fact]
+    public void CreatePaletteRegistry_WithBehaviorActionCatalog_RegistersNonChannelKinds_AN7()
+    {
+        var fqn = "Foo.Ns.Actions.DoThing";
+        var behaviorCatalog = new StubBehaviorActionCatalog(MakeNonChannelEntry(fqn));
+
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry(
+            channelCatalog:        null,
+            behaviorActionCatalog: behaviorCatalog);
+
+        // The non-channel action kind must be present.
+        var descriptor = registry.TryGet($"Action:{fqn}");
+        Assert.NotNull(descriptor);
+
+        // And the created node must have ActionFqn baked.
+        var node = descriptor!.CreateInstance() as ChannelCommandNode;
+        Assert.NotNull(node);
+        Assert.Equal(fqn, node!.ActionFqn);
+    }
+
+    /// <summary>
+    /// AN7: NonChannelActionEntries with null catalog yields empty sequence (no throw).
+    /// </summary>
+    [Fact]
+    public void NonChannelActionEntries_NullCatalog_YieldsEmpty_AN7()
+    {
+        var entries = BlueprintNodePaletteEntries.NonChannelActionEntries(null).ToList();
+
+        Assert.Empty(entries);
     }
 }

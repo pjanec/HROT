@@ -253,6 +253,10 @@ namespace Hrot.Editor
         private BlueprintRegistry          _blueprintRegistry = new();
         private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
+        // AN7: unified behavior-action catalog (channel commands + [SharedAiAction]/AiPrimitive
+        // schema entries). Constructed once after the shared ActionSchemaExporter and reused by the
+        // palette + BlueprintDocumentFactory so non-channel "Action:{FQN}" nodes project pins live.
+        private Hrot.Blueprints.Editor.ActionCatalog.BehaviorActionCatalog? _behaviorActionCatalog;
         // AIE-049: real EditService — context swapped per-document by BlueprintDocumentFactory.
         private Hrot.Blueprints.Editor.NodeDrawers.EditService? _blueprintEditService;
 
@@ -912,9 +916,10 @@ namespace Hrot.Editor
             // Final wiring happens in the canvas/UI initialization below (section 10+).
             _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
                 channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
-            // AN4: pass the channel-command catalog so the palette generates one entry per
-            // channel action (baked ChannelType+ActionId), not a single generic ChannelCommand node.
-            _blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry(channelCatalog);
+            // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
+            // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
+            // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
+            // later at doc-open, so the single build below suffices.
             var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
                 eqsTemplates, peerNameResolver: _ => null);
             var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
@@ -1819,6 +1824,22 @@ namespace Hrot.Editor
             // AIE-053: Shared ActionSchemaExporter instance — also forwarded to the Inspector
             // for sub-element collision diagnostics.
             var sharedSchemaExporter = new ActionSchemaExporter();
+
+            // ── AN7: unified behavior-action catalog ────────────────────────────────────────────
+            // Compose the channel-command catalog (same source as the palette built ~line 917) +
+            // the shared ActionSchemaExporter into one IBehaviorActionCatalog. It subscribes to
+            // sharedSchemaExporter.Changed internally, so it stays fresh across hot-reloads —
+            // construct ONCE here and reuse for both the palette and BlueprintDocumentFactory
+            // (live non-channel "Action:{FQN}" pin projection).
+            var bpChannelCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
+            _behaviorActionCatalog = new Hrot.Blueprints.Editor.ActionCatalog.BehaviorActionCatalog(
+                bpChannelCatalog, sharedSchemaExporter);
+            // Rebuild the palette now that the behavior-action catalog exists so non-channel actions
+            // appear alongside the channel-command entries built earlier (line ~917).
+            _blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry(
+                bpChannelCatalog, behaviorActionCatalog: _behaviorActionCatalog);
+            // ────────────────────────────────────────────────────────────────────────────────────
+
             var aggregatorService = new BlackboardAggregatorService(
                 Array.Empty<IBlackboardAggregatorStrategy>(),
                 sharedSchemaExporter,
@@ -2368,7 +2389,10 @@ namespace Hrot.Editor
                             doc.Asset, adapterBundle, _blueprintEditService,
                             _blueprintPaletteEntries,
                             channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
-                            peerAssetCatalog: blueprintPeerCatalog);
+                            peerAssetCatalog: blueprintPeerCatalog,
+                            // AN7: forward the behavior-action catalog so non-channel ChannelCommandNodes
+                            // (ActionFqn set) project their parameter data-IN pins from the matching entry.
+                            behaviorActions: _behaviorActionCatalog);
                         break;
                 }
 

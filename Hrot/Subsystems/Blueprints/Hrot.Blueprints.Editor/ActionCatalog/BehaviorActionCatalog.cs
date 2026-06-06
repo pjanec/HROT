@@ -179,17 +179,21 @@ public sealed class BehaviorActionCatalog : IBehaviorActionCatalog, IDisposable
 
     /// <summary>
     /// Maps <see cref="ActionHosting"/> flags to <see cref="BehaviorActionHosts"/>.
-    /// <c>ActionHosting.BTree</c> → <c>BehaviorActionHosts.BTree</c>;
-    /// <c>ActionHosting.Hsm</c>  → <c>BehaviorActionHosts.Hsm</c>.
-    /// Blueprint hosting is NOT included here — schema entries are BTree/HSM only.
+    /// <c>ActionHosting.BTree</c>  → <c>BehaviorActionHosts.BTree</c>;
+    /// <c>ActionHosting.Hsm</c>   → <c>BehaviorActionHosts.Hsm</c>;
+    /// <c>ActionHosting.Shared</c> → additionally <c>BehaviorActionHosts.Blueprint</c>
+    ///   (AN7: <c>[SharedAiAction]</c> / AiPrimitive entries valid in Blueprint graphs).
+    /// <c>ActionHosting.Heavy</c> is a modifier, not a host; it does not add a new host.
     /// </summary>
     private static BehaviorActionHosts MapHosting(ActionHosting hosting)
     {
         var result = BehaviorActionHosts.None;
         if ((hosting & ActionHosting.BTree) != 0) result |= BehaviorActionHosts.BTree;
         if ((hosting & ActionHosting.Hsm)   != 0) result |= BehaviorActionHosts.Hsm;
-        // ActionHosting.Shared is covered by BTree + Hsm flags set simultaneously.
-        // ActionHosting.Heavy is a modifier, not a host; it does not add a new host.
+        // AN7: Shared actions (SharedAiAction / AiPrimitive with BlueprintCall hosting) are
+        // also valid in Blueprint graphs — they are non-channel behavior actions that the
+        // generalized ChannelCommandNode (via ActionFqn) can invoke.
+        if ((hosting & ActionHosting.Shared) != 0) result |= BehaviorActionHosts.Blueprint;
         return result;
     }
 

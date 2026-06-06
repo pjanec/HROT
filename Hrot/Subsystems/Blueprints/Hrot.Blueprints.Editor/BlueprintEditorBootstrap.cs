@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared.Catalog;
@@ -60,12 +61,19 @@ public static class BlueprintEditorBootstrap
     /// </summary>
     /// <param name="channelCatalog">
     /// AN4: optional channel-command catalog.  When non-null, one palette entry per
-    /// channel-command action is registered (kind = <c>"ChannelCommand"</c>, action baked at
-    /// creation).  When null, no <c>ChannelCommandNode</c> entries are added (the generic
+    /// channel-command action is registered (kind = <c>"ChannelCommand:{channel}:{action}"</c>,
+    /// action baked at creation).  When null, no channel-command entries are added (the generic
     /// single entry has been removed per D-B: no chameleon hazard).
     /// </param>
+    /// <param name="behaviorActionCatalog">
+    /// AN7: optional unified behavior-action catalog (<see cref="IBehaviorActionCatalog"/>).
+    /// When non-null, one palette entry per Blueprint-valid NON-channel action is registered
+    /// (kind = <c>"Action:{FQN}"</c>, <see cref="ChannelCommandNode.ActionFqn"/> baked at
+    /// creation).  When null, no non-channel action entries are added.
+    /// </param>
     public static NodeKindRegistry CreatePaletteRegistry(
-        IChannelCommandCatalog? channelCatalog = null)
+        IChannelCommandCatalog?   channelCatalog        = null,
+        IBehaviorActionCatalog?   behaviorActionCatalog = null)
     {
         var registry = new NodeKindRegistry();
 
@@ -84,6 +92,12 @@ public static class BlueprintEditorBootstrap
         // AN4: register one palette entry per channel-command action.
         // Each entry bakes ChannelType + ActionId in its CreateInstance factory.
         foreach (var descriptor in BlueprintNodePaletteEntries.ChannelCommandEntries(channelCatalog))
+            registry.Register(descriptor);
+
+        // AN7: register one palette entry per Blueprint-valid NON-channel action.
+        // Each entry bakes ActionFqn in its CreateInstance factory (ChannelType/ActionId empty).
+        // Compile lowering is deferred to AN8.
+        foreach (var descriptor in BlueprintNodePaletteEntries.NonChannelActionEntries(behaviorActionCatalog))
             registry.Register(descriptor);
 
         // BATCH-05B: register BlueprintMath function-call presets (Math/* categories).

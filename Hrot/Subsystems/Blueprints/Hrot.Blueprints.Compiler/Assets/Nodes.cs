@@ -128,6 +128,19 @@ public sealed class ChannelCommandNode : Node
 {
     public string ChannelType { get; set; } = "";
     public string ActionId { get; set; } = "";
+
+    /// <summary>
+    /// AN7 — non-channel action identity.
+    /// When non-null and non-empty, this node represents a non-channel behavior action
+    /// (e.g. <c>[SharedAiAction]</c> / AiPrimitive <c>BlueprintCall</c>) identified by its
+    /// FQN (<c>"{Namespace}.{Type}.{Method}"</c>).
+    /// When null/empty the node is a channel command (ChannelType + ActionId path; unchanged).
+    /// Omitted from JSON when null to preserve byte-stability of existing channel-command assets.
+    /// Compiler lowering of non-channel nodes is deferred to AN8.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActionFqn { get; set; }
 }
 
 public sealed class WaitForChannelNode : Node

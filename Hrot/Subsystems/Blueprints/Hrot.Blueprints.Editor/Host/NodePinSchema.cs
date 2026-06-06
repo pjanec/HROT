@@ -2,6 +2,7 @@ using System.Reflection;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.NodeDrawers;
 
 namespace Hrot.Blueprints.Editor.Host;
@@ -53,6 +54,14 @@ internal static class NodePinSchema
     /// When null (or the action/params type cannot be resolved) the node falls back to
     /// exec-only, matching the prior behavior.
     /// </param>
+    /// <param name="behaviorActions">
+    /// AN7 — optional unified behavior-action catalog (<see cref="IBehaviorActionCatalog"/>).
+    /// When non-null and the <see cref="ChannelCommandNode"/> has a non-null/non-empty
+    /// <see cref="ChannelCommandNode.ActionFqn"/>, the catalog is used to look up the matching
+    /// <see cref="BehaviorActionEntry.ParamsTypeFqn"/> and project data-IN pins from it
+    /// (same <c>ReflectDataMembers</c> path as channel commands; enum fields stamped
+    /// <c>"global::"</c> per AN6).  When null, non-channel nodes fall back to exec-only.
+    /// </param>
     /// <param name="containingGraph">
     /// Optional graph that owns <paramref name="node"/>.  Required to project value pins for
     /// <see cref="EventEntryNode"/> (outputs from <c>Graph.Inputs</c>) and
@@ -75,7 +84,8 @@ internal static class NodePinSchema
         BlueprintAsset?                 asset                = null,
         IChannelCommandCatalog?         channelCommands      = null,
         Graph?                          containingGraph      = null,
-        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null)
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
+        IBehaviorActionCatalog?         behaviorActions      = null)
     {
         // Pass 0: asset already has pins (builder-created test assets).
         if (node.Pins.Count > 0)
@@ -117,7 +127,7 @@ internal static class NodePinSchema
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             GetVariableNode gv  => GetVariablePins(gv, ResolveVariableTypeId(gv.VariableId, asset)),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
-            ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands),
+            ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
 
@@ -491,26 +501,90 @@ internal static class NodePinSchema
             MakeData("Value", "Out", typeId),
         };
 
-    // ── ChannelCommand parameter resolution (DYNAMIC) ─────────────────────────
+    // ── ChannelCommand / non-channel action parameter resolution (DYNAMIC) ────
 
     /// <summary>
-    /// ChannelCommand: exec In/Out + parameter data-IN pins resolved from the channel-command
-    /// catalog.  The matching <see cref="ChannelCommandCatalogEntry"/> is found exactly the way
+    /// ChannelCommandNode pin projection — dispatches to one of two paths based on whether
+    /// <see cref="ChannelCommandNode.ActionFqn"/> is set (AN7 non-channel path) or not
+    /// (existing channel-command path).
+    /// <para>
+    /// <b>Channel-command path</b> (ActionFqn null/empty): exec In/Out + parameter data-IN pins
+    /// resolved from <paramref name="channelCommands"/>.  The matching
+    /// <see cref="ChannelCommandCatalogEntry"/> is found exactly the way
     /// Stage2_Validate.V_ChannelCommandReferences matches it:
     /// <c>LastSegment(ChannelTypeFqn) == node.ChannelType &amp;&amp; entry.Name == node.ActionId</c>.
-    /// The entry's <see cref="ChannelCommandCatalogEntry.ParamsTypeFqn"/> is resolved to a CLR
-    /// <see cref="Type"/> across loaded assemblies and projected as:
-    /// <list type="bullet">
-    ///   <item>one data-IN pin per public instance field/property when the params type is a
-    ///     decomposable struct/class (e.g. <c>AimAndFireParams</c> → Target, CooldownSeconds);</item>
-    ///   <item>a single data-IN pin (named after the type's short name) when the params type is a
-    ///     primitive/enum (e.g. <c>System.Int32</c>) — Stage5 consumes channel-command data-IN
-    ///     pins by <c>(Name, value)</c>, so one value pin is meaningful.</item>
-    /// </list>
-    /// Unknown action / unresolvable params type / null catalog → exec-only (no throw).
+    /// </para>
+    /// <para>
+    /// <b>Non-channel action path</b> (ActionFqn non-null, AN7): exec In/Out + parameter
+    /// data-IN pins resolved from <paramref name="behaviorActions"/> by looking up the entry
+    /// whose <c>Id == ActionFqn</c> and reflecting its <c>ParamsTypeFqn</c>.  Enum fields are
+    /// stamped with <c>"global::"</c> per AN6.  Compile lowering is deferred to AN8.
+    /// </para>
+    /// <para>
+    /// Both paths: unknown action / unresolvable params type / null catalog → exec-only (no throw).
+    /// </para>
     /// </summary>
     private static IReadOnlyList<Pin> ChannelCommandPins(
-        ChannelCommandNode cc, IChannelCommandCatalog? channelCommands)
+        ChannelCommandNode      cc,
+        IChannelCommandCatalog? channelCommands,
+        IBehaviorActionCatalog? behaviorActions)
+    {
+        // AN7: non-channel path — ActionFqn is set.
+        if (!string.IsNullOrEmpty(cc.ActionFqn))
+            return NonChannelActionPins(cc.ActionFqn, behaviorActions);
+
+        // Existing channel-command path — ActionFqn is null/empty.
+        return ChannelCommandPinsFromCatalog(cc, channelCommands);
+    }
+
+    /// <summary>
+    /// AN7 — non-channel action pin projection.
+    /// Looks up the action by <paramref name="actionFqn"/> in <paramref name="behaviorActions"/>,
+    /// resolves its <c>ParamsTypeFqn</c>, and reflects the DTO fields as data-IN pins
+    /// (same logic as <see cref="ChannelCommandPinsFromCatalog"/>).
+    /// Returns exec-only when the catalog is null, the FQN is not found, or the params
+    /// type cannot be resolved.
+    /// </summary>
+    private static IReadOnlyList<Pin> NonChannelActionPins(
+        string                  actionFqn,
+        IBehaviorActionCatalog? behaviorActions)
+    {
+        var pins = new List<Pin>
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+        };
+
+        if (behaviorActions == null)
+            return pins;
+
+        BehaviorActionEntry? entry;
+        try
+        {
+            entry = behaviorActions.GetActions(BehaviorActionHosts.Blueprint)
+                .FirstOrDefault(e =>
+                    e.Source != BehaviorActionSource.ChannelCommand
+                    && e.Id == actionFqn);
+        }
+        catch
+        {
+            return pins; // catalog failure → exec-only.
+        }
+
+        if (entry == null || string.IsNullOrEmpty(entry.ParamsTypeFqn))
+            return pins; // unknown FQN → exec-only.
+
+        return AppendParamPins(pins, entry.ParamsTypeFqn);
+    }
+
+    /// <summary>
+    /// Channel-command parameter resolution — the original pre-AN7 path.
+    /// <c>ChannelType</c> + <c>ActionId</c> are matched against <paramref name="channelCommands"/>.
+    /// Unknown action / unresolvable params type / null catalog → exec-only (no throw).
+    /// </summary>
+    private static IReadOnlyList<Pin> ChannelCommandPinsFromCatalog(
+        ChannelCommandNode      cc,
+        IChannelCommandCatalog? channelCommands)
     {
         var pins = new List<Pin>
         {
@@ -536,11 +610,27 @@ internal static class NodePinSchema
         if (entry == null || string.IsNullOrEmpty(entry.ParamsTypeFqn))
             return pins; // unknown action → exec-only.
 
-        var paramsType = ResolveType(entry.ParamsTypeFqn);
+        return AppendParamPins(pins, entry.ParamsTypeFqn);
+    }
+
+    /// <summary>
+    /// Shared helper: resolves <paramref name="paramsFqn"/> to a CLR <see cref="Type"/> and
+    /// appends data-IN pins to <paramref name="pins"/>.
+    /// <list type="bullet">
+    ///   <item>Decomposable struct/class → one pin per public instance field/property.</item>
+    ///   <item>Primitive/enum/opaque → a single pin named after the type's short name.</item>
+    ///   <item>Type not loadable → a single pin with the raw FQN as the TypeId (wire is still
+    ///     meaningful for the canvas).</item>
+    /// </list>
+    /// Returns <paramref name="pins"/> for fluent chaining (same list, mutated).
+    /// </summary>
+    private static IReadOnlyList<Pin> AppendParamPins(List<Pin> pins, string paramsFqn)
+    {
+        var paramsType = ResolveType(paramsFqn);
         if (paramsType == null)
         {
             // Type not loadable: still surface a single typed param pin so the wire is meaningful.
-            pins.Add(MakeData(LastSegment(entry.ParamsTypeFqn), "In", entry.ParamsTypeFqn));
+            pins.Add(MakeData(LastSegment(paramsFqn), "In", paramsFqn));
             return pins;
         }
 
@@ -548,7 +638,7 @@ internal static class NodePinSchema
         if (members.Count == 0)
         {
             // Primitive/enum/opaque params: a single value pin typed as the params type.
-            pins.Add(MakeData(LastSegment(entry.ParamsTypeFqn), "In", entry.ParamsTypeFqn));
+            pins.Add(MakeData(LastSegment(paramsFqn), "In", paramsFqn));
             return pins;
         }
 

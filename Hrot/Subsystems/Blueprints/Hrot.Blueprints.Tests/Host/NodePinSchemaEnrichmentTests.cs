@@ -3,6 +3,7 @@ using System.Linq;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.Reload;
 using Xunit;
@@ -1188,6 +1189,199 @@ public sealed class NodePinSchemaEnrichmentTests
             Assert.Equal(r.IsExec,    e.IsExec);
             Assert.Equal(r.TypeId,    e.TypeRef?.TypeId ?? "");
         }
+    }
+
+    // ── AN7: non-channel action pin projection ──────────────────────────────────
+
+    /// <summary>
+    /// Minimal stub <see cref="IBehaviorActionCatalog"/> for AN7 pin tests.
+    /// </summary>
+    private sealed class StubBehaviorActionCatalog : IBehaviorActionCatalog
+    {
+        private readonly IReadOnlyList<BehaviorActionEntry> _entries;
+
+        public StubBehaviorActionCatalog(params BehaviorActionEntry[] entries)
+            => _entries = entries;
+
+        public IReadOnlyList<BehaviorActionEntry> GetActions() => _entries;
+
+        public IReadOnlyList<BehaviorActionEntry> GetActions(BehaviorActionHosts host)
+        {
+            var result = new List<BehaviorActionEntry>();
+            foreach (var e in _entries)
+                if ((e.ValidHosts & host) != 0)
+                    result.Add(e);
+            return result;
+        }
+
+        public event Action? Changed { add { } remove { } }
+    }
+
+    /// <summary>Multi-field DTO for AN7 non-channel pin reflection tests.</summary>
+    public static class NonChannelReflectionTargets
+    {
+        /// <summary>A blittable params DTO with a primitive + an enum field.</summary>
+        public struct FakeSharedParams
+        {
+            public int    Intensity;
+            public DemoGait Gait;
+        }
+
+        /// <summary>Enum with two members — stamp "global::" per AN6.</summary>
+        public enum DemoGait { Walk, Run }
+    }
+
+    private static BehaviorActionEntry MakeSharedEntry(string fqn, string paramsFqn) =>
+        new BehaviorActionEntry(
+            Id:             fqn,
+            DisplayName:    "DoThing",
+            Category:       "FakeActions",
+            ChannelTypeFqn: null,
+            ActionId:       0,
+            ParamsTypeFqn:  paramsFqn,
+            ValidHosts:     BehaviorActionHosts.Blueprint | BehaviorActionHosts.BTree | BehaviorActionHosts.Hsm,
+            Source:         BehaviorActionSource.Hardcoded);
+
+    /// <summary>
+    /// AN7: ChannelCommandNode with ActionFqn set and a catalog that resolves it → exec In/Out +
+    /// data-IN pins from the DTO's public fields (Intensity:int + Gait stamped "global::").
+    /// </summary>
+    [Fact]
+    public void NonChannelAction_KnownFqn_MultiFieldParams_ProjectsOnePinPerField_PlusExec()
+    {
+        var fqn = "Fake.Ns.FakeActions.DoThing";
+        var paramsFqn = typeof(NonChannelReflectionTargets.FakeSharedParams).FullName!;
+        var catalog = new StubBehaviorActionCatalog(MakeSharedEntry(fqn, paramsFqn));
+        var node = new ChannelCommandNode { ActionFqn = fqn };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, behaviorActions: catalog);
+
+        Assert.True(HasExec(pins, "In",  "In"),  "exec In missing");
+        Assert.True(HasExec(pins, "Out", "Out"), "exec Out missing");
+
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        Assert.Contains(dataIn, p => p.Name == "Intensity" && p.TypeId == "System.Int32");
+        // Enum field must have "global::" prefix per AN6.
+        var gaitPinTypeExpected = "global::" + typeof(NonChannelReflectionTargets.DemoGait).FullName;
+        Assert.Contains(dataIn, p => p.Name == "Gait" && p.TypeId == gaitPinTypeExpected);
+        // No data-OUT pins.
+        Assert.Empty(Data(pins, "Out"));
+    }
+
+    /// <summary>
+    /// AN7: ChannelCommandNode with ActionFqn set but null catalog → exec-only (graceful fallback).
+    /// </summary>
+    [Fact]
+    public void NonChannelAction_NullCatalog_ExecOnly()
+    {
+        var node = new ChannelCommandNode { ActionFqn = "Some.Ns.Actions.DoThing" };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, behaviorActions: null);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    /// <summary>
+    /// AN7: ChannelCommandNode with ActionFqn not in the catalog → exec-only (graceful fallback).
+    /// </summary>
+    [Fact]
+    public void NonChannelAction_UnknownFqn_ExecOnly()
+    {
+        var catalog = new StubBehaviorActionCatalog(
+            MakeSharedEntry("Known.Ns.Actions.KnownAction", typeof(ReflectionTargets.FakeFireParams).FullName!));
+        var node = new ChannelCommandNode { ActionFqn = "Unknown.Ns.NoSuchAction" };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, behaviorActions: catalog);
+
+        Assert.Empty(Data(pins, "In"));
+        Assert.Empty(Data(pins, "Out"));
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+    }
+
+    /// <summary>
+    /// AN7: ChannelCommandNode with ActionFqn=null falls through to the channel-command path
+    /// (existing behavior, byte-stable — no regression).
+    /// </summary>
+    [Fact]
+    public void NonChannelAction_NullActionFqn_FallsThroughToChannelCommandPath()
+    {
+        var fqn = typeof(ReflectionTargets.FakeFireParams).FullName!;
+        var channelCatalog = new StubChannelCommandCatalog(
+            new ChannelCommandCatalogEntry("Fire", "Some.Ns.WeaponChannel", 1, fqn));
+        var node = new ChannelCommandNode
+        {
+            ActionFqn   = null,       // null → channel-command path
+            ChannelType = "WeaponChannel",
+            ActionId    = "Fire",
+        };
+
+        var pins = NodePinSchema.GetCanonicalPins(node, channelCommands: channelCatalog);
+
+        // Channel-command path: exec + 2 data-IN from FakeFireParams.
+        Assert.True(HasExec(pins, "In",  "In"));
+        Assert.True(HasExec(pins, "Out", "Out"));
+        var dataIn = Data(pins, "In");
+        Assert.Equal(2, dataIn.Length);
+        Assert.Contains(dataIn, p => p.Name == "Target");
+        Assert.Contains(dataIn, p => p.Name == "CooldownSeconds");
+    }
+
+    /// <summary>
+    /// AN7: JSON round-trip — ActionFqn is omitted when null (byte-stable for existing
+    /// channel-command assets) and present when set.
+    /// </summary>
+    [Fact]
+    public void ChannelCommandNode_ActionFqn_JsonRoundTrip_OmittedWhenNull_PresentWhenSet()
+    {
+        // ── Null ActionFqn → property absent from JSON ──
+        var channelNode = new ChannelCommandNode { ChannelType = "WeaponChannel", ActionId = "Fire" };
+        var json = System.Text.Json.JsonSerializer.Serialize(channelNode,
+            new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition =
+                System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+        Assert.DoesNotContain("ActionFqn", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("actionFqn", json, StringComparison.OrdinalIgnoreCase);
+
+        // ── Set ActionFqn → present in JSON, channel fields empty ──
+        var nonChannelNode = new ChannelCommandNode { ActionFqn = "Foo.Bar.Actions.DoThing" };
+        var json2 = System.Text.Json.JsonSerializer.Serialize(nonChannelNode);
+        Assert.Contains("ActionFqn", json2);
+        Assert.Contains("Foo.Bar.Actions.DoThing", json2);
+
+        // ── Round-trip: deserialize back preserves ActionFqn ──
+        // Use the full BlueprintJsonServices path so polymorphic dispatch works.
+        var assetJson = $$"""
+        {
+            "assetId": "aaaabbbb-0000-0000-0000-000000000001",
+            "name": "RoundTripTest",
+            "dispatch": "Instance",
+            "graphs": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "name": "Tick",
+                "kind": "Event",
+                "nodes": [{
+                    "kind": "ChannelCommand",
+                    "id":   "00000000-0000-0000-0000-000000000002",
+                    "ActionFqn": "Foo.Bar.Actions.DoThing",
+                    "ChannelType": "",
+                    "ActionId": "",
+                    "Pins": [],
+                    "EditorMetadata": {}
+                }],
+                "links": []
+            }]
+        }
+        """;
+        var asset = Hrot.Blueprints.Core.BlueprintJsonServices.Deserialize(assetJson);
+        var node  = Assert.Single(asset!.Graphs[0].Nodes);
+        var cc    = Assert.IsType<ChannelCommandNode>(node);
+        Assert.Equal("Foo.Bar.Actions.DoThing", cc.ActionFqn);
+        Assert.Equal("", cc.ChannelType);
+        Assert.Equal("", cc.ActionId);
     }
 }
 

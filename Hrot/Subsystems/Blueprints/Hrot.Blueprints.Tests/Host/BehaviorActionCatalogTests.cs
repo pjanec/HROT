@@ -251,6 +251,42 @@ public sealed class BehaviorActionCatalogTests
         Assert.True(entry.ValidHosts.HasFlag(BehaviorActionHosts.Hsm));
     }
 
+    /// <summary>
+    /// AN7: SharedAiAction entries (Shared flag set) must also be Blueprint-valid
+    /// so the non-channel palette and NodePinSchema can surface them.
+    /// </summary>
+    [Fact]
+    public void GetActions_SharedEntry_ValidHostsIncludesBlueprint_AN7()
+    {
+        var cc  = new FakeChannelCommandCatalog();
+        var ase = new FakeActionSchemaExporter();
+        ase.SetEntries(MakeSharedEntry("Foo.Shared.SharedAction1"));
+
+        using var catalog = new BehaviorActionCatalog(cc, ase);
+        var entry = catalog.GetActions().Single(e => e.Id == "Foo.Shared.SharedAction1");
+
+        // AN7: Shared actions are valid in Blueprint graphs (non-channel action node).
+        Assert.True(entry.ValidHosts.HasFlag(BehaviorActionHosts.Blueprint),
+            "Shared entry must have Blueprint hosting so AN7 palette/pin-schema can pick it up");
+    }
+
+    /// <summary>
+    /// AN7: BTree-only or Hsm-only entries must NOT appear in Blueprint.
+    /// </summary>
+    [Fact]
+    public void GetActions_BTreeOnlyEntry_ValidHostsDoesNotIncludeBlueprint_AN7()
+    {
+        var cc  = new FakeChannelCommandCatalog();
+        var ase = new FakeActionSchemaExporter();
+        ase.SetEntries(MakeBTreeEntry("Foo.Bar.BTreeAction1"));
+
+        using var catalog = new BehaviorActionCatalog(cc, ase);
+        var entry = catalog.GetActions().Single(e => e.Id == "Foo.Bar.BTreeAction1");
+
+        Assert.False(entry.ValidHosts.HasFlag(BehaviorActionHosts.Blueprint),
+            "BTree-only entry must not be Blueprint-valid");
+    }
+
     [Fact]
     public void GetActions_SchemaEntry_IdIsFqn()
     {
@@ -322,17 +358,42 @@ public sealed class BehaviorActionCatalogTests
     // ── 4. Host filtering ───────────────────────────────────────────────────
 
     [Fact]
-    public void GetActionsByHost_Blueprint_ReturnsOnlyChannelCommands()
+    public void GetActionsByHost_Blueprint_ReturnsChannelCommandsOnly_WhenNoSharedEntries()
     {
+        // Only BTree-only schema entries + one channel command → Blueprint filtering
+        // returns only the channel command.
         var cc  = new FakeChannelCommandCatalog(CcMoveTo);
         var ase = new FakeActionSchemaExporter();
-        ase.SetEntries(MakeBTreeEntry("Foo.Bar.BTreeAction1"));
+        ase.SetEntries(MakeBTreeEntry("Foo.Bar.BTreeAction1")); // BTree-only, not Blueprint-valid
 
         using var catalog = new BehaviorActionCatalog(cc, ase);
         var blueprintActions = catalog.GetActions(BehaviorActionHosts.Blueprint);
 
         Assert.Single(blueprintActions);
         Assert.Equal(BehaviorActionSource.ChannelCommand, blueprintActions[0].Source);
+    }
+
+    /// <summary>
+    /// AN7: Blueprint filtering returns channel commands AND Shared schema entries,
+    /// but NOT BTree-only or Hsm-only entries.
+    /// </summary>
+    [Fact]
+    public void GetActionsByHost_Blueprint_ReturnsChannelCommandsAndSharedEntries_AN7()
+    {
+        var cc  = new FakeChannelCommandCatalog(CcMoveTo);
+        var ase = new FakeActionSchemaExporter();
+        ase.SetEntries(
+            MakeBTreeEntry("Foo.Bar.BTreeOnly"),      // BTree-only → NOT Blueprint-valid
+            MakeSharedEntry("Foo.Shared.SharedAct")); // Shared → Blueprint-valid (AN7)
+
+        using var catalog = new BehaviorActionCatalog(cc, ase);
+        var blueprintActions = catalog.GetActions(BehaviorActionHosts.Blueprint);
+
+        // Expect: 1 channel command + 1 shared action = 2.
+        Assert.Equal(2, blueprintActions.Count);
+        Assert.Contains(blueprintActions, e => e.Source == BehaviorActionSource.ChannelCommand);
+        Assert.Contains(blueprintActions, e => e.Source == BehaviorActionSource.Hardcoded
+                                               && e.Id == "Foo.Shared.SharedAct");
     }
 
     [Fact]

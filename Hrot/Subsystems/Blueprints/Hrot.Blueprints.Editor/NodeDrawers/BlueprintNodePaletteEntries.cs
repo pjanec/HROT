@@ -1,5 +1,6 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor.ActionCatalog;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -43,6 +44,12 @@ public static class BlueprintNodePaletteEntries
         public const string Utility     = "Utility";
         public const string Squad       = "Squad";
         public const string Decision    = "Decision";
+        /// <summary>
+        /// AN7 — non-channel behavior actions (SharedAiAction / AiPrimitive BlueprintCall),
+        /// grouped by the declaring-type short name within this top-level category.
+        /// E.g. <c>"Action/SomeActionsClass"</c>.
+        /// </summary>
+        public const string Action      = "Action";
     }
 
     /// <summary>
@@ -212,6 +219,75 @@ public static class BlueprintNodePaletteEntries
                     Id          = Guid.NewGuid(),
                     ChannelType = bakedChannelType,
                     ActionId    = bakedActionId,
+                },
+            };
+        }
+    }
+
+    /// <summary>
+    /// AN7 — Generates one palette entry per Blueprint-valid NON-channel action from
+    /// <paramref name="catalog"/> (i.e. entries where <see cref="BehaviorActionHosts.Blueprint"/>
+    /// is set AND <see cref="BehaviorActionSource"/> is NOT <see cref="BehaviorActionSource.ChannelCommand"/>).
+    /// <para>
+    /// Each entry's <c>CreateInstance</c> bakes the action's FQN into
+    /// <see cref="ChannelCommandNode.ActionFqn"/> and leaves
+    /// <see cref="ChannelCommandNode.ChannelType"/> / <see cref="ChannelCommandNode.ActionId"/>
+    /// empty, signalling a non-channel invocation.  The placed node is immutably pre-configured
+    /// (D-B: action baked at creation).
+    /// </para>
+    /// <para>
+    /// <b>Kind:</b> <c>"Action:{FQN}"</c> — unique per entry.<br/>
+    /// <b>DisplayName:</b> <c>"{Category} / {MethodName}"</c>
+    ///   (e.g. <c>"SomeActionsClass / DoThing"</c>).<br/>
+    /// <b>Category:</b> <c>"Action/{DeclaringTypeShortName}"</c>
+    ///   — groups actions by declaring type in the picker.
+    /// </para>
+    /// <para>
+    /// If <paramref name="catalog"/> is null or has no Blueprint-valid non-channel entries,
+    /// returns an empty sequence.
+    /// </para>
+    /// <para>
+    /// <b>Compile note (AN8):</b> nodes created from these entries will NOT compile until
+    /// AN8 implements the non-channel lowering path in Stage5.  Placing such a node in a
+    /// canvas-authored asset is headless-safe; do not include them in any asset that passes
+    /// through the generator in committed tests.
+    /// </para>
+    /// </summary>
+    /// <param name="catalog">Source of unified behavior-action entries (AN3).</param>
+    public static IEnumerable<NodeKindDescriptor> NonChannelActionEntries(
+        IBehaviorActionCatalog? catalog)
+    {
+        if (catalog == null)
+            yield break;
+
+        foreach (var entry in catalog.GetActions(BehaviorActionHosts.Blueprint))
+        {
+            // Skip channel-command entries — those are handled by ChannelCommandEntries().
+            if (entry.Source == BehaviorActionSource.ChannelCommand)
+                continue;
+
+            // Unique kind: "Action:{FQN}" — one slot per non-channel action.
+            var kind        = $"Action:{entry.Id}";
+            var category    = $"{Categories.Action}/{entry.Category ?? LastSegment(entry.Id)}";
+            var displayName = $"{entry.Category ?? LastSegment(entry.Id)} / {entry.DisplayName}";
+            var tooltip     = $"Invoke the {entry.DisplayName} non-channel behavior action. (AN8: compile lowering pending)";
+
+            // Capture for closure.
+            var bakedFqn = entry.Id; // FQN is the canonical identity (AQ2).
+
+            yield return new NodeKindDescriptor
+            {
+                Kind        = kind,
+                DisplayName = displayName,
+                Category    = category,
+                Tooltip     = tooltip,
+                Icon        = "",
+                // AN7: bake ActionFqn at create-time — node is immutably pre-configured.
+                // ChannelType + ActionId remain empty (non-channel path).
+                CreateInstance = () => new ChannelCommandNode
+                {
+                    Id        = Guid.NewGuid(),
+                    ActionFqn = bakedFqn,
                 },
             };
         }

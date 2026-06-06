@@ -77,6 +77,13 @@ public static class BlueprintDocumentFactory
     ///   <c>QuickReloadService.BuildSiblingSignatures</c>.  When null,
     ///   <see cref="CallPeerBlueprintNode"/>s fall back to static exec+Return pins.
     /// </param>
+    /// <param name="behaviorActions">
+    ///   AN7 — optional unified behavior-action catalog forwarded (alongside
+    ///   <paramref name="channelCommands"/>) to <see cref="BlueprintGraphModel"/> and
+    ///   <see cref="BlueprintCommandSink"/> so that non-channel <see cref="ChannelCommandNode"/>s
+    ///   (i.e. those with <c>ActionFqn</c> set) project their parameter data-IN pins from the
+    ///   matching catalog entry's params type.  When null, non-channel action nodes are exec-only.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -91,7 +98,8 @@ public static class BlueprintDocumentFactory
         NodeKindRegistry?       paletteRegistry = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
         IChannelCommandCatalog? channelCommands = null,
-        IAssetCatalog?          peerAssetCatalog = null)
+        IAssetCatalog?          peerAssetCatalog = null,
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -133,7 +141,7 @@ public static class BlueprintDocumentFactory
         IPinDefaultValueEditorRegistry editorRegistry =
             new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
-            editorRegistry, enumProvider);
+            editorRegistry, enumProvider, behaviorActions);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(editorRegistry);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
@@ -158,7 +166,7 @@ public static class BlueprintDocumentFactory
         var commandSink = new BlueprintCommandSink(
             bpAsset, graph, graphModel, nodeCatalog, validator, history,
             localEditService, markDirty, channelCommands: channelCommands,
-            enumProvider: enumProvider);
+            enumProvider: enumProvider, behaviorActions: behaviorActions);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
         var renderers = BuildRenderers(extraRenderers);

@@ -41,6 +41,9 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly IPinDefaultValueEditorRegistry? _editorRegistry;
     // ENUM-NAME: provider used to resolve persisted member-name strings back to long for the editor.
     private readonly IEnumValueProvider? _enumProvider;
+    // AN7: unified behavior-action catalog so non-channel ChannelCommandNodes (ActionFqn set)
+    // project their parameter data-IN pins. Mirrors how _channelCommands is threaded.
+    private readonly ActionCatalog.IBehaviorActionCatalog? _behaviorActions;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -81,6 +84,12 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// enum defaults persisted as member name strings (ENUM-NAME) are resolved to the correct
     /// <c>long</c> when the canvas inline editor first reads the pin default.
     /// </param>
+    /// <param name="behaviorActions">
+    /// AN7 — optional unified behavior-action catalog forwarded to
+    /// <see cref="NodePinSchema.GetCanonicalPins"/> so a non-channel <see cref="ChannelCommandNode"/>
+    /// (one whose <c>ActionFqn</c> is set) projects its parameter data-IN pins from the matching
+    /// catalog entry's params type. When <see langword="null"/> such nodes fall back to exec-only.
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
@@ -88,7 +97,8 @@ public sealed class BlueprintGraphModel : IGraphModel
         IChannelCommandCatalog? channelCommands = null,
         Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
         IPinDefaultValueEditorRegistry? editorRegistry = null,
-        IEnumValueProvider? enumProvider = null)
+        IEnumValueProvider? enumProvider = null,
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null)
     {
         _asset                = asset ?? throw new ArgumentNullException(nameof(asset));
         _graph                = graph ?? throw new ArgumentNullException(nameof(graph));
@@ -97,6 +107,7 @@ public sealed class BlueprintGraphModel : IGraphModel
         _peerSignatureLookup  = peerSignatureLookup;
         _editorRegistry       = editorRegistry;
         _enumProvider         = enumProvider;
+        _behaviorActions      = behaviorActions;
         Rebuild();
     }
 
@@ -172,7 +183,7 @@ public sealed class BlueprintGraphModel : IGraphModel
 
         foreach (var assetNode in _graph.Nodes)
         {
-            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands, _graph, _peerSignatureLookup);
+            var canonicalPins = NodePinSchema.GetCanonicalPins(assetNode, _kindRegistry, _asset, _channelCommands, _graph, _peerSignatureLookup, _behaviorActions);
 
             // Separate incident links by direction.
             linksFromNode.TryGetValue(assetNode.Id, out var outLinks);
