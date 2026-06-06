@@ -248,3 +248,85 @@ public sealed class HsmSyncGroupPickerDrawer : IImGuiFieldDrawer, IPickerListSou
         return changed;
     }
 }
+
+/// <summary>
+/// Factory: builds the <see cref="IReadOnlyDictionary{Type,IImGuiFieldDrawer}"/> consumed by
+/// <see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> for a specific
+/// HSM asset. Called by EditorSubsystem from the <c>ActiveChanged</c> callback whenever the
+/// active HSM document switches (SE2).
+/// </summary>
+public static class HsmPickerDrawerFactory
+{
+    /// <summary>
+    /// Creates a fresh custom-drawers map for <paramref name="asset"/>.
+    /// The map contains:
+    /// <list type="bullet">
+    ///   <item>A <see cref="HsmCompositeStringDrawer"/> keyed by <c>typeof(string)</c>, dispatching
+    ///         <see cref="HsmActionPickerAttribute"/>, <see cref="HsmGuardPickerAttribute"/>,
+    ///         <see cref="HsmStateSelectorAttribute"/>, and <see cref="HsmEventPickerAttribute"/>.</item>
+    ///   <item>A <see cref="HsmSyncGroupPickerDrawer"/> keyed by <c>typeof(ushort)</c> for
+    ///         sync-group fields.</item>
+    /// </list>
+    /// </summary>
+    public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(HsmAsset asset)
+    {
+        if (asset is null) throw new ArgumentNullException(nameof(asset));
+
+        var composite = new HsmCompositeStringDrawer()
+            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset))
+            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset))
+            .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
+            .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset));
+
+        return new Dictionary<Type, IImGuiFieldDrawer>
+        {
+            [typeof(string)] = composite,
+            [typeof(ushort)] = new HsmSyncGroupPickerDrawer(asset),
+        };
+    }
+}
+
+/// <summary>
+/// Composite string drawer for HSM: dispatches to attribute-specific sub-drawers
+/// when a recognised HSM picker attribute is present on the <see cref="EditNode"/>'s field.
+/// Falls through to a plain text input when no marker attribute matches.
+/// </summary>
+internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
+{
+    private readonly Dictionary<Type, IImGuiFieldDrawer> _byAttribute = new();
+
+    public Type TargetType => typeof(string);
+
+    public HsmCompositeStringDrawer Register<TAttribute>(IImGuiFieldDrawer drawer) where TAttribute : Attribute
+    {
+        _byAttribute[typeof(TAttribute)] = drawer;
+        return this;
+    }
+
+    public IImGuiFieldDrawer? Resolve(EditNode node)
+    {
+        if (node is null) return null;
+        foreach (var attr in node.Metadata.CustomAttributes)
+        {
+            if (_byAttribute.TryGetValue(attr.GetType(), out var drawer))
+                return drawer;
+        }
+        return null;
+    }
+
+    public bool DrawInput(ref object value, EditNode node)
+    {
+        var sub = Resolve(node);
+        if (sub is not null)
+            return sub.DrawInput(ref value, node);
+
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
+        var s = value as string ?? string.Empty;
+        if (ImGuiNET.ImGui.InputText("##str", ref s, 256))
+        {
+            value = s;
+            return true;
+        }
+        return false;
+    }
+}

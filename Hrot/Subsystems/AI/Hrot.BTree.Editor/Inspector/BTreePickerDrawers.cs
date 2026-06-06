@@ -118,6 +118,41 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
 }
 
 /// <summary>
+/// Factory: builds the <see cref="IReadOnlyDictionary{Type,IImGuiFieldDrawer}"/> consumed by
+/// <see cref="Hrot.Editor.AiShared.Windows.InspectorWindow.SetFacetEditService"/> for a specific
+/// BTree asset. Called by EditorSubsystem from the <c>ActiveChanged</c> callback whenever the
+/// active BTree document switches (SE2).
+/// </summary>
+public static class BTreePickerDrawerFactory
+{
+    /// <summary>
+    /// Creates a fresh custom-drawers map for <paramref name="asset"/>.
+    /// The map contains a single <see cref="CompositeStringDrawer"/> keyed by
+    /// <see cref="typeof(string)"/>; the composite dispatches:
+    /// <list type="bullet">
+    ///   <item><see cref="BehaviorHashPickerAttribute"/> → <see cref="BehaviorHashPickerDrawer"/></item>
+    ///   <item><see cref="BlackboardFieldPickerAttribute"/> → <see cref="BlackboardFieldPickerDrawer"/></item>
+    /// </list>
+    /// </summary>
+    public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
+        BehaviorTreeAsset asset,
+        BehaviorRegistry  registry)
+    {
+        if (asset    is null) throw new ArgumentNullException(nameof(asset));
+        if (registry is null) throw new ArgumentNullException(nameof(registry));
+
+        var composite = new CompositeStringDrawer()
+            .Register<BehaviorHashPickerAttribute>(new BehaviorHashPickerDrawer(registry))
+            .Register<BlackboardFieldPickerAttribute>(new BlackboardFieldPickerDrawer(asset));
+
+        return new Dictionary<Type, IImGuiFieldDrawer>
+        {
+            [typeof(string)] = composite,
+        };
+    }
+}
+
+/// <summary>
 /// Composite string drawer that dispatches to attribute-specific sub-drawers
 /// when a recognised picker attribute is present on the <see cref="EditNode"/>'s field.
 /// Falls through to a plain text input when no marker attribute matches.

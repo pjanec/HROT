@@ -1898,6 +1898,34 @@ namespace Hrot.Editor
                 _hsmSelectionStore.ActiveAsset         = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)        ? active.Asset : null;
                 _blueprintSelectionStore.ActiveAsset   = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)  ? active.Asset : null;
 
+                // SE2: Rebuild picker-drawer maps for the newly active BTree / HSM asset so that
+                // attribute-dispatched dropdowns (BehaviorHash, BlackboardField, HSM action/guard/
+                // state/event) reflect the fields and methods of the live document rather than a
+                // stale, fixed-at-ctor asset.  The maps are small (1–2 entries) and built cheaply
+                // from the asset already in memory — no I/O.  Calling SetFacetEditService also
+                // drops the cached StructEdit session so the next render opens a fresh one against
+                // the correct facet type (harmless when the asset type did not change).
+                if (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree
+                    && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
+                    && _behaviorRegistry is not null)
+                {
+                    var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(btreeAsset, _behaviorRegistry);
+                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
+                }
+                else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
+                    && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
+                {
+                    var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(hsmAsset);
+                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
+                }
+                else
+                {
+                    // Switching to Blueprint or clearing: reset pickers to null (plain-text fallback).
+                    // The edit service itself remains so the inspector still renders struct fields.
+                    _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
+                    _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, null);
+                }
+
                 // AIE-047/048: Retarget Blueprint-specific windows.
                 if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
                 {
