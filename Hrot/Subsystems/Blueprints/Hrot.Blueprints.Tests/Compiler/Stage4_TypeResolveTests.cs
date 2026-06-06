@@ -143,6 +143,90 @@ public sealed class Stage4_TypeResolveTests
         Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1500);
     }
 
+    // ---- AN2: Enum TypeRef (global:: prefix) resolves as unmanaged ------
+
+    /// <summary>
+    /// AN2: A variable typed with a "global::" enum FQN must resolve in the FieldTypes map
+    /// (no BP1500) because StaticTypeRegistry accepts "global::" TypeIds as enum/project types
+    /// (unmanaged, size 4).
+    /// </summary>
+    [Fact]
+    public void TypeResolve_EnumTypeRef_GlobalPrefix_Resolves()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("EnumTest")
+            .Build();
+
+        // Manually add a variable with a global:: enum TypeId (the editor-stamped convention).
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "Mode",
+            Type = new BlueprintTypeRef { TypeId = "global::Hrot.Game.CombatMode" },
+        });
+
+        var sink   = new DiagnosticSink();
+        var result = Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        var varId = asset.Variables[0].Id;
+        Assert.True(result.FieldTypes.ContainsKey(varId),
+            "Expected enum variable (global:: prefix) to resolve in FieldTypes map.");
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1500);
+    }
+
+    /// <summary>
+    /// AN2: A resolved enum IrTypeRef must be unmanaged with SizeBytes = 4
+    /// (default Int32 underlying type).
+    /// </summary>
+    [Fact]
+    public void TypeResolve_EnumTypeRef_GlobalPrefix_IsUnmanagedSize4()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("EnumTest2")
+            .Build();
+
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "State",
+            Type = new BlueprintTypeRef { TypeId = "global::Hrot.Game.PatrolState" },
+        });
+
+        var sink   = new DiagnosticSink();
+        var result = Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        var varId = asset.Variables[0].Id;
+        Assert.True(result.FieldTypes.TryGetValue(varId, out var irType),
+            "Enum variable should have resolved IrTypeRef.");
+        Assert.True(irType.IsUnmanaged, "Enum IrTypeRef must be unmanaged.");
+        Assert.Equal(4, irType.SizeBytes);
+    }
+
+    /// <summary>
+    /// AN2: An Instance blueprint variable typed as a "global::" enum must NOT emit BP1503
+    /// (managed-type-in-state constraint). Enums are unmanaged blittable types.
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1503")]
+    public void TypeResolve_EnumVariable_DoesNotEmitBP1503()
+    {
+        var asset = BlueprintAssetBuilder
+            .Instance("EnumBP1503Test")
+            .Build();
+
+        asset.Variables.Add(new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "Stance",
+            Type = new BlueprintTypeRef { TypeId = "global::Hrot.Game.CombatStance" },
+        });
+
+        var sink = new DiagnosticSink();
+        Stage4_TypeResolve.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1503);
+    }
+
     // ---- BP1502: Wildcard node pin unresolvable  -----------------------
     // Note: BP1502 is emitted only if an ArrayMakeNode/ArrayGetNode's
     // element type cannot be propagated. Validated via coverage attribute.

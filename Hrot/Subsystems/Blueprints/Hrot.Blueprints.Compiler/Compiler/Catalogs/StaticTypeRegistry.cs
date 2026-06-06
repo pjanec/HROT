@@ -107,7 +107,37 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             return true;
         }
 
-        return TypeTable.TryGetValue(typeRef.TypeId, out irType!);
+        if (TypeTable.TryGetValue(typeRef.TypeId, out irType!))
+            return true;
+
+        // AN2: Enum / project-type acceptance.
+        // The editor persists enum TypeIds using the "global::" prefix (e.g. "global::Ns.MyEnum").
+        // The reflection-less compiler cannot verify membership or size, so we accept any
+        // "global::" TypeId as an unmanaged value type with the default enum underlying size of 4
+        // bytes (System.Int32 backing -- the overwhelmingly common case).  The generator emits a
+        // direct cast "(global::FQN)N" whose correctness is validated by the downstream C# compiler.
+        // This is the "trust the JSON FQN + emit a cast" strategy documented in ENUM-DESIGN.md §RESOLVED.
+        //
+        // CONTRACT (AN2): the ASSET-level BlueprintTypeRef.TypeId for an enum carries the explicit
+        // "global::" sentinel (= "global::" + FQN), per ENUM-DESIGN.md §RESOLVED / architect Q2.
+        // The compiler-internal IrTypeRef.FullName is the UNPREFIXED FQN ("Ns.MyEnum"), consistent
+        // with every other IrTypeRef.FullName (e.g. "System.Single", "Fdp.Core.FixedString32").
+        // StatementEmitter.TypeRefToCSharp re-adds the "global::" exactly once on emit. Stripping the
+        // prefix here is REQUIRED -- keeping it would emit "global::global::Ns.MyEnum" (CS0234).
+        if (!string.IsNullOrEmpty(typeRef.TypeId) &&
+            typeRef.TypeId.StartsWith("global::", StringComparison.Ordinal))
+        {
+            irType = new IrTypeRef
+            {
+                FullName    = typeRef.TypeId.Substring("global::".Length),
+                IsUnmanaged = true,
+                SizeBytes   = 4,   // default: System.Int32 underlying type
+            };
+            return true;
+        }
+
+        irType = null!;
+        return false;
     }
 
     public bool TryGetCoercion(IrTypeRef from, IrTypeRef to, out string coercionExpression)
