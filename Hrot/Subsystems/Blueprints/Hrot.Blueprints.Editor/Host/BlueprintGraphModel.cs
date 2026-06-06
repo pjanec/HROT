@@ -38,6 +38,7 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly NodeKindRegistry? _kindRegistry;
     private readonly IChannelCommandCatalog? _channelCommands;
     private readonly Func<Guid, BlueprintSignature?>? _peerSignatureLookup;
+    private readonly IPinDefaultValueEditorRegistry? _editorRegistry;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -66,18 +67,27 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// exported function signature.  When <see langword="null"/> those nodes fall back to the
     /// static exec In/Out + Return:System.Object shape.
     /// </param>
+    /// <param name="editorRegistry">
+    /// Optional pin-default-value editor registry.  When non-null, unconnected In-data pins
+    /// whose type has a registered editor expose a non-null <see cref="IPinModel.Default"/> even
+    /// before a value has been set, so the inline widget renders at zero on first use.
+    /// When null (default), the legacy behavior applies: <c>Default</c> is only non-null when
+    /// a value has already been persisted in <see cref="Node.PinDefaults"/>.
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
         NodeKindRegistry? kindRegistry = null,
         IChannelCommandCatalog? channelCommands = null,
-        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null)
+        Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
+        IPinDefaultValueEditorRegistry? editorRegistry = null)
     {
         _asset                = asset ?? throw new ArgumentNullException(nameof(asset));
         _graph                = graph ?? throw new ArgumentNullException(nameof(graph));
         _kindRegistry         = kindRegistry;
         _channelCommands      = channelCommands;
         _peerSignatureLookup  = peerSignatureLookup;
+        _editorRegistry       = editorRegistry;
         Rebuild();
     }
 
@@ -247,7 +257,7 @@ public sealed class BlueprintGraphModel : IGraphModel
                     TypeRef      = pin.TypeRef,
                     DefaultValue = defaultVal,
                 };
-                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId));
+                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry));
             }
             resolvedPinLists[assetNode.Id] = resolvedPins;
         }

@@ -40,6 +40,11 @@ public static class BlueprintEditorBootstrap
         // BATCH-03D1: Register FunctionCallNode drawer
         registry.Register(typeof(FunctionCallNode), new FunctionCallNodeDrawer(editService));
 
+        // BF-BATCH-0607-FIX-B: Register ChannelCommandNode drawer so designers can select
+        // the channel action (ChannelType + ActionId) via a Combo, which then causes
+        // NodePinSchema.ChannelCommandPins to project the matching param data-IN pins.
+        registry.Register(typeof(ChannelCommandNode), new ChannelCommandNodeDrawer(channelCatalog, editService));
+
         // ANC-P5-08a: Register PlayMontageChainNode drawer (if animation queries available)
         if (animationQueries != null && currentClassProvider != null)
         {

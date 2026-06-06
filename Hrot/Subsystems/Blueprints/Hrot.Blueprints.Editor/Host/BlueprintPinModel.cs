@@ -21,15 +21,44 @@ internal sealed class BlueprintPinModel : IPinModel
     public string?      Tooltip     { get; }
 
     /// <summary>
-    /// Returns an <see cref="IPinDefaultValue"/> for unconnected input data pins whose
-    /// <see cref="Hrot.Blueprints.Core.Assets.Pin.DefaultValue"/> has been set; null otherwise.
-    /// The canvas inline-editor only renders when this is non-null.
+    /// Returns an <see cref="IPinDefaultValue"/> for unconnected input data pins.
+    /// <para>
+    /// When a <paramref name="editorRegistry"/> is supplied and the pin's type has a
+    /// registered editor, <c>Default</c> is <b>always</b> non-null for unconnected
+    /// In-data pins — even when <see cref="Hrot.Blueprints.Core.Assets.Pin.DefaultValue"/>
+    /// has not been set yet.  In that case <see cref="BlueprintPinDefaultValue"/> synthesises
+    /// a type-zero boxed value (0 / 0f / false / "") so the widget can render immediately.
+    /// </para>
+    /// <para>
+    /// When no registry is supplied (legacy two-arg ctor, headless tests), the previous
+    /// behaviour is preserved: <c>Default</c> is non-null only when
+    /// <see cref="Hrot.Blueprints.Core.Assets.Pin.DefaultValue"/> is already set.
+    /// </para>
+    /// The canvas <c>NodeRenderer.DrawInlineEditors</c> already hides the editor when the
+    /// pin is connected (<c>connectedInputPins.Contains(p.Id)</c>) — do not re-implement
+    /// that guard here.
     /// </summary>
     public IPinDefaultValue? Default { get; }
 
+    /// <summary>
+    /// Constructs a BlueprintPinModel without an editor registry (legacy / headless-test path).
+    /// <c>Default</c> is non-null only when <paramref name="pin"/>.DefaultValue is already set.
+    /// </summary>
     public BlueprintPinModel(
         Hrot.Blueprints.Core.Assets.Pin pin,
         NodeId ownerNodeId)
+        : this(pin, ownerNodeId, editorRegistry: null)
+    { }
+
+    /// <summary>
+    /// Constructs a BlueprintPinModel with an optional editor registry.
+    /// When <paramref name="editorRegistry"/> is non-null and the pin's type has a registered
+    /// editor, <c>Default</c> is always non-null for unconnected In-data pins (showing type-zero).
+    /// </summary>
+    public BlueprintPinModel(
+        Hrot.Blueprints.Core.Assets.Pin pin,
+        NodeId ownerNodeId,
+        IPinDefaultValueEditorRegistry? editorRegistry)
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
@@ -42,9 +71,25 @@ internal sealed class BlueprintPinModel : IPinModel
             : PinShape.Circle;
 
         // Expose a default-value container for unconnected input data pins.
-        // Direction=="In", Kind==Data, and a persisted DefaultValue are all required.
-        if (!pin.IsExec && pin.Direction == "In" && pin.DefaultValue != null)
-            Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, pin.DefaultValue);
+        // Conditions: !Exec AND Direction=="In".
+        // With registry: always show when the type has a registered editor (even if DefaultValue==null).
+        // Without registry (legacy): only when DefaultValue is already persisted.
+        if (!pin.IsExec && pin.Direction == "In")
+        {
+            if (pin.DefaultValue != null)
+            {
+                // Always expose persisted default value.
+                Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, pin.DefaultValue);
+            }
+            else if (editorRegistry != null)
+            {
+                // No persisted value yet — show a type-zero editor only when the type has
+                // a registered editor (avoids empty/blank widgets for unsupported types).
+                var typeKey = new TypeKey(pin.TypeRef.TypeId);
+                if (editorRegistry.GetEditor(typeKey) != null)
+                    Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, rawValue: null);
+            }
+        }
     }
 }
 
@@ -62,7 +107,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     public object? Value    { get; }
     public PinDefaultMetadata Metadata => _noMeta;
 
-    public BlueprintPinDefaultValue(string typeId, string rawValue)
+    public BlueprintPinDefaultValue(string typeId, string? rawValue)
     {
         Value = ParseValue(typeId, rawValue);
     }
@@ -71,10 +116,30 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     /// Convert the persisted string representation to the boxed CLR type expected by the
     /// built-in mini-editors (BoolPinEditor → bool, IntPinEditor → int, etc.).
     /// Falls back to the raw string for unknown/string types.
+    /// <para>
+    /// When <paramref name="rawValue"/> is <c>null</c> or empty, returns the type's
+    /// zero value (0 / 0f / false / "") so a freshly-placed unset pin renders at zero
+    /// rather than showing nothing.
+    /// </para>
     /// </summary>
-    public static object? ParseValue(string typeId, string rawValue)
+    public static object? ParseValue(string typeId, string? rawValue)
     {
-        if (rawValue == null) return null;
+        // Null / empty raw value → synthesise a type-zero for known numeric/bool types,
+        // empty string for System.String, and null for completely unknown types.
+        if (string.IsNullOrEmpty(rawValue))
+        {
+            return typeId switch
+            {
+                "System.Boolean" => (object)false,
+                "System.Int32"   => (object)0,
+                "System.Single"  => (object)0f,
+                "System.Double"  => (object)0.0,
+                "System.Byte"    => (object)(byte)0,
+                "System.UInt32"  => (object)0u,
+                "System.String"  => (object)"",
+                _                => null,   // unsupported type — no widget shown
+            };
+        }
         return typeId switch
         {
             "System.Boolean" => bool.TryParse(rawValue, out var b)  ? b     : false,

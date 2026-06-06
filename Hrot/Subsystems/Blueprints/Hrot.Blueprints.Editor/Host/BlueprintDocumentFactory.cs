@@ -117,11 +117,14 @@ public static class BlueprintDocumentFactory
         // parameter data-IN pins from the matching catalog entry's params type (projection-only).
         // The peerSignatureLookup (when peerAssetCatalog is non-null) lets CallPeerBlueprintNodes
         // project typed argument pins from the peer's exported function signature.
+        // The editor registry is created first so BlueprintGraphModel can use it to expose
+        // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
-        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup);
+        var editorRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
+            editorRegistry);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
-        var typeSystem   = new BlueprintTypeSystem(
-            PinDefaultValueEditorRegistry.CreateWithBuiltins());
+        var typeSystem   = new BlueprintTypeSystem(editorRegistry);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
         var history      = new CommandHistory();
 
