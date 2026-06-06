@@ -22,9 +22,179 @@ internal static class Stage3_Normalize
     private static BlueprintAsset MaterializeDefaultPinLiterals(
         BlueprintAsset asset, ValidationContext ctx)
     {
-        // Pin model has no DefaultLiteralJson in Slice 1; defaults come from
-        // graph Inputs (ParameterDecl.DefaultValueJson). No-op for now.
+        var newGraphs = new List<Graph>(asset.Graphs.Count);
+        foreach (var graph in asset.Graphs)
+            newGraphs.Add(MaterializeDefaultPinLiteralsInGraph(graph, asset));
+        asset.Graphs = newGraphs;
         return asset;
+    }
+
+    /// <summary>
+    /// For each unconnected data-IN pin that carries a default value (from
+    /// <c>Node.PinDefaults[pinName]</c> or <c>Pin.DefaultValue</c>), synthesize
+    /// a <see cref="LiteralNode"/> whose <c>ValueJson</c> is a valid C# literal
+    /// and wire it to that pin.  Pins with NO default are left unchanged so that
+    /// Stage 5 still emits BP4001 for them.
+    /// </summary>
+    private static Graph MaterializeDefaultPinLiteralsInGraph(Graph graph, BlueprintAsset asset)
+    {
+        // Build a set of pin IDs that already have an incoming data link
+        // (so we never synthesize a duplicate link for a connected pin).
+        var connectedPinIds = new HashSet<Guid>(
+            graph.Links.Select(l => l.ToPinId));
+
+        var extraNodes = new List<Node>();
+        var extraLinks = new List<Link>();
+
+        foreach (var node in graph.Nodes)
+        {
+            foreach (var pin in node.Pins)
+            {
+                // Only materialize unconnected data-IN pins.
+                if (pin.IsExec || pin.Direction != "In") continue;
+                if (connectedPinIds.Contains(pin.Id)) continue;
+
+                // Resolve default value: PinDefaults bag is the live editor path;
+                // Pin.DefaultValue is an alternative storage.
+                string? rawDefault = null;
+                if (node.PinDefaults != null &&
+                    node.PinDefaults.TryGetValue(pin.Name, out var bagValue) &&
+                    !string.IsNullOrEmpty(bagValue))
+                    rawDefault = bagValue;
+                else if (!string.IsNullOrEmpty(pin.DefaultValue))
+                    rawDefault = pin.DefaultValue;
+
+                if (rawDefault is null) continue;   // no default → leave for BP4001
+
+                // Format the raw default as a C# literal based on the pin's TypeId.
+                var typeId = pin.TypeRef?.TypeId ?? "";
+                var csharpLiteral = FormatDefaultLiteral(typeId, rawDefault);
+                if (csharpLiteral is null) continue;  // unsupported type, skip silently
+
+                // Synthesize a deterministic LiteralNode ID.
+                var litNodeId  = SynthesizedGuid("default-literal", graph.Id, node.Id, pin.Id);
+                var litPinId   = SynthesizedGuid("default-literal-pin", graph.Id, node.Id, pin.Id);
+
+                var litNode = new LiteralNode
+                {
+                    Id        = litNodeId,
+                    TypeId    = typeId,
+                    ValueJson = csharpLiteral,
+                    Pins = new List<Pin>
+                    {
+                        new Pin
+                        {
+                            Id        = litPinId,
+                            Name      = "Value",
+                            Direction = "Out",
+                            IsExec    = false,
+                            TypeRef   = pin.TypeRef ?? new BlueprintTypeRef(),
+                        },
+                    },
+                };
+                extraNodes.Add(litNode);
+                extraLinks.Add(new Link
+                {
+                    FromNodeId = litNodeId,
+                    FromPinId  = litPinId,
+                    ToNodeId   = node.Id,
+                    ToPinId    = pin.Id,
+                });
+            }
+        }
+
+        if (extraNodes.Count == 0) return graph;
+
+        // Return a new graph with the synthesized nodes and links appended.
+        return new Graph
+        {
+            Id             = graph.Id,
+            Name           = graph.Name,
+            Kind           = graph.Kind,
+            Inputs         = graph.Inputs,
+            Outputs        = graph.Outputs,
+            EditorMetadata = graph.EditorMetadata,
+            Nodes          = graph.Nodes.Concat(extraNodes).ToList(),
+            Links          = graph.Links.Concat(extraLinks).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Converts a raw default-value string (as stored in <c>PinDefaults</c> / <c>Pin.DefaultValue</c>)
+    /// to a valid C# literal for the given <paramref name="typeId"/>.
+    /// Returns <c>null</c> if the type is unsupported or the value is empty.
+    /// </summary>
+    private static string? FormatDefaultLiteral(string typeId, string rawValue)
+    {
+        if (string.IsNullOrEmpty(rawValue)) return null;
+
+        // Enum: TypeId starts with "global::" per AN2 convention.
+        // Emit  (global::Ns.MyEnum)<integer>
+        // The TypeId already contains "global::" so no extra prefix is added.
+        if (typeId.StartsWith("global::", StringComparison.Ordinal))
+            return $"({typeId}){rawValue}";
+
+        switch (typeId)
+        {
+            // --- Signed / unsigned integer primitives ---
+            case "System.Int32":
+                return rawValue;                              // "42" is a valid int literal
+            case "System.Int64":
+                return $"{rawValue}L";
+            case "System.UInt32":
+                return $"{rawValue}u";
+            case "System.UInt64":
+                return $"{rawValue}ul";
+            case "System.Int16":
+                return $"(short){rawValue}";
+            case "System.UInt16":
+                return $"(ushort){rawValue}";
+            case "System.Byte":
+                return $"(byte){rawValue}";
+            case "System.SByte":
+                return $"(sbyte){rawValue}";
+
+            // --- Floating-point ---
+            case "System.Single":
+                // Ensure the literal has an "f" suffix so C# infers float not double.
+                if (rawValue.EndsWith("f", StringComparison.OrdinalIgnoreCase) ||
+                    rawValue.EndsWith("F", StringComparison.OrdinalIgnoreCase))
+                    return rawValue;
+                return $"{rawValue}f";
+            case "System.Double":
+                if (rawValue.EndsWith("d", StringComparison.OrdinalIgnoreCase) ||
+                    rawValue.EndsWith("D", StringComparison.OrdinalIgnoreCase))
+                    return rawValue;
+                return $"{rawValue}d";
+            case "System.Decimal":
+                return $"{rawValue}m";
+
+            // --- Boolean ---
+            case "System.Boolean":
+                // Normalise to lowercase true/false.
+                return rawValue.Equals("true", StringComparison.OrdinalIgnoreCase) ? "true" : "false";
+
+            // --- Managed string ---
+            case "System.String":
+                // Escape backslashes and double-quotes, wrap in double-quotes.
+                var escaped = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return $"\"{escaped}\"";
+
+            // --- Fdp.Core fixed-length strings ---
+            case "Fdp.Core.FixedString32":
+            {
+                var esc = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return $"new global::Fdp.Core.FixedString32(\"{esc}\")";
+            }
+            case "Fdp.Core.FixedString64":
+            {
+                var esc = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                return $"new global::Fdp.Core.FixedString64(\"{esc}\")";
+            }
+
+            default:
+                return null;   // unknown type — leave pin for BP4001
+        }
     }
 
     // -----------------------------------------------------------------------
