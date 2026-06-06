@@ -80,9 +80,10 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
       Slice-2 partition allocator is future). No handle, no Wait node. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
 
 ## Phase 6 -- BTree/HSM StructEdit inspector + param binding (Blackboard Slice 1.5)
-- [ ] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop [B5; architect gotcha "foundational first step"]: replace the stubbed `DrawClientArea` "Apply" button with the active `StructEdit IComponentEditService` dispatch over the mapped facets. BTree/HSM facet fields render + edit; **enum combos come free** (ComponentEditDrawer reflection). -> [details](./TASK-DETAIL.md#se1----wire-inspectorwindow-structedit)
-- [ ] **REVIEW-V2** -- user smoke: BTree/HSM facet fields render + edit in the Inspector; enum fields show combos.
-- [ ] **BB1+** -- BTree/HSM per-param binding [B6]: extend facets to project the action DTO's fields; per-field type-filtered `[BlackboardFieldPicker]` + static literals + sub-tree sync sub-panel (Approach A/B). LARGE -- break into sub-batches aligned to Blackboard DD §15 slice plan (TASK-BB-*). -> [details](./TASK-DETAIL.md#bb1----btreehsm-per-param-binding)
+- [x] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop -> commit `2bd9ba67`. Facet fields render live (enum→combo, bool→checkbox, number/string) + composition-root wiring; pickers plain-text (completed in SE2).
+- [x] **SE2** -- Per-asset facet picker dropdowns (BTree BehaviorHash/BlackboardField; HSM action/guard/state/event) via re-register on ActiveChanged -> commit `98992bda`.
+- [~] **REVIEW-V2** -- SKIPPED per user (overnight run); folded into the morning review (see MORNING-HANDOFF.md): confirm facet rows render+edit, enum combos, picker dropdowns.
+- [ ] **BB1+** -- BTree/HSM per-param binding [B6]: project the action DTO's fields -> per-field static literal OR `[BlackboardFieldPicker]` blackboard-var binding; sub-tree sync (Approach A/B). **DEFERRED from the overnight run (STOP-LINE): needs a NEW persisted binding schema + doesn't fit the static-facet model = a design decision to make WITH the user, not blind-built.** Next major task. -> [details](./TASK-DETAIL.md#bb1----btreehsm-per-param-binding)
 
 ---
 
