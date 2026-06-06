@@ -1,0 +1,99 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000000-aaaa-0001-0000-00000000ee01",
+  "Name": "EnumDemo",
+  "Dispatch": 1,
+  "TierHint": 0,
+  "Primitive": {
+    "Intent": 0,
+    "Hostings": [
+      0
+    ]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e500ee01-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "f500ee01-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "f500ee01-0002-0002-0002-000000000001",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "DemoEnumAction",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 420.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "f500ee01-0003-0003-0003-000000000001",
+          "Status": 0,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 760.0,
+            "Y": 220.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f500ee01-0001-0001-0001-000000000001",
+          "FromPinId": "e5eeee01-0001-a001-0001-000000000001",
+          "ToNodeId": "f500ee01-0002-0002-0002-000000000001",
+          "ToPinId": "e5eeee01-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f500ee01-0002-0002-0002-000000000001",
+          "FromPinId": "e5eeee01-0002-a001-0001-000000000001",
+          "ToNodeId": "f500ee01-0003-0003-0003-000000000001",
+          "ToPinId": "e5eeee01-0003-b001-0001-000000000001"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Enum Demo (AN6)",
+      "Category": "AI Primitives",
+      "Description": "DEMO recipe for AN6 enum-pin editor testing. EventEntry → DemoEnumAction (LocomotionChannel, ActionId 99) → Return. Select the DemoEnumAction node to see the Stance enum combo (Standing/Crouching/Prone) in the Details panel. Runtime no-op — no executor registered for ActionId 99. REMOVABLE once a real enum-field ChannelCommand exists.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "AN6 enum pin combo: DemoStance field renders as Standing/Crouching/Prone dropdown",
+        "AN2 compiler acceptance of global::-prefixed enum TypeIds",
+        "AN1 default-literal materialization: Stance compiles to (global::Fdp.Toolkit.Behavior.Demo.DemoStance)0",
+        "AN4 per-action palette: DemoEnumAction appears under Channel/Locomotion in the node picker"
+      ]
+    }
+  }
+}

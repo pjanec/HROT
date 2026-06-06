@@ -1,5 +1,35 @@
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
+## ✅ ROUND-3 RESOLVED (architect + user, 2026-06-06) — generalized behavior-action node
+
+**Decision (user agrees): behavior actions are standalone, multi-tick NODES — NOT `FunctionCall` (CLR) calls.**
+A behavior action's channel-poking is an implementation detail; the action is identified by itself, not a channel.
+
+- **One generalized "behavior-action invocation" node** is the universal dispatcher for ALL actions — channel
+  commands AND non-channel `[SharedAiAction]`/`[BTreeAction]`/`[HsmAction]`/AiPrimitives. The existing
+  `ChannelCommandNode` class is **repurposed/generalized under the hood** to be this node (it gains a non-channel
+  action identity alongside the channel `(ChannelType, ActionId)`).
+- **Palette** = one entry per action from the **unified catalog (AN3)** spanning `IChannelCommandCatalog` +
+  `ActionSchemaExporter`. Non-channel actions are **named by their FQN** (`{Namespace}.{Type}.{Method}`); no
+  channel in their identity. (AN4 currently emits only the channel-command subset — generalize it.)
+- **Immutable + dynamic pins** (D-B): drop an action → bake its identity (FQN, or channel+actionId) → immutable;
+  `NodePinSchema.GetCanonicalPins` projects one data-IN pin per `ParamsTypeFqn` field (enum fields per AN6).
+- **`FunctionCall` is explicitly the WRONG primitive for behavior actions.** FunctionCall = pure Library utilities
+  / synchronous instance methods, lowered to direct inline C# calls. Behavior actions have a state-machine
+  signature `(entity, ECS context, params DTO) -> NodeStatus` (Success/Failure/**Running**), and must be lowered
+  via `BehaviorRegistry`/`HsmActionDispatcher` context-injection + routing, natively supporting suspension
+  (`NodeStatus.Running`, like `WaitForChannel`). FunctionCall stays for math/pure/instance calls only.
+
+**What this re-scopes (tasks added — see TASK-DETAIL Phase 5C):**
+- AN4/AN5 (channel-command palette + immutable drawer) are the **channel SUBSET** of the generalized node — done.
+- **AN7 (editor):** generalize the node + palette to non-channel actions — node carries an action FQN; palette
+  emits ActionSchemaExporter entries (named by FQN); NodePinSchema projects pins from the non-channel action's
+  `ParamsTypeFqn`; drawer shows the action identity read-only.
+- **AN8 (compiler, LARGE):** lower a non-channel behavior-action invocation node in a Blueprint —
+  `(self, ctx, paramsDTO) -> NodeStatus` via `BehaviorRegistry`, with Success/Failure exec routing and
+  Running/suspend (mirroring the channel-command + WaitForChannel latent path). New emit path.
+- **Enum sample:** a sample behavior action with an enum-typed param (the live enum-editor test vehicle).
+
 ## ✅ ROUND-2 RESOLVED (architect + user, 2026-06-06) — authoritative
 
 **AQ1 — per-action nodes:** Keep a **single generalized node kind** (`ChannelCommandNode`); the **palette is

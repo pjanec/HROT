@@ -308,6 +308,45 @@ Phase 5A is intended as ONE large autonomous (headless-verifiable) push; 5B is t
 
 ---
 
+# Phase 5C -- Generalize to non-channel behavior actions (ROUND-3; ACTION-NODE-DESIGN.md §ROUND-3)
+
+## ENUM-SAMPLE -- enum-param action for live testing
+- **Goal:** give the user a behavior action whose param DTO has an ENUM field, so the AN6 enum pin combo is
+  live-testable (render + persist + compile). No existing channel-command DTO has an enum field, and the
+  variable-type picker doesn't offer enums — so there is no live enum surface today.
+- **Approach (testable NOW with AN1/AN2/AN6 + the AN4 channel palette):** add a small DEMO enum + a blittable
+  demo param struct (with the enum field + maybe one primitive) in a reflectable assembly (Hrot.AI.Behaviors or a
+  toolkit), and a `BuiltInChannelCommandCatalog` entry referencing it (reuse an existing channel FQN, e.g.
+  LocomotionChannel, with an unused ActionId). The per-action palette then surfaces it; dropping it projects an
+  enum data-IN pin (combo); setting a value persists to PinDefaults and compiles to `(global::FQN)N` (AN1). Mark
+  clearly as a DEMO (removable). Runtime no-op (no executor for the demo ActionId) — that's fine; this is an
+  authoring/compile test.
+- **Verify:** palette shows the demo action; NodePinSchema projects the enum pin with a `global::` TypeId; the
+  recipe/asset compiles; headless tests. Live combo render = REVIEW.
+
+## AN7 -- Generalize node + palette to non-channel actions
+- **Goal:** the generalized behavior-action node dispatches non-channel actions too (`[SharedAiAction]` etc.).
+- **Do (editor):** give the node (ChannelCommandNode, repurposed) a non-channel **action FQN** identity alongside
+  the channel `(ChannelType, ActionId)`; generate palette entries from the AN3 unified catalog's NON-channel
+  actions (named by FQN); `NodePinSchema.GetCanonicalPins` projects pins from the action's `ParamsTypeFqn`
+  (reflect the DTO; enum fields per AN6); drawer shows the action identity read-only (AN5 pattern). Bake identity
+  at create (immutable, D-B).
+- **Verify:** palette lists non-channel actions by FQN; placement bakes the FQN + projects its param pins;
+  headless. Compile of such a node depends on AN8.
+
+## AN8 -- Compiler lowering for non-channel behavior-action invocation
+- **Goal (LARGE):** lower a non-channel behavior-action node in a Blueprint graph. Unlike a channel command (CQRS
+  write) or FunctionCall (inline), it invokes the action with the state-machine signature
+  `(self, ECS context, params DTO) -> global::Fbt.NodeStatus` via `BehaviorRegistry` routing, with the params
+  built from the data-IN pins; Success/Failure drive exec-out; **Running suspends** (mirror the
+  channel-command + `WaitForChannel` latent/`BlueprintLatentCursor` path — dispatch-aware per the architect's
+  WaitForChannel note). Confirm how BehaviorRegistry exposes an invokable thunk for an action FQN at runtime and
+  how the blueprint obtains/calls it.
+- **Verify:** e2e compile + (where feasible) execute a blueprint invoking a non-channel action; golden/emit tests;
+  0 new failures. Sequence after AN7.
+
+---
+
 ## Conventions (every batch)
 - Delegate implementation + test-fix to a `sonnet` coder; lead plans, reviews hard, verifies independently,
   commits per batch (message file `.git/BFxx_MSG.txt`, trailer `Co-Authored-By: Claude Opus 4.8 ...`).

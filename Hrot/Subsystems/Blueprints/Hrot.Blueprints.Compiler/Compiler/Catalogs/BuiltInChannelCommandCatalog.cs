@@ -23,5 +23,12 @@ public sealed class BuiltInChannelCommandCatalog : IChannelCommandCatalog
             // directly from the entity.  Leave System.Int32 as a safe no-op placeholder so
             // NodePinSchema emits a single value pin (exec-only degradation path).
             new("EjectPassengers",  "Fdp.Toolkit.Behavior.Components.InteractionChannel", 3, "System.Int32"),
+
+            // ── DEMO — AN6 enum-pin editor live test (REMOVABLE) ──────────────────────────
+            // ActionId 99 is intentionally unused on LocomotionChannel (no executor).
+            // Purpose: palette surfaces this action; NodePinSchema projects a DemoStance data-IN
+            // pin with TypeId "global::Fdp.Toolkit.Behavior.Demo.DemoStance" (AN6 stamping),
+            // which the EnumSentinelPinEditorRegistry routes to EnumPinEditor for the combo.
+            new("DemoEnumAction",   "Fdp.Toolkit.Behavior.Components.LocomotionChannel", 99, "Fdp.Toolkit.Behavior.Demo.DemoEnumActionParams"),
         };
 }

@@ -63,6 +63,19 @@ AN2 `176b329c`, AN1 `81227f70`, AN6 `9f8690f7`, AN3 `9d932a73`, AN4 `addeeb9b`, 
 ### Phase 5B -- Visual review gate (running editor)
 - [ ] **REVIEW-V1** -- user smoke: per-action palette lists actions; dropping one creates an immutable node with baked param pins + read-only action labels; enum-typed pins show a combo; setting an enum default + compile produces `(global::FQN)N` and runs. Fix findings as focused follow-ups.
 
+## Phase 5C -- Generalize to non-channel behavior actions (ROUND-3 design; ACTION-NODE-DESIGN.md §ROUND-3)
+The generalized "behavior-action invocation" node (ChannelCommandNode repurposed) dispatches ALL actions, not
+just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT used for behavior actions.
+- [x] **ENUM-SAMPLE** -- a sample behavior action with an enum-typed parameter so the enum pin editor (AN6) is
+      live-testable (combo render + persist + compile). -> [details](./TASK-DETAIL.md#enum-sample----enum-param-action-for-live-testing)
+- [ ] **AN7** -- Editor: generalize node + palette to non-channel actions. The node carries an action FQN
+      (alongside channel ChannelType/ActionId); palette emits one entry per `ActionSchemaExporter` action (named
+      by FQN, via the AN3 unified catalog); `NodePinSchema` projects pins from the non-channel action's
+      `ParamsTypeFqn`; drawer shows the action identity read-only (AN5 pattern). -> [details](./TASK-DETAIL.md#an7----generalize-node--palette-to-non-channel-actions)
+- [ ] **AN8** -- Compiler (LARGE): lower a non-channel behavior-action invocation in a Blueprint —
+      `(self, ctx, paramsDTO) -> NodeStatus` via `BehaviorRegistry`, Success/Failure exec routing + Running/suspend
+      (mirror the channel-command + WaitForChannel latent path). New emit path. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
+
 ## Phase 6 -- BTree/HSM StructEdit inspector + param binding (Blackboard Slice 1.5)
 - [ ] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop [B5; architect gotcha "foundational first step"]: replace the stubbed `DrawClientArea` "Apply" button with the active `StructEdit IComponentEditService` dispatch over the mapped facets. BTree/HSM facet fields render + edit; **enum combos come free** (ComponentEditDrawer reflection). -> [details](./TASK-DETAIL.md#se1----wire-inspectorwindow-structedit)
 - [ ] **REVIEW-V2** -- user smoke: BTree/HSM facet fields render + edit in the Inspector; enum fields show combos.
