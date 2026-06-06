@@ -190,6 +190,124 @@ Completed batches reference their report for full file:line detail rather than d
 
 ---
 
+# Phase 4.6 -- Build-break + live-editor fixes (DONE; recorded for history)
+
+## NODESTATUS -- emit Fbt.NodeStatus
+- **Done** `908b8a2f`. AiPrimitive/function-graph emit referenced compiler-only `Hrot.Blueprints.Core.Assets.NodeStatus`
+  (only an analyzer ref in the game asm) -> CS0234; also ordinal-inverted vs `Fbt.NodeStatus`. Fixed: emit
+  `global::Fbt.NodeStatus` in AiPrimitiveEmitter (x5 + drop the `(int)` cast), LibraryEmitter, TerminatorEmitter,
+  StatementEmitter (WaitLowering literal). Goldens re-baselined. Compiler's internal enum unchanged.
+
+## UX1 -- live-editor usability
+- **Done** `3a53c235`. (A) Gate blueprint auto-quick-reload behind `_blueprintAutoReloadOnEdit=false` in
+  `EditorSubsystem` flushAction -> no Roslyn recompile on node move/edit (use toolbar buttons). (B) `BlueprintCommandSink`
+  takes `IChannelCommandCatalog`; `ApplyPinIds` passes it -> ChannelCommand projects param pins (was exec-only). (C)
+  `BlueprintSelectionBridgeHelper` + `AiGraphCanvasWindow.AfterDraw` -> publishes `BlueprintNodeSelection` so Details
+  resolves (bridge was never wired in prod). (D) deleted stub `GraphEditorWindow` + registration + tests. **Needs
+  running-editor re-test.**
+
+## FIXEDSTRING -- Fdp.Core.FixedString32/64 pin types
+- **Done** `2bc9ae11`. StaticTypeRegistry (Unmanaged 32/64) + BlueprintTypeSystem constants/colors/SelectableTypeIds
+  + host-side `StringPinEditor` registration in BlueprintDocumentFactory + ParseValue cases + EditorTypesDemo pin +
+  11 tests. NOTE: inline defaults don't compile yet for ANY type (Stage3 stub) -> see AN1.
+
+---
+
+# Phase 5 -- Unified behavior-action nodes + enums (NOT STARTED)
+Design: [ENUM-DESIGN.md](./ENUM-DESIGN.md) §RESOLVED, [ACTION-NODE-DESIGN.md](./ACTION-NODE-DESIGN.md) §ROUND-2.
+Phase 5A is intended as ONE large autonomous (headless-verifiable) push; 5B is the running-editor review gate.
+
+## AN1 -- Stage-3 default-literal materialization
+- **Goal (architect gotcha):** make unconnected In-data pin defaults actually reach generated C#. Today
+  `Stage3_Normalize.MaterializeDefaultPinLiterals` is a **no-op stub** — authored literals (int/float/FixedString/
+  enum) render+persist (`Node.PinDefaults`/`Pin.DefaultValue`) but never compile.
+- **Do:** implement the pass to synthesize literal sources for unconnected data-IN pins: primitives -> raw literal;
+  `Fdp.Core.FixedString32/64` -> `new global::Fdp.Core.FixedStringNN("...")`; **enum -> `(global::FQN)N`** (integer
+  cast, per architect Q3). Feeds `IrOp_Const` (StatementEmitter emits `CSharpLiteral` verbatim). Respect projection-only.
+- **Files:** `Compiler/Stages/Stage3_Normalize.cs`, `Compiler/Emit/StatementEmitter.cs` (IrOp_Const), `Assets/GraphTypes.cs` (Pin.DefaultValue), `Assets/Nodes.cs` (Node.PinDefaults).
+- **Verify (autonomous):** golden + e2e compile tests for a blueprint with enum/FixedString/int literal defaults;
+  build 0/0; 0 new failures.
+
+## AN2 -- StaticTypeRegistry enum-FQN acceptance
+- **Goal:** enum-typed pins/params/vars resolve + pack in the reflection-less compiler. The compiler can't reflect,
+  so the **editor stamps** the enum's metadata into the persisted `BlueprintTypeRef` (`FullName`=enum FQN,
+  `IsUnmanaged=true`, `SizeBytes`=underlying size via `Enum.GetUnderlyingType` at edit time, default 4).
+- **Do:** make `StaticTypeRegistry.TryResolve` / the type-resolve path accept such a TypeRef (or treat an unknown
+  FQN carrying IsUnmanaged+SizeBytes as valid). Confirm Stage-4 (`CheckUnmanagedConstraint`) passes enums in
+  Variables/WorkingState. (First, a small investigation: confirm how a pin/var TypeRef flows vs StaticTypeRegistry
+  lookup, so the stamped TypeRef is honored.)
+- **Files:** `Compiler/Catalogs/StaticTypeRegistry.cs`, `Compiler/Stages/Stage4_TypeResolve.cs`, editor type-stamping
+  site (where a pin/var TypeRef is built — `BlueprintTypeSystem`/`NodePinSchema`/variable-create).
+- **Verify (autonomous):** resolve an enum TypeRef (unmanaged, size 4); enum var passes BP1503; headless tests.
+
+## AN3 -- Unified behavior-action catalog
+- **Goal:** one facade enumerating ALL behavior actions for palette/inspector generation.
+- **Do:** `IBehaviorActionCatalog` returning entries `{ FqnOrId, DisplayName, Category/Channel, ParamsTypeFqn,
+  ValidHosts(Blueprint/BTree/HSM), Source(ChannelCommand|Hardcoded|AiPrimitive) }`, composing `IChannelCommandCatalog`
+  + `IActionSchemaExporter` (which already reflects `[BTreeAction]`/`[HsmAction]`/`[SharedAiAction]` + AiPrimitives).
+  Canonical identity = generated **FQN** (`{Namespace}.{Type}.{Method}`), not AssetId (architect AQ2).
+- **Files:** new in `Hrot.Editor.AiShared` (near `Blackboard/ActionSchemaExporter.cs`) + `IChannelCommandCatalog`
+  (Hrot.Blueprints.Compiler/Compiler/Catalogs). Rebuild on catalog `Changed` (post-reload).
+- **Verify (autonomous):** enumerates channel + hardcoded + (post-build) AiPrimitive actions; headless tests with fakes.
+
+## AN4 -- Per-action palette generation
+- **Goal:** "one action = one node" via the palette, single underlying node kind.
+- **Do:** generate one palette entry per `IBehaviorActionCatalog` action over the single `ChannelCommandNode` kind
+  (replace the single generic entry at `BlueprintNodePaletteEntries.cs:108`); each entry presets `(ChannelType,
+  ActionId)`/action id; on drop, the node bakes those props and `NodePinSchema.GetCanonicalPins` projects pins from
+  `ParamsTypeFqn`.
+- **Files:** `NodeDrawers/BlueprintNodePaletteEntries.cs`, `BlueprintEditorBootstrap.CreatePaletteRegistry`.
+- **Verify (autonomous):** one entry per catalog action; placement bakes props + projects param pins (headless).
+
+## AN5 -- Immutable action selection
+- **Goal:** no runtime action-swap (chameleon hazard). Action fixed at create.
+- **Do:** `ChannelCommandNodeDrawer` renders ChannelType/ActionId as **read-only labels** (remove the editable
+  Combo) once the node exists; selection happens only via the AN4 palette at create-time. No JSON migration
+  (fields already persisted).
+- **Files:** `NodeDrawers/ChannelCommandNodeDrawer.cs`.
+- **Verify:** headless logic (drawer exposes no mutation for action id); read-only render confirmed in REVIEW-V1.
+
+## AN6 -- Blueprint enum data pins
+- **Goal:** enum-typed Blueprint data pins get a combo editor (System B).
+- **Do:** implement an `IEnumValueProvider` that reflects project enums (net8.0 editor) -> `EnumValueEntry[]`;
+  register `EnumPinEditor(provider)` for enum TypeKeys in `BlueprintDocumentFactory` (after CreateWithBuiltins; do
+  NOT edit the framework factory); `BlueprintPinModel.ParseValue` enum case (parse/persist as **int/long**);
+  `BlueprintTypeSystem` enum color/name (grey fallback already exists). Pairs with AN1 (compile) + AN2 (resolve).
+- **Files:** new `IEnumValueProvider` impl (Hrot.Blueprints.Editor.Host), `Host/BlueprintDocumentFactory.cs`,
+  `Host/BlueprintPinModel.cs`, `Host/BlueprintTypeSystem.cs`.
+- **Verify (autonomous):** provider returns members for a test enum; registry returns EnumPinEditor for an enum
+  TypeKey; ParseValue round-trips an int; headless. Combo render confirmed in REVIEW-V1.
+
+## REVIEW-V1 (Phase 5B gate)
+- Running editor: per-action palette lists actions; drop -> immutable node, baked param pins, read-only action
+  labels; enum pin shows combo; set an enum default + compile -> `(global::FQN)N` in generated code, runs.
+
+---
+
+# Phase 6 -- BTree/HSM StructEdit inspector + param binding (NOT STARTED; Blackboard Slice 1.5)
+
+## SE1 -- Wire InspectorWindow StructEdit
+- **Goal (architect gotcha, foundational):** replace the stubbed `InspectorWindow.DrawClientArea` "Apply" button
+  with the active `StructEdit IComponentEditService` dispatch over the mapped facets. BTree/HSM facet fields then
+  render + edit; **enum combos come free** (ComponentEditDrawer reflection).
+- **Files:** `Hrot.Editor.AiShared/Windows/InspectorWindow.cs` (~208-213 stub), the StructEdit `IComponentEditService`
+  wiring, `HsmFacetDispatcher`/`BTreeFacets` (already wired).
+- **Verify:** facet structs render headlessly where possible (service builds an EditDocument); REVIEW-V2 visual.
+
+## REVIEW-V2 (gate)
+- Running editor: BTree/HSM facet fields render + edit in the Inspector; enum fields show combos.
+
+## BB1+ -- BTree/HSM per-param binding
+- **Goal:** per-action-param authoring in BTree/HSM: static literal OR bind to a blackboard variable.
+- **Do (LARGE; break down per Blackboard DD §15 TASK-BB-*):** extend `BTreeActionFacet`/HSM facets to **project the
+  action DTO's fields** (today only `MethodFqn` + single `ExpressionTargetField`); per-field type-filtered
+  `[BlackboardFieldPicker]` (dropdown of matching blackboard vars) + static-literal entry; sub-tree Parameter
+  Synchronization sub-panel (Approach A alias / Approach B sync, Blackboard DD §7/§8). Aligns with
+  `docs/blueprints/Blackboard_Authoring_Detailed_Design.md`.
+- **Verify:** headless facet/binding tests; multiple REVIEW gates for the visual binding UX.
+
+---
+
 ## Conventions (every batch)
 - Delegate implementation + test-fix to a `sonnet` coder; lead plans, reviews hard, verifies independently,
   commits per batch (message file `.git/BFxx_MSG.txt`, trailer `Co-Authored-By: Claude Opus 4.8 ...`).

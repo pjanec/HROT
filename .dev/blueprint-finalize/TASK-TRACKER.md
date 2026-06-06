@@ -40,6 +40,31 @@ Status legend: `[ ]` open / `[~]` in progress / `[x]` done (verified + committed
 - [~] **BATCH-08** -- Fonts: engine multi-size atlas — DEFERRED (lead): engine-level font RENDERING (no NodeEdit wire-up path); genuinely needs visual/engine iteration in the running editor, not headless-doable with confidence. -> [details](./TASK-DETAIL.md#batch-08----fonts-multi-size-atlas)
 - [~] **BATCH-09** -- Comments / reroutes / containers — READY but DEFERRED pending a visual checkpoint: NodeEdit infra exists (ICommentModel/IContainerNodeModel, renderers, demo Fakes S06/S26/S27/S35) so it's wire-able, BUT it's a LARGE multi-feature batch that adds NEW persisted asset model (comment boxes/containers/reroutes — must stay JsonIgnore-when-empty for byte-stability) and is deeply visual (unverifiable headlessly). Recommend visually smoke-testing BATCH-06/07 first, then do this with quick visual course-correction. -> [details](./TASK-DETAIL.md#batch-09----comments--reroutes--containers)
 
+## Phase 4.6 -- Build-break + live-editor fixes (session 2026-06-06)
+
+- [x] **NODESTATUS** -- AiPrimitive/function-graph emit `global::Fbt.NodeStatus` (fix CS0234 in the game assembly + the inverted Success/Failure ordinal cast) -> commit `908b8a2f` -> [details](./TASK-DETAIL.md#nodestatus----emit-fbtnodestatus)
+- [x] **UX1** -- reload-on-edit gate (no Roslyn recompile on node move/edit; opt-in default-false) + ChannelCommand pin-collapse fix (ApplyPinIds passes channel catalog) + selection->Details bridge (was never wired in prod) + delete stub `GraphEditorWindow` -> commit `3a53c235`; **needs running-editor re-test** -> [details](./TASK-DETAIL.md#ux1----live-editor-usability)
+- [x] **FIXEDSTRING** -- `Fdp.Core.FixedString32/64` as blueprint string pin types (StaticTypeRegistry + BlueprintTypeSystem + host StringPinEditor registration + ParseValue + demo) -> commit `2bc9ae11` -> [details](./TASK-DETAIL.md#fixedstring----fdpcorefixedstring3264-pin-types)
+
+## Phase 5 -- Unified behavior-action nodes + enums
+**Design (CONVERGED, architect-reviewed):** [ENUM-DESIGN.md](./ENUM-DESIGN.md) §RESOLVED + [ACTION-NODE-DESIGN.md](./ACTION-NODE-DESIGN.md) §ROUND-2 RESOLVED. Decisions D-A (handle=channel), D-B (one action=one node, action baked at create, pins immutable). Roadmap B1-B6 mapped to batches below.
+
+### Phase 5A -- Autonomous foundation (headless-verifiable; NO visual review needed; intended as one large push)
+- [ ] **AN1** -- Stage-3 default-literal materialization [B4; architect gotcha]: implement `Stage3_Normalize.MaterializeDefaultPinLiterals` (currently a no-op stub) so unconnected In-data pin defaults reach generated C# -- enum -> `(global::FQN)N`, FixedString32/64 -> `new global::Fdp.Core.FixedStringNN("...")`, primitives -> literal. Pure compiler; golden + compile tests. -> [details](./TASK-DETAIL.md#an1----stage-3-default-literal-materialization)
+- [ ] **AN2** -- StaticTypeRegistry enum-FQN acceptance [B3-compiler]: accept an enum-typed `BlueprintTypeRef` (FullName=enum FQN, IsUnmanaged=true, SizeBytes=underlying, editor-stamped) as a valid unmanaged type so enum pins/params/vars resolve + pack. (Resolve the reflection-less "how is size known" detail: editor stamps it into the persisted TypeRef.) Headless tests. -> [details](./TASK-DETAIL.md#an2----statictyperegistry-enum-fqn-acceptance)
+- [ ] **AN3** -- Unified behavior-action catalog [B2-core]: facade `IBehaviorActionCatalog` over `IChannelCommandCatalog` + `IActionSchemaExporter` enumerating all actions `{ FQN/id, Category/Channel, ParamsTypeFqn, validHosts, source }` (channel commands + hardcoded `[BTreeAction]`/`[HsmAction]`/`[SharedAiAction]` + blueprint `AiPrimitive`s). Headless tests. -> [details](./TASK-DETAIL.md#an3----unified-behavior-action-catalog)
+- [ ] **AN4** -- Per-action palette generation [B2]: emit one palette entry per catalog action (preset channel/actionId or action FQN) over the single `ChannelCommandNode` kind; placing one bakes the action id. Headless test (entries per action; placement bakes props + projects pins). -> [details](./TASK-DETAIL.md#an4----per-action-palette-generation)
+- [ ] **AN5** -- Immutable action selection [B1]: action fixed at create; `ChannelCommandNodeDrawer` renders ChannelType/ActionId as read-only labels (no Combo). No JSON migration. Headless logic test. -> [details](./TASK-DETAIL.md#an5----immutable-action-selection)
+- [ ] **AN6** -- Blueprint enum data pins [B3-editor]: `IEnumValueProvider` (reflect project enums) + register `EnumPinEditor` in `BlueprintDocumentFactory` + `BlueprintPinModel.ParseValue` enum case (persist int) + `BlueprintTypeSystem` enum color/name. Headless tests (provider members; registry returns EnumPinEditor; ParseValue round-trips). -> [details](./TASK-DETAIL.md#an6----blueprint-enum-data-pins)
+
+### Phase 5B -- Visual review gate (running editor)
+- [ ] **REVIEW-V1** -- user smoke: per-action palette lists actions; dropping one creates an immutable node with baked param pins + read-only action labels; enum-typed pins show a combo; setting an enum default + compile produces `(global::FQN)N` and runs. Fix findings as focused follow-ups.
+
+## Phase 6 -- BTree/HSM StructEdit inspector + param binding (Blackboard Slice 1.5)
+- [ ] **SE1** -- Wire `InspectorWindow` -> StructEdit render loop [B5; architect gotcha "foundational first step"]: replace the stubbed `DrawClientArea` "Apply" button with the active `StructEdit IComponentEditService` dispatch over the mapped facets. BTree/HSM facet fields render + edit; **enum combos come free** (ComponentEditDrawer reflection). -> [details](./TASK-DETAIL.md#se1----wire-inspectorwindow-structedit)
+- [ ] **REVIEW-V2** -- user smoke: BTree/HSM facet fields render + edit in the Inspector; enum fields show combos.
+- [ ] **BB1+** -- BTree/HSM per-param binding [B6]: extend facets to project the action DTO's fields; per-field type-filtered `[BlackboardFieldPicker]` + static literals + sub-tree sync sub-panel (Approach A/B). LARGE -- break into sub-batches aligned to Blackboard DD §15 slice plan (TASK-BB-*). -> [details](./TASK-DETAIL.md#bb1----btreehsm-per-param-binding)
+
 ---
 
 ## Pre-existing test failures (NOT regressions -- do not chase)
@@ -48,6 +73,15 @@ AiPrimitiveEmitGolden (×2 cases), LibraryEmitGolden, LibraryMath snapshot, Move
 ConditionSummary, AllocationFree. Plus the flaky sub-150ns WhenNode perf test under load (DEBT-014; passes
 in isolation). Every batch must keep the failing set a SUBSET of these (0 new) unless it intentionally
 re-baselines a golden (BATCH-04 resolved the 3 Instance goldens).
+
+**Update (2026-06-06, session-verified):** NODESTATUS re-baselined the AiPrimitive goldens (MoveToAndFire/
+HasVisibleTarget) for the `Fbt.NodeStatus` change. A clean run then shows **2 real** failures: `ConditionSummary`
+"ScoreCrossed" + `AllocationFree` "AllocatesZeroBytes". The `Library`/`LibraryMath` demo snapshots can still
+appear failing due to a **bin-copy / CRLF-vs-LF test-infra quirk** — `TestData.ResolveSnapshotsDir` resolves to
+the `bin/Debug/net8.0/Snapshots` COPY, so a stale/partial build or line-ending diff makes them flap even when the
+SOURCE golden is byte-correct (`git -c core.autocrlf=false diff` empty). To regenerate a SOURCE golden you must
+`rm -rf bin/.../Snapshots` first (else regen writes to bin). Do NOT chase these as regressions; verify final runs
+WITHOUT `BLUEPRINT_REGENERATE_SNAPSHOTS` (regen mode writes snapshots → masks mismatches).
 
 ## Done-definition for this thread
 Multi-blueprint editor use is safe (BATCH-01); compiled blueprints observable by field name (BATCH-04);
