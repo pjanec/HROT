@@ -84,9 +84,13 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     {
         if (key.IsEmpty)
             return new Vector4(1f, 1f, 1f, 1f); // exec: white
-        return _types.TryGetValue(key.Id, out var t)
-            ? t.Color
-            : new Vector4(0.8f, 0.8f, 0.8f, 1f); // unknown: grey
+        if (_types.TryGetValue(key.Id, out var t))
+            return t.Color;
+        // Enum pins carry a "global::" prefix (AN2 sentinel); render in a distinct lavender.
+        if (!string.IsNullOrEmpty(key.Id)
+            && key.Id.StartsWith("global::", StringComparison.Ordinal))
+            return new Vector4(0.65f, 0.55f, 0.85f, 1f); // lavender
+        return new Vector4(0.8f, 0.8f, 0.8f, 1f); // unknown: grey
     }
 
     /// <inheritdoc/>

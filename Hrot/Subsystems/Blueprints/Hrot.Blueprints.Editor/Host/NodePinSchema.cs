@@ -562,6 +562,13 @@ internal static class NodePinSchema
     /// Returns the public instance fields and read/write properties of <paramref name="type"/>
     /// as <c>(Name, TypeFqn)</c> pairs, in declaration order.  Returns an empty list for
     /// primitives, enums and types with no decomposable members.
+    /// <para>
+    /// <b>Enum fields:</b> when a field's CLR type <c>IsEnum</c>, the TypeFqn is stamped with
+    /// the <c>"global::"</c> prefix (<c>"global::" + field.FieldType.FullName</c>) so the
+    /// emitted <see cref="BlueprintTypeRef.TypeId"/> matches the AN2 compiler sentinel.
+    /// The compiler then resolves the enum as an unmanaged type (size 4) and emits
+    /// <c>(global::FQN)N</c> for the default literal.  Non-enum fields are unchanged.
+    /// </para>
     /// </summary>
     private static List<(string Name, string TypeFqn)> ReflectDataMembers(Type type)
     {
@@ -572,13 +579,17 @@ internal static class NodePinSchema
         try
         {
             foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-                result.Add((field.Name, field.FieldType.FullName ?? field.FieldType.Name));
+            {
+                var typeFqn = EnumStampedTypeFqn(field.FieldType);
+                result.Add((field.Name, typeFqn));
+            }
 
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 if (prop.GetIndexParameters().Length > 0) continue; // skip indexers
                 if (!prop.CanRead) continue;
-                result.Add((prop.Name, prop.PropertyType.FullName ?? prop.PropertyType.Name));
+                var typeFqn = EnumStampedTypeFqn(prop.PropertyType);
+                result.Add((prop.Name, typeFqn));
             }
         }
         catch
@@ -587,6 +598,25 @@ internal static class NodePinSchema
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Returns the TypeFqn string for a CLR member type.
+    /// <para>
+    /// When <paramref name="memberType"/> is an enum, returns
+    /// <c>"global::" + memberType.FullName</c> so the resulting
+    /// <see cref="BlueprintTypeRef.TypeId"/> matches the AN2 compiler sentinel.
+    /// For all other types, returns <c>memberType.FullName ?? memberType.Name</c>.
+    /// </para>
+    /// </summary>
+    private static string EnumStampedTypeFqn(Type memberType)
+    {
+        if (memberType.IsEnum)
+        {
+            var fqn = memberType.FullName ?? memberType.Name;
+            return "global::" + fqn;
+        }
+        return memberType.FullName ?? memberType.Name;
     }
 
     // ── reflection helpers ────────────────────────────────────────────────────

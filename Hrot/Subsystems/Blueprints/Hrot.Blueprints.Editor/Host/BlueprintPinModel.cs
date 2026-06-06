@@ -121,9 +121,24 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     /// zero value (0 / 0f / false / "") so a freshly-placed unset pin renders at zero
     /// rather than showing nothing.
     /// </para>
+    /// <para>
+    /// <b>Enum pins</b> (<c>typeId</c> starts with <c>"global::"</c>): the persisted value is an
+    /// integer string (per ENUM-DESIGN.md §RESOLVED — byte-stable, survives member renames).
+    /// Returns <c>(long)N</c> so <see cref="NodeEditor.UI.MiniEditors.EnumPinEditor.Draw"/>
+    /// can index the combo (<c>value is long</c> check).  Null/empty → <c>0L</c>.
+    /// </para>
     /// </summary>
     public static object? ParseValue(string typeId, string? rawValue)
     {
+        // Enum sentinel: "global::" prefix (AN2 contract).
+        // Persisted as integer string; return long for EnumPinEditor.Draw.
+        if (!string.IsNullOrEmpty(typeId)
+            && typeId.StartsWith("global::", StringComparison.Ordinal))
+        {
+            if (string.IsNullOrEmpty(rawValue)) return 0L;
+            return long.TryParse(rawValue, out var enumLong) ? enumLong : 0L;
+        }
+
         // Null / empty raw value → synthesise a type-zero for known numeric/bool types,
         // empty string for System.String, and null for completely unknown types.
         if (string.IsNullOrEmpty(rawValue))
@@ -156,7 +171,7 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                                     out var d) ? d : 0.0,
             "System.Byte"    => byte.TryParse(rawValue,   out var by) ? by  : (byte)0,
             "System.UInt32"  => uint.TryParse(rawValue,   out var u)  ? u   : 0u,
-            _                => rawValue,   // string, enum raw int string, unknown → raw string
+            _                => rawValue,   // string, unknown → raw string
         };
     }
 
