@@ -27,7 +27,7 @@ internal static class TerminatorEmitter
                 break;
 
             case IrTerm_ReturnStatus t:
-                e.WriteLine($"return global::Hrot.Blueprints.Core.Assets.NodeStatus.{t.Status};");
+                e.WriteLine($"return global::Fbt.NodeStatus.{t.Status};");
                 break;
 
             case IrTerm_Suspend:

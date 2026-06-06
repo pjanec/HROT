@@ -30,7 +30,7 @@ internal static class StatementEmitter
                 {
                     // Qualify NodeStatus.* literals synthesized by WaitLowering stages.
                     var literal = op.CSharpLiteral.StartsWith("NodeStatus.", StringComparison.Ordinal)
-                        ? $"global::Hrot.Blueprints.Core.Assets.{op.CSharpLiteral}"
+                        ? $"global::Fbt.{op.CSharpLiteral}"
                         : op.CSharpLiteral;
                     e.WriteLine($"var __t{idx} = {literal};");
                 }
@@ -822,10 +822,9 @@ internal static class StatementEmitter
             // The type suffix of the op name (last segment after the final '_').
             string typeSuffix = parts[parts.Length - 1];
 
-            // NodeStatus comparison: the channel struct uses Fbt.NodeStatus while the compiler
-            // WaitLowering constants use Hrot.Blueprints.Core.Assets.NodeStatus.  These are
-            // two different enums; C# won't allow == between them directly (CS0019).
-            // Cast both sides to int so the underlying byte/int value is compared.
+            // NodeStatus comparison: both operands are now global::Fbt.NodeStatus (the emitted
+            // WaitLowering constants also use global::Fbt.NodeStatus since the FQN prefix fix).
+            // The (int) casts are therefore defensive/redundant but kept to avoid golden churn.
             if (typeSuffix == "NodeStatus" && (infix == "==" || infix == "!="))
             {
                 infixExpr = $"((int)__t{args[0].Index} {infix} (int)__t{args[1].Index})";

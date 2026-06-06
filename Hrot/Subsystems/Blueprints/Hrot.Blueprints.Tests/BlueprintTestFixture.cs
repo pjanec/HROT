@@ -523,7 +523,10 @@ public static class ThrowingRegistrar
 
         var paramsBoxed = Activator.CreateInstance(paramsType)!;
         var args = new object?[] { paramsBoxed, wsBoxed, entity, World, View.Time };
-        var status = (NodeStatus)tickCore.Invoke(null, args)!;
+        var rawStatus = tickCore.Invoke(null, args)!;
+        // TickCore now returns global::Fbt.NodeStatus; convert by name so tests keep using
+        // the compiler's NodeStatus enum without caring about differing ordinals.
+        var status = (NodeStatus)Enum.Parse(typeof(NodeStatus), rawStatus.ToString()!);
 
         // args[1] contains the updated WorkingState after invocation (ref param updated in-place).
         _persistedWorkingState[stateKey] = args[1]!;

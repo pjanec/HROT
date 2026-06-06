@@ -36,7 +36,7 @@ public static class MoveToAndFire_649F8F53_Bp
         *dst = default;
     }
     
-    public static global::Hrot.Blueprints.Core.Assets.NodeStatus TickCore(
+    public static global::Fbt.NodeStatus TickCore(
         ref Params p,
         ref WorkingState ws,
         global::Fdp.Core.Entity self,
@@ -46,7 +46,9 @@ public static class MoveToAndFire_649F8F53_Bp
         {
         }
         
-        return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;
+        #pragma warning disable CS0162 // Unreachable code (fallback)
+        return global::Fbt.NodeStatus.Failure;
+        #pragma warning restore CS0162
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
@@ -70,7 +72,7 @@ public static class MoveToAndFire_649F8F53_Bp
                     InitDefaultWorkingState((WorkingState*)(memory + 8));
                 }
                 ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return (global::Fbt.NodeStatus)(int)TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
+                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
             }
         }
     }

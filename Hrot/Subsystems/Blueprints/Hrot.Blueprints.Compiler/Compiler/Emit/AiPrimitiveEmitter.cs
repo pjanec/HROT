@@ -102,7 +102,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitTickCore(CSharpEmitter e, IrAsset asset)
     {
-        e.WriteLine("public static global::Hrot.Blueprints.Core.Assets.NodeStatus TickCore(");
+        e.WriteLine("public static global::Fbt.NodeStatus TickCore(");
         e.Indent();
         e.WriteLine("ref Params p,");
         e.WriteLine("ref WorkingState ws,");
@@ -122,7 +122,9 @@ internal static class AiPrimitiveEmitter
         // Fallback: ensures the method always compiles when the graph body does not
         // terminate every control-flow path (e.g. stub/placeholder graphs in Phase 3).
         // Unreachable if the graph already returns on all paths.
-        e.WriteLine("return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;");
+        e.WriteLine("#pragma warning disable CS0162 // Unreachable code (fallback)");
+        e.WriteLine("return global::Fbt.NodeStatus.Failure;");
+        e.WriteLine("#pragma warning restore CS0162");
 
         e.Outdent();
         e.WriteLine("}");
@@ -188,7 +190,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return (global::Fbt.NodeStatus)(int)TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
+        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -227,7 +229,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;");
+        e.WriteLine("return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -285,7 +287,7 @@ internal static class AiPrimitiveEmitter
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine("ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);");
-        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;");
+        e.WriteLine("return TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime) == global::Fbt.NodeStatus.Success;");
         e.Outdent();
         e.WriteLine("}");
         e.Outdent();
@@ -294,7 +296,7 @@ internal static class AiPrimitiveEmitter
 
     private static void EmitBlueprintCallThunk(CSharpEmitter e)
     {
-        e.WriteLine("public static global::Hrot.Blueprints.Core.Assets.NodeStatus Call(");
+        e.WriteLine("public static global::Fbt.NodeStatus Call(");
         e.Indent();
         e.WriteLine("ref Params p,");
         e.WriteLine("ref WorkingState ws,");

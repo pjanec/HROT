@@ -34,7 +34,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
         *dst = default;
     }
     
-    public static global::Hrot.Blueprints.Core.Assets.NodeStatus TickCore(
+    public static global::Fbt.NodeStatus TickCore(
         ref Params p,
         ref WorkingState ws,
         global::Fdp.Core.Entity self,
@@ -44,7 +44,9 @@ public static class HasVisibleTarget_96FB0E6E_Bp
         {
         }
         
-        return global::Hrot.Blueprints.Core.Assets.NodeStatus.Failure;
+        #pragma warning disable CS0162 // Unreachable code (fallback)
+        return global::Fbt.NodeStatus.Failure;
+        #pragma warning restore CS0162
     }
     
     public static unsafe bool BTreeEvaluate(
@@ -68,7 +70,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
                     InitDefaultWorkingState((WorkingState*)(memory + 8));
                 }
                 ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Hrot.Blueprints.Core.Assets.NodeStatus.Success;
+                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;
             }
         }
     }
