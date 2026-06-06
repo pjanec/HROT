@@ -7,8 +7,9 @@ namespace Hrot.Blueprints.Tests.Editor;
 
 /// <summary>
 /// Headless tests for <see cref="ChannelCommandNodeDrawer"/> and
-/// <see cref="ChannelCommandNodeSession"/> (BF-BATCH-0607-FIX-B).
-/// No ImGui calls — all mutation logic exercised through internal test hooks.
+/// <see cref="ChannelCommandNodeSession"/> (AN5 — immutable action selection).
+/// The drawer now renders ChannelType/ActionId as READ-ONLY labels; no mutation path exists.
+/// No ImGui calls — all logic exercised through the public session interface.
 /// </summary>
 public sealed class ChannelCommandNodeDrawerTests
 {
@@ -32,14 +33,14 @@ public sealed class ChannelCommandNodeDrawerTests
     [Fact]
     public void Drawer_Handles_ChannelCommandNode_True()
     {
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer = new ChannelCommandNodeDrawer(MakeCatalog());
         Assert.True(drawer.Handles(new ChannelCommandNode { Id = Guid.NewGuid() }));
     }
 
     [Fact]
     public void Drawer_Handles_OtherNodeTypes_False()
     {
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer = new ChannelCommandNodeDrawer(MakeCatalog());
         Assert.False(drawer.Handles(new FunctionCallNode { Id = Guid.NewGuid() }));
         Assert.False(drawer.Handles(new WhenNode         { Id = Guid.NewGuid() }));
         Assert.False(drawer.Handles(new BranchNode       { Id = Guid.NewGuid() }));
@@ -50,7 +51,7 @@ public sealed class ChannelCommandNodeDrawerTests
     [Fact]
     public void Drawer_CreateSession_ReturnsNonNull()
     {
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer = new ChannelCommandNodeDrawer(MakeCatalog());
         using var session = drawer.CreateSession(MakeNode(), MakeAsset());
         Assert.NotNull(session);
     }
@@ -58,105 +59,97 @@ public sealed class ChannelCommandNodeDrawerTests
     [Fact]
     public void Drawer_CreateSession_InitiallyNotDirty()
     {
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer = new ChannelCommandNodeDrawer(MakeCatalog());
         using var session = drawer.CreateSession(MakeNode(), MakeAsset());
         Assert.False(session.IsDirty);
     }
 
-    // ── CC-03: SelectActionForTest sets ChannelType + ActionId ───────────────
+    // ── CC-03: Session is always read-only — no action mutation (AN5) ────────
 
+    /// <summary>
+    /// AN5: IsDirty is always false because the session has no mutation path.
+    /// No SelectActionForTest hook exists; the action is baked at node creation
+    /// via the per-action palette (D-B decision).
+    /// </summary>
     [Fact]
-    public void Session_SelectActionForTest_SetsChannelTypeAndActionId()
+    public void Session_IsDirty_IsAlwaysFalse()
     {
-        var node    = MakeNode();
-        var asset   = MakeAsset();
-        var catalog = MakeCatalog();
-        var drawer  = new ChannelCommandNodeDrawer(catalog, new SpyEditService());
-
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        // Select the first entry (MoveTo)
-        session.SelectActionForTest(0);
-
-        var entry = catalog.GetEntries()[0];
-        // ChannelType is stored as the short class name (LastSegment of ChannelTypeFqn).
-        var expectedShortType = entry.ChannelTypeFqn.Contains('.')
-            ? entry.ChannelTypeFqn[(entry.ChannelTypeFqn.LastIndexOf('.') + 1)..]
-            : entry.ChannelTypeFqn;
-        Assert.Equal(expectedShortType, node.ChannelType);
-        Assert.Equal(entry.Name,        node.ActionId);
+        var drawer  = new ChannelCommandNodeDrawer(MakeCatalog());
+        var session = drawer.CreateSession(MakeNode(), MakeAsset());
+        // IsDirty is false initially.
+        Assert.False(session.IsDirty);
+        // ResetDirty is a no-op but must not throw.
+        session.ResetDirty();
+        Assert.False(session.IsDirty);
     }
 
+    /// <summary>
+    /// AN5: The session type does NOT expose a SelectActionForTest hook (mutation removed).
+    /// Verify the internal type has no such method.
+    /// </summary>
     [Fact]
-    public void Session_SelectActionForTest_MarksDirty()
+    public void Session_HasNoSelectActionForTestMutationHook()
     {
-        var node   = MakeNode();
-        var asset  = MakeAsset();
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer  = new ChannelCommandNodeDrawer(MakeCatalog());
+        var session = drawer.CreateSession(MakeNode(), MakeAsset());
+        var sessionType = session.GetType();
 
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        session.SelectActionForTest(0);
+        // The mutation hook must not exist on the session (read-only session, AN5).
+        var mutationMethod = sessionType.GetMethod(
+            "SelectActionForTest",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        Assert.True(session.IsDirty);
+        Assert.Null(mutationMethod);
     }
 
-    [Fact]
-    public void Session_SelectActionForTest_CallsMarkDirtyOnEditService()
-    {
-        var spy    = new SpyEditService();
-        var node   = MakeNode();
-        var asset  = MakeAsset();
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), spy);
-
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        session.SelectActionForTest(0);
-
-        Assert.Equal(1, spy.MarkDirtyCallCount);
-        Assert.Same(asset, spy.LastMarkedAsset);
-    }
-
-    // ── CC-04: After setting ActionId, NodePinSchema projects param pins ──────
+    // ── CC-04: Pre-configured node — NodePinSchema projects param pins ────────
 
     [Fact]
-    public void Session_SelectMoveTo_NodePinSchema_ProjectsMoveToParams()
+    public void Session_ConfiguredMoveTo_NodePinSchema_ProjectsMoveToParams()
     {
         var catalog = MakeCatalog();
-        var node    = MakeNode();
-        var asset   = MakeAsset();
-        var drawer  = new ChannelCommandNodeDrawer(catalog, new SpyEditService());
+        // Node pre-configured with MoveTo — simulates the AN4 palette baking ChannelType+ActionId
+        // at create-time, as intended by D-B.
+        var entries   = catalog.GetEntries();
+        var moveToEntry = entries.FirstOrDefault(e => e.Name == "MoveTo");
+        Assert.NotNull(moveToEntry);
 
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        // Find the MoveTo entry
-        var entries = catalog.GetEntries();
-        var moveToIdx = -1;
-        for (int i = 0; i < entries.Count; i++)
-            if (entries[i].Name == "MoveTo") { moveToIdx = i; break; }
+        var shortType = moveToEntry.ChannelTypeFqn.Contains('.')
+            ? moveToEntry.ChannelTypeFqn[(moveToEntry.ChannelTypeFqn.LastIndexOf('.') + 1)..]
+            : moveToEntry.ChannelTypeFqn;
 
-        Assert.True(moveToIdx >= 0, "MoveTo entry must be in the catalog");
-        session.SelectActionForTest(moveToIdx);
+        var node  = MakeNode(channelType: shortType, actionId: moveToEntry.Name);
+        var asset = MakeAsset();
+        var drawer  = new ChannelCommandNodeDrawer(catalog);
 
-        // NodePinSchema should now project parameter data-IN pins for MoveTo
+        // Creating a session must not change the node's baked fields.
+        using var session = drawer.CreateSession(node, asset);
+        Assert.Equal(shortType,          node.ChannelType);
+        Assert.Equal(moveToEntry.Name,   node.ActionId);
+        Assert.False(session.IsDirty);
+
+        // NodePinSchema should project parameter data-IN pins for MoveTo
         var pins = Hrot.Blueprints.Editor.Host.NodePinSchema.GetCanonicalPins(node, channelCommands: catalog);
         var dataInPins = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
 
         Assert.True(dataInPins.Count > 0,
-            "After setting MoveTo, NodePinSchema must project at least one data-IN param pin.");
+            "A node pre-configured with MoveTo must have at least one data-IN param pin.");
     }
 
     // ── CC-05: ResetDirty ─────────────────────────────────────────────────────
 
     [Fact]
-    public void Session_ResetDirty_ClearsDirtyFlag()
+    public void Session_ResetDirty_IsNoOp_RemainsClean()
     {
         var node   = MakeNode();
         var asset  = MakeAsset();
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
+        var drawer = new ChannelCommandNodeDrawer(MakeCatalog());
 
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        session.SelectActionForTest(0);
-        Assert.True(session.IsDirty);
-
+        var session = drawer.CreateSession(node, asset);
+        // Already false before reset.
+        Assert.False(session.IsDirty);
         session.ResetDirty();
-
+        // Still false after reset (no-op on a read-only session).
         Assert.False(session.IsDirty);
     }
 
@@ -180,30 +173,13 @@ public sealed class ChannelCommandNodeDrawerTests
         Assert.NotNull(drawer);
     }
 
-    // ── CC-07: Out-of-range index is a no-op ─────────────────────────────────
-
-    [Fact]
-    public void Session_SelectActionForTest_OutOfRange_IsNoOp()
-    {
-        var node   = MakeNode();
-        var asset  = MakeAsset();
-        var drawer = new ChannelCommandNodeDrawer(MakeCatalog(), new SpyEditService());
-
-        var session = (ChannelCommandNodeSession)drawer.CreateSession(node, asset);
-        session.SelectActionForTest(-1);
-
-        Assert.Equal("", node.ChannelType);
-        Assert.Equal("", node.ActionId);
-        Assert.False(session.IsDirty);
-    }
-
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static BlueprintNodeDrawerRegistry CreateTestDrawerRegistry()
     {
         var channelCatalog    = BuiltInChannelCommandCatalog.Instance;
         var eventCatalog      = BuiltInEngineEventCatalog.Instance;
-        var editService       = new SpyEditService();
+        var editService       = new NullEditService();
         var predicateCompiler = new TestPredicateCompiler();
         var eqsTemplates      = new EqsTemplateRegistry();
 
@@ -213,16 +189,9 @@ public sealed class ChannelCommandNodeDrawerTests
 
     // ── Test stubs ────────────────────────────────────────────────────────────
 
-    private sealed class SpyEditService : IEditService
+    private sealed class NullEditService : IEditService
     {
-        public int MarkDirtyCallCount { get; private set; }
-        public BlueprintAsset? LastMarkedAsset { get; private set; }
-
-        public void MarkDirty(BlueprintAsset asset)
-        {
-            MarkDirtyCallCount++;
-            LastMarkedAsset = asset;
-        }
+        public void MarkDirty(BlueprintAsset asset) { }
     }
 
     private sealed class TestPredicateCompiler : Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler
