@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -15,6 +16,16 @@ namespace Hrot.Blueprints.Editor.NodeDrawers;
 /// <see cref="Host.NodePinSchema"/> at render time (projection-only — nothing is persisted).
 /// The When/ReadEqsResult/SpawnEqsSensor kinds keep their hand-authored pins via
 /// <see cref="WhenNodePaletteEntries"/>; they are registered separately.
+/// </para>
+/// <para>
+/// <b>AN4 — Per-action palette (D-B):</b>
+/// <see cref="ChannelCommandNode"/> entries are <b>not</b> emitted by <see cref="All()"/>; the
+/// caller must instead call <see cref="ChannelCommandEntries"/> with an
+/// <see cref="IChannelCommandCatalog"/> to get one concrete entry per channel-command action.
+/// Each entry bakes <see cref="ChannelCommandNode.ChannelType"/> (short class name) and
+/// <see cref="ChannelCommandNode.ActionId"/> directly in <c>CreateInstance</c>, so a
+/// placed node is immutably pre-configured.  The generic "pick action later" entry has
+/// been removed (D-B: no chameleon hazard).
 /// </para>
 /// </summary>
 public static class BlueprintNodePaletteEntries
@@ -38,6 +49,8 @@ public static class BlueprintNodePaletteEntries
     /// Returns the full set of descriptors for the core Blueprint node kinds.
     /// Does NOT include When/ReadEqsResult/SpawnEqsSensor (those come from
     /// <see cref="WhenNodePaletteEntries"/>).
+    /// Does NOT include ChannelCommandNode entries — use <see cref="ChannelCommandEntries"/>
+    /// instead (AN4: one entry per action, action baked at creation).
     /// </summary>
     public static IEnumerable<NodeKindDescriptor> All()
     {
@@ -105,9 +118,8 @@ public static class BlueprintNodePaletteEntries
         yield return Make<CallPeerBlueprintNode>(
             "CallPeerBlueprint", "Call Peer Blueprint", Categories.Function,
             "Call a function on a peer blueprint instance.");
-        yield return Make<ChannelCommandNode>(
-            "ChannelCommand", "Channel Command", Categories.Channel,
-            "Issue a command on an actuator channel.");
+        // NOTE: ChannelCommandNode is NOT emitted here (AN4).
+        // Use ChannelCommandEntries(catalog) for per-action entries.
         yield return Make<WaitForChannelNode>(
             "WaitForChannel", "Wait For Channel", Categories.Channel,
             "Latent: suspend until a channel completes / reports.");
@@ -136,6 +148,78 @@ public static class BlueprintNodePaletteEntries
     }
 
     /// <summary>
+    /// <summary>
+    /// AN4 — Generates one palette entry per channel-command action from
+    /// <paramref name="catalog"/>, over the single <see cref="ChannelCommandNode"/> kind.
+    /// Each entry's <c>CreateInstance</c> bakes the action's
+    /// <see cref="ChannelCommandNode.ChannelType"/> (short class name, e.g.
+    /// <c>"LocomotionChannel"</c>) and <see cref="ChannelCommandNode.ActionId"/>
+    /// (action name, e.g. <c>"MoveTo"</c>) directly on the new node.
+    /// <para>
+    /// This replaces the single generic <c>"ChannelCommand"</c> entry that was previously
+    /// in <see cref="All()"/> (D-B decision: action is baked at create time, no chameleon
+    /// hazard, no mutable dropdown on an existing node).
+    /// </para>
+    /// <para>
+    /// <b>Kind:</b> <c>"ChannelCommand:{ChannelShortName}:{ActionId}"</c> — unique per entry so
+    /// each descriptor occupies its own <see cref="NodeKindRegistry"/> slot and the canvas
+    /// can round-trip the placement via the correct baked-in factory.<br/>
+    /// <b>DisplayName:</b> <c>"{ChannelFriendlyName} / {ActionId}"</c> (e.g. "Locomotion / MoveTo").<br/>
+    /// <b>Category:</b> <c>"Channel/{ChannelFriendlyName}"</c> (e.g. "Channel/Locomotion")
+    /// — groups actions by channel in the picker.
+    /// </para>
+    /// <para>
+    /// If <paramref name="catalog"/> is null or empty, returns an empty sequence.
+    /// </para>
+    /// </summary>
+    /// <param name="catalog">Source of channel-command entries.</param>
+    public static IEnumerable<NodeKindDescriptor> ChannelCommandEntries(
+        IChannelCommandCatalog? catalog)
+    {
+        if (catalog == null)
+            yield break;
+
+        foreach (var entry in catalog.GetEntries())
+        {
+            // Short class name used both in the node field and in the category / display name.
+            var channelShortName = LastSegment(entry.ChannelTypeFqn);
+
+            // Friendly prefix: strip the "Channel" suffix if present
+            // (e.g. "LocomotionChannel" → "Locomotion") for cleaner display.
+            var channelFriendly  = StripChannelSuffix(channelShortName);
+
+            // Unique kind id: "ChannelCommand:{ChannelShortName}:{ActionId}"
+            // Each per-action entry gets a distinct registry slot.
+            var kind        = $"ChannelCommand:{channelShortName}:{entry.Name}";
+            var displayName = $"{channelFriendly} / {entry.Name}";
+            var category    = $"{Categories.Channel}/{channelFriendly}";
+            var tooltip     = $"Issue the {entry.Name} command on the {channelFriendly} channel.";
+
+            // Capture loop variables for the closure.
+            var bakedChannelType = channelShortName; // short name matched by NodePinSchema + compiler
+            var bakedActionId    = entry.Name;        // action name matched by catalog
+
+            yield return new NodeKindDescriptor
+            {
+                Kind        = kind,
+                DisplayName = displayName,
+                Category    = category,
+                Tooltip     = tooltip,
+                Icon        = "",
+                // AN4: bake ChannelType + ActionId at create-time — node is immutably pre-configured.
+                CreateInstance = () => new ChannelCommandNode
+                {
+                    Id          = Guid.NewGuid(),
+                    ChannelType = bakedChannelType,
+                    ActionId    = bakedActionId,
+                },
+            };
+        }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /// <summary>
     /// Factory for a descriptor whose <c>CreateInstance</c> returns a fresh, default-constructed
     /// node of type <typeparamref name="TNode"/> with a new <see cref="Node.Id"/> and empty pins
     /// (the projection hydrates pins).
@@ -152,4 +236,24 @@ public static class BlueprintNodePaletteEntries
             Icon        = "",
             CreateInstance = () => new TNode { Id = Guid.NewGuid() },
         };
+
+    /// <summary>Returns the last dotted segment of a fully-qualified type name.</summary>
+    private static string LastSegment(string fqn)
+    {
+        if (string.IsNullOrEmpty(fqn)) return fqn;
+        var idx = fqn.LastIndexOf('.');
+        return idx >= 0 ? fqn[(idx + 1)..] : fqn;
+    }
+
+    /// <summary>
+    /// Strips the trailing "Channel" suffix from a class name if present,
+    /// returning a cleaner friendly name (e.g. "LocomotionChannel" → "Locomotion").
+    /// </summary>
+    private static string StripChannelSuffix(string name)
+    {
+        const string suffix = "Channel";
+        return name.EndsWith(suffix, StringComparison.Ordinal) && name.Length > suffix.Length
+            ? name[..^suffix.Length]
+            : name;
+    }
 }

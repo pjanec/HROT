@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
@@ -162,13 +163,20 @@ public sealed class BlueprintNodeCatalogTests
     /// Regression for the "wire-drop picker shows only 3 kinds" bug. The 24 FIX2 palette
     /// kinds construct nodes with empty <c>Pins</c>; DescriptorToEntry must derive pin
     /// signatures from <c>NodePinSchema</c> so an exec-output source returns MANY compatible
-    /// kinds (Branch / Sequence / ChannelCommand / …), each with a real exec-input pin —
-    /// not just the 3 hand-authored When/EQS entries.
+    /// kinds (Branch / Sequence / per-action ChannelCommand / …), each with a real exec-input
+    /// pin — not just the 3 hand-authored When/EQS entries.
+    /// <para>
+    /// AN4: The generic "ChannelCommand" kind no longer exists; per-action kinds such as
+    /// "ChannelCommand:LocomotionChannel:MoveTo" take its place.  The catalog must be passed
+    /// to <see cref="BlueprintEditorBootstrap.CreatePaletteRegistry"/> so those entries appear.
+    /// </para>
     /// </summary>
     [Fact]
     public void QueryForPinContext_ExecOutputSource_ReturnsFullFlowSet_WithCompatibleExecInput()
     {
-        var sut = MakeSut(); // full bootstrap palette
+        // AN4: pass BuiltInChannelCommandCatalog so per-action ChannelCommand entries are registered.
+        var registry = BlueprintEditorBootstrap.CreatePaletteRegistry(BuiltInChannelCommandCatalog.Instance);
+        var sut      = MakeSut(registry);
         var q   = new PinContextQuery(
             SourcePin:       PinId.Empty,
             SourceDirection: PinDirection.Output,
@@ -182,15 +190,21 @@ public sealed class BlueprintNodeCatalogTests
         Assert.True(results.Count > 3,
             $"Expected the full compatible flow set (>3), got {results.Count}.");
 
-        // The exec-flow staples must be present.
-        foreach (var kind in new[] { "Branch", "Sequence", "ChannelCommand" })
+        // The exec-flow staples must be present (Branch + Sequence).
+        foreach (var kind in new[] { "Branch", "Sequence" })
         {
             var entry = results.SingleOrDefault(e => e.Kind.Id == kind);
             Assert.True(entry != null,
                 $"Exec-output wire-drop picker is missing compatible kind '{kind}'.");
-            // And it really does expose a compatible exec INPUT pin (the auto-connect target).
             Assert.Contains(entry!.Inputs, p => p.Kind == PinKind.Exec);
         }
+
+        // AN4: per-action ChannelCommand entry must appear (e.g. the MoveTo action).
+        var ccEntry = results.SingleOrDefault(
+            e => e.Kind.Id == "ChannelCommand:LocomotionChannel:MoveTo");
+        Assert.True(ccEntry != null,
+            "Exec-output wire-drop picker is missing per-action kind 'ChannelCommand:LocomotionChannel:MoveTo'.");
+        Assert.Contains(ccEntry!.Inputs, p => p.Kind == PinKind.Exec);
 
         // Every returned entry must genuinely have an exec input pin.
         Assert.All(results, e =>

@@ -552,8 +552,9 @@ public sealed class BlueprintCommandSinkTests
             throw new ArgumentNullException(nameof(graph));
 
         var typeSystem      = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
-        var kindRegistry    = BlueprintEditorBootstrap.CreatePaletteRegistry();
         var channelCatalog  = BuiltInChannelCommandCatalog.Instance;
+        // AN4: pass catalog so per-action ChannelCommand entries are registered.
+        var kindRegistry    = BlueprintEditorBootstrap.CreatePaletteRegistry(channelCatalog);
         var model           = new BlueprintGraphModel(asset, graph!, kindRegistry,
                                  channelCommands: channelCatalog);
         var catalog         = new BlueprintNodeCatalog(kindRegistry);
@@ -594,17 +595,16 @@ public sealed class BlueprintCommandSinkTests
         // We provide 8 ids — more than needed; ApplyPinIds stamps min(supplied, canonical).
         var pinIds = Enumerable.Range(0, 8).Select(_ => new PinId(Guid.NewGuid())).ToList();
 
+        // AN4: use the per-action kind id (ChannelType+ActionId baked by CreateInstance).
+        // Props only carry PinIds (baking via CreateInstance; no need for ChannelType/ActionId props).
         var props = new Dictionary<string, object?>
         {
-            // ChannelCommandPins matches by LastSegment(FQN) == node.ChannelType.
-            ["ChannelType"] = "LocomotionChannel",
-            ["ActionId"]    = "MoveTo",
-            ["PinIds"]      = (IReadOnlyList<PinId>)pinIds,
+            ["PinIds"] = (IReadOnlyList<PinId>)pinIds,
         };
 
         var result = sink.Apply(new GraphCommand.AddNode(
             new NodeId(Guid.NewGuid()),
-            new NodeKindKey("ChannelCommand"),
+            new NodeKindKey("ChannelCommand:LocomotionChannel:MoveTo"),
             Vector2.Zero,
             props));
 
@@ -612,9 +612,13 @@ public sealed class BlueprintCommandSinkTests
         var node = graph.Nodes.Last() as ChannelCommandNode;
         Assert.NotNull(node);
 
+        // AN4: ChannelType + ActionId are baked by CreateInstance.
+        Assert.Equal("LocomotionChannel", node!.ChannelType);
+        Assert.Equal("MoveTo",            node.ActionId);
+
         // ChannelCommandNode must have more than 2 exec-only pins; MoveTo
         // projects execIn, execOut + the MoveTo param data-IN pins (≥ 3 total).
-        Assert.True(node!.Pins.Count > 2,
+        Assert.True(node.Pins.Count > 2,
             $"Expected >2 pins (exec + param data-IN) but got {node.Pins.Count}.");
     }
 

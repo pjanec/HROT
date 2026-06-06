@@ -912,7 +912,9 @@ namespace Hrot.Editor
             // Final wiring happens in the canvas/UI initialization below (section 10+).
             _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
                 channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates);
-            _blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry();
+            // AN4: pass the channel-command catalog so the palette generates one entry per
+            // channel action (baked ChannelType+ActionId), not a single generic ChannelCommand node.
+            _blueprintPaletteEntries = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry(channelCatalog);
             var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
                 eqsTemplates, peerNameResolver: _ => null);
             var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();

@@ -59,7 +59,14 @@ public static class BlueprintEditorBootstrap
     /// Creates and populates a NodeKindRegistry with all palette entries.
     /// Called by the editor subsystem at startup.
     /// </summary>
-    public static NodeKindRegistry CreatePaletteRegistry()
+    /// <param name="channelCatalog">
+    /// AN4: optional channel-command catalog.  When non-null, one palette entry per
+    /// channel-command action is registered (kind = <c>"ChannelCommand"</c>, action baked at
+    /// creation).  When null, no <c>ChannelCommandNode</c> entries are added (the generic
+    /// single entry has been removed per D-B: no chameleon hazard).
+    /// </param>
+    public static NodeKindRegistry CreatePaletteRegistry(
+        IChannelCommandCatalog? channelCatalog = null)
     {
         var registry = new NodeKindRegistry();
 
@@ -71,7 +78,13 @@ public static class BlueprintEditorBootstrap
         // BCP-BATCH-02-FIX2 Task 2: register the full set of built-in blueprint node kinds
         // so the TAB / wire-drop picker offers the complete vocabulary, grouped by category.
         // Pins are projected by NodePinSchema at render time (projection-only).
+        // NOTE: ChannelCommandNode is not included in All() (AN4).
         foreach (var descriptor in BlueprintNodePaletteEntries.All())
+            registry.Register(descriptor);
+
+        // AN4: register one palette entry per channel-command action.
+        // Each entry bakes ChannelType + ActionId in its CreateInstance factory.
+        foreach (var descriptor in BlueprintNodePaletteEntries.ChannelCommandEntries(channelCatalog))
             registry.Register(descriptor);
 
         // BATCH-05B: register BlueprintMath function-call presets (Math/* categories).

@@ -1,5 +1,6 @@
 using System.Numerics;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.Host;
@@ -45,10 +46,13 @@ public sealed class BcpBatch04WireDropTests
     private static (BlueprintCommandSink sink, BlueprintGraphModel model, BlueprintNodeCatalog catalog)
         MakeSink(BlueprintAsset asset, Graph graph)
     {
-        // Use the production palette registry so kind ids ("EventEntry", "ChannelCommand",
-        // "GetVariable", "SetVariable") resolve to real typed nodes — exactly as production wires.
-        var registry   = BlueprintEditorBootstrap.CreatePaletteRegistry();
-        var model      = new BlueprintGraphModel(asset, graph, registry);
+        // Use the production palette registry with the built-in channel catalog so per-action
+        // ChannelCommand kind ids (e.g. "ChannelCommand:LocomotionChannel:MoveTo") resolve to
+        // real typed ChannelCommandNode instances — exactly as production wires.
+        var channelCatalog = BuiltInChannelCommandCatalog.Instance;
+        var registry   = BlueprintEditorBootstrap.CreatePaletteRegistry(channelCatalog);
+        var model      = new BlueprintGraphModel(asset, graph, registry,
+                             channelCommands: channelCatalog);
         var catalog    = new BlueprintNodeCatalog(registry);
         var typeSystem = new BlueprintTypeSystem(NullPinDefaultValueEditorRegistry.Instance);
         var validator  = new BlueprintLinkValidator(model, typeSystem);
@@ -80,8 +84,9 @@ public sealed class BcpBatch04WireDropTests
 
     /// <summary>
     /// EXEC wire-drop: an existing EventEntry node's exec-OUT pin is dragged onto empty canvas,
-    /// the user picks "ChannelCommand", and the canvas emits AddNode({PinIds:[...]}) + AddLink to
-    /// the new node's exec-IN PinId (pinIds[0]) as a Batch.
+    /// the user picks a per-action "ChannelCommand:LocomotionChannel:MoveTo" palette entry (AN4),
+    /// and the canvas emits AddNode({PinIds:[...]}) + AddLink to the new node's exec-IN PinId
+    /// (pinIds[0]) as a Batch.
     /// After Apply the link must be present AND resolve AND own the target pin on the new node.
     /// </summary>
     [Fact]
@@ -101,10 +106,13 @@ public sealed class BcpBatch04WireDropTests
 
         var (sink, model, catalog) = MakeSink(asset, graph);
 
-        // 1. Pre-generate PinIds for the picked kind (ChannelCommand: exec In + exec Out → 2 pins).
-        var (pinIds, entry) = PreGeneratePinIds(catalog, "ChannelCommand");
-        Assert.Equal(1, entry.Inputs.Count);   // exec "In"
-        Assert.Equal(1, entry.Outputs.Count);  // exec "Out"
+        // AN4: per-action kind id for the palette entry that bakes "LocomotionChannel" / "MoveTo".
+        const string channelCommandKind = "ChannelCommand:LocomotionChannel:MoveTo";
+
+        // 1. Pre-generate PinIds for the picked kind (exec In + exec Out → 2 exec pins minimum).
+        var (pinIds, entry) = PreGeneratePinIds(catalog, channelCommandKind);
+        Assert.True(entry.Inputs.Count  >= 1, "Expected at least exec-IN");   // exec "In"
+        Assert.True(entry.Outputs.Count >= 1, "Expected at least exec-OUT");  // exec "Out"
 
         // The source is an exec-OUT, so the auto-connect target is the new node's exec-IN.
         // CanvasInput walks entry.Inputs first → index 0 is the exec-IN.
@@ -114,7 +122,7 @@ public sealed class BcpBatch04WireDropTests
         var newNodeId = new NodeId(Guid.NewGuid());
         var addNode = new GraphCommand.AddNode(
             newNodeId,
-            new NodeKindKey("ChannelCommand"),
+            new NodeKindKey(channelCommandKind),
             new Vector2(380, 220),
             new Dictionary<string, object?> { ["PinIds"] = pinIds });
 
@@ -295,8 +303,9 @@ public sealed class BcpBatch04WireDropTests
 
         var newNodeId = new NodeId(Guid.NewGuid());
         // No PinIds in the props → the new node's exec-in pin gets a synthesized GUID.
+        // AN4: use per-action kind id (any ChannelCommand entry works for this control test).
         var addNode = new GraphCommand.AddNode(
-            newNodeId, new NodeKindKey("ChannelCommand"), new Vector2(380, 220), null);
+            newNodeId, new NodeKindKey("ChannelCommand:LocomotionChannel:MoveTo"), new Vector2(380, 220), null);
 
         // A link to a GUID the new node will NOT own → must fail to resolve.
         var phantomPinId = new PinId(Guid.NewGuid());
