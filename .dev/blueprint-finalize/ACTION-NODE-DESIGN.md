@@ -1,5 +1,34 @@
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
+## ✅ BB1 MODEL RESOLVED (architect + user, 2026-06-06) — whole-DTO binding + Promote + node-owned vars
+
+Per-field binding on BTree/HSM action nodes is **REJECTED** (would scatter DTO fields across memory →
+per-tick alloc+copy, breaking the zero-alloc contiguous-memory invariant; the kernel projects one
+`ref TValue` over a fixed bin-packed offset). Settled model:
+- A regular **action node binds its WHOLE param DTO to ONE blackboard variable** via the single
+  `ExpressionTargetField` (DD §11.6 stands; supersedes the per-field idea we floated).
+- **Type-filtered picker** (§11.2): the `[BlackboardFieldPicker]` shows only variables of the action's
+  `DtoType` (from `IActionSchemaExporter`).
+- **"+ Promote to new variable"** (§11.3): inline in the picker — auto-creates a correctly-typed variable
+  + binds it, without leaving the inspector. The designer then sets STATIC values on that variable's
+  default (`DefaultValueJson`), edited via StructEdit. At assignment, `BehaviorIngressSystem` runs the
+  generated `ParseParamsDelegate` once: instantiate DTO → apply static defaults → overlay mission JSON →
+  zero-copy `Unsafe.Write` into the bin-packed slot.
+- Dynamic-data-into-the-variable: Approach A (whole-DTO alias / shared variable, zero-copy) or Approach B
+  (field-level sync, **Subtree nodes only**).
+- **UX mitigation (user-approved, pending architect OK):** Promote-created variables are marked
+  **node-owned / auto** and hidden/collapsed from the main Variables panel (shown under their owning node
+  or behind a toggle), so authoring FEELS node-local and the panel stays clean. Presentation-only — the
+  variable remains a real blackboard variable in JSON + memory + ParseParamsDelegate.
+- **One-line static-vs-dynamic tooltip** in the inspector (host-appropriate semantics: BTree/HSM static =
+  applied once at assignment; bind a variable for live/dynamic values).
+
+**BB1 batch scope:** (B-1) type-filtered picker; (B-2) Promote-to-new-variable (+ node-owned/auto flag);
+(B-3) StructEdit editing of the (node-owned) variable default; (B-4) node-owned-var presentation
+(hide/collapse + auto-delete on node delete); (B-5) the tooltip. Codegen (ParseParamsDelegate baking +
+bin-pack) largely exists. **Addendum to the Blackboard Authoring DD to be written once the architect OKs
+the node-owned-var mitigation.**
+
 ## ✅ ROUND-5 RESOLVED (architect, 2026-06-06) — "Wait Until Completed" static metadata (unified UX)
 
 **Decision:** a fused blocking node / a runtime `NonBlocking` data PIN are both REJECTED (a data pin breaks Stage-5
