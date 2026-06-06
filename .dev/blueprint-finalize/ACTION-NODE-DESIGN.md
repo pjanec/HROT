@@ -1,6 +1,37 @@
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
-## ⏳ ROUND-5 OPEN (user, 2026-06-06) — blocking-consistency across action nodes (architect Q pending)
+## ✅ ROUND-5 RESOLVED (architect, 2026-06-06) — "Wait Until Completed" static metadata (unified UX)
+
+**Decision:** a fused blocking node / a runtime `NonBlocking` data PIN are both REJECTED (a data pin breaks Stage-5
+block-splitting — latency must be a compile-time-static property; and fusing blurs the CQRS write vs latent
+yield). Channel command issuance (`ChannelCommandNode`, instantaneous CQRS write) and suspension
+(`WaitForChannelNode`, latent) stay strictly separate first-class nodes (the canonical `MoveAndFireCombo`
+A-B-C pattern). Channel commands stay non-blocking (parallel-async via background dispatchers is their strength —
+blocking-by-default would serialize Move+Aim and force pin-toggling).
+
+**The consistency solution = STATIC execution metadata on the generalized action node (a checkbox, NOT a pin):**
+- The generalized action node gets a **static "Wait Until Completed" property** in the StructEdit Details panel
+  (System A), saved in `.bp.json`. **Default = True** for ALL actions → every action blocks by default + looks
+  identical on the canvas (consistent UX).
+- **Compile-time fusing (Stage 5 knows the static value):**
+  - Wait=True + **channel command**: emit `IrOp_ChannelCommand` + split block + insert `IrOp_WaitForChannel`
+    (the convenience of a blocking node; two CQRS ops generated under the hood).
+  - Wait=True + **non-channel action**: inline-latent C# invocation suspending on `NodeStatus.Running` (AN8).
+  - Wait=False + **channel command**: omit the wait → just `IrOp_ChannelCommand` (parallel-async fire-and-forget).
+  - Wait=False + **non-channel action**: FORBIDDEN.
+- **Guards:** the Details "Wait Until Completed" checkbox is **disabled/locked-True for non-channel actions**
+  (Inspector reads the action schema). Stage-2 `Validate` throws **BP1405** ("fire-and-forget only for channel
+  commands") if a non-channel action has Wait=False in JSON. `WaitForChannelNode` REMAINS a separate palette node
+  for the manual NonBlocking-then-sync-later path.
+
+**New/changed tasks (action-node track; need a go):**
+- **AN9 — "Wait Until Completed" static metadata + fused-wait lowering:** add the static bool to the generalized
+  node (default true); Stage-5 fuses ChannelCommand+WaitForChannel when true (channel) / inline-latent (non-chan);
+  Stage-2 BP1405; Details checkbox disabled-for-non-channel. Reuses the existing WaitForChannel latent lowering
+  (Stage5 IrOp_WaitForChannel → Stage6 dispatch-aware BlueprintLatentCursor/phase-byte).
+- This makes AN8 (non-channel inline-latent) and channel commands consistent (both Wait-default-true).
+
+## ROUND-5 (history — superseded by the RESOLVED block above)
 
 **Problem (user):** post-ROUND-4 the two action-node kinds have OPPOSITE default blocking semantics —
 non-channel actions are **blocking** (inline-latent; they *cannot* be non-blocking, no dispatcher), while
