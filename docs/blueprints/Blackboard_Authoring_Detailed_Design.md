@@ -5,6 +5,7 @@
 > **Drives:** Visual blackboard authoring across BTree and HSM editors. Adds a Blackboard Variables panel, recursive sub-tree aggregation, opt-in DTO aliasing, field-level synchronization, and **JSON-backed editor-owned blackboard schema** — the param/heavy DTO struct is *generated from JSON at build* (no editor-emitted `.Blackboard.cs`).
 > **Doesn't cover:** Kernel-side DTO projection / pointer arithmetic (owned by FastBTree / FastHSM). Blueprint AiPrimitive blackboard authoring (the Blueprint editor already supports visual `Params`/`WorkingState` declaration).
 > **Companion code lives in:** `Hrot/Subsystems/AI/Hrot.Editor.AiShared/Blackboard/` for the panel and aggregation services; `Hrot.BTree.Editor/Blackboard/` and `Hrot.Hsm.Editor/Blackboard/` for subsystem-specific projection.
+> **➤ See also (authoritative refinement):** [`Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md`](./Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md) — action-parameter authoring (whole-DTO binding; per-field on action nodes is rejected) + **node-owned / auto-managed variables** (the "+ Promote to new variable" → hidden, auto-deleted variable model). Refines §11 + §4.
 
 ---
 
