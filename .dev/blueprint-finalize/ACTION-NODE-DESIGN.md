@@ -1,5 +1,36 @@
 # Behavior-action nodes — duality & authoring (DESIGN CONVERGED)
 
+## ⏳ ROUND-5 OPEN (user, 2026-06-06) — blocking-consistency across action nodes (architect Q pending)
+
+**Problem (user):** post-ROUND-4 the two action-node kinds have OPPOSITE default blocking semantics —
+non-channel actions are **blocking** (inline-latent; they *cannot* be non-blocking, no dispatcher), while
+channel commands are **non-blocking** (fire-and-forget + optional `WaitForChannel`). From a designer's view,
+dropping "an action" should behave consistently — the split is surprising.
+
+**User proposal:** make channel-command nodes **blocking BY DEFAULT** too (fuse the wait: emit the CQRS write +
+inline-latent wait on `Status` until Success/Failure — reusing the existing WaitForChannel latent path), with an
+optional **`NonBlocking` pin/flag** to opt back into fire-and-forget (current behaviour; designer then adds a
+separate `WaitForChannel` when they want to wait). Since non-channel actions can't be non-blocking, this is the
+only direction that unifies the default.
+
+**Trade-off to weigh with the architect:** blocking-by-default would **serialize** channel commands that today
+run in parallel across channels (e.g. simultaneous Move + Aim) — the channel model's strength. The `NonBlocking`
+pin is the escape hatch, but the DEFAULT changes which is the common case.
+
+**Architect question to relay:**
+> *"Non-channel actions are inline-latent (blocking; can't be non-blocking — no dispatcher). Channel commands are
+> currently non-blocking (fire-and-forget + optional WaitForChannel), so the two action-node kinds are
+> inconsistent for designers. Proposal: make channel-command nodes BLOCKING BY DEFAULT (fuse the CQRS write + the
+> inline-latent wait-on-Status, reusing the WaitForChannel latent lowering), with an optional 'NonBlocking' pin to
+> opt into fire-and-forget. (a) Is this the intended UX? (b) Does blocking-by-default undermine the channel's
+> parallel-async strength — should simultaneous Move+Aim require NonBlocking on each, or is there a better
+> consistency model? (c) Does WaitForChannel remain a separate node for the NonBlocking case? (d) Confirm the
+> fused-wait reuses the existing WaitForChannel/BlueprintLatentCursor lowering."*
+
+**Impacts:** the channel-command node gains a `NonBlocking` flag/pin + fused-wait lowering; AN8 (non-channel
+inline-latent) is consistent with the blocking default; WaitForChannel stays for the NonBlocking path. Resolve
+before AN8 + the channel-blocking task.
+
 ## ✅ ROUND-4 RESOLVED (architect, 2026-06-06) — non-channel action execution model (UNBLOCKS AN8)
 
 **Non-channel behavior actions use (A) INLINE-LATENT — NOT handle-based. No "Wait" node, no handle.**
