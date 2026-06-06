@@ -62,7 +62,7 @@
     "Recipe": {
       "DisplayName": "Squad-aware Engagement",
       "Category": "Combat",
-      "Description": "Reacts to changes in a peer Blueprint\u0027s variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
+      "Description": "Reacts to changes in a peer Blueprint's variable (SquadState.ThreatLevel). Demonstrates WhenNode Value Changed with peer-variable source and callablePeers declaration.",
       "Difficulty": "Intermediate",
       "ConceptsTaught": [
         "callablePeers declaration",

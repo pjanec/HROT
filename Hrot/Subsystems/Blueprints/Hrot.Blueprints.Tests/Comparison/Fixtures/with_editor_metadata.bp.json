@@ -1,5 +1,8 @@
 {
-  "Header": { "SubsystemType": "Hrot.Blueprints", "SchemaVersion": "1.0" },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
   "AssetId": "aaaaaaaa-0002-0000-0000-000000000001",
   "Name": "WithEditorMetadata",
   "Dispatch": "AiPrimitive",
@@ -34,9 +37,16 @@
       ],
       "Links": [],
       "EditorMetadata": {
-        "Viewport": { "Pan": [10, 20], "Zoom": 1.0 },
+        "Viewport": {
+          "Pan": [10, 20],
+          "Zoom": 1.0
+        },
         "CanvasComments": [
-          { "Text": "Main execution flow", "X": 100, "Y": -50 }
+          {
+            "Text": "Main execution flow",
+            "X": 100,
+            "Y": -50
+          }
         ]
       }
     }

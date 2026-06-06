@@ -35,7 +35,10 @@
           "Id": "20000099-0000-0000-0000-000000000001",
           "EventTypeId": "OnStart",
           "Pins": [],
-          "EditorMetadata": { "X": 80.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 220.0
+          }
         },
         {
           "kind": "ChannelCommand",
@@ -43,14 +46,20 @@
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
           "Pins": [],
-          "EditorMetadata": { "X": 380.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 380.0,
+            "Y": 220.0
+          }
         },
         {
           "kind": "WaitForChannel",
           "Id": "20000099-0000-0000-0000-000000000003",
           "ChannelType": "LocomotionChannel",
           "Pins": [],
-          "EditorMetadata": { "X": 700.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 700.0,
+            "Y": 220.0
+          }
         },
         {
           "kind": "ChannelCommand",
@@ -58,13 +67,19 @@
           "ChannelType": "WeaponChannel",
           "ActionId": "AimAndFire",
           "Pins": [],
-          "EditorMetadata": { "X": 1020.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 1020.0,
+            "Y": 220.0
+          }
         },
         {
           "kind": "Return",
           "Id": "20000099-0000-0000-0000-000000000005",
           "Pins": [],
-          "EditorMetadata": { "X": 1340.0, "Y": 220.0 }
+          "EditorMetadata": {
+            "X": 1340.0,
+            "Y": 220.0
+          }
         }
       ],
       "Links": [

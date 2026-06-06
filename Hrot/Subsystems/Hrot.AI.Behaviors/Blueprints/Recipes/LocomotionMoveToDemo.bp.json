@@ -13,9 +13,7 @@
   "TierHint": 0,
   "Primitive": {
     "Intent": 0,
-    "Hostings": [
-      0
-    ]
+    "Hostings": [0]
   },
   "Parameters": [],
   "WorkingState": [],

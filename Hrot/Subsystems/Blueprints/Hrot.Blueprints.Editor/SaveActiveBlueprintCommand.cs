@@ -1,4 +1,5 @@
 using System.IO;
+using Fdp.Toolkit.Serialization;
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Editor.AiShared.Documents;
@@ -95,11 +96,14 @@ public sealed class SaveActiveBlueprintCommand
                 node.Pins = original;
         }
 
+        // Pretty-print with numeric arrays inlined (same post-process as ScenarioFileService).
+        var prettyJson = JsonAestheticFormatter.FlattenNumericArrays(json);
+
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        File.WriteAllText(path, json);
+        File.WriteAllText(path, prettyJson);
     }
 
     // ── resolver ──────────────────────────────────────────────────────────────

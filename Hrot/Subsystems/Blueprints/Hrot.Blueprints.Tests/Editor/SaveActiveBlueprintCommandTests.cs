@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json.Nodes;
+using Fdp.Toolkit.Serialization;
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor;
@@ -222,7 +223,7 @@ public sealed class SaveActiveBlueprintCommandTests
         Assert.Same(pinB, node.Pins[1]);
     }
 
-    // ── TC-4: byte-stability: load fixture → Save → reload → Serialize → equal
+    // ── TC-4: byte-stability: load fixture → Save → reload → Serialize+Format → equal
 
     [Fact]
     public void Save_FixtureAsset_ByteStable()
@@ -240,11 +241,12 @@ public sealed class SaveActiveBlueprintCommandTests
             var reloaded  = BlueprintJsonServices.Deserialize(savedJson);
             Assert.NotNull(reloaded);
 
-            // Serialize again and compare.
-            var reserialized = BlueprintJsonServices.Serialize(reloaded!);
+            // Serialize again and apply the same aesthetic formatter that Save applies.
+            // Save now produces pretty+inlined JSON (JsonAestheticFormatter.FlattenNumericArrays),
+            // so the round-trip comparison must use the same formatter on the re-serialized string.
+            var reserialized = JsonAestheticFormatter.FlattenNumericArrays(
+                BlueprintJsonServices.Serialize(reloaded!));
 
-            // Both serializations must be equal (modulo $meta which is always re-stamped
-            // identically, so no special handling needed — they should be exactly equal).
             Assert.Equal(savedJson, reserialized);
         }
         finally

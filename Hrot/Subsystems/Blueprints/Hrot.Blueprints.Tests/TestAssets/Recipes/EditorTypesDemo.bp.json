@@ -68,7 +68,9 @@
               "Name": "Condition",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "System.Boolean" }
+              "TypeRef": {
+                "TypeId": "System.Boolean"
+              }
             }
           ],
           "EditorMetadata": {
@@ -112,7 +114,9 @@
               "Name": "Value",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "System.String" }
+              "TypeRef": {
+                "TypeId": "System.String"
+              }
             }
           ],
           "EditorMetadata": {
@@ -144,7 +148,9 @@
               "Name": "Value",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "System.Numerics.Vector2" }
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector2"
+              }
             }
           ],
           "EditorMetadata": {
@@ -164,7 +170,9 @@
               "Name": "Value",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "System.Numerics.Vector4" }
+              "TypeRef": {
+                "TypeId": "System.Numerics.Vector4"
+              }
             }
           ],
           "EditorMetadata": {
@@ -184,7 +192,9 @@
               "Name": "Value",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "System.Numerics.Quaternion" }
+              "TypeRef": {
+                "TypeId": "System.Numerics.Quaternion"
+              }
             }
           ],
           "EditorMetadata": {
@@ -204,7 +214,9 @@
               "Name": "Label",
               "Direction": "In",
               "IsExec": false,
-              "TypeRef": { "TypeId": "Fdp.Core.FixedString32" }
+              "TypeRef": {
+                "TypeId": "Fdp.Core.FixedString32"
+              }
             }
           ],
           "EditorMetadata": {
