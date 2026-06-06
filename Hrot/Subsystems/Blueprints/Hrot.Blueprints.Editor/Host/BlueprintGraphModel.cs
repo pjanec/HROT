@@ -39,6 +39,8 @@ public sealed class BlueprintGraphModel : IGraphModel
     private readonly IChannelCommandCatalog? _channelCommands;
     private readonly Func<Guid, BlueprintSignature?>? _peerSignatureLookup;
     private readonly IPinDefaultValueEditorRegistry? _editorRegistry;
+    // ENUM-NAME: provider used to resolve persisted member-name strings back to long for the editor.
+    private readonly IEnumValueProvider? _enumProvider;
 
     // Projection caches (rebuilt when the asset graph mutates).
     private Dictionary<NodeId, INodeModel>  _nodes  = new();
@@ -74,13 +76,19 @@ public sealed class BlueprintGraphModel : IGraphModel
     /// When null (default), the legacy behavior applies: <c>Default</c> is only non-null when
     /// a value has already been persisted in <see cref="Node.PinDefaults"/>.
     /// </param>
+    /// <param name="enumProvider">
+    /// Optional enum-value provider forwarded to <see cref="BlueprintPinModel"/> so that
+    /// enum defaults persisted as member name strings (ENUM-NAME) are resolved to the correct
+    /// <c>long</c> when the canvas inline editor first reads the pin default.
+    /// </param>
     public BlueprintGraphModel(
         BlueprintAsset    asset,
         Graph             graph,
         NodeKindRegistry? kindRegistry = null,
         IChannelCommandCatalog? channelCommands = null,
         Func<Guid, BlueprintSignature?>? peerSignatureLookup = null,
-        IPinDefaultValueEditorRegistry? editorRegistry = null)
+        IPinDefaultValueEditorRegistry? editorRegistry = null,
+        IEnumValueProvider? enumProvider = null)
     {
         _asset                = asset ?? throw new ArgumentNullException(nameof(asset));
         _graph                = graph ?? throw new ArgumentNullException(nameof(graph));
@@ -88,6 +96,7 @@ public sealed class BlueprintGraphModel : IGraphModel
         _channelCommands      = channelCommands;
         _peerSignatureLookup  = peerSignatureLookup;
         _editorRegistry       = editorRegistry;
+        _enumProvider         = enumProvider;
         Rebuild();
     }
 
@@ -257,7 +266,7 @@ public sealed class BlueprintGraphModel : IGraphModel
                     TypeRef      = pin.TypeRef,
                     DefaultValue = defaultVal,
                 };
-                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry));
+                resolvedPins.Add(new BlueprintPinModel(resolvedPin, nodeId, _editorRegistry, _enumProvider));
             }
             resolvedPinLists[assetNode.Id] = resolvedPins;
         }

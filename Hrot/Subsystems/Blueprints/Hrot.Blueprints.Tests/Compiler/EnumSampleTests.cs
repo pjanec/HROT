@@ -165,15 +165,16 @@ public sealed class EnumSampleTests
             "No compile errors expected.");
     }
 
-    // ── 7. Generated source contains (global::...DemoStance)N cast (AN1) ─────
+    // ── 7. Generated source contains global::FQN.MemberName (ENUM-NAME) ──────
     //
     // Strategy: build the asset via BlueprintAssetBuilder (passes Stage2 correctly), then
-    // patch the ChannelCommand node's Pins list directly so the Stance pin with DefaultValue="1"
-    // is present before Stage3 runs.  This lets us skip the Stage2 re-run (already tested in
-    // test 6) and directly exercise Stage3→7 with the enum default literal.
+    // patch the ChannelCommand node's Pins list directly so the Stance pin with
+    // DefaultValue="Crouching" (member NAME, ENUM-NAME) is present before Stage3 runs.
+    // This lets us skip the Stage2 re-run (already tested in test 6) and directly exercise
+    // Stage3→7 with the enum default literal.
 
     [Fact]
-    public void DemoEnumAction_GeneratedSource_ContainsEnumCast()
+    public void DemoEnumAction_GeneratedSource_ContainsMemberQualifiedName()
     {
         // 1. Use the builder to get a structurally valid AiPrimitive asset.
         var asset = BlueprintAssetBuilder
@@ -188,6 +189,7 @@ public sealed class EnumSampleTests
         // 2. Locate the ChannelCommand node and inject the Stance pin with DefaultValue.
         //    The builder produces nodes with explicit Pins (exec pins via RegisterNode), so
         //    we add our data pin directly.  Stage3 picks up DefaultValue from existing pins.
+        //    ENUM-NAME: store the member name "Crouching" (value 1) not the integer "1".
         var graph  = asset.Graphs.First();
         var ccNode = graph.Nodes.OfType<ChannelCommandNode>().First();
 
@@ -201,7 +203,7 @@ public sealed class EnumSampleTests
             {
                 TypeId = "global::Fdp.Toolkit.Behavior.Demo.DemoStance",
             },
-            DefaultValue = "1",   // 1 = Crouching; AN1 emits (global::...DemoStance)1
+            DefaultValue = "Crouching",   // member NAME (ENUM-NAME); emits global::...DemoStance.Crouching
         });
 
         // 3. Run Stage3–7 (Stage2 validation already passed in test 6; we skip it here to
@@ -220,13 +222,64 @@ public sealed class EnumSampleTests
         Assert.False(sink.HasErrors,
             $"Emit errors: {string.Join(", ", sink.All.Where(d => d.IsError).Select(d => $"{d.Code}: {d.Message}"))}");
 
-        // The emitted source must contain the enum cast for Stance (value 1 = Crouching).
-        // AN1 Stage3_Normalize.MaterializeDefaultPinLiterals emits: (global::...DemoStance)1
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Demo.DemoStance", src,
+        // ENUM-NAME: the emitted source must contain the member-qualified name.
+        // Stage3_Normalize.FormatDefaultLiteral emits: global::Fdp.Toolkit.Behavior.Demo.DemoStance.Crouching
+        Assert.Contains("global::Fdp.Toolkit.Behavior.Demo.DemoStance.Crouching", src,
             StringComparison.Ordinal);
 
-        // No double-prefix: StaticTypeRegistry strips "global::" before storing FullName,
-        // so StatementEmitter re-adds it exactly once → never "global::global::".
+        // No double-prefix: TypeId is "global::FQN" → emitted as "global::FQN.Member" (one global::).
+        Assert.DoesNotContain("global::global::", src, StringComparison.Ordinal);
+    }
+
+    // ── 7b. Integer-stored default still emits the cast (backward compat) ────
+
+    [Fact]
+    public void DemoEnumAction_IntegerDefault_StillEmitsCast()
+    {
+        // Old assets or fallback paths may store the integer "1" instead of the member name.
+        // ENUM-NAME backward-compat: FormatDefaultLiteral detects a pure-integer string and
+        // emits the cast form (global::FQN)N instead of the dot-qualified name.
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("DemoEnumIntFallbackTest")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g
+                .Entry()
+                .ChannelCommand("LocomotionChannel", "DemoEnumAction")
+                .Return())
+            .Build();
+
+        var graph  = asset.Graphs.First();
+        var ccNode = graph.Nodes.OfType<ChannelCommandNode>().First();
+
+        ccNode.Pins.Add(new Pin
+        {
+            Id           = Guid.NewGuid(),
+            Name         = "Stance",
+            Direction    = "In",
+            IsExec       = false,
+            TypeRef      = new BlueprintTypeRef
+            {
+                TypeId = "global::Fdp.Toolkit.Behavior.Demo.DemoStance",
+            },
+            DefaultValue = "1",   // integer string — backward compat path
+        });
+
+        var opts = DefaultOptions();
+        var sink = new DiagnosticSink();
+        var ctx  = new ValidationContext(sink, opts);
+
+        var norm         = Stage3_Normalize.Run(asset, ctx);
+        var typed        = Stage4_TypeResolve.Run(norm, ctx);
+        var ir           = Stage5_Schedule.Run(typed, ctx);
+        var low          = Stage6_Lower.Run(ir, CompilerMode.Debug, sink);
+        var (src, _)     = Stage7_Emit.Run(low, CompilerMode.Debug, sink);
+
+        Assert.False(sink.HasErrors,
+            $"Emit errors: {string.Join(", ", sink.All.Where(d => d.IsError).Select(d => $"{d.Code}: {d.Message}"))}");
+
+        // Backward-compat: integer cast form must still compile.
+        Assert.Contains("(global::Fdp.Toolkit.Behavior.Demo.DemoStance)1", src,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("global::global::", src, StringComparison.Ordinal);
     }
 

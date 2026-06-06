@@ -124,13 +124,13 @@ public sealed class MaterializeDefaultPinLiteralsTests
     {
         var asset = BuildAssetWithUnconnectedPins(
             // int pin via PinDefaults
-            ("count",    "System.Int32",           "42",   null),
+            ("count",    "System.Int32",           "42",    null),
             // float pin via Pin.DefaultValue (with existing 'f' suffix)
-            ("speed",    "System.Single",           null,   "3.14f"),
+            ("speed",    "System.Single",           null,    "3.14f"),
             // FixedString32 via PinDefaults
             ("label",    "Fdp.Core.FixedString32",  "hello", null),
-            // enum via PinDefaults  (TypeId has global:: prefix per AN2)
-            ("mode",     "global::SomeNs.SomeEnum", "2",    null));
+            // enum via PinDefaults — stored as member NAME (ENUM-NAME)
+            ("mode",     "global::SomeNs.SomeEnum", "MyMember", null));
 
         var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
 
@@ -149,10 +149,31 @@ public sealed class MaterializeDefaultPinLiteralsTests
         // --- FixedString32 ctor ---
         Assert.Contains("new global::Fdp.Core.FixedString32(", src);
 
-        // --- enum cast (TypeId already has global:: so the cast is (global::SomeNs.SomeEnum)2) ---
-        Assert.Contains("(global::SomeNs.SomeEnum)2", src);
+        // --- ENUM-NAME: member-qualified name (global::SomeNs.SomeEnum.MyMember) ---
+        Assert.Contains("global::SomeNs.SomeEnum.MyMember", src);
 
         // --- NO double global:: prefix ---
+        Assert.DoesNotContain("global::global::", src);
+    }
+
+    // -----------------------------------------------------------------------
+    // ENUM-NAME backward-compat: integer-stored default still emits the cast
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void DefaultPins_EnumIntegerFallback_EmitsIntegerCast()
+    {
+        // Old assets (or graceful fallback) may still store the integer.
+        var asset = BuildAssetWithUnconnectedPins(
+            ("mode", "global::SomeNs.SomeEnum", "2", null));
+
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+        Assert.NotNull(result.GeneratedSource);
+
+        var src = result.GeneratedSource!;
+
+        // Integer-stored default must emit the cast form, not the dot-qualified form.
+        Assert.Contains("(global::SomeNs.SomeEnum)2", src);
         Assert.DoesNotContain("global::global::", src);
     }
 

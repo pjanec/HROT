@@ -39,6 +39,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     // BF-UX1 FIX B: channel-command catalog so ApplyPinIds can pass it to
     // NodePinSchema.GetCanonicalPins — without it ChannelCommandNode projects exec-only pins.
     private readonly IChannelCommandCatalog? _channelCommands;
+    // ENUM-NAME: provider used to convert a long enum value → member name at the persistence boundary.
+    private readonly IEnumValueProvider? _enumProvider;
 
     /// <summary>
     /// Constructs a command sink bound to the given asset graph.
@@ -56,6 +58,12 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     /// so that <see cref="ChannelCommandNode"/>s project their parameter data-IN pins rather than
     /// collapsing to exec-only when <see cref="ApplyPinIds"/> re-stamps canonical pins on create.
     /// </param>
+    /// <param name="enumProvider">
+    /// Optional enum-value provider used at the persistence boundary to convert the <c>long</c>
+    /// selected by <see cref="NodeEditor.UI.MiniEditors.EnumPinEditor"/> into the member name
+    /// string stored in <see cref="Node.PinDefaults"/> (ENUM-NAME).
+    /// When null, the decimal integer string is stored instead (backward compat / headless tests).
+    /// </param>
     public BlueprintCommandSink(
         BlueprintAsset       asset,
         Graph                graph,
@@ -65,7 +73,8 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         CommandHistory       history,
         EditService          editService,
         Action<BlueprintAsset> markDirty,
-        IChannelCommandCatalog? channelCommands = null)
+        IChannelCommandCatalog? channelCommands = null,
+        IEnumValueProvider?     enumProvider    = null)
     {
         _asset           = asset           ?? throw new ArgumentNullException(nameof(asset));
         _graph           = graph           ?? throw new ArgumentNullException(nameof(graph));
@@ -76,6 +85,7 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
         _editService     = editService     ?? throw new ArgumentNullException(nameof(editService));
         _markDirty       = markDirty       ?? throw new ArgumentNullException(nameof(markDirty));
         _channelCommands = channelCommands;
+        _enumProvider    = enumProvider;
     }
 
     // ── IGraphCommandSink ────────────────────────────────────────────────────
@@ -545,7 +555,20 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
         string pinName  = pinModel.Label;
         string typeId   = pinModel.Type?.Id ?? "";
-        string? newStr  = BlueprintPinDefaultValue.FormatValue(cmd.NewValue);
+
+        // For enum pins the editor sets value = (long)selectedEntry.Value.
+        // ENUM-NAME: persist as the member name string, not the integer.
+        string? newStr;
+        if (!string.IsNullOrEmpty(typeId)
+            && typeId.StartsWith("global::", StringComparison.Ordinal)
+            && cmd.NewValue is long enumLong)
+        {
+            newStr = BlueprintPinDefaultValue.FormatEnumValue(enumLong, typeId, _enumProvider);
+        }
+        else
+        {
+            newStr = BlueprintPinDefaultValue.FormatValue(cmd.NewValue);
+        }
 
         // Capture old value for undo.
         string? oldStr  = assetNode.PinDefaults?.TryGetValue(pinName, out var o) == true ? o : null;

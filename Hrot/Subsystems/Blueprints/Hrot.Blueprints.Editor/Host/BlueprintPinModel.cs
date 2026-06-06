@@ -47,7 +47,7 @@ internal sealed class BlueprintPinModel : IPinModel
     public BlueprintPinModel(
         Hrot.Blueprints.Core.Assets.Pin pin,
         NodeId ownerNodeId)
-        : this(pin, ownerNodeId, editorRegistry: null)
+        : this(pin, ownerNodeId, editorRegistry: null, enumProvider: null)
     { }
 
     /// <summary>
@@ -59,6 +59,20 @@ internal sealed class BlueprintPinModel : IPinModel
         Hrot.Blueprints.Core.Assets.Pin pin,
         NodeId ownerNodeId,
         IPinDefaultValueEditorRegistry? editorRegistry)
+        : this(pin, ownerNodeId, editorRegistry, enumProvider: null)
+    { }
+
+    /// <summary>
+    /// Constructs a BlueprintPinModel with an optional editor registry and optional enum-value
+    /// provider.  The <paramref name="enumProvider"/> is forwarded to
+    /// <see cref="BlueprintPinDefaultValue"/> so that enum-pin defaults stored as member names
+    /// (ENUM-NAME) are resolved to the correct <c>long</c> for the combo editor.
+    /// </summary>
+    public BlueprintPinModel(
+        Hrot.Blueprints.Core.Assets.Pin pin,
+        NodeId ownerNodeId,
+        IPinDefaultValueEditorRegistry? editorRegistry,
+        IEnumValueProvider?             enumProvider)
     {
         Id          = new PinId(pin.Id);
         OwnerNodeId = ownerNodeId;
@@ -79,7 +93,8 @@ internal sealed class BlueprintPinModel : IPinModel
             if (pin.DefaultValue != null)
             {
                 // Always expose persisted default value.
-                Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, pin.DefaultValue);
+                // Pass the enum provider so that name-stored defaults resolve to the correct long.
+                Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, pin.DefaultValue, enumProvider);
             }
             else if (editorRegistry != null)
             {
@@ -87,7 +102,7 @@ internal sealed class BlueprintPinModel : IPinModel
                 // a registered editor (avoids empty/blank widgets for unsupported types).
                 var typeKey = new TypeKey(pin.TypeRef.TypeId);
                 if (editorRegistry.GetEditor(typeKey) != null)
-                    Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, rawValue: null);
+                    Default = new BlueprintPinDefaultValue(pin.TypeRef.TypeId, rawValue: null, enumProvider);
             }
         }
     }
@@ -108,8 +123,17 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     public PinDefaultMetadata Metadata => _noMeta;
 
     public BlueprintPinDefaultValue(string typeId, string? rawValue)
+        : this(typeId, rawValue, enumProvider: null)
+    { }
+
+    /// <summary>
+    /// Constructs with an optional <paramref name="enumProvider"/> used to resolve enum member
+    /// names stored in <paramref name="rawValue"/> back to their <c>long</c> values.
+    /// When the provider is <c>null</c> or cannot resolve the name, falls back to 0L.
+    /// </summary>
+    public BlueprintPinDefaultValue(string typeId, string? rawValue, IEnumValueProvider? enumProvider)
     {
-        Value = ParseValue(typeId, rawValue);
+        Value = ParseValue(typeId, rawValue, enumProvider);
     }
 
     /// <summary>
@@ -122,21 +146,43 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
     /// rather than showing nothing.
     /// </para>
     /// <para>
-    /// <b>Enum pins</b> (<c>typeId</c> starts with <c>"global::"</c>): the persisted value is an
-    /// integer string (per ENUM-DESIGN.md §RESOLVED — byte-stable, survives member renames).
-    /// Returns <c>(long)N</c> so <see cref="NodeEditor.UI.MiniEditors.EnumPinEditor.Draw"/>
-    /// can index the combo (<c>value is long</c> check).  Null/empty → <c>0L</c>.
+    /// <b>Enum pins</b> (<c>typeId</c> starts with <c>"global::"</c>): the persisted value is
+    /// now a member NAME string (e.g. "Crouching") per ENUM-NAME.  If a provider is supplied
+    /// the name is resolved to the matching <c>long</c>.  Pure-integer strings (backward compat
+    /// / fallback) are still parsed directly.  Null/empty → <c>0L</c>.
     /// </para>
     /// </summary>
     public static object? ParseValue(string typeId, string? rawValue)
+        => ParseValue(typeId, rawValue, enumProvider: null);
+
+    /// <summary>
+    /// Overload that accepts an optional <paramref name="enumProvider"/> for name→long resolution.
+    /// </summary>
+    public static object? ParseValue(string typeId, string? rawValue, IEnumValueProvider? enumProvider)
     {
         // Enum sentinel: "global::" prefix (AN2 contract).
-        // Persisted as integer string; return long for EnumPinEditor.Draw.
         if (!string.IsNullOrEmpty(typeId)
             && typeId.StartsWith("global::", StringComparison.Ordinal))
         {
             if (string.IsNullOrEmpty(rawValue)) return 0L;
-            return long.TryParse(rawValue, out var enumLong) ? enumLong : 0L;
+
+            // Fast path: pure integer string (old assets / fallback).
+            if (long.TryParse(rawValue, out var enumLong)) return enumLong;
+
+            // Name-based lookup (ENUM-NAME).
+            if (enumProvider != null)
+            {
+                var typeKey = new TypeKey(typeId);
+                var entries = enumProvider.GetValues(typeKey);
+                foreach (var e in entries)
+                {
+                    if (string.Equals(e.DisplayName, rawValue, StringComparison.Ordinal))
+                        return e.Value;
+                }
+            }
+
+            // Unresolvable name → treat as zero (graceful fallback).
+            return 0L;
         }
 
         // Null / empty raw value → synthesise a type-zero for known numeric/bool types,
@@ -177,6 +223,8 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
 
     /// <summary>
     /// Convert the boxed CLR value back to the persisted string representation.
+    /// For non-enum types, this is a simple ToString / invariant-culture format.
+    /// For enum pins use <see cref="FormatEnumValue"/> instead.
     /// </summary>
     public static string? FormatValue(object? value) => value switch
     {
@@ -186,4 +234,26 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
         double d  => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
         _         => value.ToString(),
     };
+
+    /// <summary>
+    /// Converts the long integer value selected by <see cref="NodeEditor.UI.MiniEditors.EnumPinEditor"/>
+    /// to the member NAME string for persistence (ENUM-NAME).
+    /// When the provider is null or the value doesn't match any member, falls back to the
+    /// decimal integer string (backward-compat / graceful degradation).
+    /// </summary>
+    public static string FormatEnumValue(long value, string typeId, IEnumValueProvider? provider)
+    {
+        if (provider != null)
+        {
+            var typeKey = new TypeKey(typeId);
+            var entries = provider.GetValues(typeKey);
+            foreach (var e in entries)
+            {
+                if (e.Value == value)
+                    return e.DisplayName;
+            }
+        }
+        // Fallback: decimal integer string (still readable by FormatDefaultLiteral back-compat branch).
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
 }

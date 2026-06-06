@@ -133,7 +133,7 @@ public static class BlueprintDocumentFactory
         IPinDefaultValueEditorRegistry editorRegistry =
             new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
-            editorRegistry);
+            editorRegistry, enumProvider);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(editorRegistry);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
@@ -157,7 +157,8 @@ public static class BlueprintDocumentFactory
         // NodePinSchema.GetCanonicalPins — ChannelCommandNode then projects param data-IN pins.
         var commandSink = new BlueprintCommandSink(
             bpAsset, graph, graphModel, nodeCatalog, validator, history,
-            localEditService, markDirty, channelCommands: channelCommands);
+            localEditService, markDirty, channelCommands: channelCommands,
+            enumProvider: enumProvider);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
         var renderers = BuildRenderers(extraRenderers);

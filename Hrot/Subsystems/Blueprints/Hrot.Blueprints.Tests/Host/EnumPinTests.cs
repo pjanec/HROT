@@ -167,14 +167,34 @@ public sealed class EnumPinTests
 
     // ── (d) BlueprintPinDefaultValue.ParseValue enum round-trip ──────────────
 
+    // Integer strings still parse as long (backward compat).
     [Theory]
     [InlineData("global::SomeNs.SomeEnum", "0",  0L)]
     [InlineData("global::SomeNs.SomeEnum", "2",  2L)]
     [InlineData("global::SomeNs.SomeEnum", "42", 42L)]
-    public void ParseValue_EnumGlobalPrefix_ReturnsLong(string typeId, string raw, long expected)
+    public void ParseValue_EnumGlobalPrefix_IntegerString_ReturnsLong(string typeId, string raw, long expected)
     {
         var result = BlueprintPinDefaultValue.ParseValue(typeId, raw);
         Assert.Equal(expected, result);
+    }
+
+    // ENUM-NAME: name string resolves to the correct long via the provider.
+    [Fact]
+    public void ParseValue_EnumGlobalPrefix_MemberName_ResolvesViaProvider()
+    {
+        // GraphKind: Function=0, Event=1, Construction=2 — use a real enum loaded in this process.
+        var provider = new BlueprintEnumValueProvider();
+        var result   = BlueprintPinDefaultValue.ParseValue(GraphKindTypeId, "Event", provider);
+        Assert.Equal(1L, result);
+    }
+
+    // ENUM-NAME: unresolvable member name → graceful fallback to 0L (no crash).
+    [Fact]
+    public void ParseValue_EnumGlobalPrefix_UnknownMemberName_FallsBackToZero()
+    {
+        var provider = new BlueprintEnumValueProvider();
+        var result   = BlueprintPinDefaultValue.ParseValue(GraphKindTypeId, "DoesNotExist", provider);
+        Assert.Equal(0L, result);
     }
 
     [Theory]
@@ -186,10 +206,11 @@ public sealed class EnumPinTests
         Assert.Equal(0L, result);
     }
 
+    // Non-integer, non-resolvable name without a provider → 0L (graceful).
     [Fact]
-    public void ParseValue_EnumGlobalPrefix_BadString_ReturnsZeroLong()
+    public void ParseValue_EnumGlobalPrefix_UnresolvableName_NoProvider_ReturnsZeroLong()
     {
-        var result = BlueprintPinDefaultValue.ParseValue("global::SomeNs.SomeEnum", "notanumber");
+        var result = BlueprintPinDefaultValue.ParseValue("global::SomeNs.SomeEnum", "SomeName");
         Assert.Equal(0L, result);
     }
 
@@ -201,11 +222,40 @@ public sealed class EnumPinTests
         Assert.Equal("rawval", result);
     }
 
+    // ENUM-NAME: FormatEnumValue converts long → member name via provider.
+    [Fact]
+    public void FormatEnumValue_Long_ReturnsMemberName()
+    {
+        // GraphKind.Event = 1; FormatEnumValue must return "Event".
+        var provider = new BlueprintEnumValueProvider();
+        var result   = BlueprintPinDefaultValue.FormatEnumValue(1L, GraphKindTypeId, provider);
+        Assert.Equal("Event", result);
+    }
+
+    // ENUM-NAME: FormatEnumValue without a provider falls back to decimal string.
+    [Fact]
+    public void FormatEnumValue_NoProvider_ReturnsDecimalString()
+    {
+        var result = BlueprintPinDefaultValue.FormatEnumValue(2L, GraphKindTypeId, provider: null);
+        Assert.Equal("2", result);
+    }
+
+    // ENUM-NAME: FormatEnumValue with an unresolvable value falls back to decimal string.
+    [Fact]
+    public void FormatEnumValue_UnresolvableValue_ReturnsDecimalString()
+    {
+        var provider = new BlueprintEnumValueProvider();
+        // GraphKind has values 0/1/2; 99 is not a member.
+        var result   = BlueprintPinDefaultValue.FormatEnumValue(99L, GraphKindTypeId, provider);
+        Assert.Equal("99", result);
+    }
+
+    // FormatValue(long) still returns decimal string (generic path; enum-specific
+    // write-back now uses FormatEnumValue).
     [Fact]
     public void FormatValue_Long_ReturnsDecimalString()
     {
-        // EnumPinEditor.Draw sets value = (long)entries[selectedIdx].Value.
-        // FormatValue must round-trip it back to a decimal string for PinDefaults.
+        // Generic FormatValue is used for non-enum longs; returns decimal string.
         var result = BlueprintPinDefaultValue.FormatValue(2L);
         Assert.Equal("2", result);
     }
@@ -237,8 +287,9 @@ public sealed class EnumPinTests
     }
 
     [Fact]
-    public void PinModel_Default_ParsesLong_ForPersistedEnumDefault()
+    public void PinModel_Default_ParsesLong_ForPersistedIntegerEnumDefault()
     {
+        // Backward compat: integer-string stored default still parses to the correct long.
         var inner    = PinDefaultValueEditorRegistry.CreateWithBuiltins();
         var provider = new BlueprintEnumValueProvider();
         IPinDefaultValueEditorRegistry registry = new EnumSentinelPinEditorRegistry(inner, provider);
@@ -256,6 +307,53 @@ public sealed class EnumPinTests
 
         Assert.NotNull(model.Default);
         Assert.Equal(1L, model.Default!.Value);
+    }
+
+    // ENUM-NAME: persisted as member name → parsed to correct long via provider.
+    [Fact]
+    public void PinModel_Default_ParsesLong_ForPersistedMemberNameEnumDefault()
+    {
+        var inner    = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        var provider = new BlueprintEnumValueProvider();
+        IPinDefaultValueEditorRegistry registry = new EnumSentinelPinEditorRegistry(inner, provider);
+
+        var pin = new Pin
+        {
+            Id           = Guid.NewGuid(),
+            Name         = "mode",
+            Direction    = "In",
+            IsExec       = false,
+            TypeRef      = new BlueprintTypeRef { TypeId = GraphKindTypeId },
+            DefaultValue = "Event",   // member name; GraphKind.Event = 1
+        };
+        // Pass provider so ParseValue can resolve "Event" → 1L.
+        var model = new BlueprintPinModel(pin, new NodeId(Guid.NewGuid()), registry, provider);
+
+        Assert.NotNull(model.Default);
+        Assert.Equal(1L, model.Default!.Value);
+    }
+
+    // ENUM-NAME: unresolvable member name → fallback to 0L (no crash).
+    [Fact]
+    public void PinModel_Default_UnresolvableName_FallsBackToZeroLong()
+    {
+        var inner    = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        var provider = new BlueprintEnumValueProvider();
+        IPinDefaultValueEditorRegistry registry = new EnumSentinelPinEditorRegistry(inner, provider);
+
+        var pin = new Pin
+        {
+            Id           = Guid.NewGuid(),
+            Name         = "mode",
+            Direction    = "In",
+            IsExec       = false,
+            TypeRef      = new BlueprintTypeRef { TypeId = GraphKindTypeId },
+            DefaultValue = "RenamedMember",   // doesn't exist → fallback
+        };
+        var model = new BlueprintPinModel(pin, new NodeId(Guid.NewGuid()), registry, provider);
+
+        Assert.NotNull(model.Default);
+        Assert.Equal(0L, model.Default!.Value);
     }
 
     // ── (f) NodePinSchema.ReflectDataMembers stamps enum field TypeIds ─────────

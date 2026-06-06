@@ -129,10 +129,32 @@ internal static class Stage3_Normalize
         if (string.IsNullOrEmpty(rawValue)) return null;
 
         // Enum: TypeId starts with "global::" per AN2 convention.
-        // Emit  (global::Ns.MyEnum)<integer>
-        // The TypeId already contains "global::" so no extra prefix is added.
+        // ENUM-NAME: rawValue is normally a member name (e.g. "Crouching").
+        //   → emit  global::{fqn}.{Name}   (one "global::", no cast)
+        // Backward-compat: if rawValue is a pure integer string (old assets / fallback)
+        //   → emit  (global::{fqn})N        (the original integer-cast form)
+        // Either way the typeId is used directly; it already contains "global::" so the
+        // FQN without the prefix is typeId["global::".Length..].  We never double-prefix.
         if (typeId.StartsWith("global::", StringComparison.Ordinal))
-            return $"({typeId}){rawValue}";
+        {
+            // Check whether the stored value is a pure integer (all-digit, optional leading '-').
+            // Use Substring instead of slice syntax for netstandard2.0 compatibility.
+            var isInteger = rawValue.Length > 0
+                && (rawValue[0] == '-' ? rawValue.Length > 1 && rawValue.Substring(1).All(char.IsDigit)
+                                       : rawValue.All(char.IsDigit));
+
+            if (isInteger)
+            {
+                // Old-style: emit integer cast  (global::FQN)N
+                return $"({typeId}){rawValue}";
+            }
+            else
+            {
+                // New-style: emit member-qualified name  global::FQN.MemberName
+                // typeId is already "global::FQN" → we just append "." + name.
+                return $"{typeId}.{rawValue}";
+            }
+        }
 
         switch (typeId)
         {
