@@ -1,4 +1,6 @@
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
+using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Windows;
 using Hrot.Editor.AiShared.Selection;
@@ -201,6 +203,57 @@ public sealed class BlueprintDetailsWindowTests
         Assert.Same(session1, session2);
     }
 
+    // ── BF-BATCH-TESTASSET: ChannelCommand drawer diagnostic ─────────────────
+
+    /// <summary>
+    /// BF-TA-01 (drawer diagnostic): Given a <see cref="BlueprintDetailsWindow"/> backed by the
+    /// real registry from <see cref="BlueprintEditorBootstrap.CreateNodeDrawerRegistry"/>,
+    /// selecting a <see cref="ChannelCommandNode"/> in the asset graph must resolve a NON-NULL
+    /// session whose drawer is <see cref="ChannelCommandNodeDrawer"/>.
+    ///
+    /// If this test PASSES, the live "Details: No node selected" is a selection / wrong-node-id
+    /// issue, NOT a drawer registration bug.
+    /// </summary>
+    [Fact]
+    public void BlueprintDetails_ChannelCommandNode_ResolvesChannelCommandDrawer()
+    {
+        // Arrange — real drawer registry from bootstrap.
+        var channelCatalog    = BuiltInChannelCommandCatalog.Instance;
+        var eventCatalog      = BuiltInEngineEventCatalog.Instance;
+        var editService       = new NullEditService();
+        var predicateCompiler = new NullPredicateCompiler();
+        var eqsTemplates      = new EqsTemplateRegistry();
+        var registry = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
+            channelCatalog, eventCatalog, editService, predicateCompiler, eqsTemplates);
+
+        var graphId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var node    = new ChannelCommandNode
+        {
+            Id          = nodeId,
+            ChannelType = "LocomotionChannel",
+            ActionId    = "MoveTo",
+        };
+        var graph = new Graph { Id = graphId, Name = "Main" };
+        graph.Nodes.Add(node);
+
+        var asset = new BlueprintAsset { AssetId = Guid.NewGuid(), Name = "TestBP" };
+        asset.Graphs.Add(graph);
+
+        var store  = new EditorSelectionStore();
+        var window = new BlueprintDetailsWindow(store, registry);
+        window.Retarget(asset);
+        store.ActiveAsset        = new FakeEditableAsset(asset.AssetId);
+        store.ActiveSubSelection = new BlueprintNodeSelection(graphId, nodeId);
+
+        // Act
+        var session = window.ResolveSession();
+
+        // Assert — session is non-null and backed by ChannelCommandNodeDrawer.
+        Assert.NotNull(session);
+        Assert.Equal(typeof(ChannelCommandNodeDrawer), window.ResolvedDrawerKind);
+    }
+
     // ── inner fakes ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -233,5 +286,24 @@ public sealed class BlueprintDetailsWindowTests
         public bool   IsEditorOwned  => false;
         public event System.Action? Changed;
         public FakeEditableAsset(Guid id) { AssetId = id; }
+    }
+
+    // ── stubs for BF-TA-01 ────────────────────────────────────────────────────
+
+    private sealed class NullEditService : IEditService
+    {
+        public void MarkDirty(BlueprintAsset asset) { }
+    }
+
+    private sealed class NullPredicateCompiler : Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler
+    {
+        public Func<Fdp.Core.EntityRepository, Fdp.Core.Entity, bool> CompileComponentPredicate(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => (_, _) => true;
+
+        public Func<Fdp.Core.EntityRepository, Fdp.Core.Entity, bool> CompileEntityPredicate(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => (_, _) => true;
+
+        public IReadOnlyList<Type> ExtractMandatoryComponents(
+            Fdp.Toolkit.ReplayBrowser.Search.SearchPredicateDto predicate) => Array.Empty<Type>();
     }
 }

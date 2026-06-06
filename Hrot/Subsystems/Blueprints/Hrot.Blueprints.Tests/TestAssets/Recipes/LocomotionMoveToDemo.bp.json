@@ -1,0 +1,99 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000000-aaaa-0001-0000-000000000006",
+  "Name": "LocomotionMoveToDemo",
+  "Dispatch": 1,
+  "TierHint": 0,
+  "Primitive": {
+    "Intent": 0,
+    "Hostings": [
+      0
+    ]
+  },
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e5000006-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": 0,
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "f5000006-0001-0001-0001-000000000001",
+          "EventTypeId": "",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "Id": "f5000006-0002-0002-0002-000000000001",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 420.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "f5000006-0003-0003-0003-000000000001",
+          "Status": 0,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 760.0,
+            "Y": 220.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f5000006-0001-0001-0001-000000000001",
+          "FromPinId": "e5ee0006-0001-a001-0001-000000000001",
+          "ToNodeId": "f5000006-0002-0002-0002-000000000001",
+          "ToPinId": "e5ee0006-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f5000006-0002-0002-0002-000000000001",
+          "FromPinId": "e5ee0006-0002-a001-0001-000000000001",
+          "ToNodeId": "f5000006-0003-0003-0003-000000000001",
+          "ToPinId": "e5ee0006-0003-b001-0001-000000000001"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": {
+      "DisplayName": "Locomotion MoveTo Demo",
+      "Category": "AI Primitives",
+      "Description": "Minimal AiPrimitive (BTreeAction) with a fully exec-wired ChannelCommand configured for LocomotionChannel/MoveTo. Select the ChannelCommand node to see its param pins (MoveToParams fields) in the Details panel and test the action combo dropdown.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "AiPrimitive dispatch with ChannelCommand (not valid in Instance blueprints)",
+        "ChannelCommand ChannelType + ActionId projection of param pins",
+        "EventEntry → ChannelCommand → Return exec wiring",
+        "Details panel: ChannelCommandNodeDrawer action combo + projected param pins"
+      ]
+    }
+  }
+}

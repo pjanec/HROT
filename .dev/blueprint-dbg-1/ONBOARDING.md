@@ -75,6 +75,7 @@ This continues a long line of blueprint work. As of branch **`blueprint-integ-1`
   `src/NodeEditor.UI/Canvas` (renderers, incl. how inline editors/comments/containers render), and
   `src/NodeEditor.Demo` (working reference scenarios + `FakeBlueprint/` reference models). When wiring an editor
   feature, find the matching NodeEdit contract + demo scenario and model on it (don't invent contracts).
+  One of demo cases shows breakpoints as red bullets, currently executed node highlighting etc - this is what  it shoudl look like.
 
 ---
 

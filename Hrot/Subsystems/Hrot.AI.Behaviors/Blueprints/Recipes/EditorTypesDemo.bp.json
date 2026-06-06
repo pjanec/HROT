@@ -1,0 +1,221 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {
+    "SubsystemType": "Hrot.Blueprints",
+    "SchemaVersion": "1.0"
+  },
+  "AssetId": "00000000-aaaa-0001-0000-000000000007",
+  "Name": "EditorTypesDemo",
+  "Dispatch": "Instance",
+  "Primitive": null,
+  "Parameters": [],
+  "WorkingState": [],
+  "Variables": [],
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e7000007-0001-0001-0001-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "Id": "f7000007-0001-0001-0001-000000000001",
+          "Pins": [
+            {
+              "Id": "e7ee0007-0001-aa01-0001-000000000001",
+              "Name": "Out",
+              "Direction": "Out",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "Return",
+          "Id": "f7000007-0002-0002-0002-000000000001",
+          "Pins": [
+            {
+              "Id": "e7ee0007-0002-aa01-0001-000000000001",
+              "Name": "In",
+              "Direction": "In",
+              "IsExec": true,
+              "TypeRef": {}
+            }
+          ],
+          "EditorMetadata": {
+            "X": 380.0,
+            "Y": 220.0
+          }
+        },
+        {
+          "kind": "Branch",
+          "Id": "f7000007-0010-bb10-0010-000000000001",
+          "Pins": [
+            {
+              "Id": "e7dd0007-0010-cc01-0001-000000000001",
+              "Name": "Condition",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Boolean" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0020-bb20-0020-000000000001",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "AddInt",
+          "IsPure": true,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 520.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0030-bb30-0030-000000000001",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "Add",
+          "IsPure": true,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 640.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0040-bb40-0040-000000000001",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "e7dd0007-0040-dd01-0001-000000000001",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.String" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80.0,
+            "Y": 760.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0050-bb50-0050-000000000001",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "AddVec",
+          "IsPure": true,
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 440.0,
+            "Y": 400.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0060-bb60-0060-000000000001",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "e7dd0007-0060-dd01-0001-000000000001",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Numerics.Vector2" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 440.0,
+            "Y": 520.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0070-bb70-0070-000000000001",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "e7dd0007-0070-dd01-0001-000000000001",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Numerics.Vector4" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 440.0,
+            "Y": 640.0
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0080-bb80-0080-000000000001",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "e7dd0007-0080-dd01-0001-000000000001",
+              "Name": "Value",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "System.Numerics.Quaternion" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 440.0,
+            "Y": 760.0
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f7000007-0001-0001-0001-000000000001",
+          "FromPinId": "e7ee0007-0001-aa01-0001-000000000001",
+          "ToNodeId": "f7000007-0002-0002-0002-000000000001",
+          "ToPinId": "e7ee0007-0002-aa01-0001-000000000001"
+        }
+      ],
+      "EditorMetadata": {}
+    }
+  ],
+  "EditorMetadata": {
+    "Recipe": {
+      "DisplayName": "Inline-Editor Types Demo",
+      "Category": "Tutorial",
+      "Description": "Instance blueprint showcasing inline default-value editors for all StaticTypeRegistry-supported pin types: bool, int, float, string, Vector2, Vector3, Vector4, Quaternion. Select any floating node to see its unconnected In-data pin rendered with the matching inline editor.",
+      "Difficulty": "Beginner",
+      "ConceptsTaught": [
+        "Inline default-value editors on unconnected In-data pins",
+        "Supported pin types: bool, int, float, string, Vector2, Vector3, Vector4, Quaternion",
+        "Pure (IsPure=true) FunctionCall nodes float independently of the exec chain",
+        "PinDefaultValueEditorRegistry.CreateWithBuiltins() type coverage"
+      ]
+    }
+  }
+}

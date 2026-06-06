@@ -43,13 +43,14 @@ public sealed class RecipeIntegrityTests
     }
 
     private static CompileOptions RecipeCompileOptions(
-        IReadOnlyList<BlueprintSignature>? siblings = null) =>
+        IReadOnlyList<BlueprintSignature>? siblings = null,
+        IChannelCommandCatalog? channelCommands = null) =>
         new CompileOptions(
             Mode:              CompilerMode.Debug,
             NodeRegistry:      BuiltInNodeRegistry.Instance,
             TypeRegistry:      StaticTypeRegistry.Instance,
             EngineEvents:      BuiltInEngineEventCatalog.Instance,
-            ChannelCommands:   EmptyChannelCommandCatalog.Instance,
+            ChannelCommands:   channelCommands ?? EmptyChannelCommandCatalog.Instance,
             WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
             SiblingSignatures: siblings ?? Array.Empty<BlueprintSignature>());
 
@@ -95,6 +96,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadAwareEngagement")]
     [InlineData("MoveAndFireCombo")]
     [InlineData("SquadState")]
+    [InlineData("LocomotionMoveToDemo")]
+    [InlineData("EditorTypesDemo")]
     public void AllRecipes_Parse(string name)
     {
         var asset = LoadRecipe(name);
@@ -110,6 +113,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadAwareEngagement")]
     [InlineData("MoveAndFireCombo")]
     [InlineData("SquadState")]
+    [InlineData("LocomotionMoveToDemo")]
+    [InlineData("EditorTypesDemo")]
     public void AllRecipes_HaveDescriptionsAndConcepts(string name)
     {
         var asset = LoadRecipe(name);
@@ -126,10 +131,23 @@ public sealed class RecipeIntegrityTests
     [InlineData("HealthThresholdReaction")]
     [InlineData("MoveAndFireCombo")]
     [InlineData("SquadState")]
+    [InlineData("EditorTypesDemo")]
     public void AllRecipes_ValidateOnly_NoErrors(string name)
     {
         var asset  = LoadRecipe(name);
         var opts   = RecipeCompileOptions();
+        var result = new BlueprintCompiler().Compile(asset, opts);
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void LocomotionMoveToDemo_ValidateOnly_NoErrors()
+    {
+        // LocomotionMoveToDemo is AiPrimitive — requires the full channel-command catalog so
+        // Stage2 V_ChannelCommandReferences can resolve LocomotionChannel/MoveTo.
+        var asset  = LoadRecipe("LocomotionMoveToDemo");
+        var opts   = RecipeCompileOptions(channelCommands: BuiltInChannelCommandCatalog.Instance);
         var result = new BlueprintCompiler().Compile(asset, opts);
         var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
         Assert.Empty(errors);
@@ -166,6 +184,8 @@ public sealed class RecipeIntegrityTests
     [InlineData("SquadAwareEngagement",    "00000000-aaaa-0001-0000-000000000003")]
     [InlineData("MoveAndFireCombo",        "00000000-aaaa-0001-0000-000000000004")]
     [InlineData("SquadState",              "00000000-aaaa-0001-0000-000000000005")]
+    [InlineData("LocomotionMoveToDemo",    "00000000-aaaa-0001-0000-000000000006")]
+    [InlineData("EditorTypesDemo",         "00000000-aaaa-0001-0000-000000000007")]
     public void AllRecipes_HaveStableAssetIds(string name, string expectedId)
     {
         var asset1 = LoadRecipe(name);
