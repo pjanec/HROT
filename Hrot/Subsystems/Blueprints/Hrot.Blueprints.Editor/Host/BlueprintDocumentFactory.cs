@@ -13,6 +13,7 @@ using Hrot.Editor.AiShared.Windows;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
+using NodeEditor.Primitives;
 using NodeEditor.UI.Action;
 using NodeEditor.UI.Find;
 using NodeEditor.UI.MiniEditors;
@@ -121,6 +122,9 @@ public static class BlueprintDocumentFactory
         // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
         var editorRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        // Register FixedString32/64 as string-editor types (unmanaged; authored as plain text).
+        editorRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
+        editorRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
             editorRegistry);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);

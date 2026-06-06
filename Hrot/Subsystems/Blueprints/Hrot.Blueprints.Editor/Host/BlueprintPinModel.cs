@@ -136,8 +136,10 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "System.Double"  => (object)0.0,
                 "System.Byte"    => (object)(byte)0,
                 "System.UInt32"  => (object)0u,
-                "System.String"  => (object)"",
-                _                => null,   // unsupported type — no widget shown
+                "System.String"       => (object)"",
+                "Fdp.Core.FixedString32" => (object)"",
+                "Fdp.Core.FixedString64" => (object)"",
+                _                     => null,   // unsupported type — no widget shown
             };
         }
         return typeId switch

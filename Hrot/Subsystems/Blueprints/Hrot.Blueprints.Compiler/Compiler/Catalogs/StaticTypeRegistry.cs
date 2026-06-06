@@ -58,6 +58,10 @@ public sealed class StaticTypeRegistry : ITypeRegistry
                 SizeBytes   = 8,
             },
 
+            // Fdp.Core fixed-length string value types (unmanaged, blittable; preferred over System.String in state)
+            ["Fdp.Core.FixedString32"] = Unmanaged("Fdp.Core.FixedString32", 32),
+            ["Fdp.Core.FixedString64"] = Unmanaged("Fdp.Core.FixedString64", 64),
+
             // Common aliases used in test assets
             ["bool"]   = Unmanaged("System.Boolean", 1),
             ["byte"]   = Unmanaged("System.Byte",    1),

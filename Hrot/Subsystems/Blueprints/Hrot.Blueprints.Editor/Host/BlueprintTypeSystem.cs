@@ -20,16 +20,18 @@ public sealed class BlueprintTypeSystem : ITypeSystem
 {
     // ── well-known type-id constants ──────────────────────────────────────────
 
-    public const string Bool    = "System.Boolean";
-    public const string Int32   = "System.Int32";
-    public const string Single  = "System.Single";
-    public const string String  = "System.String";
-    public const string Vector2 = "System.Numerics.Vector2";
-    public const string Vector3 = "System.Numerics.Vector3";
-    public const string Float64 = "System.Double";
-    public const string Byte    = "System.Byte";
-    public const string UInt32  = "System.UInt32";
-    public const string Entity  = "Fdp.Core.Entity";
+    public const string Bool         = "System.Boolean";
+    public const string Int32        = "System.Int32";
+    public const string Single       = "System.Single";
+    public const string String       = "System.String";
+    public const string Vector2      = "System.Numerics.Vector2";
+    public const string Vector3      = "System.Numerics.Vector3";
+    public const string Float64      = "System.Double";
+    public const string Byte         = "System.Byte";
+    public const string UInt32       = "System.UInt32";
+    public const string Entity       = "Fdp.Core.Entity";
+    public const string FixedString32 = "Fdp.Core.FixedString32";
+    public const string FixedString64 = "Fdp.Core.FixedString64";
 
     // ── colour palette (mirrors FakeTypeSystem conventions; Blueprint-specific palette) ─
 
@@ -47,6 +49,9 @@ public sealed class BlueprintTypeSystem : ITypeSystem
         [Entity]  = (new Vector4(0.20f, 0.85f, 0.70f, 1f), "Entity"),
         // EQS handle type
         ["FDP.Eqs.EqsSensorHandle"] = (new Vector4(0.78f, 0.50f, 0.10f, 1f), "EqsSensorHandle"),
+        // Fdp.Core fixed-length string types (unmanaged, blittable; teal-green, string-ish)
+        [FixedString32] = (new Vector4(0.25f, 0.75f, 0.55f, 1f), "FixedString32"),
+        [FixedString64] = (new Vector4(0.25f, 0.65f, 0.50f, 1f), "FixedString64"),
     };
 
     private readonly IPinDefaultValueEditorRegistry _editors;
@@ -132,6 +137,7 @@ public sealed class BlueprintTypeSystem : ITypeSystem
     {
         Bool, Int32, Single, Float64, String, Byte, UInt32,
         Vector2, Vector3, Entity,
+        FixedString32, FixedString64,
     };
 
     // ── Static helpers ────────────────────────────────────────────────────────

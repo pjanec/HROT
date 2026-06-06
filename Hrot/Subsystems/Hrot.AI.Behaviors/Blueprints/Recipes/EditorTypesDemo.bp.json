@@ -191,6 +191,26 @@
             "X": 440.0,
             "Y": 760.0
           }
+        },
+        {
+          "kind": "FunctionCall",
+          "Id": "f7000007-0090-bb90-0090-000000000001",
+          "TargetTypeId": "",
+          "MethodName": "",
+          "IsPure": true,
+          "Pins": [
+            {
+              "Id": "e7dd0007-0090-dd01-0001-000000000001",
+              "Name": "Label",
+              "Direction": "In",
+              "IsExec": false,
+              "TypeRef": { "TypeId": "Fdp.Core.FixedString32" }
+            }
+          ],
+          "EditorMetadata": {
+            "X": 800.0,
+            "Y": 400.0
+          }
         }
       ],
       "Links": [
@@ -212,9 +232,10 @@
       "Difficulty": "Beginner",
       "ConceptsTaught": [
         "Inline default-value editors on unconnected In-data pins",
-        "Supported pin types: bool, int, float, string, Vector2, Vector3, Vector4, Quaternion",
+        "Supported pin types: bool, int, float, string, Vector2, Vector3, Vector4, Quaternion, FixedString32",
         "Pure (IsPure=true) FunctionCall nodes float independently of the exec chain",
-        "PinDefaultValueEditorRegistry.CreateWithBuiltins() type coverage"
+        "PinDefaultValueEditorRegistry.CreateWithBuiltins() type coverage",
+        "FixedString32/64: unmanaged blittable string types registered via host-side StringPinEditor"
       ]
     }
   }
