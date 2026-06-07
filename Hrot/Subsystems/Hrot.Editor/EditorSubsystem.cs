@@ -1824,6 +1824,12 @@ namespace Hrot.Editor
             // AIE-053: Shared ActionSchemaExporter instance — also forwarded to the Inspector
             // for sub-element collision diagnostics.
             var sharedSchemaExporter = new ActionSchemaExporter();
+            // AN7 live-discovery fix: the exporter is constructed empty and is otherwise only
+            // Rebuilt by ActionSchemaExporterCatalogWatcher (not wired here). Populate it NOW by
+            // reflecting the already-loaded game assemblies, so the behavior-action catalog +
+            // palette below actually contain the non-channel [SharedAiAction]/AiPrimitive entries.
+            // (Post-reload refresh of newly-generated AiPrimitive actions is a separate follow-up.)
+            sharedSchemaExporter.Rebuild();
 
             // ── AN7: unified behavior-action catalog ────────────────────────────────────────────
             // Compose the channel-command catalog (same source as the palette built ~line 917) +
