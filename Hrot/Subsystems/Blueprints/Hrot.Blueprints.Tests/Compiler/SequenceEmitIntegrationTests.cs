@@ -396,7 +396,9 @@ public sealed class SequenceEmitIntegrationTests
     [Fact]
     public void Sequence_LatentDelay_LoopsAndReincrements()
     {
-        const float delaySeconds = 0.5f;
+        // Duration pin is wired; use 0 delay for instant-completion loop test.
+        // Each period takes 2 ticks: one to start delay+suspend, one to check+reset+return.
+        const float delaySeconds = 0.0f;
         var asset = BuildSeqLatentWithDelayAsset("SeqLoop", delaySeconds, "Count");
 
         using var fixture = new BlueprintTestFixture(
@@ -406,20 +408,25 @@ public sealed class SequenceEmitIntegrationTests
         var harness = new BlueprintRunHarness(fixture);
         var entity = harness.SpawnAndAttach(asset);
 
-        // With no Duration pin on LatentDelay, delay defaults to 0s.
-        // Each tick: fresh → increment → delay(0) → immediately completes
-        // → cursor reset → return.  So Count = tick number.
+        // Tick 1: fresh -> Count=1, delay(0) starts, suspend.
         fixture.TickFrame(0.016f);
         Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
 
+        // Tick 2: resume -> delay elapsed -> cursor reset -> return. Count still 1.
+        fixture.TickFrame(0.016f);
+        Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
+
+        // Tick 3: fresh -> Count=2.
         fixture.TickFrame(0.016f);
         Assert.Equal(2, harness.ReadIntField(entity, asset, "Count"));
 
+        // Tick 4: resume -> elapsed -> return. Count still 2.
+        fixture.TickFrame(0.016f);
+        Assert.Equal(2, harness.ReadIntField(entity, asset, "Count"));
+
+        // Tick 5: fresh -> Count=3.
         fixture.TickFrame(0.016f);
         Assert.Equal(3, harness.ReadIntField(entity, asset, "Count"));
-
-        fixture.TickFrame(0.016f);
-        Assert.Equal(4, harness.ReadIntField(entity, asset, "Count"));
     }
 
     /// <summary>
@@ -435,6 +442,7 @@ public sealed class SequenceEmitIntegrationTests
         var litId   = Guid.NewGuid();
         var addId   = Guid.NewGuid();
         var svId    = Guid.NewGuid();
+        var durLitId = Guid.NewGuid();
         var delayId = Guid.NewGuid();
         var retId   = Guid.NewGuid();
 
@@ -453,8 +461,11 @@ public sealed class SequenceEmitIntegrationTests
         var pSvIn    = Guid.NewGuid();
         var pSvOut   = Guid.NewGuid();
         var pSvVal   = Guid.NewGuid();
+        var pDurIn   = Guid.NewGuid();
+        var pDurOut  = Guid.NewGuid();
         var pDelIn   = Guid.NewGuid();
         var pDelOut  = Guid.NewGuid();
+        var pDelDur  = Guid.NewGuid();
         var pRetIn   = Guid.NewGuid();
 
         var countVar = new VariableDecl
@@ -506,11 +517,18 @@ public sealed class SequenceEmitIntegrationTests
                         new Pin { Id = pSvOut, Name = "ExecOut", Direction = "Out", IsExec = true,  TypeRef = new() },
                         new Pin { Id = pSvVal, Name = "Value",   Direction = "In",  IsExec = false, TypeRef = new() },
                     } },
+                new LiteralNode { Id = durLitId, TypeId = "System.Single", ValueJson = $"{delaySeconds}f",
+                    Pins = new()
+                    {
+                        new Pin { Id = pDurIn,  Name = "ExecIn",  Direction = "In",  IsExec = true,  TypeRef = new() },
+                        new Pin { Id = pDurOut, Name = "DataOut", Direction = "Out", IsExec = false, TypeRef = new() },
+                    } },
                 new LatentDelayNode { Id = delayId,
                     Pins = new()
                     {
                         new Pin { Id = pDelIn,  Name = "ExecIn",  Direction = "In",  IsExec = true,  TypeRef = new() },
                         new Pin { Id = pDelOut, Name = "ExecOut", Direction = "Out", IsExec = true,  TypeRef = new() },
+                        new Pin { Id = pDelDur, Name = "Duration", Direction = "In",  IsExec = false, TypeRef = new() },
                     } },
                 new ReturnNode { Id = retId, Status = NodeStatus.Success,
                     Pins = new() { new Pin { Id = pRetIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } } },
@@ -522,11 +540,66 @@ public sealed class SequenceEmitIntegrationTests
                 new() { FromNodeId = gvId,    FromPinId = pGvOut,  ToNodeId = addId,  ToPinId = pAddA    },
                 new() { FromNodeId = litId,   FromPinId = pLitOut, ToNodeId = addId,  ToPinId = pAddB    },
                 new() { FromNodeId = addId,   FromPinId = pAddOut, ToNodeId = svId,   ToPinId = pSvVal   },
-                new() { FromNodeId = svId,    FromPinId = pSvOut,   ToNodeId = retId,  ToPinId = pRetIn   },
+                new() { FromNodeId = delayId, FromPinId = pDelOut, ToNodeId = retId,  ToPinId = pRetIn   },
+                new() { FromNodeId = durLitId, FromPinId = pDurOut, ToNodeId = delayId,ToPinId = pDelDur  },
                 new() { FromNodeId = seqId,   FromPinId = psThen1, ToNodeId = delayId,ToPinId = pDelIn   },
             },
         };
 
         return BuildInstanceBlueprint(name, new List<VariableDecl> { countVar }, graph);
+    }
+
+    // ----------------------------------------------------------------
+    // DELAYTIME: Delay waits a RELATIVE duration (time + d), not absolute.
+    // ----------------------------------------------------------------
+
+    [Fact]
+    public void Sequence_LatentDelay_WaitsFullDurationEachPeriod()
+    {
+        const float d = 1.0f;
+        var asset = BuildSeqLatentWithDelayAsset("SeqDelayRel", d, "Count");
+
+        // Verify the duration Literal is wired correctly.
+        var graph = asset.Graphs[0];
+        var delayNode = graph.Nodes.OfType<LatentDelayNode>().First();
+        var durPin = delayNode.Pins.First(p => !p.IsExec && p.Direction == "In");
+        var link = graph.Links.FirstOrDefault(l => l.ToNodeId == delayNode.Id && l.ToPinId == durPin.Id);
+        Assert.NotNull(link); // This MUST exist for the delay to have non-zero duration
+
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        fixture.CompileAndLoad(asset);
+
+        var harness = new BlueprintRunHarness(fixture);
+        var entity = harness.SpawnAndAttach(asset);
+
+        // Start at a large absolute sim time to expose absolute-vs-relative bug.
+        fixture.View.AdvanceTime(100.0f);
+        fixture.World.SetSimulationTime(fixture.View.Time);
+
+        // Step 1: Tick(time=100.0) -> Count == 1, suspended.
+        fixture.TickFrame(0.0f);
+        Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
+
+        // Step 2: Tick(time=100.5) half a period later -> Count == 1 (still waiting).
+        fixture.TickFrame(0.5f);
+        Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
+
+        // Step 3: Tick(time=101.01) just past 100+d -> delay elapsed, cursor resets.
+        fixture.TickFrame(0.51f);
+        Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
+
+        // Step 4: Tick(time=101.02) -> Count == 2 (second period started).
+        fixture.TickFrame(0.01f);
+        Assert.Equal(2, harness.ReadIntField(entity, asset, "Count"));
+
+        // Step 5: Tick(time=101.5) half of the SECOND period -> Count == 2 (still waiting).
+        fixture.TickFrame(0.48f);
+        Assert.Equal(2, harness.ReadIntField(entity, asset, "Count"));
+
+        // Step 6: Tick(time=102.03) -> delay just elapsed, cursor reset -> Count == 2.
+        // (Increment to 3 happens on the NEXT tick after fresh-start.)
+        fixture.TickFrame(0.53f);
+        Assert.Equal(2, harness.ReadIntField(entity, asset, "Count"));
     }
 }

@@ -90,8 +90,16 @@ internal static class WaitLowering_Instance
 
             if (waitOp is IrOp_LatentDelay ld)
             {
-                // IrOp_WriteCursorWaitUntilTime carries the seconds; emitter adds Time.
-                keptStmts.Add(Stmt(null, new IrOp_WriteCursorWaitUntilTime(ld.Seconds)));
+                // Compute time + duration and store as wait-until (relative, not absolute).
+                var timeV = Alloc(SingleType);
+                keptStmts.Add(Stmt(timeV, new IrOp_Time()));
+
+                var waitUntilV = Alloc(SingleType);
+                keptStmts.Add(Stmt(waitUntilV,
+                    new IrOp_PureCall("op_Add_Single",
+                        new[] { timeV, ld.Seconds },
+                        SingleType)));
+                keptStmts.Add(Stmt(null, new IrOp_WriteCursorWaitUntilTime(waitUntilV)));
             }
 
             modifiedBlocks[sb.Id.Value] = sb with
