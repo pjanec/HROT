@@ -55,7 +55,12 @@ public sealed class BlueprintLinkValidator : ILinkValidator
 
         if (fromPin.Kind == PinKind.Exec)
         {
-            // Exec input accepts multiple connections (fan-in); no further checks needed.
+            // Exec input accepts multiple sources (fan-in is allowed).
+            // Exec output must have at most one outgoing link; if already connected, signal replace.
+            var outputPin = fromPin.Direction == PinDirection.Output ? fromPin : toPin;
+            bool alreadyConnected = _graph.Links.Any(l => l.FromPin == outputPin.Id);
+            if (alreadyConnected)
+                return InvalidReplace("Exec output pin already has a connection (will replace existing).");
             return Valid();
         }
 

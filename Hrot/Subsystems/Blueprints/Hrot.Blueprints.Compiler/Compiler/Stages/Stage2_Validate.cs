@@ -40,6 +40,7 @@ internal static class Stage2_Validate
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
         new V_FunctionGraphCallRules(),
+        new V_ExecOutFanOut(),
     };
 
     public static void Run(BlueprintAsset asset, ValidationContext ctx)
@@ -1308,3 +1309,50 @@ internal sealed class V_FunctionGraphCallRules : IValidator
     }
 }
 
+// ---------------------------------------------------------------------------
+// V_ExecOutFanOut  (EXEC1 -- BF-BATCH-EXECFANOUT)
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// BP1411 -- Each exec-output pin must drive at most one successor.
+/// Fan-out from a single exec-out pin is silently dropped by the scheduler, so
+/// this validator makes it a hard error before scheduling runs.
+/// <para>
+/// The rule is <em>per pin</em>, not per node:
+/// <see cref="BranchNode"/> (True/False), <see cref="SequenceNode"/> (Then0/Then1), and
+/// <see cref="WhenNode"/> (OnFired/OnEnded/Out) each have multiple exec-out pins, but each
+/// individual pin must still drive at most one successor.  The correct way to run two
+/// branches off a single pin is an explicit <see cref="SequenceNode"/>.
+/// </para>
+/// </summary>
+internal sealed class V_ExecOutFanOut : IValidator
+{
+    public void Validate(BlueprintAsset asset, ValidationContext ctx)
+    {
+        foreach (var graph in asset.Graphs)
+        {
+            // Skip graphs where no pin data is present; pins are populated from the node
+            // registry in later stages and are not stored in the raw JSON asset.
+            if (!graph.Nodes.Any(n => n.Pins.Count > 0)) continue;
+
+            foreach (var node in graph.Nodes)
+            {
+                foreach (var pin in node.Pins)
+                {
+                    if (!pin.IsExec || pin.Direction != "Out") continue;
+
+                    int count = graph.Links.Count(l =>
+                        l.FromNodeId == node.Id && l.FromPinId == pin.Id);
+
+                    if (count > 1)
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1411,
+                            $"Exec output pin '{pin.Name}' on node '{node.Id}' " +
+                            $"({node.GetType().Name}) drives {count} successors; " +
+                            $"an exec output drives exactly one. " +
+                            $"Use a Sequence node to fan out.",
+                            asset.AssetId, graph.Id, node.Id));
+                }
+            }
+        }
+    }
+}

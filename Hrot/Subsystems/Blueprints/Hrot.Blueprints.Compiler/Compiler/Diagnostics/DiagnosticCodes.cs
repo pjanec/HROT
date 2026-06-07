@@ -42,6 +42,9 @@ public static class DiagnosticCodes
     public const string BP1401 = "BP1401";
     public const string BP1402 = "BP1402";
 
+    // Stage 2 -- Validate (exec-out connectivity)
+    public const string BP1411 = "BP1411";  // ExecOutFanOut: exec-out pin drives more than one successor
+
     // Stage 2 -- Validate (type references)
     public const string BP1500 = "BP1500";
     public const string BP1501 = "BP1501";

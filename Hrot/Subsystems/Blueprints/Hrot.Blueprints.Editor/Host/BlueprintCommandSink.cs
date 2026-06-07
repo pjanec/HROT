@@ -366,10 +366,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
 
         if (validation.Verdict == LinkValidity.Invalid)
         {
-            // Single-data-input replacement: remove the existing data link first.
-            if (validation.Reason?.Contains("replace") == true ||
-                validation.Reason?.Contains("already has") == true)
+            if (validation.Reason?.Contains("Exec output") == true)
             {
+                // Exec-output replace: remove the existing exec-out link by source pin.
+                RemoveExistingExecOutLink(link.From);
+            }
+            else if (validation.Reason?.Contains("replace") == true ||
+                     validation.Reason?.Contains("already has") == true)
+            {
+                // Data-input replace: remove the existing data link by target pin.
                 RemoveExistingDataLink(link.To);
             }
             else
@@ -405,6 +410,11 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
     private void RemoveExistingDataLink(PinId toPin)
     {
         _graph.Links.RemoveAll(l => l.ToPinId == toPin.Value);
+    }
+
+    private void RemoveExistingExecOutLink(PinId fromPin)
+    {
+        _graph.Links.RemoveAll(l => l.FromPinId == fromPin.Value);
     }
 
     // ── RemoveLinks ──────────────────────────────────────────────────────────
