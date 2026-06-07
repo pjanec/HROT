@@ -37,13 +37,12 @@ public sealed class BP1412_DroppedExecSuccessorsTests
     }
 
     // ----------------------------------------------------------------
-    // Scenario 1: SequenceNode with linked exec-out pins -- dropped
-    // successors MUST fire BP1412 Error.
+    // Scenario 1: SequenceNode with linked exec-out pins -- after SEQ1
+    // the Sequence is CORRECTLY scheduled.  No BP1412 must fire.
     // ----------------------------------------------------------------
 
     [Fact]
-    [CoversDiagnosticCode("BP1412")]
-    public void Schedule_SequenceNode_LinkedExecOuts_Dropped_EmitsBP1412_Error()
+    public void Schedule_SequenceNode_LinkedExecOuts_SchedulesCorrectly_NoBP1412()
     {
         var assetId = Guid.NewGuid();
         var graphId = Guid.NewGuid();
@@ -101,7 +100,7 @@ public sealed class BP1412_DroppedExecSuccessorsTests
         var bp = new BlueprintAsset
         {
             AssetId  = assetId,
-            Name     = "SeqDrop",
+            Name     = "SeqScheduled",
             Dispatch = BlueprintDispatchKind.Library,
             Parameters = new(), WorkingState = new(), Variables = new(),
             EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
@@ -109,17 +108,15 @@ public sealed class BP1412_DroppedExecSuccessorsTests
             Header = new Header(),
         };
 
-        var (_, sink) = RunStage5(bp);
+        var (ir, sink) = RunStage5(bp);
 
-        // Must contain BP1412 Error
-        var bp1412 = sink.All.Where(d => d.Code == DiagnosticCodes.BP1412).ToList();
-        Assert.NotEmpty(bp1412);
-        Assert.All(bp1412, d => Assert.Equal(DiagnosticSeverity.Error, d.Severity));
+        // No BP1412 -- Sequence is correctly scheduled.
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1412);
 
-        // Message must contain the offending node id and type name
-        Assert.Contains(bp1412, d =>
-            d.Message.Contains(seqId.ToString()) &&
-            d.Message.Contains("SequenceNode"));
+        // Must have multiple blocks (entry + 2 branch blocks).
+        var irGraph = Assert.Single(ir.Graphs);
+        Assert.True(irGraph.Blocks.Count >= 3,
+            $"Expected >= 3 blocks for scheduled Sequence, got {irGraph.Blocks.Count}");
     }
 
     // ----------------------------------------------------------------
@@ -364,22 +361,20 @@ public sealed class BP1412_DroppedExecSuccessorsTests
 
     // ----------------------------------------------------------------
     // Scenario 6: verify diagnostic includes node id in its NodeId
-    // context property (locatability).
+    // context property (locatability).  Uses the unresolved-link case
+    // (still triggers BP1412 after SEQ1).
     // ----------------------------------------------------------------
 
     [Fact]
     public void Schedule_DroppedSuccessor_DiagnosticHasNodeId()
     {
-        var assetId = Guid.NewGuid();
-        var graphId = Guid.NewGuid();
-        var entryId = Guid.NewGuid();
-        var seqId   = Guid.NewGuid();
-        var ret1Id  = Guid.NewGuid();
+        var assetId    = Guid.NewGuid();
+        var graphId    = Guid.NewGuid();
+        var entryId    = Guid.NewGuid();
+        var missingId  = Guid.NewGuid(); // not in Nodes list
 
         var pinEntryOut  = Guid.NewGuid();
-        var pinSeqIn     = Guid.NewGuid();
-        var pinSeqThen0  = Guid.NewGuid();
-        var pinRet1In    = Guid.NewGuid();
+        var pinMissingIn = Guid.NewGuid();
 
         var graph = new Graph
         {
@@ -397,23 +392,10 @@ public sealed class BP1412_DroppedExecSuccessorsTests
                         new Pin { Id = pinEntryOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
                     },
                 },
-                new SequenceNode
-                {
-                    Id = seqId,
-                    Pins = new()
-                    {
-                        new Pin { Id = pinSeqIn,    Name = "ExecIn", Direction = "In",  IsExec = true, TypeRef = new() },
-                        new Pin { Id = pinSeqThen0, Name = "Then0",  Direction = "Out", IsExec = true, TypeRef = new() },
-                        new Pin { Id = Guid.NewGuid(), Name = "Then1",  Direction = "Out", IsExec = true, TypeRef = new() },
-                    },
-                },
-                new ReturnNode { Id = ret1Id, Status = NodeStatus.Success,
-                    Pins = new() { new Pin { Id = pinRet1In, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } } },
             },
             Links = new List<Link>
             {
-                new() { FromNodeId = entryId, FromPinId = pinEntryOut, ToNodeId = seqId,  ToPinId = pinSeqIn   },
-                new() { FromNodeId = seqId,   FromPinId = pinSeqThen0, ToNodeId = ret1Id, ToPinId = pinRet1In  },
+                new() { FromNodeId = entryId, FromPinId = pinEntryOut, ToNodeId = missingId, ToPinId = pinMissingIn },
             },
         };
 
@@ -432,7 +414,7 @@ public sealed class BP1412_DroppedExecSuccessorsTests
 
         var bp1412 = sink.All.FirstOrDefault(d => d.Code == DiagnosticCodes.BP1412);
         Assert.NotNull(bp1412);
-        Assert.Equal(seqId, bp1412.NodeId);
+        Assert.Equal(entryId, bp1412.NodeId);
         Assert.Equal(graphId, bp1412.GraphId);
     }
 }

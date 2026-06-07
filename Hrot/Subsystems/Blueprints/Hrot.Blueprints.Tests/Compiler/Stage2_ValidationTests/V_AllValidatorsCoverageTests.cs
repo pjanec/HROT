@@ -18,6 +18,7 @@ public sealed class V_AllValidatorsCoverageTests
         "BP3001",  // Reserved for Stage 4, Slice 2
         "BP4002",  // Reserved for Stage 5, Slice 2
         "BP4003",  // Reserved for Stage 5, Slice 2
+        "BP1413",  // LatentInSequence: safety valve; fall-through propagation handles it, not emitted
         "BP6001",  // Reserved for Stage 7, Slice 2
     };
 

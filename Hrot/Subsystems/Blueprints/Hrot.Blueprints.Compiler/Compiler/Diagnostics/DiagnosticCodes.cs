@@ -46,6 +46,9 @@ public static class DiagnosticCodes
     public const string BP1411 = "BP1411";  // ExecOutFanOut: exec-out pin drives more than one successor
     public const string BP1412 = "BP1412";  // DroppedExecSuccessors: scheduler did not follow outgoing exec link(s)
 
+    // Stage 5 -- Schedule (latent-in-Sequence deferral)
+    public const string BP1413 = "BP1413";  // LatentInSequence: latent/suspending node inside a Sequence branch is not yet supported
+
     // Stage 2 -- Validate (type references)
     public const string BP1500 = "BP1500";
     public const string BP1501 = "BP1501";

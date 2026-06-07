@@ -161,6 +161,10 @@ internal sealed class GraphScheduler
     // Tracks whether a block has been fully scheduled
     private readonly HashSet<int> _scheduledBlocks = new();
 
+    // Fall-through redirect: when a branch's chain ends in block X,
+    // control continues to _fallThroughTarget[X] instead of falling through.
+    private readonly Dictionary<int, IrBlockId> _fallThroughTarget = new();
+
     // Post-BFS actions: appended to fired blocks after all user nodes are scheduled.
     private readonly List<(int blockId, IrStatement stmt)> _whenPostActions = new();
 
@@ -239,10 +243,7 @@ internal sealed class GraphScheduler
                     if (esucc is null)
                     {
                         ReportDroppedExecSuccessors(node);
-                        bb.Terminator = new IrTerm_FallThrough
-                        {
-                            Debug = DebugOf(node),
-                        };
+                        SealFallThrough(blockId, bb, DebugOf(node));
                         return;
                     }
                     node = esucc;
@@ -277,6 +278,10 @@ internal sealed class GraphScheduler
                     ScheduleInlineActionNode(cc, bb);
                     return;
 
+                case SequenceNode seq:
+                    ScheduleSequenceNode(seq, bb);
+                    return;
+
                 default:
                     // Regular node: emit statements, then follow exec chain.
                     EmitNodeStatements(node, bb.Statements);
@@ -284,7 +289,7 @@ internal sealed class GraphScheduler
                     if (succ is null)
                     {
                         ReportDroppedExecSuccessors(node);
-                        bb.Terminator = new IrTerm_FallThrough { Debug = DebugOf(node) };
+                        SealFallThrough(blockId, bb, DebugOf(node));
                         return;
                     }
                     node = succ;
@@ -333,13 +338,21 @@ internal sealed class GraphScheduler
             Debug = DebugOf(node),
         };
 
+        // Propagate fall-through target from current block to resume block
+        // (so nested latent inside a Sequence branch continues to the next branch).
+        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var latentFt))
+            _fallThroughTarget[resumeBlockId.Value] = latentFt;
+
         // Enqueue continuation in resume block.
         var continuation = GetSingleExecSuccessor(node);
         if (continuation is not null)
             _bfsQueue.Enqueue((resumeBlockId.Value, continuation));
         else
+        {
             // No successor -- resume block is empty with fall-through.
+            SealFallThrough(resumeBlockId.Value, _blockBuilders[resumeBlockId.Value]);
             _scheduledBlocks.Add(resumeBlockId.Value);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -415,6 +428,14 @@ internal sealed class GraphScheduler
         var trueBlock  = AllocBlock($"branch_{idShort}_true");
         var falseBlock = AllocBlock($"branch_{idShort}_false");
 
+        // Propagate fall-through target to both branch exit blocks
+        // (so a Branch inside a Sequence branch continues to the next branch).
+        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var branchFt))
+        {
+            _fallThroughTarget[trueBlock.Value] = branchFt;
+            _fallThroughTarget[falseBlock.Value] = branchFt;
+        }
+
         bb.Terminator = new IrTerm_Branch(condValue, trueBlock, falseBlock)
         {
             Debug = DebugOf(bn),
@@ -423,6 +444,86 @@ internal sealed class GraphScheduler
         var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
         if (trueSucc  is not null) _bfsQueue.Enqueue((trueBlock.Value,  trueSucc));
         if (falseSucc is not null) _bfsQueue.Enqueue((falseBlock.Value, falseSucc));
+    }
+
+    // -----------------------------------------------------------------------
+    // Sequence node handling (SEQ1)
+    // -----------------------------------------------------------------------
+
+    private void ScheduleSequenceNode(SequenceNode seq, BlockBuilder bb)
+    {
+        // 1. Resolve ordered list of connected Then successors.
+        //    Order by numeric suffix of pin Name (Then0, Then1, ...);
+        //    fall back to Pins-list order for pins without a parseable suffix.
+        var thenPins = seq.Pins
+            .Where(p => p.IsExec && p.Direction == "Out"
+                        && p.Name.StartsWith("Then", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p =>
+            {
+                var suffix = p.Name.Length > 4 ? p.Name.Substring(4) : "";
+                return int.TryParse(suffix, out var n) ? n : int.MaxValue;
+            })
+            .ToList();
+
+        var successors = new List<(Pin Pin, Node Node)>();
+        foreach (var pin in thenPins)
+        {
+            var link = _graph.Links.FirstOrDefault(
+                l => l.FromNodeId == seq.Id && l.FromPinId == pin.Id);
+            if (link is not null && _nodeById.TryGetValue(link.ToNodeId, out var target))
+                successors.Add((pin, target));
+        }
+
+        // 2. If zero connected branches, seal as fall-through and return.
+        if (successors.Count == 0)
+        {
+            SealFallThrough(bb.Id.Value, bb, DebugOf(seq));
+            return;
+        }
+
+        // 3. Allocate one block per connected branch.
+        var idShort = seq.Id.ToString("N").Substring(0, 8);
+        var branchBlocks = new List<IrBlockId>(successors.Count);
+        for (int i = 0; i < successors.Count; i++)
+            branchBlocks.Add(AllocBlock($"seq_{idShort}_then{i}"));
+
+        // 4. Set current block's terminator to Goto first branch block.
+        bb.Terminator = new IrTerm_Goto(branchBlocks[0]) { Debug = DebugOf(seq) };
+
+        // 5. Chain branches: branch i falls through to branch i+1;
+        //    the last branch falls through (no target).
+        for (int i = 0; i < successors.Count; i++)
+        {
+            if (i < successors.Count - 1)
+                _fallThroughTarget[branchBlocks[i].Value] = branchBlocks[i + 1];
+            _bfsQueue.Enqueue((branchBlocks[i].Value, successors[i].Node));
+        }
+
+        // 6. Propagate outer fall-through target to the last branch block
+        //    (handles nested Sequence inside Sequence).
+        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var outerFt))
+            _fallThroughTarget[branchBlocks[branchBlocks.Count - 1].Value] = outerFt;
+    }
+
+    // -----------------------------------------------------------------------
+    // Fall-through sealing helper
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Sets the terminator on <paramref name="bb"/>: if a fall-through redirect
+    /// is registered for <paramref name="blockId"/>, emits <see cref="IrTerm_Goto"/>;
+    /// otherwise emits <see cref="IrTerm_FallThrough"/>.
+    /// Centralizes the decision so that branch chaining (Sequence) is honoured
+    /// wherever a block's exec chain naturally ends.
+    /// </summary>
+    private void SealFallThrough(int blockId, BlockBuilder bb, IrDebugAnnotation? debug = null)
+    {
+        if (_fallThroughTarget.TryGetValue(blockId, out var t))
+            bb.Terminator = new IrTerm_Goto(t);
+        else if (debug is not null)
+            bb.Terminator = new IrTerm_FallThrough { Debug = debug };
+        else
+            bb.Terminator = new IrTerm_FallThrough();
     }
 
     // -----------------------------------------------------------------------
@@ -443,6 +544,15 @@ internal sealed class GraphScheduler
         // TODO M3: FallingEdge — block structure is allocated but condition logic deferred.
         IrBlockId? onEndedBlock = hasEnded ? AllocBlock($"when_{idShort}_ended") : (IrBlockId?)null;
         var outBlock = AllocBlock($"when_{idShort}_out");
+
+        // Propagate fall-through target to WhenNode exit blocks
+        // (so a WhenNode inside a Sequence branch continues to the next branch).
+        if (_fallThroughTarget.TryGetValue(bb.Id.Value, out var whenFt))
+        {
+            if (onFiredBlock.HasValue) _fallThroughTarget[onFiredBlock.Value.Value] = whenFt;
+            if (onEndedBlock.HasValue) _fallThroughTarget[onEndedBlock.Value.Value] = whenFt;
+            _fallThroughTarget[outBlock.Value] = whenFt;
+        }
 
         // Allocate result value (bool "fired/changed/matched")
         var boolType = new IrTypeRef { FullName = "System.Boolean", IsUnmanaged = true, SizeBytes = 1 };
