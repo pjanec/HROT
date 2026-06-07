@@ -71,11 +71,12 @@ public sealed class DebugWindowDrawUITests
         public Entity? PausedOnEntity => null;
 
         // ---- Pause control ----
-        public void Continue()  { }
-        public void StepOver()  { }
-        public void StepInto()  { }
-        public void StepOut()   { }
-        public void Pause()     { }
+        public string? LastStepAction { get; private set; }
+        public void Continue()  { LastStepAction = "Continue"; }
+        public void StepOver()  { LastStepAction = "StepOver"; }
+        public void StepInto()  { LastStepAction = "StepInto"; }
+        public void StepOut()   { LastStepAction = "StepOut"; }
+        public void Pause()     { LastStepAction = "Pause"; }
 
         // ---- Inspection ----
         public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;
@@ -217,5 +218,61 @@ public sealed class DebugWindowDrawUITests
         Assert.Single(window.LastRenderedFrames!);
         Assert.Equal("Execute",   window.LastRenderedFrames![0].MethodName);
         Assert.Equal("asset-001", window.LastRenderedFrames![0].PeerAssetIdString);
+    }
+
+    // ── Step control tests (BATCH-C) ────────────────────────────────────────
+
+    [Fact]
+    public void DebugPanelWindow_DrawUI_LastStepActionInvoked_ResetsToNull_OnEachDraw()
+    {
+        var spy    = new SpyDebugSession { PausedValue = true };
+        var window = new DebugPanelWindow(spy);
+
+        window.DrawUI();
+
+        // LastStepActionInvoked should be null after DrawUI (reset at start of each call).
+        Assert.Null(window.LastStepActionInvoked);
+    }
+
+    [Fact]
+    public void DebugPanelWindow_DrawUI_LastRenderedPausedState_True_WhenPaused()
+    {
+        var spy    = new SpyDebugSession { PausedValue = true };
+        var window = new DebugPanelWindow(spy);
+
+        window.DrawUI();
+
+        Assert.True(window.LastRenderedPausedState);
+    }
+
+    [Fact]
+    public void DebugPanelWindow_DrawUI_LastRenderedPausedState_False_WhenNotPaused()
+    {
+        var spy    = new SpyDebugSession { PausedValue = false };
+        var window = new DebugPanelWindow(spy);
+
+        window.DrawUI();
+
+        Assert.False(window.LastRenderedPausedState);
+    }
+
+    [Fact]
+    public void DebugPanelWindow_DrawUI_LastRenderedBreakpoints_ReflectsData_WhenPaused()
+    {
+        var assetId = Guid.NewGuid();
+        var nodeId  = Guid.NewGuid();
+        var bp      = new Breakpoint(new BreakpointId(42), assetId, Guid.Empty,
+                          nodeId.ToString("D"), 5, true);
+        var spy     = new SpyDebugSession { PausedValue = true };
+        spy.BreakpointsToReturn.Add(bp);
+        var window  = new DebugPanelWindow(spy);
+
+        window.DrawUI();
+
+        Assert.NotNull(window.LastRenderedBreakpoints);
+        Assert.Single(window.LastRenderedBreakpoints!);
+        Assert.Equal(bp.NodeId, window.LastRenderedBreakpoints![0].NodeId);
+        Assert.Equal(5, window.LastRenderedBreakpoints![0].HitCount);
+        Assert.True(window.LastRenderedPausedState);
     }
 }

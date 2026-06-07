@@ -10,8 +10,9 @@ public sealed class DebugPanelWindow : BlueprintEditorWindowBase
     public override string Title => _session.IsPaused ? "Debug [PAUSED]" : "Debug";
 
     // Captured on each DrawUI call -- readable by tests without an ImGui context.
-    public bool? LastRenderedPausedState       { get; private set; }
+    public bool? LastRenderedPausedState          { get; private set; }
     public IReadOnlyList<Breakpoint>? LastRenderedBreakpoints { get; private set; }
+    public string? LastStepActionInvoked          { get; private set; }
 
     public DebugPanelWindow(IBlueprintDebugSession session)
     {
@@ -25,18 +26,46 @@ public sealed class DebugPanelWindow : BlueprintEditorWindowBase
 
         LastRenderedPausedState  = paused;
         LastRenderedBreakpoints  = breakpoints;
+        LastStepActionInvoked    = null;
 
         // ImGui rendering requires a live context; skip in headless / test environments.
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        if (!paused)
+        // ── Step control buttons (enabled only when paused) ──────────────────
+        if (paused)
+        {
+            ImGui.Text("PAUSED");
+
+            if (ImGui.Button("Continue"))
+            {
+                _session.Continue();
+                LastStepActionInvoked = "Continue";
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Step Over"))
+            {
+                _session.StepOver();
+                LastStepActionInvoked = "StepOver";
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Step Into"))
+            {
+                _session.StepInto();
+                LastStepActionInvoked = "StepInto";
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Step Out"))
+            {
+                _session.StepOut();
+                LastStepActionInvoked = "StepOut";
+            }
+            ImGui.Separator();
+        }
+        else
         {
             ImGui.TextDisabled("Not paused.");
             return;
         }
-
-        ImGui.Text("PAUSED");
-        ImGui.Separator();
 
         if (ImGui.BeginTable("##bpTable", 3,
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
