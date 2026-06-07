@@ -3,10 +3,12 @@ using Hrot.Blueprints.Core.Compiler.Ir;
 namespace Hrot.Blueprints.Core.Compiler.Emit;
 
 /// <summary>
-/// AN8 — emits the inline-latent non-channel behavior-action invocation
+/// AN8/AN8b — emits the inline-latent non-channel behavior-action invocation
 /// for <see cref="IrOp_InlineActionCall"/>.
 ///
-/// Call pattern for AiPrimitive (BlueprintCall) path:
+/// Two call patterns are dispatched on <see cref="IrOp_InlineActionCall.IsAiPrimitive"/>:
+///
+/// <b>AiPrimitive (BlueprintCall) path</b> — <c>IsAiPrimitive == true</c>:
 /// <code>
 /// unsafe
 /// {
@@ -17,8 +19,6 @@ namespace Hrot.Blueprints.Core.Compiler.Emit;
 ///         {
 ///             Unsafe.InitBlock(__mem_N, 0, (uint)Unsafe.SizeOf&lt;Blackboard1024&gt;());
 ///             *(ulong*)__mem_N = global::{ClassFqn}.StructureHash;
-///             // Note: InitDefaultWorkingState is private in the generated class;
-///             // the working state is fully zeroed by InitBlock (Slice-1 acceptable).
 ///         }
 ///         ref var __ws_N = ref Unsafe.AsRef&lt;global::{ClassFqn}.WorkingState&gt;(__mem_N + 8);
 ///         var __p_N = new global::{ParamsTypeFqn} { Field1 = __t0, Field2 = __t1, ... };
@@ -27,7 +27,17 @@ namespace Hrot.Blueprints.Core.Compiler.Emit;
 /// }
 /// </code>
 ///
-/// The working state projection mirrors the pattern in
+/// <b>[SharedAiAction] direct-invocation path</b> — <c>IsAiPrimitive == false</c> (AN8b):
+/// <code>
+/// var __p_N = new global::{ParamsTypeFqn} { Field1 = __t0, Field2 = __t1, ... };
+/// var __t{idx} = global::{ActionFqn}(ref __p_N, self, world);
+/// </code>
+/// No WorkingState projection, no Blackboard1024, no <c>time</c> param.
+/// Params are rebuilt from pins on every invocation (stateless).
+///
+/// Both paths use the same Stage 5 block-split + Stage 6 WaitLowering machinery for
+/// inline-latent suspend/resume on Running.
+/// The working state projection for the AiPrimitive path mirrors
 /// <see cref="AiPrimitiveEmitter.EmitBTreeActionThunk"/>.
 /// Slice-1 constraint: only ONE stateful AiPrimitive may run per entity at a time.
 /// </summary>
@@ -42,7 +52,8 @@ internal static class InlineActionLowering
         // Convention: ActionFqn = "{ClassFqn}.{MethodName}" — split at the last dot.
         var lastDot  = op.ActionFqn.LastIndexOf('.');
         var classFqn = lastDot > 0 ? op.ActionFqn.Substring(0, lastDot) : op.ActionFqn;
-        // methodName is not needed for emit — we always call "Call".
+        // For AiPrimitive: classFqn = "{Ns}.{SanitizedName}_{Id:X8}_Bp"; the method is always "Call".
+        // For SharedAiAction: classFqn = declaring type (e.g. "Ns.DemoSharedActions"); op.ActionFqn is the full method FQN.
 
         // Normalise ParamsTypeFqn: reflection uses '+' for nested types; C# syntax uses '.'.
         var paramsFqn = (op.ParamsTypeFqn ?? "").Replace('+', '.');
@@ -97,10 +108,23 @@ internal static class InlineActionLowering
         }
         else
         {
-            // -- Stateless hardcoded action path (future extension) --
-            // Not yet implemented in AN8 Slice-1 (SharedAiAction contract is ambiguous).
-            // Emit a compile-error comment so it is obvious if this branch is hit.
-            e.WriteLine($"#error AN8: stateless non-AiPrimitive action '{op.ActionFqn}' not implemented in Slice-1");
+            // -- AN8b: [SharedAiAction] direct-invocation path --
+            // Signature: static NodeStatus {Method}(ref {DtoType} dto, Entity self, EntityRepository world)
+            // No working-state projection, no Blackboard1024, no 'time' param.
+            // The dto is rebuilt from pins each invocation (stateless-params, correct for SharedAiAction).
+            // The latent suspend/resume machinery (Stage 5 block-split + Stage 6 WaitLowering) is
+            // identical to the AiPrimitive path — only the call emit differs here.
+
+            // Build params DTO local from pins (same helper used by the AiPrimitive path).
+            // classFqn here is the declaring type (e.g. "Fdp.Toolkit.Behavior.Demo.DemoSharedActions"),
+            // used only as a fallback when paramsFqn is empty (defensive; paramsFqn should always be set).
+            EmitParamsLocal(e, op, paramsFqn, classFqn, n);
+
+            // Invoke the static method directly.
+            if (resultIdx >= 0)
+                e.WriteLine($"var __t{resultIdx} = global::{op.ActionFqn}(ref __p_{n}, self, {worldVar});");
+            else
+                e.WriteLine($"global::{op.ActionFqn}(ref __p_{n}, self, {worldVar});");
         }
     }
 

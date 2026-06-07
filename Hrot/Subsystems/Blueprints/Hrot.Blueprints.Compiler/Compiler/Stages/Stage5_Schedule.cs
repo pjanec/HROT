@@ -368,9 +368,10 @@ internal sealed class GraphScheduler
             .ToList();
 
         // Determine if this is an AiPrimitive (BlueprintCall) path.
-        // Convention: AiPrimitive generated classes live in Hrot.AI.Behaviors.Generated and
-        // the method is "Call". All non-channel actions in AN8 Slice-1 are AiPrimitive.
-        bool isAiPrimitive = true; // Slice-1: only AiPrimitive path implemented.
+        // Convention: AiPrimitive generated classes follow the "{Name}_{Id:X8}_Bp.Call" pattern,
+        // so their ActionFqn always ends with "_Bp.Call".
+        // [SharedAiAction] methods are direct static method FQNs and do NOT end with "_Bp.Call".
+        bool isAiPrimitive = actionFqn.EndsWith("_Bp.Call", StringComparison.Ordinal);
 
         var actionCallOp = new IrOp_InlineActionCall(
             actionFqn,
