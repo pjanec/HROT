@@ -22,7 +22,7 @@ the canvas, pause the live tick, step Over/Into/Out, watch values — then exten
 ## Batches
 | # | Batch | Depends on | Status | User smoke |
 |---|---|---|---|---|
-| 0 | **Cleanup** — delete dead `GraphEditorWindow` (+ tests / registrar entry); retire `TODO(D-BP-04)` | — | ☐ Not started | n/a (headless) |
+| 0 | **Cleanup** — delete dead `GraphEditorWindow` (+ tests / registrar entry); retire `TODO(D-BP-04)` | — | ✅ Done (BF-UX1 FIX D) | n/a (headless) |
 | A | **Breakpoint set + render** — inject debug session into `BlueprintDocumentFactory`+renderers; `BlueprintBreakpointContextMenuProvider` (right-click → `session.SetBreakpoint`, dual-store automatic); `BlueprintBreakpointGutterRenderer` (red bullet) | — (Q1 resolved) | ☐ Not started | set bp on ticking BP → sim halts; red bullet shows |
 | B | **Runtime overlay** — `BlueprintRuntimeOverlayRenderer` (executing-node gold pulse + recent-history glyphs) | A | ☐ Not started | running BP highlights live node; visible pause |
 | C | **Step controls** — Step Over/Into/Out/Continue UI + canvas pause overlay, wired to session methods | A | ☐ Not started | step advances one tick & re-pauses |
