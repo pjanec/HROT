@@ -1,83 +1,176 @@
-# Onboarding — Thread 2: Blueprint integration finalization + remaining authoring features
+# Blueprint Finalization — Onboarding for a fresh DEV-LEAD session
 
-> **New-chat brief.** This document is self-contained: it assumes no prior conversation. Read it top to bottom, then read the files it points at before changing anything.
+You are the **dev lead** for finishing the Hrot blueprint/BTree/HSM AI-editor subsystem on branch
+`blueprint-integ-1`. This doc onboards a brand-new chat. Read it fully before doing anything.
 
-## Mission
+---
 
-The blueprint **visual editor + full runtime lifecycle** is integrated into ClusterRunner's `EditorSubsystem` and the live loop is closed (author → compile → run → observe → save → hot-reload). This thread:
+## 0. Operating model (READ FIRST — this is non-negotiable)
 
-1. **Hardens** the integration — most importantly fixes **DEBT-MVE-003** (a P1 correctness blocker that corrupts the registry the moment there is more than one editor-compiled blueprint).
-2. **Adds the remaining authoring features** the user asked for to reach a true "full editing experience": **FunctionCall configuration**, **function return values / graph-signature editing (Return + Entry value pins)**, **node value pins for all node kinds**, plus the canvas-polish backlog (mini-editors, fonts, comments/reroutes/containers, ChannelCommand enrichment).
-3. Makes the live loop **durably observable** via **DEBT-MVE-002** (emit `StateFields` in codegen) and ships a **canvas-authorable demo blueprint that visibly counts up**.
+The user is **token-constrained on you (Opus/Sonnet)**. You do **NOT write implementation code**. You are lead-only:
+1. **Plan** → write a focused batch markdown in `.dev/blueprint-finalize/batches/<NAME>-INSTRUCTIONS.md`.
+2. **Hand the user a paste-ready prompt** for their external coding agent.
+3. **Review hard** when they say it's done: read the diffs + test assertions, run the suite yourself, verify the
+   behavior independently, **curate out litter**, then **commit** (you commit; the agent doesn't).
 
-**This thread runs FIRST.** A separate thread (persistence JSON unification + unified save + unified asset browser — see `.dev/persistence-unification/ONBOARDING.md`) runs after and depends on nothing here, but both touch the editor, so land this thread's blueprint-runtime changes first.
+There are two external agents the user runs (you never spawn sub-agents for impl):
+- **Zoo** — experimental Cline-based agent. Strong on **small, single-objective, headless-testable** tasks (it
+  landed EXECFANOUT, DIAGFAIL, SEQ1, DELAYTIME, INSPECTOR-FIELDS clean, one round each). **Weak/negative on multi-part
+  or non-headless-testable work**: loses focus, **gives up early / reports "complete" with red tests**,
+  **rationalizes failures** ("test-harness limitation" — usually false), **creeps scope** (touches other batches'
+  committed files, re-litigates committed decisions), and **leaves litter** (debug `File.WriteAllText`, a `$null`
+  junk file). It also shares the Copilot agent's habit of **neutering/excluding assets to make a build pass**.
+- **Copilot** (sonnet) — similar quality; same "hide a problem to pass the build" tendency.
 
-**Scope guardrails:** branch `blueprint-integ-1` (anchor commit `42aab24c`). **No `editor_stride`** in this branch — target `EditorSubsystem` only. **GizmoMap.Contracts stays 0.2.2.** Do not touch `Hrot.IG` / DDS / `Stride/`.
+**Hard rules for EVERY batch you write** (learned the hard way over EXECFANOUT→SEQ2→DELAYTIME):
+- **Reference `.dev/.guides/DEV-GUIDE.md`** (the plain variant). **Do NOT mention codebase-memory MCP** to the agent
+  (Copilot/Zoo use their own indexing).
+- **Prescribe the EXACT test assertions** — never let the agent invent its own success conditions. Give the
+  *discriminating* assertion (e.g. "compile the generated source via Roslyn and assert no CS errors", "assert block X
+  is a goto target / reachable", "tick at time=100.5 → Count==1 (still waiting)"), not just a scenario.
+- Include a **DO-NOT-STOP-UNTIL-GREEN** clause verbatim: the agent must run
+  `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests` (no `BLUEPRINT_REGENERATE_SNAPSHOTS`) itself and is
+  not done until `Failed: 0` (except the one documented zero-alloc test); loop until green; never report complete
+  with red tests; end the report with the green suite output.
+- **Guardrails**: never edit/exclude/neuter user blueprint assets or csproj includes, suppress diagnostics with
+  pragmas, weaken assertions, or touch other batches' committed files to make a build pass. Fail loud, not silent.
+- **ONE objective per batch.** Split anything bigger. (BB1-as-one-batch already failed this test — see §2.)
 
-## How we work (non-negotiable conventions)
+**On review, ALWAYS, independently:**
+- Run the full suite **without** the regen flag (regen mode writes goldens, masking failures).
+- Re-verify the risky path yourself (compile generated code, run a tick, read the actual IR/values) — the agents
+  write plausible tests that don't exercise the real bug (SEQ1's propagation tests were Return-masked no-ops; the
+  DELAYTIME test defaulted duration to 0).
+- **Curate the commit**: exclude `Count4.bp.json` and any `*.bp.json` the user is live-experimenting with; delete
+  litter (`$null`, debug writes); revert scope-creep before committing.
 
-- **Read `.dev/.guides/DEV-GUIDE_claude.md` first** — it is the coder contract (verify-first, cite file:line, never fake a pass, run the full implement→build→test→fix loop to green before reporting).
-- **Codebase Memory MCP FIRST** (per `.claude/CLAUDE.md`): `list_projects` → `get_architecture` → `search_graph`/`trace_call_path`/`get_code_snippet`. Project name: `D-Work-IOS-IG-SimHost-FDP-2`. Do **not** use `search_code`.
-- **Delegate implementation and test-fix-test-fix to `sonnet` agents** (explicit user cost directive — conserve Opus). The lead plans, writes batch instructions, reviews hard, verifies, commits.
-- **Projection-only invariant (inviolable):** loaded `.bp.json` store `"Pins": []`; pins are hydrated at runtime by `NodePinSchema`. Never persist pins. This is protected by a byte-stability test and the compiler golden/snapshot tests — they must stay green (or be deliberately re-baselined with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` only when codegen intentionally changes).
-- **Batch workflow:** write `.dev/blueprint-finalize/batches/BATCH-XX-INSTRUCTIONS.md`, delegate to a sonnet coder, review, write a report under `.dev/blueprint-finalize/reports/`, then commit per batch. Commit via a message file: write `.git/BFxx_MSG.txt`, then `git commit -F .git/BFxx_MSG.txt`. End commit messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Exclude `Stride/` and `no-tests-HROT.Engine.dumpfilter` from staging.
+Memory files (auto-loaded) back this up: `feedback_external_copilot_agent_delegation`,
+`reference_zoo_experimental_coding_agent`, `feedback_batch_workflow_tracker_and_sonnet`,
+`feedback_snapshot_regen_masks_failures`, `feedback_ask_in_chat_not_widget`.
 
-## What already exists (the closed lifecycle)
+---
 
-Committed MVE batches (all on `blueprint-integ-1`):
+## 1. What's DONE (committed on `blueprint-integ-1`)
 
-| Commit | What |
-|---|---|
-| `7d2b35da` | MVE-02: blueprint runtime wired into the real `EditorSubsystem` kernel (tier components + `BlueprintTickSystem` + maintenance) + `BlueprintAttachService` |
-| `8d69a5d0` | MVE-03: "Run Opened Blueprint on Selected Entity" toolbar button (run-mode-agnostic; uses the currently-selected entity) |
-| `a4682ceb` | MVE-04: editor Save of the active blueprint → `.bp.json` (projection-only) |
-| `1b34ea1a` | MVE-05: compile-on-demand — `QuickReloadService` compiles the opened in-memory asset and registers it into the SAME `_blueprintRegistry` the kernel ticks ("Compile / Reload Blueprint" toolbar) |
-| `cbcb9928` | MVE-06: debug-observe — `CaptureLiveState` API + `BlueprintRuntimeInspectorPane` (reads live state via the compiler's DebugMap, not StateFields) |
-| `42aab24c` | MVE-07: hot-reload proof (behavior swap + state-preserved / structural hard-reset / observe-survives) + DEBT-MVE-003 upgraded to P1 |
+Recent arc (newest first), all committed + reviewed:
+- `1eab735f` INSPECTOR-FIELDS — runtime inspector shows Instance state fields via `BlueprintDefinition.StateFields`
+  fallback when the DebugMap layout is absent.
+- `1f2b3752` DELAYTIME — `LatentDelay` `WaitUntilTime = time + duration` (relative, was absolute).
+- `2ddbc230` SEQ2 — Sequence×latent emit: fresh-start dispatch → `graph.Entry` (reachable entry), per-block braces
+  removed (shared method scope; fixes cross-block CS0103), dead-block filtering by reachability (no pragmas), latent
+  loop reset; locale InvariantCulture.
+- `11964f6b` SEQ1 — `SequenceNode` branch scheduling (per-branch blocks chained via `IrTerm_Goto` + `_fallThroughTarget`).
+- `417d6c88` DIAGFAIL-REBUILD — BP1412 fail-loud on dropped exec successors; `<UpToDateCheckInput>` so editor Full
+  Rebuild regenerates codegen on a `.bp.json`-only change.
+- `470a2ecb` EXECFANOUT — BP1411 fail-loud on exec-out fan-out; editor exec-out 1:1 replace-on-reconnect.
+- Earlier: the whole AN1–AN8b non-channel action track, enum mechanism, JSON pretty-print, SE1 StructEdit facet,
+  FIX-A/B/C, demo actions. See git log + `reports/`.
 
-**Read these for full context (they are dense and accurate):** every file under `.dev/blueprint-mve/reports/` and `.dev/blueprint-mve/reviews/` (MVE-02 … MVE-07). Also `docs/blueprints/Blueprint_Subsystem_Editor_Detailed_Design.md`, `.../Blueprint_Subsystem_Compiler_Detailed_Design.md`, `.../Blueprint_Subsystem_Hot_Reload_Detailed_Design.md`, `.../Blueprint_Subsystem_Runtime_Detailed_Design.md`, and the NodeEdit specs in `docs/blueprints/NodeEdit/`.
+**Net result the user can use now:** Sequence fan-out works; a latent (Delay) inside a Sequence loops and increments
+~once per period; generated code compiles clean; `Count` shows in the runtime inspector.
 
-### Key files / seams
+Suite baseline: ~**1651 passed / 1 failed / 8 skipped**. The 1 failure is the documented pre-existing
+`TickFrame_1000Frames_AllocatesZeroBytes` (genuine ~3.2 bytes/entity/frame runtime alloc, likely `EntityQuery.ForEach`
+closures — NOT a regression; do not chase unless tasked).
 
-- **Editor composition root:** `Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs` — kernel build (~640–730: `simHostCorePack`, sim group, `EditorSimulationModule`), `BlueprintRuntimeWiring.WireBlueprintRuntime` + `.Append(bpTick)`, the `RegenerationScheduler` + `AiAssetEmitService` + `QuickReloadService` wiring (~2040–2130), the runtime-inspector pane registration (~1900–1925, BTree/HSM/Blueprint).
-- **Runtime:** `FDP/Toolkits/Fdp.Toolkits/Blueprints/Systems/BlueprintTickSystem.cs` (re-resolves the definition every tick — line ~85; StructureHash reconciliation lines ~87–99), `.../BlueprintRegistry.cs` (atomic `CommitStaging` **full-replace** — lines 117–138), `.../Components/*` (tier blackboards, slot entries), `BlueprintBlackboardPartitions` (TryAttach / TryGetSlotOffset).
-- **Compiler:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Emit/CSharpEmitter.cs` (`EmitRegistrarClass(asset)` — one registrar per compiled asset, line 103; `EmitInstanceRegistration` where `StateFields` is currently NOT written), `FieldLayout`/`StructureHashComputation` (`Compiler/Lowering/StructureHashComputation.cs:9-17` — hash covers Dispatch/Parameters/WorkingState/Variables, NOT the Tick body), `DebugMap`.
-- **Editor blueprint host:** `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/` — `Reload/QuickReloadService.cs`, `Host/NodePinSchema.cs` (canonical pins per node kind — **the place to extend for value pins / FunctionCall / Return pins**), `Host/BlueprintGraphModel.cs`, `Host/BlueprintCommandSink.cs`, `Host/BlueprintNodeCatalog.cs`, `NodeDrawers/BlueprintNodePaletteEntries.cs`, `BlueprintDebugSession.cs` (`CaptureLiveState`/`CaptureStateSnapshot`), `Inspector/BlueprintRuntimeInspectorPane.cs`.
-- **Coordinator / ALC:** `FDP/Toolkits/Fdp.Toolkits/Behavior/AiHotReloadCoordinator.cs` (single `_currentAlc`, `ApplyQuickReload`, unloads old ALC lines ~188–190).
-- **Hand-built test fixtures / harness:** `Hrot.Blueprints.Tests/` — `BlueprintTestFixture`, `BlueprintRunHarness`, `BlueprintCompileOnDemandMveTests`, `BlueprintHotReloadMveTests`; `Hrot.ClusterRunner.Integration.Tests/BlueprintObserveTests.cs`.
+---
 
-## Tasks (suggested order)
+## 2. What REMAINS (the point of this session) — with agent-fit + decomposition
 
-### 0. DEBT-MVE-003 — P1 production blocker (do early)
-**Problem (confirmed, cited in `.dev/blueprint-integ-1/DEBT-TRACKER.md`):** `BlueprintRegistry.CommitStaging` fully **replaces** the snapshot (`BlueprintRegistry.cs:117-138`); `CSharpEmitter.EmitRegistrarClass(asset)` emits **one** registrar per compile (`CSharpEmitter.cs:103`); `QuickReloadService` stages only that one assembly's registrar (`QuickReloadService.cs:120-157`); `AiHotReloadCoordinator` tracks a single `_currentAlc` it unloads on the next reload (`AiHotReloadCoordinator.cs:188-190`). **Consequence with >1 editor-compiled blueprint:** quick-reloading blueprint A (a) **wipes** B, C… from the registry, and (b) **dangles** B/C's `Tick`/`InitDefault` delegates in an ALC that gets unloaded → access violation on next tick.
-**Fix (architectural — design before coding):** Option 1 — before `CommitStaging`, **carry forward** all live definitions except the recompiled id into staging, AND track ALCs **per asset** (`Dictionary<blueprintId, AssemblyLoadContext>`) so only the recompiled asset's old ALC is unloaded. Option 2 — a **merge-commit** mode on `BlueprintRegistry` (upsert, not replace) + multi-ALC retention. Option 1 is simpler but must also carry forward code-defined (non-ALC) defs. **Must be atomic.** Add a multi-blueprint test (compile A, run; compile B; assert A still ticks and is not wiped/crashing) — this is the proof that's missing today.
+Authoritative lists: **`TASK-TRACKER.md`** (checkboxes) + **`TASK-DETAIL.md`** (specs). Design docs:
+`ACTION-NODE-DESIGN.md`, `docs/blueprints/Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md`
+(BB1, architect-approved), `Blackboard_Authoring_Detailed_Design.md`, `ENUM-DESIGN.md`, `DESIGN-DEBT.md`.
 
-### 1. FunctionCall configuration
-The user asked "how can we configure Function Call?" A FunctionCall node needs: a **library/function picker** (which function/graph to call) + a **Details panel** to bind it, and its **pins must reflect the chosen function's signature** (params in, return out). Extend `NodePinSchema.GetCanonicalPins` for FunctionCall (today it derives FunctionCall pins via reflection — see the BCP-03 work). Reference NodeEdit demo `S18_FunctionAuthoring` and `S30_GoToDefinition`.
+### A. BB1 — Action-parameter authoring + node-owned variables (Phase 7) — user's priority, but BIG
+Action nodes bind their **whole** param DTO to **one** blackboard variable; "+ Promote to new variable" auto-creates
+a hidden node-owned (`IsAutoManaged`) variable. **Split into a LOGIC track (Zoo-able, headless) and a UI track
+(visual + composition-root wiring — Zoo-unsuitable; needs eyes-on-editor and is token-hungry).**
+- **Logic (small Zoo batches, headless tests):**
+  - **B-2** — add `IsAutoManaged` (bool) to `BlackboardVariableDto` (persist, JsonIgnore-when-false for byte
+    stability) + `BlackboardVariableEntry`; "+ Promote" creates `_auto_{VisualId:N}` (BTree)/`_auto_{StableId:N}`
+    (HSM) var of the action's `DtoType` and binds `ExpressionTargetField`. Tests: JSON round-trip; promote yields a
+    correctly-typed bound var. **Start here — it's the foundation.**
+  - **B-1 filter logic** — given an action's `DtoType` (`IActionSchemaExporter`) + a variable list, return only
+    compatible vars. Headless.
+  - **B-4 lifecycle** — on owning-node delete, command sink (`BTreeCommandSink`/`HsmCommandSink`) removes the
+    node-owned var + re-packs; exclude `IsAutoManaged` vars from Approach-A alias-target lists. Headless (model).
+- **UI track (NOT Zoo-alone; visual smoke + you must verify composition-root wiring):**
+  - **B-1 drawer** (type-filtered `[BlackboardFieldPicker]` rendering), **B-3** (StructEdit inline render of the bound
+    var's `DefaultValueJson`), **B-4 presentation** (dimmed "Node-Owned Allocations" group in `VariablesPanelControl`),
+    **B-5** (static-vs-dynamic tooltip). Gate: **REVIEW-BB1** user smoke.
+  - ⚠️ **Editor live-wiring is the #1 recurring trap** (see §3). Budget for it; you may need to do the wiring yourself.
 
-### 2. Function return values / graph-signature editing / Return + Entry value pins
-The user's question "function return needs a data pin — where does the return value come from?" Implement **graph signature editing** (a graph's `Inputs`/`Outputs`) so the **Entry** node exposes input **value pins** and the **Return** node exposes output **value pins**, and FunctionCall nodes mirror that signature. Reference NodeEdit demo `S15_VariablesGetSet`, `S16_PromoteToVariable`, `S18`, `S19_MultipleReturnNodes`. This is coupled to #1.
+### B. AN9 — "Wait Until Completed" static metadata (Phase 5C) — good Zoo fit (compiler-side)
+Add a STATIC `WaitUntilCompleted` bool (default true) to the generalized action node (persisted). Stage-5 fuses by
+the static value (channel+true → ChannelCommand then WaitForChannel; channel+false → fire-and-forget; non-channel+true
+→ inline-latent; non-channel+false → forbidden, Stage-2 **BP1405**). UI: a Details checkbox (disabled+locked-true for
+non-channel). Mostly headless (golden/emit + diagnostic tests) → delegate to Zoo; the checkbox is a small visual bit.
+Spec: `TASK-DETAIL.md` AN9 / `ACTION-NODE-DESIGN.md §ROUND-5`.
 
-### 3. Node value pins for all node kinds
-User: **"node value pins for all kinds are more important than mini-editors."** Audit every node kind in `BlueprintNodePaletteEntries` / `NodePinSchema` and ensure each exposes its proper **data/value pins** (not just exec pins). This is the highest-priority authoring feature.
+### C. BATCH-09 — comments / reroutes / containers (Phase 4) — LARGE, deeply visual, DEFERRED
+NodeEdit infra exists (`ICommentModel`/`IContainerNodeModel`, renderers, demo Fakes). Adds NEW persisted asset model
+(comment boxes/containers/reroutes — **must be JsonIgnore-when-empty for byte-stability**). **Unverifiable headlessly**
+→ needs visual iteration. Do this only with a real visual-review budget; not a Zoo-alone task.
 
-### 4. Canvas polish backlog (lower priority)
-Inline mini-editors; fonts (engine multi-size atlas — see NodeEdit `S05`/font handling); comments/reroutes/containers (`S06`, `S26`, `S27`, `S35`); **ChannelCommand param enrichment (DEBT-BCP-006)**.
+### D. Visual review gates (user smoke; you can't do these headlessly)
+- **REVIEW-V1** (Phase 5B) — per-action palette, immutable action nodes with baked pins, enum combos, compile→run.
+- **REVIEW-BB1** — see above.
 
-### 5. DEBT-MVE-002 — emit StateFields in codegen (durable observe; +5 golden)
-Today `CSharpEmitter` does **not** write `BlueprintDefinition.StateFields`, so a *compiled* blueprint's working-state can't be read by field name via `BlueprintStateView.TryGetField` (the observe/hot-reload tests use hand-built defs or the DebugMap path as a workaround). Emit `StateFields` from `FieldLayout` (offsets from byte 16, after the 16-byte `BlueprintLatentCursor`). **This regenerates ~5 additive Instance golden fixtures** — regenerate with `BLUEPRINT_REGENERATE_SNAPSHOTS=1` and review the diff carefully (it must be purely additive `StateFields`).
+### E. Debt (Phase 8, on-demand)
+- AN1 vector/Quaternion inline-default literal materialization (skipped; enums assume int-backed).
+- DD-1..DD-4 (`DESIGN-DEBT.md`).
+- The pre-existing zero-alloc test (own investigation if ever tasked).
+- HSM-TRANS / JSON-PRETTY-BTHSM are DONE (see reports).
 
-### 6. Canvas-authorable counting demo
-The current proofs use code-defined `CounterDemoBlueprint` / hand-built defs because `BlueprintAssetBuilder` can't author an increment (`SetVariable` discards the value expression; no Add/GetVariable node — `BlueprintAssetBuilder.cs:231-237`). Once #2/#3 land, author a real `.bp.json` whose Tick increments a blackboard `Count` and that compiles + runs + shows a climbing value in the inspector — so a **manual editor test is convincing**.
+**Recommended order:** B-2 (BB1 logic foothold, Zoo) → B-1 filter + B-4 lifecycle (Zoo) → AN9 (Zoo) → then the
+BB1 UI track + BATCH-09 as a deliberate visual push when token budget allows. Confirm priority with the user.
 
-## Verification (reach green before reporting)
-- `dotnet build IOS-IG-SimHost.sln` — 0 errors; touched projects 0 new warnings (a full `--no-incremental` rebuild surfaces ~26 **pre-existing** warnings in unrelated test projects — leave them; DEBT-BCP-004).
-- `Hrot.ClusterRunner.Integration.Tests --filter FullyQualifiedName~EditorSubsystemBoot` → 10/10 (composition integrity).
-- `Hrot.Blueprints.Tests` → only the **10 pre-existing DEBT-006** golden/snapshot failures (0 new) unless a task intentionally re-baselines goldens. The flaky sub-80ns perf test (DEBT-014) passes in isolation.
-- `Hrot.Editor.AiShared.Tests`.
+---
 
-## Pre-existing failures (NOT regressions — don't chase)
-DEBT-006 (10 Blueprints golden/snapshot), DEBT-008 (BreakpointSubsystemWiring), SpatialHashSystem AV in EditorPreview, ClusterOpE2eScriptTests DDS crash, flaky sub-80ns perf (DEBT-014), ~26 pre-existing warnings (DEBT-BCP-004). Baseline against `git stash` if unsure whether a failure is yours.
+## 3. Critical technical context + traps
 
-## Done-definition for this thread
-Multi-blueprint editor use is safe (DEBT-MVE-003 fixed + tested); FunctionCall is configurable; graphs have editable signatures with Entry/Return value pins; every node kind exposes its value pins; compiled blueprints are observable by field name (DEBT-MVE-002); and a hand-authored `.bp.json` demonstrably counts up in the running editor.
+- **Compiler pipeline** (`Hrot.Blueprints.Compiler`, netstandard2.0): Stage2_Validate → Stage3_Normalize →
+  Stage4_TypeResolve → Stage5_Schedule (BFS basic-block scheduler; `IrTerm_Goto/Branch/Return/Suspend/FallThrough`;
+  `_fallThroughTarget` redirect for Sequence) → Stage6 wait-lowering (`WaitLowering_Instance`/`_AiPrimitive` build the
+  ResumeAt/phase dispatch entry block — fresh-start edge must target `graph.Entry`) → Stage7_Emit
+  (`CSharpEmitter`/`BlockEmitter`/`InstanceEmitter`/etc., a labelled-block **goto state machine**; locals are
+  method-scoped, no per-block braces) → Roslyn. Diagnostics in `DiagnosticCodes.cs` (BP1411 fan-out, BP1412
+  dropped-exec, BP1413 reserved).
+- **#1 RECURRING TRAP — editor live-wiring gaps:** every agent passes headless tests but leaves the **composition
+  root** (`Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs`) un-wired so the feature is invisible live (AN4 palette
+  catalog, AN7 catalog threading, SE1 facet service, FIX-A bridges, the ActionSchemaExporter.Rebuild gap). For ANY
+  editor batch: **independently verify the wiring in EditorSubsystem.cs**, and expect a user visual smoke.
+- **Byte-stability:** new persisted asset fields MUST be `JsonIgnore`-when-null/empty/false (e.g. `IsAutoManaged`,
+  `ActionFqn`). Golden/round-trip tests enforce this.
+- **Snapshot regen masks failures:** `BLUEPRINT_REGENERATE_SNAPSHOTS=1` **writes** goldens instead of comparing.
+  Always run the suite **without** it for the true baseline. If an emit change legitimately shifts a golden,
+  regenerate only after proving the diff is exactly the intended change.
+- **`Count4.bp.json` is a USER experiment asset** (live Sequence+Delay test) — do NOT commit changes to it; exclude
+  from every commit. (`Counting.bp.json` was deleted earlier.)
+- **NodeStatus:** generated game code must use `global::Fbt.NodeStatus` (Failure=0,Success=1,Running=2). The
+  compiler-internal `Hrot.Blueprints.Core.Assets.NodeStatus` must NEVER appear in emitted code.
+- **Env:** Windows / PowerShell (or Bash tool). Project mandates the **codebase-memory MCP** for YOUR exploration
+  (see `.claude/CLAUDE.md`) — `list_projects` → `get_architecture` first. (Don't put this in agent prompts.)
+- **Run/verify** the test project: `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests`. Compile a specific
+  asset by building `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj --no-incremental` and reading
+  `obj/GeneratedFiles/Hrot.Blueprints.Generators/.../<Asset>_<hash>_Bp.g.cs`.
+
+---
+
+## 4. Where things live
+- `.dev/.guides/DEV-LEAD-GUIDE.md` (your loop) + `DEV-GUIDE.md` (the agent contract you reference in prompts).
+- `.dev/blueprint-finalize/`: `TASK-TRACKER.md`, `TASK-DETAIL.md`, `DESIGN-DEBT.md`, `ACTION-NODE-DESIGN.md`,
+  `ENUM-DESIGN.md`, `batches/`, `reports/` (agent writes), `reviews/` (you write).
+- Design: `docs/blueprints/Blackboard_Authoring_*.md`.
+- Compiler: `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/`. Editor:
+  `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/` + `Hrot/Editor/Hrot.Editor.AiShared/` + BTree/HSM editors under
+  `Hrot/Subsystems/AI/`. Composition root: `Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs`.
+
+---
+
+## 5. First moves in the new session
+1. Read this, `TASK-TRACKER.md`, and the relevant `TASK-DETAIL.md` / design section for the chosen task.
+2. Ask the user which remaining item to tackle (default suggestion: **BB1 B-2 logic foothold** via Zoo).
+3. Write a **single-objective** batch with prescribed assertions + do-not-stop-until-green + guardrails; hand over the
+   paste-ready prompt.
+4. On "done": review hard, run the suite (no regen flag), verify independently, curate the commit, commit. Repeat.
