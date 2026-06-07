@@ -78,7 +78,7 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
       WaitForChannel latent path); Success/Failure route exec. AiPrimitive working state inline over
       `Blackboard1024` (StructureHash@0, state@8). **Slice-1: one stateful AiPrimitive per entity** (enforce/doc;
       Slice-2 partition allocator is future). No handle, no Wait node. -> [details](./TASK-DETAIL.md#an8----compiler-lowering-for-non-channel-behavior-action-invocation)
-- [ ] **AN8b** -- `[SharedAiAction]` (hardcoded) direct-invocation lowering. AN8 emits a compile-time `#error` for
+- [x] **AN8b** (COMMITTED `ba2fd535`) -- `[SharedAiAction]` (hardcoded) direct-invocation lowering. AN8 emits a compile-time `#error` for
       the non-AiPrimitive branch (safe), but AN7 SURFACES `[SharedAiAction]` in the blueprint palette → those
       `#error` on compile. **DECISION:** implement AN8b (direct `Ns.Type.Method(ref dto, ctx)` invocation — note its
       ref-field/offset contract differs from the `.Call` thunk) OR constrain AN7's palette to AiPrimitive(BlueprintCall)
