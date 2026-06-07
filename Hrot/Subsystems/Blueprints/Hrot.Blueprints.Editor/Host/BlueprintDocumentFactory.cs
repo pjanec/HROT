@@ -423,16 +423,24 @@ public static class BlueprintDocumentFactory
     {
         // ── Registration order (mirrors BTree pattern) ────────────────────────
         // AfterNodes pass:
-        //   1. BlueprintBreakpointGutterRenderer — red bullet for armed breakpoints
-        //   2. WhenFiringPulseRenderer           — WhenNode firing pulse
+        //   1. BlueprintBreakpointGutterRenderer  — red bullet for armed breakpoints
+        //   2. BlueprintRuntimeOverlayRenderer    — gold pulse on executing node,
+        //                                           red outline on paused-at node,
+        //                                           history-trail dots
+        //   3. WhenFiringPulseRenderer            — WhenNode firing pulse
 
-        var gutterRenderer = new BlueprintBreakpointGutterRenderer(bpAsset);
+        var gutterRenderer  = new BlueprintBreakpointGutterRenderer(bpAsset);
+        var runtimeOverlay  = new BlueprintRuntimeOverlayRenderer(bpAsset);
         if (debugSession != null)
+        {
             gutterRenderer.SetSession(debugSession);
+            runtimeOverlay.SetSession(debugSession);
+        }
 
         var list = new List<ICustomCanvasRenderer>
         {
             gutterRenderer,
+            runtimeOverlay,
             // Blueprint custom renderer: pulsing overlay when a WhenNode fires at runtime.
             // In debug mode it is active; in release mode IsActive == false (no per-frame cost).
             new WhenFiringPulseRenderer(),
