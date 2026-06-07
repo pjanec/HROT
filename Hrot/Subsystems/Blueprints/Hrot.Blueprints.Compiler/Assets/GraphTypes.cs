@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Hrot.Blueprints.Core.Assets;
 
 public sealed class Graph
@@ -45,6 +47,15 @@ public sealed class AssetMetadata
     public string? Description { get; set; }
     public string? Category { get; set; }
     public RecipeMetadata? Recipe { get; set; }
+
+    /// <summary>
+    /// Compiler mode override for this asset. Default <see cref="Compiler.CompilerMode.Debug"/>
+    /// emits only <c>NodeEnter</c> probes (suitable for breakpoints/stepping).
+    /// Set to <see cref="Compiler.CompilerMode.Trace"/> to emit <c>PinValueChanged&lt;T&gt;</c>
+    /// probes for watch expressions.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Compiler.CompilerMode CompilerMode { get; set; } = Compiler.CompilerMode.Debug;
 }
 
 public sealed class RecipeMetadata
