@@ -1,1 +1,197 @@
-{"$meta":{"docType":"Hrot.Blueprints","schemaVersion":1},"Header":{},"AssetId":"ca442580-5c50-41c4-96d2-ca3798db3db4","Name":"Count3","Dispatch":"Instance","TierHint":"Auto","IsWorldSingleton":false,"Primitive":null,"Parameters":[],"ParameterOrder":null,"WorkingState":[],"WorkingStateOrder":null,"Variables":[{"Id":"a0000006-0000-0000-0000-000000000001","Name":"Count","Type":{"TypeId":"System.Int32","IsArray":false,"GenericArgs":[]},"DefaultValueJson":"0","IsEditable":false,"IsExposedOnSpawn":false,"Category":null,"Tooltip":null,"Comment":null}],"VariableOrder":null,"EventDispatchers":[],"CustomEvents":[],"CallablePeers":[],"Graphs":[{"Id":"10000006-0000-0000-0000-000000000001","Name":"Tick","Kind":"Function","Inputs":[],"Outputs":[],"Nodes":[{"kind":"EventEntry","EventTypeId":"","Id":"20000006-0000-0000-0000-000000000001","Pins":[],"EditorMetadata":{"X":40,"Y":127,"Comment":null}},{"kind":"SetVariable","VariableId":"a0000006-0000-0000-0000-000000000001","Id":"20000006-0000-0000-0000-000000000002","Pins":[],"EditorMetadata":{"X":940,"Y":220,"Comment":null}},{"kind":"FunctionCall","TargetTypeId":"Fdp.Toolkit.Blueprints.BlueprintMath","MethodName":"AddInt","IsPure":true,"TargetGraphId":"","Id":"20000006-0000-0000-0000-000000000003","Pins":[],"EditorMetadata":{"X":640,"Y":220,"Comment":null}},{"kind":"GetVariable","VariableId":"a0000006-0000-0000-0000-000000000001","Id":"20000006-0000-0000-0000-000000000004","Pins":[],"EditorMetadata":{"X":360,"Y":110,"Comment":null}},{"kind":"Literal","TypeId":"System.Int32","ValueJson":"1","Id":"20000006-0000-0000-0000-000000000005","Pins":[],"EditorMetadata":{"X":360,"Y":340,"Comment":null}},{"kind":"Return","Status":"Success","Id":"20000006-0000-0000-0000-000000000006","Pins":[],"EditorMetadata":{"X":1240,"Y":220,"Comment":null}}],"Links":[{"FromNodeId":"20000006-0000-0000-0000-000000000001","FromPinId":"ee000006-0000-0000-0000-000000000001","ToNodeId":"20000006-0000-0000-0000-000000000002","ToPinId":"ee000006-0000-0000-0000-000000000002"},{"FromNodeId":"20000006-0000-0000-0000-000000000002","FromPinId":"ee000006-0000-0000-0000-000000000003","ToNodeId":"20000006-0000-0000-0000-000000000006","ToPinId":"ee000006-0000-0000-0000-000000000004"},{"FromNodeId":"20000006-0000-0000-0000-000000000003","FromPinId":"dd000006-0000-0000-0000-000000000004","ToNodeId":"20000006-0000-0000-0000-000000000002","ToPinId":"dd000006-0000-0000-0000-000000000001"},{"FromNodeId":"20000006-0000-0000-0000-000000000004","FromPinId":"dd000006-0000-0000-0000-000000000005","ToNodeId":"20000006-0000-0000-0000-000000000003","ToPinId":"dd000006-0000-0000-0000-000000000002"},{"FromNodeId":"20000006-0000-0000-0000-000000000005","FromPinId":"dd000006-0000-0000-0000-000000000006","ToNodeId":"20000006-0000-0000-0000-000000000003","ToPinId":"dd000006-0000-0000-0000-000000000003"}],"EditorMetadata":{"ViewportX":0,"ViewportY":0,"ViewportZoom":0}}],"EditorMetadata":{"Description":null,"Category":null,"Recipe":null}}
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "ca442580-5c50-41c4-96d2-ca3798db3db4",
+  "Name": "Count3",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [
+    {
+      "Id": "a0000006-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000006-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000006-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 40,
+            "Y": 127,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 925,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "AddInt",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "Id": "20000006-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 636,
+            "Y": 312,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 110,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int32",
+          "ValueJson": "1",
+          "Id": "20000006-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 340,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000006-0000-0000-0000-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1240,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "",
+          "ActionId": "",
+          "ActionFqn": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits",
+          "ActionParamsTypeFqn": "Fdp.Toolkit.Behavior.Demo.DemoSharedActionParams",
+          "Id": "83e9c028-2cfc-4a88-afed-d0c3be608ff6",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 667,
+            "Y": 20,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Sequence",
+          "Id": "b9c96014-d225-45f9-9d3f-80f7b6f38e6c",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 224,
+            "Y": 221,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000002",
+          "FromPinId": "ee000006-0000-0000-0000-000000000003",
+          "ToNodeId": "20000006-0000-0000-0000-000000000006",
+          "ToPinId": "ee000006-0000-0000-0000-000000000004"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000004",
+          "FromPinId": "dd000006-0000-0000-0000-000000000005",
+          "ToNodeId": "20000006-0000-0000-0000-000000000003",
+          "ToPinId": "dd000006-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000005",
+          "FromPinId": "dd000006-0000-0000-0000-000000000006",
+          "ToNodeId": "20000006-0000-0000-0000-000000000003",
+          "ToPinId": "dd000006-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000001",
+          "FromPinId": "ee000006-0000-0000-0000-000000000001",
+          "ToNodeId": "b9c96014-d225-45f9-9d3f-80f7b6f38e6c",
+          "ToPinId": "416e8b89-bd9a-49cb-9cc7-441405f54f46"
+        },
+        {
+          "FromNodeId": "b9c96014-d225-45f9-9d3f-80f7b6f38e6c",
+          "FromPinId": "36f8fcdc-ca59-4b2f-9ecc-24c926d8c784",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "dd000006-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000003",
+          "FromPinId": "5175c3bf-da12-8757-818b-9f5e68c8899a",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "9e24171d-76c7-865f-9b15-d66a478cfe47"
+        },
+        {
+          "FromNodeId": "b9c96014-d225-45f9-9d3f-80f7b6f38e6c",
+          "FromPinId": "f0c483d0-9be4-412e-9bb3-fdcd8699c5df",
+          "ToNodeId": "83e9c028-2cfc-4a88-afed-d0c3be608ff6",
+          "ToPinId": "65a34535-4179-7951-aae8-3ca542e818b9"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}

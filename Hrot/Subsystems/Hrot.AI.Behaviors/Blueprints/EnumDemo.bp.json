@@ -1,0 +1,141 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "d06f6a14-3e77-4473-962f-36a5d10dc316",
+  "Name": "EnumDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
+  },
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "e500ee01-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "f500ee01-0001-0001-0001-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 121,
+            "Y": 191,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "DemoEnumAction",
+          "Id": "f500ee01-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 422,
+            "Y": 175,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "Stance": "Standing",
+            "Repeat": "-10",
+            "TargetPos": "[0, 4.23, 0]"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "f500ee01-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 859,
+            "Y": 178,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "MoveTo",
+          "Id": "38e451ce-fecd-4c5c-9089-48542b18640b",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 355,
+            "Y": 365,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "ArrivalRadius": "-0.02",
+            "Speed": "0.06",
+            "RouteHandle": "55"
+          }
+        },
+        {
+          "kind": "CallCustomEvent",
+          "EventId": "",
+          "Id": "5c875375-2647-447b-abbd-df11787b8f57",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 188,
+            "Y": 376,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "LocomotionChannel",
+          "ActionId": "DemoEnumAction",
+          "Id": "ce546a6c-e971-4d93-9bc3-073114807cc9",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 348,
+            "Y": 10,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "f500ee01-0001-0001-0001-000000000001",
+          "FromPinId": "e5eeee01-0001-a001-0001-000000000001",
+          "ToNodeId": "f500ee01-0002-0002-0002-000000000001",
+          "ToPinId": "e5eeee01-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "f500ee01-0002-0002-0002-000000000001",
+          "FromPinId": "e5eeee01-0002-a001-0001-000000000001",
+          "ToNodeId": "f500ee01-0003-0003-0003-000000000001",
+          "ToPinId": "e5eeee01-0003-b001-0001-000000000001"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}
