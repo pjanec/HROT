@@ -12,6 +12,14 @@ namespace Hrot.Blueprints.Core.Debug;
 /// <see cref="IDataBreakpointManager.OnExternalHit"/> because Blueprint execution
 /// is probe-driven rather than trace-buffer-driven.
 /// </summary>
+/// <remarks>
+/// SUPERSEDED for canvas UX: the live canvas now uses
+/// <see cref="Host.BlueprintBreakpointContextMenuProvider"/> (ICustomElementContextMenuProvider)
+/// which calls <see cref="IBlueprintDebugSession.SetBreakpoint"/>/ClearBreakpoint
+/// (dual-store automatic per Q1).
+/// This static populator remains for IDataBreakpointManager-based conditional data
+/// breakpoints (Slice-2) and is still tested by BlueprintContextMenuTests.
+/// </remarks>
 public static class BlueprintBreakpointMenuPopulator
 {
     /// <summary>

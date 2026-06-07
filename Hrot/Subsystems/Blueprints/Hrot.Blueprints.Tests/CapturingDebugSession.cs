@@ -14,6 +14,8 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     private readonly List<PinValueRecord>  _pinValues   = new();
     private readonly HashSet<string>       _breakpoints = new();
     private readonly Dictionary<Guid, DebugMap> _maps   = new();
+    private int _nextBpId = 1;
+    private readonly Dictionary<BreakpointId, Breakpoint> _bpRecords = new();
 
     // ---- IBlueprintProbeSink ------------------------------------------------
 
@@ -43,12 +45,31 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public void ClearBreakpoint(string nodeId) => _breakpoints.Remove(nodeId);
     public bool IsAnyBreakpointActive          => _breakpoints.Count > 0;
 
-    // IBlueprintDebugSession GUID-based breakpoint methods (stubs for now)
+    // IBlueprintDebugSession GUID-based breakpoint methods
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
-        => throw new NotImplementedException();
-    public void ClearBreakpoint(BreakpointId id) => throw new NotImplementedException();
-    public void ClearAllBreakpoints() => _breakpoints.Clear();
-    public IReadOnlyList<Breakpoint> GetBreakpoints() => throw new NotImplementedException();
+    {
+        var nodeIdStr = nodeId.ToString("D");
+        var id        = new BreakpointId(_nextBpId++);
+        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true);
+        _bpRecords[id] = bp;
+        _breakpoints.Add(nodeIdStr);
+        return id;
+    }
+    public void ClearBreakpoint(BreakpointId id)
+    {
+        if (_bpRecords.TryGetValue(id, out var bp))
+        {
+            _breakpoints.Remove(bp.NodeId);
+            _bpRecords.Remove(id);
+        }
+    }
+    public void ClearAllBreakpoints()
+    {
+        _breakpoints.Clear();
+        _bpRecords.Clear();
+    }
+    public IReadOnlyList<Breakpoint> GetBreakpoints()
+        => _bpRecords.Values.ToList().AsReadOnly();
 
     // ---- IBlueprintDebugSession -- watches ----------------------------------
 

@@ -2,9 +2,11 @@ using Hrot.Blueprints.Core;   // BlueprintJsonServices (in Hrot.Blueprints.Core 
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
+using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Renderers;
 using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
@@ -84,6 +86,14 @@ public static class BlueprintDocumentFactory
     ///   (i.e. those with <c>ActionFqn</c> set) project their parameter data-IN pins from the
     ///   matching catalog entry's params type.  When null, non-channel action nodes are exec-only.
     /// </param>
+    /// <param name="debugSession">
+    ///   Optional <see cref="IBlueprintDebugSession"/> for breakpoint gutter rendering and
+    ///   breakpoint context-menu support. When non-null, the factory wires a
+    ///   <see cref="BlueprintBreakpointGutterRenderer"/> (red bullet on breakpointed nodes)
+    ///   and a <see cref="BlueprintBreakpointContextMenuProvider"/>
+    ///   (right-click node → Toggle Breakpoint). When null (authoring mode), both are
+    ///   inactive with zero per-frame cost.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -99,7 +109,8 @@ public static class BlueprintDocumentFactory
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
         IChannelCommandCatalog? channelCommands = null,
         IAssetCatalog?          peerAssetCatalog = null,
-        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null)
+        ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
+        IBlueprintDebugSession? debugSession    = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -169,7 +180,7 @@ public static class BlueprintDocumentFactory
             enumProvider: enumProvider, behaviorActions: behaviorActions);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
-        var renderers = BuildRenderers(extraRenderers);
+        var renderers = BuildRenderers(bpAsset, extraRenderers, debugSession);
 
         // ── 6. Host services ──────────────────────────────────────────────────
         var hostServices = new BlueprintEditorHostServices(
@@ -184,6 +195,12 @@ public static class BlueprintDocumentFactory
             input:           bundle.InputSource,
             theme:           bundle.EditorTheme,
             customRenderers: renderers);
+
+        // Wire breakpoint context menu provider when a debug session is attached.
+        if (debugSession != null)
+            hostServices.SetBreakpointContextMenu(
+                new BlueprintBreakpointContextMenuProvider(
+                    debugSession, bpAsset.AssetId, graph.Id));
 
         // ── 7. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
@@ -400,10 +417,22 @@ public static class BlueprintDocumentFactory
     }
 
     private static IReadOnlyList<ICustomCanvasRenderer> BuildRenderers(
-        IReadOnlyList<ICustomCanvasRenderer>? extra)
+        BlueprintAsset                              bpAsset,
+        IReadOnlyList<ICustomCanvasRenderer>?       extra,
+        IBlueprintDebugSession?                     debugSession = null)
     {
+        // ── Registration order (mirrors BTree pattern) ────────────────────────
+        // AfterNodes pass:
+        //   1. BlueprintBreakpointGutterRenderer — red bullet for armed breakpoints
+        //   2. WhenFiringPulseRenderer           — WhenNode firing pulse
+
+        var gutterRenderer = new BlueprintBreakpointGutterRenderer(bpAsset);
+        if (debugSession != null)
+            gutterRenderer.SetSession(debugSession);
+
         var list = new List<ICustomCanvasRenderer>
         {
+            gutterRenderer,
             // Blueprint custom renderer: pulsing overlay when a WhenNode fires at runtime.
             // In debug mode it is active; in release mode IsActive == false (no per-frame cost).
             new WhenFiringPulseRenderer(),

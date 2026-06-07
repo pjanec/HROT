@@ -29,6 +29,7 @@ public sealed class BlueprintEditorHostServices : IEditorHostServices
     private readonly IEditorTheme                                _theme;
     private readonly IReadOnlyList<ICustomCanvasRenderer>        _customRenderers;
     private readonly IAttachmentContextMenuProvider?             _attachmentContextMenu;
+    private ICustomElementContextMenuProvider?                  _bpContextMenuProvider;
 
     public BlueprintEditorHostServices(
         BlueprintNodeCatalog                    nodeCatalog,
@@ -78,7 +79,17 @@ public sealed class BlueprintEditorHostServices : IEditorHostServices
     IAttachmentContextMenuProvider? IEditorHostServices.AttachmentContextMenu
         => _attachmentContextMenu;
 
+    ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu
+        => _bpContextMenuProvider;
+
     // ── runtime mutability ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Installs the breakpoint context menu provider so right-clicking a node
+    /// offers breakpoint toggle actions via <see cref="IBlueprintDebugSession"/>.
+    /// </summary>
+    public void SetBreakpointContextMenu(ICustomElementContextMenuProvider? provider)
+        => _bpContextMenuProvider = provider;
 
     /// <summary>Allows attaching/detaching the debug session at runtime.</summary>
     public void SetDebugSession(IDebugSession? session) => _debug = session;

@@ -2398,7 +2398,8 @@ namespace Hrot.Editor
                             peerAssetCatalog: blueprintPeerCatalog,
                             // AN7: forward the behavior-action catalog so non-channel ChannelCommandNodes
                             // (ActionFqn set) project their parameter data-IN pins from the matching entry.
-                            behaviorActions: _behaviorActionCatalog);
+                            behaviorActions: _behaviorActionCatalog,
+                            debugSession: _blueprintDebugSession);
                         break;
                 }
 
