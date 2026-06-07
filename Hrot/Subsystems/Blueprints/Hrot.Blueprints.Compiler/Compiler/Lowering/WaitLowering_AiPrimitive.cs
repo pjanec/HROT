@@ -151,7 +151,7 @@ internal static class WaitLowering_AiPrimitive
                 Label      = "dispatch",
                 Statements = dispatchStmts,
                 Terminator = new IrTerm_Branch(isZero,
-                    suspendBlocks[0].Id,   // phase-0 initial = modified original first block
+                    graph.Entry,   // phase-0 initial = original entry (runs all pre-latent blocks)
                     elseTarget) { Debug = Synth() },
             });
         }
@@ -287,7 +287,7 @@ internal static class WaitLowering_AiPrimitive
                     Label      = $"phase{k}_delay_check",
                     Statements = checkStmts,
                     Terminator = new IrTerm_Branch(isLessV,
-                        retRunningBlockId[k], resumeBlockId) { Debug = Synth() },
+                        retRunningBlockId[k], failureBlockId[k]) { Debug = Synth() },
                 });
 
                 synthesizedBlocks.Add(new IrBlock
@@ -299,24 +299,19 @@ internal static class WaitLowering_AiPrimitive
                         Hrot.Blueprints.Core.Assets.NodeStatus.Running) { Debug = Synth() },
                 });
 
-                // notRunning and failure blocks unused for delay; add them as dead code
-                // to keep the pre-allocated IDs consistent (they won't appear in any branch).
-                synthesizedBlocks.Add(new IrBlock
-                {
-                    Id         = notRunningBlockId[k],
-                    Label      = $"phase{k}_not_running_unused",
-                    Statements = Array.Empty<IrStatement>(),
-                    Terminator = new IrTerm_ReturnStatus(
-                        Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
-                });
+                // failureBlockId[k]: reset phase to 0 and goto the resume block
+                // so the continuation (e.g. Sequence next branch, cursor/phase reset)
+                // executes after the delay completes.
                 synthesizedBlocks.Add(new IrBlock
                 {
                     Id         = failureBlockId[k],
-                    Label      = $"phase{k}_failure_unused",
+                    Label      = $"phase{k}_failure",
                     Statements = new[] { Stmt(null, new IrOp_WriteWorkingStatePhase(0)) },
-                    Terminator = new IrTerm_ReturnStatus(
-                        Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = Synth() },
+                    Terminator = new IrTerm_Goto(resumeBlockId) { Debug = Synth() },
                 });
+
+                // notRunningBlockId[k] is not referenced; it will be filtered
+                // by dead-block removal at assembly time.
             }
             else
             {
@@ -410,29 +405,37 @@ internal static class WaitLowering_AiPrimitive
         // ---------------------------------------------------------------
         // Assemble the final block list.
         // ---------------------------------------------------------------
-        var finalBlocks = new List<IrBlock>();
+        var allCandidateBlocks = new List<IrBlock>();
 
         // 1. Dispatch block first (new entry).
-        finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == dispatchBlockId.Value));
+        allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == dispatchBlockId.Value));
 
         // 2. Carry over all original blocks (with suspend-blocks already modified).
         foreach (var b in graph.Blocks)
         {
-            finalBlocks.Add(modifiedBlocks.TryGetValue(b.Id.Value, out var mod) ? mod : b);
+            allCandidateBlocks.Add(modifiedBlocks.TryGetValue(b.Id.Value, out var mod) ? mod : b);
         }
 
         // 3. Append chain blocks (in chain order).
         for (int k = 1; k <= n - 1; k++)
-            finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == chainBlockId[k].Value));
+            allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == chainBlockId[k].Value));
 
         // 4. Append check/retRunning/notRunning/failure blocks (in phase order).
         for (int k = 1; k <= n; k++)
         {
-            finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == checkBlockId[k].Value));
-            finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == retRunningBlockId[k].Value));
-            finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == notRunningBlockId[k].Value));
-            finalBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == failureBlockId[k].Value));
+            if (synthesizedBlocks.Any(b => b.Id.Value == checkBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == checkBlockId[k].Value));
+            if (synthesizedBlocks.Any(b => b.Id.Value == retRunningBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == retRunningBlockId[k].Value));
+            if (synthesizedBlocks.Any(b => b.Id.Value == notRunningBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == notRunningBlockId[k].Value));
+            if (synthesizedBlocks.Any(b => b.Id.Value == failureBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == failureBlockId[k].Value));
         }
+
+        // C0: dead-block filtering — remove unreferenced blocks (e.g. LatentDelay
+        // _unused blocks) to prevent CS0162/CS0164.
+        var finalBlocks = FilterDeadBlocks(allCandidateBlocks, dispatchBlockId);
 
         return graph with { Blocks = finalBlocks, Entry = dispatchBlockId };
     }
@@ -445,5 +448,96 @@ internal static class WaitLowering_AiPrimitive
             .Select(s => s.ResultValue!.Value.Index)
             .DefaultIfEmpty(-1)
             .Max();
+
+    /// <summary>
+    /// C0: Remove blocks that are neither the entry nor referenced by any
+    /// terminator (Goto.Target, Branch.IfTrue/IfFalse, Suspend.ResumeBlock).
+    /// Follows FallThrough edges via block-ordering to ensure that the
+    /// entire linear chain from entry is retained when blocks use FallThrough.
+    /// Eliminates dead blocks from the LatentDelay path (e.g. _unused)
+    /// so they don't produce CS0162/CS0164 in the generated source.
+    /// </summary>
+    private static List<IrBlock> FilterDeadBlocks(List<IrBlock> candidates, IrBlockId entry)
+    {
+        // Build a lookup by Id.Value for fast access.
+        var byId = candidates.ToDictionary(b => b.Id.Value);
+
+        // First pass: collect all block ids that are explicitly referenced
+        // by any terminator (Goto, Branch, Suspend).  These are "targeted"
+        // and must be retained.
+        var referenced = new HashSet<int>();
+        foreach (var b in candidates)
+        {
+            switch (b.Terminator)
+            {
+                case IrTerm_Goto go:
+                    referenced.Add(go.Target.Value);
+                    break;
+                case IrTerm_Branch br:
+                    referenced.Add(br.IfTrue.Value);
+                    referenced.Add(br.IfFalse.Value);
+                    break;
+                case IrTerm_Suspend sus:
+                    referenced.Add(sus.ResumeBlock.Value);
+                    break;
+            }
+        }
+
+        // Second pass: BFS from entry following every edge (Goto, Branch,
+        // Suspend, AND implicit FallThrough to the next block in order).
+        // A block with FallThrough keeps the next block in the list reachable.
+        var reachable = new HashSet<int>();
+        var queue = new Queue<int>();
+        reachable.Add(entry.Value);
+        queue.Enqueue(entry.Value);
+
+        // For FallThrough, we need to know "next block in order" for each candidate.
+        var blockOrder = candidates.Select(b => b.Id.Value).ToList();
+
+        while (queue.Count > 0)
+        {
+            int cur = queue.Dequeue();
+            if (!byId.TryGetValue(cur, out var curBlock)) continue;
+
+            // Explicit edges
+            switch (curBlock.Terminator)
+            {
+                case IrTerm_Goto go:
+                    EnqueueIfNew(go.Target.Value);
+                    break;
+                case IrTerm_Branch br:
+                    EnqueueIfNew(br.IfTrue.Value);
+                    EnqueueIfNew(br.IfFalse.Value);
+                    break;
+                case IrTerm_Suspend sus:
+                    EnqueueIfNew(sus.ResumeBlock.Value);
+                    break;
+                case IrTerm_FallThrough:
+                {
+                    // Implicit next-block: find cur in blockOrder and enqueue the successor.
+                    int idx = blockOrder.IndexOf(cur);
+                    if (idx >= 0 && idx + 1 < blockOrder.Count)
+                        EnqueueIfNew(blockOrder[idx + 1]);
+                    break;
+                }
+                // Return / ReturnStatus don't name a successor block — end of chain.
+            }
+        }
+
+        void EnqueueIfNew(int id)
+        {
+            if (reachable.Add(id))
+                queue.Enqueue(id);
+        }
+
+        // Keep: entry (already in reachable), blocks reachable via edges,
+        // AND any block that some retained terminator explicitly references
+        // (e.g. an unreachable Suspend.ResumeBlock that IS a Goto target
+        // from a different block).
+        foreach (int refId in referenced)
+            reachable.Add(refId);
+
+        return candidates.Where(b => reachable.Contains(b.Id.Value)).ToList();
+    }
 }
 

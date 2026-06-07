@@ -63,7 +63,7 @@ public static class PreviewSynthesizer
         {
             EqsTrigger.FirstReady    => "Ready",
             EqsTrigger.TopChanged    => "TopChanged",
-            EqsTrigger.ScoreCrossed  => "Score≥" + p.ScoreThreshold.ToString("F1"),
+            EqsTrigger.ScoreCrossed  => "Score≥" + p.ScoreThreshold.ToString("F1", global::System.Globalization.CultureInfo.InvariantCulture),
             EqsTrigger.BecomesStale  => "Stale",
             _                        => "EQS"
         };

@@ -119,13 +119,6 @@ internal static class AiPrimitiveEmitter
         if (mainGraph != null)
             LibraryEmitter.EmitGraphBody(e, asset, mainGraph);
 
-        // Fallback: ensures the method always compiles when the graph body does not
-        // terminate every control-flow path (e.g. stub/placeholder graphs in Phase 3).
-        // Unreachable if the graph already returns on all paths.
-        e.WriteLine("#pragma warning disable CS0162 // Unreachable code (fallback)");
-        e.WriteLine("return global::Fbt.NodeStatus.Failure;");
-        e.WriteLine("#pragma warning restore CS0162");
-
         e.Outdent();
         e.WriteLine("}");
     }

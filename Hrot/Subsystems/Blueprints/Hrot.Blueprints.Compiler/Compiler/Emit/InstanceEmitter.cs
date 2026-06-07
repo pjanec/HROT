@@ -183,7 +183,9 @@ internal static class InstanceEmitter
             ?? asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function);
 
         if (tickGraph != null)
+        {
             LibraryEmitter.EmitGraphBody(e, asset, tickGraph);
+        }
 
         e.Outdent();
         e.WriteLine("}");

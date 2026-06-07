@@ -57,7 +57,11 @@ public static class TestData
                 throw new FileNotFoundException(
                     $"Snapshot not found: '{path}'. Set BLUEPRINT_REGENERATE_SNAPSHOTS=1 to create.", path);
             var expected = File.ReadAllText(path);
-            if (expected != actual)
+            // Normalize line endings on both sides so the comparison is
+            // robust regardless of git checkout settings (CRLF vs LF).
+            var expectedNormalized = expected.Replace("\r\n", "\n");
+            var actualNormalized   = actual.Replace("\r\n", "\n");
+            if (expectedNormalized != actualNormalized)
                 throw new Exception(
                     $"Snapshot mismatch for '{relativePath}'.\n--- expected ---\n{expected}\n--- actual ---\n{actual}");
         }
