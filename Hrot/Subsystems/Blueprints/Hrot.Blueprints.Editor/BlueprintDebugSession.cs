@@ -485,7 +485,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                     CaptureAiPrimitiveState(self, def, mapIndex, fields);
                     break;
                 case BlueprintDispatchKind.Instance:
-                    CaptureInstanceStateFromDefinition(self, bpId, mapIndex, fields, out cursor);
+                    CaptureInstanceStateFromDefinition(self, bpId, mapIndex, def, fields, out cursor);
                     break;
             }
         }
@@ -542,7 +542,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // Instance state byte access requires the partition allocator, not wired in here.
     private unsafe void CaptureInstanceStateFromDefinition(
-        Entity self, int blueprintId, DebugMapIndex? mapIndex,
+        Entity self, int blueprintId, DebugMapIndex? mapIndex, BlueprintDefinition def,
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
@@ -552,26 +552,27 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard1024>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
         }
         else if (_view.HasComponent<BlueprintBlackboard4096>(self))
         {
             ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard4096>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
         }
         else if (_view.HasComponent<BlueprintBlackboard16384>(self))
         {
             ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard16384>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, outFields, out cursor);
+            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
         }
     }
 
-    private static unsafe void ReadInstanceState(
+    internal static unsafe void ReadInstanceState(
         ReadOnlySpan<byte> bytes, int blueprintId, DebugStateLayout? stateLayout,
+        BlueprintDefinition? def,
         Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
     {
         cursor = null;
@@ -584,16 +585,29 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             cursor = System.Runtime.InteropServices.MemoryMarshal.Read<BlueprintLatentCursor>(
                 bytes.Slice(payloadOffset, 16));
 
-            if (stateLayout == null || stateLayout.Fields.Count == 0) return;
-
-            foreach (var field in stateLayout.Fields)
+            // Prefer DebugMap StateLayout when available (has editor-authored offsets).
+            if (stateLayout != null && stateLayout.Fields.Count > 0)
             {
-                int fieldStart = payloadOffset + field.OffsetBytes;
-                if (fieldStart + field.SizeBytes > bytes.Length || field.SizeBytes <= 0) continue;
-                var fieldType = ResolveType(field.Type);
-                if (fieldType == null) continue;
-                var raw = MarshalFromBytes(bytes.Slice(fieldStart, field.SizeBytes).ToArray(), fieldType);
-                if (raw != null) outFields[field.Name] = raw;
+                foreach (var field in stateLayout.Fields)
+                {
+                    int fieldStart = payloadOffset + field.OffsetBytes;
+                    if (fieldStart + field.SizeBytes > bytes.Length || field.SizeBytes <= 0) continue;
+                    var fieldType = ResolveType(field.Type);
+                    if (fieldType == null) continue;
+                    var raw = MarshalFromBytes(bytes.Slice(fieldStart, field.SizeBytes).ToArray(), fieldType);
+                    if (raw != null) outFields[field.Name] = raw;
+                }
+            }
+            // Fallback: use BlueprintDefinition.StateFields (compiled offset/size from registrar).
+            else if (def?.StateFields is { Count: > 0 } stateFields)
+            {
+                foreach (var (name, descriptor) in stateFields)
+                {
+                    int fieldStart = payloadOffset + descriptor.OffsetBytes;
+                    if (fieldStart + descriptor.SizeBytes > bytes.Length || descriptor.SizeBytes <= 0) continue;
+                    var raw = MarshalFromBytes(bytes.Slice(fieldStart, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
+                    if (raw != null) outFields[name] = raw;
+                }
             }
         }
     }
