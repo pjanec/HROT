@@ -238,6 +238,7 @@ internal sealed class GraphScheduler
                     var esucc = GetSingleExecSuccessor(node);
                     if (esucc is null)
                     {
+                        ReportDroppedExecSuccessors(node);
                         bb.Terminator = new IrTerm_FallThrough
                         {
                             Debug = DebugOf(node),
@@ -282,6 +283,7 @@ internal sealed class GraphScheduler
                     var succ = GetSingleExecSuccessor(node);
                     if (succ is null)
                     {
+                        ReportDroppedExecSuccessors(node);
                         bb.Terminator = new IrTerm_FallThrough { Debug = DebugOf(node) };
                         return;
                     }
@@ -1326,6 +1328,36 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
     // Exec chain helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Emits <see cref="DiagnosticCodes.BP1412"/> (Error) when a node has outgoing exec links
+    /// that the scheduler did not follow, causing successors to be silently dropped from
+    /// the generated code.  Legitimate chain-ends (no exec-out pins, or pins with no links)
+    /// do not trigger a diagnostic.
+    /// </summary>
+    private void ReportDroppedExecSuccessors(Node node)
+    {
+        var execOutPinIds = new HashSet<Guid>(
+            node.Pins
+                .Where(p => p.IsExec && p.Direction == "Out")
+                .Select(p => p.Id));
+
+        if (execOutPinIds.Count == 0)
+            return; // node has no exec-out pins -- legitimate chain end
+
+        var outgoingExecLinks = _graph.Links
+            .Where(l => l.FromNodeId == node.Id && execOutPinIds.Contains(l.FromPinId))
+            .ToList();
+
+        if (outgoingExecLinks.Count == 0)
+            return; // exec-out pins exist but none are linked -- legitimate chain end
+
+        var nodeTypeName = node.GetType().Name;
+        _ctx.Diagnostics.Add(Diagnostic.Error(
+            DiagnosticCodes.BP1412,
+            $"Exec output of node '{node.Id}' ({nodeTypeName}) has {outgoingExecLinks.Count} outgoing link(s) that the scheduler did not follow; those successors are dropped from the generated code. (A node type with multiple exec-out pins, e.g. Sequence, is not yet schedulable, or a link references an unresolved pin.)",
+            _ctx.AssetId, _graph.Id, node.Id));
+    }
 
     private Node? GetSingleExecSuccessor(Node node)
     {

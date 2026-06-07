@@ -1,0 +1,40 @@
+﻿# Skill: Strict Structural Graph Queries (codebase-memory-mcp)
+
+## Context & System Architecture
+You are connected to `codebase-memory-mcp`, a high-performance tree-sitter knowledge graph backed by SQLite. 
+**This is NOT a semantic vector database.** It does not understand natural language, intent, or conversational descriptions. It relies on exact AST node matching and valid regex.
+
+## 🚫 CRITICAL RULE: NEVER PASS CONVERSATIONAL TEXT
+If you pass conversational text into graph queries, the engine will attempt a brute-force text scan across millions of AST nodes, resulting in a fatal system timeout.
+
+Before executing a search, you MUST strip all descriptive identifiers (e.g., "static", "method", "class", "function", "interface", "where is") from your query. Pass ONLY the exact literal symbol name.
+
+### Query Formatting Examples:
+* **❌ FATAL (Will Timeout):** `{"query": "Diagnostic.Error static method"}`
+* **❌ FATAL (Will Timeout):** `{"query": "where is the user auth controller"}`
+* **✅ CORRECT (<1ms Response):** `{"query": "Diagnostic.Error"}`
+* **✅ CORRECT (<1ms Response):** `{"query": "UserAuthController"}`
+
+## Core Graph Tools & Usage
+Use the following tools strictly according to the rules below. Do NOT hallucinate commands like `code_search` or `semantic_search`.
+
+1. **`search_graph`** (DO NOT use `search_code`)
+   * **Purpose:** Find exact functions, classes, or types by name.
+   * **Constraint:** The `query` parameter MUST be the exact symbol name or a raw regex pattern. No English words.
+
+2. **`trace_call_path`**
+   * **Purpose:** Find callers or callees of a function (e.g., "What calls this?").
+   * **Constraint:** Pass the exact qualified name of the target function.
+
+3. **`get_architecture`**
+   * **Purpose:** Map out packages, entry points, and high-level structure when you enter an unfamiliar repository.
+
+4. **`get_code_snippet`**
+   * **Purpose:** Extract a specific function or class into your context window.
+   * **Constraint:** Use this *after* you have verified the exact symbol name via `search_graph`. Do not read entire files if you only need one snippet.
+
+## Required Workflow
+1. **Identify the Symbol:** Extract the exact programmatic name of the component you need.
+2. **Sanitize:** Remove all English context from your search string.
+3. **Query:** Execute the tool call.
+4. **Analyze:** Parse the returned JSON structural data to answer your task, or use `get_code_snippet` to read the specific implementation.

@@ -69,6 +69,9 @@
   <!-- Exclude Recipes folder - these are templates, not compiled blueprints. -->
   <ItemGroup>
     <AdditionalFiles Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
+    <!-- Ensure .bp.json changes invalidate the incremental build up-to-date check
+         so the source generator re-runs and regenerates .g.cs files. -->
+    <UpToDateCheckInput Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
   </ItemGroup>
 
   <!-- BTree/HSM JSON asset files: picked up by BTreeJsonGenerator/HsmJsonGenerator.
