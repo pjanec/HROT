@@ -1,6 +1,7 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.ActionCatalog;
+using Hrot.Blueprints.Editor.Host;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 
@@ -101,9 +102,65 @@ public static class BlueprintNodePaletteEntries
         yield return Make<FunctionCallNode>(
             "FunctionCall", "Function Call", Categories.Function,
             "Call a method on a target type.");
-        yield return Make<LiteralNode>(
-            "Literal", "Literal", Categories.Function,
-            "A constant value of a chosen type.");
+
+        // Typed literal nodes — strongly-typed so the wire-drop picker's
+        // nodes.by-pin filter (p.Type == q.SourceType) correctly matches
+        // them to a dragged data pin.
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralBool",
+            DisplayName    = "Literal (Boolean)",
+            Category       = Categories.Function,
+            Tooltip        = "A boolean constant (true/false).",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Bool },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralInt",
+            DisplayName    = "Literal (Integer)",
+            Category       = Categories.Function,
+            Tooltip        = "An integer constant.",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Int32 },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralFloat",
+            DisplayName    = "Literal (Float)",
+            Category       = Categories.Function,
+            Tooltip        = "A floating-point constant.",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Single },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralDouble",
+            DisplayName    = "Literal (Double)",
+            Category       = Categories.Function,
+            Tooltip        = "A double-precision constant.",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Float64 },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralString",
+            DisplayName    = "Literal (String)",
+            Category       = Categories.Function,
+            Tooltip        = "A string constant.",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.String },
+        };
+        yield return new NodeKindDescriptor
+        {
+            Kind           = "LiteralByte",
+            DisplayName    = "Literal (Byte)",
+            Category       = Categories.Function,
+            Tooltip        = "A byte constant.",
+            Icon           = "",
+            CreateInstance = () => new LiteralNode { Id = Guid.NewGuid(), TypeId = BlueprintTypeSystem.Byte },
+        };
+
         yield return Make<CastNode>(
             "Cast", "Cast", Categories.Function,
             "Cast a value to a target type.");
