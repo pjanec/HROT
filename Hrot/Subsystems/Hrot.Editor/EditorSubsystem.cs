@@ -1555,113 +1555,92 @@ namespace Hrot.Editor
         {
             if (_headless) return;
 
-            // ── MVE-BATCH-03: Blueprint toolbar button ──────────────────────────────────────────
-            // Gate on ImGui context availability (the button is skipped in non-ImGui test paths).
-            if (_blueprintRunButtonCallback != null &&
-                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-            {
-                if (ImGuiNET.ImGui.Begin("Blueprint Tools"))
-                {
-                    if (ImGuiNET.ImGui.Button(
-                            Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
-                    {
-                        _blueprintRunButtonCallback.Invoke();
-                    }
-                    if (!string.IsNullOrEmpty(_blueprintRunStatus))
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
-                    }
-                }
-                ImGuiNET.ImGui.End();
-            }
-            // ─────────────────────────────────────────────────────────────────────────────────────
-
-            // ── MVE-BATCH-04: Blueprint Save button + Ctrl+S ────────────────────────────────────
+            // ── Unified Blueprint Tools Panel ──────────────────────────────────────────────────
+            // Merges MVE-BATCH-03/04/05 + PU-603 into a single "Blueprint Tools" window.
             // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
-            if (_blueprintSaveCallback != null &&
-                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
+            if (ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
             {
-                if (ImGuiNET.ImGui.Begin("Blueprint Save"))
-                {
-                    // Ctrl+S shortcut (detected inside the ImGui window scope).
-                    if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows)
-                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl)
-                        && ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S))
-                    {
-                        _blueprintSaveCallback.Invoke();
-                    }
+                bool showBlueprintTools = _blueprintRunButtonCallback != null
+                    || _blueprintSaveCallback != null
+                    || _blueprintCompileCallback != null
+                    || _saveAllCallback != null;
 
-                    if (ImGuiNET.ImGui.Button("Save Blueprint"))
-                    {
-                        _blueprintSaveCallback.Invoke();
-                    }
-                    if (!string.IsNullOrEmpty(_blueprintSaveStatus))
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
-                    }
-                }
-                ImGuiNET.ImGui.End();
-            }
-            // ─────────────────────────────────────────────────────────────────────────────────────
-
-            // ── MVE-BATCH-05: Compile / Reload Blueprint button ─────────────────────────────────
-            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
-            if (_blueprintCompileCallback != null &&
-                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-            {
-                if (ImGuiNET.ImGui.Begin("Blueprint Compile"))
+                if (showBlueprintTools && ImGuiNET.ImGui.Begin("Blueprint Tools"))
                 {
-                    if (ImGuiNET.ImGui.Button("Compile / Reload Blueprint"))
+                    bool isWindowFocused = ImGuiNET.ImGui.IsWindowFocused(
+                        ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows);
+                    bool ctrlDown   = ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl);
+                    bool shiftDown  = ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModShift);
+                    bool sPressed   = ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S);
+
+                    // -- 1. Run Blueprint --
+                    if (_blueprintRunButtonCallback != null)
                     {
-                        _blueprintCompileCallback.Invoke();
-                    }
-                    if (_blueprintFullRebuildCallback != null)
-                    {
-                        ImGuiNET.ImGui.SameLine();
-                        if (ImGuiNET.ImGui.Button("Full Rebuild"))
+                        if (ImGuiNET.ImGui.Button(
+                                Hrot.Blueprints.Editor.Runtime.RunBlueprintOnEntityCommand.ToolbarLabel))
+                            _blueprintRunButtonCallback.Invoke();
+
+                        if (!string.IsNullOrEmpty(_blueprintRunStatus))
                         {
-                            _blueprintFullRebuildCallback.Invoke();
+                            ImGuiNET.ImGui.SameLine();
+                            ImGuiNET.ImGui.TextUnformatted(_blueprintRunStatus);
                         }
                     }
-                    if (!string.IsNullOrEmpty(_blueprintCompileStatus))
+
+                    // -- 2. Save Blueprint (Ctrl+S, but not Ctrl+Shift+S) --
+                    if (_blueprintSaveCallback != null)
                     {
                         ImGuiNET.ImGui.SameLine();
-                        ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
-                    }
-                }
-                ImGuiNET.ImGui.End();
-            }
-            // ─────────────────────────────────────────────────────────────────────────────────────
+                        if ((isWindowFocused && ctrlDown && !shiftDown && sPressed)
+                            || ImGuiNET.ImGui.Button("Save Blueprint"))
+                            _blueprintSaveCallback.Invoke();
 
-            // ── PU-603: Save All button + Ctrl+Shift+S ───────────────────────────────────────────
-            // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
-            if (_saveAllCallback != null &&
-                ImGuiNET.ImGui.GetCurrentContext() != System.IntPtr.Zero)
-            {
-                if (ImGuiNET.ImGui.Begin("Save All"))
-                {
-                    // Ctrl+Shift+S shortcut (detected inside the ImGui window scope).
-                    if (ImGuiNET.ImGui.IsWindowFocused(ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows)
-                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl)
-                        && ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModShift)
-                        && ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S))
-                    {
-                        _saveAllCallback.Invoke();
+                        if (!string.IsNullOrEmpty(_blueprintSaveStatus))
+                        {
+                            ImGuiNET.ImGui.SameLine();
+                            ImGuiNET.ImGui.TextUnformatted(_blueprintSaveStatus);
+                        }
                     }
 
-                    if (ImGuiNET.ImGui.Button("Save All"))
-                    {
-                        _saveAllCallback.Invoke();
-                    }
-                    if (!string.IsNullOrEmpty(_saveAllStatus))
+                    // -- 3. Compile / Reload Blueprint --
+                    if (_blueprintCompileCallback != null)
                     {
                         ImGuiNET.ImGui.SameLine();
-                        ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
+                        if (ImGuiNET.ImGui.Button("Compile / Reload"))
+                            _blueprintCompileCallback.Invoke();
+
+                        if (_blueprintFullRebuildCallback != null)
+                        {
+                            ImGuiNET.ImGui.SameLine();
+                            if (ImGuiNET.ImGui.Button("Full Rebuild"))
+                                _blueprintFullRebuildCallback.Invoke();
+                        }
+
+                        if (!string.IsNullOrEmpty(_blueprintCompileStatus))
+                        {
+                            ImGuiNET.ImGui.SameLine();
+                            ImGuiNET.ImGui.TextUnformatted(_blueprintCompileStatus);
+                        }
+                    }
+
+                    // -- 4. Save All (Ctrl+Shift+S) --
+                    if (_saveAllCallback != null)
+                    {
+                        ImGuiNET.ImGui.SameLine();
+                        if ((isWindowFocused && ctrlDown && shiftDown && sPressed)
+                            || ImGuiNET.ImGui.Button("Save All"))
+                            _saveAllCallback.Invoke();
+
+                        if (!string.IsNullOrEmpty(_saveAllStatus))
+                        {
+                            ImGuiNET.ImGui.SameLine();
+                            ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
+                        }
                     }
                 }
-                ImGuiNET.ImGui.End();
+
+                if (showBlueprintTools)
+                    ImGuiNET.ImGui.End();
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 

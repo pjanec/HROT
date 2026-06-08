@@ -1,0 +1,181 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 1
+  },
+  "Header": {},
+  "AssetId": "47fe9c55-c6ca-4c69-9c5a-d46de25745de",
+  "Name": "Count4",
+  "Dispatch": "Instance",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Parameters": [],
+  "ParameterOrder": null,
+  "WorkingState": [],
+  "WorkingStateOrder": null,
+  "Variables": [
+    {
+      "Id": "a0000006-0000-0000-0000-000000000001",
+      "Name": "Count",
+      "Type": {
+        "TypeId": "System.Int32",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "0",
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000006-0000-0000-0000-000000000001",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000006-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 940,
+            "Y": 220,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Fdp.Toolkit.Blueprints.BlueprintMath",
+          "MethodName": "AddInt",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "Id": "20000006-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 640,
+            "Y": 220,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "b": "10"
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "a0000006-0000-0000-0000-000000000001",
+          "Id": "20000006-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 110,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Sequence",
+          "Id": "da9a9c0b-25f8-4a81-9a52-75c715456f18",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 289,
+            "Y": 557,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Delay",
+          "Id": "0b561966-b00b-4c84-a1a0-87042220ba9f",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 906,
+            "Y": 601,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "Duration": "1"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "7b6da53f-4e11-4bc9-9d0c-bad0e22c7f5c",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1293,
+            "Y": 651,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000004",
+          "FromPinId": "dd000006-0000-0000-0000-000000000005",
+          "ToNodeId": "20000006-0000-0000-0000-000000000003",
+          "ToPinId": "dd000006-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000001",
+          "FromPinId": "ee000006-0000-0000-0000-000000000001",
+          "ToNodeId": "da9a9c0b-25f8-4a81-9a52-75c715456f18",
+          "ToPinId": "7565aa28-27e1-4b94-977c-80d0d8a9ea52"
+        },
+        {
+          "FromNodeId": "da9a9c0b-25f8-4a81-9a52-75c715456f18",
+          "FromPinId": "a9fbe81b-1cb6-40af-9b5f-b714aaa6a8f0",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "dd000006-0000-0000-0000-000000000001"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000003",
+          "FromPinId": "dd000006-0000-0000-0000-000000000004",
+          "ToNodeId": "20000006-0000-0000-0000-000000000002",
+          "ToPinId": "9e24171d-76c7-865f-9b15-d66a478cfe47"
+        },
+        {
+          "FromNodeId": "da9a9c0b-25f8-4a81-9a52-75c715456f18",
+          "FromPinId": "44d016e3-f0ff-4dda-97de-2ba2cb1adc77",
+          "ToNodeId": "0b561966-b00b-4c84-a1a0-87042220ba9f",
+          "ToPinId": "7d4eab5c-1ec7-4ac5-b9e2-4fa4f3a87320"
+        },
+        {
+          "FromNodeId": "0b561966-b00b-4c84-a1a0-87042220ba9f",
+          "FromPinId": "bb954fd6-06e1-47a5-8f9f-7ec2402a142c",
+          "ToNodeId": "7b6da53f-4e11-4bc9-9d0c-bad0e22c7f5c",
+          "ToPinId": "c89304ea-fef7-46c3-903b-2d5e3e98b2de"
+        }
+      ],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": null,
+    "Category": null,
+    "Recipe": null
+  }
+}
