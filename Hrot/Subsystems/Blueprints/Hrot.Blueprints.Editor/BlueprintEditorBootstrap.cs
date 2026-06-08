@@ -41,6 +41,9 @@ public static class BlueprintEditorBootstrap
         // BATCH-03D1: Register FunctionCallNode drawer
         registry.Register(typeof(FunctionCallNode), new FunctionCallNodeDrawer(editService));
 
+        // Typed literal nodes: Inspector editor for the literal value (one widget per TypeId)
+        registry.Register(typeof(LiteralNode), new LiteralNodeDrawer(editService));
+
         // AN5 (D-B): ChannelCommandNodeDrawer now renders ChannelType/ActionId as read-only
         // labels (action is baked at creation via the per-action palette; no mutation path).
         registry.Register(typeof(ChannelCommandNode), new ChannelCommandNodeDrawer(channelCatalog));
