@@ -299,6 +299,22 @@ internal static class Stage0_Rehydrate
                         if (seenIn.Add(link.ToPinId))
                             pins.Add(MakePin($"arg{seenIn.Count}", "In", isExec: false, typeId: "System.Object"));
 
+                // Also infer data-In pins from PinDefaults keys, so that parameters using
+                // inline defaults (no physical wire) are visible to Stage3_Normalize.
+                // Without this, the Roslyn source generator (netstandard2.0 sandbox where
+                // CLR reflection fails) would miss these entirely, causing CS7036 at emit.
+                if (fc.PinDefaults != null)
+                {
+                    foreach (var kvp in fc.PinDefaults)
+                    {
+                        var synPinId = Stage3_Normalize.SynthesizedGuid(
+                            $"fallback-pin:{fc.Id:N}:{kvp.Key}");
+                        if (seenIn.Add(synPinId))
+                            pins.Add(MakePin(kvp.Key, "In", isExec: false,
+                                typeId: "System.Object"));
+                    }
+                }
+
                 var seenOut = new HashSet<Guid>();
                 if (outL != null)
                     foreach (var link in outL)

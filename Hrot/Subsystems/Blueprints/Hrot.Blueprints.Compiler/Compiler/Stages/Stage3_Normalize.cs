@@ -214,6 +214,16 @@ internal static class Stage3_Normalize
                 return $"new global::Fdp.Core.FixedString64(\"{esc}\")";
             }
 
+            // --- Fallback: unknown / unresolved types ---
+            // When CLR reflection fails in the netstandard2.0 MSBuild sandbox (Full Rebuild),
+            // Stage0 assigns System.Object as a placeholder.  Pass the raw value through as-is
+            // so the C# compiler infers the correct literal type.  Without this, inline pin
+            // defaults (e.g. PinDefaults["b"] = "10") are silently skipped, causing CS7036
+            // missing-argument errors at emit time.
+            case "System.Object":
+            case "":
+                return rawValue;
+
             default:
                 return null;   // unknown type — leave pin for BP4001
         }
