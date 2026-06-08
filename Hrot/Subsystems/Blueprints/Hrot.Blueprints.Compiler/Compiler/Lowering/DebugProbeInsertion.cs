@@ -18,18 +18,38 @@ internal static class DebugProbeInsertion
 
     private static IrBlock InsertProbes(IrBlock block, CompilerMode mode)
     {
-        if (block.Statements.Count == 0) return block;
+        // Three-tier fallback for per-block probe identity:
+        // 1. block.SourceNodeId      — set by Stage5 for entry/latent/sequence blocks
+        // 2. OriginNodeId            — set by lowering passes to preserve authored id
+        // 3. Statements[0].NodeId    — legacy fallback (works for test graphs and
+        //    non-AiPrimitive graphs where blocks don't carry SourceNodeId)
+        //    Note: tier 3 mis-attributes probes when a data node (GetVariable)
+        //    is the first statement. This is mitigated by tier 1+2 catching the
+        //    exec nodes that own their own blocks.
+        Guid? probeNodeId = block.SourceNodeId
+            ?? (block.Statements.Count > 0 ? block.Statements[0].Debug?.OriginNodeId : null)
+            ?? (block.Statements.Count > 0 ? block.Statements[0].Debug?.NodeId : null);
+        if (probeNodeId is null) return block;
 
-        var firstStmt = block.Statements[0];
-        if (firstStmt.Debug?.NodeId is null) return block;
+        // Get GraphId from block's first statement or terminator debug info.
+        var graphId = (block.Statements.Count > 0
+            ? block.Statements[0].Debug?.GraphId
+            : null)
+            ?? block.Terminator?.Debug?.GraphId
+            ?? default;
 
         var probeOp = new IrOp_DebugProbe_NodeEnter(
-            firstStmt.Debug.NodeId.Value,
-            firstStmt.Debug.NodeId.Value.ToString());
+            probeNodeId.Value,
+            probeNodeId.Value.ToString());
         var probe = new IrStatement
         {
             Operation = probeOp,
-            Debug = firstStmt.Debug with { NodeKind = probeOp.NodeKind },
+            Debug = new IrDebugAnnotation
+            {
+                GraphId   = graphId,
+                NodeId    = probeNodeId,
+                NodeKind  = probeOp.NodeKind,
+            },
         };
 
         var newStatements = new List<IrStatement> { probe };

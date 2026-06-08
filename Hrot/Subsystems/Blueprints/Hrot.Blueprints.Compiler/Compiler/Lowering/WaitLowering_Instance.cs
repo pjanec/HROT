@@ -35,11 +35,11 @@ internal static class WaitLowering_Instance
         IrValue Alloc(IrTypeRef t) => new IrValue(nextVal++, t);
         IrBlockId NewBlk() => new IrBlockId(nextBlkId++);
 
-        IrDebugAnnotation Synth() =>
-            new IrDebugAnnotation { GraphId = graph.Id, Synthesized = "stage6-wait-lower-inst" };
+        IrDebugAnnotation Synth(Guid? originNodeId = null) =>
+            new IrDebugAnnotation { GraphId = graph.Id, Synthesized = "stage6-wait-lower-inst", OriginNodeId = originNodeId };
 
-        IrStatement Stmt(IrValue? result, IrOperation op) =>
-            new IrStatement { ResultValue = result, Operation = op, Debug = Synth() };
+        IrStatement Stmt(IrValue? result, IrOperation op, Guid? originNodeId = null) =>
+            new IrStatement { ResultValue = result, Operation = op, Debug = Synth(originNodeId) };
 
         // --- Pre-allocate IDs ---
         var dispatchBlockId = NewBlk();
@@ -75,6 +75,7 @@ internal static class WaitLowering_Instance
             var sb = suspendBlocks[k];
             var suspend = (IrTerm_Suspend)sb.Terminator;
             int resumePointIdx = suspend.ResumePoint.Index;
+            var originNodeId = sb.SourceNodeId;
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
@@ -85,27 +86,27 @@ internal static class WaitLowering_Instance
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
-            keptStmts.Add(Stmt(null, new IrOp_WriteCursorResumeAt(k + 1)));
-            keptStmts.Add(Stmt(null, new IrOp_WriteCursorInstanceVersion()));
+            keptStmts.Add(Stmt(null, new IrOp_WriteCursorResumeAt(k + 1), originNodeId));
+            keptStmts.Add(Stmt(null, new IrOp_WriteCursorInstanceVersion(), originNodeId));
 
             if (waitOp is IrOp_LatentDelay ld)
             {
                 // Compute time + duration and store as wait-until (relative, not absolute).
                 var timeV = Alloc(SingleType);
-                keptStmts.Add(Stmt(timeV, new IrOp_Time()));
+                keptStmts.Add(Stmt(timeV, new IrOp_Time(), originNodeId));
 
                 var waitUntilV = Alloc(SingleType);
                 keptStmts.Add(Stmt(waitUntilV,
                     new IrOp_PureCall("op_Add_Single",
                         new[] { timeV, ld.Seconds },
-                        SingleType)));
-                keptStmts.Add(Stmt(null, new IrOp_WriteCursorWaitUntilTime(waitUntilV)));
+                        SingleType), originNodeId));
+                keptStmts.Add(Stmt(null, new IrOp_WriteCursorWaitUntilTime(waitUntilV), originNodeId));
             }
 
             modifiedBlocks[sb.Id.Value] = sb with
             {
                 Statements = keptStmts,
-                Terminator = new IrTerm_Return(null) { Debug = Synth() },
+                Terminator = new IrTerm_Return(null) { Debug = Synth(originNodeId) },
             };
         }
 

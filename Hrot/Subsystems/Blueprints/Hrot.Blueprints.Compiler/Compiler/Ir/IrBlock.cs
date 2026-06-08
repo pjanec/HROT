@@ -20,4 +20,10 @@ public sealed record IrBlock
     public string Label { get; init; } = "";
     public IReadOnlyList<IrStatement> Statements { get; init; } = Array.Empty<IrStatement>();
     public IrTerminator Terminator { get; init; } = null!;
+    /// <summary>
+    /// The authored exec node that owns this block. Set in Stage5 for blocks that
+    /// directly represent an authored exec node (entry, pre-suspend, etc.).
+    /// Infrastructure blocks (resume, dispatch) leave this null.
+    /// </summary>
+    public Guid? SourceNodeId { get; init; }
 }

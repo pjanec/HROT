@@ -192,6 +192,7 @@ internal sealed class GraphScheduler
         }
 
         var entryBlockId = AllocBlock("entry");
+        _blockBuilders[entryBlockId.Value].SourceNodeId = entryNode.Id;
         _bfsQueue.Enqueue((entryBlockId.Value, entryNode));
 
         while (_bfsQueue.Count > 0)
@@ -304,6 +305,9 @@ internal sealed class GraphScheduler
 
     private void ScheduleLatentNode(Node node, BlockBuilder bb, IrOperation latentOp)
     {
+        // The pre-suspend block now represents this latent node.
+        bb.SourceNodeId = node.Id;
+
         // Append the latent marker as the last statement in the pre-suspend block.
         bb.Statements.Add(new IrStatement
         {
@@ -452,6 +456,9 @@ internal sealed class GraphScheduler
 
     private void ScheduleSequenceNode(SequenceNode seq, BlockBuilder bb)
     {
+        // This block carries the sequence's dispatch to its children.
+        bb.SourceNodeId = seq.Id;
+
         // 1. Resolve ordered list of connected Then successors.
         //    Order by numeric suffix of pin Name (Then0, Then1, ...);
         //    fall back to Pins-list order for pins without a parseable suffix.
@@ -1639,6 +1646,11 @@ internal sealed class GraphScheduler
         public string Label    { get; }
         public List<IrStatement> Statements { get; } = new();
         public IrTerminator? Terminator { get; set; }
+        /// <summary>
+        /// The authored exec node that owns this block. Set for blocks that directly
+        /// represent an authored exec node; null for infrastructure blocks.
+        /// </summary>
+        public Guid? SourceNodeId { get; set; }
 
         public BlockBuilder(IrBlockId id, string label)
         {
@@ -1648,13 +1660,14 @@ internal sealed class GraphScheduler
 
         public IrBlock Build() => new IrBlock
         {
-            Id         = Id,
-            Label      = Label,
-            Statements = Statements.AsReadOnly(),
-            Terminator = Terminator ?? new IrTerm_FallThrough
+            Id           = Id,
+            Label        = Label,
+            Statements   = Statements.AsReadOnly(),
+            Terminator   = Terminator ?? new IrTerm_FallThrough
             {
                 Debug = new IrDebugAnnotation { Synthesized = "auto-fallthrough" },
             },
+            SourceNodeId = SourceNodeId,
         };
     }
 }

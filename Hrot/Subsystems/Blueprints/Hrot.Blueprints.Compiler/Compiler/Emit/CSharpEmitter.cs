@@ -42,15 +42,17 @@ internal sealed class CSharpEmitter
 
     public void EmitNodeStart(IrDebugAnnotation? debug)
     {
-        if (debug?.NodeId is null) return;
-        _debugMap.RecordNodeStart(debug.NodeId.Value, debug.GraphId, _currentLine,
+        var effectiveNodeId = debug?.NodeId ?? debug?.OriginNodeId;
+        if (effectiveNodeId is null) return;
+        _debugMap.RecordNodeStart(effectiveNodeId.Value, debug!.GraphId, _currentLine,
             debug.NodeKind, debug.DisplayName);
     }
 
     public void EmitNodeEnd(IrDebugAnnotation? debug)
     {
-        if (debug?.NodeId is null) return;
-        _debugMap.RecordNodeEnd(debug.NodeId.Value, _currentLine);
+        var effectiveNodeId = debug?.NodeId ?? debug?.OriginNodeId;
+        if (effectiveNodeId is null) return;
+        _debugMap.RecordNodeEnd(effectiveNodeId.Value, _currentLine);
     }
 
     public (string Source, DebugMap DebugMap) Emit(IrAsset asset)

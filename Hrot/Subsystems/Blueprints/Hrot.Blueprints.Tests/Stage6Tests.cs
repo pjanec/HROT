@@ -280,6 +280,9 @@ public sealed class Stage6Tests
         {
             Id    = new IrBlockId(0),
             Label = "entry",
+            // SourceNodeId identifies the owning exec node; DebugProbeInsertion
+            // keys the per-block probe to this ID (CF-2 fix).
+            SourceNodeId = nodeId,
             Statements = new[]
             {
                 new IrStatement
