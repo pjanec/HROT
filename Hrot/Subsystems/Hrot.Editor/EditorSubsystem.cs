@@ -1564,7 +1564,8 @@ namespace Hrot.Editor
                 bool showBlueprintTools = _blueprintRunButtonCallback != null
                     || _blueprintSaveCallback != null
                     || _blueprintCompileCallback != null
-                    || _saveAllCallback != null;
+                    || _saveAllCallback != null
+                    || _blueprintDebugSession != null;
 
                 if (showBlueprintTools && ImGuiNET.ImGui.Begin("Blueprint Tools"))
                 {
@@ -1637,6 +1638,13 @@ namespace Hrot.Editor
                             ImGuiNET.ImGui.SameLine();
                             ImGuiNET.ImGui.TextUnformatted(_saveAllStatus);
                         }
+                    }
+
+                    // -- 5. Debug step controls (when session is available) --
+                    if (_blueprintDebugSession != null)
+                    {
+                        ImGuiNET.ImGui.Separator();
+                        Hrot.Blueprints.Editor.Debug.DebugStepControls.Draw(_blueprintDebugSession);
                     }
                 }
 

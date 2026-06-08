@@ -31,41 +31,12 @@ public sealed class DebugPanelWindow : BlueprintEditorWindowBase
         // ImGui rendering requires a live context; skip in headless / test environments.
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        // ── Step control buttons (enabled only when paused) ──────────────────
-        if (paused)
-        {
-            ImGui.Text("PAUSED");
+        // Shared step-control row (Continue / Step Over / Step Into / Step Out)
+        DebugStepControls.Draw(_session, action => LastStepActionInvoked = action);
 
-            if (ImGui.Button("Continue"))
-            {
-                _session.Continue();
-                LastStepActionInvoked = "Continue";
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Step Over"))
-            {
-                _session.StepOver();
-                LastStepActionInvoked = "StepOver";
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Step Into"))
-            {
-                _session.StepInto();
-                LastStepActionInvoked = "StepInto";
-            }
-            ImGui.SameLine();
-            if (ImGui.Button("Step Out"))
-            {
-                _session.StepOut();
-                LastStepActionInvoked = "StepOut";
-            }
-            ImGui.Separator();
-        }
-        else
-        {
-            ImGui.TextDisabled("Not paused.");
-            return;
-        }
+        if (!paused) return;
+
+        ImGui.Separator();
 
         if (ImGui.BeginTable("##bpTable", 3,
             ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
