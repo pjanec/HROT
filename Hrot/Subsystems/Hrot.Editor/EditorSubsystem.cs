@@ -894,6 +894,7 @@ namespace Hrot.Editor
                 _blueprintRegistry, _world!, bpTimeAdapter);
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
+            bpBlueprintSession.Attach();
             _blueprintDebugSession = bpBlueprintSession;
             // AIE-015: CreateBlueprintWindowRegistrar retired - perspective infra is wired in RegisterWindows.
 

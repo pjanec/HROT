@@ -205,3 +205,176 @@ True **break-on-pin-write** data breakpoints: add a compare-and-`RequestPause` i
 `BlueprintDebugSession.OnPinValueChanged` (already invoked in Trace mode). Cheap once D's Trace path + pin context
 menu exist. Also: conditional breakpoints, value editing at pause, cross-peer step-into (all Slice-2 per Debug DD
 §1.3).
+
+---
+---
+
+# CORRECTIVE BATCHES (CF) — node-identity bug: breakpoints never pause
+
+> **Added 2026-06-08 after live diagnosis.** Batches A–E shipped the UX, but breakpoints **still do not pause**.
+> The earlier "probe coverage" theory in STATUS.md was built on a **wrong node-ID table** and is superseded.
+> See the corrected diagnosis below. These CF batches fix the actual compiler bug.
+
+## The confirmed bug (read this before touching anything)
+
+**Symptom:** user sets a breakpoint on a node (red marker appears), runs the sim, it never pauses.
+
+**Root cause — the node ID the editor sets a breakpoint with ≠ the node ID the runtime fires `OnNodeEnter` with.**
+Verified against ground truth (`Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Count4.bp.json` + the live
+`bp-diag.log`). For the `Count4` asset (`AssetId 47fe9c55-c6ca-4c69-9c5a-d46de25745de`,
+`GraphId 10000006-0000-0000-0000-000000000001`):
+
+| Authored node (from `.bp.json`) | Authored Id | In compiled DebugMap? | Runtime probe id |
+|---|---|---|---|
+| EventEntry | `20000006-…0001` | (verify in CF-1) | — |
+| SetVariable | `20000006-…0002` | yes | (verify) |
+| FunctionCall ("Add") | `20000006-…0003` | yes | not firing as `…0003` |
+| GetVariable ("Get Count") | `20000006-…0004` | yes | **fires `…0004`** ← data node, wrong attribution |
+| Sequence | `da9a9c0b-25f8-4a81-9a52-75c715456f18` | **NO** — replaced by `0ec3b253-3c5a-1024-…` |
+| Delay (latent) | `0b561966-b00b-4c84-a1a0-87042220ba9f` | **NO** — replaced by `976ef338-34f2-1469-…` |
+| Return | `7b6da53f-4e11-4bc9-9d0c-bad0e22c7f5c` | (verify) |
+
+Two independent identity breaks:
+1. **Provenance loss through lowering.** `Stage3_Normalize.SynthesizedGuid` (SHA-256 deterministic) and the
+   Stage-6 wait/instance lowering create replacement/synthesized statements that **drop the authored `NodeId`**
+   (`IrDebugAnnotation.Synthesized = "stage6-wait-lower-inst"`, `NodeId = null` — see
+   `Compiler/Lowering/WaitLowering_Instance.cs`). The authored Delay/Sequence ids never reach the DebugMap.
+2. **Probe mis-attribution.** `Compiler/Lowering/DebugProbeInsertion.cs:24` keys each block's `NodeEnter` probe to
+   `block.Statements[0].Debug.NodeId`. The first statement of an exec node's block is frequently an inlined
+   **data-input read** (e.g. GetVariable `…0004`) — so the probe fires as the data node, not the exec node.
+
+**What is NOT the bug (do not "fix" these — they work, proven by the synthetic tests in `BreakpointTests`):**
+`BlueprintDebugSession.OnNodeEnter → HandleBreakpointHit → DataBreakpointManager.OnExternalHit → RequestPause`,
+the `StringComparer.Ordinal` dictionary, the F9/context-menu wiring, the adapter. Compiling first registers the
+DebugMap correctly (in-memory, no file) — but cannot fix an identity-space mismatch.
+
+**Verified reference points (do not assume — re-read these files):**
+- `Compiler/Lowering/DebugProbeInsertion.cs:19-62` — per-block probe insertion; line 24 early-returns when first
+  statement has no NodeId.
+- `Compiler/Stages/Stage5_Schedule.cs:305-356` (`ScheduleLatentNode`, uses `DebugOf(node)`) and `:453-506`
+  (`ScheduleSequenceNode`, terminator carries `DebugOf(seq)` but the block emits no NodeId-bearing statement).
+- `Compiler/Lowering/WaitLowering_Instance.cs` — `Synth()` annotation drops NodeId on emitted statements.
+- `Compiler/Emit/DebugMapBuilder.cs:87-106` (`RecordNodeStart/End`) + `Compiler/Emit/CSharpEmitter.cs:43-54`
+  (`EmitNodeStart` is gated on `debug?.NodeId != null`) — DebugMap entries are driven by statements with a NodeId.
+- `Compiler/Ir/IrDebugAnnotation.cs` — fields `NodeId`, `PinId`, `GraphId`, `Synthesized`, `NodeKind`, `DisplayName`.
+- `Compiler/Assets/Nodes.cs:35-48` — `Node` base has `Id`, `Pins`, `EditorMetadata`, `PinDefaults`; **no provenance
+  field exists yet**.
+- Editor compile path: `Reload/QuickReloadService.cs:73` (`_compiler.Compile`) → `:161`
+  (`_session?.RegisterDebugMap(result.DebugMap)`), in-memory.
+
+## Zoo operating rules for ALL CF batches (Zoo = the external coder)
+
+- **Do NOT** delete, skip, weaken, or change the assertions of any existing test to make the suite pass. If a test
+  legitimately must change because behavior changed, change ONLY the expected value, and **list every such test by
+  name with old→new expectation** in the report.
+- **Do NOT** set `BLUEPRINT_REGENERATE_SNAPSHOTS` or regenerate golden snapshots. If a golden changes, report the
+  exact diff and STOP for lead review.
+- The report must include the **full failing-test set by name** before and after, and the exact `dotnet test`
+  command lines run. The lead (Petr) hard-reviews the **diff**, not the report, and commits.
+- Editor must be CLOSED during build (DLL locks). Gate: `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors.
+
+---
+
+## Batch CF-1 — Ground-truth diagnostic (NO production code changes)
+
+**Why:** remove all remaining ambiguity about what `976ef338` / `0ec3b253` are and exactly where the authored
+Delay/Sequence ids are lost, before changing compiler code.
+
+**Do:** Write a single xUnit test in a new file
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Debug/CF1_NodeIdentityDiagnosticsTests.cs` that:
+1. Loads `Count4.bp.json` (find how other compiler tests load a `.bp.json` asset — e.g. via the test fixture used
+   in `Compiler/Stage7_EmitTests`), compiles it with `CompilerMode.Debug`.
+2. From the compile result, emits to the **test output** (`ITestOutputHelper`) and to a file
+   `.dev/blueprint-dbg-1/reports/CF1-NODE-IDENTITY-REPORT.md`:
+   - Every `DebugMap.Entries` row: `NodeId`, `NodeKind`, `DisplayName`, `StartLine`.
+   - Every authored node from the asset graph: `Id`, `Kind` — and a column "DebugMap entry keyed by this exact
+     authored Id? yes/no".
+   - Every `DebugProbe.NodeEnter(self, "<id>")` literal found in the generated C# source (regex the emitted source).
+   - For each authored exec node with **no** matching DebugMap entry / no matching probe literal, the synthesized
+     id (if any) that appears instead, and the `Synthesized` tag of the statements in its block.
+3. The test asserts nothing about correctness yet — it is a **reporting** test. It must **pass** (so it stays green
+   in CI as a living map), but its body writes the report file.
+
+**SUCCESS CONDITION (CF-1):** `CF1-NODE-IDENTITY-REPORT.md` exists and definitively answers, for `Count4`:
+(a) which authored node ids have a DebugMap entry keyed by that exact id; (b) for Delay `0b561966` and Sequence
+`da9a9c0b`, the synthesized id that replaced them and the lowering stage/tag responsible; (c) the complete list of
+`DebugProbe.NodeEnter` ids actually emitted. Build 0 errors; new test passes; **no other test's result changes**.
+
+---
+
+## Batch CF-2 — Preserve authored node identity end-to-end (the fix)
+
+**Depends on:** CF-1 (its report tells you the exact lowering sites to touch).
+
+**Goal:** every authored **exec-flow** node emits its `NodeEnter` probe and DebugMap entry keyed to **its own
+authored `Node.Id`** — including Delay (latent) and Sequence — and pure data-only nodes do **not** get probes.
+
+**Design (follow this; do not invent a parallel id space):**
+1. **Carry provenance, never synthesize identity for breakpointable nodes.** Add a nullable `Guid? OriginNodeId`
+   to `IrDebugAnnotation` (`Compiler/Ir/IrDebugAnnotation.cs`). Anywhere a lowering/normalization step emits a
+   statement that stands in for an authored node (the `Synth()` path in `WaitLowering_Instance.cs`; any
+   `SynthesizedGuid`-replacement of an authored Delay/Sequence found in CF-1), set `OriginNodeId = <authored
+   node id>` instead of leaving NodeId null. The authored id must be threaded in from the source `Node.Id` at the
+   call site (Stage 5 knows it — `DebugOf(node)`).
+2. **Attribute each block's probe to the exec node it represents, not `Statements[0]`.** Change
+   `DebugProbeInsertion.InsertProbes` so the probe id is chosen as: the block's owning exec-node id. Concretely:
+   prefer the first statement whose `Debug.NodeId` (or new `OriginNodeId`) corresponds to the **exec node** that
+   opened the block, rather than `Statements[0]` unconditionally. If Stage 5 is the only place that knows the
+   owning exec node, record it on the block (add an `OwningNodeId`/`Guid? SourceNodeId` to `IrBlock`, set in
+   `ScheduleBlock`/`ScheduleLatentNode`/`ScheduleSequenceNode`) and have `DebugProbeInsertion` read it. This is the
+   cleaner fix and is preferred.
+3. **DebugMap entries follow the same key.** Ensure `CSharpEmitter.EmitNodeStart` / `DebugMapBuilder.RecordNodeStart`
+   record the authored/owning node id (use `NodeId ?? OriginNodeId`), so the map contains an entry for every
+   breakpointable exec node keyed by its authored id.
+4. **Data-only (pure) nodes get NO probe** (matches standard visual-scripting semantics). If CF-1 shows the "Add"
+   FunctionCall (`…0003`) is a **pure** node, it is intentionally not breakable — that is correct; do not force a
+   probe onto it. (Editor gating for this is CF-3.)
+
+**SUCCESS CONDITION (CF-2)** — add these as assertions in a new test
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests/Debug/CF2_AuthoredIdProbeTests.cs` (compile `Count4` in Debug):
+1. `DebugMap.Entries` contains an entry whose `NodeId == Guid 0b561966-b00b-4c84-a1a0-87042220ba9f` (Delay).
+2. `DebugMap.Entries` contains an entry whose `NodeId == Guid da9a9c0b-25f8-4a81-9a52-75c715456f18` (Sequence).
+3. The generated C# source contains the literal `DebugProbe.NodeEnter(self, "0b561966-b00b-4c84-a1a0-87042220ba9f")`
+   and `DebugProbe.NodeEnter(self, "da9a9c0b-25f8-4a81-9a52-75c715456f18")`.
+4. For every authored **exec** node id (the set CF-1 classified as exec — at minimum EventEntry `…0001`,
+   SetVariable `…0002`, Sequence `da9a9c0b`, Delay `0b561966`, Return `7b6da53f`), there is exactly one
+   `DebugProbe.NodeEnter` with that id. No `NodeEnter` is emitted for a pure data-only node id
+   (e.g. GetVariable `…0004` must NOT have a probe).
+5. **End-to-end pause** (mirror `BreakpointTests` style with the real `DataBreakpointManager` + `MockTimeController`):
+   wiring a session, `SetBreakpoint(assetId, graphId, Guid 0b561966…)` (Delay) then driving the compiled blueprint
+   one tick must result in `MockTimeController.PauseRequestCount == 1`. Repeat for the Sequence id.
+
+Build 0 errors. Report the full before/after failing-test set; expect probe-count/step tests to shift (next batch).
+
+---
+
+## Batch CF-3 — Reconcile dependent tests, editor breakpoint gating, cleanup
+
+**Depends on:** CF-2.
+
+**Do:**
+1. **Reconcile probe-count / step tests.** Adding correct exec-node probes changes how many `OnNodeEnter` calls
+   fire. Find every test that asserts a probe/step/`OnNodeEnter` invocation **count** (STATUS.md lists ~10;
+   examples: `StepOver_StepRequestCount_IsExactlyOne`, the `DebugProbeInsertionTests`,
+   `Stage6_LoweringTests`). For each, update ONLY the expected count to the new correct value and document old→new.
+   Do not change a test's intent. If a test now needs a structurally different graph to express its intent, STOP
+   and flag for lead.
+2. **Editor: gate breakpoints to probe-eligible nodes (no silent dead breakpoints).** Using the now-correct
+   DebugMap (`DebugMapIndex.AllNodes` / `TryResolveNode`), make the canvas only allow/show "Toggle Breakpoint" on
+   nodes that have a DebugMap entry (i.e. exec/breakpointable). For non-breakpointable nodes, either hide the menu
+   item or show it disabled with tooltip "Not a breakpoint target (data node)". Touch points:
+   `CanvasRenderer.cs` HoverKind.Node menu (`:732`) and/or the `editor.toggle-breakpoint` handler in
+   `BlueprintDocumentFactory.cs:230-242`. Keep it data-driven from the session/DebugMap; do not hardcode node kinds.
+3. **Remove the temporary diagnostics** from `Hrot.Blueprints.Editor/BlueprintDebugSession.cs`: the `DiagLog`
+   method, `_diagCount`, `_diagLogPath` fields, and the `DiagLog(...)` calls in `SetBreakpoint` and `OnNodeEnter`
+   (added during diagnosis; they write `bp-diag.log`). Delete `bp-diag.log`.
+
+**SUCCESS CONDITION (CF-3):**
+- `dotnet build IOS-IG-SimHost.sln -c Debug` → 0 errors.
+- `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 new failures** vs the documented
+  pre-existing baseline; every changed test listed by name with old→new expectation and justification.
+- No `DiagLog`/`bp-diag.log` references remain (`grep -r DiagLog`, `grep -r bp-diag` return nothing in source).
+- Editor: setting a breakpoint is only possible on nodes with a DebugMap entry; CF-2's end-to-end pause tests pass.
+
+**User smoke (after lead commit):** open `Count4`, compile, attach to a ticking entity, set a breakpoint on the
+Delay node → sim pauses on it; on Add (if pure) the toggle is disabled with the data-node tooltip; clear → resumes.

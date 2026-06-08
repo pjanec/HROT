@@ -577,12 +577,15 @@ public sealed class SequenceEmitIntegrationTests
         fixture.View.AdvanceTime(100.0f);
         fixture.World.SetSimulationTime(fixture.View.Time);
 
-        // Step 1: Tick(time=100.0) -> Count == 1, suspended.
-        fixture.TickFrame(0.0f);
+        // Step 1: Tick(time=100.01) -> Count == 1, suspended.
+        // Use 0.01f instead of 0.0f to respect the engine's deltaTime <= 0 guard
+        // (UBP pause semantics: time controller sets deltaTime=0 during breakpoints).
+        fixture.TickFrame(0.01f);
         Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
 
         // Step 2: Tick(time=100.5) half a period later -> Count == 1 (still waiting).
-        fixture.TickFrame(0.5f);
+        // 0.01 + 0.49 = 0.50 elapsed total.
+        fixture.TickFrame(0.49f);
         Assert.Equal(1, harness.ReadIntField(entity, asset, "Count"));
 
         // Step 3: Tick(time=101.01) just past 100+d -> delay elapsed, cursor resets.

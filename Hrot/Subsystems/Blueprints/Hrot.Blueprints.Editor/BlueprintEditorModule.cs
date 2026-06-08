@@ -1,4 +1,5 @@
 using Hrot.Blueprints.Core.Debug;
+using Hrot.Blueprints.Core.Compiler.Emit;
 
 namespace Hrot.Blueprints.Editor;
 
@@ -93,9 +94,30 @@ public sealed class BlueprintEditorModule
         }
         else if (info.Source == ReloadSource.FullRebuildViaFileWatcher)
         {
-            // Read debug maps from DLL output directory (DllPath is set for full rebuilds).
             if (info.DllPath != null)
+            {
                 _outputConsole.LogInfo($"Full rebuild completed: {info.DllPath}");
+
+                // Load and register debug maps for all assets in the build output.
+                var dir = Path.GetDirectoryName(info.DllPath);
+                if (dir != null)
+                {
+                    foreach (var mapFile in Directory.EnumerateFiles(dir, "*.dbgmap.json"))
+                    {
+                        try
+                        {
+                            var json = File.ReadAllText(mapFile);
+                            var map  = DebugMapSerializer.Deserialize(json);
+                            if (map != null && _session != null)
+                                _session.RegisterDebugMap(map);
+                        }
+                        catch (Exception ex)
+                        {
+                            _outputConsole.LogError($"Failed to load debug map {mapFile}: {ex.Message}");
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -23,6 +23,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints    = new();
     private readonly Dictionary<string, Breakpoint>       _bpByNodeString = new(StringComparer.Ordinal);
     private int _nextBpId = 1;
+    // TEMP DIAGNOSTIC — remove after debugging breakpoint issue.
+    private static int _diagCount;
+    private static readonly string _diagLogPath = @"D:\Work\IOS-IG-SimHost-FDP-2\bp-diag.log";
+    private static void DiagLog(string msg)
+    {
+        if (_diagCount++ < 200)
+            System.IO.File.AppendAllText(_diagLogPath, $"{System.DateTime.Now:HH:mm:ss.fff} {msg}\n");
+    }
 
     // Per-frame dedup set: cleared by OnNewTick. Prevents double-pause for multiple entities
     // hitting the same breakpoint in the same tick (BPF-003 section 9.2).
@@ -92,6 +100,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
 
         _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
+
+        DiagLog($"OnNodeEnter entity={self.Index} nodeId='{nodeId}' bpDictSize={_bpByNodeString.Count} inDict={_bpByNodeString.ContainsKey(nodeId)} mgr={_dataBreakpointManager != null} paused={_isPaused}");
 
         if (_bpByNodeString.TryGetValue(nodeId, out var bp))
         {
@@ -263,6 +273,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         };
         _breakpoints[id]           = bp;
         _bpByNodeString[nodeIdStr] = bp;
+
+        // TEMP DIAGNOSTIC: resolve which node this actually targets + list probe-eligible nodes.
+        if (_debugMaps.TryGetValue(assetId, out var diagMap))
+        {
+            var hit = diagMap.TryResolveNode(nodeIdStr);
+            DiagLog($"SetBreakpoint nodeIdStr='{nodeIdStr}' resolved={(hit == null ? "<NOT-IN-MAP / not probe-eligible>" : $"'{hit.DisplayName}' kind={hit.NodeKind}")} bpCount={_breakpoints.Count + 1} mgr={_dataBreakpointManager != null}");
+            DiagLog($"  probe-eligible nodes in asset: {string.Join(", ", diagMap.AllNodes.Select(n => $"{n.NodeIdString}='{n.DisplayName}'"))}");
+        }
+        else
+        {
+            DiagLog($"SetBreakpoint nodeIdStr='{nodeIdStr}' assetId={assetId} <NO DEBUG MAP REGISTERED> bpCount={_breakpoints.Count + 1} mgr={_dataBreakpointManager != null}");
+        }
 
         if (_dataBreakpointManager != null)
         {
@@ -742,6 +764,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     private void HandleBreakpointHit(Entity self, Breakpoint bp, string nodeId)
     {
+        DiagLog($"BREAKPOINT HIT! nodeId='{nodeId}' entity={self.Index}");
+
         _isPaused        = true;
         _pausedAt        = bp;
         _pausedOnEntity  = self;

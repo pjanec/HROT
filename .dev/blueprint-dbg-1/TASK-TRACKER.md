@@ -6,10 +6,19 @@ the canvas, pause the live tick, step Over/Into/Out, watch values — then exten
 **Branch:** `blueprint-integ-1`. **Detailed instructions per batch:** [TASK-DETAIL.md](./TASK-DETAIL.md).
 **Architect briefing (relayed):** [ARCHITECT-BRIEFING-01.md](./ARCHITECT-BRIEFING-01.md).
 
+## ⚠️ CORRECTION (2026-06-08): breakpoints do NOT pause — node-identity bug found
+The claim below that "breakpoints can hit today" is **FALSE in practice.** Live diagnosis proved the node ID the
+editor sets a breakpoint with ≠ the node ID the runtime probes with: lowering drops the authored `NodeId`
+(Delay `0b561966`→`976ef338`, Sequence `da9a9c0b`→`0ec3b253`) and `DebugProbeInsertion` mis-attributes each block's
+probe to `Statements[0]` (a data-input read). The STATUS.md "probe coverage" theory rests on a **wrong node-ID
+table** and is superseded. Fix = corrective batches **CF-1/CF-2/CF-3** (see TASK-DETAIL.md). The backend pause chain
+itself is fine (proven by `BreakpointTests`).
+
 ## Key verified facts (the foundation these batches rest on)
 - Live canvas = shared `AiGraphCanvasWindow` + `Hrot.Blueprints.Editor/Host/*` (NOT the dead `GraphEditorWindow`).
-- Editor compiles `CompilerMode.Debug` + embedded PDB (`QuickReloadService.cs:64`) → **NodeEnter probes ARE
-  emitted; breakpoints can hit today.** Pin watches additionally need **Trace** mode (Debug emits no `PinValueChanged`).
+- Editor compiles `CompilerMode.Debug` + embedded PDB (`QuickReloadService.cs:64`) → NodeEnter probes are emitted,
+  **but keyed to the WRONG node ids (see CF correction above), so editor breakpoints never match.** Pin watches
+  additionally need **Trace** mode (Debug emits no `PinValueChanged`).
 - Backend is wired: `DebugProbe.Sink = bpBlueprintSession`, `MasterSyncTimeControllerAdapter`
   (`EditorSubsystem.cs:870,887`); `BlueprintDebugSession.OnNodeEnter → RequestPause()`. **The gap is purely the
   canvas UX wiring.**
@@ -27,7 +36,10 @@ the canvas, pause the live tick, step Over/Into/Out, watch values — then exten
 | B | **Runtime overlay** — `BlueprintRuntimeOverlayRenderer` (executing-node gold pulse + recent-history glyphs) | A | ✅ Done (headless gates; VISUAL SMOKE PENDING) | running BP highlights live node; visible pause |
 | C | **Step controls** — Step Over/Into/Out/Continue UI + canvas pause overlay, wired to session methods | A | ✅ Done (headless gates; VISUAL SMOKE PENDING) | step advances one tick & re-pauses |
 | D | **Watches** — per-asset Trace toggle (add `EditorMetadata.CompilerMode`); right-click-pin "Add Watch"; `WatchPanelWindow` live values | A (Q2 resolved) | ✅ Done (CompilerMode + QuickReload; pin menu deferred; VISUAL SMOKE PENDING) | watch a pin → value updates each tick |
-| E | **Breakpoint Toggle fix** — bridge `IBlueprintDebugSession` → NodeEdit `IDebugSession`; add "Toggle Breakpoint" to `CanvasRenderer`; register `editor.toggle-breakpoint` command | A | ✅ Done | set bp on ticking BP → sim halts; red bullet shows |
+| E | **Breakpoint Toggle fix** — bridge `IBlueprintDebugSession` → NodeEdit `IDebugSession`; add "Toggle Breakpoint" to `CanvasRenderer`; register `editor.toggle-breakpoint` command | A | ✅ Done (UX only — does NOT pause; see CF) | set bp on ticking BP → sim halts; red bullet shows |
+| CF-1 | **Ground-truth diagnostic** — reporting test: compile `Count4` Debug, dump DebugMap entries + emitted `NodeEnter` ids + authored-id coverage to `reports/CF1-NODE-IDENTITY-REPORT.md`. No production code change | E | ⬜ TODO (Zoo) | n/a (headless report) |
+| CF-2 | **Preserve authored node identity** — add `OriginNodeId` provenance through lowering; key probe to the block's owning exec node (not `Statements[0]`); DebugMap + `NodeEnter` use authored id; pure data nodes get no probe | CF-1 | ⬜ TODO (Zoo) | bp on Delay/Sequence (authored id) pauses sim |
+| CF-3 | **Reconcile tests + editor gating + cleanup** — fix probe/step count tests (old→new documented); gate canvas breakpoint toggle to DebugMap-eligible nodes; remove `DiagLog`/`bp-diag.log` | CF-2 | ⬜ TODO (Zoo) | bp only settable on exec nodes; Delay pauses; data node toggle disabled |
 
 Slice-2 (true break-on-pin-write data breakpoints) is a cheap follow-on once D lands, since `OnPinValueChanged`
 already runs in Trace mode.

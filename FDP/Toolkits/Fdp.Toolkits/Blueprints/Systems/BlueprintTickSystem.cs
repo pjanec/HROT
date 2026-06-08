@@ -45,6 +45,11 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     public void Execute(ISimulationView view, float deltaTime)
     {
+        // Respect the engine's paused state: when the time controller sets deltaTime=0
+        // (e.g. during a debug breakpoint), skip blueprint execution to freeze the
+        // rewound pre-tick snapshot. Mirrors BTreeTickSystem and HsmTickSystem.
+        if (deltaTime <= 0f) return;
+
         // Per Debug DD §9.2: notify the debug session of the tick boundary before running blueprints.
         FrameStartCallback?.Invoke();
 
