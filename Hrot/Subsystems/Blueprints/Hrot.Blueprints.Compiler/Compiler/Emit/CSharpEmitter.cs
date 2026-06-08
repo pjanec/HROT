@@ -103,7 +103,16 @@ internal sealed class CSharpEmitter
 
         WriteLine();
         EmitRegistrarClass(asset);
-        return (_sb.ToString(), _debugMap.Build());
+
+        // Merge BreakpointTargets from all graphs into one flat dictionary.
+        var bpTargets = new Dictionary<Guid, Guid>();
+        foreach (var graph in asset.Graphs)
+        {
+            foreach (var kv in graph.BreakpointTargets)
+                bpTargets[kv.Key] = kv.Value;
+        }
+
+        return (_sb.ToString(), _debugMap.Build(bpTargets));
     }
 
     private void EmitFileHeader(IrAsset asset)

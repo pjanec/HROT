@@ -30,6 +30,12 @@ public sealed class DebugMapIndex
     public ulong            StructureHash       { get; }
     public string           GeneratedSourcePath { get; }
     public DebugStateLayout StateLayout         { get; }
+    /// <summary>
+    /// Every authored exec node → block-probe node id (many-to-one).
+    /// Data nodes are absent.  Used by the editor to resolve clicked-node
+    /// breakpoints to the probe id that actually fires at runtime.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, Guid> BreakpointTargets { get; }
 
     public DebugMapIndex(DebugMap map)
     {
@@ -41,6 +47,7 @@ public sealed class DebugMapIndex
         StructureHash       = map.StructureHash;
         GeneratedSourcePath = map.GeneratedSourcePath;
         StateLayout         = map.StateLayout;
+        BreakpointTargets   = map.BreakpointTargets ?? new Dictionary<Guid, Guid>();
 
         _nodesByString = new Dictionary<string, NodeMapEntry>(StringComparer.Ordinal);
         _nodesByGuid   = new Dictionary<Guid, NodeMapEntry>();

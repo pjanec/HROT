@@ -19,9 +19,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private readonly ISimulationView _view;
     private readonly IEngineDebugTimeController _timeController;
 
-    // Breakpoint storage: indexed by BreakpointId for management, by node-id string for fast probe lookup.
-    private readonly Dictionary<BreakpointId, Breakpoint> _breakpoints    = new();
-    private readonly Dictionary<string, Breakpoint>       _bpByNodeString = new(StringComparer.Ordinal);
+    // Breakpoint storage: indexed by BreakpointId for management, by probe-id string for fast probe lookup.
+    // _bpByNodeString uses List<Breakpoint> because several exec nodes can share one probe id
+    // (many-to-one mapping via BreakpointTargets).
+    private readonly Dictionary<BreakpointId, Breakpoint>     _breakpoints    = new();
+    private readonly Dictionary<string, List<Breakpoint>>     _bpByNodeString = new(StringComparer.Ordinal);
     private int _nextBpId = 1;
 
     // Per-frame dedup set: cleared by OnNewTick. Prevents double-pause for multiple entities
@@ -93,10 +95,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
         _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
 
-        if (_bpByNodeString.TryGetValue(nodeId, out var bp))
+        if (_bpByNodeString.TryGetValue(nodeId, out var bpList))
         {
-            if (bp.Enabled && !bp.IsStale)
+            // Snapshot to avoid "collection modified" during enumeration
+            // (HandleBreakpointHit / IncrementHitCountOnly modify the list via ReplaceInBpList).
+            var snapshot = bpList.ToArray();
+            foreach (var bp in snapshot)
             {
+                if (!bp.Enabled || bp.IsStale) continue;
+
                 bool hashOk = true;
                 if (bp.AssetStructureHashAtSetTime != 0 &&
                     _debugMaps.TryGetValue(bp.AssetId, out var mapIdx) &&
@@ -104,8 +111,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 {
                     hashOk = false;
                     var stale = bp with { IsStale = true };
-                    _breakpoints[bp.Id]        = stale;
-                    _bpByNodeString[bp.NodeId] = stale;
+                    _breakpoints[bp.Id] = stale;
+                    ReplaceInBpList(bp.ProbeNodeId, bp, stale);
                 }
 
                 if (hashOk)
@@ -250,25 +257,39 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
     {
-        var nodeIdStr = nodeId.ToString("D");
-        var id        = new BreakpointId(_nextBpId++);
+        var nodeIdStr  = nodeId.ToString("D");
+        var id         = new BreakpointId(_nextBpId++);
 
+        // Resolve clicked nodeId → block probe id via BreakpointTargets.
+        string probeIdStr;
         ulong hash = 0;
         if (_debugMaps.TryGetValue(assetId, out var mapIdx))
+        {
             hash = mapIdx.StructureHash;
+            probeIdStr = mapIdx.BreakpointTargets.TryGetValue(nodeId, out var blockProbeId)
+                ? blockProbeId.ToString("D")
+                : nodeIdStr; // not in targets → fall back to clicked id
+        }
+        else
+        {
+            probeIdStr = nodeIdStr; // no map yet — tentative, key by clicked id
+        }
 
         var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true)
         {
             AssetStructureHashAtSetTime = hash,
+            ProbeNodeId = probeIdStr,
         };
-        _breakpoints[id]           = bp;
-        _bpByNodeString[nodeIdStr] = bp;
+        _breakpoints[id] = bp;
 
-        // TEMP DIAGNOSTIC: resolve which node this actually targets + list probe-eligible nodes.
+        if (!_bpByNodeString.TryGetValue(probeIdStr, out var list))
+            _bpByNodeString[probeIdStr] = list = new List<Breakpoint>();
+        list.Add(bp);
+
         if (_dataBreakpointManager != null)
         {
             var mgrId = _dataBreakpointManager.AddBreakpoint(
-                new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = nodeIdStr },
+                new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = probeIdStr },
                 displayName: $"Blueprint node {nodeIdStr}");
             _mgrBpIds[id] = mgrId;
         }
@@ -281,8 +302,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (_breakpoints.TryGetValue(id, out var bp))
         {
             _breakpoints.Remove(id);
-            _bpByNodeString.Remove(bp.NodeId);
             _firedBreakpointsThisTick.Remove(id);
+
+            var probeId = string.IsNullOrEmpty(bp.ProbeNodeId) ? bp.NodeId : bp.ProbeNodeId;
+            if (_bpByNodeString.TryGetValue(probeId, out var list))
+            {
+                list.Remove(bp);
+                if (list.Count == 0)
+                    _bpByNodeString.Remove(probeId);
+            }
 
             if (_dataBreakpointManager != null && _mgrBpIds.TryGetValue(id, out var mgrId))
             {
@@ -361,8 +389,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         {
             foreach (var bp in _breakpoints.Values)
             {
+                var probeId = string.IsNullOrEmpty(bp.ProbeNodeId) ? bp.NodeId : bp.ProbeNodeId;
                 var mgrId = _dataBreakpointManager.AddBreakpoint(
-                    new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = bp.NodeId },
+                    new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = probeId },
                     displayName: $"Blueprint node {bp.NodeId}");
                 _mgrBpIds[bp.Id] = mgrId;
             }
@@ -657,8 +686,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             foreach (var bp in _breakpoints.Values.Where(b => b.AssetId == map.AssetId).ToList())
             {
                 var stale = bp with { IsStale = true };
-                _breakpoints[bp.Id]        = stale;
-                _bpByNodeString[bp.NodeId] = stale;
+                _breakpoints[bp.Id] = stale;
+                ReplaceInBpList(bp.ProbeNodeId, bp, stale);
             }
             OnBreakpointListChanged?.Invoke(map.AssetId);
             foreach (var watch in _watches.Values.Where(w => w.AssetId == map.AssetId))
@@ -676,11 +705,13 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     {
         // If no DebugMap is registered yet, be optimistic — the user can set
         // breakpoints before compiling; they'll become active once a compile
-        // registers the map. After a map is registered, only nodes in the map
-        // are breakpointable (exec nodes with preserved identity).
+        // registers the map. After a map is registered, only nodes present in
+        // BreakpointTargets (exec nodes) are breakpointable. Data nodes
+        // (GetVariable, LiteralNode, CastNode, pure FunctionCall) and unknown
+        // ids return false.
         if (!_debugMaps.TryGetValue(assetId, out var index))
             return true; // no map yet — allow tentative breakpoints
-        return index.TryResolveNode(nodeId) != null;
+        return index.BreakpointTargets.ContainsKey(nodeId);
     }
 
     // ---- IBlueprintDebugSession -- events -----------------------------------
@@ -743,13 +774,28 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // ---- Private helpers ----------------------------------------------------
 
+    // Replaces a breakpoint in the _bpByNodeString list (used when updating stale flag,
+    // hit count, etc. via with-expression which creates a new record instance).
+    private void ReplaceInBpList(string probeId, Breakpoint old, Breakpoint updated)
+    {
+        if (!_bpByNodeString.TryGetValue(probeId, out var list)) return;
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (list[i].Id == old.Id)
+            {
+                list[i] = updated;
+                return;
+            }
+        }
+    }
+
     // BPF-003: increments HitCount without triggering a new pause (same-tick dedup path).
     private void IncrementHitCountOnly(Breakpoint bp)
     {
         if (bp.Id.Value == 0 || !_breakpoints.ContainsKey(bp.Id)) return;
         var updated = bp with { HitCount = bp.HitCount + 1 };
-        _breakpoints[bp.Id]        = updated;
-        _bpByNodeString[bp.NodeId] = updated;
+        _breakpoints[bp.Id] = updated;
+        ReplaceInBpList(bp.ProbeNodeId, bp, updated);
     }
 
     private void HandleBreakpointHit(Entity self, Breakpoint bp, string nodeId)
@@ -764,9 +810,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (bp.Id.Value != 0 && _breakpoints.ContainsKey(bp.Id))
         {
             var updated = bp with { HitCount = bp.HitCount + 1 };
-            _breakpoints[bp.Id]        = updated;
-            _bpByNodeString[bp.NodeId] = updated;
-            _pausedAt                  = updated;
+            _breakpoints[bp.Id] = updated;
+            ReplaceInBpList(bp.ProbeNodeId, bp, updated);
+            _pausedAt            = updated;
 
             var assetId = updated.AssetId;
 

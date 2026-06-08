@@ -161,6 +161,9 @@ internal sealed class GraphScheduler
     // Tracks whether a block has been fully scheduled
     private readonly HashSet<int> _scheduledBlocks = new();
 
+    // Tracks which block each exec node's statements landed in (nodeId → blockId).
+    private readonly Dictionary<Guid, int> _execNodeToBlockId = new();
+
     // Fall-through redirect: when a branch's chain ends in block X,
     // control continues to _fallThroughTarget[X] instead of falling through.
     private readonly Dictionary<int, IrBlockId> _fallThroughTarget = new();
@@ -193,6 +196,7 @@ internal sealed class GraphScheduler
 
         var entryBlockId = AllocBlock("entry");
         _blockBuilders[entryBlockId.Value].SourceNodeId = entryNode.Id;
+        _execNodeToBlockId[entryNode.Id] = entryBlockId.Value;
         _bfsQueue.Enqueue((entryBlockId.Value, entryNode));
 
         while (_bfsQueue.Count > 0)
@@ -213,6 +217,17 @@ internal sealed class GraphScheduler
         var irInputs = BuildIrFieldsFromGraphParams(_graph.Inputs);
         var irOutputs = BuildIrFieldsFromGraphParams(_graph.Outputs);
 
+        // Build BreakpointTargets: every authored exec node → its block's probe id.
+        var bpTargets = new Dictionary<Guid, Guid>();
+        foreach (var kv in _execNodeToBlockId)
+        {
+            var nodeId = kv.Key;
+            var blockId = kv.Value;
+            var blockProbeId = _blockBuilders[blockId].SourceNodeId;
+            if (blockProbeId.HasValue)
+                bpTargets[nodeId] = blockProbeId.Value;
+        }
+
         return new IrGraph
         {
             Id      = _graph.Id,
@@ -222,6 +237,7 @@ internal sealed class GraphScheduler
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
             Entry   = new IrBlockId(0),
+            BreakpointTargets = bpTargets,
         };
     }
 
@@ -240,6 +256,7 @@ internal sealed class GraphScheduler
             {
                 case EventEntryNode:
                     // No statements; continue to exec successor.
+                    _execNodeToBlockId[node.Id] = blockId;
                     var esucc = GetSingleExecSuccessor(node);
                     if (esucc is null)
                     {
@@ -251,6 +268,7 @@ internal sealed class GraphScheduler
                     continue;
 
                 case ReturnNode rn:
+                    _execNodeToBlockId[rn.Id] = blockId;
                     bb.Terminator = BuildReturnTerminator(rn, bb);
                     return;
 
@@ -285,6 +303,8 @@ internal sealed class GraphScheduler
 
                 default:
                     // Regular node: emit statements, then follow exec chain.
+                    _execNodeToBlockId[node.Id] = blockId;
+                    bb.SourceNodeId ??= node.Id;
                     EmitNodeStatements(node, bb.Statements);
                     var succ = GetSingleExecSuccessor(node);
                     if (succ is null)
@@ -307,6 +327,7 @@ internal sealed class GraphScheduler
     {
         // The pre-suspend block now represents this latent node.
         bb.SourceNodeId = node.Id;
+        _execNodeToBlockId[node.Id] = bb.Id.Value;
 
         // Append the latent marker as the last statement in the pre-suspend block.
         bb.Statements.Add(new IrStatement
@@ -409,6 +430,7 @@ internal sealed class GraphScheduler
 
     private void ScheduleBranchNode(BranchNode bn, BlockBuilder bb)
     {
+        _execNodeToBlockId[bn.Id] = bb.Id.Value;
         // Resolve condition data input (first non-exec data-in pin).
         var condPin = bn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
         IrValue condValue;
@@ -458,6 +480,7 @@ internal sealed class GraphScheduler
     {
         // This block carries the sequence's dispatch to its children.
         bb.SourceNodeId = seq.Id;
+        _execNodeToBlockId[seq.Id] = bb.Id.Value;
 
         // 1. Resolve ordered list of connected Then successors.
         //    Order by numeric suffix of pin Name (Then0, Then1, ...);
@@ -539,6 +562,7 @@ internal sealed class GraphScheduler
 
     private void ScheduleWhenNode(WhenNode wn, BlockBuilder bb)
     {
+        _execNodeToBlockId[wn.Id] = bb.Id.Value;
         var idShort = wn.Id.ToString("N").Substring(0, 8);
         var synthFieldName = $"_when_{idShort}_prev";
         var debug = DebugOf(wn);

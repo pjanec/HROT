@@ -67,6 +67,12 @@ public sealed record Breakpoint(
     public ulong AssetStructureHashAtSetTime { get; init; } = 0;
     /// <summary>True when the asset structure changed and this breakpoint may no longer be valid.</summary>
     public bool IsStale { get; init; } = false;
+    /// <summary>
+    /// The runtime probe node id that OnNodeEnter fires.  When several exec nodes
+    /// share one block they all map to the same ProbeNodeId (many-to-one).
+    /// Defaults to NodeId for pre-compile tentative breakpoints.
+    /// </summary>
+    public string ProbeNodeId { get; init; } = string.Empty;
 }
 
 public sealed class Watch
@@ -204,9 +210,9 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
 
     // -- Breakpoint eligibility --
     /// <summary>
-    /// Returns true when <paramref name="nodeId"/> has a DebugMap entry and can be used
-    /// as a breakpoint target. Pure data nodes (GetVariable, LiteralNode, CastNode) and
-    /// nodes whose identity was lost during lowering return false.
+    /// Returns true when <paramref name="nodeId"/> is present in the DebugMap's
+    /// BreakpointTargets (exec nodes only). Pure data nodes (GetVariable, LiteralNode,
+    /// CastNode, pure FunctionCall) and unknown ids return false.
     /// </summary>
     bool IsNodeBreakpointable(Guid assetId, Guid graphId, Guid nodeId);
 

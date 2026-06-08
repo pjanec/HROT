@@ -149,7 +149,7 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
 
     public bool IsNodeBreakpointable(Guid assetId, Guid graphId, Guid nodeId)
         => !_maps.TryGetValue(assetId, out var map)
-            || map.Entries.Any(e => e.NodeId == nodeId);
+            || map.BreakpointTargets.ContainsKey(nodeId);
 
     // ---- IBlueprintDebugSession -- PDB locator ------------------------------
 

@@ -1,10 +1,14 @@
+using System.Linq;
 using System.Text.RegularExpressions;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Debug;
+using Hrot.Blueprints.Tests.Mocks;
 using Xunit.Abstractions;
 
 namespace Hrot.Blueprints.Tests.Debug;
@@ -169,10 +173,10 @@ public sealed class CF2_AuthoredIdProbeTests : IDisposable
     {
         var (_, result) = CompileCount4();
         var source = result.GeneratedSource ?? string.Empty;
-
-        // For every authored EXEC node, there should be exactly one NodeEnter probe.
-        // GetVariable (0004) is a pure data node — must NOT have a probe.
-        // FunctionCall (0003) — if pure data, no probe; if impure/exec, one probe.
+        var debugMap = result.DebugMap;
+        Assert.NotNull(debugMap);
+        var bpTargets = debugMap!.BreakpointTargets;
+        Assert.NotNull(bpTargets);
 
         int CountProbesFor(Guid nodeId)
         {
@@ -181,33 +185,158 @@ public sealed class CF2_AuthoredIdProbeTests : IDisposable
             return Regex.Matches(source, pattern).Count;
         }
 
-        // Exec nodes with their own dedicated block get exactly one probe
-        // keyed to their authored ID. Nodes that share a block (inlined into
-        // the entry or another exec node's block) share the owning node's probe;
-        // the block-based probe architecture assigns one probe per block.
+        // CF-4: Sequence has exactly one probe (owns the entry block).
         Assert.Equal(1, CountProbesFor(SequenceGuid));
+
+        // CF-4: Delay has exactly one probe (owns its pre-suspend block).
         Assert.Equal(1, CountProbesFor(DelayGuid));
 
-        // EventEntry, SetVariable, and Return share the entry/fall-through
-        // blocks and are not individually probed under the current block-based
-        // architecture. This is a known limitation tracked for a future
-        // per-statement probe insertion pass.
-        // EventEntry: entry block consumed by AiPrimitive dispatch lowering.
-        // SetVariable: inlined into entry block.
-        // Return: emitted into a block without its own SourceNodeId.
+        // CF-4: GetVariable is a pure data node — must have NO probe.
+        // Tier-3 fallback removed in DebugProbeInsertion.
+        Assert.Equal(0, CountProbesFor(GetVariableGuid));
 
-        // FunctionCall (0003 = "Add") — may be one or zero depending on purity.
-        int fcProbes = CountProbesFor(FunctionCallGuid);
-        Assert.True(fcProbes == 0 || fcProbes == 1,
-            $"FunctionCall node should have 0 or 1 probes, got {fcProbes}");
+        // CF-4: Every authored exec node must be in BreakpointTargets.
+        // EventEntry, SetVariable, Sequence, Delay are exec nodes that carry
+        // execution flow.  FunctionCall "Add" in Count4 is a pure data node
+        // (reached via ResolveNodeOutput) — correctly absent from targets.
+        // Return may be consumed by AiPrimitive lowering (ReturnStatus) and
+        // not independently tracked in all dispatch modes.
+        var definitelyExec = new[] { EventEntryGuid, SetVariableGuid,
+                                     SequenceGuid, DelayGuid };
+        foreach (var execId in definitelyExec)
+        {
+            Assert.True(bpTargets.ContainsKey(execId),
+                $"BreakpointTargets should contain exec node '{execId:D}' but it is missing. " +
+                $"Targets: {string.Join(", ", bpTargets.Keys)}");
+        }
 
-        // GetVariable is a pure data node. In the current architecture it may get
-        // a probe when it is the first statement in a block without SourceNodeId
-        // (the Statements[0].NodeId fallback in DebugProbeInsertion). This is a
-        // known limitation tracked for a future per-statement probe pass.
-        int gvProbes = CountProbesFor(GetVariableGuid);
-        Assert.True(gvProbes <= 1,
-            $"GetVariable node should have 0 or 1 probes, got {gvProbes}");
+        // CF-4: Data node (GetVariable) must NOT be in BreakpointTargets.
+        Assert.False(bpTargets.ContainsKey(GetVariableGuid),
+            $"BreakpointTargets must NOT contain data node GetVariable '{GetVariableGuid:D}'.");
+
+        // CF-4: Pure data FunctionCall must NOT be in BreakpointTargets.
+        Assert.False(bpTargets.ContainsKey(FunctionCallGuid),
+            $"BreakpointTargets must NOT contain pure data FunctionCall '{FunctionCallGuid:D}'.");
+
+        // CF-4: Each exec node's BreakpointTargets probe ID must actually be emitted
+        // as a DebugProbe.NodeEnter in the generated source.
+        foreach (var execId in definitelyExec)
+        {
+            var probeId = bpTargets[execId];
+            var probeStr = probeId.ToString("D");
+            Assert.True(source.Contains($"\"{probeStr}\""),
+                $"BreakpointTargets maps exec node '{execId:D}' → probe id '{probeStr}', " +
+                $"but no DebugProbe.NodeEnter with that id was found in generated source.");
+        }
+    }
+
+    // ---- CF4-1: SetVariable breakpoint pauses via block translation ---------
+
+    [Fact]
+    public void CF4_SetVariable_BreakpointPausesViaBlockTranslation()
+    {
+        var (asset, result) = CompileCount4();
+
+        var fixtureOptions = new BlueprintTestFixtureOptions
+        {
+            VerifyAlcUnloadOnDispose = false,
+        };
+
+        using var fixture = new BlueprintTestFixture(fixtureOptions);
+
+        var tc = new MockTimeController();
+        var session = new BlueprintDebugSession(
+            fixture.Registry, fixture.View, tc);
+        session.Attach();
+
+        // Register the DebugMap so BreakpointTargets translation is active.
+        session.RegisterDebugMap(result.DebugMap!);
+
+        fixture.CompileAndLoad(asset, CompilerMode.Debug);
+
+        var graphId = asset.Graphs[0].Id;
+        session.SetBreakpoint(asset.AssetId, graphId, SetVariableGuid);
+
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        Assert.True(tc.PauseRequestCount >= 1,
+            $"Expected PauseRequestCount >= 1 after one tick with breakpoint on SetVariable " +
+            $"({SetVariableGuid:D}), but got {tc.PauseRequestCount}. " +
+            $"BreakpointTargets: " +
+            string.Join(", ", result.DebugMap!.BreakpointTargets.Select(kv => $"{kv.Key.ToString("D").Substring(0,8)}→{kv.Value.ToString("D").Substring(0,8)}")));
+    }
+
+    // ---- CF4-2: IsNodeBreakpointable returns false for data nodes ------------
+
+    [Fact]
+    public void CF4_IsNodeBreakpointable_DataNodeReturnsFalse()
+    {
+        var (_, result) = CompileCount4();
+
+        var fixtureOptions = new BlueprintTestFixtureOptions
+        {
+            VerifyAlcUnloadOnDispose = false,
+        };
+        using var fixture = new BlueprintTestFixture(fixtureOptions);
+
+        var session = new BlueprintDebugSession(
+            new BlueprintRegistry(), fixture.View, new MockTimeController());
+
+        session.RegisterDebugMap(result.DebugMap!);
+
+        var assetId = result.DebugMap!.AssetId;
+        var graphId = Guid.Empty; // not used when map is registered
+
+        // GetVariable (data node) — must NOT be breakpointable.
+        Assert.False(session.IsNodeBreakpointable(assetId, graphId, GetVariableGuid),
+            $"IsNodeBreakpointable should return false for GetVariable (data node) '{GetVariableGuid:D}'.");
+
+        // Sequence (exec node) — must be breakpointable.
+        Assert.True(session.IsNodeBreakpointable(assetId, graphId, SequenceGuid),
+            $"IsNodeBreakpointable should return true for Sequence (exec node) '{SequenceGuid:D}'.");
+
+        // Delay (exec node) — must be breakpointable.
+        Assert.True(session.IsNodeBreakpointable(assetId, graphId, DelayGuid),
+            $"IsNodeBreakpointable should return true for Delay (exec node) '{DelayGuid:D}'.");
+    }
+
+    // ---- CF4-3: GetBreakpoints exposes clicked NodeId for markers ------------
+
+    [Fact]
+    public void CF4_GetBreakpoints_ContainsClickedNodeId_NotProbeId()
+    {
+        var (asset, result) = CompileCount4();
+
+        var fixtureOptions = new BlueprintTestFixtureOptions
+        {
+            VerifyAlcUnloadOnDispose = false,
+        };
+        using var fixture = new BlueprintTestFixture(fixtureOptions);
+
+        var session = new BlueprintDebugSession(
+            new BlueprintRegistry(), fixture.View, new MockTimeController());
+
+        session.RegisterDebugMap(result.DebugMap!);
+
+        var graphId = asset.Graphs[0].Id;
+
+        // Set breakpoint on SetVariable. If BreakpointTargets translates
+        // SetVariable → some block probe id, the returned Breakpoint record
+        // must still carry the clicked NodeId (SetVariable), not the probe id.
+        var bpId = session.SetBreakpoint(asset.AssetId, graphId, SetVariableGuid);
+
+        var bps = session.GetBreakpoints();
+        var bp = bps.FirstOrDefault(b => b.Id == bpId);
+        Assert.NotNull(bp);
+
+        var expectedClickedId = SetVariableGuid.ToString("D");
+        Assert.Equal(expectedClickedId, bp!.NodeId);
+
+        // ProbeNodeId should be set (may differ from NodeId due to block translation).
+        Assert.NotEmpty(bp.ProbeNodeId);
     }
 
     // ---- CF2-6: End-to-end breakpoint pause -----------------------------------

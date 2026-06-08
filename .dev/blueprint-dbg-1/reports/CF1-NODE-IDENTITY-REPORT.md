@@ -5,7 +5,7 @@
 - **AssetId**: `47fe9c55-c6ca-4c69-9c5a-d46de25745de`
 - **GraphId**: `10000006-0000-0000-0000-000000000001`
 - **Compile succeeded**: True
-- **Generated**: 2026-06-08T20:44:05Z
+- **Generated**: 2026-06-08T21:44:27Z
 - **Source file**: `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Count4.bp.json`
 
 ## Table A — DebugMap entries
@@ -14,7 +14,7 @@
 | NodeId | NodeKind | DisplayName | StartLine |
 |---|---|---|---|
 | `da9a9c0b-25f8-4a81-9a52-75c715456f18` | da9a9c0b-25f8-4a81-9a52-75c715456f18 |  | 61 |
-| `20000006-0000-0000-0000-000000000004` | 20000006-0000-0000-0000-000000000004 |  | 65 |
+| `20000006-0000-0000-0000-000000000002` | 20000006-0000-0000-0000-000000000002 |  | 65 |
 | `20000006-0000-0000-0000-000000000004` |  |  | 66 |
 | `0ec3b253-3c5a-1024-a7bb-bf767fb3130c` |  |  | 67 |
 | `20000006-0000-0000-0000-000000000003` |  |  | 68 |
@@ -46,7 +46,7 @@
 | # | Probe Id | Matches authored node? |
 |---|---|---|
 | 1 | `da9a9c0b-25f8-4a81-9a52-75c715456f18` | YES |
-| 2 | `20000006-0000-0000-0000-000000000004` | YES |
+| 2 | `20000006-0000-0000-0000-000000000002` | YES |
 | 3 | `0b561966-b00b-4c84-a1a0-87042220ba9f` | YES |
 
 ## Section D — Losses: authored exec nodes with no DebugMap entry and no matching probe

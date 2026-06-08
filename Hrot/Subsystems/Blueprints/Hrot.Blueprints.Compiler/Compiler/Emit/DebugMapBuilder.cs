@@ -41,6 +41,12 @@ public sealed record DebugMap
     public IReadOnlyList<DebugGraphInfo> Graphs      { get; init; } = Array.Empty<DebugGraphInfo>();
     public IReadOnlyList<DebugPinInfo>   Pins        { get; init; } = Array.Empty<DebugPinInfo>();
     public DebugStateLayout StateLayout { get; init; } = new DebugStateLayout();
+    /// <summary>
+    /// Every authored exec node → block-probe node id (many-to-one).
+    /// Data nodes are absent.  JsonIgnore-when-empty for byte-stability.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public IReadOnlyDictionary<Guid, Guid> BreakpointTargets { get; init; } = new Dictionary<Guid, Guid>();
 }
 
 public sealed record DebugMapEntry(Guid NodeId, Guid GraphId, int StartLine, int EndLine)
@@ -105,7 +111,7 @@ internal sealed class DebugMapBuilder
         });
     }
 
-    public DebugMap Build() => new DebugMap
+    public DebugMap Build(IReadOnlyDictionary<Guid, Guid>? breakpointTargets = null) => new DebugMap
     {
         AssetId             = _assetId,
         AssetName           = _assetName,
@@ -116,5 +122,6 @@ internal sealed class DebugMapBuilder
         Graphs              = _graphs.AsReadOnly(),
         Pins                = _pins.AsReadOnly(),
         StateLayout         = new DebugStateLayout { Fields = _stateFields.AsReadOnly() },
+        BreakpointTargets   = breakpointTargets ?? new Dictionary<Guid, Guid>(),
     };
 }

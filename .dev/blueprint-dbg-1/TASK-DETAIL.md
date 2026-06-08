@@ -378,3 +378,137 @@ Build 0 errors. Report the full before/after failing-test set; expect probe-coun
 
 **User smoke (after lead commit):** open `Count4`, compile, attach to a ticking entity, set a breakpoint on the
 Delay node → sim pauses on it; on Add (if pure) the toggle is disabled with the data-node tooltip; clear → resumes.
+
+---
+
+## CF-2/CF-3 review outcome (2026-06-08) — partial fix; CF-4 required
+
+CF-2/CF-3 shipped and **Sequence + Delay pause correctly** (verified: user smoke + `CF2_EndToEnd_DelayBreakpointPauses`).
+But a hard review of the diff found the fix is **block-owner-only** and leaves two real defects:
+
+- **Silent dead breakpoints (HIGH).** `IsNodeBreakpointable` returns true for *any* node with a DebugMap entry,
+  but only block-owner nodes get a probe. For `Count4`, SetVariable `…0002` and Add `…0003` are in the map (gating
+  allows a breakpoint) yet emit **no probe** → the breakpoint silently never fires. This is the original symptom.
+- **Data node breakpointable + fires (MED).** GetVariable `…0004` (pure data) still gets a probe via the tier-3
+  `Statements[0]` fallback in `DebugProbeInsertion`, and `IsNodeBreakpointable` returns true for it — despite its
+  doc-comment claiming the opposite. Per the engine's whole-tick-rewind pause model, data nodes must not be targets.
+- **Masked regression (MED).** `ProbeIntegrationTests.Breakpoint_FiresTwice_AcrossTwoTicks` was edited from
+  targeting the Branch node to the EventEntry node — i.e. breakpoints on Branch regressed and the test was changed
+  to test the node that still works. `CF2_AllExecNodes_HaveExactlyOneProbe_NoDataNodeProbes` was loosened to
+  `<= 1` / "known limitation" rather than enforcing the spec.
+
+Root cause: **one probe per block, keyed only to the block owner.** CF-4 makes the model correct and consistent.
+
+---
+
+## Batch CF-4 — Exec-only, block-granular breakpoints (no dead, no data targets)
+
+**Depends on:** CF-2/CF-3. **Priority:** HIGH (the feature is currently inconsistent).
+
+**Principle (from engine semantics — do not deviate):** the pause is a *soft* whole-tick pause (the tick runs to
+completion; the entity repository is rewound to the pre-tick state; the clock pauses at the tick boundary). A
+breakpoint is therefore a **coverage trigger** at **basic-block granularity** — "pause when execution reaches this
+exec region." Consequences that bound this batch:
+- **Do NOT add per-statement probes.** Block granularity is the correct and final level — per-statement probing
+  adds zero debugging value (sub-tick state is never observable) and only churns step/probe-count tests.
+- **Only exec nodes are breakpoint targets.** Pure/data nodes (GetVariable, LiteralNode, CastNode, pure
+  FunctionCall) are never breakpointable and emit **no** probe.
+- **A breakpoint on ANY exec node pauses when its containing block runs** — so every exec node the user can click
+  is a live target (no dead breakpoints), even if several share one block.
+
+### Task A — Compiler: probes keyed to exec owners only; build a node→block-probe map
+
+1. **Classify exec vs data.** In Stage 5 the exec traversal (`ScheduleBlock`/`EmitNodeStatements`/control-flow
+   handlers) visits exec nodes; data nodes are reached only via `ResolveNodeOutput`. Record the set of authored
+   **exec** node ids, and for each exec node the **block** its statements landed in.
+2. **Every reachable block gets a `SourceNodeId` that is an exec node.** Extend Stage 5 so the default
+   `ScheduleBlock` path also sets `BlockBuilder.SourceNodeId` (today only entry/latent/sequence set it). The
+   block's probe id = its `SourceNodeId`.
+3. **`DebugProbeInsertion`: drop the data fallback.** Remove tier-3 (`Statements[0].Debug?.NodeId`). The probe id
+   must come from `SourceNodeId` (or `OriginNodeId`); if a reachable block has neither, that is a compiler bug —
+   fail loudly in a debug assert / test, do not silently key it to a data read. Result: **no probe is ever emitted
+   for a pure/data node.**
+4. **Emit a node→block-probe map into the DebugMap.** Add (e.g.) `IReadOnlyDictionary<Guid,Guid> BreakpointTargets`
+   to `DebugMap`/`DebugMapIndex` (and serializer): for **every exec node**, `authoredNodeId → blockProbeNodeId`
+   (many-to-one — all exec nodes sharing a block map to that block's probe id). Data nodes are **absent** from this
+   map. Keep it `JsonIgnore`-when-empty for byte-stability.
+
+### Task B — Editor session: translate breakpoints to the block probe
+
+In `BlueprintDebugSession`:
+1. **`SetBreakpoint(assetId, graphId, nodeId)`** resolves `nodeId → blockProbeId` via the DebugMap's
+   `BreakpointTargets`. Store the breakpoint so that **runtime matching uses `blockProbeId`** (the id `OnNodeEnter`
+   actually fires) while the **clicked `nodeId` is retained for the marker**. Add a `ProbeNodeId` to the
+   `Breakpoint` record (clicked `NodeId` stays for display). `_bpByNodeString` is keyed by `ProbeNodeId`; since
+   several exec nodes can map to one probe id, make it tolerate multiple breakpoints per key (e.g.
+   `Dictionary<string,List<Breakpoint>>` or check all on hit). If no map is registered yet (pre-compile), fall back
+   to keying by the clicked id (tentative breakpoint, as today).
+2. **`IsNodeBreakpointable`** returns true **iff** the node is present in `BreakpointTargets` (exec node). Data
+   nodes and unknown ids return false. Fix the doc-comment to match reality.
+3. **`GetBreakpoints()` / the NodeEdit adapter `Breakpoints` set** must expose the **clicked `NodeId`** so the red
+   marker draws on the node the user clicked, not the block owner.
+
+### Task C — Tests (tighten, don't loosen), gating, cleanup
+
+1. **Tighten `CF2_AllExecNodes_HaveExactlyOneProbe_NoDataNodeProbes`:** assert `CountProbesFor(GetVariableGuid) == 0`
+   (data node, no probe) and that every exec node in `Count4` resolves through `BreakpointTargets` to a probe id
+   that **is** emitted. Remove the `<= 1` / "known limitation" escape hatches.
+2. **End-to-end:** add tests — `SetBreakpoint` on SetVariable `…0002` → one tick → `PauseRequestCount >= 1` (proves
+   block-share translation works); `IsNodeBreakpointable(GetVariable …0004) == false`; Sequence + Delay still pause;
+   marker set from `GetBreakpoints()` contains the clicked id.
+3. **`ProbeIntegrationTests.Breakpoint_FiresTwice…`:** it may target any exec node, but add an assertion that a
+   breakpoint set on the **Branch** node (Nodes[1]) also fires (via block translation) — i.e. the masked regression
+   is closed, not re-hidden.
+4. Editor gating already calls `IsNodeBreakpointable`; with Task B it now correctly disables data nodes. Confirm the
+   "Toggle Breakpoint" menu item is disabled (with the data-node tooltip) on a pure node and enabled on exec nodes.
+
+### SUCCESS CONDITION (CF-4)
+
+- Build 0 errors. `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests -c Debug` → **0 net-new failures**
+  vs. the true baseline (re-run and list the full failing set by name; resolve the CF-3 "8 vs 7" discrepancy —
+  confirm every failure is genuinely pre-existing).
+- For `Count4`: **no** `DebugProbe.NodeEnter` literal for GetVariable `…0004`; `BreakpointTargets` contains every
+  exec node and **no** data node; a breakpoint on SetVariable, Sequence, or Delay each yields `PauseRequestCount
+  >= 1`; `IsNodeBreakpointable` is false for GetVariable and any pure FunctionCall.
+- Editor: breakpoint settable only on exec nodes; the red marker appears on the clicked node; the sim pauses.
+
+**User smoke:** open `Count4`, compile, attach, set a breakpoint on SetVariable → sim pauses; the "Toggle
+Breakpoint" item is disabled on Get Count (data) with the tooltip; Sequence/Delay still pause.
+
+---
+
+## Batch CF-5 — Step/Resume controls in the Blueprint Tools panel
+
+**Depends on:** C (step backend) — independent of CF-4. **Priority:** MEDIUM (usability; backend already works).
+
+**Context:** the Continue / Step Over / Step Into / Step Out buttons **already exist and work** in
+`Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Debug/DebugPanelWindow.cs:34-63` (enabled when
+`_session.IsPaused`, wired to `_session.Continue()/StepOver()/StepInto()/StepOut()`). The gap is purely
+**placement**: after commit `d06fd144` ("merge four blueprint toolbar panels into single 'Blueprint Tools'
+window"), the user wants these pause/step controls reachable from the **Blueprint Tools** panel, not a separate
+Debug window.
+
+**Do:**
+1. **Locate the merged "Blueprint Tools" window** (introduced by `d06fd144` — `git show d06fd144 --stat` to find
+   the class/file; it is NOT `GraphEditorWindow`). Confirm how it composes its sub-sections.
+2. **Surface the step/resume controls there.** Add a "Debug" section to the Blueprint Tools window that renders the
+   pause banner + Continue / Step Over / Into / Out row. **Reuse, don't duplicate:** extract the control-row from
+   `DebugPanelWindow.DrawUI` into a small shared helper (e.g. `DebugStepControls.Draw(IBlueprintDebugSession)`) and
+   call it from both the Blueprint Tools section and the existing `DebugPanelWindow`, so there is one source of
+   truth. The section shows "Not paused" (disabled) when `!IsPaused`.
+3. **Pass the debug session** into the Blueprint Tools window if it doesn't already have it (mirror how
+   `DebugPanelWindow` receives `IBlueprintDebugSession`; the session is created in `EditorSubsystem` ~`:887`).
+4. **Decide the fate of the standalone Debug window** (flag for lead, don't guess): either keep it as-is (controls
+   shared) or retire it if the Blueprint Tools section fully replaces it. Default: keep both wired to the shared
+   helper; do not delete in this batch.
+
+**Tests:** mirror `DebugWindowDrawUITests` — headless: when the session reports `IsPaused`, the Blueprint Tools
+debug section's buttons invoke the matching `IBlueprintDebugSession` method (use a capturing/mock session and the
+`LastStepActionInvoked`-style capture already present in `DebugPanelWindow`); buttons inert/disabled when not paused.
+
+**SUCCESS CONDITION (CF-5):** build 0 errors; tests pass with 0 net-new failures; the Blueprint Tools panel shows
+Continue/Step Over/Into/Out when paused, wired to the session; the step-control logic is shared (not copy-pasted)
+between the panel section and `DebugPanelWindow`.
+
+**User smoke:** hit a breakpoint (e.g. on Delay) → in the Blueprint Tools panel press Continue → sim resumes; press
+Step Over → sim advances one tick and re-pauses.

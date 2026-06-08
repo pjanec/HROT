@@ -18,17 +18,14 @@ internal static class DebugProbeInsertion
 
     private static IrBlock InsertProbes(IrBlock block, CompilerMode mode)
     {
-        // Three-tier fallback for per-block probe identity:
-        // 1. block.SourceNodeId      — set by Stage5 for entry/latent/sequence blocks
+        // Two-tier fallback for per-block probe identity:
+        // 1. block.SourceNodeId      — set by Stage5 for every reachable block
         // 2. OriginNodeId            — set by lowering passes to preserve authored id
-        // 3. Statements[0].NodeId    — legacy fallback (works for test graphs and
-        //    non-AiPrimitive graphs where blocks don't carry SourceNodeId)
-        //    Note: tier 3 mis-attributes probes when a data node (GetVariable)
-        //    is the first statement. This is mitigated by tier 1+2 catching the
-        //    exec nodes that own their own blocks.
+        // Tier 3 (Statements[0].Debug?.NodeId) intentionally removed:
+        //   it mis-attributes probes to data nodes (GetVariable, etc.) when
+        //   they happen to be the first statement.
         Guid? probeNodeId = block.SourceNodeId
-            ?? (block.Statements.Count > 0 ? block.Statements[0].Debug?.OriginNodeId : null)
-            ?? (block.Statements.Count > 0 ? block.Statements[0].Debug?.NodeId : null);
+            ?? (block.Statements.Count > 0 ? block.Statements[0].Debug?.OriginNodeId : null);
         if (probeNodeId is null) return block;
 
         // Get GraphId from block's first statement or terminator debug info.

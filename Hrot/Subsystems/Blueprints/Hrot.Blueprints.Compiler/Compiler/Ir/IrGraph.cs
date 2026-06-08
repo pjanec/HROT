@@ -17,4 +17,10 @@ public sealed record IrGraph
     public IReadOnlyList<IrField> Outputs { get; init; } = Array.Empty<IrField>();
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
     public IrBlockId Entry { get; init; }
+    /// <summary>
+    /// Maps every authored exec node to the probe id of its containing block
+    /// (many-to-one: multiple exec nodes can share a block, all mapping to the
+    /// block's SourceNodeId).  Data nodes are absent.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, Guid> BreakpointTargets { get; init; } = new Dictionary<Guid, Guid>();
 }

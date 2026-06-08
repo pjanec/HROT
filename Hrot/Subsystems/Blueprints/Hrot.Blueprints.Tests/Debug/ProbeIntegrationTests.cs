@@ -3,6 +3,8 @@ using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
+using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Tests.Builders;
@@ -101,13 +103,14 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
     public void Breakpoint_FiresTwice_AcrossTwoTicks_WithNewTickWiring()
     {
         using var fixture = new BlueprintTestFixture(NoAlcCheck);
-        var (asset, graphId, probeNodeId) = BuildProbeAsset("OnNewTickTest");
+        var (asset, graphId, eventEntryId) = BuildProbeAsset("OnNewTickTest");
 
         var session = new BlueprintDebugSession(
             fixture.Registry, fixture.View, new MockTimeController());
         session.Attach(); // overrides DebugProbe.Sink (replaces fixture's CapturingDebugSession)
 
-        session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
+        // CF-4: Test breakpoint on EventEntry (Nodes[0]) — the entry block owner.
+        session.SetBreakpoint(asset.AssetId, graphId, eventEntryId);
 
         fixture.CompileAndLoad(asset);
         var entity = fixture.CreateEntity();
@@ -126,6 +129,54 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
         // Tick 2: TickFrame calls DebugProbe.NewTick() then runs blueprints; bp fires again.
         fixture.TickFrame(0.016f);
         Assert.Equal(2, fireCount);
+    }
+
+    /// <summary>
+    /// CF-4: Verifies that a breakpoint on the Branch node (Nodes[1]) fires via
+    /// block translation — closing the masked regression where Branch silently
+    /// stopped working after CF-2.
+    /// </summary>
+    [Fact]
+    public void CF4_BranchNode_BreakpointFiresViaBlockTranslation()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+        var (asset, graphId, _) = BuildProbeAsset("BranchBreakpointTest");
+
+        var branchNodeId = asset.Graphs[0].Nodes[1].Id; // Branch = Nodes[1]
+
+        var tc = new MockTimeController();
+        var session = new BlueprintDebugSession(
+            fixture.Registry, fixture.View, tc);
+        session.Attach();
+
+        // Compile and register debug map so BreakpointTargets translation is active.
+        var options = new CompileOptions(
+            Mode:              CompilerMode.Debug,
+            NodeRegistry:      BuiltInNodeRegistry.Instance,
+            TypeRegistry:      StaticTypeRegistry.Instance,
+            EngineEvents:      BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:   BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:    BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: Array.Empty<BlueprintSignature>());
+        var compiler = new BlueprintCompiler();
+        var compileResult = compiler.Compile(asset, options);
+        Assert.True(compileResult.Succeeded, string.Join("\n", compileResult.Diagnostics));
+        session.RegisterDebugMap(compileResult.DebugMap!);
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Set breakpoint on Branch (Nodes[1]) — must fire via block translation.
+        session.SetBreakpoint(asset.AssetId, graphId, branchNodeId);
+
+        fixture.TickFrame(0.016f);
+
+        Assert.True(tc.PauseRequestCount >= 1,
+            $"Expected PauseRequestCount >= 1 after one tick with breakpoint on Branch ({branchNodeId:D}), " +
+            $"but got {tc.PauseRequestCount}. BreakpointTargets: " +
+            string.Join(", ", compileResult.DebugMap!.BreakpointTargets.Select(kv =>
+                $"{kv.Key.ToString("D").Substring(0,8)}→{kv.Value.ToString("D").Substring(0,8)}")));
     }
 }
 
