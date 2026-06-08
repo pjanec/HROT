@@ -78,7 +78,7 @@ internal static class PickerItemListHelper
     {
         bool isChecked = state.SelectedFilteredIndices.Contains(filteredIdx);
         bool isFocused = state.KeyboardFocusIndex == filteredIdx;
-        bool isHighlighted = state.HighlightedIndices.Contains(filteredIdx) || (state.SelectionMode == PickerSelectionMode.Single && isChecked);
+        bool chunkMatched = state.HighlightedIndices.Contains(filteredIdx) || (state.SelectionMode == PickerSelectionMode.Single && isChecked);
 
         ImGui.PushID(filteredIdx);
 
@@ -99,7 +99,7 @@ internal static class PickerItemListHelper
         var dl = ImGui.GetWindowDrawList();
 
         // Highlight background (Row span emphasis)
-        if (isHighlighted)
+        if (chunkMatched)
             dl.AddRectFilled(pos, pos + size, ImGui.GetColorU32(ctx.Theme.SelectionAccent with { W = 0.35f }), 2f);
         
         // Keyboard focus indicator
@@ -131,18 +131,34 @@ internal static class PickerItemListHelper
 
         // Render display name with match highlights
         float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
-        uint defaultTextColor = isHighlighted ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
-        uint highlightColor   = isHighlighted ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
+        uint defaultTextColor = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        uint highlightColor   = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
         if (re.MatchPositions is { Count: > 0 } matchSet)
         {
             var set = new HashSet<int>(matchSet);
-            for (int i = 0; i < re.Entry.Name.Length; i++)
+            int chunkStart = 0;
+
+            // Determine whether the first character is a search-match highlight.
+            bool isMatch = set.Contains(0);
+
+            for (int i = 1; i <= re.Entry.Name.Length; i++)
             {
-                var ch = re.Entry.Name[i].ToString();
-                var color = set.Contains(i) ? highlightColor : defaultTextColor;
-                dl.AddText(new Vector2(textX, textY), color, ch);
-                textX += ImGui.CalcTextSize(ch).X;
+                bool isNextMatch = i < re.Entry.Name.Length && set.Contains(i);
+
+                // Flush the current chunk when highlight state changes or we reach the end.
+                if (i == re.Entry.Name.Length || isMatch != isNextMatch)
+                {
+                    string chunk = re.Entry.Name.Substring(chunkStart, i - chunkStart);
+                    uint color = isMatch ? highlightColor : defaultTextColor;
+
+                    dl.AddText(new Vector2(textX, textY), color, chunk);
+                    textX += ImGuiNET.ImGui.CalcTextSize(chunk).X;
+
+                    // Begin the next chunk.
+                    chunkStart = i;
+                    isMatch = isNextMatch;
+                }
             }
         }
         else
