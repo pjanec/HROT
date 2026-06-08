@@ -727,6 +727,14 @@ public sealed class CanvasRenderer
 
                     CanvasCommands.AddCommentAroundSelection(view);
                 }
+
+                ImGui.Separator();
+                if (ImGui.MenuItem("Toggle Breakpoint", "F9"))
+                {
+                    if (!isHoveredSelected)
+                        view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
+                    _editorCommands?.Invoke(CommandCatalog.ToggleBreakpoint);
+                }
                 break;
             }
 

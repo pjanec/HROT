@@ -27,6 +27,7 @@ the canvas, pause the live tick, step Over/Into/Out, watch values — then exten
 | B | **Runtime overlay** — `BlueprintRuntimeOverlayRenderer` (executing-node gold pulse + recent-history glyphs) | A | ✅ Done (headless gates; VISUAL SMOKE PENDING) | running BP highlights live node; visible pause |
 | C | **Step controls** — Step Over/Into/Out/Continue UI + canvas pause overlay, wired to session methods | A | ✅ Done (headless gates; VISUAL SMOKE PENDING) | step advances one tick & re-pauses |
 | D | **Watches** — per-asset Trace toggle (add `EditorMetadata.CompilerMode`); right-click-pin "Add Watch"; `WatchPanelWindow` live values | A (Q2 resolved) | ✅ Done (CompilerMode + QuickReload; pin menu deferred; VISUAL SMOKE PENDING) | watch a pin → value updates each tick |
+| E | **Breakpoint Toggle fix** — bridge `IBlueprintDebugSession` → NodeEdit `IDebugSession`; add "Toggle Breakpoint" to `CanvasRenderer`; register `editor.toggle-breakpoint` command | A | ✅ Done | set bp on ticking BP → sim halts; red bullet shows |
 
 Slice-2 (true break-on-pin-write data breakpoints) is a cheap follow-on once D lands, since `OnPinValueChanged`
 already runs in Trace mode.

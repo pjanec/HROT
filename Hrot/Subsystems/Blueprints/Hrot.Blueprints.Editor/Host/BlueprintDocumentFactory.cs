@@ -4,14 +4,15 @@ using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;   // IChannelCommandCatalog
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Catalog;
+using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.GraphEditor;
 using Hrot.Blueprints.Editor.NodeDrawers;
-using Hrot.Blueprints.Editor.Renderers;
 using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Core;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Core.View;
@@ -87,12 +88,12 @@ public static class BlueprintDocumentFactory
     ///   matching catalog entry's params type.  When null, non-channel action nodes are exec-only.
     /// </param>
     /// <param name="debugSession">
-    ///   Optional <see cref="IBlueprintDebugSession"/> for breakpoint gutter rendering and
-    ///   breakpoint context-menu support. When non-null, the factory wires a
-    ///   <see cref="BlueprintBreakpointGutterRenderer"/> (red bullet on breakpointed nodes)
-    ///   and a <see cref="BlueprintBreakpointContextMenuProvider"/>
-    ///   (right-click node → Toggle Breakpoint). When null (authoring mode), both are
-    ///   inactive with zero per-frame cost.
+    ///   Optional <see cref="IBlueprintDebugSession"/> for debug visualisation and
+    ///   editor commands (Toggle Breakpoint on F9). When non-null, the factory wires
+    ///   a <see cref="BlueprintDebugToNodeEditAdapter"/> so NodeEdit's native
+    ///   <c>NodeRenderer</c> draws breakpoint markers, execution overlays, and the
+    ///   pausing pulse automatically. When null, all debug features are inactive with
+    ///   zero per-frame cost.
     /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
@@ -180,7 +181,7 @@ public static class BlueprintDocumentFactory
             enumProvider: enumProvider, behaviorActions: behaviorActions);
 
         // ── 5. Custom renderers (Blueprint set + caller extras) ───────────────
-        var renderers = BuildRenderers(bpAsset, extraRenderers, debugSession);
+        var renderers = BuildRenderers(bpAsset, extraRenderers);
 
         // ── 6. Host services ──────────────────────────────────────────────────
         var hostServices = new BlueprintEditorHostServices(
@@ -196,11 +197,16 @@ public static class BlueprintDocumentFactory
             theme:           bundle.EditorTheme,
             customRenderers: renderers);
 
-        // Wire breakpoint context menu provider when a debug session is attached.
+        // Bridge IBlueprintDebugSession -> NodeEdit IDebugSession so NodeRenderer
+        // natively draws breakpoint markers and execution overlays.
         if (debugSession != null)
-            hostServices.SetBreakpointContextMenu(
-                new BlueprintBreakpointContextMenuProvider(
-                    debugSession, bpAsset.AssetId, graph.Id));
+        {
+            var adapter = new BlueprintDebugToNodeEditAdapter(debugSession, bpAsset.AssetId, graph.Id);
+            hostServices.SetDebugSession(adapter);
+        }
+
+        // The NodeEdit CanvasRenderer natively handles the node context menu
+        // (right-click → Toggle Breakpoint) via NodeEdit's HoverKind.Node + IEditorCommands.
 
         // ── 7. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
@@ -218,6 +224,22 @@ public static class BlueprintDocumentFactory
         var commands = new EditorCommandsImpl();
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
+
+        // Register debug commands (Toggle Breakpoint etc.)
+        var reg = new CommandRegistration(commands);
+        reg.Add(
+            CommandCatalog.ToggleBreakpoint,
+            "Toggle Breakpoint", "Debug",
+            _ =>
+            {
+                var dbg = hostServices.Debug;
+                if (dbg == null) return;
+                foreach (var nodeId in view.Selection.Nodes)
+                    dbg.ToggleBreakpoint(nodeId);
+            },
+            isEnabled: () => view.Selection.Nodes.Any(),
+            description: "Toggles a breakpoint on the selected node.",
+            defaultKey: new KeyBinding(EditorKey.F9, KeyModifiers.None));
 
         // BCP-BATCH-02-FIX Task 3: My Blueprint "+" → Create Variable.
         // The MyBlueprintPanel "+ Variable" item invokes "editor.create-variable"; register a
@@ -418,29 +440,15 @@ public static class BlueprintDocumentFactory
 
     private static IReadOnlyList<ICustomCanvasRenderer> BuildRenderers(
         BlueprintAsset                              bpAsset,
-        IReadOnlyList<ICustomCanvasRenderer>?       extra,
-        IBlueprintDebugSession?                     debugSession = null)
+        IReadOnlyList<ICustomCanvasRenderer>?       extra)
     {
-        // ── Registration order (mirrors BTree pattern) ────────────────────────
-        // AfterNodes pass:
-        //   1. BlueprintBreakpointGutterRenderer  — red bullet for armed breakpoints
-        //   2. BlueprintRuntimeOverlayRenderer    — gold pulse on executing node,
-        //                                           red outline on paused-at node,
-        //                                           history-trail dots
-        //   3. WhenFiringPulseRenderer            — WhenNode firing pulse
-
-        var gutterRenderer  = new BlueprintBreakpointGutterRenderer(bpAsset);
-        var runtimeOverlay  = new BlueprintRuntimeOverlayRenderer(bpAsset);
-        if (debugSession != null)
-        {
-            gutterRenderer.SetSession(debugSession);
-            runtimeOverlay.SetSession(debugSession);
-        }
+        // ── Only Blueprint-specific custom renderers ──────────────────────────
+        // NodeEdit's native NodeRenderer already draws breakpoint markers,
+        // execution overlays, and the debug pulse — no custom renderers needed
+        // for those features.
 
         var list = new List<ICustomCanvasRenderer>
         {
-            gutterRenderer,
-            runtimeOverlay,
             // Blueprint custom renderer: pulsing overlay when a WhenNode fires at runtime.
             // In debug mode it is active; in release mode IsActive == false (no per-frame cost).
             new WhenFiringPulseRenderer(),

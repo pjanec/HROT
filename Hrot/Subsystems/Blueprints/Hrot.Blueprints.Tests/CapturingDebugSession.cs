@@ -1,6 +1,7 @@
 using Fdp.Core;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Debug;
+using System.Linq;
 
 namespace Hrot.Blueprints.Tests.Debug;
 
@@ -22,6 +23,10 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public void OnNodeEnter(Entity self, string nodeId)
     {
         _nodeEntries.Add(new NodeEnterRecord(self, nodeId, Time: 0f));
+        var nodeExecuted = new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, 0f, 0u);
+        lock (_recentNodeHistory)
+            _recentNodeHistory.Add(nodeExecuted);
+        OnNodeExecuted?.Invoke(nodeExecuted);
         if (_breakpoints.Contains(nodeId))
             OnBreakpointHit?.Invoke(new BreakpointHit(self, nodeId, Guid.Empty, 0f, 0u));
     }
@@ -81,7 +86,8 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
 
     // ---- IBlueprintDebugSession -- pause state ------------------------------
 
-    public bool IsPaused => false;
+    // Settable for test control.
+    public bool IsPaused { get; set; } = false;
     public Breakpoint? PausedAt => null;
     public Entity? PausedOnEntity => null;
 
@@ -96,18 +102,28 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
 
     // ---- IBlueprintDebugSession -- pause control ----------------------------
 
-    public void Continue()  { }
-    public void StepOver()  { }
-    public void StepInto()  { }
-    public void StepOut()   { }
+    public int ContinueCallCount { get; private set; }
+    public int StepOverCallCount { get; private set; }
+    public int StepIntoCallCount { get; private set; }
+    public int StepOutCallCount { get; private set; }
+
+    public void Continue()  { ContinueCallCount++; }
+    public void StepOver()  { StepOverCallCount++; }
+    public void StepInto()  { StepIntoCallCount++; }
+    public void StepOut()   { StepOutCallCount++; }
     public void Pause()     { }
 
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
     public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;
     public BlueprintStateSnapshot? CaptureLiveState(Entity self, Guid assetId) => null;
+    private readonly List<NodeExecuted> _recentNodeHistory = new();
+
     public IReadOnlyList<NodeExecuted> GetRecentNodeHistory(int maxCount = 100)
-        => throw new NotImplementedException();
+    {
+        var entries = _recentNodeHistory;
+        return entries.Skip(Math.Max(0, entries.Count - maxCount)).Take(maxCount).ToList().AsReadOnly();
+    }
     public IReadOnlyList<NodeHistoryEntry> GetNodeHistory(Entity entity, int maxCount = 100)
         => Array.Empty<NodeHistoryEntry>();
     public IReadOnlyList<CallFrame> GetCurrentCallStack() => Array.Empty<CallFrame>();

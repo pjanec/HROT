@@ -1,13 +1,19 @@
 using Fdp.Presentation.Icons;
 using Hrot.Blueprints.Core;   // BlueprintJsonServices
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Catalog;
+using Hrot.Blueprints.Editor.Debug;
 using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Tests.Builders;
+using Hrot.Blueprints.Tests.Debug;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Core;
+using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 using System.Numerics;
 using Xunit;
@@ -169,6 +175,57 @@ public sealed class BlueprintDocumentFactoryTests : IDisposable
 
         Assert.NotNull(captured);
         Assert.Equal("Blueprint", captured!.Kind, ignoreCase: true);
+    }
+
+    // ── debug-session wiring (BATCH-E) ──────────────────────────────────────
+
+    [Fact]
+    public void Build_WithDebugSession_SetsHostDebug()
+    {
+        var asset = BlueprintAssetBuilder.Instance("DbgTest")
+            .WithGraph("EventGraph", GraphKind.Event, g => g.Entry())
+            .Build();
+        var fileAsset = MakeFileAsset(asset);
+        var bundle = MakeBundle();
+        var debugSession = new CapturingDebugSession();
+
+        var ctx = BlueprintDocumentFactory.Build(fileAsset, bundle, debugSession: debugSession);
+
+        Assert.NotNull(ctx.View.Host.Debug);
+        Assert.IsType<BlueprintDebugToNodeEditAdapter>(ctx.View.Host.Debug);
+    }
+
+    [Fact]
+    public void ToggleBreakpoint_Command_Registered_And_Invokable()
+    {
+        var asset = BlueprintAssetBuilder.Instance("CmdTest")
+            .WithGraph("EventGraph", GraphKind.Event, g => g.Entry())
+            .Build();
+        var fileAsset = MakeFileAsset(asset);
+        var bundle = MakeBundle();
+        var debugSession = new CapturingDebugSession();
+
+        var ctx = BlueprintDocumentFactory.Build(fileAsset, bundle, debugSession: debugSession);
+
+        // Command descriptor is registered.
+        Assert.NotNull(ctx.Commands);
+        var descriptor = ctx.Commands!.Get(CommandCatalog.ToggleBreakpoint);
+        Assert.NotNull(descriptor);
+
+        // Select the entry node so the command is enabled.
+        var entryNode = ctx.View.Model.Nodes.FirstOrDefault();
+        Assert.NotNull(entryNode);
+        ctx.View.Selection.ReplaceWith(SelectionEntry.OfNode(entryNode.Id));
+        Assert.True(descriptor.IsEnabled(),
+            "ToggleBreakpoint should be enabled when a node is selected.");
+
+        // Invoke the command.
+        var result = ctx.Commands.Invoke(CommandCatalog.ToggleBreakpoint);
+        Assert.True(result.Success, $"Command invocation failed: {result.Message}");
+
+        // Verify the breakpoint was set on the selected node via the adapter.
+        var bps = debugSession.GetBreakpoints();
+        Assert.Contains(bps, bp => bp.NodeId == entryNode.Id.Value.ToString("D"));
     }
 
     // ── stub ──────────────────────────────────────────────────────────────────

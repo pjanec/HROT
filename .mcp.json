@@ -4,6 +4,12 @@
       "type": "stdio",
       "command": "c:\\Users\\petr.janecek\\.vscode\\extensions\\tunakite03.codebase-memory-mcp-0.5.22\\bin\\win32-x64\\codebase-memory-mcp.exe",
       "args": []
+    },
+    "claude-worker-orchestrator": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["c:/Utils/AITools/ClaudeWorkerMCP/dist/index.js"],
+      "env": {}
     }
   }
 }
