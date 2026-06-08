@@ -227,6 +227,7 @@ public static class BlueprintDocumentFactory
 
         // Register debug commands (Toggle Breakpoint etc.)
         var reg = new CommandRegistration(commands);
+        var bpDebugSession = debugSession; // capture for closure
         reg.Add(
             CommandCatalog.ToggleBreakpoint,
             "Toggle Breakpoint", "Debug",
@@ -237,8 +238,10 @@ public static class BlueprintDocumentFactory
                 foreach (var nodeId in view.Selection.Nodes)
                     dbg.ToggleBreakpoint(nodeId);
             },
-            isEnabled: () => view.Selection.Nodes.Any(),
-            description: "Toggles a breakpoint on the selected node.",
+            isEnabled: () => bpDebugSession != null
+                && view.Selection.Nodes.Any(n =>
+                    bpDebugSession.IsNodeBreakpointable(bpAsset.AssetId, graph.Id, n.Value)),
+            description: "Toggles a breakpoint on the selected node. Requires a compiled DebugMap entry (exec nodes only).",
             defaultKey: new KeyBinding(EditorKey.F9, KeyModifiers.None));
 
         // BCP-BATCH-02-FIX Task 3: My Blueprint "+" → Create Variable.

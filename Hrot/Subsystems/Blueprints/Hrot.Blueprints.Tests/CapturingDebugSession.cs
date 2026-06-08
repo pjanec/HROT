@@ -147,6 +147,10 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public void RegisterDebugMap(DebugMap map)   => _maps[map.AssetId] = map;
     public void UnregisterDebugMap(Guid assetId) => _maps.Remove(assetId);
 
+    public bool IsNodeBreakpointable(Guid assetId, Guid graphId, Guid nodeId)
+        => !_maps.TryGetValue(assetId, out var map)
+            || map.Entries.Any(e => e.NodeId == nodeId);
+
     // ---- IBlueprintDebugSession -- PDB locator ------------------------------
 
     public void RegisterPdbLocator(Guid assetId, Func<string> pdbPathResolver) { }

@@ -202,6 +202,14 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     // -- PDB locator --
     void RegisterPdbLocator(Guid assetId, Func<string> pdbPathResolver);
 
+    // -- Breakpoint eligibility --
+    /// <summary>
+    /// Returns true when <paramref name="nodeId"/> has a DebugMap entry and can be used
+    /// as a breakpoint target. Pure data nodes (GetVariable, LiteralNode, CastNode) and
+    /// nodes whose identity was lost during lowering return false.
+    /// </summary>
+    bool IsNodeBreakpointable(Guid assetId, Guid graphId, Guid nodeId);
+
     // -- Hot reload --
     void OnHotReloadBegin();
     void OnHotReloadCompleted(Guid[] reloadedAssetIds);

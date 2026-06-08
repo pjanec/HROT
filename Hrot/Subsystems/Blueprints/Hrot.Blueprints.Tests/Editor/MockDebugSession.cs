@@ -71,6 +71,8 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
     public void RegisterDebugMap(DebugMap map) { }
     public void UnregisterDebugMap(Guid assetId) { }
 
+    public bool IsNodeBreakpointable(Guid assetId, Guid graphId, Guid nodeId) => true;
+
     // ---- IBlueprintDebugSession -- PDB locator ------------------------------
 
     public void RegisterPdbLocator(Guid assetId, Func<string> pdbPathResolver) { }

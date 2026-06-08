@@ -36,7 +36,11 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
     // for that node. This path avoids LatentDelay which triggers op_LessThan_Single
     // IR ops that Roslyn cannot resolve (Phase 5 scope fix).
 
-    private static (BlueprintAsset asset, Guid graphId, Guid branchNodeId) BuildProbeAsset(string name)
+    // CF-3: After CF-2 (SourceNodeId on entry block), the probe fires for the
+    // entry node (EventEntry, Nodes[0]) rather than Branch (Nodes[1]).
+    // The block's owning exec node determines probe identity.
+
+    private static (BlueprintAsset asset, Guid graphId, Guid probeNodeId) BuildProbeAsset(string name)
     {
         var asset = BlueprintAssetBuilder
             .Instance(name)
@@ -45,12 +49,12 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
                 .Branch("", b => b.Return(), b => b.Return()))
             .Build();
 
-        // Nodes[0] = EventEntryNode (no statements, no probe)
-        // Nodes[1] = BranchNode (IrOp_Const statement with Debug.NodeId, probe inserted here)
-        var graphId      = asset.Graphs[0].Id;
-        var branchNodeId = asset.Graphs[0].Nodes[1].Id;
+        // Nodes[0] = EventEntryNode — entry block gets SourceNodeId = this ID (CF-2)
+        // Nodes[1] = BranchNode — shares the entry block, no separate probe
+        var graphId     = asset.Graphs[0].Id;
+        var probeNodeId = asset.Graphs[0].Nodes[0].Id; // EventEntry, owns the block
 
-        return (asset, graphId, branchNodeId);
+        return (asset, graphId, probeNodeId);
     }
 
     // ---- FIX2-001: StatementEmitter emits NodeId in :D format ----
@@ -65,7 +69,7 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
     public void CompiledProbe_EmitsNodeId_InDFormat()
     {
         using var fixture = new BlueprintTestFixture(NoAlcCheck);
-        var (asset, _, branchNodeId) = BuildProbeAsset("ProbeFormatTest");
+        var (asset, _, probeNodeId) = BuildProbeAsset("ProbeFormatTest");
 
         fixture.CompileAndLoad(asset);
         var entity = fixture.CreateEntity();
@@ -74,8 +78,8 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
         // DebugProbe.Sink is fixture.DebugSession (CapturingDebugSession), set in fixture ctor.
         fixture.TickFrame(0.016f);
 
-        string expectedId = branchNodeId.ToString("D"); // hyphenated: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-        string legacyId   = branchNodeId.ToString("N"); // compact:    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+        string expectedId = probeNodeId.ToString("D"); // hyphenated: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        string legacyId   = probeNodeId.ToString("N"); // compact:    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
         Assert.True(fixture.DebugSession.Hit(expectedId),
             $"Expected DebugProbe.NodeEnter to be called with :D format '{expectedId}', " +
@@ -97,13 +101,13 @@ public sealed class ProbeFormatIntegrationTests : IDisposable
     public void Breakpoint_FiresTwice_AcrossTwoTicks_WithNewTickWiring()
     {
         using var fixture = new BlueprintTestFixture(NoAlcCheck);
-        var (asset, graphId, branchNodeId) = BuildProbeAsset("OnNewTickTest");
+        var (asset, graphId, probeNodeId) = BuildProbeAsset("OnNewTickTest");
 
         var session = new BlueprintDebugSession(
             fixture.Registry, fixture.View, new MockTimeController());
         session.Attach(); // overrides DebugProbe.Sink (replaces fixture's CapturingDebugSession)
 
-        session.SetBreakpoint(asset.AssetId, graphId, branchNodeId);
+        session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
         fixture.CompileAndLoad(asset);
         var entity = fixture.CreateEntity();
