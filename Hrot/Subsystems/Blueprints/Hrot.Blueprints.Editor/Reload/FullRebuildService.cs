@@ -32,19 +32,42 @@ public sealed class FullRebuildService
             CreateNoWindow         = true,
         };
 
-        using var proc = Process.Start(psi);
-        if (proc == null)
+        // EnableRaisingEvents is required for WaitForExitAsync to function correctly
+        using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+        // Asynchronously stream stdout and stderr directly to the console/message log
+        proc.OutputDataReceived += (_, e) =>
         {
+            if (e.Data != null) _outputConsole.LogInfo(e.Data);
+        };
+        proc.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data != null) _outputConsole.LogError(e.Data);
+        };
+
+        try
+        {
+            if (!proc.Start())
+            {
+                sw.Stop();
+                return new FullRebuildResult(false, -1, sw.ElapsedMilliseconds);
+            }
+
+            // Begin the asynchronous reads immediately after starting the process
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+
+            // Yield execution back to the caller (keeping the UI responsive) until the process exits
+            await proc.WaitForExitAsync();
+        }
+        catch (Exception ex)
+        {
+            _outputConsole.LogError($"Failed to start dotnet build: {ex.Message}");
             sw.Stop();
             return new FullRebuildResult(false, -1, sw.ElapsedMilliseconds);
         }
 
-        string stdout = await proc.StandardOutput.ReadToEndAsync();
-        await proc.WaitForExitAsync();
         sw.Stop();
-
-        foreach (var line in stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-            _outputConsole.LogInfo(line.TrimEnd());
 
         bool success = proc.ExitCode == 0;
         if (success) PendingDrainAfterBuild = true;

@@ -58,12 +58,11 @@ namespace Fdp.Presentation.Panels
             public volatile bool HasUnobservedAttention;
             public bool NotificationsEnabled;
 
-            // Severities currently hidden. Trace and Debug are off by default to
-            // reduce noise; the user can re-enable them via the Severity popup.
+            // Severities currently hidden. Trace is off by default to
+            // reduce noise; the user can re-enable it via the Severity popup.
             public readonly HashSet<LogSeverity> HiddenSeverities = new()
             {
                 LogSeverity.Trace,
-                LogSeverity.Debug,
             };
 
             // Logger-name filter (per tab, thread-safe via lock on each set)
