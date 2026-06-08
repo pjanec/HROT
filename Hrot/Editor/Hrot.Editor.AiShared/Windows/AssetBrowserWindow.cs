@@ -160,10 +160,14 @@ public sealed class AssetBrowserWindow : ManagedWindow
                     var activeMarker = row.IsActive ? "● " : "  ";
                     var dirtyMarker  = row.IsDirty  ? " *" : "";
                     var label = $"{activeMarker}{row.DisplayName}  <{row.KindTag}>{dirtyMarker}##open_{row.Document.Asset.AssetId}";
-                    if (ImGuiNET.ImGui.Selectable(label))
+
+                    // Apply AllowOverlap so the hit-test yields to the SmallButton on the same line
+                    if (ImGuiNET.ImGui.Selectable(label, false, ImGuiNET.ImGuiSelectableFlags.AllowOverlap))
                         HandleActivateRow(_documentManager, row.Document);
 
                     ImGuiNET.ImGui.SameLine();
+
+                    // The SmallButton will now correctly receive click events
                     if (ImGuiNET.ImGui.SmallButton($"[×]##close_{row.Document.Asset.AssetId}"))
                         HandleCloseRow(_documentManager, row.Document);
                 }

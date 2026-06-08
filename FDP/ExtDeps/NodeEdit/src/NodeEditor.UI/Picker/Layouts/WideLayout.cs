@@ -111,7 +111,13 @@ internal static class WideLayout
             bool focused  = state.KeyboardFocusIndex == i;
 
             ImGui.PushID(visibleIdx++);
-            if (ImGui.Selectable(re.Entry.Name, selected || focused,
+
+            // Capture SCREEN position before the selectable — used for draw-list overlay.
+            var startScreenPos = ImGui.GetCursorScreenPos();
+
+            // 1. Invisible selectable for hit-testing; spans full width at 36px height.
+            //    Advances the layout cursor naturally — no SetCursorPos needed.
+            if (ImGui.Selectable($"##wide_row_{i}", selected || focused,
                     ImGuiSelectableFlags.AllowOverlap | ImGuiSelectableFlags.AllowDoubleClick, new Vector2(0f, 36f)))
             {
                 state.SelectedFilteredIndices.Clear();
@@ -124,13 +130,21 @@ internal static class WideLayout
                 state.Confirmed = true;
             }
 
-            // Second line: description in muted color.
-            ImGui.SameLine(0f, 4f);
-            ImGui.BeginGroup();
-            ImGui.TextColored(ctx.Theme.TextDefault, re.Entry.Name);
+            // 2. Draw 2-line text overlay via DrawList (screen coords) — avoids SetCursorPos entirely.
+            //    CRITICAL: AddText bypasses native 'vsnprintf' so strings containing '%' don't crash.
+            var dl = ImGui.GetWindowDrawList();
+            float textX = startScreenPos.X + 4f;
+            float textY = startScreenPos.Y + 2f;
+
+            uint defaultCol = ImGui.GetColorU32(ctx.Theme.TextDefault);
+            uint mutedCol   = ImGui.GetColorU32(ctx.Theme.TextMuted);
+
+            dl.AddText(new Vector2(textX, textY), defaultCol, re.Entry.Name ?? "(null)");
             if (re.Entry.Description is { Length: > 0 } desc)
-                ImGui.TextColored(ctx.Theme.TextMuted, desc);
-            ImGui.EndGroup();
+            {
+                float lineH = ImGui.GetTextLineHeight();
+                dl.AddText(new Vector2(textX, textY + lineH), mutedCol, desc);
+            }
 
             ImGui.PopID();
         }

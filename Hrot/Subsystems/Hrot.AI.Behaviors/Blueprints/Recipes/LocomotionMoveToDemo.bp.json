@@ -3,21 +3,24 @@
     "docType": "Hrot.Blueprints",
     "schemaVersion": 1
   },
-  "Header": {
-    "SubsystemType": "Hrot.Blueprints",
-    "SchemaVersion": "1.0"
-  },
+  "Header": {},
   "AssetId": "00000000-aaaa-0001-0000-000000000006",
   "Name": "LocomotionMoveToDemo",
-  "Dispatch": 1,
-  "TierHint": 0,
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
   "Primitive": {
-    "Intent": 0,
-    "Hostings": [0]
+    "Intent": "Action",
+    "Hostings": [
+      "BTreeAction"
+    ]
   },
   "Parameters": [],
+  "ParameterOrder": null,
   "WorkingState": [],
+  "WorkingStateOrder": null,
   "Variables": [],
+  "VariableOrder": null,
   "EventDispatchers": [],
   "CustomEvents": [],
   "CallablePeers": [],
@@ -25,39 +28,47 @@
     {
       "Id": "e5000006-0001-0001-0001-000000000001",
       "Name": "Main",
-      "Kind": 0,
+      "Kind": "Function",
       "Inputs": [],
       "Outputs": [],
       "Nodes": [
         {
           "kind": "EventEntry",
-          "Id": "f5000006-0001-0001-0001-000000000001",
           "EventTypeId": "",
+          "Id": "f5000006-0001-0001-0001-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 80.0,
-            "Y": 220.0
+            "X": 80,
+            "Y": 220,
+            "Comment": null
           }
         },
         {
           "kind": "ChannelCommand",
-          "Id": "f5000006-0002-0002-0002-000000000001",
           "ChannelType": "LocomotionChannel",
           "ActionId": "MoveTo",
+          "Id": "f5000006-0002-0002-0002-000000000001",
           "Pins": [],
           "EditorMetadata": {
-            "X": 420.0,
-            "Y": 220.0
+            "X": 366,
+            "Y": 206,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "Speed": "-0.28",
+            "ArrivalRadius": "0.01",
+            "RouteHandle": "22"
           }
         },
         {
           "kind": "Return",
+          "Status": "Success",
           "Id": "f5000006-0003-0003-0003-000000000001",
-          "Status": 0,
           "Pins": [],
           "EditorMetadata": {
-            "X": 760.0,
-            "Y": 220.0
+            "X": 858,
+            "Y": 244,
+            "Comment": null
           }
         }
       ],
@@ -75,7 +86,11 @@
           "ToPinId": "e5ee0006-0003-b001-0001-000000000001"
         }
       ],
-      "EditorMetadata": {}
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
     }
   ],
   "EditorMetadata": {

@@ -70,16 +70,22 @@ internal static class StandardLayout
                 if (entry is not null)
                 {
                     ImGui.PushTextWrapPos(width - 8f);
-                    ImGui.TextColored(ctx.Theme.TextDefault, entry.Name);
+                    ImGui.PushStyleColor(ImGuiCol.Text, ctx.Theme.TextDefault);
+                    ImGui.TextUnformatted(entry.Name ?? "(null)");
+                    ImGui.PopStyleColor();
                     if (entry.Category is { Length: > 0 })
-                        ImGui.TextColored(ctx.Theme.TextMuted, entry.Category);
+                    {
+                        ImGui.PushStyleColor(ImGuiCol.Text, ctx.Theme.TextMuted);
+                        ImGui.TextUnformatted(entry.Category);
+                        ImGui.PopStyleColor();
+                    }
                     if (entry.Description is { Length: > 0 })
-                        ImGui.TextWrapped(entry.Description);
+                        ImGui.TextUnformatted(entry.Description);
                     ImGui.PopTextWrapPos();
                 }
                 else
                 {
-                    ImGui.TextColored(ctx.Theme.TextMuted, "(no selection)");
+                    ImGui.TextUnformatted("(no selection)");
                 }
             }
             finally

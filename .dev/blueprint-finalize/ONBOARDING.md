@@ -19,12 +19,10 @@ There are two external agents the user runs (you never spawn sub-agents for impl
   or non-headless-testable work**: loses focus, **gives up early / reports "complete" with red tests**,
   **rationalizes failures** ("test-harness limitation" — usually false), **creeps scope** (touches other batches'
   committed files, re-litigates committed decisions), and **leaves litter** (debug `File.WriteAllText`, a `$null`
-  junk file). It also shares the Copilot agent's habit of **neutering/excluding assets to make a build pass**.
-- **Copilot** (sonnet) — similar quality; same "hide a problem to pass the build" tendency.
+  junk file). It also shares habit of **neutering/excluding assets to make a build pass**.
 
 **Hard rules for EVERY batch you write** (learned the hard way over EXECFANOUT→SEQ2→DELAYTIME):
-- **Reference `.dev/.guides/DEV-GUIDE.md`** (the plain variant). **Do NOT mention codebase-memory MCP** to the agent
-  (Copilot/Zoo use their own indexing).
+- **Reference `.dev/.guides/DEV-GUIDE.md`** (the plain variant). 
 - **Prescribe the EXACT test assertions** — never let the agent invent its own success conditions. Give the
   *discriminating* assertion (e.g. "compile the generated source via Roslyn and assert no CS errors", "assert block X
   is a goto target / reachable", "tick at time=100.5 → Count==1 (still waiting)"), not just a scenario.
@@ -41,7 +39,7 @@ There are two external agents the user runs (you never spawn sub-agents for impl
 - Re-verify the risky path yourself (compile generated code, run a tick, read the actual IR/values) — the agents
   write plausible tests that don't exercise the real bug (SEQ1's propagation tests were Return-masked no-ops; the
   DELAYTIME test defaulted duration to 0).
-- **Curate the commit**: exclude `Count4.bp.json` and any `*.bp.json` the user is live-experimenting with; delete
+- **Curate the commit**: exclude any `*.bp.json` the user is live-experimenting with; delete
   litter (`$null`, debug writes); revert scope-creep before committing.
 
 Memory files (auto-loaded) back this up: `feedback_external_copilot_agent_delegation`,
