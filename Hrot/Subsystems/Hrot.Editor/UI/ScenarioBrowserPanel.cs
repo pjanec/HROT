@@ -94,8 +94,21 @@ public sealed class ScenarioBrowserPanel
             {
                 for (int i = 0; i < available.Count; i++)
                 {
-                    if (ImGui.Selectable(available[i], _selectedLoadIdx == i, ImGuiSelectableFlags.NoAutoClosePopups))
+                    // Add AllowDoubleClick so ImGui registers double clicks rather
+                    // than capturing them as two single clicks
+                    if (ImGui.Selectable(available[i], _selectedLoadIdx == i,
+                            ImGuiSelectableFlags.NoAutoClosePopups | ImGuiSelectableFlags.AllowDoubleClick))
+                    {
                         _selectedLoadIdx = i;
+                    }
+
+                    // Immediately check if the hovered selectable was double-clicked
+                    if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                    {
+                        _selectedLoadIdx = i;
+                        logic.LoadScenarioByName(available[_selectedLoadIdx]);
+                        ImGui.CloseCurrentPopup();
+                    }
                 }
             }
 
