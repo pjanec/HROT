@@ -125,6 +125,35 @@ public sealed class BlueprintAttachServiceTests
         Assert.Equal(frames, ReadCount(fixture.World, entity));
     }
 
+    // ── SC8: Editor forwarder produces identical result to core seam ──────────
+
+    [Fact]
+    public void Forwarder_ProducesSameResult_AsCoreSeam()
+    {
+        using var world = NewWorldWithTierComponents();
+        var registry = new BlueprintRegistry();
+        CounterDemoBlueprint.Register(registry);
+        var asset = CounterDemoBlueprint.MakeAsset();
+        int bpId = CounterDemoBlueprint.BlueprintId;
+
+        // Use separate entities so both paths execute a fresh attach.
+        var entityFwd = world.CreateEntity();
+        var entityCore = world.CreateEntity();
+
+        var forwarderResult = BlueprintAttachService.AttachToEntity(world, registry, asset, entityFwd);
+        var coreResult = BlueprintInstanceService.AttachToEntity(world, registry, bpId, entityCore);
+
+        // Both should produce Attached with the same tier and success flag.
+        Assert.Equal(BlueprintAttachStatus.Attached, forwarderResult.Status);
+        Assert.Equal(BlueprintAttachStatus.Attached, coreResult.Status);
+        Assert.Equal(forwarderResult.Tier, coreResult.Tier);
+        Assert.Equal(forwarderResult.Success, coreResult.Success);
+
+        // Both entities have a slot with InitDefault applied (Count == 0).
+        Assert.Equal(0, ReadCount(world, entityFwd));
+        Assert.Equal(0, ReadCount(world, entityCore));
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static unsafe int ReadCount(EntityRepository world, Entity entity)
