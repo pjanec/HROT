@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Core.Serialization;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
@@ -59,15 +61,16 @@ namespace Hrot.SimHost.Serializers
         public unsafe Dictionary<string, object> Extract(
             EntityRepository repo, Entity entity, IGuidResolver resolver)
         {
-            var assignments = new List<Dictionary<string, object>>();
+            var dtos = new List<BlueprintAssignmentDto>();
 
-            ExtractTier1024(repo, entity, assignments);
-            ExtractTier4096(repo, entity, assignments);
-            ExtractTier16384(repo, entity, assignments);
+            ExtractTier1024(repo, entity, dtos);
+            ExtractTier4096(repo, entity, dtos);
+            ExtractTier16384(repo, entity, dtos);
 
+            var node = JsonSerializer.SerializeToNode(dtos, FdpJsonOptionsRegistry.DefaultRelaxed);
             return new Dictionary<string, object>
             {
-                [OutputKey] = assignments,
+                [OutputKey] = node!,
             };
         }
 
@@ -75,44 +78,17 @@ namespace Hrot.SimHost.Serializers
             EntityRepository repo, Entity entity,
             Dictionary<string, object> scenarioData, IGuidResolver resolver)
         {
-            if (scenarioData.TryGetValue(OutputKey, out var assignmentsObj))
+            if (scenarioData.TryGetValue(OutputKey, out var rawValue)
+                && rawValue is JsonArray jsonArray)
             {
-                var intent = new InitialBlueprintsIntent();
-
-                if (assignmentsObj is JsonElement element && element.ValueKind == JsonValueKind.Array)
+                var dtos = JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(
+                    jsonArray, FdpJsonOptionsRegistry.DefaultRelaxed);
+                if (dtos != null && dtos.Count > 0)
                 {
-                    foreach (var item in element.EnumerateArray())
-                    {
-                        if (item.TryGetProperty("AssetId", out var assetIdProp)
-                            && assetIdProp.ValueKind == JsonValueKind.String
-                            && Guid.TryParse(assetIdProp.GetString(), out var assetId))
-                        {
-                            intent.Blueprints.Add(new BlueprintAssignmentDto
-                            {
-                                AssetId = assetId,
-                            });
-                        }
-                    }
+                    var intent = new InitialBlueprintsIntent();
+                    intent.Blueprints.AddRange(dtos);
+                    repo.SetManagedComponent(entity, intent);
                 }
-                else if (assignmentsObj is System.Text.Json.Nodes.JsonArray jsonArray)
-                {
-                    foreach (var item in jsonArray)
-                    {
-                        if (item is System.Text.Json.Nodes.JsonObject jsonObj
-                            && jsonObj.TryGetPropertyValue("AssetId", out var propNode)
-                            && propNode is System.Text.Json.Nodes.JsonValue jsonValue
-                            && jsonValue.TryGetValue(out string? assetIdStr)
-                            && Guid.TryParse(assetIdStr, out var assetId))
-                        {
-                            intent.Blueprints.Add(new BlueprintAssignmentDto
-                            {
-                                AssetId = assetId,
-                            });
-                        }
-                    }
-                }
-
-                repo.SetManagedComponent(entity, intent);
             }
 
             // Legacy keys: no-op — consumed by GetOutputDomKeys black-hole.
@@ -129,7 +105,7 @@ namespace Hrot.SimHost.Serializers
 
         private unsafe void ExtractTier1024(
             EntityRepository repo, Entity entity,
-            List<Dictionary<string, object>> assignments)
+            List<BlueprintAssignmentDto> dtos)
         {
             if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
                 return;
@@ -137,13 +113,13 @@ namespace Hrot.SimHost.Serializers
             ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard1024>(entity);
             fixed (byte* memory = bb.Memory)
             {
-                CollectAssignments(memory, assignments);
+                CollectAssignments(memory, dtos);
             }
         }
 
         private unsafe void ExtractTier4096(
             EntityRepository repo, Entity entity,
-            List<Dictionary<string, object>> assignments)
+            List<BlueprintAssignmentDto> dtos)
         {
             if (!repo.HasComponent<BlueprintBlackboard4096>(entity))
                 return;
@@ -151,13 +127,13 @@ namespace Hrot.SimHost.Serializers
             ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard4096>(entity);
             fixed (byte* memory = bb.Memory)
             {
-                CollectAssignments(memory, assignments);
+                CollectAssignments(memory, dtos);
             }
         }
 
         private unsafe void ExtractTier16384(
             EntityRepository repo, Entity entity,
-            List<Dictionary<string, object>> assignments)
+            List<BlueprintAssignmentDto> dtos)
         {
             if (!repo.HasComponent<BlueprintBlackboard16384>(entity))
                 return;
@@ -165,12 +141,12 @@ namespace Hrot.SimHost.Serializers
             ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard16384>(entity);
             fixed (byte* memory = bb.Memory)
             {
-                CollectAssignments(memory, assignments);
+                CollectAssignments(memory, dtos);
             }
         }
 
         private unsafe void CollectAssignments(
-            byte* memory, List<Dictionary<string, object>> assignments)
+            byte* memory, List<BlueprintAssignmentDto> dtos)
         {
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
             if (header.MagicAndVersion != 0x42504257u)
@@ -191,10 +167,7 @@ namespace Hrot.SimHost.Serializers
                     assetId = def.AssetId;
                 }
 
-                assignments.Add(new Dictionary<string, object>
-                {
-                    ["AssetId"] = assetId.ToString(),
-                });
+                dtos.Add(new BlueprintAssignmentDto { AssetId = assetId });
             }
         }
 

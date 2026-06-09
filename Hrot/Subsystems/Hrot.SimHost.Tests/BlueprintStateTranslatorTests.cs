@@ -103,13 +103,15 @@ namespace Hrot.SimHost.Tests
             var data = translator.Extract(_repo, entity, new StubGuidResolver());
 
             Assert.True(data.ContainsKey("BlueprintAssignments"));
-            var assignments = data["BlueprintAssignments"] as List<Dictionary<string, object>>;
+            var jsonArray = data["BlueprintAssignments"] as System.Text.Json.Nodes.JsonArray;
+            Assert.NotNull(jsonArray);
+            var assignments = System.Text.Json.JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(jsonArray);
             Assert.NotNull(assignments);
             Assert.Equal(2, assignments!.Count);
 
-            var assetIds = assignments.Select(a => a["AssetId"] as string).ToArray();
-            Assert.Contains(assetId1.ToString(), assetIds);
-            Assert.Contains(assetId2.ToString(), assetIds);
+            var assetIds = assignments.Select(a => a.AssetId).ToArray();
+            Assert.Contains(assetId1, assetIds);
+            Assert.Contains(assetId2, assetIds);
 
             // Result must NOT contain any BlueprintBlackboard* keys.
             Assert.DoesNotContain("BlueprintBlackboard1024", data.Keys);
@@ -125,13 +127,12 @@ namespace Hrot.SimHost.Tests
             var assetId = Guid.Parse("33333333-3333-3333-3333-333333333333");
             var entity = _repo.CreateEntity();
 
+            var dtos = new List<BlueprintAssignmentDto> { new() { AssetId = assetId } };
+            var jsonArray = System.Text.Json.JsonSerializer.SerializeToNode(dtos)
+                as System.Text.Json.Nodes.JsonArray;
             var scenarioData = new Dictionary<string, object>
             {
-                ["BlueprintAssignments"] = System.Text.Json.JsonSerializer.SerializeToElement(
-                    new[]
-                    {
-                        new { AssetId = assetId.ToString() },
-                    }),
+                ["BlueprintAssignments"] = jsonArray!,
             };
 
             var translator = CreateTranslatorWithoutRegistry();
@@ -151,14 +152,16 @@ namespace Hrot.SimHost.Tests
             var assetId2 = Guid.Parse("55555555-5555-5555-5555-555555555555");
             var entity = _repo.CreateEntity();
 
+            var dtos = new List<BlueprintAssignmentDto>
+            {
+                new() { AssetId = assetId1 },
+                new() { AssetId = assetId2 },
+            };
+            var jsonArray = System.Text.Json.JsonSerializer.SerializeToNode(dtos)
+                as System.Text.Json.Nodes.JsonArray;
             var scenarioData = new Dictionary<string, object>
             {
-                ["BlueprintAssignments"] = System.Text.Json.JsonSerializer.SerializeToElement(
-                    new[]
-                    {
-                        new { AssetId = assetId1.ToString() },
-                        new { AssetId = assetId2.ToString() },
-                    }),
+                ["BlueprintAssignments"] = jsonArray!,
             };
 
             var translator = CreateTranslatorWithoutRegistry();
@@ -268,6 +271,98 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(def);
             Assert.NotEqual(Guid.Empty, def!.AssetId);
             Assert.Equal(assetId, def.AssetId);
+        }
+
+        // ═══ Save/Load round-trip via ScenarioSerializer ═══════════════════════
+
+        [Fact]
+        public void SaveLoad_RoundTrip_BlueprintsPreserved()
+        {
+            var assetId1 = Guid.Parse("77777777-7777-7777-7777-777777777777");
+            var assetId2 = Guid.Parse("88888888-8888-8888-8888-888888888888");
+            int bpId1 = RegisterTestBlueprint("SaveBp1", assetId1, stateSize: 32);
+            int bpId2 = RegisterTestBlueprint("SaveBp2", assetId2, stateSize: 32);
+
+            // 1. Create entity with blueprints attached
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, default(BlueprintBlackboard1024));
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId1, entity);
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId2, entity);
+
+            // 2. Extract via translator
+            var translator = new BlueprintStateTranslator(_registry);
+            var extracted = translator.Extract(_repo, entity, new StubGuidResolver());
+
+            // 3. Verify extract output
+            Assert.True(extracted.ContainsKey("BlueprintAssignments"));
+            var jsonArray = extracted["BlueprintAssignments"] as System.Text.Json.Nodes.JsonArray;
+            Assert.NotNull(jsonArray);
+
+            // 4. Inject into a fresh repo
+            var loadRepo = new EntityRepository();
+            loadRepo.RegisterManagedComponent<InitialBlueprintsIntent>();
+            var loadEntity = loadRepo.CreateEntity();
+
+            translator.Inject(loadRepo, loadEntity, extracted, new StubGuidResolver());
+
+            // 5. Verify intent was set
+            Assert.True(loadRepo.HasManagedComponent<InitialBlueprintsIntent>(loadEntity));
+            var intent = ((Fdp.ModuleHost.Abstractions.ISimulationView)loadRepo)
+                .GetManagedComponentRO<InitialBlueprintsIntent>(loadEntity);
+            Assert.NotNull(intent);
+            Assert.Equal(2, intent!.Blueprints.Count);
+            Assert.Contains(intent.Blueprints, d => d.AssetId == assetId1);
+            Assert.Contains(intent.Blueprints, d => d.AssetId == assetId2);
+        }
+
+        [Fact]
+        public void SaveLoad_ScenarioSerializer_RoundTrip_BlueprintsPresent()
+        {
+            var assetId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+            int bpId = RegisterTestBlueprint("SerBp", assetId, stateSize: 32);
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, default(BlueprintBlackboard1024));
+            BlueprintInstanceService.AttachToEntity(_repo, _registry, bpId, entity);
+
+            var builder = new ScenarioSerializerBuilder("TestSubsystem");
+            builder.RegisterTranslator(new BlueprintStateTranslator(_registry));
+            var serializer = builder.Build();
+
+            var header = new ScenarioHeader("TestSubsystem");
+            var dom = serializer.Serialize(_repo, header);
+
+            var json = dom.ToJsonString();
+            Assert.Contains("BlueprintAssignments", json);
+            Assert.DoesNotContain("BlueprintBlackboard1024", json);
+
+            var loadRepo = new EntityRepository();
+            loadRepo.RegisterComponent<BlueprintBlackboard1024>();
+            loadRepo.RegisterComponent<BlueprintBlackboard4096>();
+            loadRepo.RegisterComponent<BlueprintBlackboard16384>();
+            loadRepo.RegisterManagedComponent<InitialBlueprintsIntent>();
+
+            serializer.Deserialize(loadRepo, dom);
+
+            var loadedEntity = GetSingleEntity(loadRepo);
+            Assert.True(loadRepo.HasManagedComponent<InitialBlueprintsIntent>(loadedEntity),
+                "Deserialize should set InitialBlueprintsIntent via translator Inject");
+
+            var intent = ((Fdp.ModuleHost.Abstractions.ISimulationView)loadRepo)
+                .GetManagedComponentRO<InitialBlueprintsIntent>(loadedEntity);
+            Assert.NotNull(intent);
+            Assert.Single(intent!.Blueprints);
+            Assert.Equal(assetId, intent.Blueprints[0].AssetId);
+        }
+
+        private static Entity GetSingleEntity(EntityRepository repo)
+        {
+            for (int i = 0; i <= repo.MaxEntityIndex; i++)
+            {
+                var e = new Entity(i, repo.GetMetadata(i).Generation);
+                if (repo.IsAlive(e)) return e;
+            }
+            throw new InvalidOperationException("No alive entity found.");
         }
     }
 

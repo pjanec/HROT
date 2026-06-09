@@ -407,13 +407,16 @@ public sealed class EntityBlueprintsEditModelTests : IDisposable
         var translator = new BlueprintStateTranslator(_registry);
         var extract = translator.Extract(_repo, entity, null!);
         Assert.True(extract.ContainsKey("BlueprintAssignments"));
-        var assignments = (List<Dictionary<string, object>>)extract["BlueprintAssignments"];
-        Assert.Equal(2, assignments.Count);
+        var jsonArray = extract["BlueprintAssignments"] as System.Text.Json.Nodes.JsonArray;
+        Assert.NotNull(jsonArray);
+        var assignments = System.Text.Json.JsonSerializer.Deserialize<List<BlueprintAssignmentDto>>(jsonArray);
+        Assert.NotNull(assignments);
+        Assert.Equal(2, assignments!.Count);
 
-        var ids = assignments.Select(a => Guid.Parse((string)a["AssetId"])).ToHashSet();
+        var ids = assignments.Select(a => a.AssetId).ToHashSet();
         Assert.Contains(_assetIdA, ids);
         Assert.Contains(_assetIdB, ids);
         foreach (var a in assignments)
-            Assert.False(a.ContainsKey("Overrides"));
+            Assert.Null(a.Overrides);
     }
 }
