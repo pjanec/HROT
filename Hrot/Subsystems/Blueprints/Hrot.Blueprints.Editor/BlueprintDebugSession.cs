@@ -123,7 +123,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             _history[self] = hist = new ExecutionHistory();
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
 
-        _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
+        // Don't fire overlay updates after we've already paused (e.g. temp BP hit
+        // earlier this tick).  Without this the overlay shows the last-executed node
+        // (which may be after the probe that triggered the pause), not the
+        // pause-triggering node itself.
+        if (!_isPaused)
+            _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
 
         // CF-6: Check temporary breakpoints FIRST. When stepping, suppress user breakpoints.
         if (_tempBreakpoints.Count > 0)
