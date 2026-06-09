@@ -215,6 +215,12 @@ menu exist. Also: conditional breakpoints, value editing at pause, cross-peer st
 > The earlier "probe coverage" theory in STATUS.md was built on a **wrong node-ID table** and is superseded.
 > See the corrected diagnosis below. These CF batches fix the actual compiler bug.
 
+> 📐 **DESIGN OF RECORD: [`DEBUG-DD-ADDENDUM.md`](./DEBUG-DD-ADDENDUM.md).** Read it first — it is the authoritative
+> design; the batches below are the implementation sequence against it. Section map:
+> CF-2/CF-4 → §2 (node identity) + §3 (granularity); CF-7-rev → §4 (instrumentation); CF-6 → §6 (stepping);
+> CF-8 → §5 (storage/lifecycle) + §7 (persistence) + §8 (multi-instance); the §1 execution/pause model underlies
+> all of them. Where this file and the addendum differ, **the addendum wins** — update it, then the task.
+
 ## The confirmed bug (read this before touching anything)
 
 **Symptom:** user sets a breakpoint on a node (red marker appears), runs the sim, it never pauses.
@@ -512,3 +518,239 @@ between the panel section and `DebugPanelWindow`.
 
 **User smoke:** hit a breakpoint (e.g. on Delay) → in the Blueprint Tools panel press Continue → sim resumes; press
 Step Over → sim advances one tick and re-pauses.
+
+---
+
+## Batch CF-6 — Real stepping via temporary breakpoint on the next node
+
+**Depends on:** CF-4 (breakpoint↔block-probe translation) + CF-5 (buttons). **Priority:** HIGH (stepping is broken).
+
+**Symptom:** Step Over/Into/Out don't advance to the next executable node — the sim just runs one tick and
+re-pauses at the same/first node. Continue (run to next breakpoint) works.
+
+**Root cause:** the current step logic steps **one tick** (`RequestStepOneTick` → `_masterSync.Step(1/60s)`) and
+re-matches in `OnNodeEnter` on the first probed node of the next tick — which, because the graph re-executes from
+entry every tick, is the top of the loop, not the successor of the paused node.
+
+**Correct model (conventional debugger, adapted to this engine):** stepping sets a **temporary breakpoint on the
+next executable node(s)** in execution order, resumes, pauses when one is hit, and clears the temporaries. Works
+with soft-pause: the pause still lands at a tick boundary, but the execution **cursor** advances to the next node
+(and across a Delay it advances real time). Intra-tick variable state is not separately observable (whole-tick
+rewind) — that is inherent and acceptable; stepping is for following control flow.
+
+**Design:**
+1. **Compute the next exec node(s).** The editor graph model has the exec wires (authoritative, already loaded).
+   When paused at node X (`_session.PausedAt.NodeId`), compute X's immediate exec successor node id(s) by following
+   X's exec-output pin links in the open graph. For multi-successor nodes (Sequence/Branch) include all immediate
+   exec successors — the step pauses at whichever executes first.
+   - **Slice-1 scope:** Step Over / Into / Out converge to "next exec node" because cross-peer-call stepping is out
+     of scope (Debug DD §1.3). Implement one `Step()` and wire all three buttons to it for now; keep the call-depth
+     hooks (`_currentCallDepth`) intact so true Over/Out can be added later. Document this in the code.
+2. **Add a temporary-breakpoint API to the session.** e.g. `SetTemporaryBreakpoints(IEnumerable<(Guid asset, Guid
+   graph, Guid node)>)` that registers one-shot breakpoints (translated through CF-4 `BreakpointTargets`), and on
+   the first hit: pause, then **auto-clear all temporaries**. Temporaries must not appear in `GetBreakpoints()` /
+   the gutter markers (they are invisible step targets, not user breakpoints).
+3. **Suppress the origin node for the step pass.** Because the graph re-executes from entry each tick, the resumed
+   run will re-reach X before the successor. For the step pass, **honor only the temporary step targets** and
+   suppress user breakpoints (including X) until a temp is hit; then restore user breakpoints. (Simpler and more
+   predictable than skip-once; flag the choice in code. Without this, Step immediately re-pauses at X.)
+4. **Resume, don't single-tick.** Step calls `RequestResume()` (run until a temp target hits), not
+   `RequestStepOneTick()`. The temp target's probe fires (this tick if synchronous, or a later tick across a
+   Delay), pausing at the boundary with the cursor on the successor.
+5. **Replace** the current `_stepMode` tick-matching path in `OnNodeEnter` with the temp-breakpoint mechanism (or
+   re-implement `_stepMode` to set/clear temporaries). Remove now-dead tick-step matching.
+
+**Tests:**
+- Headless: paused at a node with a known successor → `Step()` registers a temporary on the successor's probe id,
+  suppresses user breakpoints, resumes; simulating the successor's `OnNodeEnter` pauses and clears the temporary;
+  user breakpoints are restored and `GetBreakpoints()` never included the temporary.
+- A 3-node linear exec chain (Entry→A→B): breakpoint on A, Step → pauses at B (not A); Step again → past B.
+- Stepping does not re-pause at the origin node.
+
+**SUCCESS CONDITION (CF-6):** build 0 errors; tests pass 0 net-new failures; in `Count4`, pausing on the Sequence
+then Step advances the executing-node cursor to the next exec node (visible in the runtime overlay), not back to the
+top; temporaries never show as user breakpoints.
+
+**User smoke:** hit a breakpoint → Step → the gold "executing node" highlight moves to the next node and the sim
+re-pauses there; repeat to walk the graph; Continue still runs to the next user breakpoint.
+
+---
+
+## ~~Batch CF-7 — Debug-instrument the dev build (generator)~~ — SUPERSEDED
+
+**Superseded 2026-06-09 by CF-7-rev + CF-8.** The original plan (make the MSBuild source generator emit Debug
+probes + bake the DebugMap into the assembly) was the wrong tool: blueprint debugging is **purely interactive
+(editor-only)**, so there is no need to bake instrumentation into the production build. Instead the editor
+instruments **in memory, on demand** (CF-7-rev) and persists the session to a file (CF-8). The generator stays
+Release; production artifacts are untouched. (Root cause for the record: `BlueprintIncrementalGenerator.cs:86,107`
+hardcodes `CompilerMode.Release` + `DebugMap:null` — left as-is.)
+
+---
+
+## Batch CF-7-rev — Auto in-memory instrumentation on demand
+
+**Depends on:** CF-4. **Priority:** HIGH. **Replaces:** CF-7.
+
+**Goal:** breakpoints become hittable **without the user ever clicking Compile** — including on a fresh editor with
+precompiled (Release) artifacts — by transparently doing an in-memory Debug/Trace Quick Reload of an asset the
+moment debugging becomes active for it.
+
+**Reuse (already exists — do NOT rebuild):**
+- Per-asset compile mode → Quick Reload: `QuickReloadService.cs:64` already compiles with
+  `asset.EditorMetadata.CompilerMode` (added in Batch D). So setting that property + invoking Quick Reload
+  re-emits instrumented code in memory and registers the DebugMap (`QuickReloadService` → `RegisterDebugMap`).
+
+**Design:**
+1. **Trigger points.** When an asset transitions from "no breakpoints/watches" → "has at least one" (first
+   `SetBreakpoint`/`AddWatch`, or restore from the CF-8 session file), and the asset's current running build is not
+   already instrumented for the needed mode, the editor:
+   a. sets `asset.EditorMetadata.CompilerMode` to the **needed mode** (see #2),
+   b. invokes Quick Reload for that asset (in-memory Debug/Trace compile → probes + DebugMap registered),
+   c. (re-)applies the breakpoints/watches via the session (CF-4 translation).
+   Debounce: reload **once** on the 0→active transition (and on restore), not on every toggle.
+2. **Mode selection per asset.** Node breakpoints **and conditional data breakpoints** need only **Debug** —
+   conditions are evaluated by `DataBreakpointSystem` against ECS state (`QueryDelta`), NOT via pin probes, so they
+   must **not** force Trace. **Only pin-value Watches** need **Trace** (it emits `PinValueChanged` and boxes pin
+   values — real per-tick cost). Rule: `Trace` iff the asset has an active Watch; otherwise `Debug`. (Addendum §4.)
+3. **De-instrument policy (DECISION — default chosen):** when the **last** breakpoint/watch on an asset is removed,
+   **leave it instrumented until the asset/editor closes** (simpler; Debug overhead is low). *Alternative:* revert
+   `CompilerMode` to the default and Quick Reload back to Release to drop probe overhead. Default = leave
+   instrumented; flag for lead if perf matters.
+4. **Zero overhead until debugging.** Before any breakpoint is placed, assets keep running their existing
+   (Release) build — no probes, no recompile. Instrumentation happens lazily, per asset, only when needed.
+5. **Fresh-editor path** is just CF-8 restore → trigger #1 for each asset that has saved breakpoints. No manual
+   Compile, no generator change.
+
+**Tests:**
+- Headless: with an asset running un-instrumented, `SetBreakpoint` on an exec node triggers a Quick Reload with
+  `CompilerMode.Debug`, after which a tick fires the node's probe and pauses (use the existing fixture +
+  `MockTimeController`). Removing all breakpoints does not crash (and, per default policy, leaves it instrumented).
+- Mode selection: an asset with only node breakpoints → Debug; with a pin watch → Trace.
+
+**SUCCESS CONDITION (CF-7-rev):** build 0 errors; 0 net-new failures; placing a breakpoint on an exec node of a
+not-yet-debugged asset causes the sim to pause on it **without a manual Compile**; production/Release build path and
+the generator are unchanged.
+
+**User smoke:** start sim (no Compile) → set a breakpoint on Sequence → sim pauses on it (editor auto-instrumented
+in the background). Full Rebuild then set a breakpoint → still pauses.
+
+---
+
+## Batch CF-8 — Persist & restore the debug session (breakpoints, data breakpoints, watches)
+
+**Depends on:** CF-4; pairs with CF-7-rev. **Priority:** HIGH.
+
+**Goal:** the user's debug session — node breakpoints, **data breakpoints including their JIT-compiled conditions**,
+and watches — survives editor restarts via a file, and is restored (and auto-instrumented via CF-7-rev) on open.
+
+### Storage model (THE core invariant — architect-confirmed + code-verified; implement first)
+
+**The `DataBreakpointManager` is the load-independent durable owner of breakpoint records** (architect-confirmed,
+verified in code): it retains each breakpoint's `SearchPredicateDto` + `DisplayName` + `SourceElementId` (the node
+association) + `Enabled`/`IsWatch`/`IsBroken`, independent of whether the asset is loaded/compiled. The
+`BlueprintDebugSession` is the **node-breakpoint + canvas + probe-match layer** that forwards to the manager
+(`AddBreakpoint(ExternalHitTagPredicateDto{Tag=nodeId}, sourceElementId: nodeId)`) and renders markers; the
+per-document `BlueprintDebugToNodeEditAdapter` is a filtered canvas view. Breakpoints are keyed by
+`(assetId, graphId, authoredNodeId)` — **per asset, entity-agnostic.**
+
+Reuse the manager's **existing** pending/remount machinery — do NOT reinvent it in the session:
+- `OnHotReloadCompleted()` (`DataBreakpointManager.cs:394`) already drops stale delegates, **re-mounts from the
+  retained DTOs**, and sets `IsBroken` on failure while keeping the DTO. This IS the lazy-activation / pending
+  mechanism. Ensure it is invoked on every asset (re)load/compile in the editor reload cycle (verify the wiring —
+  it must fire after `RegisterDebugMap`).
+- A breakpoint whose delegate isn't mounted (compile failed / asset not loaded) is **`IsBroken`/pending = never
+  fires** but is retained — exactly "inert until a clean map arrives." No data loss on load order.
+
+Required behaviors / gaps to close:
+- **Entity-agnostic:** one breakpoint per node fires for **every** entity running that blueprint (probe matches on
+  node id, not entity). First entity to reach it this tick pauses; `_firedBreakpointsThisTick` dedups the rest;
+  `_pausedOnEntity` records the triggering entity for the snapshot. Per-entity scoping stays optional via the
+  existing `SetEntityFilter`. **Do NOT add per-entity/per-instance storage.**
+- **Authored id is the durable key; the runtime match index is derived.** `BlueprintDebugSession._bpByNodeString`
+  (keyed by the CF-4 *block-probe* id) is rebuilt per asset whenever that asset's DebugMap (re)registers.
+- **`RegisterDebugMap(asset)` re-resolves the session's node breakpoints** (authored id → block-probe id via
+  `BreakpointTargets`) and rebuilds the match-dict; **`SetBreakpoint` tolerates "no map yet"** (store pending,
+  activate on next register). Per **BPF-003**, on a structure-hash change mark stale (retain, don't clear) — UX is
+  **"stale but retained": disabled + yellow warning marker**, user re-binds or discards; orphaned probe calls are
+  defensively ignored (no throw).
+- **On restore (CF-8):** load into the `DataBreakpointManager` (recompile DTOs; `IsBroken` on fail), then the
+  session rebuilds its node-breakpoint records + canvas markers from the manager's breakpoints that carry a node
+  `SourceElementId`. Manager `OnHotReloadCompleted` + `RegisterDebugMap` then bind them as assets load.
+
+**Reuse (already exists — extend, don't reinvent):**
+- `Hrot.Diagnostics.Breakpoints/WatchPersistence.cs` already serializes `Breakpoint` records **with their
+  `SearchPredicateDto Condition`** to JSON and loads them back (`Save`/`TryLoad`); the condition DTOs are
+  polymorphic (`[JsonDerivedType]` on `SearchPredicateDto`) — **the hard part (serializing JIT conditions) is
+  solved.** We persist the predicate **DTO** (the source spec) and recompile via `PredicateCompiler` on load — never
+  serialize the compiled delegate.
+- `DataBreakpointManager`: `AllBreakpoints` (enumerate, each carries `.Condition`/`.DisplayName`), `AddBreakpoint(dto, …)`
+  (restore), and an existing restore loop (`DataBreakpointManager.cs:369`).
+- `BreakpointJsonClipboard.cs` — existing polymorphic breakpoint (de)serialization to mirror.
+
+**Design:**
+1. **Define the session file model.** A JSON document holding: (a) blueprint **node breakpoints** from
+   `BlueprintDebugSession` (assetId, graphId, **authored** nodeId, enabled) — store the *authored* clicked node id,
+   not the translated probe id, so it round-trips and re-translates via CF-4 on load; (b) **data breakpoints** from
+   `DataBreakpointManager` (the `SearchPredicateDto Condition` + DisplayName + any entity filter + asset
+   association); (c) **watches** (assetId, graphId, pinId, displayName, expectedType). Generalize `WatchEntry`/
+   `WatchPersistence` rather than adding a parallel format.
+2. **Save triggers.** Save on change (debounced) AND on editor/asset close, so a crash doesn't lose state.
+3. **File location/scope (DECISION — default chosen):** **user-local, not committed** — write to a gitignored path
+   (e.g. `<project>/.debug/<project-or-asset>.bpsession.json`) or the editor's per-user data dir. *Alternative:*
+   commit it (team-shared). Default = user-local + add the path to `.gitignore`. Flag for lead.
+4. **Restore on open.** On editor startup / asset open: `TryLoad` the file; for each asset with entries, invoke the
+   **CF-7-rev** trigger (set CompilerMode, Quick Reload → probes + map), then re-register node breakpoints
+   (`SetBreakpoint`, CF-4-translated), data breakpoints (`DataBreakpointManager.AddBreakpoint(dto)`), and watches
+   (`AddWatch`). Restore must be resilient to a node/pin that no longer exists (skip + log; mark stale, mirroring
+   the existing `IsStale` handling) — do not throw.
+5. **No silent loss.** If a saved breakpoint's node id is no longer in the (post-restore) DebugMap, keep it in the
+   session as **stale/disabled** with a hint, rather than dropping it.
+
+**Tests:**
+- Round-trip: a session with a node breakpoint + a **conditional data breakpoint** (a `CompoundPredicateDto` with a
+  `BlueprintVariablePredicateDto`) + a watch → `Save` → `TryLoad` → re-register reproduces the same breakpoints
+  (assert the data breakpoint's condition DTO round-trips and recompiles via `PredicateCompiler`).
+- Restore on a graph where one saved node id is missing → that entry is marked stale, others restore, no throw.
+- Integration with CF-7-rev: restoring a session for an un-instrumented asset triggers a Debug Quick Reload and the
+  breakpoint then pauses on a tick.
+
+**SUCCESS CONDITION (CF-8):** build 0 errors; 0 net-new failures; a debug session (incl. a JIT-conditional data
+breakpoint) saved, editor restarted, restored, and **without any manual Compile** the breakpoints are active and
+pause the sim; missing-node entries degrade to stale, not lost.
+
+**User smoke:** set node + conditional data breakpoints + a watch → close editor → reopen → breakpoints/watches are
+back and the sim pauses on them with no manual Compile.
+
+---
+
+## Batch CF-9 — Debug DD addendum (LEAD-authored) — DRAFTED UP FRONT ✅
+
+**Author:** lead (design doc, not a code batch). **Status:** the design has been **written first** (design-before-
+implementation) at [`DEBUG-DD-ADDENDUM.md`](./DEBUG-DD-ADDENDUM.md); it is the design of record that CF-6/CF-7-rev/
+CF-8 implement against and that feeds NotebookLM. **Remaining CF-9 step:** after CF-6/CF-7-rev/CF-8 land,
+**reconcile** the addendum with any implementation deltas (note anything that diverged, keep it the source of
+truth). Below is the section list it must keep covering.
+
+**Required sections:**
+1. **Node identity & breakpoint targeting.** Authored node id vs. compiler-synthesized/remapped ids; the CF-4
+   `BreakpointTargets` (authored → block-probe id) map; `OriginNodeId`/`IrBlock.SourceNodeId` provenance;
+   markers stay on the clicked node while matching uses the block-probe id. (Corrects the prior wrong assumption
+   that editor and runtime share node ids 1:1.)
+2. **Breakpoint granularity & semantics.** Exec-only, **block-granular**; the engine's **soft whole-tick pause +
+   pre-tick rewind** model; why pure/data nodes are not breakpoint targets; why per-statement granularity is N/A.
+3. **Instrumentation model.** In-memory Debug/Trace Quick Reload **on demand** (first breakpoint / restore);
+   generator stays Release; no manual Compile; production builds uninstrumented.
+4. **Stepping.** Temporary-breakpoint-on-next-exec-node model; origin-suppression during a step; Over/Into/Out
+   scope (converge in Slice-1; call-depth for later).
+5. **Storage & lifecycle.** `DataBreakpointManager` as load-independent durable owner; entity-agnostic node-keyed
+   storage (one breakpoint → all instances; `SetEntityFilter` for scoping); pending/inert (`IsBroken`, null
+   delegate) until a clean map; **BPF-003 stale-but-retained** (disabled + yellow marker, user re-binds/discards);
+   `RegisterDebugMap` + `OnHotReloadCompleted` as activation/remount points.
+6. **Persistence.** Per-user, gitignored `breakpoints.json`/`watches.json` alongside `.bp.json`; DTO-based (save
+   the predicate spec, recompile via `PredicateCompiler` on load — never the delegate); restore flow + load-order
+   independence; excluded from `[...Layout]`/asset files.
+7. **Multi-instance behavior.** Two entities of one blueprint share a breakpoint; first-to-reach pauses; dedup;
+   `_pausedOnEntity` selects the inspected instance.
+
+Note for the DD: per the architect, Slice-1 was "in-memory, cleared on close"; CF-7-rev/CF-8 **bring the Slice-2
+persistence forward** — call this out so the DD's Slice boundaries stay coherent.
