@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
+using System.Text.Json;
 using Fbt;
 using Fbt.HotReload;
 using Fbt.Runtime;
@@ -97,7 +98,11 @@ using Fdp.Toolkit.Combat.Translators;
 using Hrot.Editor.Commands;
 using Hrot.Common.Events;
 using Hrot.Diagnostics.Breakpoints;
+using Hrot.Blueprints.Core;
+using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Editor.Debug;
+using Hrot.Blueprints.Editor.Reload;
 using StructEdit.Reflection;
 using Fdp.Toolkit.ReplayBrowser.Search;
 // AIE-015: shared AI editor infrastructure
@@ -269,6 +274,9 @@ namespace Hrot.Editor
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
         // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
+        // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
+        private QuickReloadService? _blueprintQuickReloadService;
+        private Hrot.Blueprints.Editor.IAssetCatalog? _blueprintAssetCatalog;
         // BF-UX1 FIX A: gate auto-reload on edit; defaults false so node moves/edits do NOT trigger
         // a Roslyn compile. The user compiles via the toolbar Quick Reload / Full Rebuild buttons.
         // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
@@ -2469,6 +2477,7 @@ namespace Hrot.Editor
                     ? System.IO.Path.Combine(quickReloadProjectDir, "Blueprints")
                     : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
                 var qrsCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpDir);
+                _blueprintAssetCatalog = qrsCatalog;
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();
                 var qrsConsole = _hotReloadSource != null
                     ? (Hrot.Blueprints.Editor.IOutputConsole)new MessageLogOutputConsole(_hotReloadSource)
@@ -2488,6 +2497,63 @@ namespace Hrot.Editor
                     qrsCompiler,
                     qrsCoordinator,
                     session: _blueprintDebugSession);
+                _blueprintQuickReloadService = quickReloadService;
+
+                // ── CF-7-rev: Auto-instrumentation callback ───────────────────────────────────
+                // When a breakpoint or watch is set on an asset that has no DebugMap yet,
+                // the session fires this callback to trigger a Debug/Trace QuickReload in-memory.
+                // The user does not need to manually click "Compile" — instrumentation is on-demand.
+                if (_blueprintDebugSession != null)
+                {
+                _blueprintDebugSession.SetInstrumentationCallback(async (Guid assetId, Hrot.Blueprints.Core.Compiler.CompilerMode mode) =>
+                {
+                    var bpLog = _hotReloadSource != null
+                        ? (Hrot.Blueprints.Editor.IOutputConsole)new MessageLogOutputConsole(_hotReloadSource)
+                        : new Hrot.Blueprints.Editor.SystemConsoleOutputConsole();
+
+                    try
+                    {
+                        // Find the asset file by ID in the catalog.
+                        string? filePath = null;
+                        foreach (var entry in _blueprintAssetCatalog.EnumerateAll())
+                        {
+                            if (entry.AssetId == assetId)
+                            {
+                                filePath = entry.Path;
+                                break;
+                            }
+                        }
+
+                        if (filePath == null)
+                        {
+                            bpLog.LogWarning($"Auto-instrumentation: asset {assetId} not found in catalog.");
+                            return;
+                        }
+
+                        // Load the asset from disk using BlueprintJsonServices.
+                        // CRITICAL: BlueprintJsonServices.Deserialize includes JsonStringEnumConverter,
+                        // AllowTrailingCommas, and ReadCommentHandling.Skip — plain JsonSerializer
+                        // options cannot correctly deserialize .bp.json files.
+                        var json = System.IO.File.ReadAllText(filePath);
+                        var asset = BlueprintJsonServices.Deserialize(json);
+                        if (asset == null)
+                        {
+                            bpLog.LogWarning($"Auto-instrumentation: BlueprintJsonServices returned null for '{filePath}'.");
+                            return;
+                        }
+
+                        // Set the compiler mode and trigger QuickReload in-memory.
+                        asset.EditorMetadata.CompilerMode = mode;
+                        await _blueprintQuickReloadService.TriggerAsync(asset);
+                        bpLog.LogInfo($"Auto-instrumentation: {asset.Name} compiled in {mode} mode.");
+                    }
+                    catch (Exception ex)
+                    {
+                        bpLog.LogError($"Auto-instrumentation failed for asset {assetId}: {ex.Message}");
+                    }
+                });
+                } // if (_blueprintDebugSession != null)
+                // ───────────────────────────────────────────────────────────────────────────
 
                 string? fullRebuildProjectDir = null;
                 var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);

@@ -4,7 +4,9 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Blueprints.Core.Compiler.Emit;
+using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
 
 namespace Hrot.Blueprints.Core.Debug;
 
@@ -72,6 +74,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // Tracks the manager-side BreakpointId for each session-side BreakpointId.
     private readonly Dictionary<BreakpointId, Hrot.Diagnostics.Breakpoints.BreakpointId> _mgrBpIds = new();
+
+    // Instrumentation callback: invoked when a breakpoint or watch is set on an asset
+    // with no DebugMap registered yet, so the editor can transparently compile in the
+    // required mode (Debug / Trace) without the user clicking Compile manually.
+    private Func<Guid, BPCompilerMode, Task>? _onInstrumentationRequested;
 
     public BlueprintDebugSession(
         BlueprintRegistry registry,
@@ -257,6 +264,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
     {
+        // Auto-instrumentation: if no DebugMap yet for this asset, request a Debug compile.
+        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        {
+            _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Debug);
+        }
+
         var nodeIdStr  = nodeId.ToString("D");
         var id         = new BreakpointId(_nextBpId++);
 
@@ -290,7 +303,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         {
             var mgrId = _dataBreakpointManager.AddBreakpoint(
                 new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = probeIdStr },
-                displayName: $"Blueprint node {nodeIdStr}");
+                displayName: $"Blueprint node {nodeIdStr}",
+                sourceElementId: nodeId);  // authored node GUID — needed for CF-8 persistence
             _mgrBpIds[id] = mgrId;
         }
 
@@ -342,6 +356,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     public WatchId AddWatch(Guid assetId, Guid graphId, Guid pinId, string displayName, Type expectedType)
     {
+        // Auto-instrumentation: if no DebugMap yet for this asset, request a Trace compile.
+        // Trace mode includes watch probes + breakpoints. If the asset is already Debug-compiled
+        // the instrumentation service handles upgrading without recompiling if possible.
+        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        {
+            _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Trace);
+        }
+
         var id    = new WatchId(_nextWatchId++);
         var watch = new Watch(id, assetId, graphId, pinId, displayName, expectedType);
         _watches[id]                           = watch;
@@ -396,6 +418,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 _mgrBpIds[bp.Id] = mgrId;
             }
         }
+    }
+
+    /// <summary>
+    /// Sets the instrumentation callback that is invoked when a breakpoint or watch is set
+    /// on an asset that has no <see cref="DebugMap"/> registered yet. The callback receives
+    /// the asset id and the required <see cref="CompilerMode"/>.
+    /// This is an implementation detail of <see cref="BlueprintDebugSession"/> — it is NOT
+    /// on <see cref="IBlueprintDebugSession"/>. Test code can set it via a cast.
+    /// </summary>
+    public void SetInstrumentationCallback(Func<Guid, BPCompilerMode, Task>? callback)
+    {
+        _onInstrumentationRequested = callback;
     }
 
     // ---- IBlueprintDebugSession -- active entity tracking ------------------
@@ -694,6 +728,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 watch.IsStale = true;
         }
         _debugMaps[map.AssetId] = index;
+
+        // CF-7-rev: re-resolve tentative breakpoints' ProbeNodeId now that the DebugMap
+        // has arrived. Without this, breakpoints set before the first compile would never
+        // match the runtime probe id (they'd keep the authored node id as fallback).
+        ReResolveBreakpointsForAsset(map.AssetId, index);
     }
 
     public void UnregisterDebugMap(Guid assetId)
@@ -789,6 +828,70 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         }
     }
 
+    /// <summary>
+    /// Re-resolves tentative breakpoints for the given asset after a <see cref="DebugMap"/>
+    /// has been registered. Breakpoints set before the map arrived use the authored node id
+    /// as a fallback <see cref="Breakpoint.ProbeNodeId"/>; after the map arrives, this method
+    /// updates them to the correct block-probe id from <see cref="DebugMapIndex.BreakpointTargets"/>,
+    /// re-keys the <c>_bpByNodeString</c> lookup, and re-forwards to <c>_dataBreakpointManager</c>.
+    /// </summary>
+    private void ReResolveBreakpointsForAsset(Guid assetId, DebugMapIndex index)
+    {
+        var assetBps = _breakpoints.Values
+            .Where(b => b.AssetId == assetId)
+            .ToList();
+
+        foreach (var bp in assetBps)
+        {
+            // Parse the authored node id from bp.NodeId.
+            if (!Guid.TryParse(bp.NodeId, out var authoredNodeId))
+                continue;
+
+            // Determine the correct probe id from BreakpointTargets.
+            string newProbeId;
+            if (index.BreakpointTargets.TryGetValue(authoredNodeId, out var blockProbeId))
+                newProbeId = blockProbeId.ToString("D");
+            else
+                continue; // authored node is not in BreakpointTargets → leave as-is
+
+            string oldProbeId = string.IsNullOrEmpty(bp.ProbeNodeId) ? bp.NodeId : bp.ProbeNodeId;
+
+            // No change needed.
+            if (oldProbeId == newProbeId)
+                continue;
+
+            // Remove from old probe-keyed lookup.
+            if (_bpByNodeString.TryGetValue(oldProbeId, out var list))
+            {
+                list.Remove(bp);
+                if (list.Count == 0)
+                    _bpByNodeString.Remove(oldProbeId);
+            }
+
+            // Update the breakpoint record.
+            var updated = bp with { ProbeNodeId = newProbeId, IsStale = false };
+            _breakpoints[bp.Id] = updated;
+
+            // Add to new probe-keyed lookup.
+            if (!_bpByNodeString.TryGetValue(newProbeId, out var newList))
+                _bpByNodeString[newProbeId] = newList = new List<Breakpoint>();
+            newList.Add(updated);
+
+            // Re-forward to DataBreakpointManager with the correct probe id.
+            if (_dataBreakpointManager != null && _mgrBpIds.TryGetValue(bp.Id, out var mgrId))
+            {
+                _dataBreakpointManager.Remove(mgrId);
+                _mgrBpIds.Remove(bp.Id);
+
+                var newMgrId = _dataBreakpointManager.AddBreakpoint(
+                    new ExternalHitTagPredicateDto { Tag = newProbeId },
+                    displayName: $"Blueprint node {bp.NodeId}",
+                    sourceElementId: authoredNodeId);
+                _mgrBpIds[updated.Id] = newMgrId;
+            }
+        }
+    }
+
     // BPF-003: increments HitCount without triggering a new pause (same-tick dedup path).
     private void IncrementHitCountOnly(Breakpoint bp)
     {
@@ -816,10 +919,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
             var assetId = updated.AssetId;
 
-            if (_dataBreakpointManager != null)
-                _dataBreakpointManager.OnExternalHit(nodeId, self);
-            else
-                _timeController.RequestPause();
+            // Session always requests pause directly via its own time controller,
+            // independent of DataBreakpointManager's internal _isPaused flag
+            // (which can drift and block re-hits after Continue).
+            _timeController.RequestPause();
+            _dataBreakpointManager?.OnExternalHit(nodeId, self);
+
             OnBreakpointHit?.Invoke(new BreakpointHit(
                 self, nodeId, assetId, _view.Time, _view.Tick,
                 ResolveSourceFilePath(assetId, nodeId),
@@ -827,10 +932,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         }
         else
         {
-            if (_dataBreakpointManager != null)
-                _dataBreakpointManager.OnExternalHit(nodeId, self);
-            else
-                _timeController.RequestPause();
+            _timeController.RequestPause();
+            _dataBreakpointManager?.OnExternalHit(nodeId, self);
+
             OnBreakpointHit?.Invoke(new BreakpointHit(
                 self, nodeId, bp.AssetId, _view.Time, _view.Tick,
                 ResolveSourceFilePath(bp.AssetId, nodeId),

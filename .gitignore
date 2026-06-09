@@ -58,3 +58,6 @@ cyclonedds.log
 .codebase-memory
 *.lscache
 build-output.txt
+
+# Blueprint debug session files (user-local, not committed)
+.debug/
