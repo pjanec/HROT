@@ -12,12 +12,17 @@ namespace Hrot.Blueprints.Editor.EntityBlueprints;
 /// <summary>
 /// Thin ImGui window that renders an <see cref="EntityBlueprintsEditModel"/>.
 /// All logic lives in the model; this class only draws UI and executes commit plans.
+///
+/// <para>The optional <c>entityResolver</c> is called each frame before refreshing reality,
+/// so the panel tracks the editor's selection (e.g. the selected map entity). When
+/// <c>null</c> the model is updated externally.</para>
 /// </summary>
 public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 {
     private readonly EntityBlueprintsEditModel _model;
     private readonly EntityRepository _world;
     private readonly BlueprintRegistry _registry;
+    private readonly Func<Entity?>? _entityResolver;
     private bool _isRunning;
 
     public override string Title => "Entity Blueprints";
@@ -25,11 +30,13 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     public EntityBlueprintsPanel(
         EntityBlueprintsEditModel model,
         EntityRepository world,
-        BlueprintRegistry registry)
+        BlueprintRegistry registry,
+        Func<Entity?>? entityResolver = null)
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _world = world ?? throw new ArgumentNullException(nameof(world));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+        _entityResolver = entityResolver;
     }
 
     /// <summary>Set to true when the simulation is running (for commit-timing choice).</summary>
@@ -42,6 +49,22 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     public override void DrawUI()
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+
+        // Resolve the selected entity before refreshing (selection may have changed).
+        if (_entityResolver != null)
+        {
+            var selected = _entityResolver();
+            if (selected.HasValue && selected.Value != default)
+            {
+                _model.SetEntity(selected.Value);
+            }
+        }
+
+        if (!_model.HasValidEntity)
+        {
+            ImGui.TextDisabled("No entity selected. Select an entity on the map to edit its blueprints.");
+            return;
+        }
 
         _model.RefreshReality();
 

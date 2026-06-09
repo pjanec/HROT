@@ -57,7 +57,7 @@ public sealed class EntityBlueprintsEditModel
 {
     private readonly EntityRepository _repo;
     private readonly BlueprintRegistry _registry;
-    private readonly Entity _entity;
+    private Entity _entity;
 
     // ── Public state ──────────────────────────────────────────────────────────
 
@@ -272,6 +272,17 @@ public sealed class EntityBlueprintsEditModel
 
     /// <summary>The entity this model is editing.</summary>
     public Entity GetEntity() => _entity;
+
+    /// <summary>
+    /// Update the entity being edited. Called by the panel when the editor selection
+    /// changes so the model tracks the newly-selected entity without rebuilding.
+    /// </summary>
+    public void SetEntity(Entity entity) => _entity = entity;
+
+    /// <summary>
+    /// True when a valid entity is set (non-null and non-default).
+    /// </summary>
+    public bool HasValidEntity => _entity != default;
 
     /// <summary>Returns the highest tier component present on the entity (B1024 if none).</summary>
     public BlackboardTier GetCurrentTier()

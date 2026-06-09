@@ -40,6 +40,9 @@
   <ItemGroup>
     <Content Include="TestScripts\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Fixtures\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>  </ItemGroup>
 
 </Project>

@@ -35,14 +35,14 @@ builds 0 errors; 0 net-new test failures in touched projects.
 **Goal:** monitor live blueprint state (read-only) and author entity↔blueprint assignments (transactional panel).
 
 - [ ] **BSA-204** Entity Inspector per-tier summary renderers (read-only; replace byte-dump) — *independent* [details](./TASK-DETAIL.md#bsa-204-entity-inspector-per-tier-summary-renderers-read-only-monitoring)
-- [ ] **BSA-205** "Entity Blueprints" authoring panel (reality/intent diff; paused=sync+tier-upgrade, running=events) — *deps BSA-102 + BSA-301* [details](./TASK-DETAIL.md#bsa-205-entity-blueprints-authoring-panel-assign--remove-staged-commit)
+- [x] **BSA-205** "Entity Blueprints" authoring panel (reality/intent diff; paused=sync+tier-upgrade, running=events) — *deps BSA-102 + BSA-301* [details](./TASK-DETAIL.md#bsa-205-entity-blueprints-authoring-panel-assign--remove-staged-commit)
 
 ## Phase 5 — Integration gate
 
 **Goal:** prove the whole pipeline end-to-end.
 
-- [ ] **BSA-401** Scenario round-trip + dynamic swap + resilience + backward-compat (GATE) [details](./TASK-DETAIL.md#bsa-401-end-to-end-scenario-round-trip--dynamic-swap-gate)
-- [ ] **BSA-402** Demo scenario fixture (assign via panel → save → committed test scenario) [details](./TASK-DETAIL.md#bsa-402-demo-scenario-fixture)
+- [x] **BSA-401** Scenario round-trip + dynamic swap + resilience + backward-compat (GATE) [details](./TASK-DETAIL.md#bsa-401-end-to-end-scenario-round-trip--dynamic-swap-gate)
+- [x] **BSA-402** Demo scenario fixture (assign via panel → save → committed test scenario) [details](./TASK-DETAIL.md#bsa-402-demo-scenario-fixture)
 
 ---
 

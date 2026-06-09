@@ -94,6 +94,23 @@ namespace Hrot.SimHost.Serializers
                         }
                     }
                 }
+                else if (assignmentsObj is System.Text.Json.Nodes.JsonArray jsonArray)
+                {
+                    foreach (var item in jsonArray)
+                    {
+                        if (item is System.Text.Json.Nodes.JsonObject jsonObj
+                            && jsonObj.TryGetPropertyValue("AssetId", out var propNode)
+                            && propNode is System.Text.Json.Nodes.JsonValue jsonValue
+                            && jsonValue.TryGetValue(out string? assetIdStr)
+                            && Guid.TryParse(assetIdStr, out var assetId))
+                        {
+                            intent.Blueprints.Add(new BlueprintAssignmentDto
+                            {
+                                AssetId = assetId,
+                            });
+                        }
+                    }
+                }
 
                 repo.SetManagedComponent(entity, intent);
             }

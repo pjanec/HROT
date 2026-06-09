@@ -1,0 +1,12 @@
+{
+  "Schema": "Hrot.Scenario",
+  "Entities": {
+    "a0117e72-0000-0000-0000-000000000001": {
+      "BlueprintAssignments": [
+        {
+          "AssetId": "c0117e72-0000-0000-0000-000000000001"
+        }
+      ]
+    }
+  }
+}

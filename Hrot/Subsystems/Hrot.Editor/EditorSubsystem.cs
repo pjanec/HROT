@@ -2154,6 +2154,21 @@ namespace Hrot.Editor
             _blueprintCompileCallback = compileRegistrar.GetToolbarCallback("Compile / Reload Blueprint");
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── BSA-205: "Entity Blueprints" perspective window ───────────────────────────────
+            // Registered via RegisterExtraWindow so it appears in the Window → Blueprint menu.
+            var entityBpWindow = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsManagedWindow(
+                () =>
+                {
+                    var model = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsEditModel(
+                        _world!, _blueprintRegistry!, Entity.Null);
+                    var panel = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel(
+                        model, _world!, _blueprintRegistry!,
+                        entityResolver: () => _aiEditorSelectionStore?.SelectedEntity);
+                    return panel;
+                });
+            _blueprintRegistrar!.RegisterExtraWindow(windowManager, entityBpWindow);
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
             // Build per-kind save delegates (injected to avoid circular assembly refs, design §PU-602).
             // Blueprint: reuse SaveActiveBlueprintCommand.Save (unchanged write path).

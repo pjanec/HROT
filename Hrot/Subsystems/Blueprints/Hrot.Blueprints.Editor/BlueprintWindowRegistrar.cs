@@ -1,9 +1,6 @@
-using Fdp.Core;
 using Fdp.Presentation.WindowManager;
-using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Debug;
-using Hrot.Blueprints.Editor.EntityBlueprints;
 using Hrot.Blueprints.Editor.Inspector;
 using EngineWindowRegistrar = Fdp.Toolkit.Runner.IWindowRegistrar;
 
@@ -23,16 +20,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
     private readonly IBlueprintDebugSession _session;
     private readonly IBlueprintEditorCoordinator _coordinator;
     private readonly DrawerRegistry _drawerRegistry;
-
-    /// <summary>
-    /// Optional: set before <see cref="RegisterWindows"/> to enable the Entity Blueprints panel.
-    /// </summary>
-    public EntityRepository? World { get; set; }
-
-    /// <summary>
-    /// Optional: set before <see cref="RegisterWindows"/> to enable the Entity Blueprints panel.
-    /// </summary>
-    public BlueprintRegistry? Registry { get; set; }
 
     public BlueprintWindowRegistrar(
         IAssetCatalog catalog,
@@ -77,18 +64,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
         registry.Register("Hot Reload Log",
             () => new HotReloadLogWindow(_coordinator));
 
-        if (World != null && Registry != null)
-        {
-            registry.Register("Entity Blueprints",
-                () =>
-                {
-                    // Placeholder entity: full integration (BSA-401) will resolve
-                    // the selected entity from the inspector / entity picker context.
-                    var entity = World.CreateEntity();
-                    var model = new EntityBlueprintsEditModel(World, Registry, entity);
-                    return new EntityBlueprintsPanel(model, World, Registry);
-                });
-        }
     }
 
     // ---- Fdp.Toolkit.Runner.IWindowRegistrar --------------------------------
