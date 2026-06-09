@@ -9,9 +9,10 @@ using Xunit;
 
 namespace Hrot.SimHost.Tests
 {
-    // ── Minimal test component (ComponentId 206) ──────────────────────────────
+    // ── Minimal test component (test-only ID 266) ─────────────────────────────
+    // NOTE: IDs 265+ are above the production GlobalComponentIds range (max 264).
 
-    [ComponentId(206)]
+    [ComponentId(266)]
     internal struct CkptPos
     {
         public float X, Y, Z;

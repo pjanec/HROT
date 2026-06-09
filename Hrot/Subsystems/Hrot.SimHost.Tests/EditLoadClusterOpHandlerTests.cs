@@ -14,9 +14,11 @@ using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.SimHost.Tests
 {
-    // ── Minimal test component (ComponentId 303, default DataPolicy = Save) ──────
+    // ── Minimal test component (test-only ID 280, default DataPolicy = Save) ──────
+    // NOTE: 280 is above the production GlobalComponentIds range (max 264) AND clear of
+    // the NavFakeIds test range (262-268) — avoids a cross-assembly ComponentId collision.
 
-    [ComponentId(204)]
+    [ComponentId(280)]
     internal struct EditLoadTestPos
     {
         public float X;

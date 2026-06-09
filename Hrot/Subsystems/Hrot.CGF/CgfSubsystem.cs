@@ -299,6 +299,20 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Blueprint registry (shared by materialization system and serializers) ──
         _blueprintRegistry = new BlueprintRegistry();
 
+        // Populate the registry from the generated blueprint registrars in the AI assembly.
+        // skipOnUnknownParam=true: silently skips AiBehaviorFactory.RegisterAll (which expects
+        // IGeographicTransform / NetworkEntityMap); those behaviors are already wired by
+        // CgfBehaviorSetup.LoadFromAiAssembly with proper geo/entity context above.
+        {
+            var bpStaging = new BlueprintRegistryStaging();
+            BlueprintRegistrarScanner.Scan(
+                typeof(Hrot.AI.Behaviors.AiBehaviorFactory).Assembly,
+                bpStaging,
+                new BehaviorRegistry(),
+                skipOnUnknownParam: true);
+            _blueprintRegistry.CommitStaging(bpStaging);
+        }
+
         // Expose the blueprint registry to the Entity Inspector renderers so
         // BlueprintBlackboard* components can show per-tier slot summaries.
         Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;

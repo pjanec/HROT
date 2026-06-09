@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints;
-using Fdp.Toolkit.Blueprints.Attributes;
 using Fhsm.Kernel;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -113,48 +112,10 @@ public sealed class QuickReloadService
             // Step 4: Clear HSM action dispatcher BEFORE registrars run (Patch 3).
             HsmActionDispatcher.ClearAll();
 
-            // Step 5: Invoke registrars into staging buffers.
+            // Step 5: Invoke registrars into staging buffers via the shared scanner.
             var behaviorStaging  = new BehaviorRegistry();
             var blueprintStaging = new BlueprintRegistryStaging();
-
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
-                    continue;
-
-                var method = type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static)
-                          ?? type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-
-                if (method == null) continue;
-
-                var paramInfos = method.GetParameters();
-                var args = new object[paramInfos.Length];
-                for (int i = 0; i < paramInfos.Length; i++)
-                {
-                    if (paramInfos[i].ParameterType == typeof(BlueprintRegistryStaging))
-                        args[i] = blueprintStaging;
-                    else if (paramInfos[i].ParameterType == typeof(BehaviorRegistry))
-                        args[i] = behaviorStaging;
-                    // Patch 4: BlueprintRegistry is forbidden — violates the RCU contract.
-                    else if (paramInfos[i].ParameterType == typeof(BlueprintRegistry))
-                        throw new HotReloadRegistrarException(
-                            "Registrar requests BlueprintRegistry as a parameter, but only " +
-                            "BlueprintRegistryStaging may be injected. Direct access to the live " +
-                            "registry would violate the atomic RCU contract. " +
-                            "Change the registrar's parameter to BlueprintRegistryStaging.");
-                    // Patch 2: HsmActionDispatcher is a static class — cannot be injected.
-                    else if (paramInfos[i].ParameterType == typeof(HsmActionDispatcher))
-                        throw new HotReloadRegistrarException(
-                            "Registrar requests HsmActionDispatcher as a parameter, but it is a " +
-                            "static class and cannot be injected. " +
-                            "Call HsmActionDispatcher.RegisterAction statically from inside Register.");
-                    else
-                        throw new HotReloadRegistrarException(
-                            $"Unknown registrar parameter type: {paramInfos[i].ParameterType.FullName}. " +
-                            "Supported: BlueprintRegistryStaging, BehaviorRegistry.");
-                }
-                method.Invoke(null, args);
-            }
+            BlueprintRegistrarScanner.Scan(assembly, blueprintStaging, behaviorStaging);
 
             // Step 6: Register debug map BEFORE coordinator handoff (Patch 2).
             if (result.DebugMap != null)

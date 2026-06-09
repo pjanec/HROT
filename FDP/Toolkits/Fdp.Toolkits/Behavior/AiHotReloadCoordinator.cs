@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Threading;
 using Fdp.Toolkit.Blueprints;
-using Fdp.Toolkit.Blueprints.Attributes;
 using Fhsm.Kernel;
 
 namespace Fdp.Toolkit.Behavior;
@@ -292,9 +291,20 @@ public sealed class AiHotReloadCoordinator : IDisposable
         var blueprintStaging  = _blueprintRegistry.BeginStaging();
         var behaviorStaging   = new BehaviorRegistry();
 
-        // Step 3: invoke each registrar into the staging registries.
-        foreach (var registrar in pending.Registrars)
-            InvokeRegistrar(registrar, blueprintStaging, behaviorStaging);
+        // Step 3: invoke registrars into the staging registries.
+        // Production path (file watcher): use the shared scanner to discover and invoke
+        // all [BlueprintRegistrar]-decorated classes in the newly loaded assembly.
+        // Test-seam path (EnqueueReloadForTest): pre-built ResolvedRegistrar list is used
+        // directly so unit tests can exercise ApplyReload without loading a physical DLL.
+        if (pending.Registrars.Count > 0)
+        {
+            foreach (var registrar in pending.Registrars)
+                InvokeRegistrar(registrar, blueprintStaging, behaviorStaging);
+        }
+        else
+        {
+            BlueprintRegistrarScanner.Scan(pending.NewAssembly, blueprintStaging, behaviorStaging);
+        }
 
         // Step 4: atomic full-replace commit (file-watcher full-rebuild path).
         _blueprintRegistry.CommitStaging(blueprintStaging);
@@ -359,46 +369,6 @@ public sealed class AiHotReloadCoordinator : IDisposable
             "Supported: BlueprintRegistryStaging, BehaviorRegistry.");
     }
 
-    // ---- Private: registrar discovery --------------------------------------
-
-    /// <summary>
-    /// Scans the assembly for classes with [BlueprintRegistrar].
-    /// ONLY scans for BlueprintRegistrar — explicitly not FbtRegistrar or HsmActionRegistrar.
-    /// Per HR-001 constraint: avoids invoking generated native registrars with missing params.
-    /// </summary>
-    internal IReadOnlyList<ResolvedRegistrar> ScanForRegistrars(Assembly assembly)
-    {
-        var registrars = new List<ResolvedRegistrar>();
-        Type[] types;
-
-        try { types = assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t != null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
-                continue;
-
-            var method =
-                type.GetMethod("Register",    BindingFlags.Public | BindingFlags.Static) ??
-                type.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static);
-            if (method == null) continue;
-
-            var parameters = method.GetParameters()
-                .Select((p, i) => new RegistrarParameter(p.Name ?? $"arg{i}", p.ParameterType, i))
-                .ToList();
-
-            registrars.Add(new ResolvedRegistrar(type, method, parameters));
-        }
-
-        return registrars
-            .OrderBy(r => r.DeclaringType.FullName, StringComparer.Ordinal)
-            .ToList();
-    }
-
     // ---- Private: file watching --------------------------------------------
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
@@ -425,13 +395,15 @@ public sealed class AiHotReloadCoordinator : IDisposable
                 isCollectible: true);
 
             Assembly assembly = LoadAssemblyInto(alc, dllPath);
-            var registrars = ScanForRegistrars(assembly);
 
+            // Registrar discovery + invocation is deferred to the main thread (ApplyReload)
+            // so that BlueprintRegistrarScanner.Scan runs on the main thread and the staging
+            // buffers are never touched from the background thread.
             _pendingReloads.Enqueue(new PendingReload
             {
                 NewAlc      = alc,
                 NewAssembly = assembly,
-                Registrars  = registrars,
+                Registrars  = Array.Empty<ResolvedRegistrar>(),
             });
         }
         catch (Exception ex)
