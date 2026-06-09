@@ -267,19 +267,20 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         => SetBreakpoint(assetId, graphId, nodeId, enabled: true);
 
     /// <summary>
-    /// Overload with explicit <paramref name="enabled"/> flag.
-    /// Used by session restore (CF-8) to restore disabled breakpoints.
-    /// When <c>enabled</c> is <c>false</c>, the breakpoint is still created in the session
-    /// (so the marker can be drawn) and instrumentation is still triggered (so the DebugMap
-    /// exists), but the breakpoint is NOT forwarded to the <see cref="DataBreakpointManager"/>
-    /// and therefore cannot trigger a pause until it is explicitly enabled.
+    /// Overload with explicit <paramref name="enabled"/> and <paramref name="triggerInstrumentation"/> flags.
+    /// Used by session restore (CF-8) to restore disabled breakpoints and defer instrumentation
+    /// to after editor initialization (when QuickReload infrastructure is fully ready).
+    /// When <c>enabled</c> is <c>false</c>, the breakpoint is NOT forwarded to the
+    /// <see cref="DataBreakpointManager"/> and cannot trigger a pause until enabled.
+    /// When <c>triggerInstrumentation</c> is <c>false</c>, the CF-7-rev callback is NOT invoked;
+    /// use <see cref="RequestInstrumentationForPendingAssets"/> later to trigger it.
     /// </summary>
-    public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId, bool enabled)
+    public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId, bool enabled,
+        bool triggerInstrumentation = true)
     {
         // Auto-instrumentation: if no DebugMap yet for this asset, request a Debug compile.
-        // We always trigger instrumentation even for disabled breakpoints so the DebugMap
-        // exists (enabling the marker and making the breakpoint ready when the user enables it).
-        if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
+        // Deferred when triggerInstrumentation is false (restore during editor init).
+        if (triggerInstrumentation && !_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Debug);
         }
@@ -452,22 +453,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     /// <summary>
     /// Restores node breakpoints from a persisted session file.
-    /// Each entry triggers instrumentation (via CF-7-rev callback) so the DebugMap
-    /// is created and the breakpoint becomes active without a manual Compile.
+    /// Instrumentation is deferred — breakpoints are stored tentatively.
+    /// Call <see cref="RequestInstrumentationForPendingAssets"/> after the editor
+    /// is fully initialized to trigger QuickReload for each affected asset.
     /// </summary>
     public void RestoreNodeBreakpoints(IReadOnlyList<Hrot.Diagnostics.Breakpoints.NodeBreakpointEntry> entries)
     {
         foreach (var e in entries)
         {
-            SetBreakpoint(e.AssetId, e.GraphId, e.NodeId, enabled: e.Enabled);
+            // triggerInstrumentation: false — defer to after editor init
+            SetBreakpoint(e.AssetId, e.GraphId, e.NodeId, enabled: e.Enabled,
+                triggerInstrumentation: false);
         }
     }
 
     /// <summary>
     /// Restores watches from a persisted session file.
-    /// Each watch triggers instrumentation (via CF-7-rev callback) so the DebugMap
-    /// is created and the watch becomes active without a manual Compile.
-    /// Skips entries whose expected type cannot be resolved.
+    /// Instrumentation is deferred — call <see cref="RequestInstrumentationForPendingAssets"/>
+    /// after editor init.
     /// </summary>
     public void RestoreWatches(IReadOnlyList<Hrot.Diagnostics.Breakpoints.WatchEntry> entries)
     {
@@ -477,6 +480,41 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             if (expectedType == null)
                 continue; // type not available → skip
             AddWatch(e.AssetId, e.GraphId, e.PinId, e.DisplayName, expectedType);
+        }
+    }
+
+    /// <summary>
+    /// Triggers instrumentation (CF-7-rev) for all assets that have breakpoints
+    /// or watches but no registered <see cref="DebugMap"/>. Call after editor
+    /// initialization is complete and the QuickReload infrastructure is ready.
+    /// </summary>
+    public void RequestInstrumentationForPendingAssets()
+    {
+        if (_onInstrumentationRequested == null) return;
+
+        var pendingAssetIds = new HashSet<Guid>();
+
+        // Collect assets from breakpoints without DebugMap.
+        foreach (var bp in _breakpoints.Values)
+        {
+            if (!_debugMaps.ContainsKey(bp.AssetId))
+                pendingAssetIds.Add(bp.AssetId);
+        }
+
+        // Collect assets from watches without DebugMap.
+        foreach (var w in _watches.Values)
+        {
+            if (!_debugMaps.ContainsKey(w.AssetId))
+                pendingAssetIds.Add(w.AssetId);
+        }
+
+        foreach (var assetId in pendingAssetIds)
+        {
+            // Trace if any watch exists for this asset; otherwise Debug.
+            var mode = _watches.Values.Any(w => w.AssetId == assetId)
+                ? BPCompilerMode.Trace
+                : BPCompilerMode.Debug;
+            _ = _onInstrumentationRequested.Invoke(assetId, mode);
         }
     }
 

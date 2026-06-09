@@ -451,12 +451,19 @@ public sealed class CF8_SessionPersistenceTests : IDisposable
                 return Task.CompletedTask;
             });
 
-            // Restore node breakpoints — this should trigger the callback.
+            // Restore node breakpoints — instrumentation is DEFERRED (triggerInstrumentation: false).
             restoreSession.RestoreNodeBreakpoints(file.NodeBreakpoints);
 
-            // CF-7-rev callback should have been invoked with Debug mode.
+            // Callback should NOT have been invoked during restore (deferred).
+            Assert.False(callbackInvoked,
+                "CF-7-rev callback should NOT be invoked during RestoreNodeBreakpoints (deferred).");
+
+            // Trigger instrumentation for pending assets — this should invoke the callback.
+            restoreSession.RequestInstrumentationForPendingAssets();
+
+            // Now the callback should have been invoked with Debug mode.
             Assert.True(callbackInvoked,
-                "CF-7-rev instrumentation callback was not invoked during restore.");
+                "CF-7-rev instrumentation callback was not invoked by RequestInstrumentationForPendingAssets.");
             Assert.Equal(Hrot.Blueprints.Core.Compiler.CompilerMode.Debug, capturedMode);
 
             // The breakpoint should be in the session.

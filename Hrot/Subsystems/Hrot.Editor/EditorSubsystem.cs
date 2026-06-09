@@ -2565,9 +2565,16 @@ namespace Hrot.Editor
                 // ───────────────────────────────────────────────────────────────────────────
 
                 // ── CF-8: Restore debug session from previous run ─────────────────────────
-                // Must happen AFTER the CF-7-rev callback is wired, so restoring breakpoints
-                // triggers instrumentation for each affected asset.
+                // Must happen AFTER the CF-7-rev callback is wired.
+                // Instrumentation is deferred to after editor init — QuickReload
+                // infrastructure isn't ready during startup (ApplyQuickReload is no-op).
+                // Breakpoints/watches are restored as tentative; a timer fires after the
+                // editor is fully initialized to trigger CF-7-rev instrumentation.
                 RestoreDebugSession();
+                Task.Delay(2000).ContinueWith(_ =>
+                {
+                    _blueprintDebugSession?.RequestInstrumentationForPendingAssets();
+                }, TaskScheduler.Default);
                 // ───────────────────────────────────────────────────────────────────────────
 
                 string? fullRebuildProjectDir = null;
