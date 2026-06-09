@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Toolkit.Blueprints;
@@ -9,14 +12,6 @@ using ImGuiNET;
 
 namespace Hrot.Blueprints.Editor.EntityBlueprints;
 
-/// <summary>
-/// Thin ImGui window that renders an <see cref="EntityBlueprintsEditModel"/>.
-/// All logic lives in the model; this class only draws UI and executes commit plans.
-///
-/// <para>The optional <c>entityResolver</c> is called each frame before refreshing reality,
-/// so the panel tracks the editor's selection (e.g. the selected map entity). When
-/// <c>null</c> the model is updated externally.</para>
-/// </summary>
 public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 {
     private readonly EntityBlueprintsEditModel _model;
@@ -24,6 +19,7 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     private readonly BlueprintRegistry _registry;
     private readonly Func<Entity?>? _entityResolver;
     private bool _isRunning;
+    private Entity? _lastEntity;
 
     public override string Title => "Entity Blueprints";
 
@@ -39,24 +35,20 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         _entityResolver = entityResolver;
     }
 
-    /// <summary>Set to true when the simulation is running (for commit-timing choice).</summary>
-    public bool IsRunning
-    {
-        get => _isRunning;
-        set => _isRunning = value;
-    }
+    public bool IsRunning { get => _isRunning; set => _isRunning = value; }
 
     public override void DrawUI()
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        // Resolve the selected entity before refreshing (selection may have changed).
+        // Resolve entity selection
         if (_entityResolver != null)
         {
             var selected = _entityResolver();
             if (selected.HasValue && selected.Value != default)
             {
                 _model.SetEntity(selected.Value);
+                _lastEntity = selected.Value;
             }
         }
 
@@ -68,85 +60,99 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
         _model.RefreshReality();
 
-        // Header
         ImGui.Text("Entity Blueprints");
         ImGui.Separator();
-
-        // Sim state
         ImGui.Text(_isRunning ? "Sim: Running" : "Sim: Paused");
         ImGui.Text($"Current tier: {_model.GetCurrentTier()}");
 
-        // Projection bar
         var proj = _model.ComputeProjection();
         DrawProjectionBar(proj);
-
         ImGui.Separator();
 
-        // + Add Blueprint button
+        // + Add button with popup
         if (ImGui.Button("+ Add Blueprint..."))
+            ImGui.OpenPopup("##addBlueprintPopup");
+
+        if (ImGui.BeginPopup("##addBlueprintPopup"))
         {
-            // Placeholder: opens a blueprint picker filtered to Instance blueprints.
-            // Full BlueprintPickerSources integration deferred to editor wiring.
+            foreach (var (id, def) in _registry.GetAll())
+            {
+                if (def.Kind != BlueprintDispatchKind.Instance) continue;
+
+                bool inReality = _model.Reality.Any(s => s.BlueprintId == id);
+                bool inAdds = _model.StagedAdds.Contains(def.AssetId);
+                bool inRemoves = _model.StagedRemoves.Contains(def.AssetId);
+
+                if (inReality && !inRemoves)
+                {
+                    ImGui.BeginDisabled();
+                    ImGui.Text($"{def.Name} (attached)");
+                    ImGui.EndDisabled();
+                }
+                else if (inAdds)
+                {
+                    ImGui.BeginDisabled();
+                    ImGui.Text($"{def.Name} (staged)");
+                    ImGui.EndDisabled();
+                }
+                else if (ImGui.Selectable($"{def.Name}##{id}"))
+                {
+                    _model.StageAdd(def.AssetId);
+                    ImGui.CloseCurrentPopup();
+                }
+            }
+            ImGui.EndPopup();
         }
 
         ImGui.Separator();
 
-        // Table: Name | Status | Size | Action
-        if (ImGui.BeginTable("##entityBpTable", 4,
-            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+        // Table
+        bool hasChanges = _model.HasStagedChanges;
+        bool overCeiling = proj.Status == UsageStatus.OverCeiling;
+
+        if (ImGui.BeginTable("##entityBpTable", 3,
+            ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
-            ImGui.TableSetupColumn("Name");
+            ImGui.TableSetupColumn("Blueprint");
             ImGui.TableSetupColumn("Status");
-            ImGui.TableSetupColumn("Size");
-            ImGui.TableSetupColumn("Actions");
+            ImGui.TableSetupColumn("");
             ImGui.TableHeadersRow();
 
-            var diff = _model.ComputeDiff();
-            var addedSet = new HashSet<Guid>();
-            foreach (var a in diff.Added) addedSet.Add(a.AssetId);
-            var removedSet = new HashSet<Guid>();
-            foreach (var r in diff.Removed) removedSet.Add(r.AssetId);
-
-            // Show all blueprint entries (from Reality + intended additions)
-            var allEntries = new List<(SlotSummary? Slot, BlueprintAssignmentDto? Dto, string Status)>();
+            // Reality rows — show "Active" or "Removed"
             foreach (var slot in _model.Reality)
             {
-                string status = removedSet.Contains(slot.AssetId) ? "Removed" : "Active";
-                allEntries.Add((slot, null, status));
-            }
-            foreach (var dto in _model.Intent)
-            {
-                if (!_model.Reality.Any(s => s.AssetId == dto.AssetId))
-                    allEntries.Add((null, dto, "Added"));
-            }
-
-            foreach (var entry in allEntries)
-            {
+                bool isRemoved = _model.StagedRemoves.Contains(slot.AssetId);
                 ImGui.TableNextRow();
 
                 ImGui.TableNextColumn();
-                ImGui.Text(entry.Slot?.Name ?? $"0x{BlueprintIdHash.Compute(entry.Dto!.AssetId):X8}");
+                ImGui.Text(slot.Name);
 
                 ImGui.TableNextColumn();
-                if (entry.Status == "Removed")
-                    ImGui.TextColored(new System.Numerics.Vector4(1, 0.5f, 0, 1), "Removed");
-                else if (entry.Status == "Added")
-                    ImGui.TextColored(new System.Numerics.Vector4(0, 1, 0, 1), "Added");
+                if (isRemoved)
+                    ImGui.TextColored(new Vector4(1, 0.5f, 0, 1), "Remove pending");
                 else
                     ImGui.Text("Active");
 
                 ImGui.TableNextColumn();
-                ImGui.Text(entry.Slot?.PayloadSize.ToString() ?? "-");
+                if (ImGui.SmallButton(isRemoved ? $"Restore##{slot.BlueprintId}" : $"Remove##{slot.BlueprintId}"))
+                    _model.StageRemove(slot.AssetId);
+            }
+
+            // Added rows (staged adds not in Reality) — iterate copy to avoid mutation crash
+            foreach (var assetId in _model.StagedAdds.ToList())
+            {
+                if (_model.Reality.Any(s => s.AssetId == assetId)) continue;
+
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.Text(_model.GetBlueprintName(assetId) ?? $"0x{BlueprintIdHash.Compute(assetId):X8}");
 
                 ImGui.TableNextColumn();
-                if (entry.Slot != null && entry.Status == "Active")
-                {
-                    if (ImGui.SmallButton($"Remove##{entry.Slot.Value.BlueprintId}"))
-                    {
-                        _model.StageRemove(new BlueprintAssignmentDto
-                            { AssetId = entry.Slot.Value.AssetId });
-                    }
-                }
+                ImGui.TextColored(new Vector4(0, 1, 0, 1), "Add pending");
+
+                ImGui.TableNextColumn();
+                if (ImGui.SmallButton($"Cancel##add_{BlueprintIdHash.Compute(assetId):X8}"))
+                    _model.CancelAdd(assetId);
             }
 
             ImGui.EndTable();
@@ -154,40 +160,36 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
 
         ImGui.Separator();
 
-        // Footer buttons
-        bool overCeiling = proj.Status == UsageStatus.OverCeiling;
-        if (overCeiling) ImGui.BeginDisabled();
+        // Footer
+        bool canApply = hasChanges && !overCeiling;
+        bool canRevert = hasChanges;
 
+        if (!canApply) ImGui.BeginDisabled();
         if (ImGui.Button("Apply"))
         {
             var timing = _isRunning ? CommitTiming.Running : CommitTiming.Paused;
             var plan = _model.BuildCommitPlan(timing);
             ExecuteCommitPlan(plan, timing);
             _model.RevertAll();
+            _model.RefreshReality();
         }
-
-        if (overCeiling) ImGui.EndDisabled();
+        if (!canApply) ImGui.EndDisabled();
 
         ImGui.SameLine();
+        if (!canRevert) ImGui.BeginDisabled();
         if (ImGui.Button("Revert All"))
             _model.RevertAll();
+        if (!canRevert) ImGui.EndDisabled();
     }
 
     private void DrawProjectionBar(Projection proj)
     {
-        string label;
-        switch (proj.Status)
+        string label = proj.Status switch
         {
-            case UsageStatus.OverCeiling:
-                label = $"⚠ Over ceiling: {proj.Slots} slots / {proj.Bytes} bytes (max 16 / 16096)";
-                break;
-            case UsageStatus.UpgradeNeeded:
-                label = $"Upgrade needed: {proj.Slots} slots / {proj.Bytes} bytes → {proj.Tier}";
-                break;
-            default:
-                label = $"OK: {proj.Slots} slots / {proj.Bytes} bytes in {proj.Tier}";
-                break;
-        }
+            UsageStatus.OverCeiling => $"⚠ Over ceiling: {proj.Slots}/{proj.Bytes} (max 16/16096)",
+            UsageStatus.UpgradeNeeded => $"Upgrade needed: {proj.Slots}/{proj.Bytes} → {proj.Tier}",
+            _ => $"OK: {proj.Slots}/{proj.Bytes} in {proj.Tier}",
+        };
         ImGui.Text(label);
     }
 
@@ -195,13 +197,9 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
     {
         if (timing == CommitTiming.Paused)
         {
-            // Tier upgrade first
             if (plan.UpgradeToTier.HasValue)
-            {
                 UpgradeTier(_model.GetCurrentTier(), plan.UpgradeToTier.Value);
-            }
 
-            // Detaches then attaches (remove-before-add)
             foreach (int bpId in plan.DetachBlueprintIds)
                 BlueprintInstanceService.DetachFromEntity(_world, bpId, _model.GetEntity());
 
@@ -210,19 +208,14 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
         }
         else
         {
-            // Running: publish events (BSA-301 will apply next Input phase)
-            foreach (var evt in plan.RemoveEvents)
-                _world.Bus.Publish(evt);
-            foreach (var evt in plan.AttachEvents)
-                _world.Bus.Publish(evt);
+            foreach (var evt in plan.RemoveEvents) _world.Bus.Publish(evt);
+            foreach (var evt in plan.AttachEvents) _world.Bus.Publish(evt);
         }
     }
 
     private unsafe void UpgradeTier(BlackboardTier oldTier, BlackboardTier newTier)
     {
         var entity = _model.GetEntity();
-
-        // 1. Add new tier component
         switch (newTier)
         {
             case BlackboardTier.B4096:
@@ -235,51 +228,25 @@ public sealed class EntityBlueprintsPanel : BlueprintEditorWindowBase
                 break;
         }
 
-        // 2. CopyToLargerTier
         switch (oldTier)
         {
             case BlackboardTier.B1024 when newTier == BlackboardTier.B4096:
-            {
-                ref var oldBb = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref var newBb = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                fixed (byte* src = oldBb.Memory)
-                fixed (byte* dst = newBb.Memory)
-                {
-                    BlueprintBlackboardPartitions.CopyToLargerTier(
-                        src, BlueprintBlackboard1024.TotalSize,
-                        dst, BlueprintBlackboard4096.TotalSize,
-                        BlueprintBlackboard4096.MaxSlots);
-                }
-                break;
-            }
-            case BlackboardTier.B4096 when newTier == BlackboardTier.B16384:
-            {
-                ref var oldBb = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref var newBb = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                fixed (byte* src = oldBb.Memory)
-                fixed (byte* dst = newBb.Memory)
-                {
-                    BlueprintBlackboardPartitions.CopyToLargerTier(
-                        src, BlueprintBlackboard4096.TotalSize,
-                        dst, BlueprintBlackboard16384.TotalSize,
-                        BlueprintBlackboard16384.MaxSlots);
-                }
-                break;
-            }
-        }
-
-        // 3. Remove old tier (CRITICAL — else double-tick)
-        switch (oldTier)
-        {
-            case BlackboardTier.B1024:
+                ref var old1024 = ref _world.GetComponentRW<BlueprintBlackboard1024>(entity);
+                ref var new4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* src = old1024.Memory) fixed (byte* dst = new4096.Memory)
+                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard1024.TotalSize, dst, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
                 _world.RemoveComponent<BlueprintBlackboard1024>(entity);
                 break;
-            case BlackboardTier.B4096:
+            case BlackboardTier.B4096 when newTier == BlackboardTier.B16384:
+                ref var old4096 = ref _world.GetComponentRW<BlueprintBlackboard4096>(entity);
+                ref var new16384 = ref _world.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* src = old4096.Memory) fixed (byte* dst = new16384.Memory)
+                    BlueprintBlackboardPartitions.CopyToLargerTier(src, BlueprintBlackboard4096.TotalSize, dst, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
                 _world.RemoveComponent<BlueprintBlackboard4096>(entity);
                 break;
         }
     }
 
-    public override void OnActivated()   { }
+    public override void OnActivated() { }
     public override void OnDeactivated() { }
 }
