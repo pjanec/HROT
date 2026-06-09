@@ -299,6 +299,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── Blueprint registry (shared by materialization system and serializers) ──
         _blueprintRegistry = new BlueprintRegistry();
 
+        // Expose the blueprint registry to the Entity Inspector renderers so
+        // BlueprintBlackboard* components can show per-tier slot summaries.
+        Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
+        Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
+        Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
+
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var mapperRegistry = new TacticalIntentMapperRegistry();
         mapperRegistry.Register(new DefendAreaMapper());

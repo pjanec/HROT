@@ -575,6 +575,12 @@ namespace Hrot.Editor
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
 
+            // Expose the blueprint registry to the Entity Inspector renderers so
+            // BlueprintBlackboard* components can show per-tier slot summaries.
+            Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
+            Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
+            Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
+
             // ?? Hot reload: watch the deployment directory for Hrot.AI.Behaviors.dll changes ??
             // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
             // detects the change, loads the new assembly into a fresh collectible ALC on a
