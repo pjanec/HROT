@@ -6,9 +6,17 @@ using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Blueprints.Core.Compiler.Emit;
+using Hrot.Blueprints.Editor.Debug;
 using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
+using Graph = Hrot.Blueprints.Core.Assets.Graph;
 
 namespace Hrot.Blueprints.Core.Debug;
+
+/// <summary>
+/// A step target: an authored node to set a temporary breakpoint on.
+/// Used by CF-6 stepping to compute successors and set one-shot invisible breakpoints.
+/// </summary>
+public readonly record struct BreakpointTarget(Guid AssetId, Guid GraphId, Guid NodeId);
 
 /// <summary>
 /// Production debug session. Wires DebugProbe probe calls to breakpoint checking,
@@ -37,6 +45,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private readonly Dictionary<string, Watch>    _watchesByPinString = new(StringComparer.Ordinal);
     private int _nextWatchId = 1;
 
+    // Graph structure for stepping: graphId → Graph (CF-6).
+    // Registered when a blueprint document is opened; used by ExecSuccessors
+    // to compute next exec node(s) during stepping.
+    private readonly Dictionary<Guid, Graph> _graphs = new();
+
+    // Temporary breakpoints for stepping (CF-6). Keyed by probe-id string.
+    // Cleared on hit or on Continue(). Not exposed via GetBreakpoints().
+    private readonly Dictionary<string, List<Breakpoint>> _tempBreakpoints = new(StringComparer.Ordinal);
+
     // Registered debug maps, indexed by AssetId.
     private readonly Dictionary<Guid, DebugMapIndex> _debugMaps = new();
 
@@ -60,11 +77,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private Breakpoint? _pausedAt;
     private Entity?    _pausedOnEntity;
 
-    // Step state.
+    // Step state (legacy — CF-6 replaces _stepMode with temporary breakpoints;
+    // retained for backward compatibility).
     private StepMode _stepMode      = StepMode.None;
     private Entity   _stepFromEntity;
     private int      _stepFromDepth;
-    private uint     _stepFromTick;  // used by StepOut at depth 0 (BPF-005)
+    private uint     _stepFromTick;  // used by StepOut at depth 0 (BPF-005); legacy
 
     // Entity filter: when set, only events from this entity are processed.
     private Entity? _entityFilter;
@@ -101,6 +119,20 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         hist.Record(new NodeHistoryEntry(nodeId, _view.Tick, _view.Time));
 
         _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
+
+        // CF-6: Check temporary breakpoints FIRST. When stepping, suppress user breakpoints.
+        if (_tempBreakpoints.Count > 0)
+        {
+            if (_tempBreakpoints.TryGetValue(nodeId, out var tempList) && !_isPaused)
+            {
+                var tempBp = tempList[0]; // first matching temp
+                ClearTemporaryBreakpoints(); // auto-clear ALL temps on first hit
+                HandleBreakpointHit(self, tempBp, nodeId);
+            }
+            // When temps are active, skip user breakpoint matching entirely (suppression).
+            // Also skip the legacy step-mode check below — temp BPs handle stepping now.
+            return;
+        }
 
         if (_bpByNodeString.TryGetValue(nodeId, out var bpList))
         {
@@ -140,6 +172,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             }
         }
 
+        // Legacy step-mode matching: retained for backward compatibility but dead code
+        // now that Step methods use temporary breakpoints (CF-6). The StepOver/Into/Out
+        // methods no longer set _stepMode; they compute successors and set temp BPs instead.
         if (_stepMode != StepMode.None && !_isPaused)
         {
             // BPF-005: entity-death abandonment.
@@ -257,7 +292,21 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _callStacks.Clear();
         _debugMaps.Clear();
         _pdbLocators.Clear();
+        _graphs.Clear();
+        _tempBreakpoints.Clear();
         OnSessionStateChanged?.Invoke();
+    }
+
+    // ---- Graph registration for stepping (CF-6) ----------------------------
+
+    /// <summary>
+    /// Registers a <see cref="Graph"/> structure for stepping.
+    /// Call when a blueprint document is opened so that <see cref="ExecSuccessors"/>
+    /// can compute next exec node(s) during Step operations.
+    /// </summary>
+    public void RegisterGraph(Graph graph)
+    {
+        _graphs[graph.Id] = graph;
     }
 
     // ---- IBlueprintDebugSession -- breakpoints ------------------------------
@@ -368,6 +417,45 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         => _breakpoints.Values.ToList().AsReadOnly();
 
     public bool IsAnyBreakpointActive => _breakpoints.Count > 0;
+
+    // ---- Temporary breakpoints for stepping (CF-6) -------------------------
+
+    /// <summary>
+    /// Sets one-shot temporary breakpoints for stepping. These are invisible
+    /// (not in GetBreakpoints()), not forwarded to DBM, and auto-cleared on first hit.
+    /// Suppresses user breakpoints while temps are active.
+    /// </summary>
+    public void SetTemporaryBreakpoints(IEnumerable<BreakpointTarget> targets)
+    {
+        ClearTemporaryBreakpoints();
+        foreach (var t in targets)
+        {
+            // Translate authored node id → block-probe id via BreakpointTargets.
+            string probeId = ResolveProbeId(t.AssetId, t.NodeId);
+            var bp = new Breakpoint(default, t.AssetId, t.GraphId, t.NodeId.ToString("D"), 0, true)
+            {
+                ProbeNodeId = probeId,
+            };
+            if (!_tempBreakpoints.TryGetValue(probeId, out var list))
+                _tempBreakpoints[probeId] = list = new List<Breakpoint>();
+            list.Add(bp);
+        }
+    }
+
+    private string ResolveProbeId(Guid assetId, Guid authoredNodeId)
+    {
+        if (_debugMaps.TryGetValue(assetId, out var idx) &&
+            idx.BreakpointTargets.TryGetValue(authoredNodeId, out var blockProbeId))
+            return blockProbeId.ToString("D");
+        return authoredNodeId.ToString("D"); // fallback
+    }
+
+    private void ClearTemporaryBreakpoints()
+    {
+        _tempBreakpoints.Clear();
+    }
+
+    public bool HasTemporaryBreakpoints => _tempBreakpoints.Count > 0;
 
     // ---- IBlueprintDebugSession -- watches ----------------------------------
 
@@ -541,6 +629,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _stepMode       = StepMode.None;
         // Clear dedup set so the next hit after Continue() is treated as a fresh event.
         _firedBreakpointsThisTick.Clear();
+        ClearTemporaryBreakpoints(); // discard any leftover temps (CF-6)
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
     }
@@ -552,45 +641,95 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         OnSessionStateChanged?.Invoke();
     }
 
-    public void StepOver()
+    /// <summary>
+    /// Slice-1 stepping: all three step commands (Over/Into/Out) converge to
+    /// "step to next exec node."  Computes successors of the currently-paused node,
+    /// sets temporary breakpoints on them, suppresses user breakpoints, and resumes.
+    /// On hitting a temp target, pauses and auto-clears temps.
+    /// Cross-peer-call stepping is deferred (Slice-2).
+    ///
+    /// Falls back to legacy <see cref="_stepMode"/> tick-matching when no graph
+    /// is registered for the paused asset (backward compatible with existing
+    /// step-mode tests and pre-CF-6 behavior).
+    /// </summary>
+    public void StepOver() => Step(StepMode.Over);
+    public void StepInto() => Step(StepMode.Into);
+    public void StepOut()  => Step(StepMode.Out);
+
+    /// <summary>
+    /// Computes the immediate exec successors of the currently-paused node,
+    /// sets invisible one-shot temporary breakpoints on them, and resumes.
+    /// Falls back to single-tick stepping with <paramref name="fallbackStepMode"/>
+    /// when no graph is registered or the paused node cannot be resolved.
+    /// When the paused-at node has no successors (terminal node), calls
+    /// <see cref="Continue"/> to resume without temp breakpoints.
+    /// </summary>
+    private void Step(StepMode fallbackStepMode)
     {
-        var fromEntity  = _pausedOnEntity ?? default;
-        _stepMode       = StepMode.Over;
-        _stepFromEntity = fromEntity;
-        _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
-        _stepFromTick   = _view.Tick;
+        if (!_isPaused || _pausedAt == null)
+            return;
+
+        var pausedNodeId = _pausedAt.NodeId;
+        var assetId = _pausedAt.AssetId;
+        var graphId = _pausedAt.GraphId;
+
+        // Find the graph structure.
+        if (!_graphs.TryGetValue(graphId, out var graph))
+        {
+            // No graph registered — fall back to legacy step-mode matching.
+            LegacyStepOneTick(fallbackStepMode);
+            return;
+        }
+
+        // Parse the authored node ID from the paused breakpoint.
+        if (!Guid.TryParse(pausedNodeId, out var authoredNodeId))
+        {
+            LegacyStepOneTick(fallbackStepMode);
+            return;
+        }
+
+        // Compute next exec successors from the graph.
+        var successors = ExecSuccessors.GetSuccessors(graph, authoredNodeId);
+        if (successors.Count == 0)
+        {
+            // Terminal node — nothing to step to. Just resume.
+            Continue();
+            return;
+        }
+
+        // Set invisible one-shot temporary breakpoints on all successors.
+        // These are translated through BreakpointTargets (authored → block-probe id)
+        // and suppress user breakpoints until a temp target fires.
+        var targets = successors.Select(s => new BreakpointTarget(assetId, graphId, s));
+        SetTemporaryBreakpoints(targets);
+
+        // Resume (not single-tick) — temp BPs handle the pause.
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
-        _timeController.RequestStepOneTick();
+        _stepMode       = StepMode.None;
+        _firedBreakpointsThisTick.Clear();
+        _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
     }
 
-    public void StepInto()
+    /// <summary>
+    /// Legacy single-tick step: sets <see cref="_stepMode"/> and steps one tick.
+    /// Used as fallback when no graph is registered for the paused asset.
+    /// The <see cref="OnNodeEnter"/> handler matches the next probed node
+    /// against the step criteria and re-pauses.
+    /// </summary>
+    private void LegacyStepOneTick(StepMode mode)
     {
         var fromEntity  = _pausedOnEntity ?? default;
-        _stepMode       = StepMode.Into;
+        _stepMode       = mode;
         _stepFromEntity = fromEntity;
         _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
         _stepFromTick   = _view.Tick;
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
-        _timeController.RequestStepOneTick();
-        OnSessionStateChanged?.Invoke();
-    }
-
-    // BPF-005: StepOut tracks _stepFromTick so depth-0 step can re-pause at next tick boundary.
-    public void StepOut()
-    {
-        var fromEntity  = _pausedOnEntity ?? default;
-        _stepMode       = StepMode.Out;
-        _stepFromEntity = fromEntity;
-        _stepFromDepth  = _currentCallDepth.GetValueOrDefault(fromEntity, 0);
-        _stepFromTick   = _view.Tick;
-        _isPaused       = false;
-        _pausedAt       = null;
-        _pausedOnEntity = null;
+        _firedBreakpointsThisTick.Clear();
         _timeController.RequestStepOneTick();
         OnSessionStateChanged?.Invoke();
     }

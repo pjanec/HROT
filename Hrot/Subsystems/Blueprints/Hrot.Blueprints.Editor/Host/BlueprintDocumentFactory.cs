@@ -130,6 +130,14 @@ public static class BlueprintDocumentFactory
                  ?? throw new InvalidOperationException(
                         $"Blueprint asset '{bpAsset.Name}' has no graphs.");
 
+        // CF-6: Register all graphs with the debug session so stepping
+        // (ExecSuccessors) can compute next exec node(s) from the graph structure.
+        if (debugSession is BlueprintDebugSession bpSession)
+        {
+            foreach (var g in bpAsset.Graphs)
+                bpSession.RegisterGraph(g);
+        }
+
         // ── 3. Kind-specific host components ─────────────────────────────────
         var kindRegistry = paletteRegistry ?? new NodeKindRegistry();
 
