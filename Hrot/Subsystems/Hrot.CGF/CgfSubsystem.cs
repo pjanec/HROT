@@ -10,6 +10,7 @@ using Fdp.ModuleHost.Scheduling;
 using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -90,6 +91,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
     private ScenarioEntityCreationRequestSource? _scenarioSource;
+
+    // ── Blueprint materialization (BSA-203) ────────────────────────────────────
+    private BlueprintRegistry? _blueprintRegistry;
 
     /// <summary>
     /// Exposes the scenario entity creation request source for load handlers (Phases 3-4).
@@ -291,6 +295,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // via CgfLogicPack.ScenarioSource.
         _scenarioSource = new ScenarioEntityCreationRequestSource();
 
+        // ── Blueprint registry (shared by materialization system and serializers) ──
+        _blueprintRegistry = new BlueprintRegistry();
+
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
         var mapperRegistry = new TacticalIntentMapperRegistry();
         mapperRegistry.Register(new DefendAreaMapper());
@@ -352,6 +359,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(requestSystem);
         _context.Kernel.RegisterGlobalSystem(finalizationSystem);
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
+        _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.BlueprintMaterializationSystem(_blueprintRegistry!));
 
         // 4. Network-dependent deletion routing: only when a live adapter exists.
         if (adapters != null)

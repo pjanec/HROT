@@ -21,7 +21,7 @@ builds 0 errors; 0 net-new test failures in touched projects.
 
 - [x] **BSA-201** `BlueprintAssignmentDto` + `InitialBlueprintsIntent` (`[Transient]`) + `RegisterManagedComponent` [details](./TASK-DETAIL.md#bsa-201-blueprintassignmentdto-initialblueprintsintent-registration)
 - [x] **BSA-202** `BlueprintStateTranslator` — populate `def.AssetId` (emit) + Extract/Inject + `GetOutputDomKeys` (new key + legacy black-hole) [details](./TASK-DETAIL.md#bsa-202-blueprintstatetranslator-extract--inject--dom-keys--legacy-black-hole)
-- [ ] **BSA-203** `BlueprintMaterializationSystem` — tier pre-provision + ceiling guard + ECB intent removal [details](./TASK-DETAIL.md#bsa-203-blueprintmaterializationsystem-tier-pre-provision--ceiling-guard--ecb-removal)
+- [x] **BSA-203** `BlueprintMaterializationSystem` — tier pre-provision + ceiling guard + ECB intent removal [details](./TASK-DETAIL.md#bsa-203-blueprintmaterializationsystem-tier-pre-provision--ceiling-guard--ecb-removal)
 
 ## Phase 3 — Dynamic / mid-runtime assignment
 
