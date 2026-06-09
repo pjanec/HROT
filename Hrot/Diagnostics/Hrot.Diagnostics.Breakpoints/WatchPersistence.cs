@@ -7,9 +7,12 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 namespace Hrot.Diagnostics.Breakpoints;
 
 /// <summary>
-/// Serializable DTO for a persisted watch entry.
+/// Serializable DTO for a persisted watch entry (legacy — only saves IsWatch-flagged entries).
+/// Superseded by <see cref="DebugSessionPersistence"/> and the new public <see cref="WatchEntry"/>
+/// which carries full asset/graph/pin identity for restore.
 /// </summary>
-internal sealed class WatchEntry
+[Obsolete("Use DebugSessionPersistence instead.")]
+internal sealed class WatchPersistenceEntry
 {
     public string DisplayName { get; set; } = string.Empty;
     public SearchPredicateDto? Condition { get; set; }
@@ -17,7 +20,9 @@ internal sealed class WatchEntry
 
 /// <summary>
 /// Saves and loads watch entries to/from a JSON file.
+/// Superseded by <see cref="DebugSessionPersistence"/> which saves the full debug session.
 /// </summary>
+[Obsolete("Use DebugSessionPersistence for the full debug session (node BPs + data BPs + watches).")]
 public static class WatchPersistence
 {
     private static readonly JsonSerializerOptions s_options = new()
@@ -30,13 +35,14 @@ public static class WatchPersistence
     /// Serializes all watch-flagged breakpoints to <paramref name="path"/>.
     /// Creates or overwrites the file.
     /// </summary>
+    [Obsolete("Use DebugSessionPersistence.Save instead.")]
     public static void Save(IReadOnlyList<Breakpoint> breakpoints, string path)
     {
-        var entries = new List<WatchEntry>();
+        var entries = new List<WatchPersistenceEntry>();
         foreach (var bp in breakpoints)
         {
             if (!bp.IsWatch) continue;
-            entries.Add(new WatchEntry
+            entries.Add(new WatchPersistenceEntry
             {
                 DisplayName = bp.DisplayName,
                 Condition   = bp.Condition,
@@ -50,19 +56,20 @@ public static class WatchPersistence
     /// Deserializes watch entries from <paramref name="path"/>.
     /// Returns an empty list if the file does not exist or is malformed.
     /// </summary>
-    internal static IReadOnlyList<WatchEntry> TryLoad(string path)
+    [Obsolete("Use DebugSessionPersistence.TryLoad instead.")]
+    internal static IReadOnlyList<WatchPersistenceEntry> TryLoad(string path)
     {
-        if (!File.Exists(path)) return Array.Empty<WatchEntry>();
+        if (!File.Exists(path)) return Array.Empty<WatchPersistenceEntry>();
 
         try
         {
             var json = File.ReadAllText(path);
-            var result = JsonSerializer.Deserialize<List<WatchEntry>>(json, s_options);
-            return result is not null ? result : Array.Empty<WatchEntry>();
+            var result = JsonSerializer.Deserialize<List<WatchPersistenceEntry>>(json, s_options);
+            return result is not null ? result : Array.Empty<WatchPersistenceEntry>();
         }
         catch
         {
-            return Array.Empty<WatchEntry>();
+            return Array.Empty<WatchPersistenceEntry>();
         }
     }
 }

@@ -352,13 +352,19 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
     }
 
     /// <inheritdoc/>
-    public void SaveWatches(string path) =>
+    public void SaveWatches(string path)
+    {
+#pragma warning disable CS0618 // Type or member is obsolete — legacy compat
         WatchPersistence.Save(AllBreakpoints, path);
+#pragma warning restore CS0618
+    }
 
     /// <inheritdoc/>
     public void LoadWatches(string path)
     {
+#pragma warning disable CS0618 // Type or member is obsolete — legacy compat
         var entries = WatchPersistence.TryLoad(path);
+#pragma warning restore CS0618
         foreach (var entry in entries)
         {
             if (entry.Condition == null) continue;

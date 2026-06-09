@@ -262,9 +262,23 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     // ---- IBlueprintDebugSession -- breakpoints ------------------------------
 
+    // Interface method (no enabled parameter — always enabled).
     public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId)
+        => SetBreakpoint(assetId, graphId, nodeId, enabled: true);
+
+    /// <summary>
+    /// Overload with explicit <paramref name="enabled"/> flag.
+    /// Used by session restore (CF-8) to restore disabled breakpoints.
+    /// When <c>enabled</c> is <c>false</c>, the breakpoint is still created in the session
+    /// (so the marker can be drawn) and instrumentation is still triggered (so the DebugMap
+    /// exists), but the breakpoint is NOT forwarded to the <see cref="DataBreakpointManager"/>
+    /// and therefore cannot trigger a pause until it is explicitly enabled.
+    /// </summary>
+    public BreakpointId SetBreakpoint(Guid assetId, Guid graphId, Guid nodeId, bool enabled)
     {
         // Auto-instrumentation: if no DebugMap yet for this asset, request a Debug compile.
+        // We always trigger instrumentation even for disabled breakpoints so the DebugMap
+        // exists (enabling the marker and making the breakpoint ready when the user enables it).
         if (!_debugMaps.ContainsKey(assetId) && _onInstrumentationRequested != null)
         {
             _ = _onInstrumentationRequested.Invoke(assetId, BPCompilerMode.Debug);
@@ -288,7 +302,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             probeIdStr = nodeIdStr; // no map yet — tentative, key by clicked id
         }
 
-        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, true)
+        var bp = new Breakpoint(id, assetId, graphId, nodeIdStr, 0, enabled)
         {
             AssetStructureHashAtSetTime = hash,
             ProbeNodeId = probeIdStr,
@@ -299,7 +313,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             _bpByNodeString[probeIdStr] = list = new List<Breakpoint>();
         list.Add(bp);
 
-        if (_dataBreakpointManager != null)
+        // Only forward enabled breakpoints to the DataBreakpointManager.
+        // Disabled breakpoints should not trigger a pause — they just show the marker.
+        if (enabled && _dataBreakpointManager != null)
         {
             var mgrId = _dataBreakpointManager.AddBreakpoint(
                 new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = probeIdStr },
@@ -430,6 +446,38 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void SetInstrumentationCallback(Func<Guid, BPCompilerMode, Task>? callback)
     {
         _onInstrumentationRequested = callback;
+    }
+
+    // ---- CF-8: Session persistence restore ----------------------------------
+
+    /// <summary>
+    /// Restores node breakpoints from a persisted session file.
+    /// Each entry triggers instrumentation (via CF-7-rev callback) so the DebugMap
+    /// is created and the breakpoint becomes active without a manual Compile.
+    /// </summary>
+    public void RestoreNodeBreakpoints(IReadOnlyList<Hrot.Diagnostics.Breakpoints.NodeBreakpointEntry> entries)
+    {
+        foreach (var e in entries)
+        {
+            SetBreakpoint(e.AssetId, e.GraphId, e.NodeId, enabled: e.Enabled);
+        }
+    }
+
+    /// <summary>
+    /// Restores watches from a persisted session file.
+    /// Each watch triggers instrumentation (via CF-7-rev callback) so the DebugMap
+    /// is created and the watch becomes active without a manual Compile.
+    /// Skips entries whose expected type cannot be resolved.
+    /// </summary>
+    public void RestoreWatches(IReadOnlyList<Hrot.Diagnostics.Breakpoints.WatchEntry> entries)
+    {
+        foreach (var e in entries)
+        {
+            var expectedType = Type.GetType(e.ExpectedTypeName);
+            if (expectedType == null)
+                continue; // type not available → skip
+            AddWatch(e.AssetId, e.GraphId, e.PinId, e.DisplayName, expectedType);
+        }
     }
 
     // ---- IBlueprintDebugSession -- active entity tracking ------------------
@@ -847,14 +895,27 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             if (!Guid.TryParse(bp.NodeId, out var authoredNodeId))
                 continue;
 
+            string oldProbeId = string.IsNullOrEmpty(bp.ProbeNodeId) ? bp.NodeId : bp.ProbeNodeId;
+
             // Determine the correct probe id from BreakpointTargets.
             string newProbeId;
             if (index.BreakpointTargets.TryGetValue(authoredNodeId, out var blockProbeId))
                 newProbeId = blockProbeId.ToString("D");
             else
-                continue; // authored node is not in BreakpointTargets → leave as-is
-
-            string oldProbeId = string.IsNullOrEmpty(bp.ProbeNodeId) ? bp.NodeId : bp.ProbeNodeId;
+            {
+                // CF-8: authored node is not in BreakpointTargets.
+                // If the breakpoint was previously resolved to a block-probe id
+                // (different from the authored node id), the node was deleted —
+                // mark stale per BPF-003.  Otherwise it was always a fallback and
+                // we leave it as-is (it was never resolved).
+                if (oldProbeId != bp.NodeId)
+                {
+                    var stale = bp with { IsStale = true };
+                    _breakpoints[bp.Id] = stale;
+                    ReplaceInBpList(oldProbeId, bp, stale);
+                }
+                continue;
+            }
 
             // No change needed.
             if (oldProbeId == newProbeId)

@@ -187,6 +187,9 @@ namespace Hrot.Editor
         private DataBreakpointSystem?   _bpSystem;
         private Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintDebugSession;
 
+        // ── CF-8: Debug session persistence ──────────────────────────────────────
+        private CancellationTokenSource? _debugSessionSaveCts;
+
         // ── Adapters (canvas-dependent; null in headless) ─────────────────────
 
         private EditorSpawnAdapter?             _spawnAdapter;
@@ -904,6 +907,12 @@ namespace Hrot.Editor
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             bpBlueprintSession.Attach();
             _blueprintDebugSession = bpBlueprintSession;
+
+            // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
+            bpBlueprintSession.OnBreakpointListChanged += _ => ScheduleDebugSessionSave();
+            bpBlueprintSession.OnSessionStateChanged    += ScheduleDebugSessionSave;
+            // ──────────────────────────────────────────────────────────────────────────────
+
             // AIE-015: CreateBlueprintWindowRegistrar retired - perspective infra is wired in RegisterWindows.
 
             // ─────────────────────────────────────────────────────────────────────────────────
@@ -2555,6 +2564,12 @@ namespace Hrot.Editor
                 } // if (_blueprintDebugSession != null)
                 // ───────────────────────────────────────────────────────────────────────────
 
+                // ── CF-8: Restore debug session from previous run ─────────────────────────
+                // Must happen AFTER the CF-7-rev callback is wired, so restoring breakpoints
+                // triggers instrumentation for each affected asset.
+                RestoreDebugSession();
+                // ───────────────────────────────────────────────────────────────────────────
+
                 string? fullRebuildProjectDir = null;
                 var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
                 foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
@@ -2833,16 +2848,24 @@ namespace Hrot.Editor
             _saveAllCallback?.Invoke();
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── CF-8: persist debug session before clearing ─────────────────────────────────────
+            // Cancel any pending debounced save and flush immediately.
+            _debugSessionSaveCts?.Cancel();
+            SaveDebugSession();
+            // ─────────────────────────────────────────────────────────────────────────────────────
+
             // ── UBP-P10T6: clear blueprint debug session ──────────────────────────────────────────
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = null;
             _blueprintDebugSession = null;
-            // ── UBP-P10T11: persist watches for next session ─────────────────────────────────────
+            // ── UBP-P10T11: persist watches for next session (legacy — kept for backward compat) ──
             if (_bpManager != null)
             {
                 try
                 {
                     var watchesFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "watches.json");
+#pragma warning disable CS0618 // Type or member is obsolete — legacy compat
                     _bpManager.SaveWatches(watchesFilePath);
+#pragma warning restore CS0618
                 }
                 catch (Exception ex)
                 {
@@ -3047,6 +3070,138 @@ namespace Hrot.Editor
                         break;
                     }
                 }
+            }
+        }
+
+        // ── CF-8: Debug session persistence helpers ──────────────────────────────
+
+        /// <summary>
+        /// Resolves the repo root directory by walking up from <see cref="AppDomain.CurrentDomain.BaseDirectory"/>
+        /// looking for IOS-IG-SimHost.sln.
+        /// </summary>
+        private static string? ResolveRepoRoot()
+        {
+            var dir = AppDomain.CurrentDomain.BaseDirectory;
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+                    return dir;
+                dir = Path.GetDirectoryName(dir);
+            }
+            return null;
+        }
+
+        private string? GetDebugSessionPath()
+        {
+            var root = ResolveRepoRoot();
+            return root != null ? Path.Combine(root, ".debug", "bpsession.json") : null;
+        }
+
+        /// <summary>
+        /// Saves the full debug session (node BPs, data BPs, watches) to the session file.
+        /// </summary>
+        private void SaveDebugSession()
+        {
+            var path = GetDebugSessionPath();
+            if (path == null) return;
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+                var nodeBps = _blueprintDebugSession?.GetBreakpoints();
+                var watches = _blueprintDebugSession?.GetWatches();
+                var dbmBps  = _bpManager?.AllBreakpoints;
+
+                DebugSessionPersistence.Save(
+                    nodeBps ?? Array.Empty<Hrot.Blueprints.Core.Debug.Breakpoint>(),
+                    watches ?? Array.Empty<Hrot.Blueprints.Core.Debug.Watch>(),
+                    dbmBps  ?? Array.Empty<Hrot.Diagnostics.Breakpoints.Breakpoint>(),
+                    path);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to save debug session: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Debounced save trigger (500 ms). Call on every breakpoint/watch change;
+        /// repeated calls reset the timer.
+        /// </summary>
+        private void ScheduleDebugSessionSave()
+        {
+            _debugSessionSaveCts?.Cancel();
+            _debugSessionSaveCts = new CancellationTokenSource();
+            var token = _debugSessionSaveCts.Token;
+            Task.Delay(500, token).ContinueWith(_ =>
+            {
+                if (!token.IsCancellationRequested)
+                    SaveDebugSession();
+            }, TaskScheduler.Default);
+        }
+
+        /// <summary>
+        /// Restores the debug session from the previous run.
+        /// Must be called AFTER the CF-7-rev instrumentation callback is wired.
+        /// </summary>
+        private void RestoreDebugSession()
+        {
+            var path = GetDebugSessionPath();
+            if (path == null) return;
+
+            Hrot.Diagnostics.Breakpoints.DebugSessionFile? file;
+            try
+            {
+                file = DebugSessionPersistence.TryLoad(path);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CF8] Failed to load debug session: {ex.Message}");
+                return;
+            }
+
+            if (file == null)
+                return;
+
+            // Restore data breakpoints into the DBM (before node breakpoints,
+            // since node breakpoints may trigger CF-7-rev instrumentation).
+            if (file.DataBreakpoints.Count > 0 && _bpManager != null)
+            {
+                foreach (var entry in file.DataBreakpoints)
+                {
+                    if (entry.Condition == null) continue;
+
+                    try
+                    {
+                        var mgrBp = new Hrot.Diagnostics.Breakpoints.Breakpoint
+                        {
+                            Id              = Hrot.Diagnostics.Breakpoints.BreakpointId.Invalid,
+                            Condition       = entry.Condition,
+                            DisplayName     = entry.DisplayName,
+                            SourceElementId = entry.SourceElementId,
+                            Enabled         = entry.Enabled,
+                            IsWatch         = entry.IsWatch,
+                        };
+                        _bpManager.Add(mgrBp);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CF8] Failed to restore data breakpoint '{entry.DisplayName}': {ex.Message}");
+                    }
+                }
+            }
+
+            // Restore node breakpoints (triggers CF-7-rev instrumentation).
+            if (file.NodeBreakpoints.Count > 0 && _blueprintDebugSession != null)
+            {
+                _blueprintDebugSession.RestoreNodeBreakpoints(file.NodeBreakpoints);
+            }
+
+            // Restore watches (triggers CF-7-rev Trace instrumentation).
+            if (file.Watches.Count > 0 && _blueprintDebugSession != null)
+            {
+                _blueprintDebugSession.RestoreWatches(file.Watches);
             }
         }
 
