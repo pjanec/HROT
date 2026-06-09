@@ -1,4 +1,5 @@
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Scenario;
 using Hrot.Common.Scenario;
 
@@ -6,9 +7,11 @@ namespace Hrot.SimHost.Serializers
 {
     public static class HrotScenarioSerializerFactory
     {
-        public static ScenarioSerializer Build(BehaviorRegistry behaviorRegistry)
+        public static ScenarioSerializer Build(
+            BehaviorRegistry behaviorRegistry,
+            BlueprintRegistry? blueprintRegistry = null)
         {
-            return new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
+            var builder = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
                 .RegisterTranslator(new MissionPlanTranslator(behaviorRegistry))
                 .RegisterTranslator(new TargetMemoryTranslator())
                 .RegisterTranslator(new PassengerBufferTranslator())
@@ -21,7 +24,9 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new Blackboard1024Translator(behaviorRegistry))
                 .RegisterTranslator(new BTreeTraceWorkingMemoryTranslator(behaviorRegistry))
                 .RegisterTranslator(new HsmTraceWorkingMemoryTranslator(behaviorRegistry))
-                .Build();
+                .RegisterTranslator(new BlueprintStateTranslator(blueprintRegistry));
+
+            return builder.Build();
         }
     }
 }

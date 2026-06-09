@@ -140,4 +140,19 @@ namespace Hrot.Common.Serializers
         /// <summary>Tactical role of this entity within the commander's unit.</summary>
         public TacticalDesignation Designation { get; set; }
     }
+
+    /// <summary>
+    /// Managed Intent DTO component that stores the list of Instance Blueprint AssetIds
+    /// to attach during scenario genesis.
+    ///
+    /// <para>Written by <c>BlueprintStateTranslator.Inject</c>; resolved to live
+    /// <c>BlueprintBlackboard*</c> slots by <c>BlueprintMaterializationSystem</c>.</para>
+    /// </summary>
+    [DataPolicy(DataPolicy.Transient)]
+    [ComponentId(HrotComponentIds.InitialBlueprintsIntent)]
+    public sealed class InitialBlueprintsIntent
+    {
+        /// <summary>Blueprint assignments to materialize at scenario load.</summary>
+        public List<Fdp.Toolkit.Blueprints.BlueprintAssignmentDto> Blueprints { get; set; } = new();
+    }
 }

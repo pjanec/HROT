@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Blueprints.Components;
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 [ComponentId(GlobalComponentIds.BlueprintBlackboard1024)]
+[DataPolicy(DataPolicy.NoSave)]
 public unsafe struct BlueprintBlackboard1024
 {
     public const int TotalSize     = 1024;

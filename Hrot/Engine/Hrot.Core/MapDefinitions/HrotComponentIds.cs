@@ -97,5 +97,8 @@ namespace Hrot.Map.Definitions
 
         /// <summary><c>CanvasContextMenuState</c> — managed singleton holding empty map space menus.</summary>
         public const byte CanvasContextMenuState = 186;
+
+        /// <summary><c>InitialBlueprintsIntent</c> — genesis intent DTO storing the list of Instance Blueprint AssetIds to attach at scenario load; resolved by BlueprintMaterializationSystem.</summary>
+        public const byte InitialBlueprintsIntent = 187;
     }
 }

@@ -698,7 +698,7 @@ namespace Hrot.Editor
 
             // Build the serializer with custom translators AFTER component registration
             // so FdpAutoSerializer compiles extraction delegates for all registered types.
-            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
+            var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry, _blueprintRegistry);
 
             // Wire the unified serialization path so the entity inspector Copy JSON
             // buttons produce readable DTO output for BrainBlackboard and Blackboard1024.

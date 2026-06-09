@@ -43,6 +43,41 @@ public sealed class InstanceEmitGoldenTests
         Assert.Equal(s1, s2);
     }
 
+    // ---- BSA-202 prereq: AssetId populated in emit output ---------------
+
+    /// <summary>
+    /// Test 5 — After compiling an Instance blueprint, the generated emit
+    /// output must contain an AssetId assignment in the BlueprintDefinition
+    /// initializer, using the asset's original GUID.
+    /// </summary>
+    [Fact]
+    public void Instance_EmitContainsAssetId()
+    {
+        var asset = TestData.LoadAsset(TestData.SampleAssets.InstanceCounter);
+        var (src, sink) = EmitAssetDirectly(asset);
+
+        Assert.False(sink.HasErrors,
+            $"Compile errors: {string.Join(", ", sink.All.Where(d => d.IsError).Select(d => d.Code))}");
+
+        // The generated source must contain an AssetId line with the asset's GUID.
+        // InstanceCounter's AssetId is 00000002-0000-0000-0000-000000000001.
+        Assert.Contains("AssetId = new Guid(\"00000002-0000-0000-0000-000000000001\")", src);
+    }
+
+    [Fact]
+    public void Instance_EmitAssetId_MatchesAssetGuid()
+    {
+        var asset = TestData.LoadAsset(TestData.SampleAssets.HealthRegen);
+        var (src, sink) = EmitAssetDirectly(asset);
+
+        Assert.False(sink.HasErrors,
+            $"Compile errors: {string.Join(", ", sink.All.Where(d => d.IsError).Select(d => d.Code))}");
+
+        // HealthRegen's AssetId is 00000003-0000-0000-0000-000000000001.
+        string expectedAssetId = asset.AssetId.ToString();
+        Assert.Contains($"AssetId = new Guid(\"{expectedAssetId}\")", src);
+    }
+
     // ---- AN2: Enum TypeRef EMIT round-trip (no double global::) ---------
     //
     // Regression guard for the AN2 emit bug: StaticTypeRegistry.TryResolve must strip the

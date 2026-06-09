@@ -146,5 +146,53 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(attr);
             Assert.Equal(DataPolicy.Transient, attr.Policy);
         }
+
+        // ── InitialBlueprintsIntent (BSA-201) ────────────────────────────────────
+
+        [Fact]
+        public void InitialBlueprintsIntent_RegisterManagedComponent_DoesNotThrow()
+        {
+            var ex = Record.Exception(() => _repo.RegisterManagedComponent<InitialBlueprintsIntent>());
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void InitialBlueprintsIntent_ComponentTypeRegistry_ReturnsCorrectType()
+        {
+            _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
+            var type = ComponentTypeRegistry.GetType(HrotComponentIds.InitialBlueprintsIntent);
+            Assert.Equal(typeof(InitialBlueprintsIntent), type);
+        }
+
+        [Fact]
+        public void InitialBlueprintsIntent_HasTransientDataPolicy()
+        {
+            var attr = typeof(InitialBlueprintsIntent).GetCustomAttribute<DataPolicyAttribute>();
+            Assert.NotNull(attr);
+            Assert.Equal(DataPolicy.Transient, attr.Policy);
+        }
+
+        [Fact]
+        public void InitialBlueprintsIntent_RoundTrip_SetThenGet_ReturnsSameData()
+        {
+            _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
+            var entity = _repo.CreateEntity();
+            var assetId = Guid.NewGuid();
+
+            var intent = new InitialBlueprintsIntent
+            {
+                Blueprints = new System.Collections.Generic.List<Fdp.Toolkit.Blueprints.BlueprintAssignmentDto>
+                {
+                    new() { AssetId = assetId },
+                    new() { AssetId = Guid.NewGuid() },
+                },
+            };
+
+            _repo.SetManagedComponent(entity, intent);
+            var retrieved = ((Fdp.ModuleHost.Abstractions.ISimulationView)_repo).GetManagedComponentRO<InitialBlueprintsIntent>(entity);
+            Assert.NotNull(retrieved);
+            Assert.Equal(2, retrieved!.Blueprints.Count);
+            Assert.Equal(assetId, retrieved.Blueprints[0].AssetId);
+        }
     }
 }

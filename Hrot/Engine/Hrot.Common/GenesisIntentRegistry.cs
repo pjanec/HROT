@@ -19,5 +19,6 @@ public static class GenesisIntentRegistry
         world.RegisterManagedComponent<InitialRouteIntent>();
         world.RegisterManagedComponent<InitialTargetsIntent>();
         world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+        world.RegisterManagedComponent<InitialBlueprintsIntent>();
     }
 }

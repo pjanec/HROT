@@ -12,15 +12,15 @@ builds 0 errors; 0 net-new test failures in touched projects.
 
 **Goal:** stop persisting volatile blackboard bytes, and establish one run-mode-agnostic attach/detach seam in core.
 
-- [ ] **BSA-101** Mark `BlueprintBlackboard{1024,4096,16384}` `[DataPolicy(NoSave)]` [details](./TASK-DETAIL.md#bsa-101-mark-blackboard-components-nosave) — *land with BSA-202*
+- [x] **BSA-101** Mark `BlueprintBlackboard{1024,4096,16384}` `[DataPolicy(NoSave)]` [details](./TASK-DETAIL.md#bsa-101-mark-blackboard-components-nosave) — *land with BSA-202*
 - [x] **BSA-102** Unified attach/detach seam in core, keyed by `BlueprintId`; editor service → forwarder [details](./TASK-DETAIL.md#bsa-102-unified-attachdetach-seam-in-core-keyed-by-blueprintid)
 
 ## Phase 2 — Static scenario assignment (CGF genesis)
 
 **Goal:** persist *intent* (which blueprints, optional overrides) declaratively; materialize at genesis through the core seam.
 
-- [ ] **BSA-201** `BlueprintAssignmentDto` + `InitialBlueprintsIntent` (`[Transient]`) + `RegisterManagedComponent` [details](./TASK-DETAIL.md#bsa-201-blueprintassignmentdto-initialblueprintsintent-registration)
-- [ ] **BSA-202** `BlueprintStateTranslator` — populate `def.AssetId` (emit) + Extract/Inject + `GetOutputDomKeys` (new key + legacy black-hole) [details](./TASK-DETAIL.md#bsa-202-blueprintstatetranslator-extract--inject--dom-keys--legacy-black-hole)
+- [x] **BSA-201** `BlueprintAssignmentDto` + `InitialBlueprintsIntent` (`[Transient]`) + `RegisterManagedComponent` [details](./TASK-DETAIL.md#bsa-201-blueprintassignmentdto-initialblueprintsintent-registration)
+- [x] **BSA-202** `BlueprintStateTranslator` — populate `def.AssetId` (emit) + Extract/Inject + `GetOutputDomKeys` (new key + legacy black-hole) [details](./TASK-DETAIL.md#bsa-202-blueprintstatetranslator-extract--inject--dom-keys--legacy-black-hole)
 - [ ] **BSA-203** `BlueprintMaterializationSystem` — tier pre-provision + ceiling guard + ECB intent removal [details](./TASK-DETAIL.md#bsa-203-blueprintmaterializationsystem-tier-pre-provision--ceiling-guard--ecb-removal)
 
 ## Phase 3 — Dynamic / mid-runtime assignment

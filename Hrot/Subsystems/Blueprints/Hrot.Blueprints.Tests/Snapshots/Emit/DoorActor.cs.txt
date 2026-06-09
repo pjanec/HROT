@@ -79,6 +79,7 @@ public static class BlueprintRegistrar_DoorActor_FFB212F0_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
             StructureHash = DoorActor_FFB212F0_Bp.StructureHash,
             StateSize = DoorActor_FFB212F0_Bp.StateSize,
+            AssetId = new Guid("00000006-0000-0000-0000-000000000001"),
             StateClrType = typeof(DoorActor_FFB212F0_Bp.State),
             InitDefault = DoorActor_FFB212F0_Bp.InitDefault,
             Tick = DoorActor_FFB212F0_Bp.TickThunk,

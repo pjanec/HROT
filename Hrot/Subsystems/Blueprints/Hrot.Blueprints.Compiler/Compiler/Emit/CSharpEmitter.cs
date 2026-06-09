@@ -262,6 +262,7 @@ internal sealed class CSharpEmitter
         WriteLine("Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,");
         WriteLine($"StructureHash = {className}.StructureHash,");
         WriteLine($"StateSize = {className}.StateSize,");
+        WriteLine($"AssetId = new Guid(\"{asset.AssetId}\"),");
         WriteLine($"StateClrType = typeof({className}.State),");
         WriteLine($"InitDefault = {className}.InitDefault,");
         WriteLine($"Tick = {className}.TickThunk,");

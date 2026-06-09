@@ -82,6 +82,7 @@ public static class BlueprintRegistrar_HealthRegen_9EC49CD9_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Instance,
             StructureHash = HealthRegen_9EC49CD9_Bp.StructureHash,
             StateSize = HealthRegen_9EC49CD9_Bp.StateSize,
+            AssetId = new Guid("00000003-0000-0000-0000-000000000001"),
             StateClrType = typeof(HealthRegen_9EC49CD9_Bp.State),
             InitDefault = HealthRegen_9EC49CD9_Bp.InitDefault,
             Tick = HealthRegen_9EC49CD9_Bp.TickThunk,
