@@ -93,6 +93,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // Tracks the manager-side BreakpointId for each session-side BreakpointId.
     private readonly Dictionary<BreakpointId, Hrot.Diagnostics.Breakpoints.BreakpointId> _mgrBpIds = new();
 
+    // Tracks DBM-side BreakpointIds for temporary breakpoints (CF-6).
+    // Temps are forwarded to DBM so the pause mechanism (repo rewind + _isPaused flag)
+    // works correctly. Removed when temps are cleared.
+    private readonly List<Hrot.Diagnostics.Breakpoints.BreakpointId> _tempMgrBpIds = new();
+
     // Instrumentation callback: invoked when a breakpoint or watch is set on an asset
     // with no DebugMap registered yet, so the editor can transparently compile in the
     // required mode (Debug / Trace) without the user clicking Compile manually.
@@ -293,7 +298,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _debugMaps.Clear();
         _pdbLocators.Clear();
         _graphs.Clear();
-        _tempBreakpoints.Clear();
+        ClearTemporaryBreakpoints(); // also clears _tempMgrBpIds via DBM Remove
         OnSessionStateChanged?.Invoke();
     }
 
@@ -439,6 +444,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             if (!_tempBreakpoints.TryGetValue(probeId, out var list))
                 _tempBreakpoints[probeId] = list = new List<Breakpoint>();
             list.Add(bp);
+
+            // Forward to DBM so the pause mechanism works correctly (repo rewind +
+            // _isPaused flag in OnHit).  Without this the latency system schedules
+            // the next tick and the sim never stays paused.
+            if (_dataBreakpointManager != null)
+            {
+                var mgrId = _dataBreakpointManager.AddBreakpoint(
+                    new Fdp.Toolkit.ReplayBrowser.Search.ExternalHitTagPredicateDto { Tag = probeId },
+                    displayName: "Step temp");
+                _tempMgrBpIds.Add(mgrId);
+            }
         }
     }
 
@@ -452,6 +468,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     private void ClearTemporaryBreakpoints()
     {
+        if (_dataBreakpointManager != null)
+        {
+            foreach (var mgrId in _tempMgrBpIds)
+                _dataBreakpointManager.Remove(mgrId);
+            _tempMgrBpIds.Clear();
+        }
         _tempBreakpoints.Clear();
     }
 
