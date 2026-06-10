@@ -112,6 +112,13 @@ pytest                         # Python projects
 cargo test                     # Rust projects
 ```
 
+**Test-health / Stability filter (.NET):** some suites carry known-unstable tests marked
+`[Trait("Stability", …)]` (Flaky/Environment/Broken), catalogued in `.dev/test-health/TEST-HEALTH.md`. Run with the
+documented filter so they're skipped and you get a clean green target:
+`dotnet test <proj> --filter "Stability!=Flaky&Stability!=Environment&Stability!=Broken"` (see
+`.dev/test-health/README.md`). The FILTERED run must be 0-failed. Do NOT add new `Stability` marks to dodge a failure
+you introduced — only pre-existing catalogued tests are skipped; your own new/changed tests must pass unfiltered.
+
 ### Step 4: Handle Questions/Blockers
 
 **When to ask questions:**
