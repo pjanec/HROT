@@ -141,6 +141,8 @@ namespace Hrot.SimHost.Tests
         /// -> Muscle egress -> Brain ingress.  Two enemy entities inside the polygon must
         /// be resolved back to the Brain with TargetCount == 2.
         /// </summary>
+        // STABILITY(Broken): Solver does not mark result IsReady — AreaQuerySolverSystem pipeline not completing; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA004_1_AreaQueryPipeline_BrainRequestReachesBack_WithTargets()
         {
@@ -255,6 +257,8 @@ namespace Hrot.SimHost.Tests
         /// translator must publish an immediate ready result event with TargetCount == 0
         /// and must not throw an exception.
         /// </summary>
+        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite due to static ComponentTypeRegistry contamination from SC_HA004_1; investigate
+        [Trait("Stability", "Flaky")]
         [Fact]
         public void SC_HA004_2_MuscleIngress_UnresolvedAreaEntity_WritesZeroTargetResponse()
         {
@@ -308,6 +312,8 @@ namespace Hrot.SimHost.Tests
         /// NetworkEntityMap (entity died between solve and egress), the MuscleEgress
         /// translator must publish a response with TargetCount == 2 and must not throw.
         /// </summary>
+        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite due to static ComponentTypeRegistry contamination from SC_HA004_1; investigate
+        [Trait("Stability", "Flaky")]
         [Fact]
         public void SC_HA004_3_MuscleEgress_UnresolvedTargetEntity_SkippedInResponse()
         {

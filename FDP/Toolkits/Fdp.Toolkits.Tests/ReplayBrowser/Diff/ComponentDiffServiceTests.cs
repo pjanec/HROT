@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
         // ── DIF-T01: Identical objects produce IsModified==false ───────────────
 
+        // STABILITY(Broken): ComputeDiff returns null for identical objects (expected non-null DiffNode) — suspected real bug in ComponentDiffService; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T01_IdenticalObjects_IsModifiedFalse()
         {
@@ -92,6 +94,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
         // ── DIF-T04: Numeric epsilon ───────────────────────────────────────────
 
+        // STABILITY(Broken): NullReferenceException in ComputeDiff — suspected real bug in ComponentDiffService null-return path; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T04_NumericEpsilon_BelowEpsilonNotModified_AboveEpsilonModified()
         {
@@ -232,6 +236,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
         // ── DIF-T10: Same tree diffed twice produces no modifications ──────────
 
+        // STABILITY(Broken): NullReferenceException on second ComputeDiff call — suspected real bug in ComponentDiffService; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T10_SameTree_DiffedTwice_NoModificationsSecondTime()
         {

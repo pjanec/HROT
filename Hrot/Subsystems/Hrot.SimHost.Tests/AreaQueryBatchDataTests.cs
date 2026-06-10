@@ -52,6 +52,8 @@ namespace Hrot.SimHost.Tests
         /// must return 64 distinct non-negative RequestIds.  The 65th submission must
         /// return <c>-1</c> because the batch is full.
         /// </summary>
+        // STABILITY(Broken): Duplicate RequestId 1 at index 1 — AreaQueryBatchData ID allocation collision; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void RequestAreaQuery_DistinctIds_AndFailsAtCapacity()
         {

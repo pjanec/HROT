@@ -40,6 +40,8 @@ namespace Hrot.SimHost.Tests
             _allocatorParticipant.Dispose();
         }
 
+        // STABILITY(Broken): RegisterSystems must be called before RegisterProviders — ordering bug in EngineBackedNavigationModule; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SimHost_Tick_DoesNotThrow()
         {

@@ -152,6 +152,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 1: Basic extraction — single root entity ─────────────────────────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_SingleRootEntity_ReturnsSingleRequestWithCorrectTkbType()
         {
@@ -177,6 +179,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 2: TKB structural child entities are filtered out ────────────────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing RegisterManagedComponent call; investigate fixture setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_EntityWithPartMetadata_IsFilteredOutFromResults()
         {
@@ -240,6 +244,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 4: Network ID remapping in ActiveMissionPlan BehaviorParams ──────
 
+        // STABILITY(Broken): Component type ID 183 not registered — missing component registration in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_WithBehaviorRemapper_ReplacesNetworkIdInBehaviorParams()
         {
@@ -286,6 +292,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 5: Entity without NetworkIdentity — no exception in Pass 1 ───────
 
+        // STABILITY(Broken): Assert.Contains failure — result does not contain expected item; investigate StagingEntityExtractor single-entity without NetworkIdentity path
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_EntityWithoutNetworkIdentity_NoExceptionReturnsSingleRequest()
         {
@@ -305,6 +313,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 6: Translator-consumed components are excluded ───────────────────
 
+        // STABILITY(Broken): Component type ID 28 not registered — missing component registration in test fixture; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_TranslatorConsumedComponent_IsExcludedFromInitialComponents()
         {
@@ -350,6 +360,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 8: PreAllocatedNetworkId is set from Pass 1 allocation ───────────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_EntityWithNetworkIdentity_SetsPreAllocatedNetworkId()
         {
@@ -393,6 +405,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 10: ChildComponentOverrides populated from PartMetadata children ─
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_WithChildEntity_PopulatesChildComponentOverrides()
         {
@@ -455,6 +469,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 12: Child pre-allocated ID carried to ChildComponentOverrides ────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — real bug in StagingEntityExtractor fixture; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_ChildWithNetworkIdentity_CarriesPreAllocatedIdToOverrides()
         {
@@ -530,6 +546,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 13: InitialPassengersIntent NetworkIds remapped via oldToNewMap ──────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — real bug in StagingEntityExtractor fixture; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_InitialPassengersIntent_RemapsPassengerNetworkIdsViaOldToNewMap()
         {
@@ -569,6 +587,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 14: Unknown passenger NetworkId preserved as-is ──────────────────────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_InitialPassengersIntent_PreservesUnknownNetworkId()
         {
@@ -599,6 +619,8 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 15: Child entity InitialPassengersIntent NetworkId remapped (S313) ─
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — same root cause as other StagingEntityExtractor tests; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_ChildEntity_InitialPassengersIntent_NetworkIdIsRemapped()
         {
@@ -684,6 +706,8 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_InitialUnitSubordinateIntent_RemapsCommanderNetworkIdViaOldToNewMap()
         {
@@ -717,6 +741,8 @@ namespace Hrot.SimHost.Tests
 
         // ── CS027-T02: Unknown CommanderNetworkId preserved as-is ─────────────────
 
+        // STABILITY(Broken): EditablePolyline managed component not registered — missing component in test fixture; investigate StagingEntityExtractor setup
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_InitialUnitSubordinateIntent_PreservesUnknownCommanderNetworkId()
         {

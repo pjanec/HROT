@@ -48,6 +48,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ022-2: Register with an unregistered component type → InvalidOperationException.
+        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[249] registered by a prior test in the process
+        [Trait("Stability", "Flaky")]
         [Fact]
         public void SC_GZ022_2_Register_UnregisteredType_Throws()
         {

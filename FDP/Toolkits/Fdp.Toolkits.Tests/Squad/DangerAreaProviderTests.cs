@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Squad.Tests
             Assert.Equal(expected, buf[0].FeatureId);
         }
 
+        // STABILITY(Flaky): GC allocation measurement is order-dependent — JIT warmup from prior tests inflates allocation count; passes in isolation
+        [Trait("Stability", "Flaky")]
         [Fact]
         public void FakeDangerAreaProvider_Refresh_ZeroAllocAfterWarmup()
         {

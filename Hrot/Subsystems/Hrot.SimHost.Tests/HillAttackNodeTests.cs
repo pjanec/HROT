@@ -291,6 +291,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA008-1: AimAndFireSpecific writes WeaponChannel; ActionInstanceId
         /// incremented exactly once per engagement.</summary>
+        // STABILITY(Broken): Expected WeaponChannel written but value mismatch — AimAndFireSpecific behavior broken; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel_AndIncrementsId()
         {
@@ -739,6 +741,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA011-3: Condition_IsAreaQueryResolved returns Running while
         /// result IsReady == false.</summary>
+        // STABILITY(Broken): Component type ID 117 not registered — missing AreaQuery component registration; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA011_3_IsAreaQueryResolved_ReturnsRunning_WhenResultNotReady()
         {
@@ -775,6 +779,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA011-4: Condition_IsAreaQueryResolved returns Failure and resets
         /// CachedEqsRequestId = -1 when IsReady == true and TargetCount == 0.</summary>
+        // STABILITY(Broken): Expected Failure but got different result — IsAreaQueryResolved not returning Failure with zero targets; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets()
         {
@@ -821,6 +827,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA011-5: Condition_IsAreaQueryResolved returns Success when
         /// IsReady == true and TargetCount > 0. CachedEqsRequestId is NOT cleared.</summary>
+        // STABILITY(Broken): Expected Success but got different result — IsAreaQueryResolved not returning Success correctly; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId()
         {
@@ -1099,6 +1107,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA012-6: Condition_IsWaveCompleted does NOT remove an entry when
         /// HasStartedRun == 0, even if ActiveBehaviorHash differs from HullDownAttackRun.</summary>
+        // STABILITY(Broken): IsWaveCompleted incorrectly removes entry when HasStartedRun==0; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA012_6_IsWaveCompleted_NoRemove_WhenHasNotStartedYet()
         {
@@ -1133,6 +1143,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA012-6b: When attacker's BehaviorHash matches HullDownAttackRun at
         /// tick T (HasStartedRun set), then no longer matches at T+1 => entry removed => Success.</summary>
+        // STABILITY(Broken): Baseline slot not cleared after run completes — IsWaveCompleted wave cleanup logic broken; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA012_6b_IsWaveCompleted_RunComplete_WhenHashNoLongerMatchesAfterStarted()
         {
@@ -1381,6 +1393,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA016-1: PlatoonHillAttackParamsJsonDto deserializes from full JSON.
         /// Missing tankSpacing uses default 30f.</summary>
+        // STABILITY(Broken): float value not within tolerance 0.001 — JSON deserialization precision or unit conversion issue; investigate ParsePlatoonHillAttackParams
+        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA016_1_ParsePlatoonHillAttackParams_DeserializesFromJson()
         {
@@ -1407,6 +1421,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA016-2: Horizontal firing line (0,0)-(100,0) => AttackDirX==0,
         /// |AttackDirY|==1 (perpendicular to firing line).</summary>
+        // STABILITY(Broken): float value not within tolerance 0.001 — AttackDir computation precision or convention issue; investigate ParsePlatoonHillAttackParams
+        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular()
         {
@@ -1431,6 +1447,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA016-3: Valid TargetAreaNetworkId that maps to a live entity =>
         /// TargetAreaEntity != Entity.Null.</summary>
+        // STABILITY(Broken): Entity.Null returned instead of valid entity — TargetArea resolution broken; investigate ParsePlatoonHillAttackParams
+        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA016_3_ParsePlatoonHillAttackParams_ResolvesTargetArea_WhenValid()
         {

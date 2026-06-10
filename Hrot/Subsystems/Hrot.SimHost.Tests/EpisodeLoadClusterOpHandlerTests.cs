@@ -97,6 +97,8 @@ namespace Hrot.SimHost.Tests
 
         // ── A.2 fix 3: null repo when CommitStartEpisode runs for a participant ─
 
+        // STABILITY(Broken): Handler not participating when scenario file exists — PrefetchFiles / participation logic broken; investigate EpisodeLoadClusterOpHandler
+        [Trait("Stability", "Broken")]
         [Fact]
         public async Task StartEpisode_NullRepo_WhenParticipating_Throws()
         {

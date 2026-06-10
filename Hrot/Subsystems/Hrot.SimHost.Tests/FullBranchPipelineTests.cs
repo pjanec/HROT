@@ -81,6 +81,8 @@ namespace Hrot.SimHost.Tests
         ///     original recording.</item>
         /// </list>
         /// </remarks>
+        // STABILITY(Broken): BranchedRecording pipeline fails — likely real bug in branch recording or keyframe capture; investigate
+        [Trait("Stability", "Broken")]
         [Fact(Timeout = 60_000)]
         public async Task BranchedRecording_CapturesHistoricalStateAsKeyframe()
         {

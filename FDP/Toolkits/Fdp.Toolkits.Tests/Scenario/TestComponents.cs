@@ -3,10 +3,12 @@ using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Toolkit.Scenario;
 
-// ── Test-only component IDs (200–255 reserved block) ────────────────────────
+// ── Test-only component IDs ──────────────────────────────────────────────────
 // ScenarioIgnoreTag = 200 (defined in FDP.Toolkit.Scenario)
 // EpisodeTag = 84 (now Fdp.Core.EpisodeTag, unmanaged struct, Guid EpisodeId)
-// Test components occupy IDs 210–219.
+// Test components occupy IDs 210–211, 213, 215, 291–293.
+// IDs 212 and 214 are production IDs (INavmeshProvider=212, EqsSolverGlobalState=214)
+// and must NOT be used in tests; 291–293 are free across all assemblies.
 
 namespace Fdp.Toolkit.Scenario.Tests
 {
@@ -29,7 +31,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// "BallisticProjectile" equivalent for the ordnance translator.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(211)]
+    [ComponentId(295)] // was 211; 211 = GlobalComponentIds.ICoverProvider (production conflict)
     public struct TestBallisticProjectile
     {
         public float Damage;
@@ -41,7 +43,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// "PhysicsCollider" equivalent for the ordnance translator.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(212)]
+    [ComponentId(292)] // was 212; 212 = GlobalComponentIds.INavmeshProvider (production conflict)
     public struct TestPhysicsCollider
     {
         public float Radius;
@@ -65,7 +67,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// <c>MaxSpeed</c> should appear in the DOM; <c>CachedWheelAngle</c> should not.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(215)]
+    [ComponentId(294)] // was 215; 215 = GlobalComponentIds.IPathRegistry (production conflict)
     public struct CachedSpeedComponent
     {
         /// <summary>Serialized: present in scenario DOM.</summary>
@@ -85,7 +87,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// in the scenario DOM.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(214)]
+    [ComponentId(293)] // was 214; 214 = GlobalComponentIds.EqsSolverGlobalState (production conflict)
     [DataPolicy(DataPolicy.NoSave)]
     public struct NoSaveVelocity
     {

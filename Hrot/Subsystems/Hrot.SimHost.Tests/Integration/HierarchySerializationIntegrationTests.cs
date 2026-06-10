@@ -64,6 +64,8 @@ public sealed class HierarchySerializationIntegrationTests : IDisposable
     }
 
     // CS025-T06
+    // STABILITY(Broken): unknown component type 'UnitSubordinate' on deserialization — component not registered in test fixture; investigate HierarchySerializationIntegrationTests setup
+    [Trait("Stability", "Broken")]
     [Fact]
     public void Serialize_ThenDeserialize_ReconstitutesHierarchy()
     {

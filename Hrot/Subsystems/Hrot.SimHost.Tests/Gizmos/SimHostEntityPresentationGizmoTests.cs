@@ -60,6 +60,8 @@ namespace Hrot.SimHost.Tests.Gizmos
         }
 
         // SC_GZ057_3: Draw emits a SemanticShape primitive with AnchorIndex matching networkId.
+        // STABILITY(Broken): Expected DebugPrimitiveShape.SemanticShape but got Box2D — SimHostEntityPresentationGizmo emitting wrong shape type; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_GZ057_3_Draw_EmitsSemanticShapeWithMatchingAnchorIndex()
         {
@@ -81,6 +83,8 @@ namespace Hrot.SimHost.Tests.Gizmos
         }
 
         // SC_GZ057_4: Draw with VehicleParams emits non-zero dimensions in SemanticShape.
+        // STABILITY(Broken): Expected 3 primitives but got 8 — SimHostEntityPresentationGizmo emitting extra primitives with VehicleParams; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_GZ057_4_Draw_WithVehicleParams_EmitsNonZeroDimensions()
         {

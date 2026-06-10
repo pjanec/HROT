@@ -22,6 +22,8 @@ public class TkbDatabaseSingletonTests
         Assert.Same(tkb, retrieved);
     }
 
+    // STABILITY(Broken): Component type ID 45 not registered — TkbDatabase component not registered in SimHostComponentRegistry; investigate
+    [Trait("Stability", "Broken")]
     [Fact]
     public void SetSingletonManaged_TkbDatabase_SameInstanceAfterRegisterAll()
     {

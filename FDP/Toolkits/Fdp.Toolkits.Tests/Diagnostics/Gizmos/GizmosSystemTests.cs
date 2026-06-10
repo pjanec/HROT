@@ -216,6 +216,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.True(rule.RequiredMask.IsSet(idB));
         }
 
+        // STABILITY(Flaky): Order-dependent — passes in isolation but fails in full suite when static ComponentTypeRegistry has UnregisteredComp[248] registered by a prior test in the process
+        [Trait("Stability", "Flaky")]
         [Fact]
         public void SC_GZ004_2_Register_UnregisteredComponent_Throws()
         {
@@ -934,6 +936,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
+        // STABILITY(Broken): GizmoStructUpdateEvent routing by GizmoTypeId returns 0 (expected 1) — DataDrivenGizmoSystem not routing struct-updates by typeId; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo()
         {
@@ -954,6 +958,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-5: GizmoMenuActionEvent with def2's GizmoTypeId — only def2 receives it.
+        // STABILITY(Broken): GizmoMenuActionEvent routing by GizmoTypeId returns 0 (expected 1) — DataDrivenGizmoSystem not routing menu-actions by typeId; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only()
         {

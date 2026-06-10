@@ -37,6 +37,8 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// <see cref="PathfindingBatchData.DefaultCapacity"/> must be 64 as specified in the design.
         /// </summary>
+        // STABILITY(Broken): PathfindingBatchData.DefaultCapacity != 64 — constant changed or logic pack regression; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void PathfindingBatchData_DefaultCapacity_Is64()
         {

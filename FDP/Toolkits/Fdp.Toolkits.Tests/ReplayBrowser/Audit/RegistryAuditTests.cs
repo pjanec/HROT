@@ -4,13 +4,14 @@ using Xunit;
 
 namespace Fdp.Toolkit.ReplayBrowser.Audit
 {
-    // Component IDs 200-201 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Audit)
+    // Component IDs 200, 291 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Audit)
+    // NOTE: 201 = GlobalComponentIds.ZoneEnvironmentData (production); use 291 instead.
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     [ComponentId(200)]
     internal struct AuditCompA { public int Value; }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    [ComponentId(201)]
+    [ComponentId(291)] // was 201; 201 = GlobalComponentIds.ZoneEnvironmentData (production conflict)
     internal struct AuditCompB { public float Value; }
 
     // Event IDs 99001-99002 reserved for this file

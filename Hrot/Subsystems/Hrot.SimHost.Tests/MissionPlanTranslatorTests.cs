@@ -98,6 +98,8 @@ namespace Hrot.SimHost.Tests
         /// S201-SC1: Extract produces a dictionary with key "MissionPlan" containing
         /// PlanData, CurrentPhase, and PhaseElapsedSeconds.
         /// </summary>
+        // STABILITY(Broken): NullReferenceException — MissionPlanTranslator.Extract returns null instead of DOM object; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_EntityWithActiveMissionPlan_ReturnsMissionPlanDomObject()
         {
@@ -122,6 +124,8 @@ namespace Hrot.SimHost.Tests
         /// S201-SC2: Inject with DOM from Extract restores ActiveMissionPlan.Plan.Tasks[0].BehaviorId
         /// and the corresponding MissionPlanQueue.Phases[0].BehaviorId.
         /// </summary>
+        // STABILITY(Broken): BehaviorId restored as TimerElapsed instead of BehaviorFinished — MissionPlanTranslator.Inject phase behavior mismatch; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Inject_WithExtractedDom_RestoresActivePlanAndQueue()
         {

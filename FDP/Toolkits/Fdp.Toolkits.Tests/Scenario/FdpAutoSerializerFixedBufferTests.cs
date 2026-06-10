@@ -273,6 +273,8 @@ namespace Fdp.Toolkit.Scenario.Tests
         /// S302-SC3: MissionPlanQueue (which has MissionPhaseBuffer [InlineArray(8)])
         /// round-trips phase data correctly.
         /// </summary>
+        // STABILITY(Broken): MissionPlanQueue not registered on freshRepo during Deserialize → InvalidOperationException — investigate serializer registration flow
+        [Trait("Stability", "Broken")]
         [Fact]
         public void RoundTrip_MissionPlanQueue_PreservesPhaseData()
         {

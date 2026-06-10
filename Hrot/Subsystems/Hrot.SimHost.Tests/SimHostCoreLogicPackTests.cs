@@ -98,6 +98,8 @@ namespace Hrot.SimHost.Tests
         /// All four sub-module system sets register without error, and a single-frame
         /// pump does not throw on an empty world.
         /// </summary>
+        // STABILITY(Broken): system count mismatch — system added/removed from SimHostCoreLogicPack without updating the test's expected count; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SimHostCoreLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {

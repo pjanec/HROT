@@ -63,6 +63,8 @@ namespace CarKinem.Tests.Algorithms
             Assert.Equal(1f, length, precision: 4);
         }
 
+        // STABILITY(Broken): BicycleModel.Integrate does not clamp speed to zero — returns -5 with accel=-10, dt=1; real bug in BicycleModel; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void BicycleModel_NegativeSpeed_ClampsToZero()
         {

@@ -622,6 +622,8 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>C013 SC6: Key not present for a child — AllocateId() called for that child.</summary>
+        // STABILITY(Broken): AllocatorCalledForChild — allocator called 1 time instead of expected 2; investigate CreateEntityRequestSystem child allocation logic
+        [Trait("Stability", "Broken")]
         [Fact]
         public void C013_ChildOverride_KeyAbsent_AllocatorCalledForChild()
         {

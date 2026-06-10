@@ -335,6 +335,8 @@ namespace Hrot.SimHost.Tests
         /// the first and third dispatched tank receive the same target, while the
         /// second receives the other.
         /// </summary>
+        // STABILITY(Broken): Expected 3 assigned targets but got 0 — DispatchWave round-robin assignment not working; investigate HillAttack BTree
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem()
         {
@@ -434,6 +436,8 @@ namespace Hrot.SimHost.Tests
         /// firing-line slot.  The test drives the commander through
         /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
         /// </summary>
+        // STABILITY(Broken): Expected ≥2 HullDownAttack dispatch events but got 0 — DispatchWave unique slot assignment not working; investigate HillAttack BTree
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
         {
@@ -525,6 +529,8 @@ namespace Hrot.SimHost.Tests
         /// firing-line slot into <c>BurnedSlotsMask</c>.  The wave still completes
         /// once the surviving tank finishes its run.
         /// </summary>
+        // STABILITY(Broken): Expected 2 dispatched tanks but got 0 — IsWaveCompleted killed-tank slot burn not working; investigate HillAttack BTree
+        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem()
         {
@@ -631,6 +637,8 @@ namespace Hrot.SimHost.Tests
         /// The Repeater exits on that Failure path and BehaviorFinishedEvent is published
         /// for the commander within a few ticks.
         /// </summary>
+        // STABILITY(Broken): BehaviorFinishedEvent not published for commander — HillAttack full end-to-end pipeline broken; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty()
         {

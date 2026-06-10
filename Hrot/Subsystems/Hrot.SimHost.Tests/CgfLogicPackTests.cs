@@ -89,6 +89,8 @@ namespace Hrot.SimHost.Tests
         /// All three sub-module system sets register without error and run on an
         /// empty world without throwing.
         /// </summary>
+        // STABILITY(Broken): system count mismatch (Expected 3, Actual 2) — a system was added/removed from CgfLogicPack without updating the test count; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
@@ -266,6 +268,8 @@ namespace Hrot.SimHost.Tests
         /// and <see cref="BehaviorIngressSystem"/> in the Input group, and all remaining
         /// systems in the Simulation group.
         /// </summary>
+        // STABILITY(Broken): system count mismatch (Expected 3, Actual 2) — system added/removed from CgfLogicPack without updating count; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly()
         {
@@ -296,6 +300,8 @@ namespace Hrot.SimHost.Tests
         /// S306-SC4: The existing single-group overload still adds all 15 systems to the same
         /// group (no regression).
         /// </summary>
+        // STABILITY(Broken): system count mismatch (Expected 21, Actual 20) — system added/removed from CgfLogicPack without updating count; investigate
+        [Trait("Stability", "Broken")]
         [Fact]
         public void CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup()
         {

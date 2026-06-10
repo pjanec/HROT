@@ -50,6 +50,8 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T01: Inject with valid GUID writes InitialUnitSubordinateIntent
 
+        // STABILITY(Broken): JSON designation field type mismatch — JSON has Number but translator expects String; investigate designation serialization
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Inject_WithValidGuid_WritesInitialUnitSubordinateIntent()
         {
@@ -80,6 +82,8 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T02: Inject with unresolvable GUID writes intent with CommanderNetworkId = 0
 
+        // STABILITY(Broken): JSON designation field type mismatch — JSON has Number but translator expects String; investigate designation serialization
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Inject_WithUnresolvableGuid_WritesIntentWithZeroNetworkId()
         {
@@ -105,6 +109,8 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T03: Extract with commander produces correct keys
 
+        // STABILITY(Broken): designation extracted as String but JSON expects Int32; investigate designation serialization
+        [Trait("Stability", "Broken")]
         [Fact]
         public void Extract_WithCommander_ProducesCommanderGuidAndDesignation()
         {
