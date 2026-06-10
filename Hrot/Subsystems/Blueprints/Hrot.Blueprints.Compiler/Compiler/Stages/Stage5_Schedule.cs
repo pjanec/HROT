@@ -1539,16 +1539,22 @@ internal sealed class GraphScheduler
         var workState  = _typed.Asset.WorkingState;
         var parameters = _typed.Asset.Parameters;
 
-        if (Guid.TryParse(variableId, out var guid))
+        // VariableId may be in the form "var:<Guid>" — strip the prefix before parsing.
+        // Mirrors Stage0_Rehydrate.ResolveVariableTypeId (lines 487-490).
+        var idStr = variableId.StartsWith("var:", StringComparison.OrdinalIgnoreCase)
+            ? variableId.Substring(4)
+            : variableId;
+
+        if (Guid.TryParse(idStr, out var guid))
         {
             for (int i = 0; i < variables.Count;  i++) if (variables[i].Id  == guid) return i;
             for (int i = 0; i < workState.Count;  i++) if (workState[i].Id  == guid) return i;
             for (int i = 0; i < parameters.Count; i++) if (parameters[i].Id == guid) return i;
         }
         // Name fallback
-        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == variableId) return i;
-        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == variableId) return i;
-        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == variableId) return i;
+        for (int i = 0; i < variables.Count;  i++) if (variables[i].Name  == idStr) return i;
+        for (int i = 0; i < workState.Count;  i++) if (workState[i].Name  == idStr) return i;
+        for (int i = 0; i < parameters.Count; i++) if (parameters[i].Name == idStr) return i;
         return -1;
     }
 
