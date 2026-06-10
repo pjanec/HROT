@@ -56,6 +56,7 @@ using Hrot.Common.Systems;
 using Hrot.Common.Scenario;
 using Hrot.Editor;
 using Hrot.Editor.Adapters;
+using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Events;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
@@ -336,6 +337,11 @@ namespace Hrot.Editor
         // FlushNow()s the regeneration scheduler then calls SaveAllAiDocumentsCommand.Execute.
         private Action? _saveAllCallback;
         private string _saveAllStatus = string.Empty;
+
+        // BATCH-06: perspective-level shell hotkey dispatcher (Ctrl+S/Ctrl+Shift+S fix, §20).
+        private ImGuiInputSource? _shellInputSource;
+        private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
+
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -1586,6 +1592,18 @@ namespace Hrot.Editor
         {
             if (_headless) return;
 
+            // ── BATCH-06: perspective-level shell hotkey dispatch (Ctrl+S fix, §20) ───────────
+            // Pump the shell command hotkeys once per frame so Ctrl+S/Ctrl+Shift+S fire
+            // regardless of which sub-window is focused. Skip while the user is typing in
+            // a text field so keystrokes are not stolen from text inputs.
+            if (_shellHotkeyDispatcher != null && _wm?.ShellCommands != null)
+            {
+                var io = ImGuiNET.ImGui.GetIO();
+                if (!io.WantTextInput)
+                    _shellHotkeyDispatcher.ProcessThisFrame(_wm.ShellCommands);
+            }
+            // ───────────────────────────────────────────────────────────────────────────────────
+
             // ── Unified Blueprint Tools Panel ──────────────────────────────────────────────────
             // Merges MVE-BATCH-03/04/05 + PU-603 into a single "Blueprint Tools" window.
             // Gate on ImGui context availability (skipped in non-ImGui headless test paths).
@@ -1599,12 +1617,6 @@ namespace Hrot.Editor
 
                 if (showBlueprintTools && ImGuiNET.ImGui.Begin("Blueprint Tools"))
                 {
-                    bool isWindowFocused = ImGuiNET.ImGui.IsWindowFocused(
-                        ImGuiNET.ImGuiFocusedFlags.RootAndChildWindows);
-                    bool ctrlDown   = ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModCtrl);
-                    bool shiftDown  = ImGuiNET.ImGui.IsKeyDown(ImGuiNET.ImGuiKey.ModShift);
-                    bool sPressed   = ImGuiNET.ImGui.IsKeyPressed(ImGuiNET.ImGuiKey.S);
-
                     // -- 1. Run Blueprint --
                     if (_blueprintRunButtonCallback != null)
                     {
@@ -1619,12 +1631,11 @@ namespace Hrot.Editor
                         }
                     }
 
-                    // -- 2. Save Blueprint (Ctrl+S, but not Ctrl+Shift+S) --
+                    // -- 2. Save Blueprint (hotkey via shell.save command, §20) --
                     if (_blueprintSaveCallback != null)
                     {
                         ImGuiNET.ImGui.SameLine();
-                        if ((isWindowFocused && ctrlDown && !shiftDown && sPressed)
-                            || ImGuiNET.ImGui.Button("Save Blueprint"))
+                        if (ImGuiNET.ImGui.Button("Save Blueprint"))
                             _blueprintSaveCallback.Invoke();
 
                         if (!string.IsNullOrEmpty(_blueprintSaveStatus))
@@ -1655,12 +1666,11 @@ namespace Hrot.Editor
                         }
                     }
 
-                    // -- 4. Save All (Ctrl+Shift+S) --
+                    // -- 4. Save All (hotkey via shell.saveAll command, §20) --
                     if (_saveAllCallback != null)
                     {
                         ImGuiNET.ImGui.SameLine();
-                        if ((isWindowFocused && ctrlDown && shiftDown && sPressed)
-                            || ImGuiNET.ImGui.Button("Save All"))
+                        if (ImGuiNET.ImGui.Button("Save All"))
                             _saveAllCallback.Invoke();
 
                         if (!string.IsNullOrEmpty(_saveAllStatus))
@@ -2230,6 +2240,27 @@ namespace Hrot.Editor
                     saveHsmDelegate,
                     msg => _saveAllStatus = msg);
             };
+
+            // ── BATCH-06: register shell save commands (Ctrl+S/Ctrl+Shift+S fix, §20) ──────────
+            // Wire the three save commands into the global shell command set with production
+            // save delegates and a requestSaveAs seam (DEC-9: dialog is Phase 6).
+            _shellInputSource = new ImGuiInputSource();
+            _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
+                _shellInputSource);
+
+            Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
+                register:          windowManager.ShellCommands.Register,
+                docManager:        _aiDocumentManager,
+                saveBlueprint:     saveBlueprintDelegate,
+                saveBTree:         saveBTreeDelegate,
+                saveHsm:           saveHsmDelegate,
+                saveScenario:      null, // Phase 6 / scenario asset kind not yet defined
+                requestSaveAs:     doc =>
+                {
+                    _saveAllStatus = $"[INFO] Save As not yet available for '{doc.Asset.Name}'.";
+                },
+                report:            msg => _saveAllStatus = msg);
+            // ───────────────────────────────────────────────────────────────────────────────────
 
             // PU-603: flush-on-close — save dirty path'd docs before close.
             // Manager fires BeforeDocumentClosed before removing the doc from its list.
