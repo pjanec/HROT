@@ -10,14 +10,19 @@ namespace Hrot.Blueprints.Editor.Inspector;
 
 /// <summary>
 /// Blueprint-specific pane that plugs into the shared Runtime Inspector window.
-/// Shows the selected entity's attached-blueprint live working-state (field values + latent cursor)
-/// by calling <see cref="IBlueprintDebugSession.CaptureLiveState"/> on every draw — no pause required.
+/// Shows the selected entity's attached-blueprint working-state (field values + latent cursor).
+///
+/// While the session is paused and the virtual node pointer is active, the pane shows the
+/// pointer's per-node snapshot (via <see cref="ResolveInspectorSnapshot"/>). When not paused,
+/// or when <see cref="IBlueprintDebugSession.GetCurrentStateSnapshot"/> returns null (e.g. the
+/// selected entity differs from the paused entity), it falls back to live state via
+/// <see cref="IBlueprintDebugSession.CaptureLiveState"/>.
 ///
 /// The pane is registered next to BTree/HSM panes and the window selects it when the active
 /// asset kind is <see cref="AssetKind.Blueprint"/>.
 ///
-/// Field projection is ImGui-free (done in <see cref="ProjectFields"/>); only the draw method
-/// calls ImGui so the projection is independently testable.
+/// Field projection (<see cref="ProjectFields"/>) and snapshot resolution
+/// (<see cref="ResolveInspectorSnapshot"/>) are ImGui-free and independently testable.
 /// </summary>
 public sealed class BlueprintRuntimeInspectorPane : IRuntimeInspectorPane
 {
@@ -57,11 +62,26 @@ public sealed class BlueprintRuntimeInspectorPane : IRuntimeInspectorPane
             return;
         }
 
-        var snapshot = _session?.CaptureLiveState(entity.Value, assetId.Value);
+        // NGS-2.4a: while paused, prefer the per-node pointer snapshot over live state.
+        var snapshot = _session is null
+            ? null
+            : ResolveInspectorSnapshot(_session, entity.Value, assetId.Value);
+
         if (snapshot is null)
         {
             ImGuiNET.ImGui.TextDisabled("No live Blueprint state (DebugMap not registered?).");
             return;
+        }
+
+        // Optionally show a paused/node-position hint in the header area.
+        if (_session is { IsPaused: true, RecordedNodeCount: > 0 })
+        {
+            var hint = FormatPausedHint(_session);
+            if (!string.IsNullOrEmpty(hint))
+            {
+                ImGuiNET.ImGui.TextDisabled(hint);
+                ImGuiNET.ImGui.SameLine();
+            }
         }
 
         DrawHeader(snapshot);
@@ -137,5 +157,60 @@ public sealed class BlueprintRuntimeInspectorPane : IRuntimeInspectorPane
         foreach (var (name, value) in snapshot.FieldValues)
             rows.Add((name, value?.ToString() ?? "(null)"));
         return rows;
+    }
+
+    // ---- NGS-2.4a: snapshot resolution (testable, no ImGui) -----------------
+
+    /// <summary>
+    /// Resolves which snapshot the inspector should display.
+    ///
+    /// Logic:
+    /// <list type="bullet">
+    ///   <item>When <paramref name="session"/> is paused, try
+    ///         <see cref="IBlueprintDebugSession.GetCurrentStateSnapshot"/>. That method returns
+    ///         the virtual pointer's per-node restored state (or null when the paused entity
+    ///         differs from the selected entity). If non-null, return it.</item>
+    ///   <item>Otherwise fall back to <see cref="IBlueprintDebugSession.CaptureLiveState"/> for
+    ///         the supplied <paramref name="entity"/> and <paramref name="assetId"/>.</item>
+    /// </list>
+    ///
+    /// The fall-back-to-live rule keeps the inspector useful when the user has a different entity
+    /// selected than the one currently paused at a breakpoint.
+    /// </summary>
+    /// <param name="session">The active debug session.</param>
+    /// <param name="entity">The entity currently selected in the inspector.</param>
+    /// <param name="assetId">The blueprint asset id associated with the active canvas.</param>
+    /// <returns>
+    /// A <see cref="BlueprintStateSnapshot"/> representing either the per-node pointer state (while
+    /// paused and the pointer entity matches) or the current live state. Null when no state is
+    /// available (no DebugMap registered, entity has no blackboard, etc.).
+    /// </returns>
+    public static BlueprintStateSnapshot? ResolveInspectorSnapshot(
+        IBlueprintDebugSession session,
+        Entity entity,
+        Guid assetId)
+    {
+        if (session.IsPaused)
+        {
+            var pointerSnapshot = session.GetCurrentStateSnapshot();
+            if (pointerSnapshot is not null)
+                return pointerSnapshot;
+        }
+
+        return session.CaptureLiveState(entity, assetId);
+    }
+
+    /// <summary>
+    /// Formats the paused node-position hint shown in the inspector header.
+    /// Returns an empty string when not paused or when no recordings exist.
+    /// This is ImGui-free and independently testable.
+    /// </summary>
+    private static string FormatPausedHint(IBlueprintDebugSession session)
+    {
+        int count = session.RecordedNodeCount;
+        if (!session.IsPaused || count <= 0) return string.Empty;
+        int pointer = session.CurrentNodePointer;
+        if (pointer < 0) return "(paused)";
+        return $"(paused — node {pointer + 1} / {count})";
     }
 }

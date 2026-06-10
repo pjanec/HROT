@@ -22,7 +22,12 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 - ✅ NGS-2.2 — Inspector reads pointer's restored scratch repo; exact per-node values proven (A=0→0→10). Reverts to live after Continue.
 - ⚠️ **DESIGN PIVOT:** recorder now uses full KEYFRAME-per-node (delta missed blueprint SetVar writes that bypass GetComponentRW). Makes BATCH-00 semantic split largely vestigial → **USER DECISION pending** (revert BATCH-00 vs keep). See BATCH-03-REVIEW Finding.
 
-## BATCH-04 — Step-past-end tick-bridge (deferred — pending user input)
+## BATCH-04 — Editor UI surfacing ✅ DONE (committed, review APPROVED 2026-06-10)
+- ✅ NGS-2.4a — Inspector pane shows pointer's per-node state while paused (`ResolveInspectorSnapshot`), else live.
+- ✅ NGS-2.4b — Node highlight (`CurrentlyExecutingNode`) follows the virtual pointer while paused.
+- ✅ NGS-2.4c — Step Back button + "node X / N" indicator (`FormatNodePosition`). 17 tests (exact per-node values, pointer tracking, boundary cases). Ready for human visual smoke.
+
+## BATCH-05 — Step-past-end tick-bridge (deferred)
 - ⬜ NGS-2.3 — Step-past-last-node → advance exactly one real tick, re-record, re-pause at first probe.
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke next morning).
 
