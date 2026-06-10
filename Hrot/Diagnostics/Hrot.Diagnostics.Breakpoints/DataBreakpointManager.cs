@@ -477,7 +477,7 @@ public sealed class DataBreakpointManager : IDataBreakpointManager, IActiveViewP
         _isPaused = true;
         _pausedTick = _liveRepo.HasSingletonUnmanaged<GlobalTime>()
             ? _liveRepo.GetSingletonUnmanaged<GlobalTime>().TotalWallTicks
-            : (long)_preTickSnapshot.GlobalVersion; // fallback when GlobalTime not registered
+            : (long)_preTickSnapshot.SimulationTick; // fallback: frame clock (not memory clock)
 
         // Notify subscribers.
         OnBreakpointHit?.Invoke(updated, entity);

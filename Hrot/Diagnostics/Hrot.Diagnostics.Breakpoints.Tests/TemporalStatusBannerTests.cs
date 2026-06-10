@@ -165,7 +165,7 @@ public sealed class TemporalStatusBannerTests
 
         manager.OnHit(registeredBp, new Entity(1, 0));
 
-        // Fallback: must equal the pre-tick snapshot's GlobalVersion cast to long.
-        Assert.Equal((long)manager.PreTickSnapshot.GlobalVersion, manager.PausedTick);
+        // Fallback: must equal the pre-tick snapshot's SimulationTick (frame clock) cast to long.
+        Assert.Equal((long)manager.PreTickSnapshot.SimulationTick, manager.PausedTick);
     }
 }

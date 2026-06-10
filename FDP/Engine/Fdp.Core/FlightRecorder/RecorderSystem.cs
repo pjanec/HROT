@@ -60,7 +60,7 @@ namespace Fdp.Core.FlightRecorder
             // ---------------------------------------------------------
             // 1. WRITE FRAME METADATA
             // ---------------------------------------------------------
-            writer.Write((ulong)repo.GlobalVersion); // Current Tick (ulong) - Explicit Cast!
+            writer.Write((ulong)repo.SimulationTick); // Current Tick (frame clock, ulong) - Explicit Cast!
             writer.Write((byte)0);            // Type: Delta (0)
             writer.Write(wallClockTicks);     // WallClockTicks (long, 8 bytes)
             
@@ -337,7 +337,7 @@ namespace Fdp.Core.FlightRecorder
             long wallClockTicks, FdpEventBus? eventBus = null, bool serializeReadBuffer = false)
         {
             // Write frame metadata
-            writer.Write((ulong)repo.GlobalVersion); // Current Tick - Explicit Cast!
+            writer.Write((ulong)repo.SimulationTick); // Current Tick (frame clock) - Explicit Cast!
             writer.Write((byte)1);            // Type: Keyframe (1)
             writer.Write(wallClockTicks);     // WallClockTicks (long, 8 bytes)
             

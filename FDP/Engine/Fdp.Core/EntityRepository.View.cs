@@ -24,7 +24,7 @@ namespace Fdp.Core
         public void SetCommandBufferOverride(IEntityCommandBuffer? ecb) => _commandBufferOverride = ecb;
 
         // Properties
-        uint ISimulationView.Tick => _globalVersion;
+        uint ISimulationView.Tick => _simulationTick;
         
         float ISimulationView.Time => _simulationTime;
         

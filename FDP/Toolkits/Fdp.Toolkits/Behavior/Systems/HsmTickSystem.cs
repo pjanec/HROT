@@ -194,7 +194,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         traceCtx.CapacityBytes = HsmTraceWorkingMemory1024.PayloadBytes;
                         traceCtx.MaxRecords    = HsmTraceWorkingMemory1024.CapacityRecords;
                         traceCtx.FilterLevel   = ResolveTraceLevel(dbg.Behavior);
-                        traceCtx.CurrentTick   = (ushort)repo.GlobalVersion;
+                        traceCtx.CurrentTick   = (ushort)repo.SimulationTick;
                         traceCtx.InstanceId    = behavior.InstanceId;
                         traceCtxPtr = &traceCtx;
 

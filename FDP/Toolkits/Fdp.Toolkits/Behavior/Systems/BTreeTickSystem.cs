@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     Self        = entity,
                     World       = repo,
                     _deltaTime  = deltaTime,
-                    _frameCount = (int)repo.GlobalVersion,
+                    _frameCount = (int)repo.SimulationTick,
                     _floatParams = Array.Empty<float>(),
                     _intParams   = Array.Empty<int>(),
                     _instanceId  = behavior.InstanceId,

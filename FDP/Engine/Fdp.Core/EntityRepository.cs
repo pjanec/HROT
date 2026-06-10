@@ -60,7 +60,12 @@ namespace Fdp.Core
         private object[] _singletons;
         
         // Versioning for Delta Iterator (Stage 11/16)
+        // NGS-0.1: Semantic split — two clocks.
+        // Invariant: _globalVersion >= _simulationTick always.
+        // Both start equal and are bumped together by Tick().
+        // Only _globalVersion is bumped by BumpMemoryVersion() (sub-tick debug granularity).
         private uint _globalVersion = 1;
+        private uint _simulationTick = 1;
         
         /// <summary>
         /// Global configuration for Time Slicing metric. 
@@ -133,33 +138,59 @@ namespace Fdp.Core
         
         /// <summary>
         /// Current global change version. Incremented by Tick().
+        /// Also incremented alone (without SimulationTick) by BumpMemoryVersion() for sub-tick debug granularity.
         /// </summary>
         public uint GlobalVersion => _globalVersion;
-        
+
         /// <summary>
-        /// Increments the global version. Should be called at start of frame.
+        /// Semantic frame clock. Incremented only by Tick() — frozen during a mid-tick debug burst.
+        /// Frame-index / wall-tick consumers must read this, NOT GlobalVersion.
+        /// </summary>
+        public uint SimulationTick => _simulationTick;
+
+        /// <summary>
+        /// Increments both the memory clock and the frame clock. Should be called at start of frame.
         /// </summary>
         public void Tick()
         {
             System.Threading.Interlocked.Increment(ref _globalVersion);
+            System.Threading.Interlocked.Increment(ref _simulationTick);
         }
 
         /// <summary>
-        /// Force sets the global version. Used by PlaybackSystem.
+        /// Advances ONLY the memory clock (_globalVersion) for sub-tick dirty granularity during debug.
+        /// The frame clock (_simulationTick) is left frozen at its current value.
+        /// Call once per blueprint node during a debug session to stamp node-level chunk versions.
+        /// Invariant: _globalVersion >= _simulationTick always.
+        /// </summary>
+        public void BumpMemoryVersion()
+        {
+#if DEBUG
+            System.Diagnostics.Debug.Assert(_globalVersion >= _simulationTick,
+                "BumpMemoryVersion: invariant _globalVersion >= _simulationTick violated before bump.");
+#endif
+            System.Threading.Interlocked.Increment(ref _globalVersion);
+        }
+
+        /// <summary>
+        /// Force sets both version clocks to the same value. Used by PlaybackSystem.
+        /// Keeping both aligned ensures restored frames start with the invariant intact.
         /// </summary>
         internal void SetGlobalVersion(uint version)
         {
             _globalVersion = version;
+            _simulationTick = version;
         }
 
         /// <summary>
-        /// Resets the global version to the specified value (default: 1).
+        /// Resets both version clocks to the specified value (default: 1).
         /// Intended for test setup so that version-dependent assertions start from a known baseline,
         /// regardless of how many component registrations or internal ticks occurred during construction.
         /// </summary>
         public void ResetGlobalVersion(uint version = 1)
         {
             _globalVersion = version;
+            _simulationTick = version;
         }
         
         /// <summary>
