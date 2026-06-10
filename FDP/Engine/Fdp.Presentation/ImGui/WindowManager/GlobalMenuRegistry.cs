@@ -22,6 +22,19 @@ public class MenuItemNode
     /// <summary>When <c>true</c>, this node renders as a visual separator line.</summary>
     public bool IsSeparator { get; set; }
 
+    /// <summary>
+    /// Optional keyboard shortcut text displayed next to the item (e.g. "Ctrl+S").
+    /// When <c>null</c> or empty, no shortcut is shown. Backward-compatible addition (MTB-P2-T2).
+    /// </summary>
+    public string? Shortcut { get; set; }
+
+    /// <summary>
+    /// Optional delegate returning whether this item is currently enabled.
+    /// When <c>false</c> the item is greyed out and unclickable.
+    /// When <c>null</c> the item is always enabled. Backward-compatible addition (MTB-P2-T2).
+    /// </summary>
+    public Func<bool>? GetEnabled { get; set; }
+
     /// <summary>Child nodes keyed by path segment name.</summary>
     public Dictionary<string, MenuItemNode> Children { get; } = new();
 }

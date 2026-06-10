@@ -27,9 +27,9 @@ Phase 7.
 ## Phase 2 — Shell Command Set & Binding Adapters
 **Goal:** command-driven menus/toolbar/hotkeys; Ctrl+S fix.
 
-- [ ] **MTB-P2-T1** Shell `EditorCommandsImpl` [details](./TASK-DETAIL.md#mtb-p2-t1--shell-editorcommandsimpl)
-- [ ] **MTB-P2-T2** Menu-binding adapter [details](./TASK-DETAIL.md#mtb-p2-t2--menu-binding-adapter)
-- [ ] **MTB-P2-T3** Toolbar-binding adapter [details](./TASK-DETAIL.md#mtb-p2-t3--toolbar-binding-adapter)
+- [x] **MTB-P2-T1** Shell `EditorCommandsImpl` [details](./TASK-DETAIL.md#mtb-p2-t1--shell-editorcommandsimpl)
+- [x] **MTB-P2-T2** Menu-binding adapter [details](./TASK-DETAIL.md#mtb-p2-t2--menu-binding-adapter)
+- [x] **MTB-P2-T3** Toolbar-binding adapter [details](./TASK-DETAIL.md#mtb-p2-t3--toolbar-binding-adapter)
 - [ ] **MTB-P2-T4** Save / Save-As / Save-All commands + Ctrl+S [details](./TASK-DETAIL.md#mtb-p2-t4--save--save-as--save-all-commands--ctrls)
 
 ## Phase 3 — Toolbar Groups: Time, Perspective, AI Debug

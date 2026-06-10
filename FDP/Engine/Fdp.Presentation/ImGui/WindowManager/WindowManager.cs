@@ -174,6 +174,17 @@ public class WindowManager
     /// </summary>
     public MainToolbarManager MainToolbar => _mainToolbar;
 
+    // ── Shell Commands ──────────────────────────────────────────────────────
+
+    private readonly ShellEditorCommands _shellCommands = new();
+
+    /// <summary>
+    /// The global shell-level editor command set. Subsystems register their global
+    /// editor commands here once at startup (scenario lifecycle, AI-debug stepping,
+    /// open-browser, new-asset, etc.). Per-document command sets are separate and unchanged.
+    /// </summary>
+    public ShellEditorCommands ShellCommands => _shellCommands;
+
     // �� Settings Persistence ���������������������������������������������������
     //
     // NOTE(DEBT-003): ImGui.NET 1.91.x does not expose ImGuiSettingsHandler or
@@ -413,7 +424,8 @@ public class WindowManager
             if (child.GetCheckedState != null && child.OnCheckedChanged != null)
             {
                 bool checkedState = child.GetCheckedState();
-                if (Gui.MenuItem(child.Name, "", ref checkedState))
+                bool enabled = child.GetEnabled?.Invoke() ?? true;
+                if (Gui.MenuItem(child.Name, child.Shortcut ?? "", ref checkedState, enabled))
                 {
                     child.OnCheckedChanged(checkedState);
                 }
@@ -423,7 +435,8 @@ public class WindowManager
             // Leaf: plain action item.
             if (child.OnClick != null)
             {
-                if (Gui.MenuItem(child.Name))
+                bool enabled = child.GetEnabled?.Invoke() ?? true;
+                if (Gui.MenuItem(child.Name, child.Shortcut ?? "", false, enabled))
                 {
                     child.OnClick();
                 }
