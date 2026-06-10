@@ -293,10 +293,14 @@ class Program
 
                     rlImGui_cs.rlImGui.Begin();
 
-                    // --- RESTORED DOCKSPACE SETUP ---
+                    // --- DOCKSPACE SETUP (§4.1.2: inset top by toolbar, bottom by status bar) ---
                     var viewport = ImGuiNET.ImGui.GetMainViewport();
-                    ImGuiNET.ImGui.SetNextWindowPos(viewport.WorkPos);
-                    ImGuiNET.ImGui.SetNextWindowSize(viewport.WorkSize);
+                    float toolbarHeight = windowCtrl.WindowManager?.MainToolbar.Height ?? 0f;
+                    float statusBarHeight = windowCtrl.WindowManager?.StatusBar.Height ?? 0f;
+
+                    ImGuiNET.ImGui.SetNextWindowPos(DockspaceLayout.CentralPos(viewport.WorkPos, toolbarHeight));
+                    ImGuiNET.ImGui.SetNextWindowSize(DockspaceLayout.CentralSize(
+                        viewport.WorkSize.X, viewport.WorkSize.Y, toolbarHeight, statusBarHeight));
                     ImGuiNET.ImGui.SetNextWindowViewport(viewport.ID);
                     ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowRounding, 0f);
                     ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowBorderSize, 0f);
@@ -312,13 +316,9 @@ class Program
                     ImGuiNET.ImGui.PopStyleColor();
                     ImGuiNET.ImGui.PopStyleVar(2);
 
-                    // Reduce dockspace height to leave room for the status bar
-                    float statusBarHeight = windowCtrl.WindowManager?.StatusBar.Height ?? 0f;
-                    var dockspaceSize = statusBarHeight > 0f
-                        ? new System.Numerics.Vector2(viewport.WorkSize.X, viewport.WorkSize.Y - statusBarHeight)
-                        : System.Numerics.Vector2.Zero;
-
-                    ImGuiNET.ImGui.DockSpace(ImGuiNET.ImGui.GetID("MainDockSpace"), dockspaceSize, ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+                    ImGuiNET.ImGui.DockSpace(ImGuiNET.ImGui.GetID("MainDockSpace"),
+                        DockspaceLayout.CentralSize(viewport.WorkSize.X, viewport.WorkSize.Y, toolbarHeight, statusBarHeight),
+                        ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 

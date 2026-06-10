@@ -15,7 +15,7 @@ namespace Fdp.Presentation.WindowManager;
 /// </summary>
 public class WindowManager
 {
-    // ¦¦ Fields ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Fields ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly IconAtlas _atlas;
@@ -24,7 +24,7 @@ public class WindowManager
     private bool _openAboutModal;
     private IFileDialogService? _fileDialogService;
 
-    // ¦¦ Construction ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Construction ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>Initialises a new <see cref="WindowManager"/>.</summary>
     /// <param name="atlas">Icon atlas used by managed windows for title-bar controls.</param>
@@ -36,7 +36,7 @@ public class WindowManager
     /// <summary>The icon atlas supplied at construction time.</summary>
     public IconAtlas Atlas => _atlas;
 
-    // ¦¦ Registration ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Registration ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Registers a window with this manager, keyed by <see cref="ManagedWindow.Id"/>.
@@ -56,7 +56,7 @@ public class WindowManager
     public bool TryGetWindow(string id, [MaybeNullWhen(false)] out ManagedWindow window)
         => _windows.TryGetValue(id, out window);
 
-    // ¦¦ Programmatic API ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Programmatic API ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Sets <see cref="ManagedWindow.IsOpen"/> to <c>true</c>.
@@ -114,7 +114,7 @@ public class WindowManager
         win.RequestFocus();
     }
 
-    // ¦¦ Perspective ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Perspective ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>The currently active perspective name. Defaults to <c>"Default"</c>.</summary>
     public string CurrentPerspective { get; private set; } = "Default";
@@ -139,7 +139,7 @@ public class WindowManager
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
 
-    // ¦¦ Message Log Registry ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Message Log Registry ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Optional shared <see cref="Fdp.Core.Logging.MessageLogRegistry"/> instance.
@@ -149,12 +149,12 @@ public class WindowManager
     /// </summary>
     public Fdp.Core.Logging.MessageLogRegistry? MessageLogRegistry { get; set; }
 
-    // ¦¦ Menu Registry ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Menu Registry ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>The global application menu registry.</summary>
     public GlobalMenuRegistry GlobalMenu { get; } = new();
 
-    // ¦¦ Status Bar ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Status Bar ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     private readonly StatusBarManager _statusBar = new();
 
@@ -164,7 +164,17 @@ public class WindowManager
     /// </summary>
     public StatusBarManager StatusBar => _statusBar;
 
-    // ¦¦ Settings Persistence ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    private readonly MainToolbarManager _mainToolbar = new();
+
+    /// <summary>
+    /// The global main toolbar manager. Subsystems register named entries here.
+    /// Rendered as a band anchored at the top of the viewport, directly under
+    /// the main menu bar. Height is jitter-free (max declared height over all
+    /// registered entries, constant across perspective switches).
+    /// </summary>
+    public MainToolbarManager MainToolbar => _mainToolbar;
+
+    // ï¿½ï¿½ Settings Persistence ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     //
     // NOTE(DEBT-003): ImGui.NET 1.91.x does not expose ImGuiSettingsHandler or
     // ImGui.AddSettingsHandler via its managed bindings.  A JSON-based fallback
@@ -203,13 +213,13 @@ public class WindowManager
             if (line.Length == 0) continue;
 
             int eq = line.IndexOf('=');
-            if (eq < 0) continue;          // malformed — no '='
+            if (eq < 0) continue;          // malformed ï¿½ no '='
 
             var key   = line[..eq];
             var value = line[(eq + 1)..];
 
             var parts = value.Split(',');
-            if (parts.Length != 2) continue; // malformed — wrong value format
+            if (parts.Length != 2) continue; // malformed ï¿½ wrong value format
 
             if (!bool.TryParse(parts[0].Trim(), out var isOpen))  continue;
             if (!bool.TryParse(parts[1].Trim(), out var isPinned)) continue;
@@ -219,7 +229,7 @@ public class WindowManager
                 win.IsOpen   = isOpen;
                 win.IsPinned = isPinned;
             }
-            // unknown id › silently skip
+            // unknown id ï¿½ silently skip
         }
     }
 
@@ -300,7 +310,7 @@ public class WindowManager
     private record WindowState(bool IsOpen, bool IsPinned);
     private record WindowManagerSettings(string ActivePerspective, Dictionary<string, WindowState> Windows);
 
-    // ¦¦ Render ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Render ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Renders the global menu bar and all registered windows for the current frame.
@@ -358,6 +368,7 @@ public class WindowManager
             win.Render(CurrentPerspective, _atlas);
         }
 
+        _mainToolbar.Render(CurrentPerspective);
         _statusBar.Render(CurrentPerspective);
 
         // Draw file dialog service last so the modal overlays all other windows.
@@ -372,11 +383,11 @@ public class WindowManager
         _fileDialogService = service;
     }
 
-    // ¦¦ Private render helpers ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    // ï¿½ï¿½ Private render helpers ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Recursively renders the trie rooted at <paramref name="node"/>.
-    /// The root itself is not rendered — only its children are iterated.
+    /// The root itself is not rendered ï¿½ only its children are iterated.
     /// </summary>
     private void RenderGlobalMenu(MenuItemNode node)
     {
