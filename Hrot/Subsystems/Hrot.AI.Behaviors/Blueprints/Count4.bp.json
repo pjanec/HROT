@@ -126,6 +126,19 @@
             "Y": 651,
             "Comment": null
           }
+        },
+        {
+          "kind": "Delay",
+          "Id": "12d5d9ed-e4f7-444d-af29-db1a16d955f5",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1207,
+            "Y": 227,
+            "Comment": null
+          },
+          "PinDefaults": {
+            "Duration": "1"
+          }
         }
       ],
       "Links": [
@@ -164,6 +177,12 @@
           "FromPinId": "bb954fd6-06e1-47a5-8f9f-7ec2402a142c",
           "ToNodeId": "7b6da53f-4e11-4bc9-9d0c-bad0e22c7f5c",
           "ToPinId": "c89304ea-fef7-46c3-903b-2d5e3e98b2de"
+        },
+        {
+          "FromNodeId": "20000006-0000-0000-0000-000000000002",
+          "FromPinId": "85b1cf0e-1d46-2650-a325-97ba94b9a77f",
+          "ToNodeId": "12d5d9ed-e4f7-444d-af29-db1a16d955f5",
+          "ToPinId": "48b0b25a-669e-4858-bda0-67183697482a"
         }
       ],
       "EditorMetadata": {
