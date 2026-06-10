@@ -11,7 +11,6 @@ using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Blueprints;
-using Fdp.Toolkit.Blueprints.Systems;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -380,8 +379,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _context.Kernel.RegisterGlobalSystem(requestSystem);
         _context.Kernel.RegisterGlobalSystem(finalizationSystem);
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
-        _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.BlueprintMaterializationSystem(_blueprintRegistry!));
-        _context.Kernel.RegisterGlobalSystem(new BlueprintEventIngressSystem(_blueprintRegistry!));
+        Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
+            _context.Kernel, _blueprintRegistry!);
 
         // 4. Network-dependent deletion routing: only when a live adapter exists.
         if (adapters != null)

@@ -861,6 +861,11 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new SimHostModule(spawnSys));
             _kernel.RegisterGlobalSystem(requestSystem);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
+            // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
+            // InitialBlueprintsIntent (written by BlueprintStateTranslator on scenario load)
+            // is consumed in the offline editor just as it is on a CGF node.
+            Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
+                _kernel, _blueprintRegistry);
 
             // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
             var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
