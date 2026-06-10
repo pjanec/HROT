@@ -8,6 +8,7 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Editor.Debug;
 using BPCompilerMode = Hrot.Blueprints.Core.Compiler.CompilerMode;
+using EventEntryNode = Hrot.Blueprints.Core.Assets.EventEntryNode;
 using Graph = Hrot.Blueprints.Core.Assets.Graph;
 
 namespace Hrot.Blueprints.Core.Debug;
@@ -923,7 +924,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 return;
             }
 
-            // --- NGS-2.3 tick-bridge (BF-03 corrected) ---
+            // --- NGS-2.3 tick-bridge (BF-04 corrected) ---
             // Pointer is at the last recorded node (end of this tick's recording).
             // Only step forward when a breakpoint is armed (RecordingActive).
             //
@@ -935,12 +936,18 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             // is not sufficient — the Delay would still be running and no probe would fire,
             // leaving a dead "Not paused" state with the clock stalled.
             //
-            // StepFromNode sets temp BPs on the successors of CurrentNodeId and resumes,
-            // crossing the latent transparently. Terminal last node → Continue().
+            // BF-04: Two sub-cases for the end-of-tick path:
+            //   (a) Non-terminal successors (e.g. Delay→SetVar): temp BP on SetVar → resumes.
+            //   (b) All successors terminal (e.g. Delay→Return = end of tick): target the
+            //       first executable node(s) of the NEXT iteration (exec-successors of the
+            //       EventEntryNode) → temp BP on those → RequestResume().  The temp BP fires
+            //       when the tick restarts (after the Delay elapses) re-pausing on the first
+            //       node, NOT the user breakpoint.
+            //       Degenerate (no EventEntry / no entry-successor): fall back to Continue().
             if (RecordingActive && _pausedAt != null)
             {
                 var lastNodeId = CurrentNodeId; // node-id string at the pointer
-                StepFromNode(_pausedAt.AssetId, _pausedAt.GraphId, lastNodeId!, fallbackStepMode);
+                StepFromNodeOrNextIteration(_pausedAt.AssetId, _pausedAt.GraphId, lastNodeId!, fallbackStepMode);
                 return;
             }
 
@@ -953,6 +960,89 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
         // CF-6 fallback: no recordings → use temp-BP graph stepping.
         Step(fallbackStepMode);
+    }
+
+    /// <summary>
+    /// BF-04 tick-bridge helper: step from the last recorded node of the current tick.
+    ///
+    /// <para>If <paramref name="fromNodeId"/> has non-terminal exec successors (e.g.
+    /// <c>Delay→SetVar</c>), delegates to <see cref="StepFromNode"/> which sets a temp BP
+    /// on those successors (existing BF-03 behaviour).</para>
+    ///
+    /// <para>If all successors are terminal (e.g. <c>Delay→Return</c> = end-of-tick), the
+    /// next probe to fire will be the <b>first node of the next iteration</b>, reached when the
+    /// tick restarts after the latent completes.  We find that target by taking the
+    /// exec-successors of the graph's <see cref="EventEntryNode"/>, set one-shot temp BPs on
+    /// the non-terminal ones, and call <see cref="RequestResume"/>.  The temp BP fires when
+    /// the tick restarts, re-pausing on the first node — NOT the user breakpoint.</para>
+    ///
+    /// <para>Degenerate cases (no registered graph, no <c>EventEntryNode</c>, no
+    /// entry-successors, node id not parseable): fall back to <see cref="Continue"/>.</para>
+    /// </summary>
+    private void StepFromNodeOrNextIteration(Guid assetId, Guid graphId, string fromNodeId, StepMode legacyFallback)
+    {
+        // Resolve graph and last-node id.
+        if (!_graphs.TryGetValue(graphId, out var graph))
+        {
+            LegacyStepOneTick(legacyFallback);
+            return;
+        }
+
+        if (!Guid.TryParse(fromNodeId, out var lastAuthoredId))
+        {
+            LegacyStepOneTick(legacyFallback);
+            return;
+        }
+
+        // Check whether the last recorded node has non-terminal successors.
+        var successors = ExecSuccessors.GetSuccessors(graph, lastAuthoredId);
+        bool allTerminal = successors.Count == 0 ||
+                           successors.All(s => ExecSuccessors.GetSuccessors(graph, s).Count == 0);
+
+        if (!allTerminal)
+        {
+            // (a) Non-terminal path: existing BF-03 behaviour — delegate to StepFromNode.
+            StepFromNode(assetId, graphId, fromNodeId, legacyFallback);
+            return;
+        }
+
+        // (b) End-of-tick path (all successors terminal): target the first executable node(s)
+        // of the next iteration = exec-successors of the graph's EventEntryNode.
+        var entryNode = graph.Nodes.OfType<EventEntryNode>().FirstOrDefault();
+        if (entryNode == null)
+        {
+            // Degenerate: no EventEntryNode in the graph. Fall back to Continue().
+            Continue();
+            return;
+        }
+
+        var entrySuccessors = ExecSuccessors.GetSuccessors(graph, entryNode.Id);
+        var firstNodes = entrySuccessors
+            .Where(s => ExecSuccessors.GetSuccessors(graph, s).Count > 0)
+            .ToList();
+
+        if (firstNodes.Count == 0)
+        {
+            // Degenerate: no non-terminal entry-successors (empty graph or only terminals).
+            Continue();
+            return;
+        }
+
+        // Set one-shot temp BPs on the first executable node(s) of the next iteration.
+        var targets = firstNodes.Select(s => new BreakpointTarget(assetId, graphId, s));
+        SetTemporaryBreakpoints(targets);
+
+        // Clear pause/nav state. Keep _recordingEntity so the same entity is recorded next tick.
+        _isPaused       = false;
+        _pausedAt       = null;
+        _pausedOnEntity = null;
+        _nodePointer    = -1;
+        _stepMode       = StepMode.None;
+        _firedBreakpointsThisTick.Clear();
+
+        // Resume — the temp BP handles re-pause at the first node of the next iteration.
+        _timeController.RequestResume();
+        OnSessionStateChanged?.Invoke();
     }
 
     /// <summary>

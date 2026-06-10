@@ -464,23 +464,37 @@ public sealed class TickBridgeTests : IDisposable
     }
 
     // =========================================================================
-    // Test 7 — Terminal last node falls back to Continue(), not dead-end temp BP
+    // Test 7 — Terminal last node (synchronous tick end): BF-04 sets temp BP on
+    //           the first node of the next iteration, NOT Continue().
     //
-    // Blueprint: Entry → Sequence(Then0: SetVar A=10, Then1: SetVar B=20 → Return)
+    // Blueprint: Entry → Sequence(Then0: SetVar A=10, Then1: SetVar A=20 → Return)
     //            (BuildTwoSeqVarAsset)
-    // Last recorded node = svBId (SetVarB). Its only successor is the ReturnNode
-    // which has no further successors → allSuccessorsAreTerminal == true.
-    // StepFromNode must call Continue() instead of setting a temp BP on ReturnNode
-    // (ReturnNode has no IR probe — it is merged into the preceding block by Stage5).
+    // Last recorded node = svBId (SetVarB). Its only successor is ReturnNode
+    // (terminal: no further successors) → allSuccessorsAreTerminal == true.
     //
-    // After Continue():
-    //   - No temp BPs (we fell through to Continue, which clears them).
-    //   - RequestResume was called (Continue calls it).
-    //   - The still-armed user BP re-fires on the next tick → session re-pauses.
+    // BF-04 behaviour (replaces the old BF-03 Continue() fallback in the bridge):
+    //   StepFromNodeOrNextIteration finds EventEntryNode's successor (seqId = first
+    //   executable node) → sets one-shot temp BP on seqId → RequestResume().
+    //
+    // After StepInto():
+    //   - HasTemporaryBreakpoints == true (temp BP on seqId is armed).
+    //   - RequestResume() was called (NOT RequestStepOneTick).
+    //   - Session is not paused.
+    //
+    // After next TickFrame:
+    //   - Temp BP fires on seqId → re-pause on the FIRST node (seqId), not the
+    //     user BP's node (which happens to be the same seqId here — in the
+    //     discriminating Test 8 they differ and the explicit NOT assertion is made).
+    //
+    // (Changed from BF-03 "Continue() / no temp BPs" because the bridge's end-of-tick
+    // path must now land on the graph's first executable node, not the user breakpoint.
+    // The old behaviour would be equivalent only when the BP happens to be on seqId —
+    // the discriminating case in Test 8 shows the difference when BP is on a mid-chain
+    // node. For correctness we unify the path: always temp-BP-on-first-node.)
     // =========================================================================
 
     [Fact]
-    public void TickBridge_TerminalLastNode_CallsContinue_RepausesOnNextBP()
+    public void TickBridge_TerminalLastNode_SetsFirstNodeTempBP_NotContinue()
     {
         using var fixture = new BlueprintTestFixture(NoAlcCheck);
 
@@ -494,9 +508,9 @@ public sealed class TickBridgeTests : IDisposable
         var entity = fixture.CreateEntity();
         fixture.AttachBlueprint(asset, entity);
 
-        // Arm breakpoint on SequenceNode (Nodes[1]) — the entry block probe.
+        // Arm breakpoint on SequenceNode (Nodes[1] = seqId) — the entry block probe.
         var graphId     = asset.Graphs[0].Id;
-        var probeNodeId = asset.Graphs[0].Nodes[1].Id;
+        var probeNodeId = asset.Graphs[0].Nodes[1].Id; // seqId = entry's first exec successor
         session.RegisterGraph(asset.Graphs[0]);
         session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
@@ -513,27 +527,352 @@ public sealed class TickBridgeTests : IDisposable
             session.StepInto();
         Assert.Equal(lastIdx, session.CurrentNodePointer);
 
-        // Step past end from a terminal node:
-        //   allSuccessorsAreTerminal == true → Continue() is called.
-        //   Continue() calls RequestResume() and clears pause state + temp BPs.
+        // BF-04 bridge: step past end of a terminal last node.
+        //   allSuccessorsAreTerminal == true → entry's first-node path.
+        //   Entry → seqId (non-terminal) → temp BP on seqId → RequestResume().
         int resumeCountBefore = tc.ResumeCount;
         session.StepInto();
 
         Assert.False(session.IsPaused,
             "After step-past-end from a terminal node: session must not be paused.");
-        Assert.False(session.HasTemporaryBreakpoints,
-            "Terminal-last-node path: no temp BPs should be set (Continue() was called, not SetTemporaryBreakpoints).");
+        // BF-04: temp BP on the first node (seqId) is armed — NOT a plain Continue().
+        Assert.True(session.HasTemporaryBreakpoints,
+            "BF-04 bridge must arm a temp BP on the entry's first executable node, not just Continue().");
         Assert.True(tc.ResumeCount > resumeCountBefore,
-            $"Continue() must call RequestResume; ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
+            $"Bridge must call RequestResume; ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
         Assert.True(tc.StepRequestCount == 0,
             "Terminal-last-node path must NOT call RequestStepOneTick.");
 
-        // Drive tick 2: the still-armed user BP (on SequenceNode) re-fires → re-pause.
+        // Drive tick 2: temp BP on seqId fires → re-pause on the first node.
         fixture.TickFrame(0.016f);
         Assert.True(session.IsPaused,
-            "Session must re-pause on tick 2 via the still-armed user breakpoint.");
+            "Session must re-pause on tick 2 via the temp BP on the first node.");
         Assert.True(session.RecordedNodeCount >= 2,
             $"Fresh tick must have >= 2 recorded nodes; got {session.RecordedNodeCount}.");
+
+        // Landing node must be seqId (entry's exec successor = first executable node).
+        var landingNodeId = session.CurrentNodeId;
+        Assert.Equal(probeNodeId.ToString("D"), landingNodeId);
+
+        session.Continue();
+    }
+
+    // =========================================================================
+    // Test 8 — BF-04 discriminating test: step-past-end-of-tick lands on the
+    //           FIRST node, NOT the breakpoint node.
+    //
+    // Graph shape (Count5-like):
+    //   Entry → Seq(firstNode=seqId) → SetVar(X, BP here) → Delay(0.0f) → Return
+    //
+    // The BP is on SetVar (mid-chain), NOT on seqId (first node).
+    // After pause on SetVar, step to Delay (last recorded), step past →
+    // elapse Delay via TickFrame → assert re-pauses on seqId (first node) AND
+    // explicitly NOT on SetVar (the breakpoint node).
+    //
+    // This is the discriminating assertion BF-03 lacked: the landing node must be
+    // the graph's first executable node, never the user breakpoint's node.
+    // =========================================================================
+
+    [Fact]
+    public void TickBridge_StepPastEndOfTick_LandsOnFirstNode_NotBreakpoint()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        // Build the Count5-like graph manually.
+        //
+        // Shape: Entry → Sequence(seqId = firstNode)
+        //            Then0: SetVar(X=7, bpNode/svId)  [no exec-out link → falls through to Then1]
+        //            Then1: Delay(0.0f, delayId) → Return
+        //
+        // The Sequence is the first executable node (entry's exec-successor).
+        // The BP is on SetVar(X=7) in Then0 (probe = svId, different from seqId).
+        // Then1 path: Delay → Return = end-of-tick terminal path.
+        //
+        // Stage5 scheduling:
+        //   - Block A (entry+seq): SourceNodeId = seqId
+        //   - Block B (Then0):    SourceNodeId = svId; svId falls through to Then1 block
+        //   - Block C (Then1):    ScheduleLatentNode(Delay) → SourceNodeId = delayId
+        //   - Block D (resume):   SourceNodeId = null (ReturnNode, no probe inserted)
+        //
+        // Execution order (Tick N):
+        //   Block A fires (seqId probe) → Block B fires (svId probe) → BP triggers → PAUSE.
+        //   Block C still fires (delayId probe) and is recorded (recording continues while paused).
+        //   Delay suspends — tick ends.
+        //
+        // The recorded nodes are: [seqId, svId, delayId].
+        // BP fires on svId (pointer = index 1). Step to delayId (last, index 2). Step past:
+        //   Delay's successor = Return (terminal) → allSuccessorsAreTerminal == true.
+        //   BF-04: entry's successor = seqId (non-terminal) → temp BP on seqId.
+        //   RequestResume() called.
+        //
+        // Frame N+1: Delay(0.0f) elapses → Block D (no probe, just Return) → blueprint restarts.
+        //            Next iteration: Block A fires (seqId probe) → temp BP hits → PAUSE.
+        //            (With 0.0f delay, both the continuation and the restart happen in one frame.)
+        //
+        // Discriminating assertion: CurrentNodeId == seqId, NOT svId.
+        var graphId   = Guid.NewGuid();
+        var entryId   = Guid.NewGuid();
+        var seqId     = Guid.NewGuid();  // SequenceNode — first executable node (entry's successor)
+        var svId      = Guid.NewGuid();  // SetVariableNode Then0 — the BP node (NOT the first node)
+        var delayId   = Guid.NewGuid();  // LatentDelayNode Then1 — last recorded node
+        var retId     = Guid.NewGuid();  // Return for Then1 (Delay's only successor = terminal)
+
+        var litId7    = Guid.NewGuid();  // LiteralNode value=7 for svId (data pin, not exec)
+
+        var peOut     = Guid.NewGuid();
+        var psIn      = Guid.NewGuid();
+        var psThen0   = Guid.NewGuid();
+        var psThen1   = Guid.NewGuid();
+        var pSvIn     = Guid.NewGuid();
+        var pSvOut    = Guid.NewGuid();  // svId exec-out has NO link → falls through to Then1 block
+        var pSvVal    = Guid.NewGuid();
+        var pLitOut   = Guid.NewGuid();
+        var pDelayIn  = Guid.NewGuid();
+        var pDelayOut = Guid.NewGuid();
+        var pRetIn    = Guid.NewGuid();
+
+        var varX = new VariableDecl
+        {
+            Id   = Guid.NewGuid(),
+            Name = "X",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Function,
+            Inputs = new(), Outputs = new(),
+            Nodes = new System.Collections.Generic.List<Node>
+            {
+                new EventEntryNode
+                {
+                    Id   = entryId,
+                    Pins = new() { new Pin { Id = peOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() } },
+                },
+                new SequenceNode
+                {
+                    Id   = seqId,
+                    Pins = new()
+                    {
+                        new Pin { Id = psIn,    Name = "ExecIn", Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = psThen0, Name = "Then0",  Direction = "Out", IsExec = true, TypeRef = new() },
+                        new Pin { Id = psThen1, Name = "Then1",  Direction = "Out", IsExec = true, TypeRef = new() },
+                    },
+                },
+                // Then0: SetVar(X=7) — the BP node; exec-out NOT linked so it falls through to Then1
+                new LiteralNode { Id = litId7, TypeId = "System.Int32", ValueJson = "7",
+                    Pins = new() { new Pin { Id = pLitOut, Name = "Value", Direction = "Out", IsExec = false, TypeRef = new() } } },
+                new SetVariableNode
+                {
+                    Id         = svId,
+                    VariableId = varX.Id.ToString(),
+                    Pins = new()
+                    {
+                        new Pin { Id = pSvIn,  Name = "ExecIn",  Direction = "In",  IsExec = true,  TypeRef = new() },
+                        new Pin { Id = pSvOut, Name = "ExecOut", Direction = "Out", IsExec = true,  TypeRef = new() },
+                        new Pin { Id = pSvVal, Name = "Value",   Direction = "In",  IsExec = false, TypeRef = new() },
+                    },
+                },
+                // Then1: Delay(0.0f) → Return (the end-of-tick terminal path)
+                new LatentDelayNode
+                {
+                    Id   = delayId,
+                    Pins = new()
+                    {
+                        new Pin { Id = pDelayIn,  Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = pDelayOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                    },
+                },
+                new ReturnNode { Id = retId, Status = NodeStatus.Success,
+                    Pins = new() { new Pin { Id = pRetIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } } },
+            },
+            Links = new System.Collections.Generic.List<Link>
+            {
+                // Entry → Seq
+                new() { FromNodeId = entryId, FromPinId = peOut,     ToNodeId = seqId,   ToPinId = psIn     },
+                // Then0: Seq → SetVar(7) [svId's exec-out has NO link → falls through]
+                new() { FromNodeId = seqId,   FromPinId = psThen0,   ToNodeId = svId,    ToPinId = pSvIn    },
+                // Data: Literal(7) → SetVar.Value
+                new() { FromNodeId = litId7,  FromPinId = pLitOut,   ToNodeId = svId,    ToPinId = pSvVal   },
+                // Then1: Seq → Delay → Return
+                new() { FromNodeId = seqId,   FromPinId = psThen1,   ToNodeId = delayId, ToPinId = pDelayIn  },
+                new() { FromNodeId = delayId, FromPinId = pDelayOut, ToNodeId = retId,   ToPinId = pRetIn    },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId          = Guid.NewGuid(),
+            Name             = "Count5DiscriminatingTest8",
+            Dispatch         = Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Instance,
+            Parameters       = new(), WorkingState = new(),
+            Variables        = new() { varX },
+            EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
+            Graphs           = new() { graph },
+            Header           = new Header(),
+        };
+
+        var tc      = new MockTimeController();
+        var session = new BlueprintDebugSession(fixture.Registry, fixture.View, tc);
+        session.SetLiveRepository(fixture.World);
+        session.Attach();
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Arm breakpoint on SetVar (svId) — mid-chain, NOT the first node.
+        session.RegisterGraph(graph);
+        session.SetBreakpoint(asset.AssetId, graphId, svId);
+
+        // Tick 1: Block A (seqId probe) → Block B (svId probe) → BP fires → PAUSE.
+        // Recording continues while paused: Block C (delayId probe) also recorded.
+        // Delay suspends. Recorded = [seqId, svId, delayId]. Pointer = index of svId (1).
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused, "Session must pause on SetVar breakpoint.");
+
+        // Recordings: seqId (0), svId (1), delayId (2) — at least 2 (seqId + svId minimum).
+        Assert.True(session.RecordedNodeCount >= 2,
+            $"Expected >= 2 recorded nodes (seqId + svId minimum); got {session.RecordedNodeCount}.");
+
+        // Navigate pointer to the LAST recorded node (delayId, index = RecordedNodeCount-1).
+        int lastIdx = session.RecordedNodeCount - 1;
+        while (session.CurrentNodePointer < lastIdx)
+            session.StepInto();
+        Assert.Equal(lastIdx, session.CurrentNodePointer);
+
+        // ---- BF-04: step past end of tick from Delay ----
+        // Delay's successor = ReturnNode (terminal) → allSuccessorsAreTerminal == true.
+        // BF-04: set temp BP on entry's successor (seqId = FIRST executable node) → RequestResume().
+        int resumeCountBefore = tc.ResumeCount;
+        session.StepInto(); // bridge
+
+        Assert.False(session.IsPaused,
+            "After step-past-end: session must not be paused immediately (temp BP armed, runtime resumed).");
+        Assert.True(session.HasTemporaryBreakpoints,
+            "BF-04: temp BP on the first node must be armed.");
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            $"Bridge must call RequestResume; was {resumeCountBefore}, now {tc.ResumeCount}.");
+        Assert.True(tc.StepRequestCount == 0,
+            "BF-04 bridge must NOT call RequestStepOneTick.");
+
+        // ---- Elapse the Delay, then drive the next full iteration ----
+        // The Instance blueprint state machine handles Delay in two phases:
+        //   Frame N+1: cursor check → Delay elapsed → WriteCursorResumeAt(0) → Goto(resumeBlock=Block D)
+        //              → Block D runs (Return, no probe, SourceNodeId=null) → function returns.
+        //              No probes fire. Temp BP still armed.
+        //   Frame N+2: cursor=0 → dispatch jumps to Entry → Block A fires (seqId probe)
+        //              → temp BP hits → PAUSE.
+        //
+        // Note: this is different from Test 6's single-TickFrame Delay pattern!
+        // Test 6: Delay→SetVar→Return — the resume block (SetVar) fires in Frame N+1.
+        // Test 8: Delay→Return — the resume block (Return, no probe) fires in Frame N+1;
+        //         the fresh iteration from Entry fires in Frame N+2.
+        fixture.TickFrame(0.016f);  // Frame N+1: Delay elapses, Return fires, cursor reset to 0.
+
+        // After Frame N+1: NOT paused — Block D (Return) fired but no probe.
+        Assert.False(session.IsPaused,
+            $"After Delay elapses (Block D = Return, no probe): session must NOT be paused. " +
+            $"IsPaused={session.IsPaused}, HasTempBP={session.HasTemporaryBreakpoints}.");
+        Assert.True(session.HasTemporaryBreakpoints,
+            "Temp BP must still be armed (not yet fired — the Delay continuation block had no probe).");
+
+        fixture.TickFrame(0.016f);  // Frame N+2: Entry fires → Block A (seqId probe) → temp BP → PAUSE.
+
+        // No-dead-state regression: session must now be paused on the first node.
+        Assert.True(session.IsPaused,
+            $"BF-04 regression guard: session must be paused on the first node of the next iteration. " +
+            $"IsPaused={session.IsPaused}, HasTempBP={session.HasTemporaryBreakpoints}, " +
+            $"CurrentNodeId={session.CurrentNodeId ?? "<null>"}, RecordedCount={session.RecordedNodeCount}");
+
+        // === THE DISCRIMINATING ASSERTION (BF-03 lacked this) ===
+        // Landing node must be seqId (entry's exec-successor = first executable node).
+        string? landingNodeId = session.CurrentNodeId;
+        string seqIdStr  = seqId.ToString("D");
+        string svIdStr   = svId.ToString("D");
+
+        Assert.True(landingNodeId == seqIdStr,
+            $"BF-04: landing node must be seqId (first node = {seqIdStr}), " +
+            $"got {landingNodeId ?? "<null>"}.");
+
+        // Explicitly assert it is NOT the breakpoint's node.
+        Assert.True(landingNodeId != svIdStr,
+            "BF-04 discriminating assertion: landing node must NOT be the breakpoint's node (svId). " +
+            "If this fails, the bridge is incorrectly falling through to Continue() / user-BP semantics.");
+
+        session.Continue();
+    }
+
+    // =========================================================================
+    // Test 9 — Non-terminal post-latent (BF-03 behavior preserved):
+    //           Delay → SetVar → Return   steps to SetVar (not to first node).
+    //
+    // When the last recorded node (Delay) has a non-terminal successor (SetVar),
+    // the bridge uses the BF-03 path (StepFromNode → temp BP on SetVar), NOT the
+    // BF-04 entry-successor path. The next-iteration semantics only apply when ALL
+    // successors of the last node are terminal.
+    // =========================================================================
+
+    [Fact]
+    public void TickBridge_NonTerminalPostLatent_StillLandsOnSuccessor()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        // Build: Entry → Delay(0.0f) → SetVariable(X) → Return
+        // (same as Test 6's layout — non-terminal Delay successor = SetVar)
+        var asset = BlueprintAssetBuilder
+            .Instance("NonTerminalPostLatentTest9")
+            .WithVariable("X", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Delay(0.0f).SetVariable("X", "0").Return())
+            .Build();
+
+        var tc      = new MockTimeController();
+        var session = new BlueprintDebugSession(fixture.Registry, fixture.View, tc);
+        session.SetLiveRepository(fixture.World);
+        session.Attach();
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Arm breakpoint on the Delay (Nodes[1]).
+        var graphId     = asset.Graphs[0].Id;
+        var delayNodeId = asset.Graphs[0].Nodes[1].Id;
+        session.RegisterGraph(asset.Graphs[0]);
+        session.SetBreakpoint(asset.AssetId, graphId, delayNodeId);
+
+        // Tick 1: entry block fires (probe = Delay.Id) → BP fires → pause.
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused);
+
+        // Navigate to last recorded node (Delay).
+        int lastIdx = session.RecordedNodeCount - 1;
+        while (session.CurrentNodePointer < lastIdx)
+            session.StepInto();
+        Assert.Equal(lastIdx, session.CurrentNodePointer);
+
+        // Step past Delay: Delay's successor is SetVar (non-terminal) → BF-03 path.
+        // Temp BP is set on SetVar; NO entry-successor path is used.
+        int resumeCountBefore = tc.ResumeCount;
+        session.StepInto();
+
+        Assert.False(session.IsPaused);
+        Assert.True(session.HasTemporaryBreakpoints,
+            "Non-terminal case: temp BP on SetVar must be armed.");
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            "Bridge must call RequestResume.");
+
+        // Elapse Delay → SetVar probe fires → temp BP → re-pause on SetVar.
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused,
+            "Session must re-pause after Delay elapses (SetVar probe fires temp BP).");
+
+        // Landing node: SetVar (Nodes[2]), NOT the EventEntry's successor.
+        var setVarNodeId = asset.Graphs[0].Nodes[2].Id;
+        var setVarNodeIdStr = setVarNodeId.ToString("D");
+        Assert.True(session.CurrentNodeId == setVarNodeIdStr,
+            $"Non-terminal post-latent: landing node must be SetVar ({setVarNodeIdStr}), " +
+            $"not the graph's first node. Got: {session.CurrentNodeId ?? "<null>"}.");
 
         session.Continue();
     }
