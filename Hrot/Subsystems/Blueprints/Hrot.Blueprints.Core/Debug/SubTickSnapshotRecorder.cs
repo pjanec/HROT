@@ -6,28 +6,34 @@ using Fdp.Core.FlightRecorder;
 namespace Hrot.Blueprints.Core.Debug;
 
 /// <summary>
-/// Captures whole-repo sub-tick snapshot deltas per blueprint node during a debug session.
+/// Captures whole-repo sub-tick snapshots per blueprint node during a debug session.
 /// Allows reconstructing ECS state as-of-entering any recorded node via <see cref="RestoreTo"/>.
 ///
-/// <para><b>Ordering and attribution semantics (critical correctness):</b>
+/// <para><b>Capture strategy (keyframe-per-node):</b>
+/// Each <see cref="RecordNodeEntry"/> call records a FULL KEYFRAME of the entire repo at
+/// that moment. This avoids the chunk-version tracking problem that would arise if delta frames
+/// were used: blueprint SetVar nodes write directly into the blackboard span (not via
+/// <c>GetComponentRW</c>), so chunk versions are NOT updated by those writes and delta
+/// detection would miss them.
+/// </para>
+///
+/// <para><b>Ordering and attribution semantics (correct):</b>
 /// Inside <see cref="RecordNodeEntry"/>, the ordering is:
 /// <list type="number">
-///   <item>Capture delta from <c>_prevVersion</c> to current <c>repo.GlobalVersion</c> — captures
-///         all mutations the PREVIOUS node wrote (stamped when that node ran).</item>
-///   <item>Store <c>(nodeId, deltaBytes)</c> in the ring — delta[K] = "what changed between entry
-///         of node K-1 and entry of node K" = effect of node K-1.</item>
-///   <item>Advance <c>_prevVersion</c> to current <c>repo.GlobalVersion</c>.</item>
-///   <item>Bump <c>repo.BumpMemoryVersion()</c> — advances GV so THIS node's upcoming writes
-///         will be stamped at a fresh version, isolated from the delta already captured.</item>
+///   <item>Record a FULL KEYFRAME of current repo state — captures all mutations the PREVIOUS
+///         node wrote before this probe fires.</item>
+///   <item>Store <c>(nodeId, snapshotBytes)</c> in the ring — snapshot[K] = state as-of ENTERING
+///         node K (before node K's own writes).</item>
+///   <item>Bump <c>repo.BumpMemoryVersion()</c> — advances GV for sub-tick debug granularity
+///         (required by other sub-systems; does not affect snapshot correctness).</item>
 /// </list>
 /// </para>
 ///
-/// <para><b>Why this ordering attributes writes correctly (no off-by-one):</b>
+/// <para><b>Attribution:</b>
 /// <list type="bullet">
-///   <item><c>delta[0]</c> (stored for n0): captures nothing before n0 ran → empty delta.</item>
-///   <item><c>delta[1]</c> (stored for n1): captures what n0 wrote between RecordNodeEntry("n0")
-///         and RecordNodeEntry("n1").</item>
-///   <item>Restoring to index K = keyframe + delta[0..K] = state BEFORE node K's own effect.</item>
+///   <item><c>snapshot[0]</c> (for n0): state before n0 ran → initial tick state.</item>
+///   <item><c>snapshot[1]</c> (for n1): state after n0 wrote, before n1 ran.</item>
+///   <item>Restoring to index K = apply snapshot[K] as keyframe.</item>
 ///   <item>With value 5→(n0)→6→(n1)→7: restore(0)=5, restore(1)=6, restore(2)=7.</item>
 /// </list>
 /// Capture is WHOLE-REPO (not per-entity) because blueprints can write managed components
@@ -46,17 +52,12 @@ public sealed class SubTickSnapshotRecorder
     private readonly RecorderSystem _recorder;
     private readonly PlaybackSystem _playback;
 
-    // Keyframe baseline: whole-repo snapshot taken at BeginTick.
-    private byte[] _keyframeBytes = Array.Empty<byte>();
-
-    // Ring of per-node deltas.
+    // Ring of per-node keyframe snapshots (full repo state as-of entering that node).
+    // No separate keyframe baseline needed: each ring entry IS a keyframe.
     private readonly SubTickEntry[] _ring;
     private int _ringHead;   // next write position (mod Capacity)
     private int _count;      // number of valid entries (0..Capacity)
     private int _droppedFrameCount;
-
-    // Version cursor: we capture deltas from _prevVersion to current GV.
-    private uint _prevVersion;
 
     // Is a tick recording in progress?
     private bool _inTick;
@@ -87,8 +88,7 @@ public sealed class SubTickSnapshotRecorder
 
     /// <summary>
     /// Start a new tick recording session.
-    /// Resets the ring and records a full-repo keyframe baseline.
-    /// Must be called once per tick before any <see cref="RecordNodeEntry"/> calls.
+    /// Resets the ring. Must be called once per tick before any <see cref="RecordNodeEntry"/> calls.
     /// </summary>
     public void BeginTick(EntityRepository repo)
     {
@@ -99,28 +99,24 @@ public sealed class SubTickSnapshotRecorder
         _count             = 0;
         _droppedFrameCount = 0;
         _inTick            = true;
-
-        // Record the full-repo keyframe at the current memory version.
-        // _prevVersion is set to the current GV so the first delta is "since right now".
-        using var ms     = new MemoryStream();
-        using var writer = new BinaryWriter(ms);
-        _recorder.RecordKeyframe(repo, writer, wallClockTicks: 0L);
-        _keyframeBytes = ms.ToArray();
-
-        // Snapshot the version cursor AFTER keyframe recording.
-        _prevVersion = repo.GlobalVersion;
     }
 
     /// <summary>
     /// Record a per-node entry for <paramref name="nodeId"/>.
     /// Must be called at the start of a node's execution (before the node writes anything).
     ///
-    /// <para>Ordering performed internally (see class-level remarks):</para>
+    /// <para>Records a FULL KEYFRAME of the current repo state. This correctly captures
+    /// blueprint variable values even though blueprint SetVar nodes write directly into
+    /// the blackboard span (bypassing <c>GetComponentRW</c> and therefore not stamping
+    /// chunk versions). Delta-frame recording would miss those writes.</para>
+    ///
+    /// <para>Ordering performed internally:</para>
     /// <list type="number">
-    ///   <item>Capture delta from <c>_prevVersion</c> → captures the PREVIOUS node's writes.</item>
-    ///   <item>Store <c>(nodeId, delta)</c> in the ring.</item>
-    ///   <item>Advance <c>_prevVersion</c> to current GV.</item>
-    ///   <item>Bump <c>repo.BumpMemoryVersion()</c> → isolates THIS node's upcoming writes.</item>
+    ///   <item>Capture full keyframe of current repo state — includes all writes the PREVIOUS
+    ///         node made before this probe fires.</item>
+    ///   <item>Store <c>(nodeId, snapshotBytes)</c> in the ring.</item>
+    ///   <item>Bump <c>repo.BumpMemoryVersion()</c> — advances GV for sub-tick debug
+    ///         granularity (required by other sub-systems).</item>
     /// </list>
     /// </summary>
     public void RecordNodeEntry(EntityRepository repo, string nodeId)
@@ -130,35 +126,32 @@ public sealed class SubTickSnapshotRecorder
         if (!_inTick) throw new InvalidOperationException(
             "RecordNodeEntry called outside of a tick. Call BeginTick first.");
 
-        // Step 1: Capture delta from _prevVersion to current GV.
-        //         This captures all mutations written since the last RecordNodeEntry
-        //         (or since BeginTick for the first call).
+        // Step 1: Capture a full keyframe of current repo state.
+        //         Blueprint SetVar nodes write directly into the blackboard memory span,
+        //         bypassing GetComponentRW and therefore NOT updating chunk versions.
+        //         Delta frames would see no changes (chunk version didn't advance).
+        //         A keyframe always captures the complete current state regardless.
         using var ms     = new MemoryStream();
         using var writer = new BinaryWriter(ms);
-        _recorder.RecordDeltaFrame(repo, _prevVersion, writer, wallClockTicks: 0L);
-        byte[] deltaBytes = ms.ToArray();
+        _recorder.RecordKeyframe(repo, writer, wallClockTicks: 0L);
+        byte[] snapshotBytes = ms.ToArray();
 
-        // Step 2: Store (nodeId, deltaBytes) in the ring.
+        // Step 2: Store (nodeId, snapshotBytes) in the ring.
         bool overflow = _count == Capacity;
         if (overflow)
         {
             // Drop the oldest entry (advance the "logical start" of the ring).
-            // The head always points at the next write slot; when full, writing there
-            // overwrites the oldest entry.
             _droppedFrameCount++;
             _count--; // will be re-incremented below
         }
 
-        _ring[_ringHead % Capacity] = new SubTickEntry(nodeId, deltaBytes);
+        _ring[_ringHead % Capacity] = new SubTickEntry(nodeId, snapshotBytes);
         _ringHead++;
         _count++;
 
-        // Step 3: Advance the version cursor to the current GV so the next capture
-        //         will only pick up mutations written AFTER this call.
-        _prevVersion = repo.GlobalVersion;
-
-        // Step 4: Bump the memory version so THIS node's upcoming writes are stamped
-        //         at a fresh GV, keeping them isolated from the just-captured delta.
+        // Step 3: Bump the memory version for sub-tick GV granularity.
+        //         Other sub-systems (e.g. SimulationTickFrozen tests) rely on GV advancing
+        //         during a recorded debug tick even though no real Tick() was called.
         repo.BumpMemoryVersion();
     }
 
@@ -178,9 +171,9 @@ public sealed class SubTickSnapshotRecorder
     /// <paramref name="nodeIndex"/> into <paramref name="scratchRepo"/>.
     /// "As-of entering" means: before that node's own writes have been applied.
     ///
-    /// <para>Algorithm: apply keyframe baseline, then deltas[0..nodeIndex] in order.
-    /// Each delta[K] carries what node K-1 wrote; after applying delta[K] the scratch
-    /// repo reflects the state the node K was about to see when it started.</para>
+    /// <para>Algorithm: apply the stored keyframe for <paramref name="nodeIndex"/> directly.
+    /// Each ring entry is a complete keyframe snapshot taken when that node's probe fired,
+    /// capturing all writes by prior nodes and none by the current node.</para>
     ///
     /// <para>The caller owns <paramref name="scratchRepo"/> — pass a reusable throwaway repo
     /// registered with the same component types as the source repo.</para>
@@ -191,20 +184,13 @@ public sealed class SubTickSnapshotRecorder
         if (nodeIndex < 0 || nodeIndex >= _count)
             throw new ArgumentOutOfRangeException(nameof(nodeIndex));
 
-        // Apply keyframe baseline (performs repo.Clear() internally).
-        using var kfMs     = new MemoryStream(_keyframeBytes);
-        using var kfReader = new BinaryReader(kfMs);
-        _playback.ApplyFrame(scratchRepo, kfReader);
-
-        // Apply deltas[0..nodeIndex] in logical order.
-        for (int i = 0; i <= nodeIndex; i++)
-        {
-            int slot  = RingSlot(i);
-            byte[] deltaBytes = _ring[slot].DeltaBytes;
-            using var dMs     = new MemoryStream(deltaBytes);
-            using var dReader = new BinaryReader(dMs);
-            _playback.ApplyFrame(scratchRepo, dReader);
-        }
+        // Apply the keyframe snapshot for this node directly.
+        // Each ring entry is a full-repo keyframe, so no delta accumulation is needed.
+        int slot             = RingSlot(nodeIndex);
+        byte[] snapshotBytes = _ring[slot].SnapshotBytes;
+        using var ms         = new MemoryStream(snapshotBytes);
+        using var reader     = new BinaryReader(ms);
+        _playback.ApplyFrame(scratchRepo, reader);
     }
 
     // ── Internals ───────────────────────────────────────────────────────────
@@ -221,11 +207,11 @@ public sealed class SubTickSnapshotRecorder
     private readonly struct SubTickEntry
     {
         public readonly string NodeId;
-        public readonly byte[] DeltaBytes;
-        public SubTickEntry(string nodeId, byte[] deltaBytes)
+        public readonly byte[] SnapshotBytes;
+        public SubTickEntry(string nodeId, byte[] snapshotBytes)
         {
-            NodeId     = nodeId;
-            DeltaBytes = deltaBytes;
+            NodeId         = nodeId;
+            SnapshotBytes  = snapshotBytes;
         }
     }
 }

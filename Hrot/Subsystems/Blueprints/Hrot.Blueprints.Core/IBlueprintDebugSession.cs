@@ -179,6 +179,32 @@ public interface IBlueprintDebugSession : IBlueprintProbeSink
     void StepOut();
     void Pause();
 
+    // -- Node-granular virtual pointer (NGS-2.1) --
+    // Valid while IsPaused and recordings exist for the paused entity.
+    // Both properties return -1 / null when no recordings are active.
+
+    /// <summary>
+    /// Current virtual-pointer index into the sub-tick recording ring.
+    /// -1 when no node-granular recordings are active for the paused entity.
+    /// </summary>
+    int CurrentNodePointer { get; }
+
+    /// <summary>
+    /// Node-id string at the current virtual-pointer position.
+    /// Null when <see cref="CurrentNodePointer"/> is -1.
+    /// </summary>
+    string? CurrentNodeId { get; }
+
+    /// <summary>Number of per-node recordings in the ring for the paused tick.</summary>
+    int RecordedNodeCount { get; }
+
+    /// <summary>
+    /// Move the virtual pointer one step backward (towards node 0).
+    /// Clamped at 0 — calling at index 0 is a no-op.
+    /// Only valid while <see cref="IsPaused"/> and recordings exist.
+    /// </summary>
+    void StepBack();
+
     // -- Inspection --
     BlueprintStateSnapshot? GetCurrentStateSnapshot();
 

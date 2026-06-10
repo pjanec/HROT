@@ -76,7 +76,11 @@ public sealed class DebugWindowDrawUITests
         public void StepOver()  { LastStepAction = "StepOver"; }
         public void StepInto()  { LastStepAction = "StepInto"; }
         public void StepOut()   { LastStepAction = "StepOut"; }
+        public void StepBack()  { LastStepAction = "StepBack"; }
         public void Pause()     { LastStepAction = "Pause"; }
+        public int     CurrentNodePointer => -1;
+        public string? CurrentNodeId      => null;
+        public int     RecordedNodeCount  => 0;
 
         // ---- Inspection ----
         public BlueprintStateSnapshot? GetCurrentStateSnapshot() => null;

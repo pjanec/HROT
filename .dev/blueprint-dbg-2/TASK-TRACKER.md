@@ -16,10 +16,13 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 ## BATCH-02 — Recorder wiring into live pipeline ✅ DONE (committed, review APPROVED w/ carried items 2026-06-10)
 - ✅ NGS-2.0 — Wired `SubTickSnapshotRecorder` into `BlueprintDebugSession`: `SetLiveRepository` (EditorSubsystem), `BeginTick` in `OnNewTick` on `SimulationTick` change, `RecordNodeEntry` in `OnNodeEnter` behind `RecordingActive` gate; `RecordedNodeCount`/`RecordedNodeIdAt`/`RestoreRecordedNode` exposed. 4 integration tests (real compiled blueprint). ⚠️ Carries P1 (entity-scope recording) + P2 (tighten test) → BATCH-03 Corrective Task 0.
 
-## BATCH-03 — Virtual-pointer navigation + inspector  (was BATCH-02 NGS-2.x)
-- ⬜ NGS-2.0-CT0 — Corrective Task 0: entity-scope recording (P1) + tighten integration test to exact intermediate value (P2).
-- ⬜ NGS-2.1 — Virtual pointer Step/StepBack over the ring (clock paused).
-- ⬜ NGS-2.2 — Inspector (`CaptureStateSnapshot`) reads the pointer's restored scratch repo while pointer active.
+## BATCH-03 — Virtual-pointer navigation + inspector ✅ DONE (committed, review APPROVED 2026-06-10)
+- ✅ NGS-2.0-CT0 — entity-scope recording (P1, `IsRecordingEntity`) + exact-value assertion (P2).
+- ✅ NGS-2.1 — Virtual pointer Step/StepBack over the ring (clock paused); Step* remap with CF-6 fallback; clamps; cleared on Continue. Added `StepBack`/`CurrentNodePointer`/`CurrentNodeId` to interface.
+- ✅ NGS-2.2 — Inspector reads pointer's restored scratch repo; exact per-node values proven (A=0→0→10). Reverts to live after Continue.
+- ⚠️ **DESIGN PIVOT:** recorder now uses full KEYFRAME-per-node (delta missed blueprint SetVar writes that bypass GetComponentRW). Makes BATCH-00 semantic split largely vestigial → **USER DECISION pending** (revert BATCH-00 vs keep). See BATCH-03-REVIEW Finding.
+
+## BATCH-04 — Step-past-end tick-bridge (deferred — pending user input)
 - ⬜ NGS-2.3 — Step-past-last-node → advance exactly one real tick, re-record, re-pause at first probe.
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke next morning).
 

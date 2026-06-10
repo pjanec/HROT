@@ -154,15 +154,12 @@ public sealed class SubTickRecorderIntegrationTests : IDisposable
         session.RestoreRecordedNode(lastIdx, scratch);
         int countAtLastNode = ReadBlueprintIntField(scratch, entity, fixture.Registry, asset, "A");
 
-        // Final state is 20; state before the last recorded node is < 20.
-        // This proves sub-tick state capture shows DIFFERENT values across nodes within ONE tick.
-        Assert.True(countAtLastNode < finalCount,
-            $"Expected restored state before last node ({countAtLastNode}) to be < " +
-            $"final tick value ({finalCount}). This proves sub-tick state capture works.");
-        // Specifically: before the last node = 10 (after Then0 ran but before Then1 ran).
-        // OR = 0 (if the last block is Then0, meaning Then1 ran after and is not yet captured).
-        // Either way, countAtLastNode != finalCount(20) proves sub-tick granularity.
-        Assert.NotEqual(finalCount, countAtLastNode);
+        // CT0b (BATCH-03): Assert EXACT intermediate value at the last node before-entry.
+        // With Sequence(SetVar A=10, SetVar A=20), execution order: Entry→Seq→Then0(A=10)→Then1(A=20).
+        // "Last recorded node" is the Then1 branch; state BEFORE Then1 ran = A=10 (Then0 already ran).
+        // This is the precise proof: the same paused tick shows A=0 (node0), A=10 (node2 pre-Then1),
+        // A=20 (post-tick final) — proving exact sub-tick granularity.
+        Assert.Equal(10, countAtLastNode);
     }
 
     // =========================================================================

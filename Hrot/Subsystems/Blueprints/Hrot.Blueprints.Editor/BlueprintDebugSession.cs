@@ -98,7 +98,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // works correctly. Removed when temps are cleared.
     private readonly List<Hrot.Diagnostics.Breakpoints.BreakpointId> _tempMgrBpIds = new();
 
-    // Sub-tick snapshot recorder (NGS-2.0).
+    // Sub-tick snapshot recorder (NGS-2.0 / NGS-2.1).
     // Records per-node ECS deltas during a debug-active tick for sub-tick state inspection.
     // Null-safe: when _liveRepo is null (not wired), recording is silently disabled.
     private readonly SubTickSnapshotRecorder _recorder = new SubTickSnapshotRecorder();
@@ -107,6 +107,19 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // Tick-boundary detection: we detect a new tick by observing _view.Tick change in OnNewTick().
     // Stored as uint? so the first tick always triggers BeginTick.
     private uint? _lastRecordedTick;
+
+    // The entity whose recordings are currently owned by the ring.
+    // Set on pause (= _pausedOnEntity) so that OnNodeEnter scopes to a single entity.
+    // null means "scope to _entityFilter" (pre-pause, armed tick).
+    private Entity? _recordingEntity;
+
+    // Virtual pointer for node-granular navigation (NGS-2.1).
+    // -1 when no recordings are active.
+    private int _nodePointer = -1;
+
+    // Scratch repo for inspector redirect (NGS-2.2).
+    // Lazily created; seeded via SyncFrom(liveRepo) on each new pause.
+    private EntityRepository? _scratchRepo;
 
     // Instrumentation callback: invoked when a breakpoint or watch is set on an asset
     // with no DebugMap registered yet, so the editor can transparently compile in the
@@ -140,12 +153,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (!_isPaused)
             _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
 
-        // NGS-2.0: record per-node ECS snapshot delta when armed (recording active).
+        // NGS-2.0/CT0a: record per-node ECS snapshot delta when armed and entity-scoped.
+        // Entity scope rule:
+        //   - If _recordingEntity is set (set on pause or by the entity that owns an armed BP),
+        //     only record when self == _recordingEntity.
+        //   - Otherwise fall back to _entityFilter (when set); any entity passes if no filter.
+        // This prevents multiple instrumented entities from interleaving into one ring.
         // Called AFTER history and overlay so existing CF-6 behavior is undisturbed.
-        // Guard: liveRepo must be wired and a tick recording must be in progress
-        // (_lastRecordedTick set by OnNewTick). If OnNewTick hasn't fired yet (e.g. an
-        // older construction path skips it), log once and skip silently.
-        if (RecordingActive)
+        if (RecordingActive && IsRecordingEntity(self))
         {
             if (_lastRecordedTick.HasValue)
             {
@@ -335,6 +350,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _pdbLocators.Clear();
         _graphs.Clear();
         ClearTemporaryBreakpoints(); // also clears _tempMgrBpIds via DBM Remove
+        // NGS-2.2: dispose scratch repo if created.
+        _scratchRepo?.Dispose();
+        _scratchRepo = null;
         OnSessionStateChanged?.Invoke();
     }
 
@@ -598,6 +616,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// <summary>
     /// Number of per-node recordings captured during the most recent debug-active tick.
     /// Zero when recording is off (unarmed, or <see cref="SetLiveRepository"/> not called).
+    /// Implements the interface property <see cref="IBlueprintDebugSession.RecordedNodeCount"/>.
     /// </summary>
     public int RecordedNodeCount => _recorder.Count;
 
@@ -616,6 +635,97 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void RestoreRecordedNode(int nodeIndex, EntityRepository scratchRepo)
         => _recorder.RestoreTo(nodeIndex, scratchRepo);
 
+    // ── NGS-2.1 — Virtual pointer ────────────────────────────────────────────
+
+    /// <summary>
+    /// Current virtual-pointer index into the sub-tick recording ring.
+    /// -1 when no node-granular recordings are active (not paused or no recordings).
+    /// </summary>
+    public int CurrentNodePointer => _nodePointer;
+
+    /// <summary>
+    /// Node-id string at the current virtual-pointer position.
+    /// Null when <see cref="CurrentNodePointer"/> is -1.
+    /// </summary>
+    public string? CurrentNodeId =>
+        _nodePointer >= 0 && _nodePointer < _recorder.Count
+            ? _recorder.NodeIdAt(_nodePointer)
+            : null;
+
+    /// <summary>
+    /// Move the virtual pointer one node backward (towards index 0).
+    /// Clamped at 0 — calling at index 0 is a no-op.
+    /// Only meaningful while <see cref="IsPaused"/> and recordings exist.
+    /// Does NOT touch the time controller (clock stays paused).
+    /// </summary>
+    public void StepBack()
+    {
+        if (_nodePointer <= 0 || _recorder.Count == 0) return;
+        _nodePointer--;
+        RestorePointerToScratch();
+        OnSessionStateChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Initialises the virtual pointer on pause.
+    /// Searches for a recording whose node-id matches the paused node id;
+    /// defaults to the last recorded index when not found.
+    /// After setting the pointer, restores the scratch repo to that node's state.
+    /// </summary>
+    private void InitNodePointerOnPause(string pausedNodeId)
+    {
+        int count = _recorder.Count;
+        if (count == 0)
+        {
+            _nodePointer = -1;
+            return;
+        }
+
+        // Find the last matching recording (latest match wins for multi-visit nodes).
+        int found = -1;
+        for (int i = count - 1; i >= 0; i--)
+        {
+            if (_recorder.NodeIdAt(i) == pausedNodeId)
+            {
+                found = i;
+                break;
+            }
+        }
+        _nodePointer = found >= 0 ? found : count - 1;
+        // NOTE: RestorePointerToScratch() is intentionally NOT called here.
+        // This method fires inside HandleBreakpointHit, which is called during the
+        // blueprint tick (via DebugProbe.NodeEnter → OnNodeEnter).  Calling SyncFrom
+        // + RestoreTo while the tick system holds live-repo references can corrupt the
+        // in-flight delta chain and will throw if the tick aborts early.
+        // Restoration is deferred and called lazily by CaptureStateSnapshot(), StepBack(),
+        // and StepForwardOrCF6() — all of which execute AFTER the tick completes.
+    }
+
+    /// <summary>
+    /// Restores the scratch repo to the state as-of the current pointer, seeded via
+    /// <c>SyncFrom(liveRepo)</c> so the scratch carries all component registrations and
+    /// current live data. Then applies the sub-tick deltas up to and including the pointer.
+    ///
+    /// Scratch registration approach (NGS-2.2):
+    /// SyncFrom(liveRepo) auto-registers any missing component types in the scratch
+    /// (by reflection inside EntityRepository.SyncFrom) before copying data — so no
+    /// manual pre-registration is required. The keyframe playback lands on top of
+    /// the synced state, then deltas layer sub-tick mutations.
+    /// </summary>
+    private void RestorePointerToScratch()
+    {
+        if (_nodePointer < 0 || _liveRepo == null || _recorder.Count == 0) return;
+
+        // Lazily create the scratch repo.
+        _scratchRepo ??= new EntityRepository();
+
+        // Seed registrations + live baseline so PlaybackSystem.ApplyFrame finds all tables.
+        _scratchRepo.SyncFrom(_liveRepo);
+
+        // Replay keyframe + deltas[0.._nodePointer] into scratch.
+        _recorder.RestoreTo(_nodePointer, _scratchRepo);
+    }
+
     /// <summary>
     /// <see cref="RecordingActive"/> is true when recording should happen for the current entity/tick:
     /// <list type="bullet">
@@ -627,6 +737,22 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     private bool RecordingActive =>
         _liveRepo != null &&
         (_breakpoints.Count > 0 || _tempBreakpoints.Count > 0);
+
+    /// <summary>
+    /// Entity-scope gate for recording (CT0a).
+    /// Returns true when <paramref name="entity"/> should have its probe recorded:
+    /// <list type="bullet">
+    ///   <item>If <see cref="_recordingEntity"/> is set, only the exact match passes.</item>
+    ///   <item>Otherwise, if <see cref="_entityFilter"/> is set, only the filter entity passes.</item>
+    ///   <item>Otherwise (both null) any entity passes — this is the single-entity test case.</item>
+    /// </list>
+    /// </summary>
+    private bool IsRecordingEntity(Entity entity)
+    {
+        if (_recordingEntity.HasValue) return entity == _recordingEntity.Value;
+        if (_entityFilter.HasValue)    return entity == _entityFilter.Value;
+        return true; // no scope set — allow all (single-entity test scenarios)
+    }
 
     /// <summary>
     /// Sets the instrumentation callback that is invoked when a breakpoint or watch is set
@@ -733,6 +859,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         // Clear dedup set so the next hit after Continue() is treated as a fresh event.
         _firedBreakpointsThisTick.Clear();
         ClearTemporaryBreakpoints(); // discard any leftover temps (CF-6)
+
+        // NGS-2.1: clear virtual pointer and recording-entity scope.
+        _nodePointer     = -1;
+        _recordingEntity = null;
+
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
     }
@@ -746,18 +877,47 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
     /// <summary>
     /// Slice-1 stepping: all three step commands (Over/Into/Out) converge to
-    /// "step to next exec node."  Computes successors of the currently-paused node,
-    /// sets temporary breakpoints on them, suppresses user breakpoints, and resumes.
-    /// On hitting a temp target, pauses and auto-clears temps.
-    /// Cross-peer-call stepping is deferred (Slice-2).
+    /// "step to next exec node."
     ///
-    /// Falls back to legacy <see cref="_stepMode"/> tick-matching when no graph
-    /// is registered for the paused asset (backward compatible with existing
-    /// step-mode tests and pre-CF-6 behavior).
+    /// NGS-2.1 override: when node-granular recordings exist for the paused entity,
+    /// Step* moves the virtual pointer forward by one recording slot (clamped at the last
+    /// recorded index — stepping past the end is a no-op in BATCH-03; the real-tick advance
+    /// bridge is BATCH-04). The clock stays paused; no re-execution occurs.
+    ///
+    /// Fallback (no recordings): computes successors via graph structure, sets temporary
+    /// breakpoints, suppresses user breakpoints, and resumes — the CF-6 path.
+    /// This fallback is also used when no graph is registered for the paused asset
+    /// (backward compatible with existing step-mode tests and pre-CF-6 behavior).
     /// </summary>
-    public void StepOver() => Step(StepMode.Over);
-    public void StepInto() => Step(StepMode.Into);
-    public void StepOut()  => Step(StepMode.Out);
+    public void StepOver() => StepForwardOrCF6(StepMode.Over);
+    public void StepInto() => StepForwardOrCF6(StepMode.Into);
+    public void StepOut()  => StepForwardOrCF6(StepMode.Out);
+
+    /// <summary>
+    /// NGS-2.1: move the virtual pointer forward by one slot when recordings exist.
+    /// Clamped at the last recorded index (stepping past end = no-op in BATCH-03;
+    /// the advance-one-real-tick bridge is BATCH-04).
+    /// Falls back to CF-6 temp-BP stepping when no recordings exist for the paused entity.
+    /// </summary>
+    private void StepForwardOrCF6(StepMode fallbackStepMode)
+    {
+        // Node-granular path: recordings exist → just move the pointer.
+        if (_isPaused && _nodePointer >= 0 && _recorder.Count > 0)
+        {
+            int last = _recorder.Count - 1;
+            if (_nodePointer < last)
+            {
+                _nodePointer++;
+                RestorePointerToScratch();
+            }
+            // else: clamped at end — no-op (BATCH-04 advances the real tick).
+            OnSessionStateChanged?.Invoke();
+            return;
+        }
+
+        // CF-6 fallback: no recordings → use temp-BP graph stepping.
+        Step(fallbackStepMode);
+    }
 
     /// <summary>
     /// Computes the immediate exec successors of the currently-paused node,
@@ -840,6 +1000,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
     // BPF-001: Implement fully populated state snapshot.
+    // NGS-2.2: when the virtual pointer is active, read from the scratch repo instead of _view.
     public BlueprintStateSnapshot? GetCurrentStateSnapshot()
     {
         if (!_isPaused || !_pausedOnEntity.HasValue || _pausedAt is null) return null;
@@ -849,7 +1010,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// <summary>
     /// Returns a live (non-pause-gated) snapshot of the working-state for the given entity
     /// and blueprint asset. Calls <see cref="CaptureStateSnapshot"/> directly without
-    /// requiring the session to be paused.
+    /// requiring the session to be paused. Always reads from the live view (not the scratch),
+    /// because this method is for live inspection outside of a node-granular navigation session.
     /// </summary>
     public BlueprintStateSnapshot? CaptureLiveState(Entity self, Guid assetId)
         => CaptureStateSnapshot(self, assetId);
@@ -871,13 +1033,23 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
 
         if (def != null)
         {
+            // NGS-2.2: use scratch repo as the inspection view when the virtual pointer is active.
+            // This returns per-node state at the pointer instead of the paused (post-tick) live state.
+            // When pointer is -1 (no recordings), fall back to _view (unchanged behavior).
+            // Lazy restore: InitNodePointerOnPause deliberately skips RestorePointerToScratch
+            // (which runs inside a tick), so we do it here on first access after a pause.
+            if (_nodePointer >= 0) RestorePointerToScratch();
+            ISimulationView inspectionView = (_nodePointer >= 0 && _scratchRepo != null)
+                ? (ISimulationView)_scratchRepo
+                : _view;
+
             switch (def.Kind)
             {
                 case BlueprintDispatchKind.AiPrimitive:
-                    CaptureAiPrimitiveState(self, def, mapIndex, fields);
+                    CaptureAiPrimitiveState(self, def, mapIndex, fields, inspectionView);
                     break;
                 case BlueprintDispatchKind.Instance:
-                    CaptureInstanceStateFromDefinition(self, bpId, mapIndex, def, fields, out cursor);
+                    CaptureInstanceStateFromDefinition(self, bpId, mapIndex, def, fields, out cursor, inspectionView);
                     break;
             }
         }
@@ -892,12 +1064,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     }
 
     // Reads AiPrimitive working-state fields from Blackboard1024 (BPF-001 section 8.6).
+    // NGS-2.2: accepts an explicit view so the caller can redirect to the scratch repo.
     private void CaptureAiPrimitiveState(
         Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
-        Dictionary<string, object> outFields)
+        Dictionary<string, object> outFields,
+        ISimulationView? view = null)
     {
-        if (!_view.HasComponent<Blackboard1024>(self)) return;
-        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(self);
+        var effectiveView = view ?? _view;
+        if (!effectiveView.HasComponent<Blackboard1024>(self)) return;
+        ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
 
         var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
             System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
@@ -933,29 +1108,32 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     }
 
     // Instance state byte access requires the partition allocator, not wired in here.
+    // NGS-2.2: accepts an explicit view so the caller can redirect to the scratch repo.
     private unsafe void CaptureInstanceStateFromDefinition(
         Entity self, int blueprintId, DebugMapIndex? mapIndex, BlueprintDefinition def,
-        Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor)
+        Dictionary<string, object> outFields, out BlueprintLatentCursor? cursor,
+        ISimulationView? view = null)
     {
         cursor = null;
+        var effectiveView = view ?? _view;
 
-        if (_view.HasComponent<BlueprintBlackboard1024>(self))
+        if (effectiveView.HasComponent<BlueprintBlackboard1024>(self))
         {
-            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard1024>(self);
+            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard1024>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
             ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
         }
-        else if (_view.HasComponent<BlueprintBlackboard4096>(self))
+        else if (effectiveView.HasComponent<BlueprintBlackboard4096>(self))
         {
-            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard4096>(self);
+            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard4096>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
             ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
         }
-        else if (_view.HasComponent<BlueprintBlackboard16384>(self))
+        else if (effectiveView.HasComponent<BlueprintBlackboard16384>(self))
         {
-            ref readonly var bb = ref _view.GetComponentRO<BlueprintBlackboard16384>(self);
+            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard16384>(self);
             var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
                 System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
             ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
@@ -1263,6 +1441,14 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _stepMode        = StepMode.None;
         _stepFromEntity  = default;
         _stepFromDepth   = 0;
+
+        // NGS-2.1/CT0a: lock recording entity to the paused entity.
+        _recordingEntity = self;
+
+        // NGS-2.1: initialise the virtual pointer.
+        // Prefer the index whose node-id matches the paused node. If not found (e.g.
+        // no recordings yet or no match), default to the last recorded index.
+        InitNodePointerOnPause(nodeId);
 
         if (bp.Id.Value != 0 && _breakpoints.ContainsKey(bp.Id))
         {

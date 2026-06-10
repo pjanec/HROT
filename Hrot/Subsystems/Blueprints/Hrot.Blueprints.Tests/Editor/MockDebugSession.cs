@@ -56,7 +56,13 @@ internal sealed class MockDebugSession : IBlueprintDebugSession
     public void StepOver()  { }
     public void StepInto()  { }
     public void StepOut()   { }
+    public void StepBack()  { }
     public void Pause()     { }
+
+    // NGS-2.1: virtual pointer (stub — always -1 in mock).
+    public int CurrentNodePointer => -1;
+    public string? CurrentNodeId => null;
+    public int RecordedNodeCount => 0;
 
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 

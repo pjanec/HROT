@@ -106,12 +106,19 @@ public sealed class CapturingDebugSession : IBlueprintProbeSink, IBlueprintDebug
     public int StepOverCallCount { get; private set; }
     public int StepIntoCallCount { get; private set; }
     public int StepOutCallCount { get; private set; }
+    public int StepBackCallCount { get; private set; }
 
     public void Continue()  { ContinueCallCount++; }
     public void StepOver()  { StepOverCallCount++; }
     public void StepInto()  { StepIntoCallCount++; }
     public void StepOut()   { StepOutCallCount++; }
+    public void StepBack()  { StepBackCallCount++; }
     public void Pause()     { }
+
+    // NGS-2.1: virtual pointer (stub — always -1 in the capturing test double).
+    public int CurrentNodePointer => -1;
+    public string? CurrentNodeId => null;
+    public int RecordedNodeCount => 0;
 
     // ---- IBlueprintDebugSession -- inspection -------------------------------
 
