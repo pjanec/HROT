@@ -13,6 +13,7 @@ public sealed class V_AllValidatorsCoverageTests
     private static readonly HashSet<string> KnownNotYetEmittedCodes = new(StringComparer.Ordinal)
     {
         "BP1600",  // OrphanedNode: declared as graph-structure code, not yet emitted
+        "BP1601",  // GraphHasNoReturn: relaxed — implicit return synthesized in Stage5 SealFallThrough
         "BP2015",  // WhenNode downstream of Branch: deferred (pins not materialized at Stage 2)
         "BP3012",  // Reserved for Stage 3, future use
         "BP3001",  // Reserved for Stage 4, Slice 2

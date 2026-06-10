@@ -155,8 +155,8 @@ public sealed class SequenceSchedulingTests
         var then1Block = irGraph.Blocks.FirstOrDefault(b => b.Id.Value == then0Goto.Target.Value);
         Assert.NotNull(then1Block);
 
-        // seq_then1 should end with fall-through (last branch, no further chain).
-        Assert.IsType<IrTerm_FallThrough>(then1Block.Terminator);
+        // seq_then1 should end with implicit return (last branch, no further chain).
+        Assert.IsType<IrTerm_ReturnStatus>(then1Block.Terminator);
     }
 
     // ----------------------------------------------------------------
@@ -653,10 +653,10 @@ public sealed class SequenceSchedulingTests
         // No BP1412 — zero connected branches is legitimate.
         Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP1412);
 
-        // Single block with fall-through terminator.
+        // Single block with implicit return terminator (Library dispatch).
         var irGraph = Assert.Single(ir.Graphs);
         Assert.Single(irGraph.Blocks);
-        Assert.IsType<IrTerm_FallThrough>(irGraph.Blocks[0].Terminator);
+        Assert.IsType<IrTerm_ReturnStatus>(irGraph.Blocks[0].Terminator);
     }
 
     // ----------------------------------------------------------------

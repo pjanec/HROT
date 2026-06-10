@@ -272,10 +272,9 @@ internal sealed class V_GraphStructure : IValidator
                 .OfType<ReturnNode>()
                 .Any();
 
-            if (!hasReturn && graph.Nodes.Count > 0)
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1601,
-                    $"Graph '{graph.Name}': no ReturnNode is exec-reachable from entry.",
-                    asset.AssetId, graph.Id));
+            // BP1601 relaxed: implicit return is now synthesized at end-of-chain
+            // by Stage5_Schedule.SealFallThrough, so an explicit ReturnNode is
+            // optional (still supported for early-exit and non-default status/value).
         }
     }
 

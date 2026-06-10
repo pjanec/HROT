@@ -31,6 +31,9 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 - ✅ NGS-2.3 — Step-past-last-node → resume exactly one tick (`RequestStepOneTick`); armed breakpoint re-fires → `HandleBreakpointHit` records new tick + re-pauses. Guarded on `RecordingActive`; no-arm keeps clamp. 5 TickBridge tests (advance+fresh-record+re-pause, no-arm guard, within-tick + CF-6 regression). P3: cross-tick value-distinct test (DBG2-D5).
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke next morning).
 
+## BPC-IMPLICIT-RETURN — Compiler feature (separate from debugger) ✅ DONE (committed, Zoo pro, review APPROVED 2026-06-10)
+- ✅ `ReturnNode` now optional: implicit return at end-of-chain (`SealFallThrough` → `ReturnStatus(Success)` AiPrimitive/Library, `Return(null)` Instance) + empty-branch-arm sealing; BP1601 relaxed. Explicit Return kept for early-exit / non-default status/value. 6 behavioral tests.
+
 ## BATCH-04 — Optional
 - ⬜ NGS-3.1 — Pending-ECB "deferred ops" panel from `ThreadLocal<EntityCommandBuffer>`.
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke).

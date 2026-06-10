@@ -469,7 +469,9 @@ internal sealed class GraphScheduler
 
         var (trueSucc, falseSucc) = GetBranchSuccessors(bn);
         if (trueSucc  is not null) _bfsQueue.Enqueue((trueBlock.Value,  trueSucc));
+        else SealFallThrough(trueBlock.Value, _blockBuilders[trueBlock.Value]);
         if (falseSucc is not null) _bfsQueue.Enqueue((falseBlock.Value, falseSucc));
+        else SealFallThrough(falseBlock.Value, _blockBuilders[falseBlock.Value]);
     }
 
     // -----------------------------------------------------------------------
@@ -542,18 +544,35 @@ internal sealed class GraphScheduler
     /// <summary>
     /// Sets the terminator on <paramref name="bb"/>: if a fall-through redirect
     /// is registered for <paramref name="blockId"/>, emits <see cref="IrTerm_Goto"/>;
-    /// otherwise emits <see cref="IrTerm_FallThrough"/>.
+    /// otherwise synthesizes the dispatch-appropriate implicit return
+    /// (<see cref="IrTerm_ReturnStatus"/>(Success) for AiPrimitive/Library,
+    /// void <see cref="IrTerm_Return"/> for Instance).
     /// Centralizes the decision so that branch chaining (Sequence) is honoured
     /// wherever a block's exec chain naturally ends.
     /// </summary>
     private void SealFallThrough(int blockId, BlockBuilder bb, IrDebugAnnotation? debug = null)
     {
         if (_fallThroughTarget.TryGetValue(blockId, out var t))
+        {
             bb.Terminator = new IrTerm_Goto(t);
-        else if (debug is not null)
-            bb.Terminator = new IrTerm_FallThrough { Debug = debug };
+            return;
+        }
+
+        // Genuine end-of-chain — synthesize the implicit return per dispatch kind
+        // (mirrors BuildReturnTerminator's defaults without an explicit ReturnNode).
+        if (_typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
+            || _typed.Asset.Dispatch == AssetDispatchKind.Library)
+        {
+            var term = new IrTerm_ReturnStatus(NodeStatus.Success);
+            if (debug is not null) term = term with { Debug = debug };
+            bb.Terminator = term;
+        }
         else
-            bb.Terminator = new IrTerm_FallThrough();
+        {
+            var term = new IrTerm_Return(null /* void */);
+            if (debug is not null) term = term with { Debug = debug };
+            bb.Terminator = term;
+        }
     }
 
     // -----------------------------------------------------------------------

@@ -315,10 +315,10 @@ public sealed class V_DispatchKindCompatibilityTests
     // ---- Graph structure tests ------------------------------------------
 
     [Fact]
-    [CoversDiagnosticCode("BP1601")]
-    public void Library_GraphWithNoReturn_EmitsBP1601()
+    public void Library_GraphWithNoReturn_CompilesWithoutBP1601()
     {
-        // Entry node present but no ReturnNode -> no reachable return.
+        // Entry node present but no ReturnNode — implicit return is now synthesized.
+        // BP1601 relaxed; graph should compile without that error.
         var asset = BlueprintAssetBuilder
             .Library("L")
             .WithGraph("G", g => g.Entry())
@@ -326,7 +326,7 @@ public sealed class V_DispatchKindCompatibilityTests
 
         var diags = Validate(asset);
 
-        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1601);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1601);
     }
 
     [Fact]
