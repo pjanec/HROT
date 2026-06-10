@@ -8,12 +8,13 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 - ✅ NGS-0.3 — Migrated frame-clock readers to `SimulationTick` (RecorderSystem headers, DBM PausedTick, HsmTickSystem, BTreeTickSystem). ModuleHostKernel correctly kept on `GlobalVersion` (memory-version, justified in report).
 - ✅ NGS-0.4 — Exhaustive reader audit (28 GlobalVersion + ~20 view.Tick readers classified in report) + `#if DEBUG` invariant `_globalVersion >= _simulationTick` in `BumpMemoryVersion()`. 15 new behavioral tests.
 
-## BATCH-01 — Sub-tick recorder + capture ring
-- ⬜ NGS-1.1 — `RecorderSystem.RecordSubTickDelta(repo, prevVersion, writer)` synchronous, caller-owned buffer.
-- ⬜ NGS-1.2 — Capture ring in `BlueprintDebugSession`; `OnNodeEnter` (debug-active) calls `BumpMemoryVersion()` + records a delta.
-- ⬜ NGS-1.3 — Restore: `scratchRepo.SyncFrom(_preTickSnapshot)` + sequential `ApplyFrame` to reconstruct node K.
+## BATCH-01 — Sub-tick recorder mechanism ✅ DONE (committed, review APPROVED 2026-06-10)
+- ✅ NGS-1.1 — Reused `RecorderSystem.RecordDeltaFrame` directly (no wrapper; sound).
+- ✅ NGS-1.2 — `SubTickSnapshotRecorder` (Blueprints.Core/Debug): keyframe baseline + bounded ring; `BeginTick`/`RecordNodeEntry` (capture→store→advance→bump, ordering proven).
+- ✅ NGS-1.3 — `RestoreTo(nodeIndex, scratchRepo)`: keyframe + deltas[0..K]. 7 behavioral tests (counter 5/6/7, attribution, multi-entity whole-repo, managed, ST-frozen, overflow, reset). [OnNodeEnter wiring → BATCH-02.]
 
-## BATCH-02 — Virtual-pointer navigation + inspector
+## BATCH-02 — Wiring + virtual-pointer navigation + inspector
+- ⬜ NGS-2.0 — Wire `SubTickSnapshotRecorder` into `BlueprintDebugSession.OnNodeEnter` (debug-active guard; `BeginTick` on tick boundary via `SimulationTick` change; obtain concrete `EntityRepository` from session context). Integration test with a real compiled blueprint tick.
 - ⬜ NGS-2.1 — Virtual pointer Step/StepBack over the ring (clock paused).
 - ⬜ NGS-2.2 — Inspector (`CaptureStateSnapshot`) reads the pointer's restored scratch repo while pointer active.
 - ⬜ NGS-2.3 — Step-past-last-node → advance exactly one real tick, re-record, re-pause at first probe.
