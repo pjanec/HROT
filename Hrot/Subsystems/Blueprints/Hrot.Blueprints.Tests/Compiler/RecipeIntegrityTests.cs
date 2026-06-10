@@ -13,7 +13,7 @@ public sealed class RecipeIntegrityTests
 
     private static BlueprintAsset LoadRecipe(string name)
     {
-        // WHEN-M11-T4: Prefer production location (Hrot.AI.Behaviors/Blueprints/Recipes/)
+        // WHEN-M11-T4: Prefer production location (Hrot.AI.Behaviors/Recipes/Blueprints/)
         // but fall back to test location if assembly not loaded.
         var aiBehaviorsAssembly = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
@@ -24,7 +24,7 @@ public sealed class RecipeIntegrityTests
             // Production location: loaded from Hrot.AI.Behaviors assembly output
             var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
                 ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors assembly location.");
-            var recipesPath = Path.Combine(assemblyLocation, "Blueprints", "Recipes");
+            var recipesPath = Path.Combine(assemblyLocation, "Recipes", "Blueprints");
             path = Path.Combine(recipesPath, name + ".bp.json");
         }
         else

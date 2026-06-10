@@ -116,6 +116,7 @@ using Hrot.Editor.AiShared.Debug;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.References;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Hsm.Editor.Catalog;
@@ -640,8 +641,8 @@ namespace Hrot.Editor
 
             var aiRootDir          = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
             var bpRootDir          = aiRootDir != null
-                ? System.IO.Path.Combine(aiRootDir, "Blueprints")
-                : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
+                : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
             var bpContrib          = new BlueprintAssetContributor(bpRootDir);
             var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
             var hsmJsonContrib     = new HsmJsonAssetContributor();
@@ -653,8 +654,8 @@ namespace Hrot.Editor
             }
             else
             {
-                var btreeJsonRootDir = System.IO.Path.Combine(aiRootDir, "Trees");
-                var hsmJsonRootDir   = System.IO.Path.Combine(aiRootDir, "Machines");
+                var btreeJsonRootDir = System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree));
+                var hsmJsonRootDir   = System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Hsm));
                 if (System.IO.Directory.Exists(btreeJsonRootDir))
                     btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
                 else
@@ -2055,8 +2056,8 @@ namespace Hrot.Editor
                 }
 
                 string saveDir = recipeProjectDir != null
-                    ? System.IO.Path.Combine(recipeProjectDir, "Blueprints")
-                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                    ? System.IO.Path.Combine(recipeProjectDir, AssetRoots.RecipesRelative(AssetKind.Blueprint))
+                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recipes", "Blueprints");
                 System.IO.Directory.CreateDirectory(saveDir);
                 string path = System.IO.Path.Combine(saveDir, $"{newName}.bp.json");
 
@@ -2510,8 +2511,8 @@ namespace Hrot.Editor
                         break;
                 }
                 var bpDir      = quickReloadProjectDir != null
-                    ? System.IO.Path.Combine(quickReloadProjectDir, "Blueprints")
-                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints");
+                    ? System.IO.Path.Combine(quickReloadProjectDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
+                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
                 var qrsCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpDir);
                 _blueprintAssetCatalog = qrsCatalog;
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();

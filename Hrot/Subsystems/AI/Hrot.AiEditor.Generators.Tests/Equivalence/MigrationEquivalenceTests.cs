@@ -458,7 +458,7 @@ public sealed class MigrationEquivalenceTests
     {
         // Locate the live committed JSON
         var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Trees", "SampleScout.btree.json"));
+            "Assets", "BTrees", "SampleScout.btree.json"));
         File.Exists(jsonPath).Should().BeTrue(
             $"live SampleScout.btree.json must exist at {jsonPath} (PU-402 decommit)");
 
@@ -502,7 +502,7 @@ public sealed class MigrationEquivalenceTests
     {
         // Locate the live committed JSON
         var jsonPath = GetLiveJsonPath(Path.Combine("Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Machines", "SampleGuard.hsm.json"));
+            "Assets", "HSMs", "SampleGuard.hsm.json"));
         File.Exists(jsonPath).Should().BeTrue(
             $"live SampleGuard.hsm.json must exist at {jsonPath} (PU-402 decommit)");
 

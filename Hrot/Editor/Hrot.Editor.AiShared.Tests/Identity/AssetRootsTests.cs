@@ -18,14 +18,76 @@ public sealed class AssetRootsTests
             $"Expected '{actualAbsolute}' to end with '{expectedEnd}'.");
     }
 
-    // ── AssetsFor ────────────────────────────────────────────────
+    // ── AssetsRelative ────────────────────────────────────────────
+
+    [Fact]
+    public void AssetsRelative_EachFileKind_ReturnsLiteralSegments()
+    {
+        // These are pure relative segments — no base path prepended.
+        Assert.Equal(Path.Combine("Assets", "Blueprints"), AssetRoots.AssetsRelative(AssetKind.Blueprint));
+        Assert.Equal(Path.Combine("Assets", "BTrees"),     AssetRoots.AssetsRelative(AssetKind.BTree));
+        Assert.Equal(Path.Combine("Assets", "HSMs"),       AssetRoots.AssetsRelative(AssetKind.Hsm));
+    }
+
+    [Fact]
+    public void AssetsRelative_Blackboard_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.AssetsRelative(AssetKind.Blackboard));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
+    [Fact]
+    public void AssetsRelative_Utility_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.AssetsRelative(AssetKind.Utility));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
+    // ── RecipesRelative ───────────────────────────────────────────
+
+    [Fact]
+    public void RecipesRelative_AllFileKinds_ReturnsLiteralSegments()
+    {
+        Assert.Equal(Path.Combine("Recipes", "Blueprints"), AssetRoots.RecipesRelative(AssetKind.Blueprint));
+        Assert.Equal(Path.Combine("Recipes", "BTrees"),     AssetRoots.RecipesRelative(AssetKind.BTree));
+        Assert.Equal(Path.Combine("Recipes", "HSMs"),       AssetRoots.RecipesRelative(AssetKind.Hsm));
+    }
+
+    [Fact]
+    public void ScenariosRecipesRelative_ReturnsLiteralSegment()
+    {
+        Assert.Equal(Path.Combine("Recipes", "Scenarios"), AssetRoots.ScenariosRecipesRelative);
+    }
+
+    [Fact]
+    public void RecipesRelative_Blackboard_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.RecipesRelative(AssetKind.Blackboard));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
+    [Fact]
+    public void RecipesRelative_Utility_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.RecipesRelative(AssetKind.Utility));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
+    // ── AssetsFor (absolute, delegates to AssetsRelative) ─────────
 
     [Fact]
     public void AssetsFor_EachFileKind_ReturnsExpectedRelativeSegment()
     {
-        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.Blueprint), "Assets/Blueprints");
-        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.BTree),     "Assets/BTrees");
-        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.Hsm),       "Assets/HSMs");
+        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.Blueprint),
+            Path.Combine("Assets", "Blueprints"));
+        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.BTree),
+            Path.Combine("Assets", "BTrees"));
+        AssertEndsWithRelative(AssetRoots.AssetsFor(AssetKind.Hsm),
+            Path.Combine("Assets", "HSMs"));
     }
 
     [Fact]
@@ -44,18 +106,22 @@ public sealed class AssetRootsTests
         Assert.Equal("kind", ex.ParamName);
     }
 
-    // ── RecipesFor ────────────────────────────────────────────────
+    // ── RecipesFor (absolute, delegates to RecipesRelative) ────────
 
     [Fact]
     public void RecipesFor_AllKinds_IncludingScenario()
     {
         // File kinds via RecipesFor.
-        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Blueprint), "Recipes/Blueprints");
-        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.BTree),     "Recipes/BTrees");
-        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Hsm),       "Recipes/HSMs");
+        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Blueprint),
+            Path.Combine("Recipes", "Blueprints"));
+        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.BTree),
+            Path.Combine("Recipes", "BTrees"));
+        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Hsm),
+            Path.Combine("Recipes", "HSMs"));
 
         // Scenario via dedicated member (no AssetKind.Scenario yet).
-        AssertEndsWithRelative(AssetRoots.ScenariosRecipesRoot, "Recipes/Scenarios");
+        AssertEndsWithRelative(AssetRoots.ScenariosRecipesRoot,
+            Path.Combine("Recipes", "Scenarios"));
     }
 
     [Fact]
@@ -72,6 +138,39 @@ public sealed class AssetRootsTests
         var ex = Assert.Throws<ArgumentOutOfRangeException>(
             () => AssetRoots.RecipesFor(AssetKind.Utility));
         Assert.Equal("kind", ex.ParamName);
+    }
+
+    // ── Absolute delegates to Relative helpers ────────────────────
+
+    [Fact]
+    public void AssetsFor_DelegatesTo_AssetsRelative()
+    {
+        // The absolute path must be <BaseDirectory> + relative segment.
+        foreach (var kind in new[] { AssetKind.Blueprint, AssetKind.BTree, AssetKind.Hsm })
+        {
+            var absolute = AssetRoots.AssetsFor(kind);
+            var expected = Path.Combine(AppContext.BaseDirectory, AssetRoots.AssetsRelative(kind));
+            Assert.Equal(expected, absolute);
+        }
+    }
+
+    [Fact]
+    public void RecipesFor_DelegatesTo_RecipesRelative()
+    {
+        foreach (var kind in new[] { AssetKind.Blueprint, AssetKind.BTree, AssetKind.Hsm })
+        {
+            var absolute = AssetRoots.RecipesFor(kind);
+            var expected = Path.Combine(AppContext.BaseDirectory, AssetRoots.RecipesRelative(kind));
+            Assert.Equal(expected, absolute);
+        }
+    }
+
+    [Fact]
+    public void ScenariosRecipesRoot_DelegatesTo_ScenariosRecipesRelative()
+    {
+        var absolute = AssetRoots.ScenariosRecipesRoot;
+        var expected = Path.Combine(AppContext.BaseDirectory, AssetRoots.ScenariosRecipesRelative);
+        Assert.Equal(expected, absolute);
     }
 
     // ── Scenario has no Assets root ───────────────────────────────

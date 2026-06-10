@@ -58,7 +58,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     {
         var repoRoot = ResolveRepoRoot();
         var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Blueprints", "Count4.bp.json");
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
         var asset = BlueprintJsonServices.Deserialize(json)
                     ?? throw new InvalidOperationException(
@@ -262,7 +262,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     {
         var repoRoot = ResolveRepoRoot();
         var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Blueprints", "Count4.bp.json");
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 
         // Production-correct path:
@@ -316,7 +316,7 @@ public sealed class CF7rev_EndToEndTests : IDisposable
     {
         var repoRoot = ResolveRepoRoot();
         var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Blueprints", "Count4.bp.json");
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
 
         // THIS is the production callback's loading code — must use BlueprintJsonServices.

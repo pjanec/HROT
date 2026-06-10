@@ -162,7 +162,7 @@ public sealed class FixedStringPinTests
         {
             var dir = Path.GetDirectoryName(aiBehaviorsAssembly.Location)
                 ?? throw new InvalidOperationException("Cannot determine Hrot.AI.Behaviors location.");
-            path = Path.Combine(dir, "Blueprints", "Recipes", "EditorTypesDemo.bp.json");
+            path = Path.Combine(dir, "Recipes", "Blueprints", "EditorTypesDemo.bp.json");
         }
         else
         {

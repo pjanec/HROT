@@ -65,26 +65,27 @@
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- Blueprint asset files: picked up by the incremental generator. -->
-  <!-- Exclude Recipes folder - these are templates, not compiled blueprints. -->
+  <!-- Blueprint asset files (final): picked up by the incremental generator.
+       Recipes moved to Recipes/Blueprints/ — no longer under the Assets tree,
+       so no Exclude needed. -->
   <ItemGroup>
-    <AdditionalFiles Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
+    <AdditionalFiles Include="Assets\Blueprints\**\*.bp.json" />
     <!-- Ensure .bp.json changes invalidate the incremental build up-to-date check
          so the source generator re-runs and regenerates .g.cs files. -->
-    <UpToDateCheckInput Include="Blueprints\**\*.bp.json" Exclude="Blueprints\Recipes\*.bp.json" />
+    <UpToDateCheckInput Include="Assets\Blueprints\**\*.bp.json" />
   </ItemGroup>
 
   <!-- BTree/HSM JSON asset files: picked up by BTreeJsonGenerator/HsmJsonGenerator.
-       PU-204 (§9): dormant until PU-401 migration produces the first *.btree.json/*.hsm.json.
-       No .json files exist yet → zero matches → no generated output, no break. -->
+       PU-204 (§9): dormant until PU-401 migration produces more files. -->
   <ItemGroup>
-    <AdditionalFiles Include="Trees\**\*.btree.json" />
-    <AdditionalFiles Include="Machines\**\*.hsm.json" />
+    <AdditionalFiles Include="Assets\BTrees\**\*.btree.json" />
+    <AdditionalFiles Include="Assets\HSMs\**\*.hsm.json" />
   </ItemGroup>
 
-  <!-- Recipe blueprint files: bundled as content for editor discovery (WHEN-M11-T4). -->
+  <!-- Recipe blueprint files: bundled as content for editor discovery.
+       Copied to output under Recipes/Blueprints/ (preserving relative path). -->
   <ItemGroup>
-    <Content Include="Blueprints\Recipes\*.bp.json">
+    <Content Include="Recipes\Blueprints\*.bp.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

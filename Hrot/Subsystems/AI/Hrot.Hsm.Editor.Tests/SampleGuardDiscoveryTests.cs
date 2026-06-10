@@ -76,7 +76,7 @@ public sealed class SampleGuardDiscoveryTests
         for (int i = 0; i < 7; i++)
             repoRoot = Path.GetDirectoryName(repoRoot)!;
         var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Machines", "SampleGuard.hsm.json");
+            "Assets", "HSMs", "SampleGuard.hsm.json");
 
         jsonPath.Should().NotBeNullOrEmpty();
         File.Exists(jsonPath).Should().BeTrue(

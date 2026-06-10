@@ -71,7 +71,7 @@ public sealed class SampleScoutDiscoveryTests
         for (int i = 0; i < 7; i++)
             repoRoot = Path.GetDirectoryName(repoRoot)!;
         var jsonPath = Path.Combine(repoRoot, "Hrot", "Subsystems", "Hrot.AI.Behaviors",
-            "Trees", "SampleScout.btree.json");
+            "Assets", "BTrees", "SampleScout.btree.json");
 
         jsonPath.Should().NotBeNullOrEmpty();
         File.Exists(jsonPath).Should().BeTrue(

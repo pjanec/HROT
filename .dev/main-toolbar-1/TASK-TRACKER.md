@@ -13,8 +13,8 @@ Phase 7.
 **Goal:** disjoint `Assets/` and `Recipes/` roots, single `AssetRoots` authority.
 
 - [x] **MTB-P0-T1** `AssetRoots` constants [details](./TASK-DETAIL.md#mtb-p0-t1--assetroots-constants)
-- [ ] **MTB-P0-T2** Move asset/recipe files + `.csproj` globs [details](./TASK-DETAIL.md#mtb-p0-t2--move-asset--recipe-files--csproj-globs)
-- [ ] **MTB-P0-T3** Repoint discovery/scan/save paths [details](./TASK-DETAIL.md#mtb-p0-t3--repoint-discoveryscansave-paths-to-assetroots)
+- [x] **MTB-P0-T2** Move asset/recipe files + `.csproj` globs [details](./TASK-DETAIL.md#mtb-p0-t2--move-asset--recipe-files--csproj-globs)
+- [x] **MTB-P0-T3** Repoint discovery/scan/save paths [details](./TASK-DETAIL.md#mtb-p0-t3--repoint-discoveryscansave-paths-to-assetroots)
 
 ## Phase 1 — Toolbar & Icon Infrastructure
 **Goal:** generic top toolbar (jitter-free height), 64px icon widgets, icon keys.

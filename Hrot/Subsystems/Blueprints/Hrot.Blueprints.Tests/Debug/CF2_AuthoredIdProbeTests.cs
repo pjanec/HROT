@@ -49,7 +49,7 @@ public sealed class CF2_AuthoredIdProbeTests : IDisposable
     {
         var repoRoot = ResolveRepoRoot();
         var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Blueprints", "Count4.bp.json");
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
         var asset = BlueprintJsonServices.Deserialize(json)
                     ?? throw new InvalidOperationException(

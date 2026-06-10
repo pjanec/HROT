@@ -145,7 +145,7 @@ public sealed class WhenNodeEditorSmokeTest
         if (aiBehaviorsAssembly != null)
         {
             var assemblyLocation = Path.GetDirectoryName(aiBehaviorsAssembly.Location)!;
-            recipesPath = Path.Combine(assemblyLocation, "Blueprints", "Recipes");
+            recipesPath = Path.Combine(assemblyLocation, "Recipes", "Blueprints");
         }
         else
         {

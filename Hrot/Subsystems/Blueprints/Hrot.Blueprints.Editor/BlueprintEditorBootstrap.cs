@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor.ActionCatalog;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Visuals;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using NodeEditor.Core.Interfaces;
@@ -147,7 +148,7 @@ public static class BlueprintEditorBootstrap
 
     /// <summary>
     /// Enumerates all blueprint recipe files from the production location
-    /// (Hrot.AI.Behaviors/Blueprints/Recipes/). Returns only assets with
+    /// (Hrot.AI.Behaviors/Recipes/Blueprints/). Returns only assets with
     /// EditorMetadata.Recipe != null.
     /// </summary>
     /// <remarks>
@@ -172,7 +173,7 @@ public static class BlueprintEditorBootstrap
         if (string.IsNullOrEmpty(assemblyLocation))
             return recipes;
 
-        var recipesPath = Path.Combine(assemblyLocation, "Blueprints", "Recipes");
+        var recipesPath = Path.Combine(assemblyLocation, AssetRoots.RecipesRelative(AssetKind.Blueprint));
         if (!Directory.Exists(recipesPath))
             return recipes;
 

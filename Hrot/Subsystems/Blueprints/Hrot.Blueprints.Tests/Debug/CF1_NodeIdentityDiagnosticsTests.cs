@@ -59,7 +59,7 @@ public sealed class CF1_NodeIdentityDiagnosticsTests
         // ── 1. Load the asset ─────────────────────────────────────────────
         var repoRoot = ResolveRepoRoot();
         var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Blueprints", "Count4.bp.json");
+            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
         var json = File.ReadAllText(assetPath);
         var asset = BlueprintJsonServices.Deserialize(json)
                     ?? throw new InvalidOperationException(
@@ -119,7 +119,7 @@ public sealed class CF1_NodeIdentityDiagnosticsTests
         mb.Bullet($"**GraphId**: `{graph.Id:D}`");
         mb.Bullet($"**Compile succeeded**: {result.Succeeded}");
         mb.Bullet($"**Generated**: {DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
-        mb.Bullet($"**Source file**: `Hrot/Subsystems/Hrot.AI.Behaviors/Blueprints/Count4.bp.json`");
+        mb.Bullet($"**Source file**: `Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints/Count4.bp.json`");
         mb.Line();
 
         // ── Table A: DebugMap entries ─────────────────────────────────────
