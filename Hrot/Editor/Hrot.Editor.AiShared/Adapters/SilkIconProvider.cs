@@ -92,6 +92,27 @@ public sealed class SilkIconProvider : IIconProvider
             ["status/info"]           = "g3",   // information badge
             ["status/ok"]             = "g4",   // tick badge
             ["status/running"]        = "g5",   // spinner/running
+
+            // ── Debug controls (§5.1) ───────────────────────────────────────
+            ["debug/continue"]        = "a2",   // play / continue
+            ["debug/step_back"]       = "a3",   // rewind / step back
+            ["debug/step_over"]       = "a4",   // step over
+            ["debug/step_into"]       = "a5",   // step into
+            ["debug/step_out"]        = "a6",   // step out
+
+            // ── Asset kind icons (§5.1, §5.2) ──────────────────────────────
+            ["asset/scenario"]        = "b1",   // world → scenario
+            ["asset/blueprint"]       = "b2",   // blueprint
+            ["asset/btree"]           = "c10",  // branch → behavior tree
+            ["asset/hsm"]             = "c11",  // state machine
+            ["asset/blackboard"]      = "c12",  // blackboard
+            ["asset/utility"]         = "b8",   // utility
+
+            // ── Generic / browser (§5.1) ────────────────────────────────────
+            ["browser/open"]          = "c8",   // folder → open browser
+            ["asset/new"]             = "b9",   // new document
+            ["folder"]                = "c8",   // folder (closed)
+            ["folder_open"]           = "a1",   // folder open
         };
 
     /// <summary>

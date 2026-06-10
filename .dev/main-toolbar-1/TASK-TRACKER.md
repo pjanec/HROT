@@ -19,10 +19,10 @@ Phase 7.
 ## Phase 1 — Toolbar & Icon Infrastructure
 **Goal:** generic top toolbar (jitter-free height), 64px icon widgets, icon keys.
 
-- [ ] **MTB-P1-T1** `MainToolbarManager` [details](./TASK-DETAIL.md#mtb-p1-t1--maintoolbarmanager)
-- [ ] **MTB-P1-T2** Icon widget `IconHandle` + size overloads [details](./TASK-DETAIL.md#mtb-p1-t2--icon-widget-iconhandle--size-overloads)
+- [x] **MTB-P1-T1** `MainToolbarManager` [details](./TASK-DETAIL.md#mtb-p1-t1--maintoolbarmanager)
+- [x] **MTB-P1-T2** Icon widget `IconHandle` + size overloads [details](./TASK-DETAIL.md#mtb-p1-t2--icon-widget-iconhandle--size-overloads)
 - [ ] **MTB-P1-T3** `WindowManager.MainToolbar` + dockspace inset [details](./TASK-DETAIL.md#mtb-p1-t3--windowmanagermaintoolbar--dockspace-inset)
-- [ ] **MTB-P1-T4** Icon keys + `AssetKind → IconKey` [details](./TASK-DETAIL.md#mtb-p1-t4--icon-keys--assetkind--iconkey)
+- [x] **MTB-P1-T4** Icon keys + `AssetKind → IconKey` [details](./TASK-DETAIL.md#mtb-p1-t4--icon-keys--assetkind--iconkey)
 
 ## Phase 2 — Shell Command Set & Binding Adapters
 **Goal:** command-driven menus/toolbar/hotkeys; Ctrl+S fix.

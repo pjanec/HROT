@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
+using NodeEditor.Core.Interfaces;
 
 namespace Fdp.Presentation.Icons;
 
@@ -205,5 +206,131 @@ public static class IconWidgets
         }
 
         return result;
+    }
+
+    // ─── MTB-P1-T2: IconHandle-based overloads with explicit size ──────────────
+
+    /// <summary>
+    /// A stateless icon button that draws from an <see cref="IconHandle"/> at an explicit size.
+    /// Returns <c>true</c> on the frame it is clicked.
+    /// Delegates to <see cref="ToggleIcon(in IconHandle, string, Vector2, ref bool, bool, Vector4?)"/>
+    /// with a discarded local toggle state, so no filled background is ever drawn.
+    /// </summary>
+    /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
+    /// <param name="id">Unique ImGui ID for this button.</param>
+    /// <param name="size">Render size in pixels (typically 64×64 for toolbar icons).</param>
+    /// <param name="enabled">
+    /// When <c>false</c> the icon is drawn dimmed with no click hit-area
+    /// and this method always returns <c>false</c>.
+    /// </param>
+    /// <param name="tint">
+    /// Optional RGBA color tint applied to the icon texture.
+    /// Pass <c>null</c> (default) for full-white / no tint.
+    /// </param>
+    public static bool IconButton(in IconHandle icon, string id, Vector2 size,
+                                  bool enabled = true, Vector4? tint = null)
+    {
+        bool dummy = false;
+        return ToggleIcon(in icon, id, size, ref dummy, enabled, tint);
+    }
+
+    /// <summary>
+    /// A stateful icon button that draws from an <see cref="IconHandle"/> at an explicit size.
+    /// Flips <paramref name="isToggled"/> on click and draws a gray filled background when
+    /// toggled. Returns <c>true</c> on click.
+    /// </summary>
+    /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
+    /// <param name="id">Unique ImGui ID for this button.</param>
+    /// <param name="size">Render size in pixels.</param>
+    /// <param name="isToggled">Toggle state reference — flipped on click.</param>
+    /// <param name="enabled">
+    /// When <c>false</c> the icon is drawn dimmed via a passive <see cref="Gui.Dummy"/>
+    /// (no click hit-area), the toggle state is NOT changed, and this method always
+    /// returns <c>false</c>.
+    /// </param>
+    /// <param name="tint">
+    /// Optional RGBA color tint applied to the icon texture.
+    /// Pass <c>null</c> (default) for full-white / no tint.
+    /// </param>
+    public static bool ToggleIcon(in IconHandle icon, string id, Vector2 size,
+                                  ref bool isToggled, bool enabled = true, Vector4? tint = null)
+    {
+        var screenPos = Gui.GetCursorScreenPos();
+
+        bool clicked;
+        bool isHovered;
+        bool isPressed;
+
+        if (enabled)
+        {
+            clicked = Gui.InvisibleButton(id, size);
+            isHovered = Gui.IsItemHovered();
+            isPressed = Gui.IsItemActive();
+        }
+        else
+        {
+            // Passive placeholder — no hit area, no interaction
+            Gui.Dummy(size);
+            clicked = false;
+            isHovered = false;
+            isPressed = false;
+        }
+
+        var drawList = Gui.GetWindowDrawList();
+
+        // Filled background when toggled (and enabled)
+        if (isToggled && enabled)
+            drawList.AddRectFilled(
+                screenPos,
+                screenPos + size,
+                Gui.GetColorU32(new Vector4(0.3f, 0.3f, 0.3f, 1.0f)));
+
+        // Icon image; shift 1px when pressed.
+        // Enabled: normal tint (null → full-white). Disabled: dimmed alpha (~0.28f, mirroring TransportIconRenderer).
+        var imagePos = isPressed ? screenPos + new Vector2(1f, 1f) : screenPos;
+        uint imageTint;
+        if (!enabled)
+        {
+            // Dimmed draw — reduced alpha on the tint
+            Vector4 dim = tint ?? Vector4.One;
+            dim.W *= 0.28f;
+            imageTint = Gui.GetColorU32(dim);
+        }
+        else if (tint.HasValue)
+        {
+            imageTint = Gui.GetColorU32(tint.Value);
+        }
+        else
+        {
+            imageTint = 0xFFFFFFFF; // full-white
+        }
+
+        drawList.AddImage(icon.TextureId, imagePos, imagePos + size, icon.Uv0, icon.Uv1, imageTint);
+
+        // Hover border (only when enabled)
+        if (isHovered)
+            drawList.AddRect(
+                screenPos,
+                screenPos + size,
+                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)));
+
+        // Flip state on click (only when enabled)
+        if (clicked)
+            isToggled = !isToggled;
+
+        return clicked;
+    }
+
+    // ─── MTB-P1-T2: Tooltip helper ───────────────────────────────────────────
+
+    /// <summary>
+    /// Simple tooltip helper. If the most recently submitted item is hovered,
+    /// calls <see cref="Gui.SetTooltip"/> with <paramref name="text"/>.
+    /// Call immediately after an interactive widget (button, toggle, etc.).
+    /// </summary>
+    public static void Tooltip(string text)
+    {
+        if (Gui.IsItemHovered())
+            Gui.SetTooltip(text);
     }
 }
