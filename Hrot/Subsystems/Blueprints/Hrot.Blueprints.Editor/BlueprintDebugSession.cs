@@ -720,7 +720,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _scratchRepo ??= new EntityRepository();
 
         // Seed registrations + live baseline so PlaybackSystem.ApplyFrame finds all tables.
-        _scratchRepo.SyncFrom(_liveRepo);
+        // Use includeTransient: true so SyncFrom uses GetSnapshotableMask(true) = all registered
+        // component types, which is a superset of the recordable types the keyframe contains.
+        // Without this, components marked [DataPolicy(DataPolicy.NoSnapshot)] are recordable but
+        // NOT snapshotable — the keyframe captures them but the scratch repo never registered
+        // the type → PlaybackSystem.ApplyChunkData throws "type ID not found".
+        _scratchRepo.SyncFrom(_liveRepo, includeTransient: true);
 
         // Replay keyframe + deltas[0.._nodePointer] into scratch.
         _recorder.RestoreTo(_nodePointer, _scratchRepo);
