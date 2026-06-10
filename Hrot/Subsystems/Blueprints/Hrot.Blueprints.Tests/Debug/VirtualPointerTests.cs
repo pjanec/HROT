@@ -57,6 +57,7 @@ public sealed class VirtualPointerTests : IDisposable
         // breakpoint must be set on the node whose id is actually emitted by the probe.
         var graphId     = asset.Graphs[0].Id;
         var probeNodeId = asset.Graphs[0].Nodes[1].Id; // SequenceNode — the actual probe identity
+        session.RegisterGraph(asset.Graphs[0]); // needed by StepFromNode for allSuccessorsAreTerminal check
         session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
         // Tick — the whole chain runs and pause fires.
@@ -89,14 +90,19 @@ public sealed class VirtualPointerTests : IDisposable
             session.StepInto();
         Assert.Equal(last, session.CurrentNodePointer);
 
-        // NGS-2.3: one more step forward at last index with a breakpoint armed (RecordingActive)
-        // triggers the tick-bridge: nav state is cleared, RequestStepOneTick is called,
-        // and the session is no longer paused (waiting for the armed BP to re-fire on the next tick).
-        // This is NOT a clamp — it's the bridge. The MockTimeController is a no-op so no re-pause occurs yet.
-        int stepsBefore = tc.StepRequestCount;
+        // NGS-2.3 (BF-03 fix): one more step forward at last index with a breakpoint armed
+        // (RecordingActive) triggers the tick-bridge: nav state is cleared, temp BPs are set
+        // on successors, RequestResume is called, and the session is no longer paused.
+        // This is NOT a clamp — it's the bridge using the CF-6 temp-BP + resume mechanism
+        // (NOT RequestStepOneTick, which fails for latent/Delay nodes).
+        // The MockTimeController is a no-op so no re-pause occurs yet.
+        int resumeCountBefore = tc.ResumeCount;
         session.StepInto();
-        Assert.True(tc.StepRequestCount == stepsBefore + 1,
-            "NGS-2.3: step past end with armed BP must call RequestStepOneTick once.");
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            $"NGS-2.3: step past end with armed BP must call RequestResume (BF-03 temp-BP bridge); " +
+            $"ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
+        Assert.True(tc.StepRequestCount == 0,
+            "NGS-2.3: bridge must NOT call RequestStepOneTick (BF-03 fix; use temp-BP + resume instead).");
         Assert.False(session.IsPaused,
             "NGS-2.3: session must not be paused after tick-bridge call (tick not yet advanced).");
         Assert.Equal(-1, session.CurrentNodePointer);

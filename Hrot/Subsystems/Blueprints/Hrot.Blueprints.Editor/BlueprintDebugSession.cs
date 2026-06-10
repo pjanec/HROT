@@ -903,9 +903,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// <summary>
     /// NGS-2.1 / NGS-2.3: move the virtual pointer forward by one slot when recordings exist.
     /// When already at the last recorded index and a breakpoint is still armed
-    /// (<see cref="RecordingActive"/>), advances exactly one real tick and lets the
-    /// armed breakpoint re-fire on the new tick — re-pausing with a fresh per-tick
-    /// recording and an initialised pointer (NGS-2.3 tick-bridge).
+    /// (<see cref="RecordingActive"/>), steps from the LAST RECORDED node to its exec
+    /// successor(s) via temp-BP + resume (the CF-6 mechanism) — correctly crossing latent
+    /// nodes (Delay/WaitForChannel) that cannot be skipped with a single-tick advance
+    /// (NGS-2.3 tick-bridge, BF-03 fix).
     /// Falls back to CF-6 temp-BP stepping when no recordings exist for the paused entity.
     /// </summary>
     private void StepForwardOrCF6(StepMode fallbackStepMode)
@@ -922,32 +923,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 return;
             }
 
-            // --- NGS-2.3 tick-bridge ---
+            // --- NGS-2.3 tick-bridge (BF-03 corrected) ---
             // Pointer is at the last recorded node (end of this tick's recording).
-            // Only advance a real tick when a breakpoint is armed (RecordingActive).
-            // This guarantees the breakpoint will re-fire on the next tick, driving the
-            // re-pause through the existing HandleBreakpointHit → InitNodePointerOnPause
-            // path. Works correctly under both the real MasterSyncTimeControllerAdapter
-            // (advances synchronously) and the test MockTimeController (no-op; test drives
-            // the advance via fixture.TickFrame).
-            if (RecordingActive)
+            // Only step forward when a breakpoint is armed (RecordingActive).
+            //
+            // We step FROM the LAST RECORDED node (CurrentNodeId) using the CF-6
+            // temp-BP + resume mechanism, NOT from _pausedAt (which is the original
+            // breakpoint node). This is critical for latent nodes: if the last recorded
+            // node is a Delay, its exec successor fires when the Delay finally elapses
+            // (potentially many ticks later), so RequestStepOneTick (single tick advance)
+            // is not sufficient — the Delay would still be running and no probe would fire,
+            // leaving a dead "Not paused" state with the clock stalled.
+            //
+            // StepFromNode sets temp BPs on the successors of CurrentNodeId and resumes,
+            // crossing the latent transparently. Terminal last node → Continue().
+            if (RecordingActive && _pausedAt != null)
             {
-                // Clear per-tick nav state so this session is not considered "paused"
-                // while the one-tick advance runs. Leave _recordingEntity so the SAME
-                // entity is recorded on the advanced tick.
-                _isPaused      = false;
-                _pausedAt      = null;
-                _pausedOnEntity = null;
-                _nodePointer   = -1;
-                _firedBreakpointsThisTick.Clear();
-
-                // Request exactly one tick advance. Under the real time controller this
-                // runs the tick synchronously and stays clock-paused. Under MockTimeController
-                // this is a no-op — the test drives the tick with fixture.TickFrame().
-                // In both cases the armed breakpoint re-fires, OnNewTick → BeginTick records
-                // the new tick, and HandleBreakpointHit re-pauses with a fresh pointer.
-                _timeController.RequestStepOneTick();
-                OnSessionStateChanged?.Invoke();
+                var lastNodeId = CurrentNodeId; // node-id string at the pointer
+                StepFromNode(_pausedAt.AssetId, _pausedAt.GraphId, lastNodeId!, fallbackStepMode);
                 return;
             }
 
@@ -975,22 +968,41 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (!_isPaused || _pausedAt == null)
             return;
 
-        var pausedNodeId = _pausedAt.NodeId;
-        var assetId = _pausedAt.AssetId;
-        var graphId = _pausedAt.GraphId;
+        StepFromNode(_pausedAt.AssetId, _pausedAt.GraphId, _pausedAt.NodeId, fallbackStepMode);
+    }
 
+    /// <summary>
+    /// Core of CF-6 stepping: computes exec successors of <paramref name="fromNodeId"/>
+    /// in the specified graph, sets one-shot temporary breakpoints on them, clears pause/nav
+    /// state, and resumes the time controller.
+    ///
+    /// <para>Used by both <see cref="Step"/> (stepping from <c>_pausedAt</c>) and the
+    /// NGS-2.3 tick-bridge in <see cref="StepForwardOrCF6"/> (stepping from the LAST
+    /// RECORDED node, which may be different from <c>_pausedAt</c> after within-tick
+    /// pointer navigation).</para>
+    ///
+    /// <para>Handles latent nodes (Delay/WaitForChannel) correctly: temp BPs are set on
+    /// successors and the session resumes; the BP fires when the latent node completes
+    /// (however many ticks later), preventing the dead "Not paused" state that occurred
+    /// when the bridge used <c>RequestStepOneTick</c>.</para>
+    ///
+    /// <para>Terminal node (no successors) → <see cref="Continue()"/>.</para>
+    /// <para>No graph registered or node not parseable → <see cref="LegacyStepOneTick"/>.</para>
+    /// </summary>
+    private void StepFromNode(Guid assetId, Guid graphId, string fromNodeId, StepMode legacyFallback)
+    {
         // Find the graph structure.
         if (!_graphs.TryGetValue(graphId, out var graph))
         {
             // No graph registered — fall back to legacy step-mode matching.
-            LegacyStepOneTick(fallbackStepMode);
+            LegacyStepOneTick(legacyFallback);
             return;
         }
 
-        // Parse the authored node ID from the paused breakpoint.
-        if (!Guid.TryParse(pausedNodeId, out var authoredNodeId))
+        // Parse the authored node ID.
+        if (!Guid.TryParse(fromNodeId, out var authoredNodeId))
         {
-            LegacyStepOneTick(fallbackStepMode);
+            LegacyStepOneTick(legacyFallback);
             return;
         }
 
@@ -998,23 +1010,53 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         var successors = ExecSuccessors.GetSuccessors(graph, authoredNodeId);
         if (successors.Count == 0)
         {
-            // Terminal node — nothing to step to. Just resume.
+            // Terminal node — nothing to step to. Just resume (Continue).
             Continue();
             return;
         }
 
-        // Set invisible one-shot temporary breakpoints on all successors.
+        // Terminal-successor guard: if every immediate successor is itself a terminal
+        // node (no further exec successors), it is a probe-less "sink" block (e.g. a
+        // ReturnNode that was merged into the preceding block by Stage5).  Setting a
+        // temp BP on such a node is a dead-end because no DebugProbe.NodeEnter fires
+        // for it — the probe fires with the predecessor's id.  In this case fall back
+        // to Continue() so the session stays live and the user BP re-fires on the next
+        // tick, equivalent to "step past the end of the synchronous chain."
+        bool allSuccessorsAreTerminal = successors.All(
+            s => ExecSuccessors.GetSuccessors(graph, s).Count == 0);
+        if (allSuccessorsAreTerminal)
+        {
+            Continue();
+            return;
+        }
+
+        // Set invisible one-shot temporary breakpoints on all NON-TERMINAL successors.
+        // Skip terminal successors (ReturnNode etc.) that have no probe of their own.
         // These are translated through BreakpointTargets (authored → block-probe id)
         // and suppress user breakpoints until a temp target fires.
-        var targets = successors.Select(s => new BreakpointTarget(assetId, graphId, s));
+        var nonTerminalSuccessors = successors
+            .Where(s => ExecSuccessors.GetSuccessors(graph, s).Count > 0)
+            .ToList();
+        if (nonTerminalSuccessors.Count == 0)
+        {
+            // All non-terminal successors filtered out (shouldn't reach here given the
+            // guard above, but be defensive).
+            Continue();
+            return;
+        }
+        var targets = nonTerminalSuccessors.Select(s => new BreakpointTarget(assetId, graphId, s));
         SetTemporaryBreakpoints(targets);
 
-        // Resume (not single-tick) — temp BPs handle the pause.
+        // Clear pause/nav state so this session is not considered "paused" while
+        // resuming. Keep _recordingEntity so the same entity is recorded on the next tick.
         _isPaused       = false;
         _pausedAt       = null;
         _pausedOnEntity = null;
+        _nodePointer    = -1;
         _stepMode       = StepMode.None;
         _firedBreakpointsThisTick.Clear();
+
+        // Resume (not single-tick) — temp BPs handle the re-pause.
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
     }

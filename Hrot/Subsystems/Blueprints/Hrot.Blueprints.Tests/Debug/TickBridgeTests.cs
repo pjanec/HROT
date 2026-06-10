@@ -15,8 +15,9 @@ namespace Hrot.Blueprints.Tests.Debug;
 /// <summary>
 /// NGS-2.3 tests: step-past-end tick-bridge.
 /// Verifies that stepping forward at the LAST recorded node of the paused tick
-/// advances exactly one real tick, records the new tick, and re-pauses at its start
-/// (driven by the armed breakpoint re-firing via HandleBreakpointHit).
+/// uses temp-BP + resume (CF-6 mechanism) to step to the successor, then re-pauses
+/// when the temp BP fires — correctly crossing latent nodes (Delay/WaitForChannel)
+/// that a single RequestStepOneTick cannot handle (BF-03 fix).
 ///
 /// <para>Test design: uses a blueprint whose tick sets variable A = 10 + tick-count via
 /// a per-tick incrementing approach — but since simple literals always write the same
@@ -65,6 +66,7 @@ public sealed class TickBridgeTests : IDisposable
         // Arm breakpoint on SequenceNode (Nodes[1]) — actual probe id for entry block.
         var graphId     = asset.Graphs[0].Id;
         var probeNodeId = asset.Graphs[0].Nodes[1].Id;
+        session.RegisterGraph(asset.Graphs[0]); // needed by StepFromNode for allSuccessorsAreTerminal check
         session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
         // Tick N: all nodes recorded atomically; session pauses.
@@ -81,16 +83,20 @@ public sealed class TickBridgeTests : IDisposable
             session.StepInto();
         Assert.Equal(last, session.CurrentNodePointer);
 
-        // Call the bridge: step past end. Under MockTimeController this is a no-op
-        // (doesn't advance the clock) — we drive the tick explicitly below.
-        session.StepInto(); // NGS-2.3 bridge: calls RequestStepOneTick() internally.
+        // Call the bridge: step past end (BF-03: uses temp-BP + resume, NOT RequestStepOneTick).
+        // Under MockTimeController RequestResume is a no-op — we drive the tick explicitly below.
+        int resumeCountBefore = tc.ResumeCount;
+        session.StepInto(); // NGS-2.3 bridge: sets temp BPs on successors and calls RequestResume.
 
         // After the bridge call: session must NOT be paused (it cleared nav state).
         Assert.False(session.IsPaused,
             "Session must not be paused immediately after tick-bridge call (tick not yet run).");
         Assert.Equal(-1, session.CurrentNodePointer);
-        Assert.True(tc.StepRequestCount == 1,
-            $"RequestStepOneTick should have been called once; got {tc.StepRequestCount}.");
+        // BF-03: bridge uses RequestResume (temp-BP + resume), not RequestStepOneTick.
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            $"Bridge must call RequestResume; ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
+        Assert.True(tc.StepRequestCount == 0,
+            "Bridge must NOT call RequestStepOneTick (BF-03 fix).");
 
         // Drive the tick advance: armed BP re-fires → HandleBreakpointHit → re-pause.
         fixture.TickFrame(0.016f);
@@ -147,6 +153,7 @@ public sealed class TickBridgeTests : IDisposable
 
         var graphId     = asset.Graphs[0].Id;
         var probeNodeId = asset.Graphs[0].Nodes[1].Id;
+        session.RegisterGraph(asset.Graphs[0]); // needed by StepFromNode for allSuccessorsAreTerminal check
         session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
         // Tick N: pause.
@@ -240,11 +247,14 @@ public sealed class TickBridgeTests : IDisposable
             session.StepInto();
         Assert.Equal(last, session.CurrentNodePointer);
 
-        // StepInto at last node with no breakpoint armed: must NOT call RequestStepOneTick.
+        // StepInto at last node with no breakpoint armed: must NOT call RequestStepOneTick or RequestResume.
         int stepsBefore = tc.StepRequestCount;
+        int resumeBefore = tc.ResumeCount;
         session.StepInto();
         Assert.True(tc.StepRequestCount == stepsBefore,
             "No breakpoint armed: RequestStepOneTick must NOT be called.");
+        Assert.True(tc.ResumeCount == resumeBefore,
+            "No breakpoint armed: RequestResume must NOT be called (clamp, no bridge).");
 
         // Session must remain paused (clamp behavior).
         Assert.True(session.IsPaused);
@@ -350,12 +360,180 @@ public sealed class TickBridgeTests : IDisposable
         Assert.True(session.HasTemporaryBreakpoints, "CF-6 fallback should have set temp BPs.");
 
         // Bridge must NOT have been called (no recordings, so the bridge branch was not reached).
+        // CF-6 path calls RequestResume (via temp BPs), never RequestStepOneTick.
         Assert.True(tc.StepRequestCount == 0,
-            "CF-6 path must not call RequestStepOneTick.");
+            "CF-6 path must not call RequestStepOneTick (it uses RequestResume via temp BPs).");
 
         // Second tick: temp BP fires → re-pauses.
         fixture.TickFrame(0.016f);
         Assert.True(session.IsPaused);
+
+        session.Continue();
+    }
+
+    // =========================================================================
+    // Test 6 — Latent repro (primary BF-03 bug regression test)
+    //
+    // Blueprint: Entry → Delay(0.0f) → SetVariable(X) → Return
+    // Probe for entry block = Delay.Id  (ScheduleLatentNode overwrites SourceNodeId).
+    // Proof: after the Delay elapses the session re-pauses on SetVar (NOT dead state).
+    //
+    // Step-past-end from Delay.Id:
+    //   GetSuccessors(Delay) = [SetVar]   (non-terminal → temp BP on SetVar)
+    //   RequestResume() called            (time advances across latent boundary)
+    // TickFrame elapse → resume-block probe SetVar.Id fires → temp BP hits → re-pause.
+    // =========================================================================
+
+    [Fact]
+    public void TickBridge_LatentDelay_DoesNotDeadlock_RepausesAfterDelay()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        // Entry → Delay(0.0f) → SetVariable(X) → Return
+        // WithVariable("X") ensures FindVariableIndex("X") resolves to index 0 (name fallback).
+        var asset = BlueprintAssetBuilder
+            .Instance("LatentBridgeTest6")
+            .WithVariable("X", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Delay(0.0f).SetVariable("X", "0").Return())
+            .Build();
+
+        var tc      = new MockTimeController();
+        var session = new BlueprintDebugSession(fixture.Registry, fixture.View, tc);
+        session.SetLiveRepository(fixture.World);
+        session.Attach();
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Arm breakpoint on Nodes[1] (LatentDelayNode — its Id is the probe id for the entry
+        // block because ScheduleLatentNode overwrites bb.SourceNodeId with the Delay's Id).
+        var graphId     = asset.Graphs[0].Id;
+        var delayNodeId = asset.Graphs[0].Nodes[1].Id; // Nodes: [0]=Entry, [1]=Delay, [2]=SetVar, [3]=Return
+        session.RegisterGraph(asset.Graphs[0]);
+        session.SetBreakpoint(asset.AssetId, graphId, delayNodeId);
+
+        // Tick 1: the entry block fires (probe = Delay.Id) → breakpoint fires → pause.
+        // The tick suspends inside the Delay; only 1 node recorded (the pre-suspend block).
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused,
+            "Session must be paused on tick 1 at the Delay probe.");
+        Assert.True(session.RecordedNodeCount >= 1,
+            $"Expected >= 1 recorded node after tick 1; got {session.RecordedNodeCount}.");
+
+        // Navigate pointer to the last recorded node (Delay — the only recorded node).
+        int lastIdx = session.RecordedNodeCount - 1;
+        while (session.CurrentNodePointer < lastIdx)
+            session.StepInto();
+        Assert.Equal(lastIdx, session.CurrentNodePointer);
+        Assert.Equal(delayNodeId.ToString("D"), session.CurrentNodeId);
+
+        // ---- BF-03: step past end from a latent node ----
+        // Old behaviour: RequestStepOneTick → one tick advanced → Delay keeps running →
+        //                no probe fires → dead state (IsPaused=false, clock stalled).
+        // New behaviour: StepFromNode(Delay.Id) → GetSuccessors=[SetVar] → temp BP on
+        //                SetVar.Id → RequestResume() → session hands off to runtime.
+        int resumeCountBefore = tc.ResumeCount;
+        session.StepInto(); // tick-bridge: BF-03 path
+
+        Assert.False(session.IsPaused,
+            "After tick-bridge call on a latent node: session must NOT be paused immediately " +
+            "(temp BP was set and runtime was resumed; actual pause comes when Delay elapses).");
+        Assert.Equal(-1, session.CurrentNodePointer);
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            $"BF-03: bridge must call RequestResume (temp-BP + resume path); " +
+            $"ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
+        Assert.True(tc.StepRequestCount == 0,
+            "BF-03: bridge must NOT call RequestStepOneTick — that path causes the dead state.");
+
+        // ---- Elapse the Delay — the resumed runtime runs and the temp BP fires ----
+        // Delay(0.0f): with fixture timing (0.016f frame), the Delay elapses in the next tick.
+        fixture.TickFrame(0.016f);
+
+        // Regression guard: after the Delay elapses, the session MUST be paused again.
+        // A dead state (the original BF-03 bug) would leave IsPaused=false here.
+        Assert.True(session.IsPaused,
+            "BF-03 regression guard: session must be paused again after the Delay elapses. " +
+            "If IsPaused is false here, the tick-bridge has reverted to the dead-state bug.");
+        Assert.True(session.RecordedNodeCount >= 1,
+            $"After latent resume: expected >= 1 recorded nodes; got {session.RecordedNodeCount}.");
+        Assert.True(session.CurrentNodePointer >= 0,
+            $"After latent resume: pointer must be valid (>= 0); got {session.CurrentNodePointer}.");
+
+        session.Continue();
+    }
+
+    // =========================================================================
+    // Test 7 — Terminal last node falls back to Continue(), not dead-end temp BP
+    //
+    // Blueprint: Entry → Sequence(Then0: SetVar A=10, Then1: SetVar B=20 → Return)
+    //            (BuildTwoSeqVarAsset)
+    // Last recorded node = svBId (SetVarB). Its only successor is the ReturnNode
+    // which has no further successors → allSuccessorsAreTerminal == true.
+    // StepFromNode must call Continue() instead of setting a temp BP on ReturnNode
+    // (ReturnNode has no IR probe — it is merged into the preceding block by Stage5).
+    //
+    // After Continue():
+    //   - No temp BPs (we fell through to Continue, which clears them).
+    //   - RequestResume was called (Continue calls it).
+    //   - The still-armed user BP re-fires on the next tick → session re-pauses.
+    // =========================================================================
+
+    [Fact]
+    public void TickBridge_TerminalLastNode_CallsContinue_RepausesOnNextBP()
+    {
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var asset  = BuildTwoSeqVarAsset("TickBridgeTest7");
+        var tc     = new MockTimeController();
+        var session = new BlueprintDebugSession(fixture.Registry, fixture.View, tc);
+        session.SetLiveRepository(fixture.World);
+        session.Attach();
+
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        // Arm breakpoint on SequenceNode (Nodes[1]) — the entry block probe.
+        var graphId     = asset.Graphs[0].Id;
+        var probeNodeId = asset.Graphs[0].Nodes[1].Id;
+        session.RegisterGraph(asset.Graphs[0]);
+        session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
+
+        // Tick 1: all nodes recorded atomically; session pauses at pointer 0.
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused, "Session must be paused after tick 1.");
+        Assert.True(session.RecordedNodeCount >= 2,
+            $"Expected >= 2 recorded nodes; got {session.RecordedNodeCount}.");
+
+        // Navigate pointer to the LAST recorded node (SetVarB — index count-1).
+        // Its only exec successor is the ReturnNode (terminal: no further successors).
+        int lastIdx = session.RecordedNodeCount - 1;
+        while (session.CurrentNodePointer < lastIdx)
+            session.StepInto();
+        Assert.Equal(lastIdx, session.CurrentNodePointer);
+
+        // Step past end from a terminal node:
+        //   allSuccessorsAreTerminal == true → Continue() is called.
+        //   Continue() calls RequestResume() and clears pause state + temp BPs.
+        int resumeCountBefore = tc.ResumeCount;
+        session.StepInto();
+
+        Assert.False(session.IsPaused,
+            "After step-past-end from a terminal node: session must not be paused.");
+        Assert.False(session.HasTemporaryBreakpoints,
+            "Terminal-last-node path: no temp BPs should be set (Continue() was called, not SetTemporaryBreakpoints).");
+        Assert.True(tc.ResumeCount > resumeCountBefore,
+            $"Continue() must call RequestResume; ResumeCount was {resumeCountBefore}, now {tc.ResumeCount}.");
+        Assert.True(tc.StepRequestCount == 0,
+            "Terminal-last-node path must NOT call RequestStepOneTick.");
+
+        // Drive tick 2: the still-armed user BP (on SequenceNode) re-fires → re-pause.
+        fixture.TickFrame(0.016f);
+        Assert.True(session.IsPaused,
+            "Session must re-pause on tick 2 via the still-armed user breakpoint.");
+        Assert.True(session.RecordedNodeCount >= 2,
+            $"Fresh tick must have >= 2 recorded nodes; got {session.RecordedNodeCount}.");
 
         session.Continue();
     }
