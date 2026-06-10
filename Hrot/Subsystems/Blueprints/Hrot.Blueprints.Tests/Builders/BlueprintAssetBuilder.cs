@@ -260,6 +260,49 @@ public sealed class GraphBuilder
     }
 
     /// <summary>
+    /// Adds a SequenceNode and invokes sub-builder callbacks for each Then branch.
+    /// Both branches execute sequentially in the same tick — produces separate IR blocks per branch.
+    /// After this call, exec chaining from the main builder is suspended.
+    /// </summary>
+    public GraphBuilder Sequence(Action<GraphBuilder> then0, Action<GraphBuilder> then1)
+    {
+        var nodeId = MakeNodeId("Sequence", _nodes.Count);
+        var seqNode = new SequenceNode { Id = nodeId };
+
+        var execInPinId   = MakePinId(nodeId, "In");
+        var execOutThen0  = MakePinId(nodeId, "Then0");
+        var execOutThen1  = MakePinId(nodeId, "Then1");
+
+        seqNode.Pins.Add(new Pin { Id = execInPinId,  Name = "In",    Direction = "In",  IsExec = true, TypeRef = new() });
+        seqNode.Pins.Add(new Pin { Id = execOutThen0, Name = "Then0", Direction = "Out", IsExec = true, TypeRef = new() });
+        seqNode.Pins.Add(new Pin { Id = execOutThen1, Name = "Then1", Direction = "Out", IsExec = true, TypeRef = new() });
+
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(seqNode);
+
+        // Then0 branch sub-builder.
+        var then0Builder = new GraphBuilder(_name + "_Then0", _kind, _assetId);
+        then0Builder._lastNodeId      = nodeId;
+        then0Builder._lastExecOutPinId = execOutThen0;
+        then0(then0Builder);
+        _nodes.AddRange(then0Builder._nodes);
+        _links.AddRange(then0Builder._links);
+
+        // Then1 branch sub-builder.
+        var then1Builder = new GraphBuilder(_name + "_Then1", _kind, _assetId);
+        then1Builder._lastNodeId      = nodeId;
+        then1Builder._lastExecOutPinId = execOutThen1;
+        then1(then1Builder);
+        _nodes.AddRange(then1Builder._nodes);
+        _links.AddRange(then1Builder._links);
+
+        // After a Sequence, exec chaining from this builder is suspended (divergence).
+        _lastNodeId      = Guid.Empty;
+        _lastExecOutPinId = Guid.Empty;
+        return this;
+    }
+
+    /// <summary>
     /// Adds a BranchNode and invokes two sub-builder callbacks for the true and false branches.
     /// After this call, exec chaining from the main builder is suspended (branch is a divergence).
     /// </summary>

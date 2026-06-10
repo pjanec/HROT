@@ -98,6 +98,16 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // works correctly. Removed when temps are cleared.
     private readonly List<Hrot.Diagnostics.Breakpoints.BreakpointId> _tempMgrBpIds = new();
 
+    // Sub-tick snapshot recorder (NGS-2.0).
+    // Records per-node ECS deltas during a debug-active tick for sub-tick state inspection.
+    // Null-safe: when _liveRepo is null (not wired), recording is silently disabled.
+    private readonly SubTickSnapshotRecorder _recorder = new SubTickSnapshotRecorder();
+    private EntityRepository? _liveRepo;
+
+    // Tick-boundary detection: we detect a new tick by observing _view.Tick change in OnNewTick().
+    // Stored as uint? so the first tick always triggers BeginTick.
+    private uint? _lastRecordedTick;
+
     // Instrumentation callback: invoked when a breakpoint or watch is set on an asset
     // with no DebugMap registered yet, so the editor can transparently compile in the
     // required mode (Debug / Trace) without the user clicking Compile manually.
@@ -129,6 +139,27 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         // pause-triggering node itself.
         if (!_isPaused)
             _onNodeExecuted?.Invoke(new NodeExecuted(self, Guid.Empty, Guid.Empty, nodeId, _view.Time, _view.Tick));
+
+        // NGS-2.0: record per-node ECS snapshot delta when armed (recording active).
+        // Called AFTER history and overlay so existing CF-6 behavior is undisturbed.
+        // Guard: liveRepo must be wired and a tick recording must be in progress
+        // (_lastRecordedTick set by OnNewTick). If OnNewTick hasn't fired yet (e.g. an
+        // older construction path skips it), log once and skip silently.
+        if (RecordingActive)
+        {
+            if (_lastRecordedTick.HasValue)
+            {
+                _recorder.RecordNodeEntry(_liveRepo!, nodeId);
+            }
+            else
+            {
+                // Breakpoint is armed but BeginTick was never called — live repo wired
+                // late or OnNewTick not in the caller's frame loop.
+                System.Diagnostics.Debug.WriteLine(
+                    "[BlueprintDebugSession] RecordingActive but BeginTick not called yet. " +
+                    "Ensure SetLiveRepository() and OnNewTick() are called before the tick executes.");
+            }
+        }
 
         // CF-6: Check temporary breakpoints FIRST. When stepping, suppress user breakpoints.
         if (_tempBreakpoints.Count > 0)
@@ -551,6 +582,51 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             }
         }
     }
+
+    /// <summary>
+    /// Wires the concrete live <see cref="EntityRepository"/> for sub-tick snapshot recording (NGS-2.0).
+    /// Must be called from the same site as <see cref="SetDataBreakpointManager"/>.
+    /// When not called, recording is silently disabled (safe default; logs once if a breakpoint
+    /// is armed but the repo is missing, so the gap is visible without crashing).
+    /// </summary>
+    public void SetLiveRepository(EntityRepository? repo)
+    {
+        _liveRepo           = repo;
+        _lastRecordedTick   = null; // force BeginTick on next armed tick
+    }
+
+    /// <summary>
+    /// Number of per-node recordings captured during the most recent debug-active tick.
+    /// Zero when recording is off (unarmed, or <see cref="SetLiveRepository"/> not called).
+    /// </summary>
+    public int RecordedNodeCount => _recorder.Count;
+
+    /// <summary>
+    /// Returns the node-id string for the recorded entry at logical <paramref name="index"/>
+    /// (0 = first node entered during the recorded tick).
+    /// </summary>
+    public string RecordedNodeIdAt(int index) => _recorder.NodeIdAt(index);
+
+    /// <summary>
+    /// Reconstructs the whole-repo ECS state as-of entering the node at <paramref name="nodeIndex"/>
+    /// into <paramref name="scratchRepo"/> by replaying the keyframe baseline and sequential deltas.
+    /// The caller owns <paramref name="scratchRepo"/> and must have registered the same component
+    /// types as the live repo.
+    /// </summary>
+    public void RestoreRecordedNode(int nodeIndex, EntityRepository scratchRepo)
+        => _recorder.RestoreTo(nodeIndex, scratchRepo);
+
+    /// <summary>
+    /// <see cref="RecordingActive"/> is true when recording should happen for the current entity/tick:
+    /// <list type="bullet">
+    ///   <item>A live <see cref="EntityRepository"/> has been wired via <see cref="SetLiveRepository"/>.</item>
+    ///   <item>At least one enabled user breakpoint OR temp breakpoint is active.</item>
+    /// </list>
+    /// When false, ZERO recorder work is done — normal runtime overhead is unchanged.
+    /// </summary>
+    private bool RecordingActive =>
+        _liveRepo != null &&
+        (_breakpoints.Count > 0 || _tempBreakpoints.Count > 0);
 
     /// <summary>
     /// Sets the instrumentation callback that is invoked when a breakpoint or watch is set
@@ -1061,7 +1137,20 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     }
 
     // BPF-003: reset per-frame dedup set at tick boundary.
-    public void OnNewTick() => _firedBreakpointsThisTick.Clear();
+    // NGS-2.0: also start a new sub-tick recording session when recording is active.
+    public void OnNewTick()
+    {
+        _firedBreakpointsThisTick.Clear();
+
+        // Start a new recording session when armed and the tick advanced.
+        // _view.Tick is SimulationTick (frozen during a debug tick; advances on real ticks).
+        uint currentTick = _view.Tick;
+        if (RecordingActive && currentTick != _lastRecordedTick)
+        {
+            _lastRecordedTick = currentTick;
+            _recorder.BeginTick(_liveRepo!);
+        }
+    }
 
     // ---- Private helpers ----------------------------------------------------
 

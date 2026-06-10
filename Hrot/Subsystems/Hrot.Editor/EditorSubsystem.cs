@@ -904,6 +904,7 @@ namespace Hrot.Editor
             var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
                 _blueprintRegistry, _world!, bpTimeAdapter);
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
+            bpBlueprintSession.SetLiveRepository(_world);  // NGS-2.0: wire live repo for sub-tick recording
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             bpBlueprintSession.Attach();
             _blueprintDebugSession = bpBlueprintSession;
