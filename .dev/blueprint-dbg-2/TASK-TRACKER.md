@@ -27,8 +27,8 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 - ✅ NGS-2.4b — Node highlight (`CurrentlyExecutingNode`) follows the virtual pointer while paused.
 - ✅ NGS-2.4c — Step Back button + "node X / N" indicator (`FormatNodePosition`). 17 tests (exact per-node values, pointer tracking, boundary cases). Ready for human visual smoke.
 
-## BATCH-05 — Step-past-end tick-bridge (deferred)
-- ⬜ NGS-2.3 — Step-past-last-node → advance exactly one real tick, re-record, re-pause at first probe.
+## BATCH-05 — Step-past-end tick-bridge ✅ DONE (committed, review APPROVED 2026-06-10)
+- ✅ NGS-2.3 — Step-past-last-node → resume exactly one tick (`RequestStepOneTick`); armed breakpoint re-fires → `HandleBreakpointHit` records new tick + re-pauses. Guarded on `RecordingActive`; no-arm keeps clamp. 5 TickBridge tests (advance+fresh-record+re-pause, no-arm guard, within-tick + CF-6 regression). P3: cross-tick value-distinct test (DBG2-D5).
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke next morning).
 
 ## BATCH-04 — Optional

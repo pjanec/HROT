@@ -885,9 +885,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// "step to next exec node."
     ///
     /// NGS-2.1 override: when node-granular recordings exist for the paused entity,
-    /// Step* moves the virtual pointer forward by one recording slot (clamped at the last
-    /// recorded index — stepping past the end is a no-op in BATCH-03; the real-tick advance
-    /// bridge is BATCH-04). The clock stays paused; no re-execution occurs.
+    /// Step* moves the virtual pointer forward by one recording slot. The clock stays
+    /// paused; no re-execution occurs. When the pointer reaches the last recorded node,
+    /// an additional step triggers the NGS-2.3 tick-bridge (see StepForwardOrCF6):
+    /// one real tick is requested and the armed breakpoint re-fires on the new tick,
+    /// re-pausing with a fresh per-tick recording and a re-initialised pointer.
     ///
     /// Fallback (no recordings): computes successors via graph structure, sets temporary
     /// breakpoints, suppresses user breakpoints, and resumes — the CF-6 path.
@@ -899,9 +901,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     public void StepOut()  => StepForwardOrCF6(StepMode.Out);
 
     /// <summary>
-    /// NGS-2.1: move the virtual pointer forward by one slot when recordings exist.
-    /// Clamped at the last recorded index (stepping past end = no-op in BATCH-03;
-    /// the advance-one-real-tick bridge is BATCH-04).
+    /// NGS-2.1 / NGS-2.3: move the virtual pointer forward by one slot when recordings exist.
+    /// When already at the last recorded index and a breakpoint is still armed
+    /// (<see cref="RecordingActive"/>), advances exactly one real tick and lets the
+    /// armed breakpoint re-fire on the new tick — re-pausing with a fresh per-tick
+    /// recording and an initialised pointer (NGS-2.3 tick-bridge).
     /// Falls back to CF-6 temp-BP stepping when no recordings exist for the paused entity.
     /// </summary>
     private void StepForwardOrCF6(StepMode fallbackStepMode)
@@ -914,8 +918,42 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
             {
                 _nodePointer++;
                 RestorePointerToScratch();
+                OnSessionStateChanged?.Invoke();
+                return;
             }
-            // else: clamped at end — no-op (BATCH-04 advances the real tick).
+
+            // --- NGS-2.3 tick-bridge ---
+            // Pointer is at the last recorded node (end of this tick's recording).
+            // Only advance a real tick when a breakpoint is armed (RecordingActive).
+            // This guarantees the breakpoint will re-fire on the next tick, driving the
+            // re-pause through the existing HandleBreakpointHit → InitNodePointerOnPause
+            // path. Works correctly under both the real MasterSyncTimeControllerAdapter
+            // (advances synchronously) and the test MockTimeController (no-op; test drives
+            // the advance via fixture.TickFrame).
+            if (RecordingActive)
+            {
+                // Clear per-tick nav state so this session is not considered "paused"
+                // while the one-tick advance runs. Leave _recordingEntity so the SAME
+                // entity is recorded on the advanced tick.
+                _isPaused      = false;
+                _pausedAt      = null;
+                _pausedOnEntity = null;
+                _nodePointer   = -1;
+                _firedBreakpointsThisTick.Clear();
+
+                // Request exactly one tick advance. Under the real time controller this
+                // runs the tick synchronously and stays clock-paused. Under MockTimeController
+                // this is a no-op — the test drives the tick with fixture.TickFrame().
+                // In both cases the armed breakpoint re-fires, OnNewTick → BeginTick records
+                // the new tick, and HandleBreakpointHit re-pauses with a fresh pointer.
+                _timeController.RequestStepOneTick();
+                OnSessionStateChanged?.Invoke();
+                return;
+            }
+
+            // No breakpoint armed: cannot guarantee re-pause after advancing.
+            // Keep the existing no-op clamp so the pointer stays at the last node.
+            // (The user must arm a breakpoint before using step-past-end.)
             OnSessionStateChanged?.Invoke();
             return;
         }

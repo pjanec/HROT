@@ -89,14 +89,19 @@ public sealed class VirtualPointerTests : IDisposable
             session.StepInto();
         Assert.Equal(last, session.CurrentNodePointer);
 
-        // One more step forward at last index — must clamp.
+        // NGS-2.3: one more step forward at last index with a breakpoint armed (RecordingActive)
+        // triggers the tick-bridge: nav state is cleared, RequestStepOneTick is called,
+        // and the session is no longer paused (waiting for the armed BP to re-fire on the next tick).
+        // This is NOT a clamp — it's the bridge. The MockTimeController is a no-op so no re-pause occurs yet.
+        int stepsBefore = tc.StepRequestCount;
         session.StepInto();
-        Assert.Equal(last, session.CurrentNodePointer);
-
-        // Continue must clear the pointer.
-        session.Continue();
+        Assert.True(tc.StepRequestCount == stepsBefore + 1,
+            "NGS-2.3: step past end with armed BP must call RequestStepOneTick once.");
+        Assert.False(session.IsPaused,
+            "NGS-2.3: session must not be paused after tick-bridge call (tick not yet advanced).");
         Assert.Equal(-1, session.CurrentNodePointer);
-        Assert.Null(session.CurrentNodeId);
+
+        // The pointer/continue state is already cleared. No further Continue() needed.
     }
 
     // =========================================================================
