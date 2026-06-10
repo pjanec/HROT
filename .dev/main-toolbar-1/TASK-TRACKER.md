@@ -12,7 +12,7 @@ Phase 7.
 ## Phase 0 — Folder Reorganization (prerequisite)
 **Goal:** disjoint `Assets/` and `Recipes/` roots, single `AssetRoots` authority.
 
-- [ ] **MTB-P0-T1** `AssetRoots` constants [details](./TASK-DETAIL.md#mtb-p0-t1--assetroots-constants)
+- [x] **MTB-P0-T1** `AssetRoots` constants [details](./TASK-DETAIL.md#mtb-p0-t1--assetroots-constants)
 - [ ] **MTB-P0-T2** Move asset/recipe files + `.csproj` globs [details](./TASK-DETAIL.md#mtb-p0-t2--move-asset--recipe-files--csproj-globs)
 - [ ] **MTB-P0-T3** Repoint discovery/scan/save paths [details](./TASK-DETAIL.md#mtb-p0-t3--repoint-discoveryscansave-paths-to-assetroots)
 
