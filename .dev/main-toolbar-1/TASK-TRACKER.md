@@ -67,9 +67,9 @@ Phase 7.
 - [x] **MTB-P6-T2** `INewAssetService` + Blueprint impl + "Empty" [details](./TASK-DETAIL.md#mtb-p6-t2--inewassetservice--blueprint-impl--hardcoded-empty)
 - [x] **MTB-P6-T3** BTree/HSM/Scenario `INewAssetService` impls [details](./TASK-DETAIL.md#mtb-p6-t3--btreehsmscenario-inewassetservice-impls)
 - [x] **MTB-P6-T4** `FolderTreePicker` pick mode [details](./TASK-DETAIL.md#mtb-p6-t4--foldertreepicker-pick-mode)
-- [ ] **MTB-P6-T5** New Asset dialog [details](./TASK-DETAIL.md#mtb-p6-t5--new-asset-dialog)
+- [x] **MTB-P6-T5** New Asset dialog [details](./TASK-DETAIL.md#mtb-p6-t5--new-asset-dialog)
 - [ ] **MTB-P6-T6** Save-As dialog (fresh-id) [details](./TASK-DETAIL.md#mtb-p6-t6--save-as-dialog-fresh-id-duplicate-semantics)
-- [ ] **MTB-P6-T7** Subfolder-aware file save [details](./TASK-DETAIL.md#mtb-p6-t7--subfolder-aware-file-save)
+- [x] **MTB-P6-T7** Subfolder-aware file save [details](./TASK-DETAIL.md#mtb-p6-t7--subfolder-aware-file-save)
 
 ## Phase 7 — Scenario Menu, Workspace, Retirement
 **Goal:** menu migration, Workspace surface, retire legacy browsers.

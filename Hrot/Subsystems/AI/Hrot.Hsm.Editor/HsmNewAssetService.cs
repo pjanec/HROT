@@ -69,8 +69,7 @@ public sealed class HsmNewAssetService : INewAssetService
         }
 
         // Persist: write to <assetRootPath>/<relPath>/<name>.hsm.json
-        var fileDir = string.IsNullOrEmpty(relPath) ? _assetRootPath : Path.Combine(_assetRootPath, relPath);
-        var filePath = Path.Combine(fileDir, name + ".hsm.json");
+        var filePath = AssetSavePath.Compose(Kind, relPath, name, _assetRootPath);
 
         var jsonOut = HsmJsonServices.Serialize(dto);
         var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(jsonOut);

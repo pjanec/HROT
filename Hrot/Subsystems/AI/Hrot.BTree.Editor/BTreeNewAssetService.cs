@@ -69,8 +69,7 @@ public sealed class BTreeNewAssetService : INewAssetService
         }
 
         // Persist: write to <assetRootPath>/<relPath>/<name>.btree.json
-        var fileDir = string.IsNullOrEmpty(relPath) ? _assetRootPath : Path.Combine(_assetRootPath, relPath);
-        var filePath = Path.Combine(fileDir, name + ".btree.json");
+        var filePath = AssetSavePath.Compose(Kind, relPath, name, _assetRootPath);
 
         var jsonOut = BTreeJsonServices.Serialize(dto);
         var prettyJson = Fdp.Toolkit.Serialization.JsonAestheticFormatter.FlattenNumericArrays(jsonOut);
