@@ -139,6 +139,62 @@ public class WindowManager
         OnPerspectiveChanged?.Invoke(old, newPerspective);
     }
 
+    /// <summary>
+    /// Returns the distinct <see cref="ManagedWindow.OwningPerspective"/> values of all
+    /// <see cref="WindowScope.PerspectiveBound"/> windows, sorted alphabetically.
+    /// This is the testable seam for perspective enumeration (§8.1).
+    /// </summary>
+    public IReadOnlyList<string> GetPerspectives()
+    {
+        return _windows.Values
+            .Where(w => w.Scope == WindowScope.PerspectiveBound)
+            .Select(w => w.OwningPerspective)
+            .Distinct()
+            .OrderBy(p => p)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when <paramref name="perspective"/> is the <see cref="CurrentPerspective"/>.
+    /// </summary>
+    public bool IsPerspectiveActive(string perspective)
+        => perspective == CurrentPerspective;
+
+    /// <summary>
+    /// Returns the perspective menu model: a read-only list of
+    /// (perspective name, whether it is the current perspective) tuples.
+    /// Pure data seam — does not issue ImGui calls (§8.1).
+    /// </summary>
+    public IReadOnlyList<(string Perspective, bool IsChecked)> BuildPerspectiveMenuModel()
+    {
+        return GetPerspectives()
+            .Select(p => (p, IsPerspectiveActive(p)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Selects a perspective via <see cref="SwitchPerspective"/>.
+    /// This is the testable dispatch seam; ImGui menu items call it on click (§8.1).
+    /// </summary>
+    public void SelectPerspective(string perspective)
+        => SwitchPerspective(perspective);
+
+    /// <summary>
+    /// Returns the first non-null <see cref="ManagedWindow.IconKey"/> among the
+    /// <see cref="WindowScope.PerspectiveBound"/> windows owned by <paramref name="perspective"/>,
+    /// or <c>null</c> when no window in that perspective carries an icon key.
+    /// Used by <c>PerspectiveToolbarSection</c> to resolve toolbar faces (§8.1).
+    /// </summary>
+    public string? GetPerspectiveIconKey(string perspective)
+    {
+        return _windows.Values
+            .Where(w => w.Scope == WindowScope.PerspectiveBound
+                     && w.OwningPerspective == perspective
+                     && w.IconKey != null)
+            .Select(w => w.IconKey)
+            .FirstOrDefault();
+    }
+
     // �� Message Log Registry ���������������������������������������������������
 
     /// <summary>
@@ -341,7 +397,7 @@ public class WindowManager
         if (Gui.BeginMainMenuBar())
         {
             RenderGlobalMenu(GlobalMenu.Root);
-            RenderPerspectiveSwitcher();
+            RenderPerspectiveMenu();
             var hostMenus = BuildHostMenuDtos();
             GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction);
 
@@ -533,56 +589,23 @@ public class WindowManager
     }
 
     /// <summary>
-    /// Renders perspective buttons inside the menu bar.
-    /// Only distinct <see cref="WindowScope.PerspectiveBound"/> perspectives are shown,
-    /// sorted alphabetically. Consecutive buttons share the same line via <c>SameLine</c>.
+    /// Renders the top-level "Perspective" menu inside the main menu bar.
+    /// Each entry is checkable (checked = active) and selects that perspective on click.
+    /// Supersedes the former <c>RenderPerspectiveSwitcher</c> inline buttons (§8.1).
     /// </summary>
-    private void RenderPerspectiveSwitcher()
+    private void RenderPerspectiveMenu()
     {
-        var perspectiveGroups = _windows.Values
-            .Where(w => w.Scope == WindowScope.PerspectiveBound)
-            .GroupBy(w => w.OwningPerspective)
-            .OrderBy(g => g.Key)
-            .ToList();
-
-        for (int i = 0; i < perspectiveGroups.Count; i++)
+        if (Gui.BeginMenu("Perspective"))
         {
-            var group = perspectiveGroups[i];
-            string p = group.Key;
-            bool isActive = p == CurrentPerspective;
-            System.Numerics.Vector4? baseColor = group.FirstOrDefault(w => w.TitleBarColor.HasValue)?.TitleBarColor;
-            int popCount = 0;
-
-            if (baseColor.HasValue)
+            foreach (var (perspective, isChecked) in BuildPerspectiveMenuModel())
             {
-                var c = baseColor.Value;
-                var cActive = new System.Numerics.Vector4(
-                    System.MathF.Min(c.X * 1.35f, 1f),
-                    System.MathF.Min(c.Y * 1.35f, 1f),
-                    System.MathF.Min(c.Z * 1.35f, 1f),
-                    c.W);
-                var buttonColor = isActive ? cActive : c;
-
-                Gui.PushStyleColor(ImGuiNET.ImGuiCol.Button, buttonColor);
-                Gui.PushStyleColor(ImGuiNET.ImGuiCol.ButtonHovered, cActive);
-                Gui.PushStyleColor(ImGuiNET.ImGuiCol.ButtonActive, cActive);
-                popCount = 3;
+                bool isCheckedCopy = isChecked;
+                if (Gui.MenuItem(perspective, "", ref isCheckedCopy))
+                {
+                    SelectPerspective(perspective);
+                }
             }
-            string label = isActive ? $"[{p}]" : $" {p} ";
-            if (Gui.Button(label))
-            {
-                SwitchPerspective(p);
-            }
-
-            if (popCount > 0)
-            {
-                Gui.PopStyleColor(popCount);
-            }
-
-            if (i < perspectiveGroups.Count - 1)
-            {
-                Gui.SameLine();
-            }
+            Gui.EndMenu();
         }
     }
 

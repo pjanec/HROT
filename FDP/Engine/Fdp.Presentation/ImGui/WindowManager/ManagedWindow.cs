@@ -77,6 +77,15 @@ public abstract class ManagedWindow
     public Vector4? TitleBarColor { get; set; }
 
     /// <summary>
+    /// Optional icon key used to resolve a toolbar face for this window's
+    /// <see cref="OwningPerspective"/>. When <c>null</c> (the default),
+    /// the perspective falls back to a text-label button in the toolbar (§8.1).
+    /// The first non-null <c>IconKey</c> among a perspective's windows is used
+    /// by <c>WindowManager.GetPerspectiveIconKey(string)</c>.
+    /// </summary>
+    public string? IconKey { get; set; }
+
+    /// <summary>
     /// When <c>true</c>, the <see cref="WindowManager"/> automatically unregisters this
     /// window the frame after <see cref="IsOpen"/> becomes <c>false</c>.
     /// Use this for dynamically spawned windows (e.g. single-entity watch windows) that
