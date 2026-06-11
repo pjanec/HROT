@@ -383,6 +383,7 @@ public static class BehaviorTreeAssetMapper
                 },
                 DefaultValueJson = null,
                 Comment          = v.Comment,
+                IsAutoManaged    = v.IsAutoManaged,
             });
         }
 
@@ -396,7 +397,7 @@ public static class BehaviorTreeAssetMapper
         {
             // Resolve CLR type from TypeId string. Fall back to object if unknown.
             var clrType = ResolveClrType(v.Type.TypeId);
-            result.Add(new BlackboardVariableEntry(v.Name, clrType, v.Comment));
+            result.Add(new BlackboardVariableEntry(v.Name, clrType, v.Comment, v.IsAutoManaged));
         }
         return result;
     }

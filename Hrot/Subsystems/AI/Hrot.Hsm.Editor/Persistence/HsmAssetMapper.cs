@@ -105,16 +105,17 @@ public static class HsmAssetMapper
         {
             var tDto = new TransitionNodeDto
             {
-                VisualId        = t.VisualId,
-                SourceStableId  = t.Source.StableId,
-                TargetStableId  = t.Target.StableId,
-                EventName       = t.EventName,
-                GuardFunction   = t.GuardFunction,
-                ActionFunction  = t.ActionFunction,
-                Priority        = t.Priority,
-                Kind            = (TransitionKindDto)t.Kind,
-                SyncGroupId     = t.SyncGroupId,
-                Comment         = t.Comment,
+                VisualId              = t.VisualId,
+                SourceStableId        = t.Source.StableId,
+                TargetStableId        = t.Target.StableId,
+                EventName             = t.EventName,
+                GuardFunction         = t.GuardFunction,
+                ActionFunction        = t.ActionFunction,
+                ExpressionTargetField = t.ExpressionTargetField,
+                Priority              = t.Priority,
+                Kind                  = (TransitionKindDto)t.Kind,
+                SyncGroupId           = t.SyncGroupId,
+                Comment               = t.Comment,
             };
             foreach (var wp in t.Waypoints)
                 tDto.Waypoints.Add(new WaypointDto { X = wp.X, Y = wp.Y });
@@ -126,13 +127,14 @@ public static class HsmAssetMapper
         {
             dto.GlobalTransitions.Add(new GlobalTransitionNodeDto
             {
-                VisualId       = g.VisualId,
-                TargetStableId = g.Target.StableId,
-                EventName      = g.EventName,
-                GuardFunction  = g.GuardFunction,
-                ActionFunction = g.ActionFunction,
-                Priority       = g.Priority,
-                Comment        = g.Comment,
+                VisualId              = g.VisualId,
+                TargetStableId        = g.Target.StableId,
+                EventName             = g.EventName,
+                GuardFunction         = g.GuardFunction,
+                ActionFunction        = g.ActionFunction,
+                ExpressionTargetField = g.ExpressionTargetField,
+                Priority              = g.Priority,
+                Comment               = g.Comment,
             });
         }
 
@@ -269,18 +271,19 @@ public static class HsmAssetMapper
 
             var t = new TransitionNode
             {
-                VisualId       = tDto.VisualId,
-                Source         = src,
-                Target         = tgt,
-                EventName      = tDto.EventName,
-                GuardFunction  = tDto.GuardFunction,
-                ActionFunction = tDto.ActionFunction,
-                Priority       = tDto.Priority,
-                Kind           = (TransitionKind)tDto.Kind,
-                SyncGroupId    = tDto.SyncGroupId,
-                Comment        = tDto.Comment,
-                FlatIndex      = 0,   // runtime-only
-                EventId        = 0,   // runtime-only
+                VisualId              = tDto.VisualId,
+                Source                = src,
+                Target                = tgt,
+                EventName             = tDto.EventName,
+                GuardFunction         = tDto.GuardFunction,
+                ActionFunction        = tDto.ActionFunction,
+                ExpressionTargetField = tDto.ExpressionTargetField,
+                Priority              = tDto.Priority,
+                Kind                  = (TransitionKind)tDto.Kind,
+                SyncGroupId           = tDto.SyncGroupId,
+                Comment               = tDto.Comment,
+                FlatIndex             = 0,   // runtime-only
+                EventId               = 0,   // runtime-only
             };
             foreach (var wp in tDto.Waypoints)
                 t.Waypoints.Add(new Vector2(wp.X, wp.Y));
@@ -295,15 +298,16 @@ public static class HsmAssetMapper
             if (!stableIdToState.TryGetValue(gDto.TargetStableId, out var tgt)) continue;
             globalTransitions.Add(new GlobalTransitionNode
             {
-                VisualId       = gDto.VisualId,
-                Target         = tgt,
-                EventName      = gDto.EventName,
-                GuardFunction  = gDto.GuardFunction,
-                ActionFunction = gDto.ActionFunction,
-                Priority       = gDto.Priority,
-                Comment        = gDto.Comment,
-                FlatIndex      = 0,   // runtime-only
-                EventId        = 0,   // runtime-only
+                VisualId              = gDto.VisualId,
+                Target                = tgt,
+                EventName             = gDto.EventName,
+                GuardFunction         = gDto.GuardFunction,
+                ActionFunction        = gDto.ActionFunction,
+                ExpressionTargetField = gDto.ExpressionTargetField,
+                Priority              = gDto.Priority,
+                Comment               = gDto.Comment,
+                FlatIndex             = 0,   // runtime-only
+                EventId               = 0,   // runtime-only
             });
         }
 
@@ -404,6 +408,7 @@ public static class HsmAssetMapper
                 },
                 DefaultValueJson = null,
                 Comment          = v.Comment,
+                IsAutoManaged    = v.IsAutoManaged,
             });
         }
 
@@ -416,7 +421,7 @@ public static class HsmAssetMapper
         foreach (var v in block.Variables)
         {
             var clrType = ResolveClrType(v.Type.TypeId);
-            result.Add(new BlackboardVariableEntry(v.Name, clrType, v.Comment));
+            result.Add(new BlackboardVariableEntry(v.Name, clrType, v.Comment, v.IsAutoManaged));
         }
         return result;
     }

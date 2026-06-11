@@ -102,4 +102,17 @@ public static class BTreeSelectionBridgeHelper
     /// </summary>
     public static BTreeFacetMapper? BuildFacetDispatcher(BehaviorTreeAsset? asset)
         => asset is null ? null : new BTreeFacetMapper(asset);
+
+    /// <summary>
+    /// Builds a <see cref="BTreeFacetMapper"/> that also updates <paramref name="fqnContext"/>
+    /// with the selected action/condition FQN on each <c>GetFacet</c> call.
+    /// Pass the same <paramref name="fqnContext"/> to
+    /// <see cref="BTreePickerDrawerFactory.BuildDrawers"/> so the blackboard-field picker
+    /// filters variables by the current action's DtoType.
+    /// Returns <see langword="null"/> when <paramref name="asset"/> is <see langword="null"/>.
+    /// </summary>
+    public static BTreeFacetMapper? BuildFacetDispatcher(
+        BehaviorTreeAsset?    asset,
+        BTreeFacetFqnContext? fqnContext)
+        => asset is null ? null : new BTreeFacetMapper(asset, fqnContext);
 }

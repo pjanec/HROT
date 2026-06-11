@@ -11,6 +11,31 @@ using StructEdit.Core;
 namespace Hrot.BTree.Editor.Inspector;
 
 /// <summary>
+/// Mutable context shared between <see cref="BTreeFacetMapper"/> (writer) and
+/// <see cref="BlackboardFieldPickerDrawer"/> (reader) so the picker can filter
+/// blackboard variables by the DtoType of the currently-selected action's FQN.
+///
+/// <para>
+/// Lifecycle: one instance per open BTree asset.  Created by
+/// <see cref="BTreePickerDrawerFactory.BuildDrawers"/> (or externally) and passed
+/// to both the drawer factory and <see cref="BTreeFacetMapper"/> so they share the
+/// same cell.  <see cref="BTreeFacetMapper.GetFacet"/> writes
+/// <see cref="CurrentActionFqn"/> before returning the facet; the drawer reads it
+/// in the same frame when StructEdit calls <see cref="BlackboardFieldPickerDrawer.DrawInput"/>.
+/// </para>
+/// </summary>
+public sealed class BTreeFacetFqnContext
+{
+    /// <summary>
+    /// The method FQN of the action/condition node currently selected in the inspector,
+    /// or <see langword="null"/> when no action/condition node is selected.
+    /// Written by <see cref="BTreeFacetMapper.GetFacet"/>; read by
+    /// <see cref="BlackboardFieldPickerDrawer.GetItems"/>.
+    /// </summary>
+    public string? CurrentActionFqn { get; set; }
+}
+
+/// <summary>
 /// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
 /// <see cref="BehaviorHashPickerAttribute"/>. Shows names from the <see cref="BehaviorRegistry"/>.
 /// Headless-safe: <see cref="GetItems"/> is usable without ImGui context;
@@ -67,22 +92,120 @@ public sealed class BehaviorHashPickerDrawer : IImGuiFieldDrawer, Hrot.Editor.Ai
 /// <summary>
 /// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
 /// <see cref="BlackboardFieldPickerAttribute"/>. Shows field names from the
-/// active asset's blackboard schema.
+/// active asset's blackboard schema, filtered by the DtoType of the currently-selected
+/// action's FQN when a <see cref="BTreeFacetFqnContext"/> is provided.
+///
+/// <para>Headless-safe: <see cref="GetItems"/> and <see cref="HasNoCompatibleVariables"/>
+/// are usable without an ImGui context.</para>
 /// </summary>
 public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor.AiShared.Inspector.IPickerListSource
 {
-    private readonly BehaviorTreeAsset _asset;
+    private readonly BehaviorTreeAsset       _asset;
+    private readonly IActionSchemaExporter?  _exporter;
+    private readonly Func<string?>?          _fqnAccessor;
 
+    /// <summary>
+    /// Constructs a drawer bound to <paramref name="asset"/> without type-filtering support.
+    /// All blackboard variables are shown regardless of the selected action's DtoType.
+    /// </summary>
     public BlackboardFieldPickerDrawer(BehaviorTreeAsset asset)
+        : this(asset, null, null)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+    }
+
+    /// <summary>
+    /// Constructs a drawer bound to <paramref name="asset"/> with optional type-filtering.
+    /// When <paramref name="exporter"/> and <paramref name="fqnAccessor"/> are both non-null,
+    /// <see cref="GetItems"/> returns only variables whose type matches the action's DtoType.
+    /// </summary>
+    public BlackboardFieldPickerDrawer(
+        BehaviorTreeAsset      asset,
+        IActionSchemaExporter? exporter,
+        Func<string?>?         fqnAccessor)
+    {
+        _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
+        _exporter    = exporter;
+        _fqnAccessor = fqnAccessor;
     }
 
     public Type TargetType => typeof(string);
 
-    /// <summary>Returns all blackboard variable names for the active asset.</summary>
+    /// <summary>
+    /// Returns the subset of blackboard variable names compatible with the current action's
+    /// DtoType.  When no exporter or FQN accessor is configured, all variable names are
+    /// returned (unfiltered).
+    /// </summary>
     public IReadOnlyList<string> GetItems()
-        => _asset.BlackboardVariables.Select(v => v.Name).OrderBy(n => n).ToList();
+    {
+        var entries = _asset.BlackboardVariables.ToList();
+        if (_exporter is null || _fqnAccessor is null)
+            return entries.Select(v => v.Name).OrderBy(n => n).ToList();
+
+        var fqn = _fqnAccessor();
+        return BlackboardFieldPickerAttribute.GetCompatibleVariables(fqn, entries, _exporter);
+    }
+
+    /// <summary>
+    /// True when the current action's FQN resolves to a known schema entry but no blackboard
+    /// variable matches its DtoType.  Used to show a "Promote to new variable" affordance in
+    /// the inspector and is testable without an ImGui context.
+    /// </summary>
+    public bool HasNoCompatibleVariables
+    {
+        get
+        {
+            if (_exporter is null || _fqnAccessor is null) return false;
+            var fqn = _fqnAccessor();
+            if (fqn is null) return false;
+            if (_exporter.Lookup(fqn) is null) return false;   // unknown FQN – not an error state
+            return GetItems().Count == 0;
+        }
+    }
+
+    /// <summary>
+    /// True when a promote action has been requested via <see cref="TriggerPromote"/>.
+    /// Reset by calling <see cref="ResetPromoteRequest"/>.
+    /// </summary>
+    public bool PromoteRequested { get; private set; }
+
+    /// <summary>Sets <see cref="PromoteRequested"/> to true (headless-testable).</summary>
+    public void TriggerPromote() => PromoteRequested = true;
+
+    /// <summary>Clears <see cref="PromoteRequested"/>.</summary>
+    public void ResetPromoteRequest() => PromoteRequested = false;
+
+    /// <summary>
+    /// Creates a new auto-managed blackboard variable named <c>_auto_{visualId:N}</c> whose
+    /// type matches the DtoType of the current action's FQN, and returns the generated name.
+    /// Returns <see langword="null"/> when the action FQN is not set, is not found in the
+    /// exporter, or the asset already contains a variable with the auto-generated name.
+    /// </summary>
+    /// <param name="facetVisualId">
+    /// The <c>VisualId</c> string from the action facet (a GUID string).
+    /// Used to derive the auto-variable name: <c>_auto_{guid:N}</c>.
+    /// </param>
+    public string? Promote(string facetVisualId)
+    {
+        if (_exporter is null || _fqnAccessor is null) return null;
+        var fqn = _fqnAccessor();
+        if (fqn is null) return null;
+        var entry = _exporter.Lookup(fqn);
+        if (entry is null) return null;
+
+        if (!Guid.TryParse(facetVisualId, out var visualGuid)) return null;
+        var varName = $"_auto_{visualGuid:N}";
+
+        // Guard: don't create a duplicate.
+        if (_asset.BlackboardVariables.Any(v => v.Name == varName)) return varName;
+
+        _asset.AddVariable(new BlackboardVariableEntry(
+            Name:          varName,
+            FieldType:     entry.DtoType,
+            Comment:       null,
+            IsAutoManaged: true));
+
+        return varName;
+    }
 
     /// <inheritdoc/>
     public bool DrawInput(ref object value, EditNode node)
@@ -91,6 +214,14 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
 
         var current = value as string ?? string.Empty;
         var items   = GetItems();
+
+        if (items.Count == 0 && HasNoCompatibleVariables)
+        {
+            ImGuiNET.ImGui.TextDisabled(BlackboardFieldPickerAttribute.NoCompatibleVariablesDisplay);
+            if (ImGuiNET.ImGui.SmallButton("Promote to new variable"))
+                TriggerPromote();
+            return false;
+        }
 
         if (items.Count == 0)
         {
@@ -133,17 +264,27 @@ public static class BTreePickerDrawerFactory
     ///   <item><see cref="BehaviorHashPickerAttribute"/> → <see cref="BehaviorHashPickerDrawer"/></item>
     ///   <item><see cref="BlackboardFieldPickerAttribute"/> → <see cref="BlackboardFieldPickerDrawer"/></item>
     /// </list>
+    /// When <paramref name="exporter"/> and <paramref name="fqnContext"/> are provided, the
+    /// <see cref="BlackboardFieldPickerDrawer"/> filters variables by the current action's DtoType.
     /// </summary>
     public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
-        BehaviorTreeAsset asset,
-        BehaviorRegistry  registry)
+        BehaviorTreeAsset      asset,
+        BehaviorRegistry       registry,
+        IActionSchemaExporter? exporter    = null,
+        BTreeFacetFqnContext?  fqnContext   = null)
     {
         if (asset    is null) throw new ArgumentNullException(nameof(asset));
         if (registry is null) throw new ArgumentNullException(nameof(registry));
 
+        Func<string?>? fqnAccessor = fqnContext is not null
+            ? () => fqnContext.CurrentActionFqn
+            : null;
+
+        var bbDrawer = new BlackboardFieldPickerDrawer(asset, exporter, fqnAccessor);
+
         var composite = new CompositeStringDrawer()
             .Register<BehaviorHashPickerAttribute>(new BehaviorHashPickerDrawer(registry))
-            .Register<BlackboardFieldPickerAttribute>(new BlackboardFieldPickerDrawer(asset));
+            .Register<BlackboardFieldPickerAttribute>(bbDrawer);
 
         return new Dictionary<Type, IImGuiFieldDrawer>
         {

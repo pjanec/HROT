@@ -14,11 +14,23 @@ namespace Hrot.BTree.Editor.Inspector;
 /// </summary>
 public sealed class BTreeFacetMapper : IFacetDispatcher
 {
-    private readonly BehaviorTreeAsset _asset;
+    private readonly BehaviorTreeAsset    _asset;
+    private readonly BTreeFacetFqnContext? _fqnContext;
 
     public BTreeFacetMapper(BehaviorTreeAsset asset)
+        : this(asset, null)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+    }
+
+    /// <summary>
+    /// Constructs a mapper that writes the current action/condition FQN to
+    /// <paramref name="fqnContext"/> before returning each facet, so the
+    /// <see cref="BlackboardFieldPickerDrawer"/> can filter variables by DtoType.
+    /// </summary>
+    public BTreeFacetMapper(BehaviorTreeAsset asset, BTreeFacetFqnContext? fqnContext)
+    {
+        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
+        _fqnContext = fqnContext;
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -31,10 +43,17 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         var node = _asset.FindNode(sel.VisualId);
         if (node is null) return null;
 
+        // Clear the FQN context for non-action/condition nodes so the blackboard picker
+        // shows all variables when a composite or wait node is selected.
+        if (node.KernelType != NodeType.Action && node.KernelType != NodeType.Condition)
+        {
+            if (_fqnContext is not null) _fqnContext.CurrentActionFqn = null;
+        }
+
         return node.KernelType switch
         {
-            NodeType.Action   => BuildActionFacet(node),
-            NodeType.Condition => BuildConditionFacet(node),
+            NodeType.Action   => BuildActionFacet(node, _fqnContext),
+            NodeType.Condition => BuildConditionFacet(node, _fqnContext),
             NodeType.Wait     => BuildWaitFacet(node),
             NodeType.Sequence => BuildSequenceFacet(node),
             NodeType.Selector => BuildSelectorFacet(node),
@@ -117,10 +136,13 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
 
     // ── Private builders ──────────────────────────────────────────────────────
 
-    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node) =>
-        new BTreeActionFacet
+    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
+    {
+        var fqn = node.Action?.MethodFqn ?? string.Empty;
+        if (ctx is not null) ctx.CurrentActionFqn = string.IsNullOrEmpty(fqn) ? null : fqn;
+        return new BTreeActionFacet
         {
-            MethodFqn              = node.Action?.MethodFqn ?? string.Empty,
+            MethodFqn              = fqn,
             ExpressionTargetField  = node.Action?.ExpressionTargetField,
             Comment                = node.Comment,
             IsBreakpoint           = node.IsBreakpoint,
@@ -128,11 +150,15 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             LastResult             = string.Empty,
             TickCount              = 0,
         };
+    }
 
-    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node) =>
-        new BTreeConditionFacet
+    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
+    {
+        var fqn = node.Condition?.MethodFqn ?? string.Empty;
+        if (ctx is not null) ctx.CurrentActionFqn = string.IsNullOrEmpty(fqn) ? null : fqn;
+        return new BTreeConditionFacet
         {
-            MethodFqn              = node.Condition?.MethodFqn ?? string.Empty,
+            MethodFqn              = fqn,
             ExpressionTargetField  = node.Condition?.ExpressionTargetField,
             Comment                = node.Comment,
             IsBreakpoint           = node.IsBreakpoint,
@@ -140,6 +166,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             LastResult             = string.Empty,
             TickCount              = 0,
         };
+    }
 
     private static BTreeWaitFacet BuildWaitFacet(BTreeEditorNode node) =>
         new BTreeWaitFacet

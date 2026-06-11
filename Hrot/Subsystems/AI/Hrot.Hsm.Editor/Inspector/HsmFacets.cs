@@ -77,6 +77,10 @@ public struct TransitionFacet
     [HsmActionPicker]
     public string? ActionFunction;
 
+    [EditDisplayName("Expression target (blackboard field)")]
+    [HsmBlackboardFieldPicker]
+    public string? ExpressionTargetField;
+
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]
     public byte Priority;
@@ -177,6 +181,10 @@ public struct GlobalTransitionFacet
     [EditDisplayName("Effect action")]
     [HsmActionPicker]
     public string? ActionFunction;
+
+    [EditDisplayName("Expression target (blackboard field)")]
+    [HsmBlackboardFieldPicker]
+    public string? ExpressionTargetField;
 
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]

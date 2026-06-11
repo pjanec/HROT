@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Hrot.AiEditor.Persistence.Hsm;
 
@@ -98,6 +99,8 @@ public sealed class TransitionNodeDto
 
     public string? GuardFunction { get; set; }
     public string? ActionFunction { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpressionTargetField { get; set; }
     public byte Priority { get; set; }
     public TransitionKindDto Kind { get; set; }
     public ushort SyncGroupId { get; set; }
@@ -116,6 +119,8 @@ public sealed class GlobalTransitionNodeDto
     public string? EventName { get; set; }
     public string? GuardFunction { get; set; }
     public string? ActionFunction { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpressionTargetField { get; set; }
     public byte Priority { get; set; }
     public string? Comment { get; set; }
 }
@@ -155,6 +160,12 @@ public sealed class HsmBlackboardVariableDto
     public HsmBlackboardTypeRefDto Type { get; set; } = new();
     public string? DefaultValueJson { get; set; }
     public string? Comment { get; set; }
+    /// <summary>
+    /// True when this variable was auto-created by the "Promote to new variable" feature.
+    /// Omitted from JSON when false (default) for backwards compatibility.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsAutoManaged { get; set; }
 }
 
 public sealed class HsmBlackboardBlockDto

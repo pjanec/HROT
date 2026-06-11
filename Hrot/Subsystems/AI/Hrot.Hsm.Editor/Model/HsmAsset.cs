@@ -725,6 +725,11 @@ public sealed class TransitionNode
     public string? EventName;    // symbolicated from MachineMetadata; for display
     public string? GuardFunction;
     public string? ActionFunction;
+    /// <summary>
+    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
+    /// Null when no field binding is authored. Persisted.
+    /// </summary>
+    public string? ExpressionTargetField;
     public byte Priority;
     public TransitionKind Kind;
     public ushort SyncGroupId;
@@ -747,6 +752,11 @@ public sealed class GlobalTransitionNode
     public string? EventName;
     public string? GuardFunction;
     public string? ActionFunction;
+    /// <summary>
+    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
+    /// Null when no field binding is authored. Persisted.
+    /// </summary>
+    public string? ExpressionTargetField;
     public byte Priority;
     public string? Comment;
     public bool IsBreakpoint;

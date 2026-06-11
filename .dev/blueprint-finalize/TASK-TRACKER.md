@@ -115,10 +115,10 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
 ONE variable (per-field binding rejected); "+ Promote to new variable" auto-creates a **node-owned** variable
 (`IsAutoManaged`) for the blueprint-like node-local feel. Builds on SE1/SE2. Each batch: lead reviews + commits;
 visual bits confirmed at the gate.
-- [ ] **B-1** -- Type-filtered binding picker: `[BlackboardFieldPicker]` shows only variables of the action's
+- [x] **B-1** (BATCH-BB1A, committed) -- Type-filtered binding picker: `[BlackboardFieldPicker]` shows only variables of the action's
       `DtoType` (from `IActionSchemaExporter`); `(no compatible variables)` + Promote affordance otherwise. (DD §11.2)
-      -> [details](./TASK-DETAIL.md#b-1----type-filtered-binding-picker)
-- [ ] **B-2** -- "+ Promote to new variable" + `IsAutoManaged`: add `IsAutoManaged` to `BlackboardVariableDto`
+      BTree+HSM live drawers wired via facet-FQN context. -> [details](./TASK-DETAIL.md#b-1----type-filtered-binding-picker)
+- [~] **B-2** (BATCH-BB1A: create+persist done; BINDING deferred to BB1B Corrective Task 0) -- "+ Promote to new variable" + `IsAutoManaged`: add `IsAutoManaged` to `BlackboardVariableDto`
       (persisted) + `BlackboardVariableEntry`; Promote creates an `_auto_{VisualId:N}` (BTree) / `_auto_{StableId:N}`
       (HSM) variable of the action's DtoType, `IsAutoManaged=true`, binds `ExpressionTargetField`. (DD §11.3)
       -> [details](./TASK-DETAIL.md#b-2----promote-to-new-variable--isautomanaged)

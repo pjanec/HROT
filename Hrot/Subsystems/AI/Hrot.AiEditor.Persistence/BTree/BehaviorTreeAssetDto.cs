@@ -30,6 +30,12 @@ public sealed class BlackboardVariableDto
     /// <summary>JSON-encoded default value; null = no default authored.</summary>
     public string? DefaultValueJson { get; set; }
     public string? Comment { get; set; }
+    /// <summary>
+    /// True when this variable was auto-created by the "Promote to new variable" feature.
+    /// Omitted from JSON when false (default) for backwards compatibility.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsAutoManaged { get; set; }
 }
 
 /// <summary>Forward-compatible blackboard block (§5.4).</summary>

@@ -14,13 +14,25 @@ namespace Hrot.Hsm.Editor.Inspector;
 /// </summary>
 public sealed class HsmFacetDispatcher : IFacetDispatcher
 {
-    private readonly HsmAsset       _asset;
-    private readonly HsmFacetMapper _mapper;
+    private readonly HsmAsset            _asset;
+    private readonly HsmFacetMapper      _mapper;
+    private readonly HsmFacetFqnContext? _fqnContext;
 
     public HsmFacetDispatcher(HsmAsset asset)
+        : this(asset, null)
     {
-        _asset  = asset  ?? throw new ArgumentNullException(nameof(asset));
-        _mapper = new HsmFacetMapper(asset);
+    }
+
+    /// <summary>
+    /// Constructs a dispatcher that shares <paramref name="fqnContext"/> with the
+    /// <see cref="HsmFacetMapper"/> so the blackboard-field picker drawer can read the
+    /// current transition action FQN.
+    /// </summary>
+    public HsmFacetDispatcher(HsmAsset asset, HsmFacetFqnContext? fqnContext)
+    {
+        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
+        _fqnContext = fqnContext;
+        _mapper     = new HsmFacetMapper(asset, fqnContext);
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -28,6 +40,15 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// <inheritdoc/>
     public object? GetFacet(IAssetSubSelection subSelection)
     {
+        // Clear the FQN context for non-transition selections so the blackboard picker
+        // shows all variables when a state, region, or event is selected.
+        if (_fqnContext is not null &&
+            subSelection is not HsmTransitionSelection &&
+            subSelection is not HsmGlobalTransitionSelection)
+        {
+            _fqnContext.CurrentActionFqn = null;
+        }
+
         return subSelection switch
         {
             HsmStateSelection st              => _mapper.GetStateFacet(st.StableId),
@@ -92,14 +113,15 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         var t = _asset.FindTransitionByVisualId(visualId);
         if (t is null) return;
 
-        t.EventId        = f.EventId;
-        t.GuardFunction  = f.GuardFunction;
-        t.ActionFunction = f.ActionFunction;
-        t.Priority       = f.Priority;
-        t.Kind           = f.Kind;
-        t.SyncGroupId    = f.SyncGroupId;
-        t.Comment        = f.Comment;
-        t.IsBreakpoint   = f.IsBreakpoint;
+        t.EventId               = f.EventId;
+        t.GuardFunction         = f.GuardFunction;
+        t.ActionFunction        = f.ActionFunction;
+        t.ExpressionTargetField = f.ExpressionTargetField;
+        t.Priority              = f.Priority;
+        t.Kind                  = f.Kind;
+        t.SyncGroupId           = f.SyncGroupId;
+        t.Comment               = f.Comment;
+        t.IsBreakpoint          = f.IsBreakpoint;
 
         // TargetStateName: find the state by name and rewire.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))
@@ -155,10 +177,11 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         var g = _asset.AllGlobalTransitions.FirstOrDefault(x => x.VisualId == visualId);
         if (g is null) return;
 
-        g.GuardFunction  = f.GuardFunction;
-        g.ActionFunction = f.ActionFunction;
-        g.Priority       = f.Priority;
-        g.Comment        = f.Comment;
+        g.GuardFunction         = f.GuardFunction;
+        g.ActionFunction        = f.ActionFunction;
+        g.ExpressionTargetField = f.ExpressionTargetField;
+        g.Priority              = f.Priority;
+        g.Comment               = f.Comment;
 
         // TargetStateName: find state by name.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))

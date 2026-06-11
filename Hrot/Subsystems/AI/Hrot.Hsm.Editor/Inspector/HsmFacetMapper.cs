@@ -10,11 +10,23 @@ namespace Hrot.Hsm.Editor.Inspector;
 // Constructed once per loaded HsmAsset and held alive while the asset is open.
 public sealed class HsmFacetMapper
 {
-    private readonly HsmAsset _asset;
+    private readonly HsmAsset             _asset;
+    private readonly HsmFacetFqnContext?  _fqnContext;
 
     public HsmFacetMapper(HsmAsset asset)
+        : this(asset, null)
     {
-        _asset = asset;
+    }
+
+    /// <summary>
+    /// Constructs a mapper that writes the current transition action FQN to
+    /// <paramref name="fqnContext"/> before returning transition/global-transition facets,
+    /// so the <see cref="HsmBlackboardFieldPickerDrawer"/> can filter variables by DtoType.
+    /// </summary>
+    public HsmFacetMapper(HsmAsset asset, HsmFacetFqnContext? fqnContext)
+    {
+        _asset      = asset;
+        _fqnContext = fqnContext;
     }
 
     public StateFacet GetStateFacet(Guid stableId)
@@ -45,21 +57,24 @@ public sealed class HsmFacetMapper
             ?? throw new KeyNotFoundException($"Transition {visualId} not found");
         var lca     = FindLca(t.Source, t.Target);
         var lcaCost = (ushort)(DepthOf(t.Source) + DepthOf(t.Target) - 2 * DepthOf(lca));
+        if (_fqnContext is not null)
+            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(t.ActionFunction) ? null : t.ActionFunction;
         return new TransitionFacet
         {
-            SourceStateName = t.Source.Name,
-            TargetStateName = t.Target.Name,
-            EventId         = t.EventId,
-            GuardFunction   = t.GuardFunction,
-            ActionFunction  = t.ActionFunction,
-            Priority        = t.Priority,
-            Kind            = t.Kind,
-            SyncGroupId     = t.SyncGroupId,
-            Comment         = t.Comment,
-            IsBreakpoint    = t.IsBreakpoint,
-            VisualId        = t.VisualId.ToString(),
-            LcaStateName    = lca.Name,
-            LcaCost         = lcaCost,
+            SourceStateName       = t.Source.Name,
+            TargetStateName       = t.Target.Name,
+            EventId               = t.EventId,
+            GuardFunction         = t.GuardFunction,
+            ActionFunction        = t.ActionFunction,
+            ExpressionTargetField = t.ExpressionTargetField,
+            Priority              = t.Priority,
+            Kind                  = t.Kind,
+            SyncGroupId           = t.SyncGroupId,
+            Comment               = t.Comment,
+            IsBreakpoint          = t.IsBreakpoint,
+            VisualId              = t.VisualId.ToString(),
+            LcaStateName          = lca.Name,
+            LcaCost               = lcaCost,
         };
     }
 
@@ -104,15 +119,18 @@ public sealed class HsmFacetMapper
     {
         var g = _asset.AllGlobalTransitions.FirstOrDefault(x => x.VisualId == visualId)
             ?? throw new KeyNotFoundException($"Global transition {visualId} not found");
+        if (_fqnContext is not null)
+            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(g.ActionFunction) ? null : g.ActionFunction;
         return new GlobalTransitionFacet
         {
-            EventId         = g.EventId,
-            TargetStateName = g.Target.Name,
-            GuardFunction   = g.GuardFunction,
-            ActionFunction  = g.ActionFunction,
-            Priority        = g.Priority,
-            Comment         = g.Comment,
-            VisualId        = g.VisualId.ToString(),
+            EventId               = g.EventId,
+            TargetStateName       = g.Target.Name,
+            GuardFunction         = g.GuardFunction,
+            ActionFunction        = g.ActionFunction,
+            ExpressionTargetField = g.ExpressionTargetField,
+            Priority              = g.Priority,
+            Comment               = g.Comment,
+            VisualId              = g.VisualId.ToString(),
         };
     }
 
