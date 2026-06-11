@@ -13,4 +13,13 @@ public sealed record IrDebugAnnotation
     /// statements without a direct node association (e.g. WaitLowering_Instance).
     /// </summary>
     public Guid? OriginNodeId { get; init; }
+
+    /// <summary>
+    /// Set by Stage5_Schedule on the FIRST (entry/effect) statement of each EXEC node.
+    /// <para>Used by <c>DebugProbeInsertion</c> to insert a per-node <c>NodeEnter</c> probe
+    /// immediately before that statement, keyed to this node's id.  Data-dep statements
+    /// produced by <c>ResolveDataPin</c> are never tagged (pure data nodes such as
+    /// GetVariable, Literal, and pure FunctionCall get no probe).</para>
+    /// </summary>
+    public Guid? ExecEntryNodeId { get; init; }
 }

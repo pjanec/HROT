@@ -68,8 +68,8 @@ public sealed record Breakpoint(
     /// <summary>True when the asset structure changed and this breakpoint may no longer be valid.</summary>
     public bool IsStale { get; init; } = false;
     /// <summary>
-    /// The runtime probe node id that OnNodeEnter fires.  When several exec nodes
-    /// share one block they all map to the same ProbeNodeId (many-to-one).
+    /// The runtime probe node id that OnNodeEnter fires.  Each exec node now maps
+    /// one-to-one to its own probe: BreakpointTargets[nodeId] == nodeId's probe id.
     /// Defaults to NodeId for pre-compile tentative breakpoints.
     /// </summary>
     public string ProbeNodeId { get; init; } = string.Empty;

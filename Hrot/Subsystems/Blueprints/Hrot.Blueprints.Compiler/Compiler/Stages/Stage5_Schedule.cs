@@ -217,15 +217,28 @@ internal sealed class GraphScheduler
         var irInputs = BuildIrFieldsFromGraphParams(_graph.Inputs);
         var irOutputs = BuildIrFieldsFromGraphParams(_graph.Outputs);
 
-        // Build BreakpointTargets: every authored exec node → its block's probe id.
+        // Build BreakpointTargets: authored exec node → its probe id.
+        // For nodes that have their own ExecEntryNodeId-tagged statement (SetVariable,
+        // BranchNode, LatentDelay, etc.) the probe id equals the node's own id (one-to-one).
+        // For EventEntryNode (which produces no IR statements and therefore no own probe),
+        // fall back to the containing block's SourceNodeId so the breakpoint target resolves
+        // to an actually-emitted probe.  Non-exec / pure-data nodes are absent.
         var bpTargets = new Dictionary<Guid, Guid>();
         foreach (var kv in _execNodeToBlockId)
         {
-            var nodeId = kv.Key;
+            var nodeId  = kv.Key;
             var blockId = kv.Value;
-            var blockProbeId = _blockBuilders[blockId].SourceNodeId;
-            if (blockProbeId.HasValue)
-                bpTargets[nodeId] = blockProbeId.Value;
+            var block   = _blockBuilders[blockId];
+
+            // Check whether this node has its own ExecEntryNodeId-tagged statement in the block.
+            // If not (e.g. EventEntryNode, which emits no code), fall back to the block's
+            // SourceNodeId so the target points to an actually-emitted probe.
+            bool hasOwnStatement = block.Statements.Any(s => s.Debug?.ExecEntryNodeId == nodeId);
+            Guid probeId = hasOwnStatement
+                ? nodeId
+                : (block.SourceNodeId ?? nodeId);
+
+            bpTargets[nodeId] = probeId;
         }
 
         return new IrGraph
@@ -269,7 +282,41 @@ internal sealed class GraphScheduler
 
                 case ReturnNode rn:
                     _execNodeToBlockId[rn.Id] = blockId;
-                    bb.Terminator = BuildReturnTerminator(rn, bb);
+                    // Tag a sentinel statement for the Return node so a NodeEnter probe is emitted
+                    // when Return is the first (and only) exec node in the block.
+                    // When Return is preceded by other exec nodes (their statements already occupy
+                    // the block), do NOT add an extra anchor — the preceding nodes' probes cover
+                    // the block, and a Return anchor would insert a spurious extra recorded node
+                    // that shifts sub-tick recorder indices and breaks inspector assertions.
+                    {
+                        int retStmtsBefore = bb.Statements.Count;
+                        // BuildReturnTerminator may call ResolveDataPin (adds data-dep stmts for output pin).
+                        bb.Terminator = BuildReturnTerminator(rn, bb);
+                        if (bb.Statements.Count > retStmtsBefore)
+                        {
+                            // Tag the first data-dep statement added for Return's output pin.
+                            TagFirstNewStatement(bb.Statements, retStmtsBefore, rn.Id);
+                        }
+                        else if (retStmtsBefore == 0)
+                        {
+                            // Block is EMPTY (Return is sole exec node): emit a tagged nop so a
+                            // breakpoint on this Return can fire (e.g. Delay resume block → Return).
+                            bb.Statements.Add(new IrStatement
+                            {
+                                Operation = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                                Debug = new IrDebugAnnotation
+                                {
+                                    GraphId       = _graph.Id,
+                                    NodeId        = rn.Id,
+                                    Synthesized   = "return-probe-anchor",
+                                    ExecEntryNodeId = rn.Id,
+                                },
+                            });
+                        }
+                        // else: block has statements from preceding exec nodes; Return is the
+                        // terminal — no anchor needed (Return stays in bpTargets but its probe is
+                        // only emitted when it owns an empty block, which is the normal latent case).
+                    }
                     return;
 
                 case BranchNode bn:
@@ -305,7 +352,32 @@ internal sealed class GraphScheduler
                     // Regular node: emit statements, then follow exec chain.
                     _execNodeToBlockId[node.Id] = blockId;
                     bb.SourceNodeId ??= node.Id;
-                    EmitNodeStatements(node, bb.Statements);
+                    {
+                        int stmtsBefore = bb.Statements.Count;
+                        EmitNodeStatements(node, bb.Statements);
+                        // Tag the first statement emitted for this exec node (including any data deps
+                        // it resolves first) so DebugProbeInsertion inserts a per-node NodeEnter probe.
+                        // If EmitNodeStatements produced no statements (e.g. SetVariable with no value
+                        // pin), emit a tagged nop so the per-node probe has an anchor to precede.
+                        if (bb.Statements.Count > stmtsBefore)
+                        {
+                            TagFirstNewStatement(bb.Statements, stmtsBefore, node.Id);
+                        }
+                        else
+                        {
+                            bb.Statements.Add(new IrStatement
+                            {
+                                Operation = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+                                Debug = new IrDebugAnnotation
+                                {
+                                    GraphId         = _graph.Id,
+                                    NodeId          = node.Id,
+                                    Synthesized     = "exec-probe-anchor",
+                                    ExecEntryNodeId = node.Id,
+                                },
+                            });
+                        }
+                    }
                     var succ = GetSingleExecSuccessor(node);
                     if (succ is null)
                     {
@@ -330,11 +402,13 @@ internal sealed class GraphScheduler
         _execNodeToBlockId[node.Id] = bb.Id.Value;
 
         // Append the latent marker as the last statement in the pre-suspend block.
+        // Tag it as this latent node's exec-entry statement so DebugProbeInsertion
+        // inserts a NodeEnter probe immediately before it.
         bb.Statements.Add(new IrStatement
         {
             ResultValue = null,
             Operation   = latentOp,
-            Debug       = DebugOf(node),
+            Debug       = DebugOf(node) with { ExecEntryNodeId = node.Id },
         });
 
         // Allocate resume block.
@@ -434,6 +508,7 @@ internal sealed class GraphScheduler
         // Resolve condition data input (first non-exec data-in pin).
         var condPin = bn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In");
         IrValue condValue;
+        int branchStmtsBefore = bb.Statements.Count;
         if (condPin is not null)
             condValue = ResolveDataPin(bn.Id, condPin.Id, bb.Statements);
         else
@@ -449,6 +524,8 @@ internal sealed class GraphScheduler
                 Debug = DebugOf(bn),
             });
         }
+        // Tag the first statement added for this BranchNode so a NodeEnter probe is inserted.
+        TagFirstNewStatement(bb.Statements, branchStmtsBefore, bn.Id);
 
         var idShort = bn.Id.ToString("N").Substring(0, 8);
         var trueBlock  = AllocBlock($"branch_{idShort}_true");
@@ -1619,6 +1696,22 @@ internal sealed class GraphScheduler
     // -----------------------------------------------------------------------
     // Allocation helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Tags the first statement appended to <paramref name="stmts"/> since
+    /// <paramref name="countBefore"/> with <see cref="IrDebugAnnotation.ExecEntryNodeId"/>
+    /// set to <paramref name="execNodeId"/>. Does nothing if no new statements were added.
+    /// The first new statement marks the beginning of this exec node's execution;
+    /// <c>DebugProbeInsertion</c> uses the tag to insert a <c>NodeEnter</c> probe before it.
+    /// </summary>
+    private static void TagFirstNewStatement(
+        List<IrStatement> stmts, int countBefore, Guid execNodeId)
+    {
+        if (stmts.Count <= countBefore) return;
+        var s = stmts[countBefore];
+        var existing = s.Debug ?? new IrDebugAnnotation();
+        stmts[countBefore] = s with { Debug = existing with { ExecEntryNodeId = execNodeId } };
+    }
 
     private IrBlockId AllocBlock(string label)
     {

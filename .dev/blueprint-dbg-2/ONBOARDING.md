@@ -1,116 +1,89 @@
 # Blueprint Debugger — Onboarding for a fresh DEV-LEAD session (blueprint-dbg-2)
 
-You are the **dev lead** for the next phase of the Hrot blueprint **debugger** (branch `blueprint-integ-1` /
-`blueprint-dbg-*` lineage). This thread continues the breakpoint/stepping work from `.dev/blueprint-dbg-1/`. Read this
-fully before doing anything.
+You are the **dev lead** for the Hrot blueprint **debugger** (node-granular stepping) on branch `blueprint-integ-1`,
+working copy **`D:\Work\IOS-IG-SimHost-FDP-2`). Read this fully before doing anything. The big feature is
+DONE and merged; one P1 follow-up is specced + approved and just needs running.
 
 ---
 
-## 0. Operating model — SONNET SUBAGENTS you orchestrate (NOT Zoo)
+## 0. Operating model — you orchestrate, you don't write feature code
+You are dev lead per `.dev/.guides/DEV-LEAD-GUIDE_claude.md`. Loop: **plan a single-objective batch → delegate →
+hard-review (believe nothing; read diffs + assertions; run the suite yourself) → curate + commit → repeat.**
 
-**This thread does NOT use the external Zoo/Copilot delegation.** You are the dev lead and you **spawn sonnet
-sub-agents via the Agent tool** to do the implementation, exactly per the original loop:
-
-- Workflow contract: `.dev/.guides/DEV-LEAD-GUIDE_claude.md` (your loop) + `.dev/.guides/DEV-GUIDE_claude.md` (the
-  coder sub-agent's contract). Use the **codebase-memory MCP first** for exploration (`.claude/CLAUDE.md`).
-- Delegate each batch with the **Agent tool**, `subagent_type: general-purpose`, `model: sonnet`. The sub-agent reads
-  `DEV-GUIDE_claude.md` + the batch file, implements, writes its report, returns. You review hard and commit.
-- You may run several independent sub-agents in parallel (one message, multiple Agent calls) when work is independent.
-
-**Keep the hard-won discipline (it applies to sonnet sub-agents too):**
-- **Prescribe the EXACT test assertions** in the batch — never let the agent invent its own success conditions. For a
-  debugger feature the gold standard is *behavioral*: drive ticks/steps and assert recorded state/overlay/cursor
-  values, not "object exists".
-- **Do-not-stop-until-green**: the agent runs the full affected suite itself (no `BLUEPRINT_REGENERATE_SNAPSHOTS`) and
-  loops until `Failed: 0` (except the one documented pre-existing zero-alloc test).
-- **Review hard, verify independently**: read diffs + assertions, run the suite yourself, and reproduce the actual
-  behavior. Curate the commit (exclude user experiment `.bp.json` like `Count4.bp.json`; delete any litter). You
-  commit; the sub-agent doesn't.
-- One objective per batch; split big work.
-
-Relevant memories (auto-loaded): `feedback_batch_workflow_tracker_and_sonnet`, `project_debugger_node_granular_stepping`,
-`project_blueprint_breakpoint_id_drift`, `feedback_snapshot_regen_masks_failures`, `feedback_ask_in_chat_not_widget`,
-`reference_notebooklm_architect_usage`.
+**Delegation (token-saving — see memories `feedback_external_copilot_agent_delegation`, `reference_zoo_experimental_coding_agent`):**
+- **Zoo worker via `claude-worker-orchestrator` MCP** (`start_worker` `mode:non-blocking` + poll `get_worker_status`; `wait` between polls). Zoo has NO auto-completion notification — you must poll.
+  - `model:"flash"` = fastest/cheapest — trivial prescribed fixes (one-file edit + test + run).
+  - `model:"pro"` = capable on well-scoped compiler/IR changes with a tight spec (proven on BPC-IMPLICIT-RETURN).
+  - Zoo prompt MUST be ≤2KB → point it at the batch file; reference `.dev/.guides/DEV-GUIDE.md` (plain, NOT `_claude`); do NOT mention codebase-memory. **Hard-review every Zoo diff (it can hide problems / scope-creep / touch goldens) — trust diffs not its report.**
+- **sonnet sub-agent via the Agent tool** (`subagent_type:general-purpose`, `model:sonnet`, `run_in_background:true`, reads `DEV-GUIDE_claude.md`) for complex/integration work. Auto-notifies on completion.
+- Rule of thumb: simple prescribed → Zoo (flash/pro); integration / high-blast-radius / debugger-runtime → sonnet.
+- **Prescribe exact test assertions in every batch** (behavioral: drive ticks/steps, assert recorded state / cursor / field values). Do-not-stop-until-`Failed:0`. You commit; agents don't.
 
 ---
 
-## 1. Mission (this thread)
+## 1. What's DONE (committed on `blueprint-integ-1`)
+Node-granular blueprint stepping is complete and user-validated (within-tick Step/StepBack, per-node inspector state,
+breakpoints, step-past-end across ticks, implicit Return). Commits:
+- `040f6f82` BATCH-00 engine version-clock split (`_globalVersion` memory clock vs `_simulationTick` frame clock; `BumpMemoryVersion`).
+- `c839c122` BATCH-01 `SubTickSnapshotRecorder` (keyframe-per-node capture ring + restore).
+- `7b1aae5b` BATCH-02 wire recorder into `BlueprintDebugSession` (record during a real debug tick).
+- `5007c22f` BATCH-03 virtual-pointer Step/StepBack + inspector redirect to the per-node scratch repo.
+- `53d9eb84` BATCH-04 editor UI surfacing (inspector shows pointer state; highlight follows pointer; Step Back button + "node X/N").
+- `06ac8987` DD addendum (`docs/blueprints/Blueprint_Subsystem_Debug_NodeGranularStepping_Addendum.md`).
+- `2e1b4c25` BF-01 scratch repo registers ALL component types (`SyncFrom(includeTransient:true)`) — fixed a pause crash.
+- `65a9b7c4` BF-02 Stage5 `FindVariableIndex` strips `var:` prefix.
+- `05d1a10b` BATCH-05 + `134eb197` BF-03 + `0ad1157a` BF-04 — step-past-end tick-bridge (latent-safe; lands on the next iteration's first node).
+- `8768d4e4` BPC-IMPLICIT-RETURN — `ReturnNode` optional (implicit return at end-of-chain).
 
-Primary: **node-granular stepping** — make "Step" move the execution pointer **between nodes** and show the entity
-state *as of that node*, instead of today's tick-granular pause. Full design + the limitation analysis is in
-**`DEBUGGER-NODE-GRANULAR-STEPPING-IDEA.md`** (copied into this folder — read it first; it's the spec).
-
-Also in scope (debugger backlog): finish/forward-port any open CF tasks (see §3 clone note), and whatever debugger
-polish the user prioritizes.
-
----
-
-## 2. Why today's stepping is tick-granular (the core constraint — verified)
-
-- A compiled blueprint **tick is atomic**: the generated goto-state-machine runs the **entire synchronous node chain**
-  in one tick, stopping only at a **latent suspend** (Delay / WaitForChannel) or Return. Probes (`OnNodeEnter`) are
-  **non-blocking callbacks** — they can't halt the method mid-tick.
-- Pause/inspect uses `DataBreakpointManager`'s **triple-buffer, TICK-granular** rewind: `_preTickSnapshot` (start of
-  tick), `_postTickSnapshot` (hit time); on a hit it rewinds the live repo to pre-tick, and while paused the view =
-  pre-tick state. Exec/node breakpoints engage it via `HandleBreakpointHit → _dataBreakpointManager.OnExternalHit`,
-  plus `_timeController.RequestPause()` (clock pause, **no mid-tick halt, no rewind for exec BPs** beyond the DBM's
-  pre-tick restore).
-- **Consequence:** any pause *inside* a multi-node tick shows the same start-of-tick state. You cannot see
-  "after SetVariable, before Delay" — there's no such snapshot. The "one node per tick" intuition only holds at latent
-  boundaries.
-- Zoo's CF-6 (`34748364`, gate `_onNodeExecuted` on `!_isPaused`) only fixed which node the **overlay highlights** —
-  not the state shown. Orthogonal to node-granular stepping.
-
-## The proposed fix (in the design file): per-probe ECS snapshots + virtual execution pointer
-Record an ECS snapshot at **each probe (`OnNodeEnter`)** during debug-active ticks; while paused, "Step" moves a
-**virtual pointer** over the recordings and restores the target node's snapshot into a read-only view — **clock stays
-paused**, no re-execution. Snapshot-at-entry yields exactly the wanted semantics (pre-node state at each node).
-Scope snapshots to the **debugged entity's** components, only during debug-active ticks, read-only first. Full
-rationale + open questions for the architect are in `DEBUGGER-NODE-GRANULAR-STEPPING-IDEA.md`.
+**Key design fact (memory `project-node-granular-stepping-design`):** capture is **full keyframe per node** (not delta) because blueprint `SetVar` writes bypass `GetComponentRW` chunk-version stamping. The BATCH-00 version split is retained as the hook for a future delta optimization but is largely inert.
 
 ---
 
-## 3. ⚠️ Clone / branch divergence — RESOLVE FIRST
-Debugger work is split across two working copies:
-- **`D:\Work\IOS-IG-SimHost-FDP-2`** (this one): CF-3/4/5 committed (`1e319680`, `01bfea3f`, …); the design notes.
-- **`D:\Work\IOS-IG-SimHost-FDP`** (no `-2`): where Zoo did **CF-6** (`34748364`, the `_onNodeExecuted` overlay gate)
-  and the latent-stepping testing — that commit is **NOT in `-2`**.
-
-**First action:** confirm with the user which clone/branch is the source of truth for the debugger, and **reconcile
-CF-6 (and any later FDP-clone debugger commits) into it** before building on top. Don't start the snapshot feature on
-a base that's missing CF-6.
+## 2. IMMEDIATE NEXT TASK — BPDBG-PERNODE-PROBES (P1, batch written + user-approved, deferred)
+**Problem:** debug probes are per-BLOCK not per-NODE (`DebugProbeInsertion` = 1 probe/block; `ScheduleLatentNode`
+overwrites the block's `SourceNodeId`). So a synchronous exec node fused with a following latent in the same block
+(e.g. `SetVar → Delay`) has NO probe → not breakpointable/steppable/recorded. (Worked before only because `Sequence`
+nodes split graphs into one-node blocks.)
+**Fix (analyzed, mechanical):** per-exec-node probes + make `BreakpointTargets` one-to-one (each exec node → its own
+probe id). Full spec, exact call sites, BF-03/04 compatibility analysis, and the regression set are in
+**`.dev/blueprint-dbg-2/batches/BPDBG-PERNODE-PROBES-INSTRUCTIONS.md`** — run it on **sonnet** (high blast radius:
+touches `DebugProbeInsertion`, `Stage5_Schedule`, `IrDebugAnnotation`, `DebugMapBuilder`, the `ProbeNodeId` doc).
+Hard-review the BF-03/BF-04 regression especially. Tracked as DBG2-PNP in the debt tracker.
 
 ---
 
-## 4. Key source (debugger)
-- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/BlueprintDebugSession.cs` — probe sink (`OnNodeEnter`),
-  breakpoints, temp-BP stepping (Step Into/Over/Out via temp BPs), `HandleBreakpointHit`, `_isPaused`, Resume/Step.
-- `Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/DataBreakpointManager.cs` — the triple-buffer pre/post-tick snapshot
-  rewind (`_preTickSnapshot`/`_postTickSnapshot`, `ActiveView`, `OnExternalHit`). This is where node-granular snapshots
-  would layer in.
-- `IEngineDebugTimeController` / `MasterSyncTimeControllerAdapter` — `RequestPause/Resume/StepOneTick` (clock control).
-- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/Inspector/BlueprintRuntimeInspectorPane.cs` — paused-state UI
-  (cursor + field table; reads field values).
-- Probe instrumentation + node-ID mapping: the generated code calls the probe sink per node; mapping is keyed by node
-  id via the DebugMap. Mind the historical **node-ID drift / probe mis-attribution** (`project_blueprint_breakpoint_id_drift`).
-- Prior workstream reference: `.dev/blueprint-dbg-1/` (TASK-TRACKER, CF-TASK-DETAIL, DEBT-TRACKER, DEBUG-DD-ADDENDUM,
-  ARCHITECT briefs, reports CF1-5). Note its batches were Zoo prompts; this thread uses sonnet sub-agents.
+## 3. Backlog — `.dev/blueprint-dbg-2/DEBT-TRACKER.md` (single source of truth)
+After BPDBG-PERNODE-PROBES, remaining are optional polish:
+- **DBG2-D4 (P2):** compiler silently emits `s.__var_-1` for a truly-undeclared variable → emit a clean BP-error in Stage2/Stage5 instead.
+- **DBG2-D5 / D6 (P3):** strengthen two debugger tests (cross-tick value-distinct; assert exact landing node).
+- **DBG2-D1/D2/D3 (P3):** example-code GlobalVersion usage; pre-existing reds tracking; an unused test helper.
 
-## 5. Verify / run
-- Tests: `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests` (no regen flag) + the debug-session /
-  breakpoint test areas. The one documented pre-existing red is `TickFrame_1000Frames_AllocatesZeroBytes` (not a
-  regression). Debugger behavior is best verified by **driving ticks/steps in a test** and asserting recorded
-  state/cursor/overlay — much of the *visual* editor behavior also needs a user smoke.
+---
 
-## 6. Architect
-Consult NotebookLM (relayed by the user) for the node-granular design fork (snapshot ownership, per-entity snapshot
-mechanism, the step-past-end→advance-tick handshake) — trusted-but-verify: focused questions, verify every code-level
-claim against source, redirect when off-track. (It has been wrong on ABI/property-population details before.)
+## 4. Verify / run (NO regen flags)
+- `dotnet test Hrot/Subsystems/Blueprints/Hrot.Blueprints.Tests` (main debugger + compiler suite)
+- `dotnet test Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints.Tests`
+- Engine: `dotnet test FDP/Engine/Fdp.Core.Tests`, `FDP/Engine/Fdp.ModuleHost.Tests`; HSM: `FDP/ExtDeps/FastHSM/tests/Fhsm.Tests`.
+- **Documented pre-existing reds** in `Hrot.Blueprints.Tests` (NOT regressions — never mask/regen): `AiPrimitive_EmitMatchesGoldenSource`(×2), `Stage8_PdbContainsEmbeddedSource`, `Stage8_RoslynCompiler_ProducesNonEmptyPeAndPdb`, `TickFrame_1000Frames_AllocatesZeroBytes`, `MoveToAndFire_GeneratedSource_Snapshot`, `WhenNode_ZeroAllocOnHotPath`. (A flaky timing benchmark sometimes makes the summary say 8 vs 7 — the 7 unique names above are the real set.) Confirm a "pre-existing" failure by stashing changes and running the clean baseline.
 
-## 7. First moves
-1. Read this + `DEBUGGER-NODE-GRANULAR-STEPPING-IDEA.md` + skim `.dev/blueprint-dbg-1/` for prior CF context.
-2. **Resolve the clone/branch divergence (§3) with the user.**
-3. Decide scope with the user (default: node-granular stepping, read-only, per §design). Consider an architect round
-   on the snapshot-ownership design before coding.
-4. Write a single-objective batch (prescribed assertions + do-not-stop-until-green), delegate via the **Agent tool
-   (sonnet)**, review hard, run the suite, verify independently, commit. Repeat.
+## 5. Gotchas (memories)
+- **Stale source-generator cache** (`project-blueprint-generator-stale-cache`): after changing the compiler, the generator can serve STALE `*.g.cs` (a fix "not taking"). Force regen: `dotnet build <consumer>.csproj --no-incremental`, or in VS Clean+Rebuild / restart VS. Verified for the `var:` fix.
+- **Never commit user `.bp.json` experiments** (e.g. `Count5.bp.json`) — they appear in the working tree; exclude them from every commit. `.dev/blueprint-dbg-1/reports/CF1-NODE-IDENTITY-REPORT.md` is an unrelated pre-existing edit — leave it out too.
+- **Blueprints CAN write other entities/managed components mid-tick** (`project-blueprint-cross-entity-sync-mutation`) — why capture is whole-repo, not single-entity. (The NotebookLM architect was wrong on this; trusted-but-verify.)
+- **Hard-review delegated work** (`reference_zoo_experimental_coding_agent`): read diffs + assertions, run the suite yourself, confirm golden changes are intended, exclude litter, verify "pre-existing failures" against a clean baseline.
+
+## 6. Key source (the feature)
+- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/BlueprintDebugSession.cs` — probe sink (`OnNodeEnter`), breakpoints, virtual pointer (`_nodePointer`, Step/StepBack/`StepFromNodeOrNextIteration`), recorder wiring, inspector (`CaptureStateSnapshot`/`GetCurrentStateSnapshot`), `RestorePointerToScratch`, `BreakpointTargets`→`ProbeNodeId` (`:400-418`).
+- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Debug/SubTickSnapshotRecorder.cs` — keyframe-per-node ring + restore.
+- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Lowering/DebugProbeInsertion.cs` — probe insertion (per-block today; per-node after BPDBG).
+- `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage5_Schedule.cs` — block scheduling, `SourceNodeId`, `bpTargets` (`:220-229`), `SealFallThrough` (implicit return), `ScheduleLatentNode`.
+- `FDP/Engine/Fdp.Core/EntityRepository.cs` (version split), `FlightRecorder/RecorderSystem.cs` + `PlaybackSystem.cs` (keyframe/restore).
+- Editor UI: `Inspector/BlueprintRuntimeInspectorPane.cs`, `Debug/DebugStepControls.cs`, `Debug/BlueprintDebugToNodeEditAdapter.cs`.
+
+## 7. Plan/tracker docs
+`.dev/blueprint-dbg-2/`: `PLAN.md`, `TASK-TRACKER.md`, `DEBT-TRACKER.md`, `batches/`, `reports/`, `reviews/`.
+
+## First moves
+1. Read this + the DEBT-TRACKER + the BPDBG-PERNODE-PROBES batch file.
+2. Launch BPDBG-PERNODE-PROBES on sonnet (it's specced + approved). Hard-review (esp. BF-03/04 regression + data-node exclusion + one-to-one `BreakpointTargets`), run the suite, exclude `.bp.json`, commit.
+3. Then offer the optional polish (DBG2-D4 etc.). User smoke-tests visual editor behavior.
