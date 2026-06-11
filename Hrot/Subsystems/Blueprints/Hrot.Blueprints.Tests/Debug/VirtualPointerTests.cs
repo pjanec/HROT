@@ -113,10 +113,16 @@ public sealed class VirtualPointerTests : IDisposable
     // =========================================================================
     // NGS-2.2 — Inspector returns EXACT per-node field values as pointer moves
     // =========================================================================
-    // Sequence A:0→10→20:
-    //   node-index 0 (entry/seq dispatch): before any SetVar ran → A=0
-    //   node-index 1 (Then0 block):        after node-0 wrote nothing → A=0
-    //   node-index 2 (Then1 block):        after Then0 wrote A=10 → A=10
+    // NEW probe order (BPDBG-SEQ-PROBE-ORDER + ??= fix):
+    //   Index 0 (entryId  — EventEntry header probe): before any SetVar ran → A=0
+    //   Index 1 (seqId    — seq-probe-anchor probe):  before any SetVar ran → A=0
+    //   Index 2 (svAId    — Then0 per-node probe):    as-of entering Then0, before write → A=0
+    //   Index 3 (svBId    — Then1 per-node probe):    after Then0 wrote A=10 → A=10
+    //
+    // OLD (pre-fix): indices were [seqId(0), svAId(1), svBId(2)] — 3 entries.
+    // NEW:           indices are  [entryId(0), seqId(1), svAId(2), svBId(3)] — 4 entries.
+    // The EventEntry header probe was previously suppressed by the unconditional
+    // bb.SourceNodeId = seqId in ScheduleSequenceNode; the ??= fix preserves entryId.
     //
     // GetCurrentStateSnapshot() must return these exact values as the pointer
     // moves — the headline behavioral proof that the same paused tick shows
@@ -137,59 +143,67 @@ public sealed class VirtualPointerTests : IDisposable
         var entity = fixture.CreateEntity();
         fixture.AttachBlueprint(asset, entity);
 
-        // Arm breakpoint on Nodes[1] (SequenceNode) — the actual probe id for the entry block.
-        // See PointerClampTest for the SourceNodeId overwrite rationale.
+        // Arm breakpoint on Nodes[1] (SequenceNode = seqId) — its probe fires at index 1.
+        // The entry block now has SourceNodeId=entryId (??= fix), so the header probe fires
+        // for entryId (index 0) before the seq-probe-anchor for seqId (index 1).
         var graphId     = asset.Graphs[0].Id;
-        var probeNodeId = asset.Graphs[0].Nodes[1].Id;
+        var probeNodeId = asset.Graphs[0].Nodes[1].Id; // seqId
         session.SetBreakpoint(asset.AssetId, graphId, probeNodeId);
 
         fixture.TickFrame(0.016f);
         Assert.True(session.IsPaused);
 
-        // Must have at least 3 nodes: entry/seq-dispatch, Then0, Then1.
+        // Must have at least 4 nodes: entryId, seqId, svAId (Then0), svBId (Then1).
         int count = session.RecordedNodeCount;
-        Assert.True(count >= 3,
-            $"Expected >= 3 recorded nodes (entry, Then0, Then1), got {count}. " +
-            "Ensure the Sequence node compiles to separate IR blocks.");
+        Assert.True(count >= 4,
+            $"Expected >= 4 recorded nodes (entryId + seqId + Then0 + Then1), got {count}. " +
+            "Ensure ScheduleSequenceNode ??= preserves entryId as SourceNodeId.");
 
-        // Navigate to index 0 (entry/seq dispatch block).
-        // From wherever the pointer started, step back to 0.
+        // Navigate to index 0 (entryId — EventEntry header probe).
         while (session.CurrentNodePointer > 0)
             session.StepBack();
         Assert.Equal(0, session.CurrentNodePointer);
 
-        // At index 0: no SetVar has fired yet → A must be 0.
+        // At index 0 (entryId): no SetVar has fired yet → A must be 0.
         var snap0 = session.GetCurrentStateSnapshot();
         Assert.NotNull(snap0);
         int aAt0 = GetSnapshotIntField(snap0!, "A");
         Assert.Equal(0, aAt0);
 
-        // Step to index 1 (Then0 block).
+        // Step to index 1 (seqId — seq-probe-anchor, sequence dispatch).
         session.StepInto();
         Assert.Equal(1, session.CurrentNodePointer);
 
-        // At index 1: still before Then0's effect lands (delta[1] captures nothing from node-0
-        // which wrote nothing). The first SetVar is inside the Then0 block; its writes are
-        // captured in delta[2] and appear only at pointer 2.
+        // At index 1 (seqId): still before any SetVar — A=0.
         var snap1 = session.GetCurrentStateSnapshot();
         Assert.NotNull(snap1);
         int aAt1 = GetSnapshotIntField(snap1!, "A");
         Assert.Equal(0, aAt1);
 
-        // Step to index 2 (Then1 block).
+        // Step to index 2 (svAId — Then0 per-node probe, as-of entering Then0 before write).
         session.StepInto();
         Assert.Equal(2, session.CurrentNodePointer);
 
-        // At index 2: Then0 has run (wrote A=10), Then1 hasn't started yet → A=10.
-        // This is the key assertion: the SAME paused tick shows A=10 at this node.
+        // At index 2 (svAId): entering Then0 — A=0 (write hasn't happened yet at probe time).
         var snap2 = session.GetCurrentStateSnapshot();
         Assert.NotNull(snap2);
         int aAt2 = GetSnapshotIntField(snap2!, "A");
-        Assert.Equal(10, aAt2);
+        Assert.Equal(0, aAt2);
 
-        // StepBack to index 1 — A must return to 0.
+        // Step to index 3 (svBId — Then1 per-node probe).
+        session.StepInto();
+        Assert.Equal(3, session.CurrentNodePointer);
+
+        // At index 3 (svBId): Then0 has run (wrote A=10), entering Then1 → A=10.
+        // This is the key assertion: the SAME paused tick shows A=10 at this node.
+        var snap3 = session.GetCurrentStateSnapshot();
+        Assert.NotNull(snap3);
+        int aAt3 = GetSnapshotIntField(snap3!, "A");
+        Assert.Equal(10, aAt3);
+
+        // StepBack to index 2 (svAId) — A must return to 0.
         session.StepBack();
-        Assert.Equal(1, session.CurrentNodePointer);
+        Assert.Equal(2, session.CurrentNodePointer);
         var snapBack = session.GetCurrentStateSnapshot();
         Assert.NotNull(snapBack);
         int aBack = GetSnapshotIntField(snapBack!, "A");

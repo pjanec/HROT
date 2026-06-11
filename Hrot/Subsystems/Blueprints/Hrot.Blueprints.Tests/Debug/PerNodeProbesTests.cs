@@ -442,6 +442,257 @@ public sealed class PerNodeProbesTests : IDisposable
         session.Continue();
     }
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // Test 7 — Probe ORDER: SetVarB → Sequence S1 records svBId THEN s1Id
+    //
+    // BPDBG-SEQ-PROBE-ORDER gate: when an exec node (SetVarB) precedes a
+    // SequenceNode (S1) in the same scheduled block, the probes must fire in
+    // EXECUTION order (svBId first, s1Id second), NOT reversed.
+    //
+    // Before fix: ScheduleSequenceNode overwrote bb.SourceNodeId with s1Id
+    //   (clobbering svBId) and emitted no ExecEntryNodeId statement, causing
+    //   DebugProbeInsertion to prepend a header probe for s1Id BEFORE svBId's
+    //   per-node probe.  Result: [s1Id, svBId, …] — execution order inverted.
+    //
+    // After fix: ??= preserves svBId as SourceNodeId; seq-probe-anchor emits
+    //   ExecEntryNodeId=s1Id at the correct position.  Result: [svBId, s1Id, …].
+    // ═════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void ProbeOrder_SetVarBThenSequenceS1_RecordsSvBIdBeforeS1Id()
+    {
+        // Graph: Entry → SetVarB(svBId) → S1(s1Id) { Then0: SetVarC(svCId) → Return }
+        // SetVarB and S1 land in the SAME IR block (S1 is the exec successor of SetVarB).
+        // S1 has no exec-in → its Then0 block is reached via the Goto in the S1 block.
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var graphId = Guid.NewGuid();
+        var entryId = Guid.NewGuid();
+        var svBId   = Guid.NewGuid();
+        var s1Id    = Guid.NewGuid();
+        var svCId   = Guid.NewGuid();
+        var retId   = Guid.NewGuid();
+
+        var varB = new VariableDecl { Id = Guid.NewGuid(), Name = "B",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+        var varC = new VariableDecl { Id = Guid.NewGuid(), Name = "C",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var peOut    = Guid.NewGuid();
+        var pSvBIn   = Guid.NewGuid(); var pSvBOut = Guid.NewGuid();
+        var ps1In    = Guid.NewGuid(); var ps1Then0 = Guid.NewGuid();
+        var pSvCIn   = Guid.NewGuid(); var pSvCOut  = Guid.NewGuid();
+        var pRetIn   = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Function,
+            Inputs = new(), Outputs = new(),
+            Nodes = new System.Collections.Generic.List<Node>
+            {
+                new EventEntryNode { Id = entryId,
+                    Pins = new() { new Pin { Id = peOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() } } },
+                new SetVariableNode { Id = svBId, VariableId = varB.Id.ToString(),
+                    Pins = new()
+                    {
+                        new Pin { Id = pSvBIn,  Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = pSvBOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                    }},
+                new SequenceNode { Id = s1Id,
+                    Pins = new()
+                    {
+                        new Pin { Id = ps1In,    Name = "ExecIn", Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = ps1Then0, Name = "Then0",  Direction = "Out", IsExec = true, TypeRef = new() },
+                    }},
+                new SetVariableNode { Id = svCId, VariableId = varC.Id.ToString(),
+                    Pins = new()
+                    {
+                        new Pin { Id = pSvCIn,  Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = pSvCOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                    }},
+                new ReturnNode { Id = retId, Status = NodeStatus.Success,
+                    Pins = new() { new Pin { Id = pRetIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } } },
+            },
+            Links = new System.Collections.Generic.List<Link>
+            {
+                new() { FromNodeId = entryId, FromPinId = peOut,    ToNodeId = svBId,  ToPinId = pSvBIn   },
+                new() { FromNodeId = svBId,   FromPinId = pSvBOut,  ToNodeId = s1Id,   ToPinId = ps1In    },
+                new() { FromNodeId = s1Id,    FromPinId = ps1Then0, ToNodeId = svCId,  ToPinId = pSvCIn   },
+                new() { FromNodeId = svCId,   FromPinId = pSvCOut,  ToNodeId = retId,  ToPinId = pRetIn   },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId          = Guid.NewGuid(),
+            Name             = "ProbeOrderSetVarSeq7",
+            Dispatch         = AssetDispatchKind.Instance,
+            Parameters       = new(), WorkingState = new(),
+            Variables        = new() { varB, varC },
+            EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
+            Graphs           = new() { graph },
+            Header           = new Header(),
+        };
+
+        // ---- Compile and check BreakpointTargets one-to-one ----
+        var compiler      = new BlueprintCompiler();
+        var compileResult = compiler.Compile(asset, DebugOptions);
+        Assert.True(compileResult.Succeeded,
+            string.Join("; ", compileResult.Diagnostics.Select(d => d.Message)));
+
+        var targets = compileResult.DebugMap!.BreakpointTargets;
+
+        // Both SetVarB and S1 must be in BreakpointTargets (one-to-one).
+        Assert.True(targets.ContainsKey(svBId),
+            $"SetVarB ({svBId:D}) must be in BreakpointTargets. Targets: {TargetsString(targets)}");
+        Assert.Equal(svBId, targets[svBId]);
+
+        Assert.True(targets.ContainsKey(s1Id),
+            $"S1.Sequence ({s1Id:D}) must be in BreakpointTargets. Targets: {TargetsString(targets)}");
+        Assert.Equal(s1Id, targets[s1Id]);
+
+        // ---- Record probe arrival order ----
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        var entries   = fixture.DebugSession.NodeEntries;
+        var svBIdStr  = svBId.ToString("D");
+        var s1IdStr   = s1Id.ToString("D");
+
+        // Both probes must fire.
+        Assert.True(entries.Any(e => e.NodeId == svBIdStr),
+            $"SetVarB probe ({svBIdStr[..8]}) must fire. " +
+            $"Recorded: [{string.Join(", ", entries.Select(e => e.NodeId[..8]))}]");
+        Assert.True(entries.Any(e => e.NodeId == s1IdStr),
+            $"S1.Sequence probe ({s1IdStr[..8]}) must fire. " +
+            $"Recorded: [{string.Join(", ", entries.Select(e => e.NodeId[..8]))}]");
+
+        // svBId MUST appear BEFORE s1Id (execution order, not header-probe order).
+        int svBIdx = entries.ToList().FindIndex(e => e.NodeId == svBIdStr);
+        int s1Idx  = entries.ToList().FindIndex(e => e.NodeId == s1IdStr);
+
+        Assert.True(svBIdx < s1Idx,
+            $"PROBE-ORDER FIX: SetVarB probe (index {svBIdx}) must fire BEFORE S1.Sequence probe " +
+            $"(index {s1Idx}). Before the fix the header probe for S1 was prepended ahead of SetVarB. " +
+            $"Recorded: [{string.Join(", ", entries.Select(e => e.NodeId[..8]))}]");
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Test 8 — Single-sequence-first block has exactly ONE probe for the sequence
+    //
+    // BPDBG-SEQ-PROBE-ORDER gate: when the SequenceNode IS the first exec node
+    // in a block (no preceding exec node), the seq-probe-anchor is the only way
+    // the probe fires (ExecEntryNodeId path, not header path).  There must be
+    // EXACTLY ONE NodeEnter probe for the sequence — no double probe.
+    // ═════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void SingleSequenceFirstBlock_ExactlyOneProbeForSequence()
+    {
+        // Graph: Entry → SeqFirst(seqId) { Then0: SetVarA → Return }
+        // SeqFirst IS the first exec node in the block (Entry produces no statements).
+        // After fix: ??= sets SourceNodeId=seqId, anchor has ExecEntryNodeId=seqId.
+        //   coveredByExecEntryId(seqId) = true → needsHeaderProbe = false.
+        //   Exactly ONE probe for seqId (from the anchor) — no header probe doubling.
+        using var fixture = new BlueprintTestFixture(NoAlcCheck);
+
+        var graphId  = Guid.NewGuid();
+        var entryId  = Guid.NewGuid();
+        var seqId    = Guid.NewGuid();
+        var svAId    = Guid.NewGuid();
+        var retId    = Guid.NewGuid();
+
+        var varA = new VariableDecl { Id = Guid.NewGuid(), Name = "A",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
+
+        var peOut    = Guid.NewGuid();
+        var psIn     = Guid.NewGuid(); var psThen0 = Guid.NewGuid();
+        var pSvAIn   = Guid.NewGuid(); var pSvAOut = Guid.NewGuid();
+        var pRetIn   = Guid.NewGuid();
+
+        var graph = new Graph
+        {
+            Id = graphId, Name = "Tick", Kind = GraphKind.Function,
+            Inputs = new(), Outputs = new(),
+            Nodes = new System.Collections.Generic.List<Node>
+            {
+                new EventEntryNode { Id = entryId,
+                    Pins = new() { new Pin { Id = peOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() } } },
+                new SequenceNode { Id = seqId,
+                    Pins = new()
+                    {
+                        new Pin { Id = psIn,    Name = "ExecIn", Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = psThen0, Name = "Then0",  Direction = "Out", IsExec = true, TypeRef = new() },
+                    }},
+                new SetVariableNode { Id = svAId, VariableId = varA.Id.ToString(),
+                    Pins = new()
+                    {
+                        new Pin { Id = pSvAIn,  Name = "ExecIn",  Direction = "In",  IsExec = true, TypeRef = new() },
+                        new Pin { Id = pSvAOut, Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() },
+                    }},
+                new ReturnNode { Id = retId, Status = NodeStatus.Success,
+                    Pins = new() { new Pin { Id = pRetIn, Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() } } },
+            },
+            Links = new System.Collections.Generic.List<Link>
+            {
+                new() { FromNodeId = entryId, FromPinId = peOut,    ToNodeId = seqId,  ToPinId = psIn    },
+                new() { FromNodeId = seqId,   FromPinId = psThen0,  ToNodeId = svAId,  ToPinId = pSvAIn  },
+                new() { FromNodeId = svAId,   FromPinId = pSvAOut,  ToNodeId = retId,  ToPinId = pRetIn  },
+            },
+        };
+
+        var asset = new BlueprintAsset
+        {
+            AssetId          = Guid.NewGuid(),
+            Name             = "SingleSeqFirstBlock8",
+            Dispatch         = AssetDispatchKind.Instance,
+            Parameters       = new(), WorkingState = new(),
+            Variables        = new() { varA },
+            EventDispatchers = new(), CustomEvents = new(), CallablePeers = new(),
+            Graphs           = new() { graph },
+            Header           = new Header(),
+        };
+
+        // Compile and verify the generated source has EXACTLY ONE probe for seqId.
+        var compiler      = new BlueprintCompiler();
+        var compileResult = compiler.Compile(asset, DebugOptions);
+        Assert.True(compileResult.Succeeded,
+            string.Join("; ", compileResult.Diagnostics.Select(d => d.Message)));
+
+        var source   = compileResult.GeneratedSource ?? string.Empty;
+        var seqIdStr = seqId.ToString("D");
+        var pattern  = $@"DebugProbe\.NodeEnter\s*\(\s*self\s*,\s*""{System.Text.RegularExpressions.Regex.Escape(seqIdStr)}""\s*\)";
+        int count    = System.Text.RegularExpressions.Regex.Matches(source, pattern).Count;
+
+        Assert.True(count == 1,
+            $"Sequence-first block must have EXACTLY ONE probe for seqId ({seqIdStr[..8]}), " +
+            $"got {count}. Double probe = seq-probe-anchor + header probe both emitted (regression).");
+
+        // Also verify BreakpointTargets one-to-one (seqId maps to itself).
+        var targets = compileResult.DebugMap!.BreakpointTargets;
+        Assert.True(targets.ContainsKey(seqId),
+            $"SequenceNode ({seqId:D}) must be in BreakpointTargets.");
+        Assert.Equal(seqId, targets[seqId]);
+
+        // Record probe order: seqId fires before svAId (sequence's anchor before SetVarA's block).
+        fixture.CompileAndLoad(asset);
+        var entity = fixture.CreateEntity();
+        fixture.AttachBlueprint(asset, entity);
+
+        fixture.TickFrame(0.016f);
+
+        var entries  = fixture.DebugSession.NodeEntries;
+        var svAIdStr = svAId.ToString("D");
+
+        // seqId probe must fire exactly once at runtime.
+        int seqProbeCount = entries.Count(e => e.NodeId == seqIdStr);
+        Assert.True(seqProbeCount == 1,
+            $"seqId probe must fire exactly once at runtime; fired {seqProbeCount} times.");
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────

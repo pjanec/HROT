@@ -137,7 +137,13 @@ public sealed class InspectorSnapshotResolutionTests : IDisposable
         Assert.Equal(0, Batch04Assets.GetSnapshotInt(snap!, "A"));
     }
 
-    // ─── 2.4a Test 2: pointer at index 2 → A=10 ──────────────────────────────
+    // ─── 2.4a Test 2: pointer at index 3 → A=10 ──────────────────────────────
+    // NEW probe order (BPDBG-SEQ-PROBE-ORDER + ??= fix):
+    //   Index 0: entryId  (EventEntry header probe — SourceNodeId=entryId, no ExecEntryNodeId stmt)
+    //   Index 1: seqId    (seq-probe-anchor probe)
+    //   Index 2: svAId    (Then0 per-node probe — as-of entering Then0, A=0)
+    //   Index 3: svBId    (Then1 per-node probe — as-of entering Then1, A=10)
+    // A=10 is now at index 3 (not 2) because the entry block now records two probes.
     [Fact]
     public void ResolveInspectorSnapshot_WhenPaused_PointerAt2_ReturnsA10()
     {
@@ -145,9 +151,10 @@ public sealed class InspectorSnapshotResolutionTests : IDisposable
         var (session, entity, asset) = BuildAndPause(fixture, "InspSnap2");
 
         while (session.CurrentNodePointer > 0) session.StepBack();
-        session.StepInto();
-        session.StepInto();
-        Assert.Equal(2, session.CurrentNodePointer);
+        session.StepInto(); // 0 → 1
+        session.StepInto(); // 1 → 2
+        session.StepInto(); // 2 → 3 (Then1 entry = svBId; after Then0 wrote A=10)
+        Assert.Equal(3, session.CurrentNodePointer);
 
         var snap = BlueprintRuntimeInspectorPane.ResolveInspectorSnapshot(session, entity, asset.AssetId);
 
@@ -155,7 +162,13 @@ public sealed class InspectorSnapshotResolutionTests : IDisposable
         Assert.Equal(10, Batch04Assets.GetSnapshotInt(snap!, "A"));
     }
 
-    // ─── 2.4a Test 3: sequence 0→1→2 returns 0, 0, 10 ────────────────────────
+    // ─── 2.4a Test 3: sequence 0→1→2→3 returns 0, 0, 0, 10 ──────────────────
+    // NEW probe order (BPDBG-SEQ-PROBE-ORDER + ??= fix):
+    //   Index 0: entryId  (EventEntry header probe — A=0, before any SetVar)
+    //   Index 1: seqId    (seq-probe-anchor probe  — A=0, no SetVar yet)
+    //   Index 2: svAId    (Then0 per-node probe    — A=0, as-of entering Then0)
+    //   Index 3: svBId    (Then1 per-node probe    — A=10, after Then0 wrote A=10)
+    // The old "0, 0, 10" sequence (indices 0-2) is now "0, 0, 0, 10" (indices 0-3).
     [Fact]
     public void ResolveInspectorSnapshot_AcrossPointers_Returns_0_0_10()
     {
@@ -164,19 +177,25 @@ public sealed class InspectorSnapshotResolutionTests : IDisposable
 
         while (session.CurrentNodePointer > 0) session.StepBack();
 
+        // Index 0: entryId — A=0.
         var snap0 = BlueprintRuntimeInspectorPane.ResolveInspectorSnapshot(session, entity, asset.AssetId);
         Assert.NotNull(snap0);
         Assert.Equal(0, Batch04Assets.GetSnapshotInt(snap0!, "A"));
 
-        session.StepInto();
+        session.StepInto(); // 0 → 1 (seqId)
         var snap1 = BlueprintRuntimeInspectorPane.ResolveInspectorSnapshot(session, entity, asset.AssetId);
         Assert.NotNull(snap1);
-        Assert.Equal(0, Batch04Assets.GetSnapshotInt(snap1!, "A"));
+        Assert.Equal(0, Batch04Assets.GetSnapshotInt(snap1!, "A")); // still 0 before any SetVar
 
-        session.StepInto();
+        session.StepInto(); // 1 → 2 (svAId = Then0 entry, before A=10 write)
         var snap2 = BlueprintRuntimeInspectorPane.ResolveInspectorSnapshot(session, entity, asset.AssetId);
         Assert.NotNull(snap2);
-        Assert.Equal(10, Batch04Assets.GetSnapshotInt(snap2!, "A"));
+        Assert.Equal(0, Batch04Assets.GetSnapshotInt(snap2!, "A")); // 0: as-of entering Then0
+
+        session.StepInto(); // 2 → 3 (svBId = Then1 entry, after Then0 wrote A=10)
+        var snap3 = BlueprintRuntimeInspectorPane.ResolveInspectorSnapshot(session, entity, asset.AssetId);
+        Assert.NotNull(snap3);
+        Assert.Equal(10, Batch04Assets.GetSnapshotInt(snap3!, "A")); // 10: as-of entering Then1
     }
 
     // ─── 2.4a Test 4: after Continue, GetCurrentStateSnapshot is null ─────────

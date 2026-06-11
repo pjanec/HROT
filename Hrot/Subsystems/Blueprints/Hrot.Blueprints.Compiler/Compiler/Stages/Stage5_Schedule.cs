@@ -558,7 +558,10 @@ internal sealed class GraphScheduler
     private void ScheduleSequenceNode(SequenceNode seq, BlockBuilder bb)
     {
         // This block carries the sequence's dispatch to its children.
-        bb.SourceNodeId = seq.Id;
+        // Use ??= so that a preceding exec node's SourceNodeId (e.g. SetVarB before S1)
+        // is NOT clobbered.  The sequence becomes block source only when it is the first
+        // exec node in the block (bb.SourceNodeId was null coming in).
+        bb.SourceNodeId ??= seq.Id;
         _execNodeToBlockId[seq.Id] = bb.Id.Value;
 
         // 1. Resolve ordered list of connected Then successors.
@@ -595,6 +598,25 @@ internal sealed class GraphScheduler
         var branchBlocks = new List<IrBlockId>(successors.Count);
         for (int i = 0; i < successors.Count; i++)
             branchBlocks.Add(AllocBlock($"seq_{idShort}_then{i}"));
+
+        // 3b. Emit a tagged seq-probe-anchor at the CURRENT block position so that
+        //     DebugProbeInsertion inserts the sequence's NodeEnter probe in execution
+        //     order (after any preceding exec-node statements, before the Goto).
+        //     When the sequence is the block's first exec node (SourceNodeId == seq.Id
+        //     after ??= above), this anchor sits at position 0 and takes the place of the
+        //     old block-header probe — one probe, same identity, just emitted via the
+        //     ExecEntryNodeId path (coveredByExecEntryId = true → needsHeaderProbe = false).
+        bb.Statements.Add(new IrStatement
+        {
+            Operation = new IrOp_Const("0", Stage5_Schedule.Int32Type),
+            Debug = new IrDebugAnnotation
+            {
+                GraphId         = _graph.Id,
+                NodeId          = seq.Id,
+                Synthesized     = "seq-probe-anchor",
+                ExecEntryNodeId = seq.Id,
+            },
+        });
 
         // 4. Set current block's terminator to Goto first branch block.
         bb.Terminator = new IrTerm_Goto(branchBlocks[0]) { Debug = DebugOf(seq) };

@@ -118,6 +118,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     // -1 when no recordings are active.
     private int _nodePointer = -1;
 
+    // NGS-2.3 tick-bridge: one-shot flag set when Step* is pressed at the last recorded
+    // node of a tick while RecordingActive.  On the first OnNodeEnter of the resumed tick
+    // for the debugged entity, the session re-pauses and sets _nodePointer = 0 (the first
+    // recorded node of the new tick) without consulting authored-graph topology at all.
+    // Cleared on HandleBreakpointHit, Continue(), and Detach().
+    private bool _stepResumePending;
+    // Asset/graph context saved when _stepResumePending is set so the pseudo-BP pseudo-pause
+    // can carry the correct AssetId for state inspection (CaptureStateSnapshot).
+    private Guid _stepResumeAssetId;
+    private Guid _stepResumeGraphId;
+
     // Scratch repo for inspector redirect (NGS-2.2).
     // Lazily created; seeded via SyncFrom(liveRepo) on each new pause.
     private EntityRepository? _scratchRepo;
@@ -175,6 +186,28 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                     "[BlueprintDebugSession] RecordingActive but BeginTick not called yet. " +
                     "Ensure SetLiveRepository() and OnNewTick() are called before the tick executes.");
             }
+        }
+
+        // NGS-2.3 tick-bridge: "pause on the first recorded node of the resumed tick" mode.
+        // When _stepResumePending is set and this is the first probe for the recording entity
+        // in the newly-resumed tick (_recorder.Count == 1 after RecordNodeEntry above), re-pause
+        // immediately without consulting authored-graph topology.  This correctly handles
+        // Sequence branch ordering, nested Sequences, and latent resume continuations because
+        // the recorder captures actual execution order — not static authored-graph successors.
+        //
+        // Edge case: if the resumed tick records nothing for the entity (blueprint finished /
+        // entity died), _stepResumePending is never cleared here.  It will be cleared by the
+        // next HandleBreakpointHit, Continue(), or Detach() — no dead-stall.
+        if (_stepResumePending && RecordingActive && IsRecordingEntity(self) && _recorder.Count == 1)
+        {
+            _stepResumePending = false;
+            // Use an anonymous pseudo-breakpoint (id=0) to avoid mutating the real BP list.
+            // Carry the saved AssetId/GraphId so CaptureStateSnapshot can look up the
+            // blueprint definition and return the correct field values for inspection.
+            var pseudoBp = new Breakpoint(default, _stepResumeAssetId, _stepResumeGraphId, nodeId, 0, true);
+            HandleBreakpointHit(self, pseudoBp, nodeId);
+            // Return early: the pseudo-BP pause supersedes temp and user BPs for this probe.
+            return;
         }
 
         // CF-6: Check temporary breakpoints FIRST. When stepping, suppress user breakpoints.
@@ -351,6 +384,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         _pdbLocators.Clear();
         _graphs.Clear();
         ClearTemporaryBreakpoints(); // also clears _tempMgrBpIds via DBM Remove
+        _stepResumePending = false;
         // NGS-2.2: dispose scratch repo if created.
         _scratchRepo?.Dispose();
         _scratchRepo = null;
@@ -867,8 +901,11 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         ClearTemporaryBreakpoints(); // discard any leftover temps (CF-6)
 
         // NGS-2.1: clear virtual pointer and recording-entity scope.
-        _nodePointer     = -1;
-        _recordingEntity = null;
+        _nodePointer        = -1;
+        _recordingEntity    = null;
+        _stepResumePending  = false;
+        _stepResumeAssetId  = Guid.Empty;
+        _stepResumeGraphId  = Guid.Empty;
 
         _timeController.RequestResume();
         OnSessionStateChanged?.Invoke();
@@ -904,10 +941,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
     /// <summary>
     /// NGS-2.1 / NGS-2.3: move the virtual pointer forward by one slot when recordings exist.
     /// When already at the last recorded index and a breakpoint is still armed
-    /// (<see cref="RecordingActive"/>), steps from the LAST RECORDED node to its exec
-    /// successor(s) via temp-BP + resume (the CF-6 mechanism) — correctly crossing latent
-    /// nodes (Delay/WaitForChannel) that cannot be skipped with a single-tick advance
-    /// (NGS-2.3 tick-bridge, BF-03 fix).
+    /// (<see cref="RecordingActive"/>), sets <see cref="_stepResumePending"/> and resumes
+    /// the simulation.  On the first <see cref="OnNodeEnter"/> of the resumed tick for the
+    /// recording entity, the session re-pauses and sets <see cref="_nodePointer"/> = 0
+    /// (first recorded node of the new tick) — without consulting authored-graph topology.
+    /// This correctly handles Sequence branch ordering, nested Sequences, and latent
+    /// resume continuations (BF-03, BF-04, and the Sequence step-over bug fixed here).
     /// Falls back to CF-6 temp-BP stepping when no recordings exist for the paused entity.
     /// </summary>
     private void StepForwardOrCF6(StepMode fallbackStepMode)
@@ -924,30 +963,34 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
                 return;
             }
 
-            // --- NGS-2.3 tick-bridge (BF-04 corrected) ---
+            // --- NGS-2.3 tick-bridge (unified BF-03 / BF-04 / Sequence fix) ---
             // Pointer is at the last recorded node (end of this tick's recording).
             // Only step forward when a breakpoint is armed (RecordingActive).
             //
-            // We step FROM the LAST RECORDED node (CurrentNodeId) using the CF-6
-            // temp-BP + resume mechanism, NOT from _pausedAt (which is the original
-            // breakpoint node). This is critical for latent nodes: if the last recorded
-            // node is a Delay, its exec successor fires when the Delay finally elapses
-            // (potentially many ticks later), so RequestStepOneTick (single tick advance)
-            // is not sufficient — the Delay would still be running and no probe would fire,
-            // leaving a dead "Not paused" state with the clock stalled.
+            // New approach: instead of guessing the next pause target from authored-graph
+            // ExecSuccessors topology (which cannot model Sequence branch ordering or
+            // latent resume successors), set a one-shot "_stepResumePending" flag and
+            // resume.  OnNodeEnter will re-pause on the FIRST recorded node of the next
+            // tick for this entity — the actual execution-order answer, correct for any
+            // graph topology including nested Sequences and latent resumes.
             //
-            // BF-04: Two sub-cases for the end-of-tick path:
-            //   (a) Non-terminal successors (e.g. Delay→SetVar): temp BP on SetVar → resumes.
-            //   (b) All successors terminal (e.g. Delay→Return = end of tick): target the
-            //       first executable node(s) of the NEXT iteration (exec-successors of the
-            //       EventEntryNode) → temp BP on those → RequestResume().  The temp BP fires
-            //       when the tick restarts (after the Delay elapses) re-pausing on the first
-            //       node, NOT the user breakpoint.
-            //       Degenerate (no EventEntry / no entry-successor): fall back to Continue().
-            if (RecordingActive && _pausedAt != null)
+            // The no-recording CF-6 fallback path (below) is unchanged.
+            if (RecordingActive)
             {
-                var lastNodeId = CurrentNodeId; // node-id string at the pointer
-                StepFromNodeOrNextIteration(_pausedAt.AssetId, _pausedAt.GraphId, lastNodeId!, fallbackStepMode);
+                // Save asset/graph context for the pseudo-BP created by OnNodeEnter so
+                // that CaptureStateSnapshot can look up the blueprint definition by AssetId.
+                _stepResumeAssetId  = _pausedAt?.AssetId ?? Guid.Empty;
+                _stepResumeGraphId  = _pausedAt?.GraphId ?? Guid.Empty;
+                _stepResumePending  = true;
+                _isPaused           = false;
+                _pausedAt           = null;
+                _pausedOnEntity     = null;
+                _nodePointer        = -1;
+                _stepMode           = StepMode.None;
+                _firedBreakpointsThisTick.Clear();
+                // Keep _recordingEntity so the same entity is scoped for the resumed tick.
+                _timeController.RequestResume();
+                OnSessionStateChanged?.Invoke();
                 return;
             }
 
