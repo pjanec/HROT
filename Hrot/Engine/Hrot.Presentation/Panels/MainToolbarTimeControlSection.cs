@@ -73,6 +73,22 @@ public sealed class MainToolbarTimeControlSection
         _facade.SetTimeScale(rate);
     }
 
+    // ── Render helpers ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws a graphical vertical divider line matching the current toolbar height,
+    /// then advances the cursor by a small gap. Replaces the old text-based " | ".
+    /// </summary>
+    private static void DrawVerticalSeparator(float height)
+    {
+        var pos = ImGui.GetCursorScreenPos();
+        ImGui.GetWindowDrawList().AddLine(
+            pos,
+            pos + new Vector2(0f, height),
+            ImGui.GetColorU32(new Vector4(0.4f, 0.4f, 0.4f, 1f)));
+        ImGui.Dummy(new Vector2(5f, height));
+    }
+
     // ── Render ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -113,13 +129,13 @@ public sealed class MainToolbarTimeControlSection
         ImGui.SameLine();
 
         // ── Time display ───────────────────────────────────────────────
-        ImGui.TextUnformatted(" | ");
+        DrawVerticalSeparator(iconSize);
         ImGui.SameLine();
         ImGui.TextUnformatted(TransportIcons.FormatTime(_facade.TotalTime));
 
         // ── Rate selector ──────────────────────────────────────────────
         ImGui.SameLine();
-        ImGui.TextUnformatted(" | ");
+        DrawVerticalSeparator(iconSize);
         ImGui.SameLine();
 
         if (ImGui.Button(TransportIcons.FormatRate(timeScale)))
