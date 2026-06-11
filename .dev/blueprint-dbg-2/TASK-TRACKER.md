@@ -34,6 +34,10 @@ Status: ⬜ todo · 🔄 in progress · ✅ done · ⚠️ needs fixes
 ## BPC-IMPLICIT-RETURN — Compiler feature (separate from debugger) ✅ DONE (committed, Zoo pro, review APPROVED 2026-06-10)
 - ✅ `ReturnNode` now optional: implicit return at end-of-chain (`SealFallThrough` → `ReturnStatus(Success)` AiPrimitive/Library, `Return(null)` Instance) + empty-branch-arm sealing; BP1601 relaxed. Explicit Return kept for early-exit / non-default status/value. 6 behavioral tests.
 
+## BPDBG-PERNODE-PROBES — Per-exec-node debug probes ✅ DONE (committed `a34de9cb`, sonnet, hard-review APPROVED 2026-06-11)
+- ✅ Probes are now per-exec-node, not per-block: fused `SetVar → Delay` etc. each get their own `NodeEnter` probe. `IrDebugAnnotation.ExecEntryNodeId` (Stage5 tags exec entries; data nodes never) → `DebugProbeInsertion` emits per-node probes (latent recovered via post-WaitLowering `OriginNodeId`; header probe only for EventEntry/Sequence; first exec node keeps block-entry probe → single-node blocks byte-identical). `bpTargets` one-to-one (EventEntry falls back to block id). 6 `PerNodeProbesTests`. BF-03/BF-04 regression re-verified green.
+- ✅ Test hygiene (committed `05ed27e4`): decoupled CF2/CF7rev from the user's scratch `Count4.bp.json` → frozen `TestAssets/Count4.bp.json` via direct deserialize (independent of production AssetRoots/scan, per the parallel main-toolbar-1 refactor constraint). Reverted scratch Count4 second-delay experiment (`1bc9537c`). Deleted non-asserting `CF1_NodeIdentityDiagnosticsTests`.
+
 ## BATCH-04 — Optional
 - ⬜ NGS-3.1 — Pending-ECB "deferred ops" panel from `ThreadLocal<EntityCommandBuffer>`.
 - ⬜ NGS-2.4 — Overlay highlight follows pointer node (VISUAL — user smoke).
