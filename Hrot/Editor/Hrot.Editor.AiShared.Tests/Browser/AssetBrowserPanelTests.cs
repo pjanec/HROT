@@ -51,10 +51,10 @@ public sealed class AssetBrowserPanelTests
         public void RecordOpenDocument() => OpenDocumentCalled = true;
 
 #pragma warning disable 67
-        public event Action? Changed;
+        public event Action<AssetKind>? Changed;
 #pragma warning restore 67
 
-        public void RaiseChanged() => Changed?.Invoke();
+        public void RaiseChanged(AssetKind kind = AssetKind.Blueprint) => Changed?.Invoke(kind);
     }
 
     private sealed class FakeIconProvider : IIconProvider

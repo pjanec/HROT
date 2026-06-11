@@ -32,7 +32,7 @@ internal sealed class FakeAssetCatalog : IAssetCatalog
 {
     private readonly Dictionary<Guid, IEditableAsset> _assets = new();
 
-    public event Action? Changed { add { } remove { } }
+    public event Action<AssetKind>? Changed { add { } remove { } }
 
     public IReadOnlyList<IEditableAsset> All => _assets.Values.ToList();
 

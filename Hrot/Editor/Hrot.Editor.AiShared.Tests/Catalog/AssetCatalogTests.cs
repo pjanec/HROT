@@ -115,7 +115,7 @@ public sealed class AssetCatalogTests
         catalog.AddContributor(contributor);
 
         int count = 0;
-        catalog.Changed += () => count++;
+        catalog.Changed += _ => count++;
 
         contributor.AddAsset(new FakeAsset());
         Assert.Equal(1, count);

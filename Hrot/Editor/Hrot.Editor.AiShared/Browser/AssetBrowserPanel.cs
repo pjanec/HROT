@@ -594,7 +594,7 @@ public sealed class AssetBrowserPanel
 
     // ── Internals ──────────────────────────────────────────────────────
 
-    private void OnCatalogChanged()
+    private void OnCatalogChanged(AssetKind kind)
     {
         RebuildTrees();
     }

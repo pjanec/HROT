@@ -59,8 +59,8 @@ public sealed class ReferenceCatalogCrossAssetTests
         public IEditableAsset? FindByAssetId(Guid id) => _assets.FirstOrDefault(a => a.AssetId == id);
         public IEditableAsset? FindByName(string name) => _assets.FirstOrDefault(a => a.Name == name);
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id) => Array.Empty<IEditableAsset>();
-        public event Action? Changed;
-        public void FireChanged() => Changed?.Invoke();
+        public event Action<AssetKind>? Changed;
+        public void FireChanged(AssetKind kind = AssetKind.Blueprint) => Changed?.Invoke(kind);
     }
 
     // ---- AIE-051 test: cross-asset via Contribute -----------------------

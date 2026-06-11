@@ -80,8 +80,8 @@ public sealed class FakeCatalog : IAssetCatalog
     public IEditableAsset? FindByAssetId(Guid assetId) => null;
     public IEditableAsset? FindByName(string name) => null;
     public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<IEditableAsset>();
-    public event Action? Changed;
-    public void RaiseChanged() => Changed?.Invoke();
+    public event Action<AssetKind>? Changed;
+    public void RaiseChanged(AssetKind kind = AssetKind.Blueprint) => Changed?.Invoke(kind);
 }
 
 // ---------------------------------------------------------------------------

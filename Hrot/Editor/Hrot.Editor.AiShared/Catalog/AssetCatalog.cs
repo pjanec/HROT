@@ -8,12 +8,12 @@ public sealed class AssetCatalog : IAssetCatalog
 
     public IReadOnlyList<IEditableAsset> All => _cache;
 
-    public event Action? Changed;
+    public event Action<AssetKind>? Changed;
 
     public void AddContributor(IAssetCatalogContributor contributor)
     {
         _contributors.Add(contributor);
-        contributor.ContributorChanged += OnContributorChanged;
+        contributor.ContributorChanged += () => OnContributorChanged(contributor.Kind);
         Rebuild();
     }
 
@@ -27,10 +27,10 @@ public sealed class AssetCatalog : IAssetCatalog
     public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) =>
         Array.Empty<IEditableAsset>();
 
-    private void OnContributorChanged()
+    private void OnContributorChanged(AssetKind kind)
     {
         Rebuild();
-        Changed?.Invoke();
+        Changed?.Invoke(kind);
     }
 
     private void Rebuild()

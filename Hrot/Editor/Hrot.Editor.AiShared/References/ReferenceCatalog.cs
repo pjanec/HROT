@@ -41,8 +41,11 @@ public sealed class ReferenceCatalog : IReferenceCatalog
         Changed?.Invoke();
     }
 
-    private void OnCatalogChanged()
+    private void OnCatalogChanged(AssetKind kind)
     {
+        if (kind == AssetKind.Scenario)
+            return;
+
         _elements.Clear();
         _references.Clear();
         if (_catalog != null)

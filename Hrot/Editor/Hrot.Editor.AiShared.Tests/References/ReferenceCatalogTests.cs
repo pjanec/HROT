@@ -164,6 +164,63 @@ public sealed class ReferenceCatalogTests
         Assert.Empty(catalog.AllElements);
     }
 
+    [Fact]
+    public void ScenarioChange_DoesNotRebuild_References()
+    {
+        var fakeAsset = new FakeEditableAsset();
+        var fakeCatalog = new FakeAssetCatalog(fakeAsset);
+        var elem = new FakeElement { Key = "action://Foo" };
+        var hostId = Guid.NewGuid();
+        var recordingContributor = new RecordingContributor(
+            new[] { elem },
+            new[] { MakeRef(hostId, "action://Foo") });
+
+        var catalog = new ReferenceCatalog(fakeCatalog, new[] { recordingContributor });
+
+        // Populate with a non-scenario change first.
+        fakeCatalog.FireChanged(AssetKind.Blueprint);
+        Assert.Single(catalog.AllElements);
+        Assert.Equal(1, recordingContributor.EnumerateElementsCallCount);
+        Assert.Equal(1, recordingContributor.EnumerateReferencesCallCount);
+
+        // Fire a Scenario change — should be ignored.
+        int changedCount = 0;
+        catalog.Changed += () => changedCount++;
+
+        fakeCatalog.FireChanged(AssetKind.Scenario);
+
+        // Elements must still be present (unchanged).
+        Assert.Single(catalog.AllElements);
+        // ReferenceCatalog.Changed must NOT have fired.
+        Assert.Equal(0, changedCount);
+        // Contributor walk must NOT have happened for the Scenario event.
+        Assert.Equal(1, recordingContributor.EnumerateElementsCallCount);
+        Assert.Equal(1, recordingContributor.EnumerateReferencesCallCount);
+    }
+
+    [Fact]
+    public void NonScenarioChange_Rebuilds()
+    {
+        var fakeAsset = new FakeEditableAsset();
+        var fakeCatalog = new FakeAssetCatalog(fakeAsset);
+        var elem = new FakeElement { Key = "action://Foo" };
+        var hostId = Guid.NewGuid();
+        var contributor = new FakeContributor(
+            new[] { elem },
+            new[] { MakeRef(hostId, "action://Foo") });
+
+        var catalog = new ReferenceCatalog(fakeCatalog, new IReferenceCatalogContributor[] { contributor });
+
+        int changedCount = 0;
+        catalog.Changed += () => changedCount++;
+
+        fakeCatalog.FireChanged(AssetKind.Blueprint);
+
+        Assert.Single(catalog.AllElements);
+        Assert.Single(catalog.FindReferences("action://Foo"));
+        Assert.Equal(1, changedCount);
+    }
+
     private sealed class FakeEditableAsset : IEditableAsset
     {
         public Guid AssetId { get; } = Guid.NewGuid();
@@ -192,6 +249,35 @@ public sealed class ReferenceCatalogTests
         public IReadOnlyList<AssetReference> EnumerateReferences(IEditableAsset asset) => _refs;
     }
 
+    private sealed class RecordingContributor : IReferenceCatalogContributor
+    {
+        private readonly IReadOnlyList<IAssetSubElement> _elements;
+        private readonly IReadOnlyList<AssetReference> _refs;
+
+        public int EnumerateElementsCallCount { get; private set; }
+        public int EnumerateReferencesCallCount { get; private set; }
+
+        public RecordingContributor(
+            IReadOnlyList<IAssetSubElement> elements,
+            IReadOnlyList<AssetReference> refs)
+        {
+            _elements = elements;
+            _refs = refs;
+        }
+
+        public IReadOnlyList<IAssetSubElement> EnumerateElements(IEditableAsset asset)
+        {
+            EnumerateElementsCallCount++;
+            return _elements;
+        }
+
+        public IReadOnlyList<AssetReference> EnumerateReferences(IEditableAsset asset)
+        {
+            EnumerateReferencesCallCount++;
+            return _refs;
+        }
+    }
+
     private sealed class FakeAssetCatalog : IAssetCatalog
     {
         private readonly List<IEditableAsset> _assets;
@@ -203,8 +289,8 @@ public sealed class ReferenceCatalogTests
         public IEditableAsset? FindByAssetId(Guid assetId) => null;
         public IEditableAsset? FindByName(string name) => null;
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<IEditableAsset>();
-        public event Action? Changed;
-        public void FireChanged() => Changed?.Invoke();
+        public event Action<AssetKind>? Changed;
+        public void FireChanged(AssetKind kind = AssetKind.Blueprint) => Changed?.Invoke(kind);
         public void ClearAssets() => _assets.Clear();
     }
 }

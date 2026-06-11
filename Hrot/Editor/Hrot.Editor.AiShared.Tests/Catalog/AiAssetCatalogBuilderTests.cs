@@ -130,7 +130,7 @@ public sealed class AiAssetCatalogBuilderTests : IDisposable
         var (builder, _, _, _) = MakeBuilder();
 
         int changeCount = 0;
-        builder.Catalog.Changed += () => changeCount++;
+        builder.Catalog.Changed += _ => changeCount++;
 
         builder.RefreshFromAssembly(Assembly.GetExecutingAssembly());
 

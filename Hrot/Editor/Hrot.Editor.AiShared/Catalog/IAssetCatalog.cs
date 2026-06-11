@@ -6,5 +6,5 @@ public interface IAssetCatalog
     IEditableAsset? FindByAssetId(Guid assetId);
     IEditableAsset? FindByName(string name);
     IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId);
-    event Action? Changed;
+    event Action<AssetKind>? Changed;
 }

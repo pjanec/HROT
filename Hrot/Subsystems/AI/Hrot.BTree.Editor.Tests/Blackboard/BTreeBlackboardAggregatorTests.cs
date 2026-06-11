@@ -46,7 +46,7 @@ public sealed class BTreeBlackboardAggregatorTests
         public IEditableAsset? FindByAssetId(Guid id) => _assets.TryGetValue(id, out var a) ? a : null;
         public IEditableAsset? FindByName(string name) => _assets.Values.FirstOrDefault(a => a.Name == name);
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id) => Array.Empty<IEditableAsset>();
-        public event Action? Changed { add { } remove { } }
+        public event Action<AssetKind>? Changed { add { } remove { } }
     }
 
     // ---- helpers ----

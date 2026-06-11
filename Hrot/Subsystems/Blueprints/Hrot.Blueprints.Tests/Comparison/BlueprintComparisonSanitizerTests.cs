@@ -44,7 +44,7 @@ public sealed class BlueprintComparisonSanitizerTests
             _assets.Values.FirstOrDefault(a => a.Name == name);
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) =>
             Array.Empty<IEditableAsset>();
-        public event Action? Changed { add { } remove { } }
+        public event Action<AssetKind>? Changed { add { } remove { } }
     }
 
     private sealed class FakeMigrationAdapter : IComparisonMigrationAdapter

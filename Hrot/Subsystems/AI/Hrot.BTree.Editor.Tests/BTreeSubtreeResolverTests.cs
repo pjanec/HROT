@@ -19,7 +19,7 @@ public sealed class BTreeSubtreeResolverTests
         private readonly List<IEditableAsset> _assets = new();
         public IReadOnlyList<IEditableAsset> All => _assets;
 #pragma warning disable CS0067
-        public event Action? Changed;
+        public event Action<AssetKind>? Changed;
 #pragma warning restore CS0067
         public IEditableAsset? FindByAssetId(Guid id) =>
             _assets.FirstOrDefault(a => a.AssetId == id);

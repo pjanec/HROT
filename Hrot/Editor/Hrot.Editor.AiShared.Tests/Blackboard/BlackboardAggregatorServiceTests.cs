@@ -37,7 +37,7 @@ public sealed class BlackboardAggregatorServiceTests
         public IEditableAsset? FindByAssetId(Guid id) => null;
         public IEditableAsset? FindByName(string name) => null;
         public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id) => Array.Empty<IEditableAsset>();
-        public event Action? Changed { add { } remove { } }
+        public event Action<AssetKind>? Changed { add { } remove { } }
     }
 
     private sealed class CapturingStrategy : IBlackboardAggregatorStrategy

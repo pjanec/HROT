@@ -24,7 +24,7 @@ public sealed class ActionSchemaExporterCatalogWatcher : IDisposable
         _catalog.Changed += OnCatalogChanged;
     }
 
-    private void OnCatalogChanged()
+    private void OnCatalogChanged(AssetKind kind)
     {
         _exporter.Rebuild();
     }
