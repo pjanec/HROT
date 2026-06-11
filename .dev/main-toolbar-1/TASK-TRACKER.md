@@ -63,8 +63,8 @@ Phase 7.
 ## Phase 6 — Unified Creation & Recipes
 **Goal:** New/Save-As dialogs, generalized recipes, folder picker.
 
-- [ ] **MTB-P6-T1** Kind-agnostic `RecipeMetadata` [details](./TASK-DETAIL.md#mtb-p6-t1--kind-agnostic-recipemetadata)
-- [ ] **MTB-P6-T2** `INewAssetService` + Blueprint impl + "Empty" [details](./TASK-DETAIL.md#mtb-p6-t2--inewassetservice--blueprint-impl--hardcoded-empty)
+- [x] **MTB-P6-T1** Kind-agnostic `RecipeMetadata` [details](./TASK-DETAIL.md#mtb-p6-t1--kind-agnostic-recipemetadata)
+- [x] **MTB-P6-T2** `INewAssetService` + Blueprint impl + "Empty" [details](./TASK-DETAIL.md#mtb-p6-t2--inewassetservice--blueprint-impl--hardcoded-empty)
 - [ ] **MTB-P6-T3** BTree/HSM/Scenario `INewAssetService` impls [details](./TASK-DETAIL.md#mtb-p6-t3--btreehsmscenario-inewassetservice-impls)
 - [ ] **MTB-P6-T4** `FolderTreePicker` pick mode [details](./TASK-DETAIL.md#mtb-p6-t4--foldertreepicker-pick-mode)
 - [ ] **MTB-P6-T5** New Asset dialog [details](./TASK-DETAIL.md#mtb-p6-t5--new-asset-dialog)

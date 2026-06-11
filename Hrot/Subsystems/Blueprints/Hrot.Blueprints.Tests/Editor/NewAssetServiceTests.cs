@@ -1,0 +1,173 @@
+using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Editor;
+using Hrot.Blueprints.Editor.Variables;
+using Hrot.Editor.AiShared;
+using Xunit;
+
+namespace Hrot.Blueprints.Tests.Editor;
+
+public sealed class NewAssetServiceTests
+{
+    private static BlueprintEditableAssetAdapter Wrap(BlueprintAsset asset)
+        => new(asset);
+
+    [Fact]
+    public void CreateNew_MintsFreshAssetId()
+    {
+        var svc = new BlueprintNewAssetService();
+        var result1 = svc.CreateNew(null, "Test1", "");
+        var result2 = svc.CreateNew(null, "Test2", "");
+
+        Assert.NotEqual(Guid.Empty, result1.AssetId);
+        Assert.NotEqual(Guid.Empty, result2.AssetId);
+        Assert.NotEqual(result1.AssetId, result2.AssetId);
+    }
+
+    [Fact]
+    public void CreateNew_MintsDifferentIdThanRecipe()
+    {
+        var svc = new BlueprintNewAssetService();
+        var recipe = new BlueprintAsset
+        {
+            AssetId = Guid.NewGuid(),
+            Name    = "MyRecipe",
+            EditorMetadata = new AssetMetadata
+            {
+                Recipe = new Core.Assets.RecipeMetadata
+                {
+                    DisplayName = "My Recipe",
+                },
+            },
+        };
+
+        var result = svc.CreateNew(Wrap(recipe), "Clone", "");
+        Assert.NotEqual(recipe.AssetId, result.AssetId);
+        Assert.NotEqual(Guid.Empty, result.AssetId);
+    }
+
+    [Fact]
+    public void Empty_ProducesMinimalValidBlueprint_InCode()
+    {
+        var svc = new BlueprintNewAssetService();
+        var result = svc.CreateNew(null, "MyEmptyBlueprint", "some/subfolder");
+
+        Assert.Equal("MyEmptyBlueprint", result.Name);
+        Assert.Equal(AssetKind.Blueprint, result.Kind);
+        Assert.NotEqual(Guid.Empty, result.AssetId);
+
+        // Verify the underlying BlueprintAsset is minimal but valid
+        var adapter = Assert.IsType<BlueprintEditableAssetAdapter>(result);
+        var bp = adapter.Asset;
+        Assert.NotNull(bp);
+        Assert.Equal("MyEmptyBlueprint", bp.Name);
+        Assert.NotEqual(Guid.Empty, bp.AssetId);
+        // Dispatch is set (required field)
+        Assert.True(bp.Dispatch == BlueprintDispatchKind.Instance
+                    || bp.Dispatch == BlueprintDispatchKind.Library
+                    || bp.Dispatch == BlueprintDispatchKind.AiPrimitive);
+        // Editor metadata exists but has no Recipe (clean asset)
+        Assert.NotNull(bp.EditorMetadata);
+        Assert.Null(bp.EditorMetadata.Recipe);
+        // Graphs list is initialized (non-null)
+        Assert.NotNull(bp.Graphs);
+    }
+
+    [Fact]
+    public void Empty_ProducesMinimalValidBlueprint_WithEmptySentinel()
+    {
+        var svc = new BlueprintNewAssetService();
+        // Passing the "Empty" synthetic recipe also triggers in-code synthesis
+        var emptyRecipe = svc.AvailableRecipes().First(r => r.Name == "Empty");
+        var result = svc.CreateNew(emptyRecipe, "FromEmpty", "");
+
+        var adapter = Assert.IsType<BlueprintEditableAssetAdapter>(result);
+        var bp = adapter.Asset;
+        Assert.Equal("FromEmpty", bp.Name);
+        Assert.NotEqual(Guid.Empty, bp.AssetId);
+        Assert.Null(bp.EditorMetadata.Recipe);
+    }
+
+    [Fact]
+    public void CreateNew_FromRecipe_ClonesContent_NewIdentity()
+    {
+        var svc = new BlueprintNewAssetService();
+        var recipe = new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "MyRecipe",
+            Dispatch = BlueprintDispatchKind.Library,
+            EditorMetadata = new AssetMetadata
+            {
+                Description = "A test recipe",
+                Recipe = new Core.Assets.RecipeMetadata
+                {
+                    DisplayName    = "My Recipe",
+                    Category       = "Tests",
+                    ConceptsTaught = new List<string> { "A", "B" },
+                },
+            },
+            Graphs = new List<Graph>
+            {
+                new()
+                {
+                    Name = "Main",
+                    Kind = GraphKind.Event,
+                    Nodes = new List<Node>
+                    {
+                        new ReturnNode { Id = Guid.NewGuid() },
+                    },
+                },
+            },
+        };
+
+        var result = svc.CreateNew(Wrap(recipe), "CloneName", "");
+        var adapter = Assert.IsType<BlueprintEditableAssetAdapter>(result);
+        var clone = adapter.Asset;
+
+        // New identity
+        Assert.NotEqual(recipe.AssetId, clone.AssetId);
+        Assert.NotEqual(Guid.Empty, clone.AssetId);
+        Assert.Equal("CloneName", clone.Name);
+
+        // Content cloned
+        Assert.Equal(recipe.Dispatch, clone.Dispatch);
+        Assert.Equal(recipe.EditorMetadata.Description, clone.EditorMetadata.Description);
+        Assert.Single(clone.Graphs);
+        Assert.Equal("Main", clone.Graphs[0].Name);
+        Assert.Single(clone.Graphs[0].Nodes);
+
+        // Recipe metadata stripped from clone
+        Assert.NotNull(clone.EditorMetadata);
+        Assert.Null(clone.EditorMetadata.Recipe);
+
+        // Original unchanged
+        Assert.NotNull(recipe.EditorMetadata.Recipe);
+        Assert.Equal("My Recipe", recipe.EditorMetadata.Recipe.DisplayName);
+    }
+
+    [Fact]
+    public void AvailableRecipes_IncludesEmptyEntry()
+    {
+        var svc = new BlueprintNewAssetService();
+        var recipes = svc.AvailableRecipes();
+
+        Assert.NotEmpty(recipes);
+        var empty = recipes.FirstOrDefault(r => r.Name == "Empty");
+        Assert.NotNull(empty);
+        Assert.Equal(AssetKind.Blueprint, empty.Kind);
+    }
+
+    [Fact]
+    public void CreateNew_NullName_Throws()
+    {
+        var svc = new BlueprintNewAssetService();
+        Assert.Throws<ArgumentException>(() => svc.CreateNew(null, "", ""));
+    }
+
+    [Fact]
+    public void Kind_IsBlueprint()
+    {
+        var svc = new BlueprintNewAssetService();
+        Assert.Equal(AssetKind.Blueprint, svc.Kind);
+    }
+}
