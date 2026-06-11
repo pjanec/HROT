@@ -177,25 +177,23 @@ public sealed class AssetPickerModal
     /// Enter to confirm selection, Ctrl+Tab / Ctrl+Shift+Tab to cycle tabs,
     /// and wires double-click activation through the panel.
     /// </summary>
-    /// <param name="title">The title shown in the popup title bar.</param>
-    public void DrawModal(string title = "Open Asset")
+    public void DrawModal()
     {
         if (!IsOpen)
             return;
 
-        // Robust open: keep requesting the popup until ImGui confirms it is actually open,
-        // then always set an explicit size so it can't collapse to a zero/invisible window.
-        // (A one-shot OpenPopup proved unreliable — if the single call didn't engage on that
-        // frame, depending on call timing/scope, the popup was lost and nothing appeared.
-        // Retrying while IsOpen mirrors the behaviour that reliably engaged the modal before;
-        // the IDENTICAL id string + explicit size make it visible. See BATCH-26 lock-up notes.)
+        // Open the popup using the EXACT SAME string for OpenPopup/IsPopupOpen/BeginPopupModal
+        // (mirrors the working "Rename Entity" modal). Do NOT use a "label###id" form here: ImGui
+        // hashes the id from the "###..." segment, so OpenPopup("Open Asset") and
+        // BeginPopupModal("Open Asset###Open Asset") resolve to DIFFERENT ids — the popup opens under
+        // one id while BeginPopupModal waits on another, so it never renders (the diagnosed
+        // "began=False forever" lock). Plain identical id avoids that; explicit size keeps it visible.
         if (!ImGui.IsPopupOpen(PopupId))
             ImGui.OpenPopup(PopupId);
         ImGui.SetNextWindowSize(DefaultWindowSize, ImGuiCond.Appearing);
 
         bool isOpen = true;
-        if (ImGui.BeginPopupModal($"{title}###{PopupId}", ref isOpen,
-            ImGuiWindowFlags.NoDocking))
+        if (ImGui.BeginPopupModal(PopupId, ref isOpen, ImGuiWindowFlags.NoDocking))
         {
             // Close on Esc.
             if (ImGui.IsKeyPressed(ImGuiKey.Escape))
