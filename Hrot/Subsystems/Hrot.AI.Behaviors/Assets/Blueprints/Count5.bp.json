@@ -179,11 +179,11 @@
         },
         {
           "kind": "Delay",
-          "Id": "32a3ce50-9b73-4805-b839-e3680a1eb69c",
+          "Id": "7711d4bc-dfc8-4310-8cf3-8e0535530db9",
           "Pins": [],
           "EditorMetadata": {
-            "X": 1224.9307,
-            "Y": 274.13962,
+            "X": 1285.1108,
+            "Y": 301.35486,
             "Comment": null
           },
           "PinDefaults": {
@@ -255,8 +255,8 @@
         {
           "FromNodeId": "20000006-0000-0000-0000-000000000002",
           "FromPinId": "85b1cf0e-1d46-2650-a325-97ba94b9a77f",
-          "ToNodeId": "32a3ce50-9b73-4805-b839-e3680a1eb69c",
-          "ToPinId": "42b5b7e2-f6aa-44b1-99e4-47fdb5dae34d"
+          "ToNodeId": "7711d4bc-dfc8-4310-8cf3-8e0535530db9",
+          "ToPinId": "4d3d381f-2682-4a68-b125-eab5b8f7a2da"
         }
       ],
       "EditorMetadata": {
