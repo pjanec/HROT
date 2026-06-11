@@ -73,13 +73,13 @@ public sealed class EditorInfrastructureTests
 
     // SC7
     [Fact]
-    public void FileSystemAssetCatalog_EmptyDirectory_EnumeratesNone()
+    public void BlueprintPeerSource_EmptyDirectory_EnumeratesNone()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(tempDir);
         try
         {
-            var catalog = new FileSystemAssetCatalog(tempDir);
+            var catalog = new BlueprintPeerSource(tempDir);
             Assert.Empty(catalog.EnumerateAll());
         }
         finally
@@ -129,7 +129,6 @@ public sealed class EditorInfrastructureTests
             new DirtyTracker(),
             new EditorSelectionStore(),
             new EditorState(),
-            new FileSystemAssetCatalog(Path.GetTempPath()),
             new NullOutputConsole());
     }
 

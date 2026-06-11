@@ -204,7 +204,6 @@ public sealed class BlueprintEditorModuleSessionWiringTests : IDisposable
             new DirtyTracker(),
             new EditorSelectionStore(),
             new EditorState(),
-            new FileSystemAssetCatalog(Path.GetTempPath()),
             new NullOutputConsole(),
             session);
 
@@ -224,7 +223,6 @@ public sealed class BlueprintEditorModuleSessionWiringTests : IDisposable
             new DirtyTracker(),
             new EditorSelectionStore(),
             new EditorState(),
-            new FileSystemAssetCatalog(Path.GetTempPath()),
             new NullOutputConsole(),
             session);
 

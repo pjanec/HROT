@@ -10,9 +10,17 @@ namespace Hrot.Blueprints.Tests.Editor;
 
 public sealed class QuickReloadServiceTests
 {
-    private sealed class StubCatalog : IAssetCatalog
+    // A dedicated EMPTY directory so the peer-source yields no siblings (matching the prior
+    // in-memory empty IAssetCatalog stub). Pointing at Path.GetTempPath() would scan the whole
+    // user temp tree — hitting inaccessible dirs and unrelated fixture *.bp.json (duplicate AssetIds).
+    private static readonly BlueprintPeerSource StubCatalog =
+        new BlueprintPeerSource(MakeEmptyPeerRoot());
+
+    private static string MakeEmptyPeerRoot()
     {
-        public IEnumerable<AssetCatalogEntry> EnumerateAll() => [];
+        var dir = Path.Combine(Path.GetTempPath(), "qrs_peer_stub_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
     }
 
     private static QuickReloadService MakeService(
@@ -28,7 +36,7 @@ public sealed class QuickReloadServiceTests
             new AiHotReloadCoordinatorOptions());
 
         return new QuickReloadService(
-            new StubCatalog(),
+            StubCatalog,
             new EditorState(),
             console,
             compiler,
@@ -70,13 +78,13 @@ public sealed class QuickReloadServiceTests
         Assert.Throws<ArgumentNullException>(() =>
             new QuickReloadService(null!, new EditorState(), console, compiler, coordinator));
         Assert.Throws<ArgumentNullException>(() =>
-            new QuickReloadService(new StubCatalog(), null!, console, compiler, coordinator));
+            new QuickReloadService(StubCatalog, null!, console, compiler, coordinator));
         Assert.Throws<ArgumentNullException>(() =>
-            new QuickReloadService(new StubCatalog(), new EditorState(), null!, compiler, coordinator));
+            new QuickReloadService(StubCatalog, new EditorState(), null!, compiler, coordinator));
         Assert.Throws<ArgumentNullException>(() =>
-            new QuickReloadService(new StubCatalog(), new EditorState(), console, null!, coordinator));
+            new QuickReloadService(StubCatalog, new EditorState(), console, null!, coordinator));
         Assert.Throws<ArgumentNullException>(() =>
-            new QuickReloadService(new StubCatalog(), new EditorState(), console, compiler, null!));
+            new QuickReloadService(StubCatalog, new EditorState(), console, compiler, null!));
     }
 
     // SC4 -- Full pipeline: compile MoveToAndFire, trigger reload, verify coordinator applied it
@@ -89,7 +97,7 @@ public sealed class QuickReloadServiceTests
             behReg, registry, new AiHotReloadCoordinatorOptions());
         var console     = new MockOutputConsole();
         var service     = new QuickReloadService(
-            new StubCatalog(), new EditorState(), console,
+            StubCatalog, new EditorState(), console,
             new BlueprintCompiler(), coordinator);
 
         // Build MoveToAndFire with BTreeAction + HsmAction hosting

@@ -43,9 +43,17 @@ public sealed class BlueprintCompileOnDemandMveTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private sealed class EmptyCatalog : IAssetCatalog
+    // A dedicated EMPTY directory so the peer-source yields no siblings (matching the prior
+    // in-memory empty IAssetCatalog stub). Path.GetTempPath() would scan the whole user temp tree
+    // — hitting inaccessible dirs and unrelated fixture *.bp.json (duplicate AssetIds).
+    private static readonly BlueprintPeerSource EmptyCatalog =
+        new BlueprintPeerSource(MakeEmptyPeerRoot());
+
+    private static string MakeEmptyPeerRoot()
     {
-        public IEnumerable<AssetCatalogEntry> EnumerateAll() => [];
+        var dir = Path.Combine(Path.GetTempPath(), "mve_peer_stub_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
     }
 
     /// <summary>
@@ -62,7 +70,7 @@ public sealed class BlueprintCompileOnDemandMveTests
             behReg, registry, new AiHotReloadCoordinatorOptions());
 
         return new QuickReloadService(
-            new EmptyCatalog(),
+            EmptyCatalog,
             new EditorState(),
             new SystemConsoleOutputConsole(),
             new BlueprintCompiler(),

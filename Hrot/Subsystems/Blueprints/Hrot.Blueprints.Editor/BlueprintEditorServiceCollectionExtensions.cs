@@ -6,13 +6,11 @@ namespace Hrot.Blueprints.Editor;
 public static class BlueprintEditorServiceCollectionExtensions
 {
     public static IServiceCollection AddBlueprintEditor(
-        this IServiceCollection services,
-        string assetRootDirectory)
+        this IServiceCollection services)
     {
         services.AddSingleton<DirtyTracker>();
         services.AddSingleton<EditorSelectionStore>();
         services.AddSingleton<EditorState>();
-        services.AddSingleton<IAssetCatalog>(_ => new FileSystemAssetCatalog(assetRootDirectory));
 
         // Register BlueprintWindowRegistrar as both its concrete type and the engine IWindowRegistrar
         // so the subsystem orchestrator can call RegisterWindows(WindowManager) to wire the panels.
@@ -26,7 +24,6 @@ public static class BlueprintEditorServiceCollectionExtensions
                 sp.GetRequiredService<DirtyTracker>(),
                 sp.GetRequiredService<EditorSelectionStore>(),
                 sp.GetRequiredService<EditorState>(),
-                sp.GetRequiredService<IAssetCatalog>(),
                 sp.GetRequiredService<IOutputConsole>(),
                 sp.GetService<IBlueprintDebugSession>()));
         return services;

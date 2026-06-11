@@ -13,7 +13,6 @@ namespace Hrot.Blueprints.Editor;
 /// </summary>
 public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
 {
-    private readonly IAssetCatalog _catalog;
     private readonly EditorSelectionStore _selectionStore;
     private readonly DirtyTracker _dirtyTracker;
     private readonly EditorState _editorState;
@@ -22,7 +21,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
     private readonly DrawerRegistry _drawerRegistry;
 
     public BlueprintWindowRegistrar(
-        IAssetCatalog catalog,
         EditorSelectionStore selectionStore,
         DirtyTracker dirtyTracker,
         EditorState editorState,
@@ -30,7 +28,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
         IBlueprintEditorCoordinator coordinator,
         DrawerRegistry drawerRegistry)
     {
-        _catalog        = catalog        ?? throw new ArgumentNullException(nameof(catalog));
         _selectionStore = selectionStore ?? throw new ArgumentNullException(nameof(selectionStore));
         _dirtyTracker   = dirtyTracker   ?? throw new ArgumentNullException(nameof(dirtyTracker));
         _editorState    = editorState    ?? throw new ArgumentNullException(nameof(editorState));
@@ -45,9 +42,6 @@ public sealed class BlueprintWindowRegistrar : EngineWindowRegistrar
     public void RegisterWindows(IBlueprintWindowRegistry registry)
     {
         if (registry is null) throw new ArgumentNullException(nameof(registry));
-
-        registry.Register("Asset Browser",
-            () => new AssetBrowserWindow(_catalog, _selectionStore, _dirtyTracker, _editorState));
 
         registry.Register("Inspector",
             () => new InspectorWindow(_selectionStore, _dirtyTracker, _drawerRegistry));

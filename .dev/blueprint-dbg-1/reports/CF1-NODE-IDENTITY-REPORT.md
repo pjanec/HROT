@@ -5,7 +5,7 @@
 - **AssetId**: `47fe9c55-c6ca-4c69-9c5a-d46de25745de`
 - **GraphId**: `10000006-0000-0000-0000-000000000001`
 - **Compile succeeded**: True
-- **Generated**: 2026-06-11T07:29:00Z
+- **Generated**: 2026-06-11T12:44:45Z
 - **Source file**: `Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints/Count4.bp.json`
 
 ## Table A — DebugMap entries

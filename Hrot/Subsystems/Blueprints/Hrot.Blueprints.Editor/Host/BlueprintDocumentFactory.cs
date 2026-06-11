@@ -73,7 +73,7 @@ public static class BlueprintDocumentFactory
     ///   catalog entry's params type.  When null, channel-command nodes are exec-only.
     /// </param>
     /// <param name="peerAssetCatalog">
-    ///   Optional asset catalog used to build a peer-signature lookup delegate for
+    ///   Optional peer-source used to build a peer-signature lookup delegate for
     ///   <see cref="CallPeerBlueprintNode"/> pin projection.  When non-null, the factory
     ///   constructs a delegate that parses each peer blueprint's <see cref="BlueprintSignature"/>
     ///   from disk (via <see cref="BlueprintSignatureParser"/>), mirroring
@@ -109,7 +109,7 @@ public static class BlueprintDocumentFactory
         NodeKindRegistry?       paletteRegistry = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
         IChannelCommandCatalog? channelCommands = null,
-        IAssetCatalog?          peerAssetCatalog = null,
+        BlueprintPeerSource?    peerAssetCatalog = null,
         ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
         IBlueprintDebugSession? debugSession    = null)
     {
@@ -144,7 +144,7 @@ public static class BlueprintDocumentFactory
         // ── 2. Graph model (pass registry for pin hydration of JSON-loaded assets) ──
         // The channel-command catalog (when supplied) lets ChannelCommandNodes project their
         // parameter data-IN pins from the matching catalog entry's params type (projection-only).
-        // The peerSignatureLookup (when peerAssetCatalog is non-null) lets CallPeerBlueprintNodes
+        // The peer-signature lookup (when peerAssetCatalog is non-null) lets CallPeerBlueprintNodes
         // project typed argument pins from the peer's exported function signature.
         // The editor registry is created first so BlueprintGraphModel can use it to expose
         // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
@@ -416,7 +416,7 @@ public static class BlueprintDocumentFactory
     /// <c>QuickReloadService.BuildSiblingSignatures</c> for the factory context.
     /// Returns <see langword="null"/> when <paramref name="catalog"/> is null (no lookup).
     /// </summary>
-    private static Func<Guid, BlueprintSignature?>? BuildPeerSignatureLookup(IAssetCatalog? catalog)
+    private static Func<Guid, BlueprintSignature?>? BuildPeerSignatureLookup(BlueprintPeerSource? catalog)
     {
         if (catalog == null) return null;
 
@@ -426,7 +426,7 @@ public static class BlueprintDocumentFactory
             {
                 var entry = catalog.EnumerateAll()
                     .FirstOrDefault(e => e.AssetId == peerGuid);
-                if (entry == null || !File.Exists(entry.Path))
+                if (entry.Path == null || !File.Exists(entry.Path))
                     return null;
                 var json = File.ReadAllText(entry.Path);
                 return BlueprintSignatureParser.Parse(entry.Path, json);

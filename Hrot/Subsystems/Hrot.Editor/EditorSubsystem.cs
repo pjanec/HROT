@@ -283,7 +283,7 @@ namespace Hrot.Editor
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
         // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
         private QuickReloadService? _blueprintQuickReloadService;
-        private Hrot.Blueprints.Editor.IAssetCatalog? _blueprintAssetCatalog;
+        private Hrot.Blueprints.Editor.BlueprintPeerSource? _blueprintAssetCatalog;
         // BF-UX1 FIX A: gate auto-reload on edit; defaults false so node moves/edits do NOT trigger
         // a Roslyn compile. The user compiles via the toolbar Quick Reload / Full Rebuild buttons.
         // TODO: wire from BlueprintEditorPreferences.AutoReloadOnSave when the prefs instance is
@@ -2054,7 +2054,8 @@ namespace Hrot.Editor
                 catalog:          catalog,
                 icons:            assetBrowserIconProvider,
                 options:          new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
-                onAssetActivated: asset => _aiDocumentManager?.Open(asset));
+                onAssetActivated: asset => _aiDocumentManager?.Open(asset),
+                id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 
             var recipeModal = new Hrot.Blueprints.Editor.Windows.RecipeCreateModal((recipe, newName) =>
             {
@@ -2439,11 +2440,15 @@ namespace Hrot.Editor
                 _editorLogic?.SaveScenarioAs(fullName);
             });
 
+            // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
+            // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
+            // still registers the perspective windows. Production always has _editorLogic set.
+            if (_editorLogic != null)
             ScenarioMenuCommands.Register(
                 registerCommand:      windowManager.ShellCommands.Register,
                 menu:                 windowManager.GlobalMenu,
                 commands:             windowManager.ShellCommands,
-                editorLogic:          _editorLogic!,
+                editorLogic:          _editorLogic,
                 openPicker:           (kinds, callback) =>
                 {
                     _scenarioPickerModal?.Open(
@@ -2564,7 +2569,7 @@ namespace Hrot.Editor
             // BATCH-03C2: blueprint asset catalog used by BlueprintDocumentFactory to build the
             // peer-signature lookup so CallPeerBlueprintNodes project typed argument pins from the
             // peer blueprint's exported function signature (read on demand from disk).
-            var blueprintPeerCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(
+            var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
                 System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "blueprints"));
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
@@ -2688,7 +2693,7 @@ namespace Hrot.Editor
                 var bpDir      = quickReloadProjectDir != null
                     ? System.IO.Path.Combine(quickReloadProjectDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
                     : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
-                var qrsCatalog = new Hrot.Blueprints.Editor.FileSystemAssetCatalog(bpDir);
+                var qrsCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(bpDir);
                 _blueprintAssetCatalog = qrsCatalog;
                 var qrsState   = new Hrot.Blueprints.Editor.EditorState();
                 var qrsConsole = _hotReloadSource != null

@@ -18,11 +18,6 @@ public sealed class BlueprintWindowRegistrarTests
             => RegisteredNames.Add(name);
     }
 
-    private sealed class StubAssetCatalog : IAssetCatalog
-    {
-        public IEnumerable<AssetCatalogEntry> EnumerateAll() => Array.Empty<AssetCatalogEntry>();
-    }
-
     private sealed class FakeEditorCoordinator : IBlueprintEditorCoordinator
     {
         public event Action<ReloadCompletedInfo>? OnReloadCompleted;
@@ -31,7 +26,6 @@ public sealed class BlueprintWindowRegistrarTests
 
     private static BlueprintWindowRegistrar MakeRegistrar()
     {
-        var catalog = new StubAssetCatalog();
         var store   = new EditorSelectionStore();
         var dirty   = new DirtyTracker();
         var state   = new EditorState();
@@ -39,7 +33,7 @@ public sealed class BlueprintWindowRegistrarTests
         var coord   = new FakeEditorCoordinator();
         var drawers = new DrawerRegistry();
 
-        return new BlueprintWindowRegistrar(catalog, store, dirty, state, session, coord, drawers);
+        return new BlueprintWindowRegistrar(store, dirty, state, session, coord, drawers);
     }
 
     [Fact]
@@ -52,7 +46,6 @@ public sealed class BlueprintWindowRegistrarTests
 
         var expected = new[]
         {
-            "Asset Browser",
             "Inspector",
             "Debug Panel",
             "Watch Panel",
@@ -64,8 +57,8 @@ public sealed class BlueprintWindowRegistrarTests
             Assert.Contains(name, registry.RegisteredNames);
     }
 
-    // FIX2-005: engine IWindowRegistrar path must register all 6 windows in WindowManager
-    // (GraphEditorWindow removed — BF-UX1 FIX D).
+    // FIX2-005: engine IWindowRegistrar path must register all 5 windows in WindowManager
+    // (AssetBrowserWindow removed — MTB-P7-T5 retirement; GraphEditorWindow removed — BF-UX1 FIX D).
     [Fact]
     public void BlueprintWindowRegistrar_RegistersAllWindows_ViaEngineInterface()
     {
@@ -78,7 +71,6 @@ public sealed class BlueprintWindowRegistrarTests
 
         var expected = new[]
         {
-            "Asset Browser",
             "Inspector",
             "Debug Panel",
             "Watch Panel",

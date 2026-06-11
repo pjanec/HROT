@@ -15,7 +15,7 @@ namespace Hrot.Blueprints.Editor.Reload;
 
 public sealed class QuickReloadService
 {
-    private readonly IAssetCatalog _catalog;
+    private readonly BlueprintPeerSource _catalog;
     private readonly EditorState _editorState;
     private readonly IBlueprintDebugSession? _session;
     private readonly IOutputConsole _outputConsole;
@@ -26,7 +26,7 @@ public sealed class QuickReloadService
     public IReadOnlyList<BlueprintSignature>? LastSignaturesUsedForTesting { get; private set; }
 
     public QuickReloadService(
-        IAssetCatalog catalog,
+        BlueprintPeerSource catalog,
         EditorState editorState,
         IOutputConsole outputConsole,
         IBlueprintCompiler compiler,

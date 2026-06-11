@@ -13,7 +13,6 @@ public sealed class BlueprintEditorModule
     private readonly DirtyTracker _dirtyTracker;
     private readonly EditorSelectionStore _selectionStore;
     private readonly EditorState _editorState;
-    private readonly IAssetCatalog _catalog;
     private readonly IOutputConsole _outputConsole;
     private readonly IBlueprintDebugSession? _session;
 
@@ -25,7 +24,6 @@ public sealed class BlueprintEditorModule
         DirtyTracker dirtyTracker,
         EditorSelectionStore selectionStore,
         EditorState editorState,
-        IAssetCatalog catalog,
         IOutputConsole outputConsole,
         IBlueprintDebugSession? session = null)
     {
@@ -33,7 +31,6 @@ public sealed class BlueprintEditorModule
         _dirtyTracker    = dirtyTracker    ?? throw new ArgumentNullException(nameof(dirtyTracker));
         _selectionStore  = selectionStore  ?? throw new ArgumentNullException(nameof(selectionStore));
         _editorState     = editorState     ?? throw new ArgumentNullException(nameof(editorState));
-        _catalog         = catalog         ?? throw new ArgumentNullException(nameof(catalog));
         _outputConsole   = outputConsole   ?? throw new ArgumentNullException(nameof(outputConsole));
         _session         = session;
     }
