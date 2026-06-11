@@ -75,7 +75,7 @@ Phase 7.
 **Goal:** menu migration, Workspace surface, retire legacy browsers.
 
 - [x] **MTB-P7-T1** Scenario lifecycle menu commands [details](./TASK-DETAIL.md#mtb-p7-t1--scenario-lifecycle-menu-commands)
-- [ ] **MTB-P7-T2** Delete `ScenarioBrowserPanel` [details](./TASK-DETAIL.md#mtb-p7-t2--delete-scenariobrowserpanel)
+- [x] **MTB-P7-T2** Delete `ScenarioBrowserPanel` [details](./TASK-DETAIL.md#mtb-p7-t2--delete-scenariobrowserpanel)
 - [x] **MTB-P7-T3** Workspace dynamic submenu [details](./TASK-DETAIL.md#mtb-p7-t3--workspace-dynamic-submenu)
-- [ ] **MTB-P7-T4** Retire AiShared `AssetBrowserWindow` [details](./TASK-DETAIL.md#mtb-p7-t4--retire-aishared-assetbrowserwindow)
+- [x] **MTB-P7-T4** Retire AiShared `AssetBrowserWindow` [details](./TASK-DETAIL.md#mtb-p7-t4--retire-aishared-assetbrowserwindow)
 - [ ] **MTB-P7-T5** Retire Blueprints `AssetBrowserWindow` + `FileSystemAssetCatalog` [details](./TASK-DETAIL.md#mtb-p7-t5--retire-blueprints-assetbrowserwindow--filesystemassetcatalog)

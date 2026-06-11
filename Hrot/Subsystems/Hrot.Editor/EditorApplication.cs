@@ -68,8 +68,7 @@ public sealed class EditorApplication : IEditorLogic
         _availableScenariosSource?.Invoke() ?? Array.Empty<string>();
 
     /// <summary>
-    /// Alert manager for migration events. Used by <see cref="EditorBrowserWindow"/>
-    /// to draw the per-frame alert modal and degraded-mode banner.
+    /// Alert manager for migration events (degraded-mode banner, alert modal).
     /// </summary>
     internal MigrationAlertManager AlertManager => _alertManager;
 

@@ -1,20 +1,24 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using Hrot.Editor.AiShared.Di;
-using Hrot.Editor.AiShared.Windows;
+using Fdp.Toolkit.Runner;
+using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Debug;
+using Hrot.Editor.AiShared.Di;
+using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Selection;
-using Fdp.Toolkit.Runner;
+using Hrot.Editor.AiShared.Windows;
+using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Di;
 
 public class SharedAiEditorDiTests
 {
-    private static ServiceProvider BuildSp()
+    private static ServiceProvider BuildSp(Action<IEditableAsset>? onAssetActivated = null)
     {
         var services = new ServiceCollection();
-        services.AddSharedAiEditor();
+        services.AddSharedAiEditor(onAssetActivated);
         return services.BuildServiceProvider();
     }
 
@@ -33,12 +37,13 @@ public class SharedAiEditorDiTests
     }
 
     [Fact]
-    public void AddSharedAiEditor_Resolves_AssetBrowserWindow_WithCorrectId()
+    public void AddSharedAiEditor_Resolves_AssetBrowserDockedWindow_WithExpectedId()
     {
         using var sp = BuildSp();
-        var w = sp.GetRequiredService<AssetBrowserWindow>();
+        var w = sp.GetRequiredService<AssetBrowserDockedWindow>();
         Assert.NotNull(w);
-        Assert.Equal("ai_asset_browser", w.Id);
+        Assert.Equal(AssetBrowserDockedWindow.ExpectedId, w.Id);
+        Assert.Equal("AssetBrowser", w.Id);
     }
 
     [Fact]
@@ -100,5 +105,72 @@ public class SharedAiEditorDiTests
         var win = sp.GetRequiredService<DiagnosticsWindow>();
         Assert.NotNull(win);
         Assert.Equal("ai_diagnostics", win.Id);
+    }
+
+    // ── DBT-2: docked-host activation callback wiring ────────────────────────
+
+    private sealed class FakeAsset : IEditableAsset
+    {
+        public FakeAsset(AssetKind kind = AssetKind.Blueprint, string name = "TestAsset")
+        {
+            AssetId = Guid.NewGuid();
+            Kind    = kind;
+            Name    = name;
+        }
+        public Guid AssetId { get; }
+        public string Name { get; }
+        public AssetKind Kind { get; }
+        public string SourceFilePath => "/fake.cs";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => true;
+#pragma warning disable 67
+        public event Action? Changed;
+#pragma warning restore 67
+    }
+
+    [Fact]
+    public void AddSharedAiEditor_WithActivationCallback_OpensDocumentViaManager()
+    {
+        var docManager = new AiDocumentManager(k => { });
+        var callbackAsset = new FakeAsset(AssetKind.Blueprint, "CallbackTest");
+
+        using var sp = BuildSp(onAssetActivated: asset => docManager.Open(asset));
+
+        var window = sp.GetRequiredService<AssetBrowserDockedWindow>();
+
+        // Access the internal _panel via reflection.
+        var panelField = typeof(AssetBrowserDockedWindow)
+            .GetField("_panel", BindingFlags.NonPublic | BindingFlags.Instance);
+        Assert.NotNull(panelField);
+
+        var panel = (AssetBrowserPanel)panelField!.GetValue(window)!;
+        Assert.NotNull(panel);
+
+        // Activate the asset through the panel — this fires AssetActivated,
+        // which the window forwards to the callback.
+        panel.ActivateAsset(callbackAsset);
+
+        // The callback should have opened the document via AiDocumentManager.Open.
+        Assert.Single(docManager.OpenDocuments);
+        Assert.Equal("CallbackTest", docManager.OpenDocuments.First().Asset.Name);
+        Assert.Same(callbackAsset, docManager.OpenDocuments.First().Asset);
+    }
+
+    [Fact]
+    public void AddSharedAiEditor_WithNullCallback_DoesNotThrowOnActivation()
+    {
+        using var sp = BuildSp(onAssetActivated: null);
+
+        var window = sp.GetRequiredService<AssetBrowserDockedWindow>();
+
+        var panelField = typeof(AssetBrowserDockedWindow)
+            .GetField("_panel", BindingFlags.NonPublic | BindingFlags.Instance);
+        var panel = (AssetBrowserPanel)panelField!.GetValue(window)!;
+
+        var asset = new FakeAsset(AssetKind.BTree, "NoCallback");
+
+        // Activating with null callback should not throw.
+        var ex = Record.Exception(() => panel.ActivateAsset(asset));
+        Assert.Null(ex);
     }
 }

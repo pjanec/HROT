@@ -6,7 +6,6 @@ using Fdp.Core;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Toolkit.Scenario;
 using Hrot.Editor;
-using Hrot.Editor.UI;
 using Hrot.ScenarioEditor.Services;
 using Xunit;
 
@@ -87,9 +86,8 @@ public sealed class EditorFileOpsIntegrationTests : IDisposable
         // Seed a non-zero GlobalTime singleton.
         repo.SetSingletonUnmanaged(new GlobalTime { TotalTime = 42.0, TimeScale = 1.0f, DeltaTime = 0.016f });
 
-        var app   = CreateApp(repo);
-        var panel = new ScenarioBrowserPanel();
-        panel.HandleNewClick(app);
+        var app = CreateApp(repo);
+        app.NewScenario();
 
         Assert.Equal(0, repo.EntityCount);
         Assert.True(repo.HasSingletonUnmanaged<GlobalTime>(),

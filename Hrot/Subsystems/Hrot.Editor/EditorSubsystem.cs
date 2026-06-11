@@ -118,6 +118,7 @@ using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
 using Hrot.Hsm.Editor.Catalog;
@@ -206,7 +207,6 @@ namespace Hrot.Editor
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
 
-        private ScenarioBrowserPanel? _browserPanel;
         private EditorToolbarPanel?   _toolbarPanel;
         private EditorOrbatPanel?     _orbatPanel;
 
@@ -295,7 +295,7 @@ namespace Hrot.Editor
         private PerspectiveWorkspaceRegistrar? _btreeRegistrar;
         private PerspectiveWorkspaceRegistrar? _hsmRegistrar;
         private PerspectiveWorkspaceRegistrar? _blueprintRegistrar;
-        private AssetBrowserWindow?            _aiAssetBrowser;
+        private AssetBrowserDockedWindow?       _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
         // AIE-048: Blueprint Details + Variables windows.
@@ -1467,7 +1467,6 @@ namespace Hrot.Editor
             }
 
             // ?? 11. UI panels ?????????????????????????????????????????????????
-            _browserPanel = new ScenarioBrowserPanel();
             _toolbarPanel = new EditorToolbarPanel();
             _orbatPanel   = new EditorOrbatPanel();
 
@@ -2050,13 +2049,12 @@ namespace Hrot.Editor
             var assetBrowserFindResults = new FindResultsWindow(
                 idOverride:        "ai_asset_browser_find_results",
                 owningPerspective: "Global");
-            _aiAssetBrowser = new AssetBrowserWindow(
-                store:           _aiEditorSelectionStore,
-                catalog:         catalog,
-                refactorService: refactorService,
-                findResults:     assetBrowserFindResults,
-                liveProvider:    liveProvider,
-                documentManager: _aiDocumentManager);
+            var assetBrowserIconProvider = new SilkIconProvider(windowManager.Atlas);
+            _aiAssetBrowser = new AssetBrowserDockedWindow(
+                catalog:          catalog,
+                icons:            assetBrowserIconProvider,
+                options:          new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                onAssetActivated: asset => _aiDocumentManager?.Open(asset));
 
             var recipeModal = new Hrot.Blueprints.Editor.Windows.RecipeCreateModal((recipe, newName) =>
             {
@@ -2913,7 +2911,6 @@ namespace Hrot.Editor
 
             // ?? Legacy editor-specific windows ????????????????????????????????
             windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
-            windowManager.RegisterWindow(new EditorBrowserWindow(_browserPanel!, _editorLogic, _editorApp!.AlertManager));
             if (_clusterPanel != null && _uiCache != null)
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(_clusterPanel, _uiCache));
             if (_clusterDiagnosticsPanel != null)

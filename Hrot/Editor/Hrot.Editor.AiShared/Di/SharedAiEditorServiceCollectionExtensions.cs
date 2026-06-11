@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Comparison.UI;
@@ -10,6 +11,7 @@ using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Validation;
 using Hrot.Editor.AiShared.Windows;
 using Fdp.Toolkit.Runner;
+using NodeEditor.Core.Interfaces;
 
 namespace Hrot.Editor.AiShared.Di;
 
@@ -19,7 +21,9 @@ namespace Hrot.Editor.AiShared.Di;
 /// </summary>
 public static class SharedAiEditorServiceCollectionExtensions
 {
-    public static IServiceCollection AddSharedAiEditor(this IServiceCollection services)
+    public static IServiceCollection AddSharedAiEditor(
+        this IServiceCollection services,
+        Action<IEditableAsset>? onAssetActivated = null)
     {
         // Core services
         services.AddSingleton<EditorSelectionStore>();
@@ -53,8 +57,18 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<AtomicMultiFileWriter>();
         services.AddSingleton<IRefactorService, RefactorService>();
 
+        // Default no-op IIconProvider — hosts override with TryAddSingleton before calling this.
+        services.TryAddSingleton<IIconProvider, NoOpIconProvider>();
+
         // Windows
-        services.AddSingleton<AssetBrowserWindow>();
+        services.AddSingleton<AssetBrowserDockedWindow>(sp =>
+        {
+            return new AssetBrowserDockedWindow(
+                sp.GetRequiredService<IAssetCatalog>(),
+                sp.GetRequiredService<IIconProvider>(),
+                new AssetBrowserPanelOptions { Kinds = AssetKindFilter.All, ShowAllTab = false },
+                onAssetActivated ?? (_ => { }));
+        });
         services.AddSingleton<InspectorWindow>();
         services.AddSingleton<RuntimeInspectorWindow>();
         services.AddSingleton<TraceTimelineWindow>();
@@ -77,5 +91,20 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<IWindowRegistrar, SharedAiWindowRegistrar>();
 
         return services;
+    }
+
+    /// <summary>
+    /// No-op <see cref="IIconProvider"/> used as the DI default.
+    /// Hosts override this by registering a real implementation via
+    /// <c>TryAddSingleton&lt;IIconProvider&gt;</c> before calling
+    /// <see cref="AddSharedAiEditor"/>.
+    /// </summary>
+    private sealed class NoOpIconProvider : IIconProvider
+    {
+        public bool TryGet(string key, out IconHandle handle)
+        {
+            handle = default;
+            return false;
+        }
     }
 }

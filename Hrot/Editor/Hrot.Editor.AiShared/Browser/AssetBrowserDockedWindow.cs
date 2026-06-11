@@ -94,11 +94,18 @@ public sealed class AssetBrowserDockedWindow : ManagedWindow
         _panel.AssetActivated += OnPanelAssetActivated;
     }
 
+    /// <summary>
+    /// Optional custom toolbar draw action injected by the host.
+    /// Invoked before the panel content each frame.
+    /// </summary>
+    public Action? CustomToolbarDraw { get; set; }
+
     // ── ManagedWindow overrides ────────────────────────────────────────
 
     /// <inheritdoc />
     protected override void DrawClientArea()
     {
+        CustomToolbarDraw?.Invoke();
         _panel.DrawContent();
     }
 

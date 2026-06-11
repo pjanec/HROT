@@ -1,7 +1,6 @@
 using System.Numerics;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
-using Hrot.Editor.Migration;
 using Hrot.Editor.UI;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
@@ -30,33 +29,6 @@ internal sealed class EditorToolbarWindow : ManagedWindow
     }
 
     protected override void DrawClientArea() => _panel.DrawContent(_logic);
-}
-
-/// <summary>Scenario file browser panel as a perspective-bound managed window.</summary>
-internal sealed class EditorBrowserWindow : ManagedWindow
-{
-    private readonly ScenarioBrowserPanel  _panel;
-    private readonly IEditorLogic          _logic;
-    private readonly MigrationAlertManager _alertManager;
-
-    public EditorBrowserWindow(
-        ScenarioBrowserPanel  panel,
-        IEditorLogic          logic,
-        MigrationAlertManager alertManager)
-        : base("editor_browser", "Scenario Browser", "Editor", WindowScope.PerspectiveBound)
-    {
-        _panel        = panel;
-        _logic        = logic;
-        _alertManager = alertManager;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-    }
-
-    protected override void DrawClientArea()
-    {
-        _panel.DrawContent(_logic);
-        _alertManager.Draw();
-    }
 }
 
 /// <summary>Editor ORBAT panel as a perspective-bound managed window.</summary>

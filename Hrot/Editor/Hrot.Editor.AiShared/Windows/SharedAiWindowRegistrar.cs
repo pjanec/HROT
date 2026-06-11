@@ -1,5 +1,6 @@
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Runner;
+using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Comparison.UI;
 
 namespace Hrot.Editor.AiShared.Windows;
@@ -10,7 +11,7 @@ namespace Hrot.Editor.AiShared.Windows;
 /// </summary>
 public sealed class SharedAiWindowRegistrar : IWindowRegistrar
 {
-    private readonly AssetBrowserWindow _assetBrowser;
+    private readonly AssetBrowserDockedWindow _assetBrowser;
     private readonly InspectorWindow _inspector;
     private readonly RuntimeInspectorWindow _runtimeInspector;
     private readonly TraceTimelineWindow _traceTimeline;
@@ -20,7 +21,7 @@ public sealed class SharedAiWindowRegistrar : IWindowRegistrar
     private readonly ComparisonSidebar _comparisonSidebar;
 
     public SharedAiWindowRegistrar(
-        AssetBrowserWindow assetBrowser,
+        AssetBrowserDockedWindow assetBrowser,
         InspectorWindow inspector,
         RuntimeInspectorWindow runtimeInspector,
         TraceTimelineWindow traceTimeline,
