@@ -20,6 +20,14 @@ public class WindowManager
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly IconAtlas _atlas;
     private const int ActionAbout = -1;
+
+    /// <summary>
+    /// BATCH-26: Target height (px) of the main menu bar so the inline toolbar
+    /// icons render at ~32×32 — large enough to click comfortably with the mouse.
+    /// The menu labels keep their font size and are vertically centred within this
+    /// taller bar. Applied via a <c>FramePadding.Y</c> push around the menu bar.
+    /// </summary>
+    private const float MainMenuBarTargetHeight = 32f;
     private readonly List<string> _windowToggleMap = new();
     private bool _openAboutModal;
     private IFileDialogService? _fileDialogService;
@@ -394,6 +402,26 @@ public class WindowManager
         IReadOnlyList<Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto>? gizmoMenuItems = null,
         Action<int>? onGizmoMenuAction = null)
     {
+        // BATCH-26: Make the menu bar tall enough for 32px toolbar icons.
+        // ImGui's menu-bar height = FontSize + FramePadding.Y*2, and the inline
+        // toolbar icons size to ImGui.GetFrameHeight() (see ToolbarCommandAdapter /
+        // PerspectiveToolbarSection / MainToolbarTimeControlSection). Pushing a
+        // larger FramePadding.Y BEFORE BeginMainMenuBar therefore scales BOTH the
+        // bar and the icons together — the icons fill the taller bar exactly (the
+        // IconWidgets draw at exactly `size` via InvisibleButton, no extra padding),
+        // and the menu labels stay the same font, just vertically centered with
+        // roomier — easier to click — hit areas. The dockspace shrinks automatically
+        // because Program.cs uses the viewport WorkPos/WorkSize, which ImGui insets
+        // by the (now taller) menu bar. No other call sites change.
+        var style = Gui.GetStyle();
+        var savedFramePadding = style.FramePadding;
+        float targetPadY = System.Math.Max(
+            savedFramePadding.Y,
+            (MainMenuBarTargetHeight - Gui.GetFontSize()) * 0.5f);
+        Gui.PushStyleVar(
+            ImGuiNET.ImGuiStyleVar.FramePadding,
+            new System.Numerics.Vector2(savedFramePadding.X, targetPadY));
+
         if (Gui.BeginMainMenuBar())
         {
             RenderGlobalMenu(GlobalMenu.Root);
@@ -415,6 +443,10 @@ public class WindowManager
 
             Gui.EndMainMenuBar();
         }
+
+        // Restore frame padding for everything rendered after the menu bar
+        // (popups/modals below must use the normal style).
+        Gui.PopStyleVar();
 
         // Popups must be opened outside BeginMainMenuBar.
         if (_openAboutModal)
