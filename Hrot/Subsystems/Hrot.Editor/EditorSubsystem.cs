@@ -349,6 +349,9 @@ namespace Hrot.Editor
         // can create a fully-seeded dialog.
         private Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
 
+        // BATCH-21: Scenario picker modal (for Load command).
+        private Hrot.Editor.AiShared.Browser.AssetPickerModal? _scenarioPickerModal;
+
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -1816,6 +1819,9 @@ namespace Hrot.Editor
 
                 ImGuiNET.ImGui.EndPopup();
             }
+
+            // BATCH-21: Draw the scenario picker modal when open.
+            _scenarioPickerModal?.DrawModal("Load Scenario");
         }
 
         /// <inheritdoc/>
@@ -2422,6 +2428,60 @@ namespace Hrot.Editor
             // ── AIE-020/021/022: AiGraphCanvasWindow + document factories ────────────────────────
             // Build the adapter bundle from the engine icon atlas (no GPU calls at construction time).
             var adapterBundle = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
+
+            // ── BATCH-21: Scenario menu commands (New/Save/SaveAs/Load/Migration History) ──────
+            // Wire the five scenario shell commands and surface them as "Scenario" menu items.
+            // The Load picker opens a scenario-filtered AssetPickerModal; Save-As routes through
+            // the existing saveAsScenario delegate.
+            _scenarioPickerModal = new Hrot.Editor.AiShared.Browser.AssetPickerModal(
+                catalog, adapterBundle.IconProvider);
+
+            var saveAsScenarioDelegate = new Action<string>(fullName =>
+            {
+                _editorLogic?.SaveScenarioAs(fullName);
+            });
+
+            ScenarioMenuCommands.Register(
+                registerCommand:      windowManager.ShellCommands.Register,
+                menu:                 windowManager.GlobalMenu,
+                commands:             windowManager.ShellCommands,
+                editorLogic:          _editorLogic!,
+                openPicker:           (kinds, callback) =>
+                {
+                    _scenarioPickerModal?.Open(
+                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions { Kinds = kinds },
+                        callback);
+                },
+                openSaveAsDialog:     cb =>
+                {
+                    // For scenario Save-As, open the dialog UI (inline asset for the model).
+                    // The SaveAsDialog.Confirm() routes to saveScenarioAs → IEditorLogic.SaveScenarioAs.
+                    if (_editorLogic != null && _newAssetServices != null)
+                    {
+                        var scenarioAsset = new ScenarioSaveAsAsset(
+                            _editorLogic.LoadedScenarioName ?? "Unnamed");
+
+                        var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
+                            scenarioAsset,
+                            _newAssetServices,
+                            saveScenarioAs:    saveAsScenarioDelegate);
+
+                        var result = dialog.Confirm();
+                        if (result.IsSuccess)
+                        {
+                            // Pass the confirmed name back through the callback.
+                            cb(scenarioAsset.Name);
+                        }
+                    }
+                },
+                showMigrationHistory:  sidecars =>
+                {
+                    // Log migration sidecars to the save status line for visibility.
+                    _saveAllStatus = sidecars.Count == 0
+                        ? "[Migration] No sidecars found for current scenario."
+                        : $"[Migration] {sidecars.Count} sidecar(s): "
+                          + string.Join(", ", sidecars.Select(s => $"{s.Kind} v{s.Version}"));
+                });
 
             // Build per-perspective canvas renderers (CanvasRenderer is stateless — one per canvas is fine).
             var btreeCanvasRenderer     = new NodeEditor.UI.Canvas.CanvasRenderer();
@@ -3421,6 +3481,20 @@ namespace Hrot.Editor
                 Console.WriteLine($"[BP] {diagnostic.Severity}: {diagnostic.GetMessage()}");
                 _source.PushLine($"{diagnostic.Severity}: {diagnostic.GetMessage()}");
             }
+        }
+        // BATCH-21: Lightweight IEditableAsset for scenario Save-As dialog seeding.
+        private sealed class ScenarioSaveAsAsset : Hrot.Editor.AiShared.IEditableAsset
+        {
+            public ScenarioSaveAsAsset(string name) { Name = name; }
+            public Guid AssetId { get; } = Guid.NewGuid();
+            public string Name { get; }
+            public Hrot.Editor.AiShared.AssetKind Kind => Hrot.Editor.AiShared.AssetKind.Scenario;
+            public string SourceFilePath => "";
+            public bool IsDirty => false;
+            public bool IsEditorOwned => true;
+#pragma warning disable CS0067
+            public event Action? Changed;
+#pragma warning restore CS0067
         }
     }
 }
