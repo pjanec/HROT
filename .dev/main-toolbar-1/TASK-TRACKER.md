@@ -46,7 +46,7 @@ Phase 7.
 
 - [x] **MTB-P4-T1** `FolderTreePicker` (read mode) [details](./TASK-DETAIL.md#mtb-p4-t1--foldertreepicker-read-mode)
 - [x] **MTB-P4-T2** `BaseFolder` seam + relative-path helper [details](./TASK-DETAIL.md#mtb-p4-t2--basefolder-seam--relative-path-helper)
-- [ ] **MTB-P4-T3** `AssetBrowserPanel` tabs + tree + row icons [details](./TASK-DETAIL.md#mtb-p4-t3--assetbrowserpanel-tabs--per-kind-tree--row-icons)
+- [x] **MTB-P4-T3** `AssetBrowserPanel` tabs + tree + row icons [details](./TASK-DETAIL.md#mtb-p4-t3--assetbrowserpanel-tabs--per-kind-tree--row-icons)
 - [ ] **MTB-P4-T4** "All" tab (flat + chips) + filter [details](./TASK-DETAIL.md#mtb-p4-t4--all-tab-flat--chips--incremental-filter)
 - [ ] **MTB-P4-T5** Auto-expand/select + last-opened-per-kind [details](./TASK-DETAIL.md#mtb-p4-t5--auto-expandselect--last-opened-per-kind)
 
