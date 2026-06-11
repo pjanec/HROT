@@ -79,3 +79,13 @@ Phase 7.
 - [x] **MTB-P7-T3** Workspace dynamic submenu [details](./TASK-DETAIL.md#mtb-p7-t3--workspace-dynamic-submenu)
 - [x] **MTB-P7-T4** Retire AiShared `AssetBrowserWindow` [details](./TASK-DETAIL.md#mtb-p7-t4--retire-aishared-assetbrowserwindow)
 - [x] **MTB-P7-T5** Retire Blueprints `AssetBrowserWindow` + `FileSystemAssetCatalog` [details](./TASK-DETAIL.md#mtb-p7-t5--retire-blueprints-assetbrowserwindow--filesystemassetcatalog)
+
+## Phase 8 — Asset Picker UX (post-release polish)
+**Goal:** make the unified Open-Asset picker usable — type icons, folders, NodeEdit-style keyboard
+control. Enhances the **shared** `AssetBrowserPanel` (modal + docked browser both benefit).
+Design: [ASSET-PICKER-UX-DESIGN.md](./ASSET-PICKER-UX-DESIGN.md).
+
+- [ ] **MTB-P8-T1** Per-kind recognizable asset icons (resolves DBT-1) [details](./TASK-DETAIL.md#mtb-p8-t1--per-kind-recognizable-asset-icons-resolves-dbt-1)
+- [ ] **MTB-P8-T2** "All" view as a kind-grouped folder tree [details](./TASK-DETAIL.md#mtb-p8-t2--all-view-as-a-kind-grouped-folder-tree)
+- [ ] **MTB-P8-T3** Auto-focus filter + keyboard leaf navigation [details](./TASK-DETAIL.md#mtb-p8-t3--auto-focus-filter--keyboard-leaf-navigation)
+- [ ] **MTB-P8-T4** Auto-unfold + hide empty folders + folders non-selectable + dblclick confirm [details](./TASK-DETAIL.md#mtb-p8-t4--auto-unfold-matches-hide-empty-folders-folders-non-selectable-dblclick-confirm)
