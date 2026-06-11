@@ -64,6 +64,7 @@ file sealed class _BbManagedAsset : IEditableAsset, IBlackboardManagedAsset
     public void AddVariable(BlackboardVariableEntry e)                                        { }
     public void RemoveVariable(string n)                                                      { }
     public void UpdateVariableComment(string n, string? c)                                    { }
+    public void UpdateVariableDefaultValueJson(string n, string? dv)                          { }
     public void MoveVariable(int s, int d)                                                    { }
     public void RenameVariable(string o, string n)                                            { }
     public int CountNodesReferencingVariable(string n) => 0;

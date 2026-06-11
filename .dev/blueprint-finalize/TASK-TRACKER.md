@@ -118,11 +118,11 @@ visual bits confirmed at the gate.
 - [x] **B-1** (BATCH-BB1A, committed) -- Type-filtered binding picker: `[BlackboardFieldPicker]` shows only variables of the action's
       `DtoType` (from `IActionSchemaExporter`); `(no compatible variables)` + Promote affordance otherwise. (DD §11.2)
       BTree+HSM live drawers wired via facet-FQN context. -> [details](./TASK-DETAIL.md#b-1----type-filtered-binding-picker)
-- [~] **B-2** (BATCH-BB1A: create+persist done; BINDING deferred to BB1B Corrective Task 0) -- "+ Promote to new variable" + `IsAutoManaged`: add `IsAutoManaged` to `BlackboardVariableDto`
+- [x] **B-2** (BATCH-BB1A create+persist; BB1B binding via ApplyFacet — DONE) -- "+ Promote to new variable" + `IsAutoManaged`: add `IsAutoManaged` to `BlackboardVariableDto`
       (persisted) + `BlackboardVariableEntry`; Promote creates an `_auto_{VisualId:N}` (BTree) / `_auto_{StableId:N}`
       (HSM) variable of the action's DtoType, `IsAutoManaged=true`, binds `ExpressionTargetField`. (DD §11.3)
       -> [details](./TASK-DETAIL.md#b-2----promote-to-new-variable--isautomanaged)
-- [ ] **B-3** -- Edit the bound (node-owned or shared) variable's `DefaultValueJson` via the SE1 StructEdit surface
+- [~] **B-3** (BATCH-BB1B: data layer + panel DONE; live-wiring + edit-service test = BB1C Corrective Task 0) -- Edit the bound (node-owned or shared) variable's `DefaultValueJson` via the SE1 StructEdit surface
       (enums/vectors/etc.) — the static-param authoring. -> [details](./TASK-DETAIL.md#b-3----structedit-editing-of-the-variable-default)
 - [ ] **B-4** -- Node-owned presentation + lifecycle: `VariablesPanelControl` filters `IsAutoManaged` into a dimmed
       read-only "Node-Owned Allocations" group; EXCLUDE from Approach-A alias drop-targets; `BTreeCommandSink`/

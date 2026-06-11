@@ -45,6 +45,7 @@ public sealed class Batch14AggregatorBinPackTests
         public void AddVariable(BlackboardVariableEntry entry)                                        { }
         public void RemoveVariable(string name)                                                       { }
         public void UpdateVariableComment(string name, string? comment)                               { }
+        public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)             { }
         public void MoveVariable(int src, int dst)                                                    { }
         public void RenameVariable(string old, string @new)                                           { }
         public void RemoveVariables(IReadOnlyList<string> names)                                      { }

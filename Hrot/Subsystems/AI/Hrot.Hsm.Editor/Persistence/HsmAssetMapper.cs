@@ -406,7 +406,7 @@ public static class HsmAssetMapper
                     IsArray     = false,
                     FixedLength = null,
                 },
-                DefaultValueJson = null,
+                DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
             });
@@ -421,7 +421,10 @@ public static class HsmAssetMapper
         foreach (var v in block.Variables)
         {
             var clrType = ResolveClrType(v.Type.TypeId);
-            result.Add(new BlackboardVariableEntry(v.Name, clrType, v.Comment, v.IsAutoManaged));
+            result.Add(new BlackboardVariableEntry(
+                v.Name, clrType, v.Comment,
+                IsAutoManaged:    v.IsAutoManaged,
+                DefaultValueJson: v.DefaultValueJson));
         }
         return result;
     }

@@ -278,6 +278,19 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         MarkDirty();
     }
 
+    /// <summary>
+    /// Sets (or clears) the authored default-value JSON for an existing variable (B-3).
+    /// No-op if the variable is not found. Fires Changed (marks asset dirty).
+    /// Passing <c>null</c> clears any previously authored default.
+    /// </summary>
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+        if (idx < 0) return;
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { DefaultValueJson = defaultValueJson };
+        MarkDirty();
+    }
+
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     public void MoveVariable(int sourceIndex, int destIndex)
     {

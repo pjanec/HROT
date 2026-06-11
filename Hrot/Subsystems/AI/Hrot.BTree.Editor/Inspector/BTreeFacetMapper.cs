@@ -47,7 +47,11 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         // shows all variables when a composite or wait node is selected.
         if (node.KernelType != NodeType.Action && node.KernelType != NodeType.Condition)
         {
-            if (_fqnContext is not null) _fqnContext.CurrentActionFqn = null;
+            if (_fqnContext is not null)
+            {
+                _fqnContext.CurrentActionFqn    = null;
+                _fqnContext.CurrentNodeVisualId = null;
+            }
         }
 
         return node.KernelType switch
@@ -139,7 +143,11 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
     {
         var fqn = node.Action?.MethodFqn ?? string.Empty;
-        if (ctx is not null) ctx.CurrentActionFqn = string.IsNullOrEmpty(fqn) ? null : fqn;
+        if (ctx is not null)
+        {
+            ctx.CurrentActionFqn   = string.IsNullOrEmpty(fqn) ? null : fqn;
+            ctx.CurrentNodeVisualId = node.VisualId.ToString();
+        }
         return new BTreeActionFacet
         {
             MethodFqn              = fqn,
@@ -155,7 +163,11 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
     {
         var fqn = node.Condition?.MethodFqn ?? string.Empty;
-        if (ctx is not null) ctx.CurrentActionFqn = string.IsNullOrEmpty(fqn) ? null : fqn;
+        if (ctx is not null)
+        {
+            ctx.CurrentActionFqn   = string.IsNullOrEmpty(fqn) ? null : fqn;
+            ctx.CurrentNodeVisualId = node.VisualId.ToString();
+        }
         return new BTreeConditionFacet
         {
             MethodFqn              = fqn,

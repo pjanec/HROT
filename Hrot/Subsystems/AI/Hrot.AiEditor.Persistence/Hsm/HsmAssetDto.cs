@@ -158,6 +158,8 @@ public sealed class HsmBlackboardVariableDto
 {
     public string Name { get; set; } = string.Empty;
     public HsmBlackboardTypeRefDto Type { get; set; } = new();
+    /// <summary>JSON-encoded default value; null = no default authored (omitted from JSON for byte-stability).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DefaultValueJson { get; set; }
     public string? Comment { get; set; }
     /// <summary>

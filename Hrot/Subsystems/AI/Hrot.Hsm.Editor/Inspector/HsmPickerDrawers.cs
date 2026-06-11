@@ -12,13 +12,14 @@ namespace Hrot.Hsm.Editor.Inspector;
 /// <summary>
 /// Mutable context shared between <see cref="HsmFacetMapper"/> (writer) and
 /// <see cref="HsmBlackboardFieldPickerDrawer"/> (reader) so the picker can filter
-/// blackboard variables by the DtoType of the currently-selected transition's action FQN.
+/// blackboard variables by the DtoType of the currently-selected transition's action FQN,
+/// and so the Promote gesture can bind the newly-created variable back to the transition.
 ///
 /// <para>
 /// Lifecycle: one instance per open HSM asset.  Created alongside
 /// <see cref="HsmPickerDrawerFactory.BuildDrawers"/> and the HSM facet dispatcher.
-/// <see cref="HsmFacetMapper.GetTransitionFacet"/> sets <see cref="CurrentActionFqn"/>
-/// before returning; the drawer reads it in the same frame.
+/// <see cref="HsmFacetMapper.GetTransitionFacet"/> sets <see cref="CurrentActionFqn"/> and
+/// <see cref="CurrentVisualId"/> before returning; the drawer reads them in the same frame.
 /// </para>
 /// </summary>
 public sealed class HsmFacetFqnContext
@@ -28,6 +29,14 @@ public sealed class HsmFacetFqnContext
     /// or <see langword="null"/> when no transition with an action is selected.
     /// </summary>
     public string? CurrentActionFqn { get; set; }
+
+    /// <summary>
+    /// The VisualId (as a GUID string) of the transition/global-transition currently selected.
+    /// Written alongside <see cref="CurrentActionFqn"/> so
+    /// <see cref="HsmBlackboardFieldPickerDrawer"/> can call
+    /// <see cref="HsmBlackboardFieldPickerDrawer.Promote"/> with the correct identity.
+    /// </summary>
+    public string? CurrentVisualId { get; set; }
 }
 
 /// <summary>
@@ -280,18 +289,26 @@ public sealed class HsmSyncGroupPickerDrawer : IImGuiFieldDrawer, IPickerListSou
 ///
 /// <para>Headless-safe: <see cref="GetItems"/> and <see cref="HasNoCompatibleVariables"/>
 /// are usable without an ImGui context.</para>
+///
+/// <para><b>Promote→bind (B-2 / Corrective Task 0):</b> when "Promote to new variable"
+/// is clicked, the drawer creates the <c>_auto_{visualId:N}</c> variable via
+/// <see cref="Promote"/> and immediately sets <paramref name="value"/> to the new name,
+/// returning <c>true</c> so StructEdit's normal write-back flows to
+/// <see cref="HsmFacetDispatcher.ApplyFacet"/> which persists <c>ExpressionTargetField</c>.</para>
 /// </summary>
 public sealed class HsmBlackboardFieldPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
-    private readonly HsmAsset              _asset;
+    private readonly HsmAsset               _asset;
     private readonly IActionSchemaExporter? _exporter;
     private readonly Func<string?>?         _fqnAccessor;
+    /// <summary>Shared context that also carries the current visual id for Promote.</summary>
+    private readonly HsmFacetFqnContext?    _fqnContext;
 
     /// <summary>
     /// Constructs a drawer without type-filtering.  All blackboard variables are shown.
     /// </summary>
     public HsmBlackboardFieldPickerDrawer(HsmAsset asset)
-        : this(asset, null, null)
+        : this(asset, null, null, null)
     {
     }
 
@@ -304,10 +321,25 @@ public sealed class HsmBlackboardFieldPickerDrawer : IImGuiFieldDrawer, IPickerL
         HsmAsset               asset,
         IActionSchemaExporter? exporter,
         Func<string?>?         fqnAccessor)
+        : this(asset, exporter, fqnAccessor, null)
+    {
+    }
+
+    /// <summary>
+    /// Full constructor including the optional <paramref name="fqnContext"/> for Promote→bind.
+    /// When <paramref name="fqnContext"/> is supplied the Promote gesture reads
+    /// <see cref="HsmFacetFqnContext.CurrentVisualId"/> to derive the auto-variable name.
+    /// </summary>
+    public HsmBlackboardFieldPickerDrawer(
+        HsmAsset               asset,
+        IActionSchemaExporter? exporter,
+        Func<string?>?         fqnAccessor,
+        HsmFacetFqnContext?    fqnContext)
     {
         _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
         _exporter    = exporter;
         _fqnAccessor = fqnAccessor;
+        _fqnContext  = fqnContext;
     }
 
     public Type TargetType => typeof(string);
@@ -399,7 +431,19 @@ public sealed class HsmBlackboardFieldPickerDrawer : IImGuiFieldDrawer, IPickerL
         {
             ImGuiNET.ImGui.TextDisabled("(no compatible variables)");
             if (ImGuiNET.ImGui.SmallButton("Promote to new variable"))
+            {
+                // Corrective Task 0 / B-2: create the variable AND bind the field in one gesture.
+                // _fqnContext?.CurrentVisualId gives us the owning transition's VisualId.
+                var visualId = _fqnContext?.CurrentVisualId ?? string.Empty;
+                var newName  = Promote(visualId);
+                if (newName is not null)
+                {
+                    value = newName;
+                    return true;
+                }
+                // Fallback: queue the flag for any external consumer.
                 TriggerPromote();
+            }
             return false;
         }
 
@@ -446,7 +490,7 @@ public static class HsmPickerDrawerFactory
             ? () => fqnContext.CurrentActionFqn
             : null;
 
-        var bbDrawer = new HsmBlackboardFieldPickerDrawer(asset, exporter, fqnAccessor);
+        var bbDrawer = new HsmBlackboardFieldPickerDrawer(asset, exporter, fqnAccessor, fqnContext);
 
         var composite = new HsmCompositeStringDrawer()
             .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset))

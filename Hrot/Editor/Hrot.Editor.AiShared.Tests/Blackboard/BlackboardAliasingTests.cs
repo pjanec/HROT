@@ -48,6 +48,14 @@ internal sealed class AliasMutableAsset : IEditableAsset, IBlackboardManagedAsse
         Fire();
     }
 
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson)
+    {
+        int i = _vars.FindIndex(v => v.Name == name);
+        if (i < 0) return;
+        _vars[i] = _vars[i] with { DefaultValueJson = defaultValueJson };
+        Fire();
+    }
+
     public void MoveVariable(int sourceIndex, int destIndex)
     {
         if (sourceIndex < 0 || sourceIndex >= _vars.Count) return;

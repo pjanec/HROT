@@ -37,6 +37,7 @@ internal sealed class RefCountBbAsset : IEditableAsset, IBlackboardManagedAsset
     public void RemoveVariable(string name)                   { Changed?.Invoke(); }
     public void RemoveVariables(IReadOnlyList<string> names)  { Changed?.Invoke(); }
     public void UpdateVariableComment(string name, string? comment) { Changed?.Invoke(); }
+    public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson) { Changed?.Invoke(); }
     public void MoveVariable(int sourceIndex, int destIndex)  { Changed?.Invoke(); }
     public void RenameVariable(string oldName, string newName) { Changed?.Invoke(); }
 

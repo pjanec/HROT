@@ -77,6 +77,7 @@ public sealed class BlackboardVariableWiringTests
         public void AddVariable(BlackboardVariableEntry entry) { }
         public void RemoveVariable(string name) { }
         public void UpdateVariableComment(string name, string? comment) { }
+        public void UpdateVariableDefaultValueJson(string name, string? defaultValueJson) { }
         public void MoveVariable(int sourceIndex, int destIndex) { }
         public void RenameVariable(string oldName, string newName) { }
         public int CountNodesReferencingVariable(string name) => 0;

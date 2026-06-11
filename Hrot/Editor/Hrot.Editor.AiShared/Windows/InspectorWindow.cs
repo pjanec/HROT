@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using Fdp.Presentation.Editing;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor.AiShared.Blackboard;
@@ -42,6 +43,13 @@ public sealed class InspectorWindow : ManagedWindow
     private Type? _facetSessionType;
     private IAssetSubSelection? _facetSessionSub;
 
+    // B-3: StructEdit session for the bound variable's DefaultValueJson.
+    // Delegate that extracts ExpressionTargetField from a boxed facet (injected from composition root).
+    private Func<object?, string?>? _expressionTargetFieldAccessor;
+    // Active session for the bound variable's default value.
+    private IEditSession? _defaultValueSession;
+    private string? _defaultValueSessionVarName;   // variable name the session was opened for
+
     // Cached facet state (one boxed struct per frame that has an active sub-selection).
     private object? _currentFacet;
     private IAssetSubSelection? _currentFacetSelection;
@@ -76,6 +84,12 @@ public sealed class InspectorWindow : ManagedWindow
     ///   <see cref="ComponentEditDrawer"/>. Carries the HSM and BTree picker drawers
     ///   (registered by the composition root; keeps AiShared dep-clean).
     /// </param>
+    /// <param name="expressionTargetFieldAccessor">
+    ///   Optional delegate (injected from composition root) that reads the
+    ///   <c>ExpressionTargetField</c> value from a boxed facet struct (B-3).
+    ///   When supplied and non-null, enables the "Static Parameters" default-value
+    ///   StructEdit panel below the action facet.
+    /// </param>
     public InspectorWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
@@ -86,7 +100,8 @@ public sealed class InspectorWindow : ManagedWindow
         IFacetDispatcher? facetDispatcher = null,
         IActionSchemaExporter? schemaExporter = null,
         IComponentEditService? facetEditService = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
+        Func<object?, string?>? expressionTargetFieldAccessor = null)
         : base(idOverride ?? "ai_inspector", "Inspector",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -98,6 +113,7 @@ public sealed class InspectorWindow : ManagedWindow
         _schemaExporter = schemaExporter;
         _facetEditService = facetEditService;
         _facetCustomDrawers = facetCustomDrawers;
+        _expressionTargetFieldAccessor = expressionTargetFieldAccessor;
     }
 
     /// <summary>
@@ -307,6 +323,97 @@ public sealed class InspectorWindow : ManagedWindow
             }
         }
 
+        // ---- B-3: Default-value StructEdit panel ("Static Parameters") ----
+        // Shown when: an expressionTargetFieldAccessor is wired, the current facet carries a
+        // non-null ExpressionTargetField, the active asset implements IBlackboardManagedAsset,
+        // and an edit service is available.
+        if (ImGuiNET.ImGui.GetCurrentContext() != IntPtr.Zero
+            && _expressionTargetFieldAccessor is not null
+            && _facetEditService is not null
+            && _currentFacet is not null
+            && _store.ActiveAsset is IBlackboardManagedAsset bbAsset)
+        {
+            string? boundVarName = _expressionTargetFieldAccessor(_currentFacet);
+            if (!string.IsNullOrEmpty(boundVarName))
+            {
+                // Find the variable entry in the asset's blackboard.
+                BlackboardVariableEntry? varEntry = null;
+                foreach (var v in bbAsset.BlackboardVariables)
+                {
+                    if (v.Name == boundVarName) { varEntry = v; break; }
+                }
+
+                if (varEntry is not null)
+                {
+                    // Rebuild the session when the bound variable changes.
+                    if (_defaultValueSession is null || _defaultValueSessionVarName != boundVarName)
+                    {
+                        DisposeAndClearDefaultValueSession();
+                        // Hydrate an instance from the stored JSON (or use a fresh default).
+                        object instance;
+                        try
+                        {
+                            instance = (!string.IsNullOrEmpty(varEntry.DefaultValueJson))
+                                ? JsonSerializer.Deserialize(varEntry.DefaultValueJson, varEntry.FieldType)
+                                    ?? Activator.CreateInstance(varEntry.FieldType)!
+                                : Activator.CreateInstance(varEntry.FieldType)!;
+                        }
+                        catch
+                        {
+                            instance = Activator.CreateInstance(varEntry.FieldType)!;
+                        }
+                        _defaultValueSession        = _facetEditService.Open(instance, varEntry.FieldType);
+                        _defaultValueSessionVarName = boundVarName;
+                    }
+
+                    if (_defaultValueSession.RebuildState == EditRebuildState.RebuildRequired)
+                        _defaultValueSession.RebuildDocument();
+
+                    ImGuiNET.ImGui.Separator();
+                    ImGuiNET.ImGui.Text("STATIC PARAMETERS");
+                    ImGuiNET.ImGui.TextDisabled($"Default values for: {boundVarName}");
+
+                    var drawers2 = _facetCustomDrawers ?? new Dictionary<Type, IImGuiFieldDrawer>();
+                    var drawer2  = new ComponentEditDrawer(_defaultValueSession, pickerCtx: null, drawers2);
+
+                    if (ImGuiNET.ImGui.BeginTable("##defval_edit", 2,
+                        ImGuiNET.ImGuiTableFlags.SizingStretchProp))
+                    {
+                        ImGuiNET.ImGui.TableSetupColumn("Field", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.4f);
+                        ImGuiNET.ImGui.TableSetupColumn("Value", ImGuiNET.ImGuiTableColumnFlags.WidthStretch, 0.6f);
+
+                        drawer2.DrawEditNode(_defaultValueSession.Document.Root);
+
+                        ImGuiNET.ImGui.EndTable();
+                    }
+
+                    if (_defaultValueSession.IsDirty)
+                    {
+                        var committed = _defaultValueSession.Commit();
+                        string json;
+                        try   { json = JsonSerializer.Serialize(committed, varEntry.FieldType); }
+                        catch { json = "{}"; }
+                        bbAsset.UpdateVariableDefaultValueJson(boundVarName, json);
+                        // Drop and rebuild next frame so the session reflects the persisted JSON.
+                        DisposeAndClearDefaultValueSession();
+                    }
+                }
+                else
+                {
+                    // Variable referenced by facet not found in asset blackboard.
+                    // Clear any stale session.
+                    if (_defaultValueSession is not null)
+                        DisposeAndClearDefaultValueSession();
+                }
+            }
+            else
+            {
+                // No bound variable — clear any leftover session.
+                if (_defaultValueSession is not null)
+                    DisposeAndClearDefaultValueSession();
+            }
+        }
+
         // ---- Subtree parameter synchronization panel (1e-01, 1e-02) ----
         if (_store.ActiveSubSelection is BTreeNodeSelection nodeSel
             && _store.ActiveAsset is IBTreeSyncableAsset syncAsset)
@@ -372,12 +479,25 @@ public sealed class InspectorWindow : ManagedWindow
     /// </summary>
     internal bool HasFacetEditService => _facetEditService is not null;
 
+    /// <summary>
+    /// Exposes the currently cached default-value StructEdit session for headless tests (B-3).
+    /// Non-null only when a bound variable is active and an edit service is wired.
+    /// </summary>
+    internal IEditSession? GetDefaultValueSession() => _defaultValueSession;
+
     private void DisposeAndClearFacetSession()
     {
         _facetSession?.Dispose();
         _facetSession     = null;
         _facetSessionType = null;
         _facetSessionSub  = null;
+    }
+
+    private void DisposeAndClearDefaultValueSession()
+    {
+        _defaultValueSession?.Dispose();
+        _defaultValueSession        = null;
+        _defaultValueSessionVarName = null;
     }
 
     private void DrawCollisionDiagnosticStrip()

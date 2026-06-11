@@ -47,6 +47,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
             subSelection is not HsmGlobalTransitionSelection)
         {
             _fqnContext.CurrentActionFqn = null;
+            _fqnContext.CurrentVisualId  = null;
         }
 
         return subSelection switch

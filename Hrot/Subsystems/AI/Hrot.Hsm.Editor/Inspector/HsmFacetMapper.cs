@@ -58,7 +58,10 @@ public sealed class HsmFacetMapper
         var lca     = FindLca(t.Source, t.Target);
         var lcaCost = (ushort)(DepthOf(t.Source) + DepthOf(t.Target) - 2 * DepthOf(lca));
         if (_fqnContext is not null)
+        {
             _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(t.ActionFunction) ? null : t.ActionFunction;
+            _fqnContext.CurrentVisualId  = t.VisualId.ToString();
+        }
         return new TransitionFacet
         {
             SourceStateName       = t.Source.Name,
@@ -120,7 +123,10 @@ public sealed class HsmFacetMapper
         var g = _asset.AllGlobalTransitions.FirstOrDefault(x => x.VisualId == visualId)
             ?? throw new KeyNotFoundException($"Global transition {visualId} not found");
         if (_fqnContext is not null)
+        {
             _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(g.ActionFunction) ? null : g.ActionFunction;
+            _fqnContext.CurrentVisualId  = g.VisualId.ToString();
+        }
         return new GlobalTransitionFacet
         {
             EventId               = g.EventId,

@@ -13,15 +13,17 @@ namespace Hrot.BTree.Editor.Inspector;
 /// <summary>
 /// Mutable context shared between <see cref="BTreeFacetMapper"/> (writer) and
 /// <see cref="BlackboardFieldPickerDrawer"/> (reader) so the picker can filter
-/// blackboard variables by the DtoType of the currently-selected action's FQN.
+/// blackboard variables by the DtoType of the currently-selected action's FQN,
+/// and so the Promote gesture can bind the newly-created variable back to the node.
 ///
 /// <para>
 /// Lifecycle: one instance per open BTree asset.  Created by
 /// <see cref="BTreePickerDrawerFactory.BuildDrawers"/> (or externally) and passed
 /// to both the drawer factory and <see cref="BTreeFacetMapper"/> so they share the
 /// same cell.  <see cref="BTreeFacetMapper.GetFacet"/> writes
-/// <see cref="CurrentActionFqn"/> before returning the facet; the drawer reads it
-/// in the same frame when StructEdit calls <see cref="BlackboardFieldPickerDrawer.DrawInput"/>.
+/// <see cref="CurrentActionFqn"/> and <see cref="CurrentNodeVisualId"/> before
+/// returning the facet; the drawer reads them in the same frame when StructEdit
+/// calls <see cref="BlackboardFieldPickerDrawer.DrawInput"/>.
 /// </para>
 /// </summary>
 public sealed class BTreeFacetFqnContext
@@ -33,6 +35,13 @@ public sealed class BTreeFacetFqnContext
     /// <see cref="BlackboardFieldPickerDrawer.GetItems"/>.
     /// </summary>
     public string? CurrentActionFqn { get; set; }
+
+    /// <summary>
+    /// The VisualId (as a GUID string) of the action/condition node currently selected.
+    /// Written alongside <see cref="CurrentActionFqn"/> so <see cref="BlackboardFieldPickerDrawer"/>
+    /// can call <see cref="BlackboardFieldPickerDrawer.Promote"/> with the correct node id.
+    /// </summary>
+    public string? CurrentNodeVisualId { get; set; }
 }
 
 /// <summary>
@@ -97,19 +106,27 @@ public sealed class BehaviorHashPickerDrawer : IImGuiFieldDrawer, Hrot.Editor.Ai
 ///
 /// <para>Headless-safe: <see cref="GetItems"/> and <see cref="HasNoCompatibleVariables"/>
 /// are usable without an ImGui context.</para>
+///
+/// <para><b>Promote→bind (B-2 / Corrective Task 0):</b> when "Promote to new variable"
+/// is clicked, the drawer creates the <c>_auto_{visualId:N}</c> variable via
+/// <see cref="Promote"/> and immediately sets <paramref name="value"/> to the new name,
+/// returning <c>true</c> so StructEdit's normal write-back flows to
+/// <see cref="BTreeFacetMapper.ApplyFacet"/> which persists <c>ExpressionTargetField</c>.</para>
 /// </summary>
 public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor.AiShared.Inspector.IPickerListSource
 {
     private readonly BehaviorTreeAsset       _asset;
     private readonly IActionSchemaExporter?  _exporter;
     private readonly Func<string?>?          _fqnAccessor;
+    /// <summary>Shared context that also carries the current node VisualId for Promote.</summary>
+    private readonly BTreeFacetFqnContext?   _fqnContext;
 
     /// <summary>
     /// Constructs a drawer bound to <paramref name="asset"/> without type-filtering support.
     /// All blackboard variables are shown regardless of the selected action's DtoType.
     /// </summary>
     public BlackboardFieldPickerDrawer(BehaviorTreeAsset asset)
-        : this(asset, null, null)
+        : this(asset, null, null, null)
     {
     }
 
@@ -122,10 +139,25 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
         BehaviorTreeAsset      asset,
         IActionSchemaExporter? exporter,
         Func<string?>?         fqnAccessor)
+        : this(asset, exporter, fqnAccessor, null)
+    {
+    }
+
+    /// <summary>
+    /// Full constructor including the optional <paramref name="fqnContext"/> for Promote→bind.
+    /// When <paramref name="fqnContext"/> is supplied the Promote gesture reads
+    /// <see cref="BTreeFacetFqnContext.CurrentNodeVisualId"/> to derive the auto-variable name.
+    /// </summary>
+    public BlackboardFieldPickerDrawer(
+        BehaviorTreeAsset      asset,
+        IActionSchemaExporter? exporter,
+        Func<string?>?         fqnAccessor,
+        BTreeFacetFqnContext?  fqnContext)
     {
         _asset       = asset       ?? throw new ArgumentNullException(nameof(asset));
         _exporter    = exporter;
         _fqnAccessor = fqnAccessor;
+        _fqnContext  = fqnContext;
     }
 
     public Type TargetType => typeof(string);
@@ -219,7 +251,19 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
         {
             ImGuiNET.ImGui.TextDisabled(BlackboardFieldPickerAttribute.NoCompatibleVariablesDisplay);
             if (ImGuiNET.ImGui.SmallButton("Promote to new variable"))
+            {
+                // Corrective Task 0 / B-2: create the variable AND bind the field in one gesture.
+                // _fqnContext?.CurrentNodeVisualId gives us the owning node's VisualId.
+                var visualId = _fqnContext?.CurrentNodeVisualId ?? string.Empty;
+                var newName  = Promote(visualId);
+                if (newName is not null)
+                {
+                    value = newName;
+                    return true;
+                }
+                // Fallback: queue the flag for any external consumer.
                 TriggerPromote();
+            }
             return false;
         }
 
@@ -280,7 +324,7 @@ public static class BTreePickerDrawerFactory
             ? () => fqnContext.CurrentActionFqn
             : null;
 
-        var bbDrawer = new BlackboardFieldPickerDrawer(asset, exporter, fqnAccessor);
+        var bbDrawer = new BlackboardFieldPickerDrawer(asset, exporter, fqnAccessor, fqnContext);
 
         var composite = new CompositeStringDrawer()
             .Register<BehaviorHashPickerAttribute>(new BehaviorHashPickerDrawer(registry))
