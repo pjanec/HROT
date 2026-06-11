@@ -184,16 +184,27 @@ public sealed class PerspectiveToolbarSection
 
     /// <summary>
     /// Renders a text-label button fallback for a perspective whose <c>IconKey</c>
-    /// is missing or unresolvable.
+    /// is missing or unresolvable. The active perspective is drawn with the same
+    /// gray fill that <see cref="IconWidgets.ToggleIcon"/> uses for toggled state,
+    /// so it has the same "pressed/selected" visual as the icon path.
     /// </summary>
     private void RenderTextFallbackEntry(PerspectiveRadioEntry entry)
     {
-        string label = entry.IsToggled ? $"[{entry.Perspective}]" : $" {entry.Perspective} ";
-
-        if (Gui.Button(label, IconSize) && !entry.IsToggled)
+        if (entry.IsToggled)
         {
-            OnSelect(entry.Perspective);
+            Gui.PushStyleColor(ImGuiNET.ImGuiCol.Button,
+                new System.Numerics.Vector4(0.3f, 0.3f, 0.3f, 1.0f));
+            Gui.PushStyleColor(ImGuiNET.ImGuiCol.ButtonHovered,
+                new System.Numerics.Vector4(0.4f, 0.4f, 0.4f, 1.0f));
         }
+
+        bool clicked = Gui.Button($" {entry.Perspective} ##persp_{entry.Perspective}", IconSize);
+
+        if (entry.IsToggled)
+            Gui.PopStyleColor(2);
+
+        if (clicked && !entry.IsToggled)
+            OnSelect(entry.Perspective);
 
         if (Gui.IsItemHovered())
             Gui.SetTooltip(entry.Perspective);

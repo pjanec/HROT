@@ -433,13 +433,11 @@ public class WindowManager
                 GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction);
 
             // BATCH-25: Render the main toolbar inline inside the menu bar,
-            // to the right of the menus. A leading separator visually separates
-            // the toolbar group from the last menu.
+            // to the right of the menus. Graphical separators are drawn by
+            // MainToolbarManager.DrawSeparator (registered via RegisterSeparator);
+            // no ImGui.Separator() pipe character is added here.
             if (_mainToolbar.Height > 0f)
-            {
-                Gui.Separator();
                 _mainToolbar.RenderInline(CurrentPerspective);
-            }
 
             Gui.EndMainMenuBar();
         }

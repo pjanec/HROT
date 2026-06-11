@@ -291,21 +291,24 @@ public sealed class MainToolbarManager
     }
 
     /// <summary>
-    /// Draws a vertical divider line over the declared toolbar height.
+    /// Draws a vertical divider line spanning the full current frame height.
+    /// Uses <c>GetFrameHeight()</c> at render time (not <c>_maxDeclaredHeight</c>
+    /// which is captured at registration, before any per-frame style pushes take
+    /// effect) so the line always fills the bar regardless of BATCH-26 padding.
     /// </summary>
-    private void DrawSeparator()
+    private static void DrawSeparator()
     {
         var cursor = Gui.GetCursorScreenPos();
         var drawList = Gui.GetWindowDrawList();
-        float sepHeight = _maxDeclaredHeight;
+        float sepHeight = Gui.GetFrameHeight();
         uint sepColor = Gui.GetColorU32(new Vector4(0.4f, 0.4f, 0.4f, 1f));
 
         drawList.AddLine(
-            cursor + new Vector2(0, 0),
+            cursor,
             cursor + new Vector2(0, sepHeight),
             sepColor);
 
-        // Advance cursor past the separator (1 px wide + gap)
-        Gui.Dummy(new Vector2(1, sepHeight));
+        // Advance cursor past the separator (1 px wide + a small gap)
+        Gui.Dummy(new Vector2(3, sepHeight));
     }
 }
