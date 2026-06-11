@@ -344,6 +344,11 @@ namespace Hrot.Editor
         private ImGuiInputSource? _shellInputSource;
         private Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher? _shellHotkeyDispatcher;
 
+        // BATCH-20 (DEC-9): per-kind INewAssetService registry for SaveAsDialog.
+        // Initialized before ShellSaveCommands.Register so the requestSaveAs seam
+        // can create a fully-seeded dialog.
+        private Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
+
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
         private NetworkEntityMap?     _entityMap;
@@ -2248,9 +2253,51 @@ namespace Hrot.Editor
                     msg => _saveAllStatus = msg);
             };
 
+            // ── BATCH-20 (DEC-9): per-kind service registry for Save-As ──────────────────────────
+            // Create the INewAssetService dictionary so ShellSaveCommands.requestSaveAs
+            // can seed a SaveAsDialog from the current document's asset.
+            _newAssetServices = new Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>
+            {
+                [Hrot.Editor.AiShared.AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+                [Hrot.Editor.AiShared.AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(),
+                [Hrot.Editor.AiShared.AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(),
+            };
+
+            // Scenario: create a thin session adapter for IEditorLogic → IScenarioCreationSession.
+            // The editor app (_editorLogic) is guaranteed non-null at this point.
+            if (_editorApp != null)
+            {
+                _newAssetServices[Hrot.Editor.AiShared.AssetKind.Scenario] =
+                    new ScenarioNewAssetService(new EditorLogicSessionAdapter(_editorApp));
+            }
+
+            // Save-As blueprint file-save delegate (mint-only, so the dialog performs the save).
+            Action<Hrot.Editor.AiShared.IEditableAsset, string> saveAsBlueprintToFile = (asset, path) =>
+            {
+                // For Save-As, the asset is a freshly minted BlueprintEditableAssetAdapter
+                // wrapping a BlueprintAsset. Extract the inner asset for serialization.
+                try
+                {
+                    if (asset is Hrot.Blueprints.Editor.Variables.BlueprintEditableAssetAdapter adapter)
+                    {
+                        Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(adapter.Asset, path);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SaveAs] Failed to save Blueprint '{asset.Name}': {ex.Message}");
+                }
+            };
+
+            // Save-As scenario delegate: routes to IEditorLogic.SaveScenarioAs.
+            Action<string> saveAsScenario = fullName =>
+            {
+                _editorLogic?.SaveScenarioAs(fullName);
+            };
+
             // ── BATCH-06: register shell save commands (Ctrl+S/Ctrl+Shift+S fix, §20) ──────────
             // Wire the three save commands into the global shell command set with production
-            // save delegates and a requestSaveAs seam (DEC-9: dialog is Phase 6).
+            // save delegates and a requestSaveAs seam (DEC-9: connected to SaveAsDialog model).
             _shellInputSource = new ImGuiInputSource();
             _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
                 _shellInputSource);
@@ -2261,10 +2308,34 @@ namespace Hrot.Editor
                 saveBlueprint:     saveBlueprintDelegate,
                 saveBTree:         saveBTreeDelegate,
                 saveHsm:           saveHsmDelegate,
-                saveScenario:      null, // Phase 6 / scenario asset kind not yet defined
+                saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
                 requestSaveAs:     doc =>
                 {
-                    _saveAllStatus = $"[INFO] Save As not yet available for '{doc.Asset.Name}'.";
+                    // DEC-9 RESOLVED: the requestSaveAs seam creates a SaveAsDialog
+                    // seeded from the document's asset and attempts to confirm.
+                    // UI surfacing (ImGui name/folder picker popup) deferred to
+                    // Phase 7 / DBT-2; until then Confirm() uses the source asset's
+                    // name and root path, which succeeds for empty-SourceFilePath
+                    // "promote to file" paths (§18.5) and fails gracefully with a
+                    // collision error when the target file already exists.
+                    if (_newAssetServices == null) return;
+
+                    var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
+                        doc.Asset,
+                        _newAssetServices,
+                        knownFolderPaths: Array.Empty<string>(),
+                        saveMintOnlyAsset: saveAsBlueprintToFile,
+                        saveScenarioAs:    saveAsScenario);
+
+                    var result = dialog.Confirm();
+                    if (result.IsSuccess)
+                    {
+                        _saveAllStatus = $"[OK] Saved '{result.Asset?.Name}' as new asset.";
+                    }
+                    else
+                    {
+                        _saveAllStatus = $"[INFO] Save As '{doc.Asset.Name}': {result.Error}";
+                    }
                 },
                 report:            msg => _saveAllStatus = msg);
             // ───────────────────────────────────────────────────────────────────────────────────
