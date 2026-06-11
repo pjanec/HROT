@@ -165,3 +165,236 @@ public static class FolderTreePicker
             frozenChildren.AsReadOnly());
     }
 }
+
+/// <summary>
+/// Pure in-memory folder picker state for the pick mode (§18.1).
+/// Tracks selected folder, allows adding new folders, and enforces
+/// root-bounding (no <c>..</c> escape, no absolute paths).
+/// Logic is fully separated from ImGui draw calls.
+/// </summary>
+public sealed class FolderPickerState
+{
+    private readonly HashSet<string> _folderPaths;
+    private string _selectedRelPath;
+
+    /// <summary>
+    /// Creates a picker state from a set of known relative folder paths
+    /// (using <c>/</c> separators, e.g. <c>"combat"</c>, <c>"combat/patrol"</c>).
+    /// The root (<c>""</c>) is always included implicitly.
+    /// </summary>
+    public FolderPickerState(IEnumerable<string>? knownFolderPaths)
+    {
+        _folderPaths = new HashSet<string>(StringComparer.Ordinal);
+        _selectedRelPath = "";
+
+        if (knownFolderPaths != null)
+        {
+            foreach (var p in knownFolderPaths)
+            {
+                var sanitized = SanitizeRelPath(p);
+                if (sanitized != null)
+                    _folderPaths.Add(sanitized);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The currently selected folder path relative to the root
+    /// (using <c>/</c> separators, <c>""</c> = root). Never <see langword="null"/>.
+    /// </summary>
+    public string SelectedRelPath
+    {
+        get => _selectedRelPath;
+        set
+        {
+            if (value == null)
+                throw new ArgumentNullException(nameof(value));
+            // Only accept known folder paths or the root.
+            if (value != "" && !_folderPaths.Contains(value))
+                throw new ArgumentException(
+                    $"Folder '{value}' is not in the known folder set.", nameof(value));
+            _selectedRelPath = value;
+        }
+    }
+
+    /// <summary>
+    /// All known folder paths (including the root <c>""</c>).
+    /// </summary>
+    public IReadOnlyCollection<string> FolderPaths
+    {
+        get
+        {
+            var all = new List<string> { "" };
+            all.AddRange(_folderPaths);
+            all.Sort(StringComparer.Ordinal);
+            return all.AsReadOnly();
+        }
+    }
+
+    /// <summary>
+    /// Adds a new folder under <paramref name="parentRelPath"/> and returns its
+    /// relative path. The folder name is sanitized and the path is validated
+    /// against root-escape rules.
+    /// </summary>
+    /// <param name="parentRelPath">
+    /// The parent folder's relative path (<c>""</c> for root, or e.g. <c>"combat"</c>).
+    /// </param>
+    /// <param name="name">The new folder segment name (e.g. <c>"patrol"</c>).</param>
+    /// <returns>The new folder's relative path (e.g. <c>"combat/patrol"</c>).</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the name is invalid (empty, contains <c>..</c>, or produces an
+    /// escaped path) or the parent is not a known folder.
+    /// </exception>
+    public string AddFolder(string parentRelPath, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Folder name must not be empty.", nameof(name));
+
+        // Validate that the parent is a known folder (or root).
+        if (parentRelPath != "" && !_folderPaths.Contains(parentRelPath))
+            throw new ArgumentException(
+                $"Parent folder '{parentRelPath}' is not a known folder.", nameof(parentRelPath));
+
+        // Sanitize the folder name: reject escape attempts.
+        var sanitizedName = SanitizeFolderName(name);
+        if (sanitizedName == null)
+            throw new ArgumentException(
+                $"Folder name '{name}' is not valid (must not contain '..', " +
+                "must not start with '/', and must not be an absolute path).", nameof(name));
+
+        // Build the full relative path.
+        var newRelPath = string.IsNullOrEmpty(parentRelPath)
+            ? sanitizedName
+            : parentRelPath + "/" + sanitizedName;
+
+        // Final root-bounding check: the result must not escape.
+        if (!IsBounded(newRelPath))
+            throw new ArgumentException(
+                $"Resulting path '{newRelPath}' escapes the root.", nameof(name));
+
+        _folderPaths.Add(newRelPath);
+        _selectedRelPath = newRelPath;
+        return newRelPath;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="relPath"/> is a known folder.
+    /// </summary>
+    public bool ContainsFolder(string relPath)
+        => relPath == "" || _folderPaths.Contains(relPath);
+
+    // ── Sanitization helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Validates a folder name segment. Returns the sanitized name, or
+    /// <see langword="null"/> when the name is not safe.
+    /// </summary>
+    internal static string? SanitizeFolderName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var trimmed = name.Trim();
+
+        // Reject: .. (parent traversal)
+        if (trimmed == ".." || trimmed.Contains(".."))
+            return null;
+
+        // Reject: absolute paths (starts with /, \, or drive letter)
+        if (trimmed.StartsWith('/') || trimmed.StartsWith('\\'))
+            return null;
+
+        if (trimmed.Length >= 2 && trimmed[1] == ':')
+            return null; // drive-letter pattern (e.g. "C:")
+
+        // Reject: any path separator in the segment name
+        if (trimmed.Contains('/') || trimmed.Contains('\\'))
+            return null;
+
+        return trimmed;
+    }
+
+    /// <summary>
+    /// Validates a relative path against root-escape rules.
+    /// Returns <see langword="null"/> when unsafe.
+    /// </summary>
+    internal static string? SanitizeRelPath(string relPath)
+    {
+        if (string.IsNullOrWhiteSpace(relPath))
+            return "";
+
+        var trimmed = relPath.Trim();
+
+        // Reject: absolute paths (explicit check for both Windows and Unix separators
+        // at position 0, plus drive-letter patterns; Path.IsPathRooted varies by platform).
+        if (IsAbsolutePath(trimmed))
+            return null;
+
+        // Reject: .. traversal anywhere in the path
+        var segments = trimmed.Split('/');
+        foreach (var seg in segments)
+        {
+            if (seg == ".." || seg.Contains(".."))
+                return null;
+            if (seg.Contains('\\'))
+                return null;
+        }
+
+        // Normalize: remove leading/trailing slashes, collapse double slashes.
+        var normalized = trimmed.Trim('/');
+        while (normalized.Contains("//"))
+            normalized = normalized.Replace("//", "/");
+
+        return normalized.Length == 0 ? "" : normalized;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the path looks like an absolute path
+    /// (starts with <c>/</c>, <c>\</c>, or has a drive letter like <c>C:</c>).
+    /// </summary>
+    private static bool IsAbsolutePath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return false;
+
+        // Drive-letter pattern (e.g. "C:" or "C:\")
+        if (path.Length >= 2 && path[1] == ':')
+            return true;
+
+        // Starts with separator (both / and \)
+        if (path[0] == '/' || path[0] == '\\')
+            return true;
+
+        // Also check via Path.IsPathRooted as a fallback for platform-specific rules
+        if (Path.IsPathRooted(path))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when the path stays within the root
+    /// (no <c>..</c>, no absolute components, no drive letters).
+    /// </summary>
+    internal static bool IsBounded(string relPath)
+    {
+        if (string.IsNullOrEmpty(relPath))
+            return true;
+
+        if (Path.IsPathRooted(relPath))
+            return false;
+
+        var segments = relPath.Split('/');
+        foreach (var seg in segments)
+        {
+            if (seg == ".." || seg.Contains(".."))
+                return false;
+            if (seg.Contains('\\'))
+                return false;
+            if (seg.Length >= 2 && seg[1] == ':')
+                return false;
+        }
+
+        return true;
+    }
+}
