@@ -55,8 +55,8 @@ Phase 7.
 
 - [x] **MTB-P5-T1** Typed `IAssetCatalog.Changed` + ReferenceCatalog skip [details](./TASK-DETAIL.md#mtb-p5-t1--typed-iassetcatalogchanged--referencecatalog-skip)
 - [x] **MTB-P5-T2** `AssetKind.Scenario` + `ScenarioCatalogContributor` [details](./TASK-DETAIL.md#mtb-p5-t2--assetkindscenario--scenariocatalogcontributor)
-- [ ] **MTB-P5-T3** Modal picker host [details](./TASK-DETAIL.md#mtb-p5-t3--modal-picker-host)
-- [ ] **MTB-P5-T4** Docked window host [details](./TASK-DETAIL.md#mtb-p5-t4--docked-window-host)
+- [x] **MTB-P5-T3** Modal picker host [details](./TASK-DETAIL.md#mtb-p5-t3--modal-picker-host)
+- [x] **MTB-P5-T4** Docked window host [details](./TASK-DETAIL.md#mtb-p5-t4--docked-window-host)
 - [ ] **MTB-P5-T5** Scenario nested-name support [details](./TASK-DETAIL.md#mtb-p5-t5--scenario-nested-name-support)
 - [ ] **MTB-P5-T6** Caller wiring (pick → action) [details](./TASK-DETAIL.md#mtb-p5-t6--caller-wiring-pick--action)
 
