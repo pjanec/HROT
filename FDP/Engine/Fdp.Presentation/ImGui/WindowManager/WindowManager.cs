@@ -404,6 +404,15 @@ public class WindowManager
             if (gizmoMenuItems != null && gizmoMenuItems.Count > 0)
                 GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(gizmoMenuItems, onGizmoMenuAction);
 
+            // BATCH-25: Render the main toolbar inline inside the menu bar,
+            // to the right of the menus. A leading separator visually separates
+            // the toolbar group from the last menu.
+            if (_mainToolbar.Height > 0f)
+            {
+                Gui.Separator();
+                _mainToolbar.RenderInline(CurrentPerspective);
+            }
+
             Gui.EndMainMenuBar();
         }
 
@@ -435,7 +444,8 @@ public class WindowManager
             win.Render(CurrentPerspective, _atlas);
         }
 
-        _mainToolbar.Render(CurrentPerspective);
+        // BATCH-25: Toolbar is now rendered inline inside BeginMainMenuBar
+        // (see RenderInline call above). No separate band here.
         _statusBar.Render(CurrentPerspective);
 
         // Draw file dialog service last so the modal overlays all other windows.

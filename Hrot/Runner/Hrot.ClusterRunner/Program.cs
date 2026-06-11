@@ -293,9 +293,11 @@ class Program
 
                     rlImGui_cs.rlImGui.Begin();
 
-                    // --- DOCKSPACE SETUP (§4.1.2: inset top by toolbar, bottom by status bar) ---
+                    // --- DOCKSPACE SETUP (§4.1.2: inset bottom by status bar) ---
+                    // BATCH-25: Toolbar now lives inside the main menu bar (which ImGui already
+                    // excludes from the viewport work area), so the toolbar inset is 0.
                     var viewport = ImGuiNET.ImGui.GetMainViewport();
-                    float toolbarHeight = windowCtrl.WindowManager?.MainToolbar.Height ?? 0f;
+                    float toolbarHeight = 0f;
                     float statusBarHeight = windowCtrl.WindowManager?.StatusBar.Height ?? 0f;
 
                     ImGuiNET.ImGui.SetNextWindowPos(DockspaceLayout.CentralPos(viewport.WorkPos, toolbarHeight));

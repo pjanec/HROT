@@ -15,7 +15,7 @@ namespace Fdp.Presentation.WindowManager;
 /// </summary>
 public static class ToolbarCommandAdapter
 {
-    private static readonly Vector2 DefaultSize = new(64f, 64f);
+    private static Vector2 DefaultSize => new(Gui.GetFrameHeight(), Gui.GetFrameHeight());
 
     /// <summary>
     /// Registers a toolbar entry for <paramref name="commandId"/> in <paramref name="toolbar"/>.
@@ -44,7 +44,7 @@ public static class ToolbarCommandAdapter
         var descriptor = commands.Get(commandId)
             ?? throw new InvalidOperationException($"Command '{commandId}' not found in the provided command set.");
 
-        toolbar.RegisterEntry(commandId, sortOrder, DefaultSize.Y, () =>
+        toolbar.RegisterEntry(commandId, sortOrder, MainToolbarManager.DefaultEntryHeight, () =>
         {
             RenderEntry(commands, commandId, descriptor, iconProvider);
         }, perspective);

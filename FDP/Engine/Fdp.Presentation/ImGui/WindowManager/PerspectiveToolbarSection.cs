@@ -30,7 +30,7 @@ public sealed class PerspectiveToolbarSection
 {
     private readonly WindowManager _wm;
     private readonly IIconProvider _iconProvider;
-    private static readonly Vector2 DefaultIconSize = new(64f, 64f);
+    private static Vector2 IconSize => new(Gui.GetFrameHeight(), Gui.GetFrameHeight());
 
     /// <summary>
     /// Creates the section and self-registers a toolbar entry with
@@ -58,7 +58,7 @@ public sealed class PerspectiveToolbarSection
 
         ArgumentNullException.ThrowIfNull(toolbar);
 
-        toolbar.RegisterEntry("PerspectiveGroup", sortOrder, DefaultIconSize.Y, Render, perspective);
+        toolbar.RegisterEntry("PerspectiveGroup", sortOrder, MainToolbarManager.DefaultEntryHeight, Render, perspective);
     }
 
     // ── Testable seams ────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ public sealed class PerspectiveToolbarSection
         bool isToggled = wasToggled;
 
         bool clicked = IconWidgets.ToggleIcon(in iconHandle, $"##persp_{entry.Perspective}",
-            DefaultIconSize, ref isToggled, enabled: true);
+            IconSize, ref isToggled, enabled: true);
 
         if (clicked)
         {
@@ -190,7 +190,7 @@ public sealed class PerspectiveToolbarSection
     {
         string label = entry.IsToggled ? $"[{entry.Perspective}]" : $" {entry.Perspective} ";
 
-        if (Gui.Button(label, DefaultIconSize) && !entry.IsToggled)
+        if (Gui.Button(label, IconSize) && !entry.IsToggled)
         {
             OnSelect(entry.Perspective);
         }

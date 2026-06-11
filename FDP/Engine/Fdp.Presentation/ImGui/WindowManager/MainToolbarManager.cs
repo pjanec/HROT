@@ -58,6 +58,26 @@ public sealed class MainToolbarManager
     public float Height => _maxDeclaredHeight;
 
     /// <summary>
+    /// Default height for a toolbar entry, matching the menu-bar frame height
+    /// when an ImGui context is active. Falls back to a sensible constant when
+    /// no context exists (e.g. during headless unit tests) so that
+    /// <see cref="Height"/> remains &gt; 0 regardless.
+    /// </summary>
+    /// <remarks>
+    /// <b>BATCH-25:</b> Use this instead of a hardcoded <c>64f</c> for
+    /// <c>declaredHeight</c> and icon rendering so the toolbar fits inside the
+    /// menu-bar row at native resolution.
+    /// </remarks>
+    public static float DefaultEntryHeight
+    {
+        get
+        {
+            var ctx = ImGui.GetCurrentContext();
+            return ctx != IntPtr.Zero ? ImGui.GetFrameHeight() : 20f;
+        }
+    }
+
+    /// <summary>
     /// Exposed for testability. Returns the ordered list of visible items
     /// (entries and separators) for a given perspective, without performing
     /// any ImGui draw calls. This is the headless-test seam.
@@ -181,6 +201,11 @@ public sealed class MainToolbarManager
     /// Pass an empty string (default) or the current perspective from
     /// <see cref="WindowManager.CurrentPerspective"/>.
     /// </param>
+    /// <remarks>
+    /// <b>BATCH-25:</b> This standalone-band method is kept for backward compatibility
+    /// but is no longer called by <see cref="WindowManager"/>. The production path is
+    /// now <see cref="RenderInline"/> (called inside the main menu bar).
+    /// </remarks>
     public void Render(string currentPerspective = "")
     {
         EnsureSorted();
@@ -206,6 +231,39 @@ public sealed class MainToolbarManager
         Gui.Begin("##MainToolbar", flags);
         Gui.PopStyleColor();
 
+        RenderEntries(currentPerspective);
+
+        Gui.End();
+    }
+
+    /// <summary>
+    /// Renders the registered toolbar entries and separators inline — within the
+    /// <b>current</b> ImGui window (no <c>Begin</c>/<c>End</c>, no <c>SetNextWindow*</c>).
+    /// Must be called inside an active ImGui window such as the main menu bar
+    /// (<see cref="ImGui.BeginMainMenuBar"/>).
+    /// </summary>
+    /// <param name="currentPerspective">
+    /// The active perspective name used to filter perspective-bound entries.
+    /// </param>
+    /// <remarks>
+    /// <b>BATCH-25:</b> This is the production render path. The toolbar now lives
+    /// inside the main menu bar, to the right of the menus, eliminating the
+    /// separate 64px band and recovering that vertical space.
+    /// </remarks>
+    public void RenderInline(string currentPerspective = "")
+    {
+        EnsureSorted();
+        RenderEntries(currentPerspective);
+    }
+
+    /// <summary>
+    /// Core render loop shared by <see cref="Render"/> (stand-alone band) and
+    /// <see cref="RenderInline"/> (inline in the current window).  Iterates
+    /// registered items in sort order, applies perspective filtering, and draws
+    /// each entry or separator with <c>SameLine</c> between consecutive items.
+    /// </summary>
+    private void RenderEntries(string currentPerspective)
+    {
         bool first = true;
         for (int i = 0; i < _items.Count; i++)
         {
@@ -230,8 +288,6 @@ public sealed class MainToolbarManager
                 DrawSeparator();
             }
         }
-
-        Gui.End();
     }
 
     /// <summary>

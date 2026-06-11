@@ -81,7 +81,7 @@ public sealed class MainToolbarTimeControlSection
     /// </summary>
     public void Render()
     {
-        const float iconSize = 64f;
+        float iconSize = ImGui.GetFrameHeight();
         bool isPaused = _facade.IsPaused;
         float timeScale = _facade.TimeScale;
 

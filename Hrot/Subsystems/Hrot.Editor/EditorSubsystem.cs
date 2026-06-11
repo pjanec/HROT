@@ -3082,7 +3082,8 @@ namespace Hrot.Editor
                 var toolbarTimeSection = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(
                     timeTransportFacade);
                 windowManager.MainToolbar.RegisterEntry(
-                    "TimeControlGroup", sortOrder: 0, declaredHeight: 64f,
+                    "TimeControlGroup", sortOrder: 0,
+                    declaredHeight: Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight,
                     toolbarTimeSection.Render);
 
                 // Separator between Time-control and Perspective groups.

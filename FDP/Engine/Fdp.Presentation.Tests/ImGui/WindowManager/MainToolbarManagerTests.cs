@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.WindowManager;
 using Xunit;
+using ImGuiNET;
 
 namespace Fdp.Presentation.Tests.WindowManager;
 
@@ -29,9 +30,12 @@ public class MainToolbarManagerTests
         mgr.RegisterEntry("btn", 0, 64f, () => callLog.Add("first"));
         mgr.RegisterEntry("btn", 0, 64f, () => callLog.Add("second"));
 
+        // BATCH-25: RenderInline is called inside BeginMainMenuBar (production path).
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
-        mgr.Render();
+        ImGuiNET.ImGui.BeginMainMenuBar();
+        mgr.RenderInline();
+        ImGuiNET.ImGui.EndMainMenuBar();
         fixture.Render();
 
         Assert.Single(callLog);
@@ -52,9 +56,12 @@ public class MainToolbarManagerTests
         mgr.RegisterEntry("A", 10, 64f, () => callLog.Add("A"));
         mgr.RegisterEntry("B", 20, 64f, () => callLog.Add("B"));
 
+        // BATCH-25: RenderInline inside the menu bar (production path).
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
-        mgr.Render();
+        ImGuiNET.ImGui.BeginMainMenuBar();
+        mgr.RenderInline();
+        ImGuiNET.ImGui.EndMainMenuBar();
         fixture.Render();
 
         Assert.Equal(new[] { "A", "B", "C" }, callLog);
@@ -75,22 +82,27 @@ public class MainToolbarManagerTests
         // Combat-only entry
         mgr.RegisterEntry("combat", 1, 64f, () => callLog.Add("combat"), perspective: "combat");
 
-        // Rendering "combat" — both should fire
+        // Rendering "combat" — both should fire.
+        // BATCH-25: RenderInline inside the menu bar.
         using (var fixture = new ImGuiTestFixture())
         {
             fixture.NewFrame();
-            mgr.Render("combat");
+            ImGuiNET.ImGui.BeginMainMenuBar();
+            mgr.RenderInline("combat");
+            ImGuiNET.ImGui.EndMainMenuBar();
             fixture.Render();
         }
 
         Assert.Equal(new[] { "global", "combat" }, callLog);
 
-        // Rendering "strategic" — only global should fire
+        // Rendering "strategic" — only global should fire.
         callLog.Clear();
         using (var fixture = new ImGuiTestFixture())
         {
             fixture.NewFrame();
-            mgr.Render("strategic");
+            ImGuiNET.ImGui.BeginMainMenuBar();
+            mgr.RenderInline("strategic");
+            ImGuiNET.ImGui.EndMainMenuBar();
             fixture.Render();
         }
 
@@ -117,9 +129,12 @@ public class MainToolbarManagerTests
 
         // Even when rendering a completely unrelated perspective "Y",
         // the height must still be 80 (jitter-free guarantee).
+        // BATCH-25: RenderInline inside the menu bar.
         using var fixture = new ImGuiTestFixture();
         fixture.NewFrame();
-        mgr.Render("Y");
+        ImGuiNET.ImGui.BeginMainMenuBar();
+        mgr.RenderInline("Y");
+        ImGuiNET.ImGui.EndMainMenuBar();
         fixture.Render();
 
         Assert.Equal(80f, mgr.Height);
