@@ -53,6 +53,9 @@ public sealed class BTreeJsonAssetContributor : IAssetCatalogContributor
     public AssetKind Kind => AssetKind.BTree;
 
     /// <inheritdoc/>
+    public string? BaseFolder => AssetRoots.AssetsFor(Kind);
+
+    /// <inheritdoc/>
     public event Action? ContributorChanged;
 
     /// <inheritdoc/>

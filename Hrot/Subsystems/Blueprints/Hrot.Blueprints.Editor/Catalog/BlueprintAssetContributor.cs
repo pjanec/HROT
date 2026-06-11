@@ -25,6 +25,9 @@ public sealed class BlueprintAssetContributor : IAssetCatalogContributor
     public AssetKind Kind => AssetKind.Blueprint;
 
     /// <inheritdoc/>
+    public string? BaseFolder => AssetRoots.AssetsFor(Kind);
+
+    /// <inheritdoc/>
     public event Action? ContributorChanged;
 
     /// <inheritdoc/>

@@ -36,6 +36,9 @@ public sealed class HsmJsonAssetContributor : IAssetCatalogContributor
     public AssetKind Kind => AssetKind.Hsm;
 
     /// <inheritdoc/>
+    public string? BaseFolder => AssetRoots.AssetsFor(Kind);
+
+    /// <inheritdoc/>
     public event Action? ContributorChanged;
 
     /// <inheritdoc/>
