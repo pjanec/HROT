@@ -18,6 +18,7 @@ public class WindowManager
     // �� Fields �����������������������������������������������������������������
 
     private readonly Dictionary<string, ManagedWindow> _windows = new();
+    private readonly Dictionary<string, string> _perspectiveIconKeys = new();
     private readonly IconAtlas _atlas;
     private const int ActionAbout = -1;
 
@@ -188,13 +189,25 @@ public class WindowManager
         => SwitchPerspective(perspective);
 
     /// <summary>
-    /// Returns the first non-null <see cref="ManagedWindow.IconKey"/> among the
-    /// <see cref="WindowScope.PerspectiveBound"/> windows owned by <paramref name="perspective"/>,
-    /// or <c>null</c> when no window in that perspective carries an icon key.
+    /// Directly registers an icon key for a perspective, used by
+    /// <c>PerspectiveToolbarSection</c> to render togglable icon buttons.
+    /// Takes precedence over the window-scan fallback in <see cref="GetPerspectiveIconKey"/>.
+    /// Call from subsystem <c>RegisterWindows</c> for each known perspective.
+    /// </summary>
+    public void RegisterPerspectiveIconKey(string perspective, string iconKey)
+        => _perspectiveIconKeys[perspective] = iconKey;
+
+    /// <summary>
+    /// Returns the icon key for <paramref name="perspective"/>: checks the directly
+    /// registered map first, then falls back to scanning <see cref="WindowScope.PerspectiveBound"/>
+    /// windows for a non-null <see cref="ManagedWindow.IconKey"/>.
+    /// Returns <c>null</c> when neither source yields a key (text-button fallback).
     /// Used by <c>PerspectiveToolbarSection</c> to resolve toolbar faces (§8.1).
     /// </summary>
     public string? GetPerspectiveIconKey(string perspective)
     {
+        if (_perspectiveIconKeys.TryGetValue(perspective, out var direct))
+            return direct;
         return _windows.Values
             .Where(w => w.Scope == WindowScope.PerspectiveBound
                      && w.OwningPerspective == perspective

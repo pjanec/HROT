@@ -2977,6 +2977,14 @@ namespace Hrot.Editor
                 // Separator after Open Asset (between Open Asset and Perspective).
                 windowManager.MainToolbar.RegisterSeparator("ToolbarSep_OpenAsset", sortOrder: 0);
 
+                // ── A. Perspective icon keys — register before creating the section so
+                //    PerspectiveToolbarSection.BuildRadioModel() resolves icons on first frame.
+                windowManager.RegisterPerspectiveIconKey("BTree",      "asset/btree");
+                windowManager.RegisterPerspectiveIconKey("HSM",        "asset/hsm");
+                windowManager.RegisterPerspectiveIconKey("Blueprint",  "asset/blueprint");
+                windowManager.RegisterPerspectiveIconKey("Blueprints", "asset/blueprint");
+                windowManager.RegisterPerspectiveIconKey("Editor",     "perspective/editor");
+
                 // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
                     windowManager, toolbarIconProvider, windowManager.MainToolbar, sortOrder: 20);

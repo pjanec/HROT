@@ -113,6 +113,9 @@ public sealed class SilkIconProvider : IIconProvider
             ["asset/new"]             = "b9",   // new document
             ["folder"]                = "c8",   // folder (closed)
             ["folder_open"]           = "a1",   // folder open
+
+            // ── Perspective toolbar icons ────────────────────────────────────
+            ["perspective/editor"]    = "a1",   // house → Editor (home/main perspective)
         };
 
     /// <summary>
