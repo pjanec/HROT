@@ -223,4 +223,26 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         Assert.Equal("HSM",             hsmCanvas!.OwningPerspective);
         Assert.Equal(WindowScope.PerspectiveBound, hsmCanvas.Scope);
     }
+
+    // ── BATCH-24: Main toolbar populates on bare subsystem ───────────────────
+
+    /// <summary>
+    /// BATCH-24 guardrail: a bare <c>new EditorSubsystem()</c> (no Initialize call)
+    /// must NOT throw when RegisterWindows is invoked, and the main toolbar must have
+    /// entries after registration (Perspective group self-registers with 64f height).
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_PopulatesMainToolbar()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        // Guard: must not throw on a bare (uninitialised) subsystem.
+        subsystem.RegisterWindows(wm);
+
+        // Main toolbar must have registered entries — at minimum the Perspective
+        // group which self-registers at sortOrder 20 with declared height 64f.
+        Assert.True(wm.MainToolbar.Height > 0f,
+            $"Expected MainToolbar.Height > 0 after RegisterWindows, but got {wm.MainToolbar.Height}.");
+    }
 }

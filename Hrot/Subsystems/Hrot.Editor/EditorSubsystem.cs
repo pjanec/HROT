@@ -19,6 +19,7 @@ using Fdp.Presentation.Abstractions;
 using Fdp.Presentation.Adapters;
 using Fdp.Presentation.Panels;
 using Fdp.Presentation.Utils;
+using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
@@ -310,6 +311,9 @@ namespace Hrot.Editor
         private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeDebugSession;
         private Hrot.Hsm.Editor.Debug.HsmDebugSession?     _hsmDebugSession;
         // ─────────────────────────────────────────────────────────────────────────────────────
+
+        // BATCH-24: Main toolbar perspective group (self-registers in ctor; field pins it against GC).
+        private PerspectiveToolbarSection? _perspectiveToolbarSection;
 
         // MVE-BATCH-03: "Run Blueprint on Selected Entity" toolbar button.
         // Callback is ImGui-free (testable headlessly); DrawUI renders the ImGui button.
@@ -2912,6 +2916,39 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
+            // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
+            if (windowManager.MainToolbar != null)
+            {
+                var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
+
+                // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
+                _perspectiveToolbarSection = new PerspectiveToolbarSection(
+                    windowManager, toolbarIconProvider, windowManager.MainToolbar, sortOrder: 20);
+
+                // Separator between Perspective and AI-debug.
+                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_PerspToAiDebug", sortOrder: 30);
+
+                // ── B. AI-debug group (§9, sortOrder range 40–49) ────────────────────────
+                AiDebugCommands.Register(windowManager.ShellCommands.Register, debugRegistry);
+
+                int aiSort = 40;
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.ContinueId, toolbarIconProvider, aiSort++);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.StepOverId, toolbarIconProvider, aiSort++);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.StepIntoId, toolbarIconProvider, aiSort++);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.StepOutId, toolbarIconProvider, aiSort++);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.PauseId, toolbarIconProvider, aiSort++);
+                // Blueprint-only StepBack — registered too; toolbar adapter resolves enabled state live.
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    AiDebugCommands.StepBackId, toolbarIconProvider, aiSort++);
+            }
+            // ───────────────────────────────────────────────────────────────────────────────────
+
             if (_editorLogic == null) return;
 
             // ?? Legacy editor-specific windows ????????????????????????????????
@@ -3029,7 +3066,8 @@ namespace Hrot.Editor
             }
 
             // ?? Time transport controls in status bar ?????????????????????????
-            if (_previewController != null && _timeController != null && _world != null)
+            if (_previewController != null && _timeController != null && _world != null
+                && windowManager.MainToolbar != null)
             {
                 var timeControls = new TimeControlStatusBarSection(_previewController, _timeController, _world);
                 windowManager.StatusBar.RegisterSection(
@@ -3037,6 +3075,19 @@ namespace Hrot.Editor
                     sortOrder:      100,
                     renderDelegate: timeControls.Render,
                     perspective:    "Editor");
+
+                // ── BATCH-24: Main toolbar time-control group (§7, sortOrder range 0–9) ──
+                var timeTransportFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
+                    _previewController, _timeController, _world);
+                var toolbarTimeSection = new Hrot.UI.Common.Panels.MainToolbarTimeControlSection(
+                    timeTransportFacade);
+                windowManager.MainToolbar.RegisterEntry(
+                    "TimeControlGroup", sortOrder: 0, declaredHeight: 64f,
+                    toolbarTimeSection.Render);
+
+                // Separator between Time-control and Perspective groups.
+                windowManager.MainToolbar.RegisterSeparator(
+                    "ToolbarSep_TimeToPersp", sortOrder: 10);
             }
 
             // ?? Message Log notification icon in status bar ???????????????????
