@@ -20,6 +20,9 @@ public static class TestData
         public const string DoorActor                    = "DoorActor";
         public const string DoorSensor                   = "DoorSensor";
         public const string CountingDemo                 = "CountingDemo";
+        // Frozen copy of the debugger CF-test asset. Decoupled from the user's editable
+        // scratch Count4.bp.json under Hrot.AI.Behaviors/Blueprints (see TestAssets/Count4.bp.json).
+        public const string Count4                       = "Count4";
     }
 
     public static BlueprintAsset LoadAsset(string name)

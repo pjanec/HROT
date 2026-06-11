@@ -37,32 +37,16 @@ public sealed class CF7rev_EndToEndTests : IDisposable
 
     // ---- Helpers ---------------------------------------------------------------
 
-    private static string ResolveRepoRoot()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
-                return dir;
-            dir = Path.GetDirectoryName(dir);
-        }
-        throw new DirectoryNotFoundException(
-            "Could not find repo root (looked for IOS-IG-SimHost.sln upward from " +
-            AppContext.BaseDirectory + ")");
-    }
-
     /// <summary>
-    /// Loads Count4.bp.json and compiles it in the given mode, returning the compile result.
+    /// Loads the frozen Count4 test copy and compiles it in the given mode.
     /// </summary>
     private static (BlueprintAsset Asset, CompileResult Result) CompileCount4(CompilerMode mode)
     {
-        var repoRoot = ResolveRepoRoot();
-        var assetPath = Path.Combine(repoRoot,
-            "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "Count4.bp.json");
-        var json = File.ReadAllText(assetPath);
-        var asset = BlueprintJsonServices.Deserialize(json)
-                    ?? throw new InvalidOperationException(
-                        $"BlueprintJsonServices.Deserialize returned null for '{assetPath}'");
+        // Load the FROZEN test copy from TestAssets/ via direct deserialize — never the
+        // production asset scan path (AssetRoots) and never the user's editable scratch
+        // Count4.bp.json under Hrot.AI.Behaviors/Blueprints. Tests must not depend on
+        // manually-authored, at-will-changed blueprints.
+        var asset = TestData.LoadAsset(TestData.SampleAssets.Count4);
 
         var options = new CompileOptions(
             Mode:              mode,
@@ -83,6 +67,20 @@ public sealed class CF7rev_EndToEndTests : IDisposable
         }
 
         return (asset, result);
+    }
+
+    private static string ResolveRepoRoot()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir, "IOS-IG-SimHost.sln")))
+                return dir;
+            dir = Path.GetDirectoryName(dir);
+        }
+        throw new DirectoryNotFoundException(
+            "Could not find repo root (looked for IOS-IG-SimHost.sln upward from " +
+            AppContext.BaseDirectory + ")");
     }
 
     // ---- Test 6: SetBreakpoint triggers auto-instrument then pauses ------------
