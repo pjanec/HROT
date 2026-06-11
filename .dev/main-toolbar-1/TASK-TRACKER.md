@@ -39,7 +39,7 @@ Phase 7.
 - [x] **MTB-P3-T2** `MainToolbarTimeControlSection` [details](./TASK-DETAIL.md#mtb-p3-t2--maintoolbartimecontrolsection)
 - [x] **MTB-P3-T3** Perspective menu (relocate) [details](./TASK-DETAIL.md#mtb-p3-t3--perspective-menu-relocate-out-of-menu-bar)
 - [x] **MTB-P3-T4** Perspective toolbar radio-group + `IconKey` [details](./TASK-DETAIL.md#mtb-p3-t4--perspective-toolbar-radio-group--per-perspective-iconkey)
-- [ ] **MTB-P3-T5** AI Debug group (polymorphic) [details](./TASK-DETAIL.md#mtb-p3-t5--ai-debug-group-polymorphic)
+- [x] **MTB-P3-T5** AI Debug group (polymorphic) [details](./TASK-DETAIL.md#mtb-p3-t5--ai-debug-group-polymorphic)
 
 ## Phase 4 — Generic Asset Browser Panel
 **Goal:** the reusable browser panel + folder tree.
