@@ -1,3 +1,4 @@
+using System.Numerics;
 using Hrot.Editor.AiShared.Catalog;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
@@ -21,6 +22,14 @@ namespace Hrot.Editor.AiShared.Browser;
 /// guarded against double-invocation (subsequent activates or cancels before the
 /// next <see cref="Open"/> are no-ops).
 /// </para>
+/// <para>
+/// <b>BATCH-26 lock-up fix:</b> <see cref="DrawModal"/> mirrors the "Rename Entity"
+/// modal pattern: a pending-flag (<see cref="_pendingOpen"/>) is set by <see cref="Open"/>
+/// and consumed at the top-level ImGui draw point.  <see cref="ImGui.OpenPopup"/> and
+/// <see cref="ImGui.BeginPopupModal"/> use the <b>identical</b> ID string
+/// (<c>"Open Asset"</c>).  An explicit <see cref="ImGui.SetNextWindowSize"/> prevents
+/// the modal from collapsing to zero/invisible size.
+/// </para>
 /// </remarks>
 public sealed class AssetPickerModal
 {
@@ -30,11 +39,43 @@ public sealed class AssetPickerModal
     private AssetBrowserPanel? _panel;
     private Action<IEditableAsset?>? _callback;
     private bool _callbackInvoked;
+    private bool _pendingOpen;
+
+    /// <summary>
+    /// The popup ID string used for both <see cref="ImGui.OpenPopup"/> and
+    /// <see cref="ImGui.BeginPopupModal"/>.  Must be identical — see BATCH-26
+    /// lock-up diagnosis.
+    /// </summary>
+    public const string PopupId = "Open Asset";
+
+    /// <summary>
+    /// Default modal window size (BATCH-26: explicit size prevents zero-size collapse).
+    /// </summary>
+    public static readonly Vector2 DefaultWindowSize = new(720f, 520f);
 
     /// <summary>
     /// Whether the modal is currently open.
     /// </summary>
     public bool IsOpen => _panel != null;
+
+    /// <summary>
+    /// The active <see cref="AssetBrowserPanel"/>, or <see langword="null"/> when
+    /// the modal is closed.  Exposed for tests that need to verify or manipulate
+    /// internal panel state (e.g. setting <see cref="AssetBrowserPanel.Selection"/>
+    /// before simulating Enter).
+    /// </summary>
+    internal AssetBrowserPanel? Panel => _panel;
+
+    /// <summary>
+    /// The current callback, or <see langword="null"/> when no session is active.
+    /// Exposed for tests that verify the callback identity.
+    /// </summary>
+    internal Action<IEditableAsset?>? Callback => _callback;
+
+    /// <summary>
+    /// Whether the callback has been invoked for the current open session.
+    /// </summary>
+    internal bool CallbackInvoked => _callbackInvoked;
 
     /// <summary>
     /// Initialises a new <see cref="AssetPickerModal"/>.
@@ -84,6 +125,10 @@ public sealed class AssetPickerModal
 
         _panel = new AssetBrowserPanel(_catalog, _icons, options, lastOpened);
         _panel.AssetActivated += OnPanelAssetActivated;
+
+        // BATCH-26 lock-up fix: set pending-flag so DrawModal opens the popup
+        // at the correct ImGui scope (mirrors the Rename Entity pattern).
+        _pendingOpen = true;
     }
 
     /// <summary>
@@ -95,6 +140,7 @@ public sealed class AssetPickerModal
         ClosePanel();
         _callback = null;
         _callbackInvoked = false;
+        _pendingOpen = false;
     }
 
     // ── Headless test seams ────────────────────────────────────────────
@@ -133,27 +179,30 @@ public sealed class AssetPickerModal
 
     /// <summary>
     /// Renders the modal popup via ImGui.  Must be called every frame while
-    /// <see cref="IsOpen"/> is <see langword="true"/>.  Handles Esc to cancel
-    /// and wires double-click / Enter activation through the panel.
+    /// <see cref="IsOpen"/> is <see langword="true"/>.  Handles Esc to cancel,
+    /// Enter to confirm selection, Ctrl+Tab / Ctrl+Shift+Tab to cycle tabs,
+    /// and wires double-click activation through the panel.
     /// </summary>
     /// <param name="title">The title shown in the popup title bar.</param>
-    public void DrawModal(string title = "Pick an Asset")
+    public void DrawModal(string title = "Open Asset")
     {
         if (!IsOpen)
             return;
 
-        // Open the popup on the first frame, then draw it.
-        // NOTE: the popup ID must match BeginPopupModal's. BeginPopupModal uses
-        // "{title}###AssetPickerPopup", whose ImGui ID is hashed from the part after "###"
-        // (= "AssetPickerPopup"). OpenPopup/IsPopupOpen must therefore use the bare
-        // "AssetPickerPopup" (NOT "##AssetPickerPopup", which hashes a different string) — else
-        // the opened popup never matches its Begin and the pending modal blocks all other input.
-        if (!ImGui.IsPopupOpen("AssetPickerPopup"))
-            ImGui.OpenPopup("AssetPickerPopup");
+        // BATCH-26 lock-up fix: consume pending-flag — OpenPopup once at
+        // the top-level draw scope with the IDENTICAL ID string used for
+        // BeginPopupModal, then set an explicit size so the window can't
+        // collapse to zero/invisible (mirrors the working Rename Entity modal).
+        if (_pendingOpen)
+        {
+            ImGui.OpenPopup(PopupId);
+            ImGui.SetNextWindowSize(DefaultWindowSize, ImGuiCond.Appearing);
+            _pendingOpen = false;
+        }
 
         bool isOpen = true;
-        if (ImGui.BeginPopupModal($"{title}###AssetPickerPopup", ref isOpen,
-            ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoDocking))
+        if (ImGui.BeginPopupModal($"{title}###{PopupId}", ref isOpen,
+            ImGuiWindowFlags.NoDocking))
         {
             // Close on Esc.
             if (ImGui.IsKeyPressed(ImGuiKey.Escape))
@@ -167,6 +216,28 @@ public sealed class AssetPickerModal
             {
                 ImGui.CloseCurrentPopup();
                 HandleCancel();
+            }
+
+            // BATCH-26: Enter confirms current selection.
+            if (ImGui.IsKeyPressed(ImGuiKey.Enter) && _panel!.Selection != null)
+            {
+                ImGui.CloseCurrentPopup();
+                HandleActivated(_panel.Selection);
+            }
+
+            // BATCH-26: Ctrl+Tab / Ctrl+Shift+Tab cycle tabs.
+            if (ImGui.IsKeyPressed(ImGuiKey.Tab, repeat: false))
+            {
+                bool ctrlHeld = ImGui.IsKeyDown(ImGuiKey.ModCtrl);
+                bool shiftHeld = ImGui.IsKeyDown(ImGuiKey.ModShift);
+                if (ctrlHeld && !shiftHeld)
+                {
+                    _panel!.SelectNextTab();
+                }
+                else if (ctrlHeld && shiftHeld)
+                {
+                    _panel!.SelectPreviousTab();
+                }
             }
 
             // Constrain the content area to a reasonable size.

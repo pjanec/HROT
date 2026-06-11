@@ -122,6 +122,8 @@ using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
+using NodeEditor.Core.Action;
+using NodeEditor.Primitives;
 using Hrot.Hsm.Editor.Catalog;
 using Hrot.Hsm.Editor.Host;
 // AIE-030/031/032: BTree/HSM debug session infrastructure
@@ -353,8 +355,13 @@ namespace Hrot.Editor
         // can create a fully-seeded dialog.
         private Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
 
-        // BATCH-21: Scenario picker modal (for Load command).
-        private Hrot.Editor.AiShared.Browser.AssetPickerModal? _scenarioPickerModal;
+        // BATCH-26: Unified "Open Asset" modal — single instance for all three entry points
+        // (toolbar, File→Open Asset…, Scenario→Load).
+        private Hrot.Editor.AiShared.Browser.AssetPickerModal? _assetPickerModal;
+
+        // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
+        // Scenario → IEditorLogic.LoadScenarioByName.
+        private Hrot.Editor.AssetPickActionRouter? _assetPickRouter;
 
         // Captured at Initialize() so the coordinator can pass them to the behavior factory.
         private IGeographicTransform? _geoTransform;
@@ -1823,8 +1830,8 @@ namespace Hrot.Editor
                 ImGuiNET.ImGui.EndPopup();
             }
 
-            // BATCH-21: Draw the scenario picker modal when open.
-            _scenarioPickerModal?.DrawModal("Load Scenario");
+            // BATCH-26: Draw the unified "Open Asset" modal (toolbar / File→Open Asset… / Scenario→Load).
+            _assetPickerModal?.DrawModal();
         }
 
         /// <inheritdoc/>
@@ -1962,6 +1969,13 @@ namespace Hrot.Editor
             // Document manager — activated doc drives perspective switch.
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
             _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
+
+            // BATCH-26: Asset-pick action router — file kinds → AiDocumentManager.Open,
+            // Scenario → IEditorLogic.LoadScenarioByName. Null-safe delegates guard
+            // against bare-ctor scenarios.
+            _assetPickRouter = new Hrot.Editor.AssetPickActionRouter(
+                openDocument: a => _aiDocumentManager?.Open(a),
+                loadScenario: name => _editorLogic?.LoadScenarioByName(name));
 
             // AIE-025: Retarget per-perspective selection stores when the active document changes.
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
@@ -2432,11 +2446,13 @@ namespace Hrot.Editor
             // Build the adapter bundle from the engine icon atlas (no GPU calls at construction time).
             var adapterBundle = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
 
-            // ── BATCH-21: Scenario menu commands (New/Save/SaveAs/Load/Migration History) ──────
-            // Wire the five scenario shell commands and surface them as "Scenario" menu items.
-            // The Load picker opens a scenario-filtered AssetPickerModal; Save-As routes through
-            // the existing saveAsScenario delegate.
-            _scenarioPickerModal = new Hrot.Editor.AiShared.Browser.AssetPickerModal(
+            // ── BATCH-26: Unified "Open Asset" modal + Scenario menu commands ──────
+            // ONE AssetPickerModal instance serves three entry points:
+            //   1. Toolbar "Open Asset" button (leftmost, Kinds=All)
+            //   2. File → Open Asset… / Ctrl+O (Kinds=All)
+            //   3. Scenario → Load (Kinds=Scenario)
+            // Scenario New/Save/SaveAs/Migration History commands remain unchanged.
+            _assetPickerModal = new Hrot.Editor.AiShared.Browser.AssetPickerModal(
                 catalog, adapterBundle.IconProvider);
 
             var saveAsScenarioDelegate = new Action<string>(fullName =>
@@ -2455,8 +2471,13 @@ namespace Hrot.Editor
                 editorLogic:          _editorLogic,
                 openPicker:           (kinds, callback) =>
                 {
-                    _scenarioPickerModal?.Open(
-                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions { Kinds = kinds },
+                    // BATCH-26: scenario.load uses the unified modal filtered to Scenario only.
+                    _assetPickerModal?.Open(
+                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions
+                        {
+                            Kinds = kinds,
+                            ShowAllTab = kinds == AssetKindFilter.All
+                        },
                         callback);
                 },
                 openSaveAsDialog:     cb =>
@@ -2916,11 +2937,45 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
+            // ── BATCH-26: "Open Asset" command (shell.openAsset) — leftmost toolbar button,
+            // File→Open Asset… menu item, Ctrl+O hotkey. Three entry points share the
+            // unified _assetPickerModal with Kinds=All. ────────────────────────────────
+            string openAssetId = "shell.openAsset";
+            windowManager.ShellCommands.Register(
+                new EditorCommandDescriptor(
+                    Id:          openAssetId,
+                    DisplayName: "Open Asset…",
+                    Category:    "File",
+                    Description: "Open an AI asset (blueprint, behavior tree, HSM, scenario, etc.)",
+                    IconKey:     "browser/open",
+                    DefaultKey:  new KeyBinding(EditorKey.O, KeyModifiers.Ctrl),
+                    IsEnabled:   () => true),
+                _ =>
+                {
+                    _assetPickerModal?.Open(
+                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions
+                        {
+                            Kinds = AssetKindFilter.All,
+                            ShowAllTab = true
+                        },
+                        picked =>
+                        {
+                            if (picked != null && _assetPickRouter != null)
+                                _assetPickRouter.Route(picked);
+                        });
+                });
+
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
             // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
             if (windowManager.MainToolbar != null)
             {
                 var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
+
+                // ── BATCH-26: "Open Asset" button (leftmost, sortOrder -10) ─────────
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    openAssetId, toolbarIconProvider, sortOrder: -10);
+                // Separator after Open Asset (between Open Asset and Perspective).
+                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_OpenAsset", sortOrder: 0);
 
                 // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
@@ -2948,6 +3003,10 @@ namespace Hrot.Editor
                     AiDebugCommands.StepBackId, toolbarIconProvider, aiSort++);
             }
             // ───────────────────────────────────────────────────────────────────────────────────
+
+            // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).
+            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                openAssetId, "File/Open Asset…");
 
             if (_editorLogic == null) return;
 

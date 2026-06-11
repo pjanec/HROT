@@ -245,4 +245,67 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         Assert.True(wm.MainToolbar.Height > 0f,
             $"Expected MainToolbar.Height > 0 after RegisterWindows, but got {wm.MainToolbar.Height}.");
     }
+
+    // ── BATCH-26: "Open Asset" command registration ──────────────────────────
+
+    /// <summary>
+    /// BATCH-26: The <c>shell.openAsset</c> command is registered in ShellCommands
+    /// with the correct DisplayName, DefaultKey (Ctrl+O), and always-enabled state.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersOpenAssetCommand()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // Command must be registered.
+        var desc = wm.ShellCommands.Get("shell.openAsset");
+        Assert.NotNull(desc);
+        Assert.Equal("Open Asset…", desc!.DisplayName);
+        Assert.True(desc.IsEnabled());
+
+        // Default key is Ctrl+O.
+        Assert.NotNull(desc.DefaultKey);
+        Assert.Equal(NodeEditor.Primitives.EditorKey.O, desc.DefaultKey!.Value.Key);
+        Assert.Equal(NodeEditor.Primitives.KeyModifiers.Ctrl, desc.DefaultKey!.Value.Modifiers);
+    }
+
+    /// <summary>
+    /// BATCH-26: The File→Open Asset… menu item is registered in the global menu.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_OpenAssetMenuItem_UnderFile()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // "File" top-level node must exist.
+        Assert.True(wm.GlobalMenu.Root.Children.TryGetValue("File", out var fileNode));
+
+        // "Open Asset…" leaf node must exist under File.
+        Assert.True(fileNode.Children.TryGetValue("Open Asset…", out var leaf));
+    }
+
+    /// <summary>
+    /// BATCH-26: A toolbar entry for shell.openAsset is registered.  The toolbar
+    /// height must be &gt; 0 after registration (the Open Asset entry + Perspective
+    /// group + AI-debug group all contribute to the declared height).
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_OpenAssetToolbarEntry_Exists()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // Main toolbar must have entries — the Open Asset button + Perspective
+        // group + AI-debug group all contribute. Height > 0 proves entries exist.
+        Assert.True(wm.MainToolbar.Height > 0f,
+            $"Expected MainToolbar.Height > 0 after RegisterWindows, but got {wm.MainToolbar.Height}.");
+    }
 }

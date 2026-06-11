@@ -365,6 +365,87 @@ public sealed class AssetBrowserPanel
         Selection = asset;
     }
 
+    // ── BATCH-26: Programmatic tab switching ──────────────────────────
+
+    /// <summary>
+    /// The index of the <see cref="Tabs"/> entry to activate on the next
+    /// <see cref="DrawContent"/> call, or <see langword="null"/> for no override.
+    /// Consumed once and cleared after the tab bar is drawn.
+    /// </summary>
+    internal int? RequestedTabIndex => _requestedTabIndex;
+
+    private int? _requestedTabIndex;
+
+    /// <summary>
+    /// Cycles to the next permitted-kind tab (wraps).  When the "All" tab is
+    /// visible, the cycle goes All → first kind → second kind → … → All.
+    /// Does nothing when no tabs are present and <see cref="AssetBrowserPanelOptions.ShowAllTab"/>
+    /// is false.
+    /// </summary>
+    public void SelectNextTab()
+    {
+        int count = TabCount;
+        if (count <= 1) return;
+
+        int current = CurrentTabLogicalIndex;
+        int next = current + 1;
+        if (next >= count) next = 0;
+        _requestedTabIndex = next;
+    }
+
+    /// <summary>
+    /// Cycles to the previous permitted-kind tab (wraps).  Mirrors
+    /// <see cref="SelectNextTab"/> in reverse.
+    /// </summary>
+    public void SelectPreviousTab()
+    {
+        int count = TabCount;
+        if (count <= 1) return;
+
+        int current = CurrentTabLogicalIndex;
+        int prev = current - 1;
+        if (prev < 0) prev = count - 1;
+        _requestedTabIndex = prev;
+    }
+
+    /// <summary>
+    /// The total number of logical tabs (1 for "All" if shown, plus
+    /// <see cref="Tabs"/> count).
+    /// </summary>
+    internal int TabCount
+    {
+        get
+        {
+            int count = _options.ShowAllTab ? 1 : 0;
+            count += Tabs.Count;
+            return count;
+        }
+    }
+
+    /// <summary>
+    /// The currently active logical tab index: 0 = "All" (if shown),
+    /// 1..N = <see cref="Tabs"/>[index-1]. Uses <see cref="_activeTabIndex"/>
+    /// which tracks the last-clicked per-kind tab.
+    /// </summary>
+    private int CurrentTabLogicalIndex
+    {
+        get
+        {
+            // If "All" tab is visible and was last active (no explicit kind-tab
+            // click tracked beyond _activeTabIndex), approximate: if _activeTabIndex
+            // hasn't been set by clicking a kind tab, default to All (0).
+            // The active tab is the one last clicked; we track this in DrawContent
+            // via _lastDrawnTabLogicalIndex.
+            return _lastDrawnTabLogicalIndex;
+        }
+    }
+
+    /// <summary>
+    /// Tracks the last logical tab index that was drawn (set by DrawContent).
+    /// Used by <see cref="CurrentTabLogicalIndex"/>.
+    /// </summary>
+    private int _lastDrawnTabLogicalIndex;
+
     /// <summary>
     /// Raises the <see cref="AssetActivated"/> event with <paramref name="asset"/>
     /// (double-click / Enter) and updates <see cref="LastOpenedByKind"/> for the
@@ -390,10 +471,20 @@ public sealed class AssetBrowserPanel
     /// is <see langword="true"/>, an "All" tab with kind chips and a flat list
     /// is rendered first.
     /// </summary>
+    /// <remarks>
+    /// BATCH-26: when <see cref="_requestedTabIndex"/> is set (via
+    /// <see cref="SelectNextTab"/> / <see cref="SelectPreviousTab"/>), the
+    /// matching tab gets <see cref="ImGuiTabItemFlags.SetSelected"/> for one
+    /// frame, then the request is cleared.
+    /// </remarks>
     public void DrawContent()
     {
         if (Tabs.Count == 0 && !_options.ShowAllTab)
             return;
+
+        int allTabOffset = _options.ShowAllTab ? 1 : 0;
+        bool hasRequested = _requestedTabIndex.HasValue;
+        int requested = _requestedTabIndex ?? -1;
 
         // ── Tab bar ─────────────────────────────────────────────────
         if (ImGui.BeginTabBar("##AssetBrowserTabs"))
@@ -402,8 +493,13 @@ public sealed class AssetBrowserPanel
             if (_options.ShowAllTab)
             {
                 bool allTabOpen = true;
-                if (ImGui.BeginTabItem("All", ref allTabOpen, ImGuiTabItemFlags.None))
+                ImGuiTabItemFlags allFlags = ImGuiTabItemFlags.None;
+                if (hasRequested && requested == 0)
+                    allFlags |= ImGuiTabItemFlags.SetSelected;
+
+                if (ImGui.BeginTabItem("All", ref allTabOpen, allFlags))
                 {
+                    _lastDrawnTabLogicalIndex = 0;
                     DrawAllTab();
                     ImGui.EndTabItem();
                 }
@@ -415,10 +511,15 @@ public sealed class AssetBrowserPanel
                 var label = kind.ToString();
                 bool tabOpen = true;
 
+                int logicalIndex = i + allTabOffset;
                 ImGuiTabItemFlags flags = ImGuiTabItemFlags.None;
+                if (hasRequested && requested == logicalIndex)
+                    flags |= ImGuiTabItemFlags.SetSelected;
+
                 if (ImGui.BeginTabItem(label, ref tabOpen, flags))
                 {
                     _activeTabIndex = i;
+                    _lastDrawnTabLogicalIndex = logicalIndex;
                     DrawKindTab(kind);
                     ImGui.EndTabItem();
                 }
@@ -426,6 +527,9 @@ public sealed class AssetBrowserPanel
 
             ImGui.EndTabBar();
         }
+
+        // Clear the one-frame tab-switch request.
+        _requestedTabIndex = null;
     }
 
     private void DrawFilterBox()

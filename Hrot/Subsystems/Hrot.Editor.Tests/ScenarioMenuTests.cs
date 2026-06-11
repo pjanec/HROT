@@ -4,7 +4,9 @@ using Fdp.Toolkit.DER;
 using Hrot.Editor;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Browser;
+using Hrot.Editor.AiShared.Catalog;
 using NodeEditor.Core.Action;
+using NodeEditor.Core.Interfaces;
 using Xunit;
 
 namespace Hrot.Editor.Tests;
@@ -408,6 +410,119 @@ public sealed class ScenarioMenuTests
         // Invoking should not throw.
         var result = commands.Invoke(ScenarioMenuCommands.MigrationHistoryId);
         Assert.True(result.Success);
+    }
+
+    // ── BATCH-26: scenario.load → unified modal opens ──────────────────────
+
+    /// <summary>
+    /// BATCH-26: Invoking the <c>scenario.load</c> command opens the unified
+    /// AssetPickerModal and sets its IsOpen to true.  The openPicker seam is
+    /// wired to the real AssetPickerModal in production; this test verifies
+    /// that the seam → modal chain works correctly.
+    /// </summary>
+    [Fact]
+    public void Load_Invoke_OpensUnifiedModal()
+    {
+        var editorLogic = new FakeEditorLogic();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        var catalog = new FakeAssetCatalog();
+        var icons = new FakeIconProvider();
+        var modal = new AssetPickerModal(catalog, icons);
+
+        ScenarioMenuCommands.Register(
+            registerCommand:    (desc, handler) => commands.Register(desc, handler),
+            menu:               menu,
+            commands:           commands,
+            editorLogic:        editorLogic,
+            openPicker:         (kinds, cb) =>
+            {
+                // BATCH-26: opens the unified modal (same as production).
+                modal.Open(
+                    new AssetBrowserPanelOptions
+                    {
+                        Kinds = kinds,
+                        ShowAllTab = kinds == AssetKindFilter.All
+                    },
+                    cb);
+            },
+            openSaveAsDialog:   cb => { },
+            showMigrationHistory: null);
+
+        Assert.False(modal.IsOpen);
+
+        // Invoke scenario.load — this should open the modal.
+        var result = commands.Invoke(ScenarioMenuCommands.LoadId);
+        Assert.True(result.Success);
+        Assert.True(modal.IsOpen, "Expected modal.IsOpen = true after scenario.load invoked.");
+
+        // Verify the picker is scenario-filtered.
+        Assert.NotNull(modal.Panel);
+        Assert.Contains(AssetKind.Scenario, modal.Panel!.Tabs);
+    }
+
+    /// <summary>
+    /// BATCH-26: When the scenario picker is cancelled (callback(null)),
+    /// the modal closes and LoadScenarioByName is NOT called.
+    /// </summary>
+    [Fact]
+    public void Load_UnifiedModal_Cancel_DoesNotLoad()
+    {
+        var editorLogic = new FakeEditorLogic();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+        var catalog = new FakeAssetCatalog();
+        var icons = new FakeIconProvider();
+        var modal = new AssetPickerModal(catalog, icons);
+
+        ScenarioMenuCommands.Register(
+            registerCommand:    (desc, handler) => commands.Register(desc, handler),
+            menu:               menu,
+            commands:           commands,
+            editorLogic:        editorLogic,
+            openPicker:         (kinds, cb) =>
+            {
+                modal.Open(
+                    new AssetBrowserPanelOptions
+                    {
+                        Kinds = kinds,
+                        ShowAllTab = false
+                    },
+                    cb);
+                // Simulate user cancelling via Esc / X button.
+                modal.HandleCancel();
+            },
+            openSaveAsDialog:   cb => { },
+            showMigrationHistory: null);
+
+        var result = commands.Invoke(ScenarioMenuCommands.LoadId);
+        Assert.True(result.Success);
+
+        // Modal must be closed after cancel.
+        Assert.False(modal.IsOpen);
+        Assert.Empty(editorLogic.LoadScenarioByNameCalls);
+    }
+
+    // ── Fake catalog + icon provider for BATCH-26 unified modal tests ────
+
+    private sealed class FakeAssetCatalog : IAssetCatalog
+    {
+        public IReadOnlyList<IEditableAsset> All => Array.Empty<IEditableAsset>();
+        public IEditableAsset? FindByAssetId(Guid assetId) => null;
+        public IEditableAsset? FindByName(string name) => null;
+        public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<IEditableAsset>();
+#pragma warning disable CS0067
+        public event Action<AssetKind>? Changed;
+#pragma warning restore CS0067
+    }
+
+    private sealed class FakeIconProvider : IIconProvider
+    {
+        public bool TryGet(string key, out IconHandle handle)
+        {
+            handle = new IconHandle(1, 16, 16);
+            return true;
+        }
     }
 
     // ── Fake scenario asset for picker tests ────────────────────────────────

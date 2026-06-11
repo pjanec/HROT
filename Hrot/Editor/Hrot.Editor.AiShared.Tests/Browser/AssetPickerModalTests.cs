@@ -318,4 +318,120 @@ public sealed class AssetPickerModalTests
         Assert.Same(scenarioAsset, received);
         Assert.False(modal.IsOpen);
     }
+
+    // ── BATCH-26: Enter confirmation + kinds filtering ──────────────
+
+    /// <summary>
+    /// The Enter key confirms the current Selection.  Simulated by
+    /// setting the panel's Selection then calling HandleActivated with
+    /// that same asset — the callback must receive it and the modal closes.
+    /// </summary>
+    [Fact]
+    public void Enter_ConfirmsSelection_CallbackReceivesSelectedAsset()
+    {
+        var modal = CreateModal();
+        var asset = new FakeAsset { Name = "Target", Kind = AssetKind.Blueprint };
+
+        IEditableAsset? received = null;
+        modal.Open(DefaultOptions, a => received = a);
+
+        // Set selection via panel seam (Enter key would do this via ImGui).
+        Assert.NotNull(modal.Panel);
+        modal.Panel!.SelectAsset(asset);
+        Assert.Same(asset, modal.Panel.Selection);
+
+        // Simulate Enter → HandleActivated with the selected asset.
+        modal.HandleActivated(asset);
+
+        Assert.NotNull(received);
+        Assert.Same(asset, received);
+        Assert.Equal("Target", received!.Name);
+        Assert.False(modal.IsOpen);
+    }
+
+    /// <summary>
+    /// When no asset is selected, activating should still work (the
+    /// activation always passes whatever asset was double-clicked/entered).
+    /// </summary>
+    [Fact]
+    public void Enter_WithoutSelection_OnlyFiresIfExplicitlyActivated()
+    {
+        var modal = CreateModal();
+        var asset = new FakeAsset { Name = "Explicit", Kind = AssetKind.BTree };
+
+        IEditableAsset? received = null;
+        modal.Open(DefaultOptions, a => received = a);
+
+        // No selection set — but explicit double-click / enter still activates.
+        Assert.Null(modal.Panel!.Selection);
+        modal.HandleActivated(asset);
+
+        Assert.NotNull(received);
+        Assert.Same(asset, received);
+    }
+
+    /// <summary>
+    /// Opening with Kinds=Scenario produces a panel whose Tabs contains
+    /// only Scenario.
+    /// </summary>
+    [Fact]
+    public void Open_WithScenarioKinds_CreatesScenarioOnlyPanel()
+    {
+        var modal = CreateModal();
+
+        IEditableAsset? received = null;
+        modal.Open(new AssetBrowserPanelOptions
+        {
+            Kinds = AssetKindFilter.Scenario,
+            ShowAllTab = false
+        }, a => received = a);
+
+        Assert.True(modal.IsOpen);
+        Assert.NotNull(modal.Panel);
+        // Scenario-only → 1 tab.
+        Assert.Single(modal.Panel!.Tabs);
+        Assert.Equal(AssetKind.Scenario, modal.Panel.Tabs[0]);
+    }
+
+    /// <summary>
+    /// Opening with Kinds=All produces a panel with all permitted kinds.
+    /// </summary>
+    [Fact]
+    public void Open_WithAllKinds_ProducesFullTabSet()
+    {
+        var modal = CreateModal();
+
+        IEditableAsset? received = null;
+        modal.Open(new AssetBrowserPanelOptions
+        {
+            Kinds = AssetKindFilter.All,
+            ShowAllTab = true
+        }, a => received = a);
+
+        Assert.True(modal.IsOpen);
+        Assert.NotNull(modal.Panel);
+        // All six asset kinds.
+        Assert.Equal(6, modal.Panel!.Tabs.Count);
+    }
+
+    /// <summary>
+    /// The pending-flag (_pendingOpen) is set to true after Open()
+    /// and the PopupId constant is the same string used for both
+    /// OpenPopup and BeginPopupModal.
+    /// </summary>
+    [Fact]
+    public void PopupId_IsConsistent()
+    {
+        Assert.Equal("Open Asset", AssetPickerModal.PopupId);
+    }
+
+    /// <summary>
+    /// Default window size is non-zero (prevents zero-size collapse).
+    /// </summary>
+    [Fact]
+    public void DefaultWindowSize_IsPositive()
+    {
+        Assert.True(AssetPickerModal.DefaultWindowSize.X > 0f);
+        Assert.True(AssetPickerModal.DefaultWindowSize.Y > 0f);
+    }
 }

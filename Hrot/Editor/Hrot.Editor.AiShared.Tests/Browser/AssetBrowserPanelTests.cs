@@ -710,6 +710,112 @@ public sealed class AssetBrowserPanelTests
         Assert.Equal(3, kinds.Count);
     }
 
+    // ── BATCH-26: Tab cycling tests ───────────────────────────────────
+
+    /// <summary>
+    /// SelectNextTab advances the requested tab index through the logical
+    /// tab order: All → first kind → … → last kind → All.
+    /// </summary>
+    [Fact]
+    public void SelectNextTab_CyclesForward_ThroughAllTabs()
+    {
+        var catalog = new FakeCatalog();
+        var panel = CreatePanel(catalog,
+            kinds: AssetKindFilter.Blueprint | AssetKindFilter.BTree | AssetKindFilter.Hsm,
+            showAllTab: true);
+
+        // TabCount = 1 (All) + 3 (Blueprint, BTree, Hsm) = 4.
+        Assert.Equal(4, panel.TabCount);
+
+        // Start position: _lastDrawnTabLogicalIndex = 0 (default).
+        // SelectNextTab advances to 1.
+        panel.SelectNextTab();
+        Assert.Equal(1, panel.RequestedTabIndex);
+
+        // Calling again doesn't change until DrawContent consumes it.
+        panel.SelectNextTab();
+        Assert.Equal(1, panel.RequestedTabIndex);
+    }
+
+    /// <summary>
+    /// When ShowAllTab is false, the cycle skips the "All" tab.
+    /// </summary>
+    [Fact]
+    public void SelectNextTab_WithoutAllTab_SkipsAll()
+    {
+        var catalog = new FakeCatalog();
+        var panel = CreatePanel(catalog,
+            kinds: AssetKindFilter.Blueprint | AssetKindFilter.BTree,
+            showAllTab: false);
+
+        // TabCount = 0 + 2 = 2.
+        Assert.Equal(2, panel.TabCount);
+
+        panel.SelectNextTab();
+        // _lastDrawnTabLogicalIndex starts at 0; next is 1.
+        Assert.Equal(1, panel.RequestedTabIndex);
+    }
+
+    /// <summary>
+    /// SelectPreviousTab wraps backward.
+    /// </summary>
+    [Fact]
+    public void SelectPreviousTab_CyclesBackward()
+    {
+        var catalog = new FakeCatalog();
+        var panel = CreatePanel(catalog,
+            kinds: AssetKindFilter.Blueprint | AssetKindFilter.BTree | AssetKindFilter.Hsm,
+            showAllTab: true);
+
+        Assert.Equal(4, panel.TabCount);
+
+        // _lastDrawnTabLogicalIndex = 0 (default).
+        // Previous wraps to last tab (index 3).
+        panel.SelectPreviousTab();
+        Assert.Equal(3, panel.RequestedTabIndex);
+    }
+
+    /// <summary>
+    /// SelectNextTab / SelectPreviousTab are no-ops when only one tab exists.
+    /// </summary>
+    [Fact]
+    public void SelectNextTab_SingleTab_NoOp()
+    {
+        var catalog = new FakeCatalog();
+        // Only Blueprint, no All tab → 1 logical tab.
+        var panel = CreatePanel(catalog,
+            kinds: AssetKindFilter.Blueprint,
+            showAllTab: false);
+
+        Assert.Equal(1, panel.TabCount);
+
+        panel.SelectNextTab();
+        Assert.Null(panel.RequestedTabIndex);
+
+        panel.SelectPreviousTab();
+        Assert.Null(panel.RequestedTabIndex);
+    }
+
+    /// <summary>
+    /// SelectNextTab / SelectPreviousTab are no-ops when zero tabs exist.
+    /// </summary>
+    [Fact]
+    public void SelectNextTab_ZeroTabs_NoOp()
+    {
+        var catalog = new FakeCatalog();
+        var panel = CreatePanel(catalog,
+            kinds: AssetKindFilter.None,
+            showAllTab: false);
+
+        Assert.Equal(0, panel.TabCount);
+
+        panel.SelectNextTab();
+        Assert.Null(panel.RequestedTabIndex);
+
+        panel.SelectPreviousTab();
+        Assert.Null(panel.RequestedTabIndex);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     private static List<FolderTreeNode> AllLeaves(FolderTreeNode node)
