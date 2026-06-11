@@ -1291,7 +1291,7 @@ namespace Hrot.Editor
                 EditorBootstrap.ScenariosRoot,
                 diagnosticsAggregator);
             _logMergeWorker = new DiagnosticLogMergeWorker(_orchestrationBus!);
-            app.SetAvailableScenariosSource(() => _uiCache?.AvailableScenarios ?? Array.Empty<string>());
+            app.SetAvailableScenariosSource(() => ScenarioEnumeration.EnumerateRelPaths(EditorBootstrap.ScenariosRoot));
 
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
             if (!_headless)

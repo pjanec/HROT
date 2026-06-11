@@ -57,8 +57,8 @@ Phase 7.
 - [x] **MTB-P5-T2** `AssetKind.Scenario` + `ScenarioCatalogContributor` [details](./TASK-DETAIL.md#mtb-p5-t2--assetkindscenario--scenariocatalogcontributor)
 - [x] **MTB-P5-T3** Modal picker host [details](./TASK-DETAIL.md#mtb-p5-t3--modal-picker-host)
 - [x] **MTB-P5-T4** Docked window host [details](./TASK-DETAIL.md#mtb-p5-t4--docked-window-host)
-- [ ] **MTB-P5-T5** Scenario nested-name support [details](./TASK-DETAIL.md#mtb-p5-t5--scenario-nested-name-support)
-- [ ] **MTB-P5-T6** Caller wiring (pick → action) [details](./TASK-DETAIL.md#mtb-p5-t6--caller-wiring-pick--action)
+- [x] **MTB-P5-T5** Scenario nested-name support [details](./TASK-DETAIL.md#mtb-p5-t5--scenario-nested-name-support)
+- [x] **MTB-P5-T6** Caller wiring (pick → action) [details](./TASK-DETAIL.md#mtb-p5-t6--caller-wiring-pick--action) <!-- router done+tested; production host/router surfacing → DBT-2 (Phase 7) -->
 
 ## Phase 6 — Unified Creation & Recipes
 **Goal:** New/Save-As dialogs, generalized recipes, folder picker.
