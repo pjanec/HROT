@@ -396,54 +396,53 @@ host (MTB-P5-T4) in its place (§10.6). Open-docs section now lives in the Works
 
 ---
 
-## Phase 8 — Asset Picker UX (post-release polish) — [ASSET-PICKER-UX-DESIGN.md](./ASSET-PICKER-UX-DESIGN.md)
+## Phase 8 — Asset Picker UX via NodeEdit's picker (Tree layout) — [ASSET-PICKER-UX-DESIGN.md](./ASSET-PICKER-UX-DESIGN.md)
 
-Found in editor testing: the unified Open-Asset picker opens but is "unusable as is" — no type icons,
-no folders, no keyboard control. Enhance the **shared** `AssetBrowserPanel` (both the modal picker and
-the docked browser benefit). Model logic is headlessly unit-tested; ImGui input/focus/scroll behaviors
-are verified live by the user. NodeEdit `PickerWindow` is the inspiration (flat) — applied over the
-tree's **leaves**.
+Found in editor testing: the Open-Asset picker opens but is "unusable as is" (no type icons, no folders,
+no keyboard control). **Decision (D1):** NodeEdit's picker framework already provides all of this — incl.
+a `PickerLayout.Tree`, installable `IPickerSource<T>`/`IPickerRegistry`, per-entry icons, fuzzy match +
+highlight, clamp nav, auto-focus, auto-open-on-search, hide-empty, folders-non-selectable, dblclick,
+preview, recent/favorites, virtualization. So we ADOPT it: fix the small gaps in its Tree layout
+(generically), add an asset source, and wire the editor. The docked `AssetBrowserPanel` browser is left
+untouched. NodeEdit render gaps are verified in the NodeEdit demo; model/source logic is unit-tested.
 
-### MTB-P8-T1 — Per-kind recognizable asset icons (resolves DBT-1)
-**Scope:** map each `AssetKind` to a **distinct, recognizable** `SilkIconProvider` atlas cell
-(`asset/blueprint|btree|hsm|scenario|blackboard|utility`); ensure `DrawContent` draws the leading icon
-before the name in both tree leaves and the flat list (text fallback when unresolved). Document the
-chosen cell per kind.
+### MTB-P8-T1 — NodeEdit `TreeLayout` parity (icons, match-highlight, folder icons, scroll)
+**Scope:** in `FDP/ExtDeps/NodeEdit/src/NodeEditor.UI/Picker/Layouts/TreeLayout.cs` `DrawLeafItem` (today
+plain `Selectable(name)`): draw the entry's **type icon** (`PickerEntry.IconTextureId` via `ctx.Icons`)
+before the name; draw the name with **fuzzy match-range highlight** (extract the run-coloring from
+`PickerItemListHelper` into a shared helper used by both); draw **folder icons** (`folder`/`folder_open`)
+on folder `TreeNodeEx` nodes; **scroll the keyboard-focused leaf into view**. Keep the picker generic —
+NO asset specifics in NodeEdit. (Auto-focus, clamp nav, auto-open-on-search, hide-empty,
+folders-non-selectable, dblclick, Enter/Esc, preview, recent/favorites already work in Tree mode.)
 **Success conditions:**
-- `AssetKindIconsTests`/`IconKeysTests`: every `AssetKind` resolves to a distinct `IconKey`, and
-  `SilkIconProvider.TryGet` returns a non-default handle with a **distinct atlas cell per kind** (no two
-  asset kinds share a cell).
-- (Runtime) each row visibly shows a type-distinct icon.
+- `NodeEditor.UI.Tests`: the extracted match-highlight helper produces correct highlighted/plain runs
+  for given `MatchPositions` (e.g. "grd" over "Guard"); a Tree-grouping test over `Category` paths yields
+  the expected folder/leaf structure (empty folders absent when filtered).
+- A `NodeEditor.Demo` Tree-picker scenario (fake multi-category source + fake type/folder icons) renders
+  icons + highlight + folder icons (runtime-verified). Build green; existing picker tests still pass.
 
-### MTB-P8-T2 — "All" view as a kind-grouped folder tree
-**Scope:** replace the flat "All" tab with a single tree built (via `FolderTreePicker.Build`) from
-**kind-prefixed relpaths** (`"<Kind>/<relpath>"`) so top folders are kinds; keep the kind chips as a
-per-kind visibility filter (disabled chip hides that kind's top folder). Per-kind tabs unchanged.
-**Success conditions (`AssetBrowserPanelTests`):**
-- `AllView_IsTree_TopLevelFoldersAreKinds` — assets appear under `<Kind>/<subfolder>/…`; the top-level
-  nodes are exactly the kinds present.
-- `AllView_LeafMapsToAsset` — a leaf in the All tree maps back to its `IEditableAsset`.
-- `AllView_KindChipDisabled_HidesThatKindsBranch`.
+### MTB-P8-T2 — `AssetPickerSource` + recognizable per-kind & folder icons (resolves DBT-1)
+**Scope:** add `AssetPickerSource : IPickerSource<…>` (editor side) projecting the asset catalog →
+`PickerEntry`: `Category = "<Kind>/<subfolder>"` (All) or `<subfolder>` (single-kind variant);
+`IconTextureId` = per-kind icon; `Tag = IEditableAsset`; `Description` = recipe metadata; `PreferredLayout
+= Tree`; `SelectionMode = Single`. Provide a scenario-filtered variant (`Kinds = Scenario`). Register
+**distinct, recognizable** per-kind icons (`asset/blueprint|btree|hsm|scenario|blackboard|utility`) +
+folder icons (`folder`/`folder_open`) in the editor `IIconProvider` (distinct atlas cells).
+**Success conditions (`AssetPickerSourceTests`):**
+- `Entries_HaveKindGroupedCategory_AndPerKindIcon_AndAssetTag`.
+- `ScenarioVariant_YieldsOnlyScenarios`.
+- `GetItemKey_StableAcrossQueries`; `Description_FromRecipeMetadata_WhenPresent`.
+- `AssetKindIcons`/icon-registration test: each kind → a distinct resolvable icon (no shared cell).
 
-### MTB-P8-T3 — Auto-focus filter + keyboard leaf navigation
-**Scope:** add a testable nav model to `AssetBrowserPanel` (`VisibleLeaves` DFS leaves of the active
-tab's filtered tree; `KeyboardFocusIndex`; `MoveFocus(delta)` over leaves only with wrap; `FocusedAsset`;
-`ConfirmFocused()`), keep `Selection`/focus in sync. Add `AssetBrowserPanelOptions.AutoFocusFilter`
-(modal sets true → `SetKeyboardFocusHere` on the filter first frame). `DrawContent`: Up/Down →
-`MoveFocus`, Enter/KeypadEnter → `ConfirmFocused`, focused leaf highlighted + `SetScrollHereY`.
-**Success conditions (`AssetPickerNavTests`):**
-- `VisibleLeaves_AreLeavesOnly_InTreeOrder`.
-- `MoveFocus_SkipsFolders_AndWraps`; `MoveFocus_EmptyList_NoThrow_FocusMinusOne`.
-- `ConfirmFocused_RaisesAssetActivated_WithFocusedLeaf`; `Confirm_NoFocus_NoOp`.
-- `ChangingFilter_ReclampsFocus_IntoVisibleRange`.
-
-### MTB-P8-T4 — Auto-unfold matches, hide empty folders, folders non-selectable, dblclick confirm
-**Scope:** when `Filter` is non-empty, render ancestor folders of matches force-open
-(`SetNextItemOpen(true, Always)`, driven by `ExpandedFolders`); skip empty (non-matching) folder nodes;
-folders are headers only (toggle on click) — never `Selection`/`FocusedAsset`/confirmable; leaf
-single-click selects, **double-click a leaf** confirms (`ActivateAsset`); folder activation is a no-op.
-**Success conditions (`AssetBrowserPanelTests`):**
-- `FilteredTree_ExcludesEmptyFolders`; `ExpandedFolders_UnderFilter_AreAncestorsOfMatches`.
-- `VisibleLeaves_NeverContainFolders` (cross-check with T3).
-- `FolderNode_IsNotSelectable` (model: selecting/activating a folder path is a no-op; Selection stays
-  null/unchanged).
+### MTB-P8-T3 — Wire the editor Open-Asset picker through `IPickerRegistry`
+**Scope:** register the asset source(s) in `IPickerRegistry`; route the four entry points — toolbar
+"Open Asset" button, File→Open Asset…, Ctrl+O (all kinds), and Scenario→Load (scenario-filtered) —
+through `registry.Open(sourceKey, pos, onPick: payload => assetPickRouter.Route((IEditableAsset)payload),
+onCancel)`, and call `registry.DrawFrame()` once per frame in the editor render loop. Retire the
+`AssetPickerModal` (AssetBrowserPanel-based) path. The docked `AssetBrowserPanel` browser is **untouched**.
+**Success conditions:**
+- The four entry points open the picker (Tree layout) and pick → `AssetPickActionRouter.Route`
+  (file→`AiDocumentManager.Open`, scenario→`LoadScenarioByName`) — reuse/extend `AssetPickActionRouter`
+  tests; (runtime) the picker shows with folders, icons, keyboard nav, and confirms open the asset.
+- Build green; `Hrot.Blueprints.Tests` (Stability filter) stays at the established pre-existing set;
+  no `AssetPickerModal`/`AssetBrowserPanel` regressions in the docked browser.
