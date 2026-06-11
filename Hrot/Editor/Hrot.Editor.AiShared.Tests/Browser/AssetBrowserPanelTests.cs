@@ -648,6 +648,68 @@ public sealed class AssetBrowserPanelTests
         Assert.Empty(AssetBrowserPanel.GetAncestorPaths(null!));
     }
 
+    // ── MTB-P5-T2: AssetKindFilterMapping Scenario wiring ──────────────
+
+    [Fact]
+    public void FromKind_Scenario_MapsToScenarioFilter()
+    {
+        var filter = AssetKindFilterMapping.FromKind(AssetKind.Scenario);
+        Assert.Equal(AssetKindFilter.Scenario, filter);
+    }
+
+    [Fact]
+    public void FromKind_AllKinds_Audited()
+    {
+        // Verify every AssetKind maps to a non-zero, distinct filter flag.
+        var seen = new HashSet<AssetKindFilter>();
+        foreach (AssetKind kind in Enum.GetValues<AssetKind>())
+        {
+            var flag = AssetKindFilterMapping.FromKind(kind);
+            Assert.NotEqual(AssetKindFilter.None, flag);
+            Assert.DoesNotContain(flag, seen); // each kind → unique flag
+            seen.Add(flag);
+        }
+        // 6 kinds → 6 distinct flags (Scenario included).
+        Assert.Equal(6, seen.Count);
+    }
+
+    [Fact]
+    public void PermittedKinds_ScenarioFlag_IncludesScenario()
+    {
+        var kinds = AssetKindFilterMapping.PermittedKinds(AssetKindFilter.Scenario);
+        Assert.Single(kinds);
+        Assert.Equal(AssetKind.Scenario, kinds[0]);
+    }
+
+    [Fact]
+    public void PermittedKinds_All_IncludesScenario()
+    {
+        var kinds = AssetKindFilterMapping.PermittedKinds(AssetKindFilter.All);
+        Assert.Contains(AssetKind.Scenario, kinds);
+    }
+
+    [Fact]
+    public void PermittedKinds_All_HasAllSixKinds()
+    {
+        var kinds = AssetKindFilterMapping.PermittedKinds(AssetKindFilter.All);
+        Assert.Equal(6, kinds.Count);
+        Assert.Contains(AssetKind.Scenario, kinds);
+        Assert.Contains(AssetKind.Blueprint, kinds);
+        Assert.Contains(AssetKind.BTree, kinds);
+        Assert.Contains(AssetKind.Hsm, kinds);
+        Assert.Contains(AssetKind.Blackboard, kinds);
+        Assert.Contains(AssetKind.Utility, kinds);
+    }
+
+    [Fact]
+    public void PermittedKinds_WithoutScenario_DoesNotIncludeScenario()
+    {
+        var kinds = AssetKindFilterMapping.PermittedKinds(
+            AssetKindFilter.Blueprint | AssetKindFilter.BTree | AssetKindFilter.Hsm);
+        Assert.DoesNotContain(AssetKind.Scenario, kinds);
+        Assert.Equal(3, kinds.Count);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     private static List<FolderTreeNode> AllLeaves(FolderTreeNode node)

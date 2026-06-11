@@ -8,15 +8,11 @@ namespace Hrot.Editor.AiShared.Browser;
 /// Bitmask filter for <see cref="AssetKind"/> values used by
 /// <see cref="AssetBrowserPanelOptions"/> to control which tabs appear.
 /// </summary>
-/// <remarks>
-/// <see cref="Scenario"/> is reserved for MTB-P5-T2 — the flag is defined but
-/// not yet mapped to an <see cref="AssetKind"/> enum value.
-/// </remarks>
 [Flags]
 public enum AssetKindFilter
 {
     None        = 0,
-    Scenario    = 1,      // reserved — not yet wired (no AssetKind.Scenario)
+    Scenario    = 1,
     Blueprint   = 2,
     BTree       = 4,
     Hsm         = 8,
@@ -44,6 +40,7 @@ public static class AssetKindFilterMapping
         AssetKind.Hsm        => AssetKindFilter.Hsm,
         AssetKind.Blackboard => AssetKindFilter.Blackboard,
         AssetKind.Utility    => AssetKindFilter.Utility,
+        AssetKind.Scenario   => AssetKindFilter.Scenario,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind,
             $"Unknown {nameof(AssetKind)} value: {kind}")
     };
@@ -52,19 +49,15 @@ public static class AssetKindFilterMapping
     /// Returns the permitted <see cref="AssetKind"/> values from <paramref name="filter"/>,
     /// in enum declaration order.
     /// </summary>
-    /// <remarks>
-    /// <see cref="AssetKindFilter.Scenario"/> is <b>not</b> included — it is reserved
-    /// until <c>AssetKind.Scenario</c> exists (MTB-P5-T2).
-    /// </remarks>
     public static IReadOnlyList<AssetKind> PermittedKinds(AssetKindFilter filter)
     {
-        var kinds = new List<AssetKind>(5);
+        var kinds = new List<AssetKind>(6);
         if (filter.HasFlag(AssetKindFilter.Blueprint))  kinds.Add(AssetKind.Blueprint);
         if (filter.HasFlag(AssetKindFilter.BTree))      kinds.Add(AssetKind.BTree);
         if (filter.HasFlag(AssetKindFilter.Hsm))        kinds.Add(AssetKind.Hsm);
         if (filter.HasFlag(AssetKindFilter.Blackboard)) kinds.Add(AssetKind.Blackboard);
         if (filter.HasFlag(AssetKindFilter.Utility))    kinds.Add(AssetKind.Utility);
-        // Scenario reserved for MTB-P5-T2
+        if (filter.HasFlag(AssetKindFilter.Scenario))   kinds.Add(AssetKind.Scenario);
         return kinds.AsReadOnly();
     }
 }

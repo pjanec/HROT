@@ -64,14 +64,13 @@ public static class AssetRoots
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown for <see cref="AssetKind.Blackboard"/> and <see cref="AssetKind.Utility"/>
     /// (no Recipes root defined in §16).
-    /// Scenario recipes are exposed via <see cref="ScenariosRecipesRelative"/>. Once
-    /// <c>AssetKind.Scenario</c> is added (MTB-P5-T2), this method will gain a Scenario arm.
     /// </exception>
     public static string RecipesRelative(AssetKind kind) => kind switch
     {
         AssetKind.Blueprint => Path.Combine("Recipes", "Blueprints"),
         AssetKind.BTree     => Path.Combine("Recipes", "BTrees"),
         AssetKind.Hsm       => Path.Combine("Recipes", "HSMs"),
+        AssetKind.Scenario  => ScenariosRecipesRelative,
         _ => throw new ArgumentOutOfRangeException(
             nameof(kind), kind, $"AssetKind.{kind} has no Recipes root.")
     };

@@ -7,4 +7,5 @@ public enum AssetKind
     Hsm,
     Blackboard,
     Utility,
+    Scenario,
 }

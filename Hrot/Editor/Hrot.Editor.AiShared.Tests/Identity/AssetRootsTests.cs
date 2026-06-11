@@ -77,6 +77,21 @@ public sealed class AssetRootsTests
         Assert.Equal("kind", ex.ParamName);
     }
 
+    [Fact]
+    public void RecipesRelative_Scenario_ReturnsExpectedSegment()
+    {
+        Assert.Equal(Path.Combine("Recipes", "Scenarios"),
+            AssetRoots.RecipesRelative(AssetKind.Scenario));
+    }
+
+    [Fact]
+    public void AssetsRelative_Scenario_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.AssetsRelative(AssetKind.Scenario));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
     // ── AssetsFor (absolute, delegates to AssetsRelative) ─────────
 
     [Fact]
@@ -106,6 +121,14 @@ public sealed class AssetRootsTests
         Assert.Equal("kind", ex.ParamName);
     }
 
+    [Fact]
+    public void AssetsFor_Scenario_ThrowsArgumentOutOfRangeException()
+    {
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.AssetsFor(AssetKind.Scenario));
+        Assert.Equal("kind", ex.ParamName);
+    }
+
     // ── RecipesFor (absolute, delegates to RecipesRelative) ────────
 
     [Fact]
@@ -119,7 +142,11 @@ public sealed class AssetRootsTests
         AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Hsm),
             Path.Combine("Recipes", "HSMs"));
 
-        // Scenario via dedicated member (no AssetKind.Scenario yet).
+        // Scenario now uses the RecipesFor(AssetKind.Scenario) arm.
+        AssertEndsWithRelative(AssetRoots.RecipesFor(AssetKind.Scenario),
+            Path.Combine("Recipes", "Scenarios"));
+
+        // Backward-compat: dedicated member still points to the same place.
         AssertEndsWithRelative(AssetRoots.ScenariosRecipesRoot,
             Path.Combine("Recipes", "Scenarios"));
     }
@@ -157,7 +184,7 @@ public sealed class AssetRootsTests
     [Fact]
     public void RecipesFor_DelegatesTo_RecipesRelative()
     {
-        foreach (var kind in new[] { AssetKind.Blueprint, AssetKind.BTree, AssetKind.Hsm })
+        foreach (var kind in new[] { AssetKind.Blueprint, AssetKind.BTree, AssetKind.Hsm, AssetKind.Scenario })
         {
             var absolute = AssetRoots.RecipesFor(kind);
             var expected = Path.Combine(AppContext.BaseDirectory, AssetRoots.RecipesRelative(kind));
@@ -178,11 +205,13 @@ public sealed class AssetRootsTests
     [Fact]
     public void AssetsFor_Scenario_HasNoAssetsRoot()
     {
-        // There is no AssetKind.Scenario yet; the DESIGN calls for a dedicated
-        // ScenariosRecipesRoot as the *only* scenario root.  Verifying that:
-        //   1. ScenariosRecipesRoot points to Recipes/Scenarios (not Assets),
-        //   2. No scenario Assets root exists (there's no enum value to pass),
-        //   3. Unsupported kinds (Blackboard, Utility) throw, documenting the contract.
+        // Scenario has AssetsFor(AssetKind.Scenario) → throw
+        // (Scenarios are orchestrator/NAS-backed; no Assets root).
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => AssetRoots.AssetsFor(AssetKind.Scenario));
+        Assert.Equal("kind", ex.ParamName);
+
+        // But ScenariosRecipesRoot still exists and points to Recipes/Scenarios.
         string scenariosRoot = AssetRoots.ScenariosRecipesRoot;
         AssertEndsWithRelative(scenariosRoot, "Recipes/Scenarios");
 
@@ -193,9 +222,6 @@ public sealed class AssetRootsTests
         Assert.StartsWith(recipesRoot, scenariosRoot);
         Assert.False(scenariosRoot.StartsWith(assetsRoot),
             "Scenario root must NOT be under AssetsRoot — scenarios have no Assets root.");
-
-        // Blackboard and Utility throw from AssetsFor (already covered above);
-        // they also throw from RecipesFor because they have neither root.
     }
 
     // ── Disjoint roots ─────────────────────────────────────────────

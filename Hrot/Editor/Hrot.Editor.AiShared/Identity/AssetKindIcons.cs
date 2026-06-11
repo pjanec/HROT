@@ -7,19 +7,12 @@ namespace Hrot.Editor.AiShared;
 /// The keys are resolved through <see cref="IIconProvider.TryGet"/> at render time,
 /// keeping atlas layout concerns in one documented place.
 /// </para>
-/// <para>
-/// <b>DEV-LEAD decision (DEC-2):</b> <see cref="AssetKind.Scenario"/> does not exist yet.
-/// The scenario mapping is exposed via the <see cref="ScenarioIconKey"/> constant
-/// rather than an <see cref="AssetKind.Scenario"/> arm. When <c>AssetKind.Scenario</c>
-/// is added (MTB-P5-T2), the map should gain a <c>Scenario</c> arm returning
-/// <see cref="ScenarioIconKey"/>.
-/// </para>
 /// </summary>
 public static class AssetKindIcons
 {
     /// <summary>
-    /// The icon key for scenarios. Exposed as a dedicated constant because
-    /// <see cref="AssetKind.Scenario"/> is not yet part of the enum (DEC-2).
+    /// The icon key for scenarios. Available as a constant for consumers
+    /// that need the key without an <see cref="AssetKind.Scenario"/> value.
     /// </summary>
     public const string ScenarioIconKey = "asset/scenario";
 
@@ -37,6 +30,7 @@ public static class AssetKindIcons
         AssetKind.Hsm        => "asset/hsm",
         AssetKind.Blackboard => "asset/blackboard",
         AssetKind.Utility    => "asset/utility",
+        AssetKind.Scenario   => ScenarioIconKey,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, $"Unknown {nameof(AssetKind)} value: {kind}")
     };
 }

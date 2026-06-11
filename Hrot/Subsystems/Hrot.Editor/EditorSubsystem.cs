@@ -274,6 +274,8 @@ namespace Hrot.Editor
         private AiAssetCatalogBuilder?         _aiCatalogBuilder;
         private AiDocumentManager?             _aiDocumentManager;
         private WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
+        // MTB-P5-T2: Scenario catalog contributor (non-file-backed; refreshed on scenario list change).
+        private Hrot.Editor.Catalog.ScenarioCatalogContributor? _scenarioContributor;
         // AIE-026: save → emit → reload scheduler (ticked in Update)
         private Hrot.Editor.AiShared.Emit.RegenerationScheduler? _regenerationScheduler;
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
@@ -682,6 +684,11 @@ namespace Hrot.Editor
                 ()  => bpContrib.Refresh(),
                 bTreeJsonContributor: btreeJsonContrib,
                 hsmJsonContributor:   hsmJsonContrib);
+
+            // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
+            _scenarioContributor = new Hrot.Editor.Catalog.ScenarioCatalogContributor(
+                () => _editorLogic?.AvailableScenarios ?? Array.Empty<string>());
+            _aiCatalogBuilder.Catalog.AddContributor(_scenarioContributor);
 
             // Wire hot-reload: refresh the catalog whenever AI behaviors are reloaded.
             // On initial load the OnReloadCompleted fires via DrainPendingCallbacks; each
@@ -2289,6 +2296,10 @@ namespace Hrot.Editor
                                 saveHsmDelegate(asset, path);
                                 doc.MarkClean();
                                 break;
+                            default:
+                                // Other kinds (Scenario, Blackboard, Utility) are not saved via
+                                // the document-save path — skip silently.
+                                break;
                         }
                     }
                     catch (Exception ex)
@@ -2464,6 +2475,10 @@ namespace Hrot.Editor
                             // (ActionFqn set) project their parameter data-IN pins from the matching entry.
                             behaviorActions: _behaviorActionCatalog,
                             debugSession: _blueprintDebugSession);
+                        break;
+                    default:
+                        // Other kinds (Scenario, Blackboard, Utility) have no ViewState factory —
+                        // they are not document-backed kinds.
                         break;
                 }
 

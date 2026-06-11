@@ -105,14 +105,15 @@ public sealed class IconKeysTests
     [Fact]
     public void AssetKindToIconKey_CoversAllKinds_IncludingScenario()
     {
-        // All 5 current AssetKind values map correctly
+        // All 6 AssetKind values map correctly (including Scenario).
         Assert.Equal("asset/blueprint",  AssetKindIcons.GetIconKey(AssetKind.Blueprint));
         Assert.Equal("asset/btree",      AssetKindIcons.GetIconKey(AssetKind.BTree));
         Assert.Equal("asset/hsm",        AssetKindIcons.GetIconKey(AssetKind.Hsm));
         Assert.Equal("asset/blackboard", AssetKindIcons.GetIconKey(AssetKind.Blackboard));
         Assert.Equal("asset/utility",    AssetKindIcons.GetIconKey(AssetKind.Utility));
+        Assert.Equal("asset/scenario",   AssetKindIcons.GetIconKey(AssetKind.Scenario));
 
-        // Scenario constant (DEC-2: AssetKind.Scenario does not exist yet)
+        // ScenarioIconKey constant matches the enum arm.
         Assert.Equal("asset/scenario", AssetKindIcons.ScenarioIconKey);
     }
 
@@ -131,9 +132,6 @@ public sealed class IconKeysTests
             bool found = provider.TryGet(key, out _);
             Assert.True(found, $"Icon key '{key}' for AssetKind.{kind} must resolve");
         }
-
-        // Scenario constant also resolves
-        Assert.True(provider.TryGet(AssetKindIcons.ScenarioIconKey, out _));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
