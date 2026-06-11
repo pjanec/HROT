@@ -23,12 +23,11 @@ namespace Hrot.Editor.AiShared.Browser;
 /// next <see cref="Open"/> are no-ops).
 /// </para>
 /// <para>
-/// <b>BATCH-26 lock-up fix:</b> <see cref="DrawModal"/> mirrors the "Rename Entity"
-/// modal pattern: a pending-flag (<see cref="_pendingOpen"/>) is set by <see cref="Open"/>
-/// and consumed at the top-level ImGui draw point.  <see cref="ImGui.OpenPopup"/> and
-/// <see cref="ImGui.BeginPopupModal"/> use the <b>identical</b> ID string
-/// (<c>"Open Asset"</c>).  An explicit <see cref="ImGui.SetNextWindowSize"/> prevents
-/// the modal from collapsing to zero/invisible size.
+/// <b>BATCH-26 lock-up fix:</b> while <see cref="IsOpen"/>, <see cref="DrawModal"/> retries
+/// <see cref="ImGui.OpenPopup"/> until the popup is actually open (a one-shot open proved
+/// unreliable depending on call timing/scope), using the <b>identical</b> ID string
+/// (<c>"Open Asset"</c>) as <see cref="ImGui.BeginPopupModal"/>, plus an explicit
+/// <see cref="ImGui.SetNextWindowSize"/> so the modal can't collapse to zero/invisible size.
 /// </para>
 /// </remarks>
 public sealed class AssetPickerModal
@@ -39,7 +38,6 @@ public sealed class AssetPickerModal
     private AssetBrowserPanel? _panel;
     private Action<IEditableAsset?>? _callback;
     private bool _callbackInvoked;
-    private bool _pendingOpen;
 
     /// <summary>
     /// The popup ID string used for both <see cref="ImGui.OpenPopup"/> and
@@ -125,10 +123,7 @@ public sealed class AssetPickerModal
 
         _panel = new AssetBrowserPanel(_catalog, _icons, options, lastOpened);
         _panel.AssetActivated += OnPanelAssetActivated;
-
-        // BATCH-26 lock-up fix: set pending-flag so DrawModal opens the popup
-        // at the correct ImGui scope (mirrors the Rename Entity pattern).
-        _pendingOpen = true;
+        // DrawModal opens the ImGui popup on the next draw while IsOpen is true (retry pattern).
     }
 
     /// <summary>
@@ -140,7 +135,6 @@ public sealed class AssetPickerModal
         ClosePanel();
         _callback = null;
         _callbackInvoked = false;
-        _pendingOpen = false;
     }
 
     // ── Headless test seams ────────────────────────────────────────────
@@ -189,16 +183,15 @@ public sealed class AssetPickerModal
         if (!IsOpen)
             return;
 
-        // BATCH-26 lock-up fix: consume pending-flag — OpenPopup once at
-        // the top-level draw scope with the IDENTICAL ID string used for
-        // BeginPopupModal, then set an explicit size so the window can't
-        // collapse to zero/invisible (mirrors the working Rename Entity modal).
-        if (_pendingOpen)
-        {
+        // Robust open: keep requesting the popup until ImGui confirms it is actually open,
+        // then always set an explicit size so it can't collapse to a zero/invisible window.
+        // (A one-shot OpenPopup proved unreliable — if the single call didn't engage on that
+        // frame, depending on call timing/scope, the popup was lost and nothing appeared.
+        // Retrying while IsOpen mirrors the behaviour that reliably engaged the modal before;
+        // the IDENTICAL id string + explicit size make it visible. See BATCH-26 lock-up notes.)
+        if (!ImGui.IsPopupOpen(PopupId))
             ImGui.OpenPopup(PopupId);
-            ImGui.SetNextWindowSize(DefaultWindowSize, ImGuiCond.Appearing);
-            _pendingOpen = false;
-        }
+        ImGui.SetNextWindowSize(DefaultWindowSize, ImGuiCond.Appearing);
 
         bool isOpen = true;
         if (ImGui.BeginPopupModal($"{title}###{PopupId}", ref isOpen,
