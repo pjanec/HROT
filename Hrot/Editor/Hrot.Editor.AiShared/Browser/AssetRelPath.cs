@@ -40,9 +40,27 @@ public static class AssetRelPath
         if (string.IsNullOrEmpty(asset.SourceFilePath) || string.IsNullOrEmpty(baseFolder))
             return asset.Name;
 
-        var relPath = Path.GetRelativePath(baseFolder, asset.SourceFilePath);
-        // Normalize to forward slashes and trim any leading '/'.
-        relPath = relPath.Replace('\\', '/').TrimStart('/');
+        var relPath = Path.GetRelativePath(baseFolder, asset.SourceFilePath)
+            .Replace('\\', '/').TrimStart('/');
+
+        // The asset may physically live under a DIFFERENT absolute root than baseFolder — e.g. the
+        // contributor scanned the source project dir (…/Hrot/Subsystems/Hrot.AI.Behaviors/Assets/
+        // Blueprints/…) while baseFolder resolves to the bin/output dir (…/bin/…/Assets/Blueprints).
+        // GetRelativePath then emits "../../../…", surfacing as bogus ".." tree levels in the browser.
+        // Recover the logical relpath by anchoring on baseFolder's trailing segment chain
+        // (e.g. "Assets/Blueprints") within the source path, independent of the absolute prefix.
+        if (relPath.StartsWith("../", StringComparison.Ordinal) || relPath == "..")
+        {
+            var baseSegs = baseFolder.Replace('\\', '/').TrimEnd('/').Split('/');
+            var anchor = baseSegs.Length >= 2
+                ? baseSegs[^2] + "/" + baseSegs[^1]
+                : baseSegs[^1];
+            var src = asset.SourceFilePath.Replace('\\', '/');
+            int idx = src.LastIndexOf(anchor + "/", StringComparison.OrdinalIgnoreCase);
+            if (idx >= 0)
+                return src.Substring(idx + anchor.Length + 1);
+        }
+
         return relPath;
     }
 }

@@ -143,8 +143,13 @@ public sealed class AssetPickerModal
             return;
 
         // Open the popup on the first frame, then draw it.
-        if (!ImGui.IsPopupOpen("##AssetPickerPopup"))
-            ImGui.OpenPopup("##AssetPickerPopup");
+        // NOTE: the popup ID must match BeginPopupModal's. BeginPopupModal uses
+        // "{title}###AssetPickerPopup", whose ImGui ID is hashed from the part after "###"
+        // (= "AssetPickerPopup"). OpenPopup/IsPopupOpen must therefore use the bare
+        // "AssetPickerPopup" (NOT "##AssetPickerPopup", which hashes a different string) — else
+        // the opened popup never matches its Begin and the pending modal blocks all other input.
+        if (!ImGui.IsPopupOpen("AssetPickerPopup"))
+            ImGui.OpenPopup("AssetPickerPopup");
 
         bool isOpen = true;
         if (ImGui.BeginPopupModal($"{title}###AssetPickerPopup", ref isOpen,
