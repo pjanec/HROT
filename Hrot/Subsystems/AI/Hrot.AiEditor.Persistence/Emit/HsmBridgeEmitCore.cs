@@ -110,17 +110,20 @@ public static class HsmBridgeEmitCore
         {
             sb.AppendLine();
             sb.AppendLine($"{pad2}// HSM action thunks registered STATICALLY via HsmActionDispatcher.");
-            // Each HSM action is emitted as a stub with nop delegate; real action bodies
-            // come from the hand-authored [BTreeAction]/action methods in Brains/*.cs.
+            // Each HSM action is emitted as a stub with a no-op local function; real
+            // action bodies come from the hand-authored [HsmAction] methods in Brains/*.cs.
             // The bridge merely ensures the IDs are known to the dispatcher after hot reload.
+            sb.AppendLine($"{pad2}unsafe");
+            sb.AppendLine($"{pad2}{{");
+            sb.AppendLine($"{pad2}{Indent}static void __hsActionStub(void* inst, void* ctx, Fhsm.Kernel.Data.HsmCommandWriter* w) {{ }}");
             ushort actionId = 100; // placeholder IDs for JSON-owned HSM thunks
             foreach (var fqn in actions)
             {
-                sb.AppendLine($"{pad2}// Action: {fqn}");
-                sb.AppendLine($"{pad2}unsafe {{ HsmActionDispatcher.RegisterAction({actionId++},");
-                sb.AppendLine($"{pad2}{Indent}(System.IntPtr)(delegate* <void*, void*, Fhsm.Kernel.Data.HsmCommandWriter*, void>)");
-                sb.AppendLine($"{pad2}{Indent}static (void* inst, void* ctx, Fhsm.Kernel.Data.HsmCommandWriter* w) => {{ }}); }}");
+                sb.AppendLine($"{pad2}{Indent}// Action: {fqn}");
+                sb.AppendLine($"{pad2}{Indent}HsmActionDispatcher.RegisterAction({actionId++},");
+                sb.AppendLine($"{pad2}{Indent}{Indent}(System.IntPtr)(delegate*<void*, void*, Fhsm.Kernel.Data.HsmCommandWriter*, void>)&__hsActionStub);");
             }
+            sb.AppendLine($"{pad2}}}");
         }
 
         // HSM guard thunks
@@ -129,14 +132,17 @@ public static class HsmBridgeEmitCore
         {
             sb.AppendLine();
             sb.AppendLine($"{pad2}// HSM guard thunks registered STATICALLY via HsmActionDispatcher.");
+            sb.AppendLine($"{pad2}unsafe");
+            sb.AppendLine($"{pad2}{{");
+            sb.AppendLine($"{pad2}{Indent}static bool __hsGuardStub(void* inst, void* ctx, ushort ev) => true;");
             ushort guardId = 200;
             foreach (var fqn in guards)
             {
-                sb.AppendLine($"{pad2}// Guard: {fqn}");
-                sb.AppendLine($"{pad2}unsafe {{ HsmActionDispatcher.RegisterGuard({guardId++},");
-                sb.AppendLine($"{pad2}{Indent}(System.IntPtr)(delegate* <void*, void*, ushort, bool>)");
-                sb.AppendLine($"{pad2}{Indent}static (void* inst, void* ctx, ushort ev) => true); }}");
+                sb.AppendLine($"{pad2}{Indent}// Guard: {fqn}");
+                sb.AppendLine($"{pad2}{Indent}HsmActionDispatcher.RegisterGuard({guardId++},");
+                sb.AppendLine($"{pad2}{Indent}{Indent}(System.IntPtr)(delegate*<void*, void*, ushort, bool>)&__hsGuardStub);");
             }
+            sb.AppendLine($"{pad2}}}");
         }
 
         sb.AppendLine($"{pad}}}");
