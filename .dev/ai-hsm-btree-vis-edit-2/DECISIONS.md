@@ -1,0 +1,14 @@
+# BTree / HSM Visual Editing — Autonomous Decisions Log
+
+Decisions taken by the dev-lead during the autonomous orchestration run (no mid-run user questions).
+Newest at the bottom of each section.
+
+## Cadence / process
+- **D-CADENCE (2026-06-12):** Per updated guide (the per-task "stop and let me review" clause was removed), Phase A runs **fully autonomous**: worker → hard verify (read impl+tests, re-run) → corrective loop → **commit per task** on my satisfaction → next task. `[VISUAL GATE]` tasks are implemented + headless-tested autonomously; their **pixel** confirmation is batched into a single **REVIEW-BT** note for the user at the end of Phase A (non-blocking; I continue). I do not stop between batches.
+
+## TASK-BT-01 — Live action/condition palette
+- **D-01 (2026-06-12): Action-vs-Condition discriminator.** `ActionSchemaEntry`/`BehaviorActionEntry` do NOT record whether an entry is an action or a condition (`ActionSchemaExporter.ProcessMethod` collapses `[BTreeAction]` and `[BTreeCondition]` both into `Hosting |= BTree`; same for `[SharedAi(Heavy)Action/Condition]`). **Decision:** add `bool IsCondition` to `ActionSchemaEntry` **appended with a default (`= false`)** so existing positional call sites & BB1 tests keep compiling, and set it `true` in the `[BTreeCondition]` / `[SharedAiCondition]` / `[SharedAiHeavyCondition]` branches of `ProcessMethod`. Additive, BB1-safe (BB1 reads `DtoType`, unaffected). Rejected alternatives: per-entry reflection in the catalog (ugly/slow); duplicate attribute scan in the catalog (duplicates exporter logic). Guardrail: BATCH-01 must keep `Hrot.Editor.AiShared.Tests` 0-new-failures (covers `ActionSchemaExporterTests` + BB1 picker tests).
+- **D-02 (2026-06-12): Placement bakes identity via encoded NodeKindKey.** Specific entries use kind id `bt.leaf.action::{Fqn}` / `bt.leaf.condition::{Fqn}` (`::` separator — FQNs contain dots). `BTreeKinds` gains a parse helper; `BTreeCommandSink.ApplyAddNode` detects an encoded action/condition kind and sets `node.KernelType = Action|Condition` + `node.Action`/`node.Condition` payload (`MethodFqn = fqn`). Generic `bt.leaf.action` / `bt.leaf.condition` entries remain as unbound fallbacks.
+
+## TASK-BT-06 — Showcase + Starter recipe
+- **D-03 (2026-06-12): Starter recipe is in-code.** `BTreeNewAssetService.AvailableRecipes()` has a TODO and no on-disk recipe discovery seam yet. **Decision:** register the "Starter" recipe as an in-code `IEditableAsset` in `AvailableRecipes()` (alongside "Empty"), not via a new discovery mechanism. The showcase asset ships as a normal `.btree.json` under the BTree assets root (via `AssetRoots`). Revisit if/when recipe discovery lands.
