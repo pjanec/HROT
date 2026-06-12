@@ -84,7 +84,16 @@ internal sealed class BTreeNodeModel : INodeModel
                                                    ? _node.KernelType.ToString()
                                                    : _node.DisplayLabel;
     public string?             Subtitle      => null;
-    public NodeCategory        Category      => NodeCategory.FlowControl;
+    public NodeCategory        Category      => _node.KernelType switch
+        {
+            Fbt.NodeType.Action           => NodeCategory.Function,
+            Fbt.NodeType.Wait             => NodeCategory.Function,
+            Fbt.NodeType.Condition        => NodeCategory.Pure,
+            Fbt.NodeType.Subtree          => NodeCategory.Macro,
+            // Composites (Root, Sequence, Selector, ObserverSelector, Parallel)
+            // and unknown types map to FlowControl.
+            _                             => NodeCategory.FlowControl,
+        };
     public Vector2             Position      => _node.Position;
     public Vector2?            SizeOverride  => null;
     public NodeState           State         => NodeState.Normal;
