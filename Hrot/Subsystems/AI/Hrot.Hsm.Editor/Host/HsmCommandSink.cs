@@ -275,24 +275,11 @@ internal sealed class HsmCommandSink : IGraphCommandSink
 
     private void ApplyRemoveLinks(GraphCommand.RemoveLinks cmd)
     {
-        // B-4 lifecycle: when a transition (link) is removed, check if it owns an auto-managed
-        // variable via ExpressionTargetField. If so, remove that variable from the blackboard.
-        // Only deletes variables that are BOTH IsAutoManaged AND named by THIS transition's field.
         foreach (var linkId in cmd.Links)
         {
             var transition = _asset.FindTransitionByVisualId(linkId.Value);
             if (transition is null) continue;
-
-            if (!string.IsNullOrEmpty(transition.ExpressionTargetField))
-            {
-                var varEntry = _asset.BlackboardVariables
-                    .FirstOrDefault(v => v.Name == transition.ExpressionTargetField);
-                if (varEntry is { IsAutoManaged: true })
-                    _asset.RemoveVariable(transition.ExpressionTargetField);
-            }
-
-            // Remove the transition from source state's outgoing transitions list.
-            transition.Source?.OutgoingTransitions.Remove(transition);
+            RemoveTransitionInternal(transition);
         }
     }
     private void ApplySetNodeProperty(GraphCommand.SetNodeProperty cmd)
@@ -324,7 +311,12 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         ApplyChangeParentMultiple(new GraphCommand.ChangeParentMultiple(
             new[] { new ChangeParentMove(cmd.NodeId, cmd.NewParentContainerId, cmd.NewRegionIndex, cmd.NewLocalPosition) }));
     }
-    private void ApplySetContainerCollapsed(GraphCommand.SetContainerCollapsed cmd) { /* TODO */ }
+    private void ApplySetContainerCollapsed(GraphCommand.SetContainerCollapsed cmd)
+    {
+        var state = _asset.FindStateByStableId(cmd.ContainerId.Value);
+        if (state is not null)
+            state.IsCollapsed = cmd.IsCollapsed;
+    }
     private void ApplyAddRegion(GraphCommand.AddRegion cmd)
     {
         var state = _asset.FindStateByStableId(cmd.ContainerId.Value);
