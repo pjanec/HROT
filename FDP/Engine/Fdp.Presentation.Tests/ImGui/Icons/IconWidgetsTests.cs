@@ -635,24 +635,25 @@ public class IconWidgetsTests
     }
 
     /// <summary>
-    /// MTB2-T1: the <see cref="IconWidgets.DefaultIconScale"/> constant
-    /// equals 0.9, confirming the <c>IconHandle</c> overloads use a 90 % inset
-    /// when <c>iconScale</c> is omitted.
+    /// MTB2-T1 (BUG-A4): the <see cref="IconWidgets.DefaultIconScale"/> leaves a clear
+    /// margin (the icon is noticeably smaller than its hit/spacing box) and yields a
+    /// centered inset strictly inside the box.
     /// </summary>
     [Fact]
-    public void ComputeIconRect_DefaultScaleIsNinety()
+    public void ComputeIconRect_DefaultScaleLeavesClearMargin()
     {
-        Assert.Equal(0.9f, IconWidgets.DefaultIconScale);
+        Assert.True(IconWidgets.DefaultIconScale < 0.8f,
+            $"DefaultIconScale should leave a clear margin (< 0.8); was {IconWidgets.DefaultIconScale}.");
+        Assert.True(IconWidgets.DefaultIconScale > 0.5f,
+            $"DefaultIconScale should not be tiny (> 0.5); was {IconWidgets.DefaultIconScale}.");
 
-        // Double-check: applying DefaultIconScale to ComputeIconRect matches 0.9.
         var boxPos = new Vector2(0f, 0f);
         var boxSize = new Vector2(50f, 50f);
+        var (min, max) = IconWidgets.ComputeIconRect(boxPos, boxSize, IconWidgets.DefaultIconScale);
 
-        var (minDefault, maxDefault) = IconWidgets.ComputeIconRect(boxPos, boxSize, IconWidgets.DefaultIconScale);
-        var (minExplicit, maxExplicit) = IconWidgets.ComputeIconRect(boxPos, boxSize, 0.9f);
-
-        Assert.Equal(minExplicit, minDefault);
-        Assert.Equal(maxExplicit, maxDefault);
+        Assert.True(min.X > boxPos.X && min.Y > boxPos.Y, "inset must be strictly inside the box");
+        Assert.True(max.X < boxPos.X + boxSize.X && max.Y < boxPos.Y + boxSize.Y, "inset must be strictly inside the box");
+        Assert.Equal(min.X - boxPos.X, (boxPos.X + boxSize.X) - max.X, 0.0001f); // centered
     }
 
     // ─── MTB-P1-T2: Tooltip helper ────────────────────────────────────────────

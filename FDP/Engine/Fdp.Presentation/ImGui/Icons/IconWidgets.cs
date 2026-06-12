@@ -213,9 +213,9 @@ public static class IconWidgets
     /// <summary>
     /// Default icon scale applied by the <see cref="IconHandle"/> overloads
     /// when <c>iconScale</c> is omitted. 0.9 means the icon image occupies
-    /// 90 % of the hit/spacing box, centered with equal margins (~5 % each side).
+    /// ~72 % of the hit/spacing box, centered with clear breathing room (~14 % each side).
     /// </summary>
-    public const float DefaultIconScale = 0.9f;
+    public const float DefaultIconScale = 0.72f;
 
     /// <summary>
     /// Returns the centered sub-rect at <paramref name="scale"/> of the box.
@@ -317,23 +317,15 @@ public static class IconWidgets
         var (iconMin, iconMax) = ComputeIconRect(screenPos, size, iconScale);
         var iconSize = iconMax - iconMin;
 
-        // ── Filled backgrounds (only when enabled) ──────────────────────────
-        if (enabled)
+        // ── Toggled-state fill (only when enabled) ───────────────────────────
+        // A clearly-visible accent fill marks the "active"/toggled state. The hover
+        // indicator is a SEPARATE white frame (drawn after the icon, below) so that a
+        // toggled icon that is ALSO hovered shows BOTH cues.
+        if (enabled && isToggled)
         {
-            // Toggled fill: accent-tinted, clearly readable as "active".
-            if (isToggled)
-            {
-                var toggleCol = Gui.GetStyle().Colors[(int)ImGuiCol.Header];
-                toggleCol.W = 0.45f; // more opaque than hover
-                drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(toggleCol));
-            }
-            // Hover fill: subtle filled highlight, only when NOT toggled.
-            else if (isHovered)
-            {
-                var hoverCol = Gui.GetStyle().Colors[(int)ImGuiCol.Header];
-                hoverCol.W = 0.25f; // low-alpha filled highlight
-                drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(hoverCol));
-            }
+            var toggleCol = Gui.GetStyle().Colors[(int)ImGuiCol.HeaderActive];
+            toggleCol.W = 0.85f; // strong, unmistakable "active" fill
+            drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(toggleCol), 2f);
         }
 
         // Icon image; shift 1px when pressed.
@@ -357,6 +349,15 @@ public static class IconWidgets
         }
 
         drawList.AddImage(icon.TextureId, imagePos, imagePos + iconSize, icon.Uv0, icon.Uv1, imageTint);
+
+        // ── Hover frame (independent of toggle) ──────────────────────────────
+        // A white border around the full box, drawn on top of everything — the clear,
+        // toggle-independent hover indicator. Composes with the toggled fill above.
+        if (enabled && isHovered)
+        {
+            drawList.AddRect(screenPos, screenPos + size,
+                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)), 2f);
+        }
 
         // Flip state on click (only when enabled)
         if (clicked)
