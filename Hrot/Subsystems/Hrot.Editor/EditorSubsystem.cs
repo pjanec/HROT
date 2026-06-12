@@ -2361,21 +2361,19 @@ namespace Hrot.Editor
                 report:               msg => _saveAllStatus = msg,
                 isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
                 hasLoadedScenario:    () => !string.IsNullOrEmpty(_editorLogic?.LoadedScenarioName),
-                saveScenarioAction:   () => _editorLogic?.SaveCurrentScenario(),
+                saveScenarioAction:   () => { _editorLogic?.SaveCurrentScenario(); _saveAllStatus = $"[OK] Saved scenario '{_editorLogic?.LoadedScenarioName}'."; },
                 requestScenarioSaveAs: openScenarioSaveAs,
                 describeActiveTarget: () =>
                 {
-                    if (windowManager.CurrentPerspective == "Editor"
-                        && _editorLogic != null
-                        && !string.IsNullOrEmpty(_editorLogic.LoadedScenarioName))
+                    if (windowManager.CurrentPerspective == "Editor")
                     {
-                        return $"Save [scenario: {_editorLogic.LoadedScenarioName}]";
+                        var n = _editorLogic?.LoadedScenarioName;
+                        return string.IsNullOrEmpty(n) ? "Save Scenario" : $"Save [scenario: {n}]";
                     }
-                    if (_aiDocumentManager.Active != null)
-                    {
-                        return $"Save [{_aiDocumentManager.Active.Kind.ToString().ToLowerInvariant()}: {_aiDocumentManager.Active.Asset.Name}]";
-                    }
-                    return "Save";
+                    var act = _aiDocumentManager?.Active;
+                    return act != null
+                        ? $"Save [{act.Kind.ToString().ToLowerInvariant()}: {act.Asset.Name}]"
+                        : "Save";
                 });
             // ───────────────────────────────────────────────────────────────────────────────────
 

@@ -139,7 +139,7 @@ public static class ShellSaveCommands
                 IconKey:     "shell/save",
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
-                    ? (hasLoadedScenario?.Invoke() == true)
+                    ? true
                     : docManager.Active != null,
                 DynamicDisplayName: describeActiveTarget != null
                     ? () => describeActiveTarget()
@@ -149,7 +149,8 @@ public static class ShellSaveCommands
                 // Branch on scenario context first.
                 if (isScenarioContext?.Invoke() == true)
                 {
-                    saveScenarioAction?.Invoke();
+                    if (hasLoadedScenario?.Invoke() == true) saveScenarioAction?.Invoke();
+                    else                                     requestScenarioSaveAs?.Invoke();
                     return;
                 }
 
@@ -169,16 +170,19 @@ public static class ShellSaveCommands
                     case AssetKind.Blueprint:
                         saveBlueprint?.Invoke(doc.Asset, path);
                         doc.MarkClean();
+                        report?.Invoke($"[OK] Saved {doc.Kind}: '{doc.Asset.Name}'.");
                         break;
 
                     case AssetKind.BTree:
                         saveBTree?.Invoke(doc.Asset, path);
                         doc.MarkClean();
+                        report?.Invoke($"[OK] Saved {doc.Kind}: '{doc.Asset.Name}'.");
                         break;
 
                     case AssetKind.Hsm:
                         saveHsm?.Invoke(doc.Asset, path);
                         doc.MarkClean();
+                        report?.Invoke($"[OK] Saved {doc.Kind}: '{doc.Asset.Name}'.");
                         break;
 
                     default:
@@ -199,7 +203,7 @@ public static class ShellSaveCommands
                 IconKey:     "shell/saveAs",
                 DefaultKey:  null,
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
-                    ? (hasLoadedScenario?.Invoke() == true)
+                    ? true
                     : docManager.Active != null),
             _ =>
             {

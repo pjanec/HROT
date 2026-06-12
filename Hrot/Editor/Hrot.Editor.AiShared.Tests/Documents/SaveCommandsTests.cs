@@ -299,10 +299,10 @@ public sealed class SaveCommandsTests
         var dispatcher = new EditorHotkeyDispatcher(ctrlSInput);
         dispatcher.ProcessThisFrame(commands);
 
-        // shell.save → per-kind delegate called directly, no report.
+        // shell.save → per-kind delegate called, then report fires (BUG-A3).
         Assert.Equal(1, writeCalled);
         Assert.Equal(0, saveAsCalled);
-        Assert.Equal(0, reportCalled);
+        Assert.Equal(1, reportCalled);
 
         // -- Ctrl+Shift+S → should invoke shell.saveAll, not shell.save ─────────
         // Re-mark dirty (shell.save call above cleared it) so SaveAll processes it again.
@@ -313,11 +313,10 @@ public sealed class SaveCommandsTests
         dispatcher.ProcessThisFrame(commands);
 
         // shell.saveAll → SaveAllAiDocumentsCommand.Execute → calls both the per-kind
-        // delegate AND report. The writeCalled goes from 1→2 (incremented inside SaveAll).
+        // delegate AND report. The writeCalled goes from 1→2, reportCalled from 1→2.
         Assert.Equal(2, writeCalled);
         Assert.Equal(0, saveAsCalled);
-        // Ctrl+Shift+S must invoke SaveAll, which calls report for success.
-        Assert.Equal(1, reportCalled);
+        Assert.Equal(2, reportCalled);
     }
 
     // ── Edge case: Null active document does not throw ──────────────────────────
@@ -507,7 +506,7 @@ public sealed class SaveCommandsTests
             Assert.True(saveDesc.IsEnabled(), "Save enabled in scenario context with loaded scenario");
         }
 
-        // ── Scenario context, not loaded → disabled ────────────────────────
+        // ── Scenario context, not loaded → enabled (always enabled in scenario ctx) ─
         {
             var mgr = MakeManager();
             var (descriptors, unusedActions) = MakeRecordingRegister();
@@ -525,7 +524,7 @@ public sealed class SaveCommandsTests
                 saveScenarioAction:  null,
                 requestScenarioSaveAs: null);
             var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
-            Assert.False(saveDesc.IsEnabled(), "Save disabled in scenario context without loaded scenario");
+            Assert.True(saveDesc.IsEnabled(), "Save enabled in scenario context even without loaded scenario (falls back to Save-As)");
         }
 
         // ── Document context, active → enabled ─────────────────────────────
@@ -637,6 +636,107 @@ public sealed class SaveCommandsTests
         InvokeAction(descriptors, actions, ShellSaveCommands.ScenarioSaveAsId);
         Assert.Equal(1, saveScenarioCalls); // unchanged
         Assert.Equal(1, scenarioSaveAsCalls);
+    }
+
+    // ── BUG-A2: named/unnamed routing in scenario context ─────────────────────
+
+    /// <summary>
+    /// Scenario context + hasLoadedScenario = true → shell.save fires
+    /// saveScenarioAction, NOT requestScenarioSaveAs.
+    /// </summary>
+    [Fact]
+    public void Save_InScenarioContext_Named_RoutesToSaveScenario()
+    {
+        var mgr = MakeManager();
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool saveScenarioCalled = false;
+        bool scenarioSaveAsCalled = false;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           null,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => { },
+            report:                  null,
+            isScenarioContext:       () => true,
+            hasLoadedScenario:       () => true,
+            saveScenarioAction:      () => saveScenarioCalled = true,
+            requestScenarioSaveAs:   () => scenarioSaveAsCalled = true);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+
+        Assert.True(saveScenarioCalled, "saveScenarioAction should fire when scenario is named");
+        Assert.False(scenarioSaveAsCalled, "requestScenarioSaveAs should NOT fire when scenario is named");
+    }
+
+    /// <summary>
+    /// Scenario context + hasLoadedScenario = false → shell.save fires
+    /// requestScenarioSaveAs, NOT saveScenarioAction (falls back to Save-As).
+    /// </summary>
+    [Fact]
+    public void Save_InScenarioContext_Unnamed_RoutesToSaveAs()
+    {
+        var mgr = MakeManager();
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool saveScenarioCalled = false;
+        bool scenarioSaveAsCalled = false;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           null,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => { },
+            report:                  null,
+            isScenarioContext:       () => true,
+            hasLoadedScenario:       () => false,
+            saveScenarioAction:      () => saveScenarioCalled = true,
+            requestScenarioSaveAs:   () => scenarioSaveAsCalled = true);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+
+        Assert.True(scenarioSaveAsCalled, "requestScenarioSaveAs should fire when scenario is unnamed (Save-As fallback)");
+        Assert.False(saveScenarioCalled, "saveScenarioAction should NOT fire when scenario is unnamed");
+    }
+
+    // ── BUG-A3: report feedback after document save ──────────────────────────
+
+    /// <summary>
+    /// Document context, active Blueprint with non-empty SourceFilePath + a
+    /// recording report spy → shell.save calls report with a message that
+    /// contains the asset name.
+    /// </summary>
+    [Fact]
+    public void Save_Document_ReportsSavedMessage()
+    {
+        var mgr = MakeManager();
+        var asset = new FakeAsset(AssetKind.Blueprint, "ReportedBP", "/fake/reported.bp.json");
+        var doc = mgr.Open(asset);
+        doc.MarkDirty();
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        string? reportedMessage = null;
+
+        ShellSaveCommands.Register(
+            register:      RecordingRegister(descriptors, actions),
+            docManager:    mgr,
+            saveBlueprint: (_, _) => { },
+            saveBTree:     null,
+            saveHsm:       null,
+            saveScenario:  null,
+            requestSaveAs: _ => { },
+            report:        msg => reportedMessage = msg);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+
+        Assert.NotNull(reportedMessage);
+        Assert.Contains("ReportedBP", reportedMessage);
+        Assert.StartsWith("[OK]", reportedMessage);
     }
 
     /// <summary>
