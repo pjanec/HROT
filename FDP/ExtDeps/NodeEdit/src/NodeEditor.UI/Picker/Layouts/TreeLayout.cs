@@ -71,7 +71,7 @@ internal static class TreeLayout
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
 
         // REVERT BATCH-45: default-open ONLY while searching so matches are visible.
-        // For non-search, drive each folder's open state from ExpandedFolders.
+        // For non-search, ImGui remembers each folder's native open/closed state.
         var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
 
         // Render folders.
@@ -116,9 +116,13 @@ internal static class TreeLayout
             ImGui.SameLine();
         }
 
-        // Drive open state from ExpandedFolders (non-search) or force open (search).
-        if (!isSearching)
-            ImGui.SetNextItemOpen(state.ExpandedFolders.Contains(fullPath), ImGuiCond.Always);
+        // Drive open state via one-shot request; otherwise let ImGui remember natively.
+        // During search, DefaultOpen flag auto-expands; do not also force via pending path.
+        if (!isSearching && state.PendingToggleFolderPath == fullPath)
+        {
+            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            state.PendingToggleFolderPath = null;
+        }
 
         bool open = ImGui.TreeNodeEx(folder.Name, treeFlags);
 
@@ -126,11 +130,16 @@ internal static class TreeLayout
         state.VisualRows.Add(new PickerState.TreeRow(
             IsFolder: true, FolderPath: fullPath, FilteredIndex: -1, Depth: depth));
 
-        // Sync mouse-driven arrow toggle with ExpandedFolders (mirrors SaveAsBrowserDialog pattern).
-        if (open)
-            state.ExpandedFolders.Add(fullPath);
-        else if (folder.Folders.Count > 0 || folder.Leaves.Count > 0)
-            state.ExpandedFolders.Remove(fullPath);
+        // Mouse single-click moves TreeFocusRow so selection follows the mouse (A17/A18).
+        if (ImGui.IsItemClicked())
+            state.TreeFocusRow = visualRowIndex;
+
+        // Double-click toggles expand/collapse (A19).
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            state.PendingToggleFolderPath = fullPath;
+            state.PendingToggleOpen = !open;
+        }
 
         // Scroll focused folder into view.
         if (isFocused)
@@ -167,8 +176,12 @@ internal static class TreeLayout
         if (node.Children.Count == 0)
             treeFlags |= ImGuiTreeNodeFlags.Leaf;
 
-        // Drive open state from ExpandedFolders (explicit tree has no search auto-expand).
-        ImGui.SetNextItemOpen(state.ExpandedFolders.Contains(fullPath), ImGuiCond.Always);
+        // Drive open state via one-shot request; otherwise let ImGui remember natively.
+        if (state.PendingToggleFolderPath == fullPath)
+        {
+            ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
+            state.PendingToggleFolderPath = null;
+        }
 
         bool open = ImGui.TreeNodeEx(node.Name, treeFlags);
 
@@ -176,11 +189,16 @@ internal static class TreeLayout
         state.VisualRows.Add(new PickerState.TreeRow(
             IsFolder: true, FolderPath: fullPath, FilteredIndex: -1, Depth: depth));
 
-        // Sync mouse arrow toggle with ExpandedFolders.
-        if (open)
-            state.ExpandedFolders.Add(fullPath);
-        else if (node.Children.Count > 0)
-            state.ExpandedFolders.Remove(fullPath);
+        // Mouse single-click moves TreeFocusRow so selection follows the mouse (A17/A18).
+        if (ImGui.IsItemClicked())
+            state.TreeFocusRow = visualRowIndex;
+
+        // Double-click toggles expand/collapse (A19).
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            state.PendingToggleFolderPath = fullPath;
+            state.PendingToggleOpen = !open;
+        }
 
         // Scroll focused folder into view.
         if (isFocused)
@@ -206,6 +224,7 @@ internal static class TreeLayout
 
         // Record this leaf as a visual row (before rendering, so the focus index
         // computed in HandleKeyboardNavigation maps to the correct row).
+        int visualRowIndex = state.VisualRows.Count;
         state.VisualRows.Add(new PickerState.TreeRow(
             IsFolder: false, FolderPath: "", FilteredIndex: filteredIdx, Depth: depth));
 
@@ -276,12 +295,13 @@ internal static class TreeLayout
             textX += ImGui.CalcTextSize(run.Text).X;
         }
 
-        // Handle mouse click for selection.
+        // Handle mouse click for selection (A17/A18: also move TreeFocusRow).
         if (actualMouseClicked)
         {
             state.SelectedFilteredIndices.Clear();
             state.SelectedFilteredIndices.Add(filteredIdx);
             state.KeyboardFocusIndex = filteredIdx;
+            state.TreeFocusRow = visualRowIndex;
         }
 
         // Double-click confirms.

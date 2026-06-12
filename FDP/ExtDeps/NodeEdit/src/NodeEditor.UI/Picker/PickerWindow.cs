@@ -243,9 +243,9 @@ public sealed class PickerWindow
                 var focusRow = _state.VisualRows[tf];
                 if (focusRow.IsFolder)
                 {
-                    // Expand if not already expanded; no-op if already expanded.
-                    if (!_state.ExpandedFolders.Contains(focusRow.FolderPath))
-                        _state.ExpandedFolders.Add(focusRow.FolderPath);
+                    // Request expand via one-shot toggle (A16).
+                    _state.PendingToggleFolderPath = focusRow.FolderPath;
+                    _state.PendingToggleOpen = true;
                     enterPressed = false; // suppress confirm
                 }
             }
@@ -356,20 +356,26 @@ public sealed class PickerWindow
         else if (ImGui.IsKeyPressed(ImGuiKey.End))
             focusRow = count - 1;
 
-        // → — expand focused folder.
+        // → — request expand for focused folder (A16).
         if (ImGui.IsKeyPressed(ImGuiKey.RightArrow))
         {
             var row = _state.VisualRows[focusRow];
             if (row.IsFolder)
-                _state.ExpandedFolders.Add(row.FolderPath);
+            {
+                _state.PendingToggleFolderPath = row.FolderPath;
+                _state.PendingToggleOpen = true;
+            }
         }
 
-        // ← — collapse focused folder.
+        // ← — request collapse for focused folder (A16).
         if (ImGui.IsKeyPressed(ImGuiKey.LeftArrow))
         {
             var row = _state.VisualRows[focusRow];
             if (row.IsFolder)
-                _state.ExpandedFolders.Remove(row.FolderPath);
+            {
+                _state.PendingToggleFolderPath = row.FolderPath;
+                _state.PendingToggleOpen = false;
+            }
         }
 
         // Sync KeyboardFocusIndex from tree focus: mirror leaf's FilteredIndex
@@ -448,8 +454,8 @@ public sealed class PickerWindow
             if (tf >= 0 && tf < _state.VisualRows.Count && _state.VisualRows[tf].IsFolder)
             {
                 var path = _state.VisualRows[tf].FolderPath;
-                if (!_state.ExpandedFolders.Contains(path))
-                    _state.ExpandedFolders.Add(path);
+                _state.PendingToggleFolderPath = path;
+                _state.PendingToggleOpen = true;
                 return;
             }
         }

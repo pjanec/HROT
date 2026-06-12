@@ -38,8 +38,11 @@ internal sealed class PickerState
 
     // ── Tree layout state ─────────────────────────────────────────────────────
 
-    /// <summary>Folder full-paths that are currently expanded (Tree layout only).</summary>
-    public HashSet<string> ExpandedFolders = new();
+    /// <summary>One-shot toggle request: folder path to expand/collapse next frame (Tree layout only).</summary>
+    public string? PendingToggleFolderPath;
+
+    /// <summary>Target open state for <see cref="PendingToggleFolderPath"/>.</summary>
+    public bool PendingToggleOpen;
 
     /// <summary>Per-frame visual row list built by TreeLayout in render order (DFS).</summary>
     public List<TreeRow> VisualRows = new();
@@ -122,7 +125,8 @@ internal sealed class PickerState
         KeyboardFocusIndex      = 0;
         SelectionAnchorIndex    = 0;
         SelectedCategory        = "";
-        ExpandedFolders.Clear();
+        PendingToggleFolderPath = null;
+        PendingToggleOpen       = false;
         VisualRows.Clear();
         TreeFocusRow            = 0;
         Confirmed               = false;
