@@ -153,4 +153,17 @@ public static class HsmSelectionBridgeHelper
     /// </summary>
     public static HsmFacetDispatcher? BuildFacetDispatcher(HsmAsset? asset)
         => asset is null ? null : new HsmFacetDispatcher(asset);
+
+    /// <summary>
+    /// Builds an <see cref="HsmFacetDispatcher"/> that also updates <paramref name="fqnContext"/>
+    /// with the selected transition action FQN on each <c>GetFacet</c> call.
+    /// Pass the same <paramref name="fqnContext"/> to
+    /// <see cref="HsmPickerDrawerFactory.BuildDrawers"/> so the blackboard-field picker
+    /// filters variables by the current transition's DtoType.
+    /// Returns <see langword="null"/> when <paramref name="asset"/> is <see langword="null"/>.
+    /// </summary>
+    public static HsmFacetDispatcher? BuildFacetDispatcher(
+        HsmAsset?            asset,
+        HsmFacetFqnContext?  fqnContext)
+        => asset is null ? null : new HsmFacetDispatcher(asset, fqnContext);
 }

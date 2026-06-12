@@ -1942,22 +1942,24 @@ namespace Hrot.Editor
             var facetEditService = new ComponentEditServiceBuilder().Build();
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
                 "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager:    _bpManager,
-                sanitizerRegistry:    sanitizerRegistry,
-                exportBuilder:        comparisonExportBuilder,
-                sessionRegistry:      comparisonSessionRegistry,
-                aggregatorService:    aggregatorService,
-                schemaExporter:       sharedSchemaExporter,
-                facetEditService:     facetEditService);
+                breakpointManager:             _bpManager,
+                sanitizerRegistry:             sanitizerRegistry,
+                exportBuilder:                 comparisonExportBuilder,
+                sessionRegistry:               comparisonSessionRegistry,
+                aggregatorService:             aggregatorService,
+                schemaExporter:                sharedSchemaExporter,
+                facetEditService:              facetEditService,
+                expressionTargetFieldAccessor: ResolveExpressionTargetField);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
-                breakpointManager:    _bpManager,
-                sanitizerRegistry:    sanitizerRegistry,
-                exportBuilder:        comparisonExportBuilder,
-                sessionRegistry:      comparisonSessionRegistry,
-                aggregatorService:    aggregatorService,
-                schemaExporter:       sharedSchemaExporter,
-                facetEditService:     facetEditService);
+                breakpointManager:             _bpManager,
+                sanitizerRegistry:             sanitizerRegistry,
+                exportBuilder:                 comparisonExportBuilder,
+                sessionRegistry:               comparisonSessionRegistry,
+                aggregatorService:             aggregatorService,
+                schemaExporter:                sharedSchemaExporter,
+                facetEditService:              facetEditService,
+                expressionTargetFieldAccessor: ResolveExpressionTargetField);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,
@@ -1999,22 +2001,34 @@ namespace Hrot.Editor
                     && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
                     && _behaviorRegistry is not null)
                 {
-                    var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(btreeAsset, _behaviorRegistry);
+                    // BB1D: share ONE BTreeFacetFqnContext between the dispatcher (writer)
+                    // and the drawer (reader) so the blackboard-field picker filters by the
+                    // current action's DtoType in the same frame.
+                    var btreeCtx     = new BTreeFacetFqnContext();
+                    var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(
+                        btreeAsset, _behaviorRegistry, sharedSchemaExporter, btreeCtx);
                     _btreeRegistrar?.Inspector.SetFacetEditService(facetEditService, btreeDrawers);
-                    // FIX-A: wire the per-asset facet dispatcher so InspectorWindow.GetCurrentFacet()
-                    // returns a non-null facet when a BTree node is selected.
+                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
+                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
+                    // the picker reads the updated FQN on the same frame.
                     _btreeRegistrar?.Inspector.SetFacetDispatcher(
-                        BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset));
+                        BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, btreeCtx));
                 }
                 else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
                     && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
                 {
-                    var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(hsmAsset);
+                    // BB1D: share ONE HsmFacetFqnContext between the dispatcher (writer)
+                    // and the drawer (reader) so the blackboard-field picker filters by the
+                    // current transition action's DtoType in the same frame.
+                    var hsmCtx     = new HsmFacetFqnContext();
+                    var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(
+                        hsmAsset, sharedSchemaExporter, hsmCtx);
                     _hsmRegistrar?.Inspector.SetFacetEditService(facetEditService, hsmDrawers);
-                    // FIX-A: wire the per-asset facet dispatcher so InspectorWindow.GetCurrentFacet()
-                    // returns a non-null facet when an HSM state is selected.
+                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
+                    // so InspectorWindow.GetCurrentFacet() returns a non-null facet and
+                    // the picker reads the updated FQN on the same frame.
                     _hsmRegistrar?.Inspector.SetFacetDispatcher(
-                        HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset));
+                        HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, hsmCtx));
                 }
                 else
                 {
@@ -3537,6 +3551,22 @@ namespace Hrot.Editor
                 _blueprintDebugSession.RestoreWatches(file.Watches);
             }
         }
+
+        // ── BB1D: Shared accessor for ExpressionTargetField ──────────────────────────────
+        // Returns the ExpressionTargetField value for facet types that carry it
+        // (BTree Action/Condition facets; HSM Transition/GlobalTransition facets).
+        // Returns null for all other facet types (e.g. BTreeWaitFacet, StateFacet).
+        // Shared between both BTree and HSM perspective registrars so the
+        // "Static Parameters" panel in InspectorWindow knows which blackboard variable
+        // is currently bound.
+        private static string? ResolveExpressionTargetField(object? facet) => facet switch
+        {
+            BTreeActionFacet af          => af.ExpressionTargetField,
+            BTreeConditionFacet cf       => cf.ExpressionTargetField,
+            TransitionFacet tf           => tf.ExpressionTargetField,
+            GlobalTransitionFacet gtf    => gtf.ExpressionTargetField,
+            _                            => null,
+        };
 
         // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
