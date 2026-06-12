@@ -567,6 +567,94 @@ public class IconWidgetsTests
         Assert.False(toggled, "Disabled toggle must NOT flip state");
     }
 
+    // ─── MTB2-T1: ComputeIconRect ───────────────────────────────────────────
+
+    /// <summary>
+    /// MTB2-T1: <c>ComputeIconRect</c> with box (0,0)-(20,20) at scale 0.9
+    /// yields a rect of roughly (18,18) centered at (10,10) with equal margins.
+    /// </summary>
+    [Fact]
+    public void ComputeIconRect_CentersAtNinetyPercent()
+    {
+        var boxPos = new Vector2(0f, 0f);
+        var boxSize = new Vector2(20f, 20f);
+        const float scale = 0.9f;
+
+        var (min, max) = IconWidgets.ComputeIconRect(boxPos, boxSize, scale);
+
+        var rectSize = max - min;
+
+        // Expected: margin = (20 - 18) / 2 = 1 on each side
+        const float tolerance = 0.0001f;
+        Assert.Equal(1f, min.X, tolerance);
+        Assert.Equal(1f, min.Y, tolerance);
+        Assert.Equal(19f, max.X, tolerance);
+        Assert.Equal(19f, max.Y, tolerance);
+        Assert.Equal(18f, rectSize.X, tolerance);
+        Assert.Equal(18f, rectSize.Y, tolerance);
+
+        // Equal margins: distance from box edge to rect edge on each side
+        Assert.Equal(min.X - boxPos.X, (boxPos.X + boxSize.X) - max.X, tolerance);
+        Assert.Equal(min.Y - boxPos.Y, (boxPos.Y + boxSize.Y) - max.Y, tolerance);
+    }
+
+    /// <summary>
+    /// MTB2-T1: scale 1.0 → rect == box; scale 0.5 → rect strictly inside
+    /// and centered.
+    /// </summary>
+    [Fact]
+    public void ComputeIconRect_NeverExceedsBox()
+    {
+        var boxPos = new Vector2(10f, 20f);
+        var boxSize = new Vector2(100f, 60f);
+
+        // Scale 1.0 → rect exactly equals box
+        var (min1, max1) = IconWidgets.ComputeIconRect(boxPos, boxSize, 1.0f);
+        Assert.Equal(boxPos, min1);
+        Assert.Equal(boxPos + boxSize, max1);
+
+        // Scale 0.5 → rect is centered and strictly inside
+        var (min2, max2) = IconWidgets.ComputeIconRect(boxPos, boxSize, 0.5f);
+        var halfSize = max2 - min2;
+        Assert.Equal(boxSize.X * 0.5f, halfSize.X, 0.0001f);
+        Assert.Equal(boxSize.Y * 0.5f, halfSize.Y, 0.0001f);
+
+        // Centered: margins equal on both sides
+        float marginLeft = min2.X - boxPos.X;
+        float marginRight = (boxPos.X + boxSize.X) - max2.X;
+        float marginTop = min2.Y - boxPos.Y;
+        float marginBottom = (boxPos.Y + boxSize.Y) - max2.Y;
+        Assert.Equal(marginLeft, marginRight, 0.0001f);
+        Assert.Equal(marginTop, marginBottom, 0.0001f);
+
+        // Strictly inside
+        Assert.True(min2.X > boxPos.X);
+        Assert.True(min2.Y > boxPos.Y);
+        Assert.True(max2.X < boxPos.X + boxSize.X);
+        Assert.True(max2.Y < boxPos.Y + boxSize.Y);
+    }
+
+    /// <summary>
+    /// MTB2-T1: the <see cref="IconWidgets.DefaultIconScale"/> constant
+    /// equals 0.9, confirming the <c>IconHandle</c> overloads use a 90 % inset
+    /// when <c>iconScale</c> is omitted.
+    /// </summary>
+    [Fact]
+    public void ComputeIconRect_DefaultScaleIsNinety()
+    {
+        Assert.Equal(0.9f, IconWidgets.DefaultIconScale);
+
+        // Double-check: applying DefaultIconScale to ComputeIconRect matches 0.9.
+        var boxPos = new Vector2(0f, 0f);
+        var boxSize = new Vector2(50f, 50f);
+
+        var (minDefault, maxDefault) = IconWidgets.ComputeIconRect(boxPos, boxSize, IconWidgets.DefaultIconScale);
+        var (minExplicit, maxExplicit) = IconWidgets.ComputeIconRect(boxPos, boxSize, 0.9f);
+
+        Assert.Equal(minExplicit, minDefault);
+        Assert.Equal(maxExplicit, maxDefault);
+    }
+
     // ─── MTB-P1-T2: Tooltip helper ────────────────────────────────────────────
 
     [Fact]

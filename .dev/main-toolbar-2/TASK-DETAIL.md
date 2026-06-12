@@ -118,27 +118,37 @@ prerequisite for T4's dynamic Save label.
 - `FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Action/IEditorCommands.cs` — add a trailing optional
   `Func<string>? DynamicDisplayName = null` to the `EditorCommandDescriptor` record (after `IsChecked`; all existing
   constructions stay valid).
-- `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/MenuCommandAdapter.cs` — render the menu item label as
-  `descriptor.DynamicDisplayName?.Invoke() ?? descriptor.DisplayName`.
+- `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/GlobalMenuRegistry.cs` — **D-T3-1:** the menu renders a leaf via
+  `Gui.MenuItem(child.Name, …)` (`WindowManager.cs` L537/L548), so add a `Func<string>? DynamicLabel` to the leaf
+  `MenuItemNode`; `WindowManager` renders `child.DynamicLabel?.Invoke() ?? child.Name`.
+- `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/WindowManager.cs` — at the two leaf-render sites (L537, L548) use
+  `child.DynamicLabel?.Invoke() ?? child.Name` for the menu-item text.
+- `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/MenuCommandAdapter.cs` — in `ApplyLeafNode`, set
+  `node.DynamicLabel = descriptor.DynamicDisplayName` (when non-null).
 - `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/ToolbarCommandAdapter.cs` — the hover **tooltip** uses
-  `DynamicDisplayName?.Invoke() ?? DisplayName` (the first tooltip line).
-- Tests: `FDP/Engine/Fdp.Presentation.Tests/ImGui/WindowManager/ToolbarCommandAdapterTests.cs` (+ a menu-adapter test
-  file if one exists; otherwise add `MenuCommandAdapterTests.cs`).
+  `DynamicDisplayName?.Invoke() ?? DisplayName` (the first tooltip line); the checkable-no-icon text fallback (L114)
+  likewise.
+- Tests: `FDP/Engine/Fdp.Presentation.Tests/ImGui/WindowManager/ToolbarCommandAdapterTests.cs` + new
+  `MenuCommandAdapterTests.cs` (none exists today).
 
 **Requirements:**
-- `DynamicDisplayName` is re-read every frame (immediate mode), like `IsEnabled`/`IsChecked`.
-- No NodeEdit behavior change beyond adding the optional field. No other descriptor fields touched.
+- `DynamicDisplayName` / `DynamicLabel` are re-read every frame (immediate mode), like `IsEnabled`/`IsChecked`.
+- No NodeEdit behavior change beyond adding the optional field. No other descriptor/menu-node fields touched.
+- A leaf with no `DynamicLabel` renders exactly as today (`child.Name`).
 
 **Success conditions (exact names):**
 - `Descriptor_DynamicDisplayName_DefaultsNull` — a descriptor built without it has `DynamicDisplayName == null`;
-  existing 6-arg constructions compile (compile-time proof = build green).
-- `ToolbarTooltip_UsesDynamicDisplayName_WhenSet` — given a descriptor whose `DynamicDisplayName` returns `"X"`, the
-  adapter's tooltip/state surface uses `"X"`; when null, uses `DisplayName`. (Use the existing headless `GetState`/
-  tooltip seam; add a tooltip-text seam if needed without ImGui.)
-- `MenuLabel_UsesDynamicDisplayName_WhenSet` — menu adapter label resolves to the dynamic value when set, else
-  `DisplayName`. (Test via the adapter's pure label-resolution seam; extract one if the current code inlines it.)
-- Build green; `NodeEditor.UI.Tests` + `NodeEditor.Core.Tests` `Failed: 0`; toolbar-filtered `Fdp.Presentation.Tests`
-  `Failed: 0`.
+  existing constructions compile (compile-time proof = build green).
+- `MenuNode_DynamicLabel_OverridesName_WhenSet` — a `MenuItemNode` with `DynamicLabel` returning `"X"` resolves its
+  rendered label to `"X"`; with `DynamicLabel == null` resolves to `Name`. (Add a pure label-resolution accessor on
+  the node, e.g. `ResolveLabel()`, and assert it — headless, no ImGui.)
+- `MenuAdapter_SetsDynamicLabel_FromDescriptor` — `MenuCommandAdapter.Register` with a descriptor whose
+  `DynamicDisplayName` is set produces a leaf node whose `ResolveLabel()` returns the dynamic value; null → `Name`.
+- `ToolbarTooltip_UsesDynamicDisplayName_WhenSet` — add a pure tooltip-text seam on `ToolbarCommandAdapter` (e.g.
+  `ResolveTooltip(commands, id)`) returning `DynamicDisplayName?.Invoke() ?? DisplayName` (+ description/shortcut);
+  assert dynamic value used when set, `DisplayName` when null. (No ImGui.)
+- Build green; `NodeEditor.UI.Tests` + `NodeEditor.Core.Tests` `Failed: 0`; toolbar+menu-filtered
+  `Fdp.Presentation.Tests` `Failed: 0`.
 
 ---
 

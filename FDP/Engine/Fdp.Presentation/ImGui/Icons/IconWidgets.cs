@@ -208,12 +208,38 @@ public static class IconWidgets
         return result;
     }
 
+    // ─── MTB2-T1: Geometry helper ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Default icon scale applied by the <see cref="IconHandle"/> overloads
+    /// when <c>iconScale</c> is omitted. 0.9 means the icon image occupies
+    /// 90 % of the hit/spacing box, centered with equal margins (~5 % each side).
+    /// </summary>
+    public const float DefaultIconScale = 0.9f;
+
+    /// <summary>
+    /// Returns the centered sub-rect at <paramref name="scale"/> of the box.
+    /// </summary>
+    /// <param name="boxPos">Top-left corner of the layout/hit box.</param>
+    /// <param name="boxSize">Full layout/hit box size.</param>
+    /// <param name="scale">
+    /// Fraction of the box the icon should occupy (1.0 = full box, 0.9 = 90 % centered).
+    /// </param>
+    /// <returns>A tuple (<c>Min</c>, <c>Max</c>) defining the centered inset rectangle.</returns>
+    public static (Vector2 Min, Vector2 Max) ComputeIconRect(Vector2 boxPos, Vector2 boxSize, float scale)
+    {
+        Vector2 insetSize = boxSize * scale;
+        Vector2 margin = (boxSize - insetSize) * 0.5f;
+        Vector2 min = boxPos + margin;
+        return (min, min + insetSize);
+    }
+
     // ─── MTB-P1-T2: IconHandle-based overloads with explicit size ──────────────
 
     /// <summary>
     /// A stateless icon button that draws from an <see cref="IconHandle"/> at an explicit size.
     /// Returns <c>true</c> on the frame it is clicked.
-    /// Delegates to <see cref="ToggleIcon(in IconHandle, string, Vector2, ref bool, bool, Vector4?)"/>
+    /// Delegates to <see cref="ToggleIcon(in IconHandle, string, Vector2, ref bool, bool, Vector4?, float)"/>
     /// with a discarded local toggle state, so no filled background is ever drawn.
     /// </summary>
     /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
@@ -227,17 +253,21 @@ public static class IconWidgets
     /// Optional RGBA color tint applied to the icon texture.
     /// Pass <c>null</c> (default) for full-white / no tint.
     /// </param>
+    /// <param name="iconScale">
+    /// Fraction of the hit/spacing box the icon image occupies (default <see cref="DefaultIconScale"/> = 0.9).
+    /// The hit/spacing <see cref="Gui.InvisibleButton"/> always uses the full <paramref name="size"/>.
+    /// </param>
     public static bool IconButton(in IconHandle icon, string id, Vector2 size,
-                                  bool enabled = true, Vector4? tint = null)
+                                  bool enabled = true, Vector4? tint = null, float iconScale = DefaultIconScale)
     {
         bool dummy = false;
-        return ToggleIcon(in icon, id, size, ref dummy, enabled, tint);
+        return ToggleIcon(in icon, id, size, ref dummy, enabled, tint, iconScale);
     }
 
     /// <summary>
     /// A stateful icon button that draws from an <see cref="IconHandle"/> at an explicit size.
-    /// Flips <paramref name="isToggled"/> on click and draws a gray filled background when
-    /// toggled. Returns <c>true</c> on click.
+    /// Flips <paramref name="isToggled"/> on click and draws a filled background when
+    /// toggled or hovered. Returns <c>true</c> on click.
     /// </summary>
     /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
     /// <param name="id">Unique ImGui ID for this button.</param>
@@ -252,8 +282,13 @@ public static class IconWidgets
     /// Optional RGBA color tint applied to the icon texture.
     /// Pass <c>null</c> (default) for full-white / no tint.
     /// </param>
+    /// <param name="iconScale">
+    /// Fraction of the hit/spacing box the icon image occupies (default <see cref="DefaultIconScale"/> = 0.9).
+    /// The hit/spacing <see cref="Gui.InvisibleButton"/> always uses the full <paramref name="size"/>.
+    /// </param>
     public static bool ToggleIcon(in IconHandle icon, string id, Vector2 size,
-                                  ref bool isToggled, bool enabled = true, Vector4? tint = null)
+                                  ref bool isToggled, bool enabled = true, Vector4? tint = null,
+                                  float iconScale = DefaultIconScale)
     {
         var screenPos = Gui.GetCursorScreenPos();
 
@@ -278,16 +313,32 @@ public static class IconWidgets
 
         var drawList = Gui.GetWindowDrawList();
 
-        // Filled background when toggled (and enabled)
-        if (isToggled && enabled)
-            drawList.AddRectFilled(
-                screenPos,
-                screenPos + size,
-                Gui.GetColorU32(new Vector4(0.3f, 0.3f, 0.3f, 1.0f)));
+        // Compute the inset icon rect (image drawn here; hit/spacing box unchanged).
+        var (iconMin, iconMax) = ComputeIconRect(screenPos, size, iconScale);
+        var iconSize = iconMax - iconMin;
+
+        // ── Filled backgrounds (only when enabled) ──────────────────────────
+        if (enabled)
+        {
+            // Toggled fill: accent-tinted, clearly readable as "active".
+            if (isToggled)
+            {
+                var toggleCol = Gui.GetStyle().Colors[(int)ImGuiCol.Header];
+                toggleCol.W = 0.45f; // more opaque than hover
+                drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(toggleCol));
+            }
+            // Hover fill: subtle filled highlight, only when NOT toggled.
+            else if (isHovered)
+            {
+                var hoverCol = Gui.GetStyle().Colors[(int)ImGuiCol.Header];
+                hoverCol.W = 0.25f; // low-alpha filled highlight
+                drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(hoverCol));
+            }
+        }
 
         // Icon image; shift 1px when pressed.
         // Enabled: normal tint (null → full-white). Disabled: dimmed alpha (~0.28f, mirroring TransportIconRenderer).
-        var imagePos = isPressed ? screenPos + new Vector2(1f, 1f) : screenPos;
+        var imagePos = isPressed ? iconMin + new Vector2(1f, 1f) : iconMin;
         uint imageTint;
         if (!enabled)
         {
@@ -305,14 +356,7 @@ public static class IconWidgets
             imageTint = 0xFFFFFFFF; // full-white
         }
 
-        drawList.AddImage(icon.TextureId, imagePos, imagePos + size, icon.Uv0, icon.Uv1, imageTint);
-
-        // Hover border (only when enabled)
-        if (isHovered)
-            drawList.AddRect(
-                screenPos,
-                screenPos + size,
-                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)));
+        drawList.AddImage(icon.TextureId, imagePos, imagePos + iconSize, icon.Uv0, icon.Uv1, imageTint);
 
         // Flip state on click (only when enabled)
         if (clicked)
