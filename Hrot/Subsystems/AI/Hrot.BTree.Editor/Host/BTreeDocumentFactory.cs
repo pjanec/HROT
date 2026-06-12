@@ -146,6 +146,9 @@ public static class BTreeDocumentFactory
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));
         BuiltinCommandHandlers.RegisterAll(commands, view, findBar);
 
+        // ── Picker sources ──────────────────────────────────────────────────
+        BTreePickerSources.Register(bundle.PickerRegistry, nodeCatalog);
+
         // Store the BehaviorTreeAsset in AssetRef so the composition root can wire
         // the selection→Inspector bridge (BTreeSelectionBridgeHelper.BuildAfterDrawAction)
         // without a kind-specific dependency in AiShared.
