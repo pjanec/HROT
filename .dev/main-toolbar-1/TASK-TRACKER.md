@@ -88,4 +88,4 @@ Design: [ASSET-PICKER-UX-DESIGN.md](./ASSET-PICKER-UX-DESIGN.md).
 
 - [x] **MTB-P8-T1** NodeEdit `TreeLayout` parity — type icons + match-highlight + folder icons + scroll [details](./TASK-DETAIL.md#mtb-p8-t1--nodeedit-treelayout-parity-icons-match-highlight-folder-icons-scroll)
 - [x] **MTB-P8-T2** `AssetPickerSource` + recognizable per-kind & folder icons (resolves DBT-1) [details](./TASK-DETAIL.md#mtb-p8-t2--assetpickersource--recognizable-per-kind--folder-icons-resolves-dbt-1)
-- [ ] **MTB-P8-T3** Wire editor Open-Asset picker through `IPickerRegistry` [details](./TASK-DETAIL.md#mtb-p8-t3--wire-the-editor-open-asset-picker-through-ipickerregistry)
+- [x] **MTB-P8-T3** Wire editor Open-Asset picker through `IPickerRegistry` [details](./TASK-DETAIL.md#mtb-p8-t3--wire-the-editor-open-asset-picker-through-ipickerregistry)

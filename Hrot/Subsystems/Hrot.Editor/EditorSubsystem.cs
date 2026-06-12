@@ -355,9 +355,10 @@ namespace Hrot.Editor
         // can create a fully-seeded dialog.
         private Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>? _newAssetServices;
 
-        // BATCH-26: Unified "Open Asset" modal — single instance for all three entry points
-        // (toolbar, File→Open Asset…, Scenario→Load).
-        private Hrot.Editor.AiShared.Browser.AssetPickerModal? _assetPickerModal;
+        // BATCH-29 (MTB-P8-T3): Dedicated shell picker registry for global Open-Asset picker.
+        // Separate from adapterBundle.PickerRegistry (which is DrawFrame()-ed by canvas windows)
+        // to avoid double-DrawFrame on the same registry instance.
+        private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
 
         // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
         // Scenario → IEditorLogic.LoadScenarioByName.
@@ -1830,8 +1831,8 @@ namespace Hrot.Editor
                 ImGuiNET.ImGui.EndPopup();
             }
 
-            // BATCH-26: Draw the unified "Open Asset" modal (toolbar / File→Open Asset… / Scenario→Load).
-            _assetPickerModal?.DrawModal();
+            // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
+            _shellPickers?.DrawFrame();
         }
 
         /// <inheritdoc/>
@@ -2460,14 +2461,20 @@ namespace Hrot.Editor
             // Build the adapter bundle from the engine icon atlas (no GPU calls at construction time).
             var adapterBundle = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);
 
-            // ── BATCH-26: Unified "Open Asset" modal + Scenario menu commands ──────
-            // ONE AssetPickerModal instance serves three entry points:
-            //   1. Toolbar "Open Asset" button (leftmost, Kinds=All)
-            //   2. File → Open Asset… / Ctrl+O (Kinds=All)
-            //   3. Scenario → Load (Kinds=Scenario)
-            // Scenario New/Save/SaveAs/Migration History commands remain unchanged.
-            _assetPickerModal = new Hrot.Editor.AiShared.Browser.AssetPickerModal(
-                catalog, adapterBundle.IconProvider);
+            // ── BATCH-29 (MTB-P8-T3): Dedicated shell picker registry + AssetPickerLauncher ──
+            // Replaces the AssetPickerModal production path with the Tree-layout entry-driven
+            // picker (PickerRegistry.OpenPicker). Separate from adapterBundle.PickerRegistry
+            // (which canvas windows already DrawFrame) to avoid double-DrawFrame.
+            _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
+            _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
+
+            // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
+            var assetPickerLauncher = _assetPickRouter != null
+                ? new Hrot.Editor.AssetPickerLauncher(
+                    openPicker: _shellPickers.OpenPicker,
+                    catalog:    catalog,
+                    router:     _assetPickRouter)
+                : null;
 
             var saveAsScenarioDelegate = new Action<string>(fullName =>
             {
@@ -2485,14 +2492,10 @@ namespace Hrot.Editor
                 editorLogic:          _editorLogic,
                 openPicker:           (kinds, callback) =>
                 {
-                    // BATCH-26: scenario.load uses the unified modal filtered to Scenario only.
-                    _assetPickerModal?.Open(
-                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions
-                        {
-                            Kinds = kinds,
-                            ShowAllTab = kinds == AssetKindFilter.All
-                        },
-                        callback);
+                    // BATCH-29 (MTB-P8-T3): scenario.load opens via AssetPickerLauncher.
+                    // The callback (Action<IEditableAsset?>) is passed as onPicked so the
+                    // existing scenario-load contract (ScenarioMenuCommands) is preserved.
+                    assetPickerLauncher?.Open(kinds, callback);
                 },
                 openSaveAsDialog:     cb =>
                 {
@@ -2951,9 +2954,9 @@ namespace Hrot.Editor
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            // ── BATCH-26: "Open Asset" command (shell.openAsset) — leftmost toolbar button,
-            // File→Open Asset… menu item, Ctrl+O hotkey. Three entry points share the
-            // unified _assetPickerModal with Kinds=All. ────────────────────────────────
+            // ── BATCH-29 (MTB-P8-T3): "Open Asset" command (shell.openAsset) — leftmost toolbar
+            // button, File→Open Asset… menu item, Ctrl+O hotkey. Opens the Tree-layout
+            // picker via AssetPickerLauncher with Kinds=All. ────────────────────────────
             string openAssetId = "shell.openAsset";
             windowManager.ShellCommands.Register(
                 new EditorCommandDescriptor(
@@ -2966,17 +2969,9 @@ namespace Hrot.Editor
                     IsEnabled:   () => true),
                 _ =>
                 {
-                    _assetPickerModal?.Open(
-                        new Hrot.Editor.AiShared.Browser.AssetBrowserPanelOptions
-                        {
-                            Kinds = AssetKindFilter.All,
-                            ShowAllTab = true
-                        },
-                        picked =>
-                        {
-                            if (picked != null && _assetPickRouter != null)
-                                _assetPickRouter.Route(picked);
-                        });
+                    // BATCH-29 (MTB-P8-T3): Open Asset via the Tree-layout picker launcher.
+                    // router.Route is the default pick action (no onPicked callback).
+                    assetPickerLauncher?.Open(AssetKindFilter.All);
                 });
 
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
