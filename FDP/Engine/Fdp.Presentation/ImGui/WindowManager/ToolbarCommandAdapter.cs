@@ -111,7 +111,9 @@ public static class ToolbarCommandAdapter
             {
                 // Checkable text fallback — simple selectable.
                 bool toggledCopy = isToggled;
-                clicked = Gui.MenuItem(descriptor.DisplayName, "", ref toggledCopy, enabled);
+                clicked = Gui.MenuItem(
+                    descriptor.DynamicDisplayName?.Invoke() ?? descriptor.DisplayName,
+                    "", ref toggledCopy, enabled);
             }
             else
             {
@@ -125,20 +127,38 @@ public static class ToolbarCommandAdapter
             }
         }
 
-        // Tooltip: DisplayName + optional Description and shortcut.
+        // Tooltip: uses ResolveTooltip for the first line (DynamicDisplayName ?? DisplayName)
+        // + optional Description and shortcut.
         if (Gui.IsItemHovered())
         {
-            var tooltip = new StringBuilder(descriptor.DisplayName);
-            if (!string.IsNullOrEmpty(descriptor.Description))
-                tooltip.Append('\n').Append(descriptor.Description);
-            if (descriptor.DefaultKey != null)
-                tooltip.Append(" (").Append(descriptor.DefaultKey.Value.ToString()).Append(')');
-            Gui.SetTooltip(tooltip.ToString());
+            Gui.SetTooltip(ResolveTooltip(commands, commandId));
         }
 
         // Invoke on click (only when enabled).
         if (clicked && enabled)
             commands.Invoke(commandId);
+    }
+
+    /// <summary>
+    /// Resolves the tooltip text for a command.
+    /// Headless-testable seam. First line is <see cref="EditorCommandDescriptor.DynamicDisplayName"/>
+    /// when non-null, else <see cref="EditorCommandDescriptor.DisplayName"/>.
+    /// Appends <c>\n{Description}</c> and <c> ({DefaultKey})</c> when present.
+    /// </summary>
+    /// <returns>The full tooltip string, or <see cref="string.Empty"/> when the command is unknown.</returns>
+    public static string ResolveTooltip(IEditorCommands commands, string commandId)
+    {
+        var descriptor = commands.Get(commandId);
+        if (descriptor == null)
+            return string.Empty;
+
+        var label = descriptor.DynamicDisplayName?.Invoke() ?? descriptor.DisplayName;
+        var tooltip = new StringBuilder(label);
+        if (!string.IsNullOrEmpty(descriptor.Description))
+            tooltip.Append('\n').Append(descriptor.Description);
+        if (descriptor.DefaultKey != null)
+            tooltip.Append(" (").Append(descriptor.DefaultKey.Value.ToString()).Append(')');
+        return tooltip.ToString();
     }
 
     /// <summary>

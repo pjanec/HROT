@@ -58,8 +58,8 @@ public static class MenuCommandAdapter
     }
 
     /// <summary>
-    /// Applies the shortcut text and enabled delegate to the menu leaf node
-    /// after it has been registered.
+    /// Applies the shortcut text, enabled delegate, and dynamic label
+    /// to the menu leaf node after it has been registered.
     /// </summary>
     private static void ApplyLeafNode(GlobalMenuRegistry menu, string menuPath, EditorCommandDescriptor descriptor)
     {
@@ -72,6 +72,9 @@ public static class MenuCommandAdapter
 
         // Enabled state delegates to IsEnabled.
         node.GetEnabled = () => descriptor.IsEnabled();
+
+        // Dynamic label from descriptor (may be null — ResolveLabel falls back to Name).
+        node.DynamicLabel = descriptor.DynamicDisplayName;
     }
 
     /// <summary>

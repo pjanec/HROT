@@ -35,6 +35,19 @@ public class MenuItemNode
     /// </summary>
     public Func<bool>? GetEnabled { get; set; }
 
+    /// <summary>
+    /// Optional per-frame label override. When non-null, <see cref="ResolveLabel"/>
+    /// returns its invoked value instead of <see cref="Name"/>.
+    /// Re-evaluated every frame (immediate mode), like <see cref="GetEnabled"/>.
+    /// </summary>
+    public Func<string>? DynamicLabel { get; set; }
+
+    /// <summary>
+    /// Returns the resolved display label for this menu node.
+    /// When <see cref="DynamicLabel"/> is set, delegates to it; otherwise returns <see cref="Name"/>.
+    /// </summary>
+    public string ResolveLabel() => DynamicLabel?.Invoke() ?? Name;
+
     /// <summary>Child nodes keyed by path segment name.</summary>
     public Dictionary<string, MenuItemNode> Children { get; } = new();
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Fdp.Presentation.WindowManager;
 using NodeEditor.Core.Action;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 using Xunit;
 
 namespace Fdp.Presentation.Tests.WindowManager;
@@ -293,5 +294,48 @@ public class ToolbarCommandAdapterTests
         Assert.True(state.IsEnabled);
         Assert.False(state.IsToggled, "IsToggled should be false when IsChecked is null");
         Assert.NotNull(state.OnClick);
+    }
+
+    // ── MTB2-T3: ResolveTooltip uses DynamicDisplayName ──────────────────────
+
+    [Fact]
+    public void ToolbarTooltip_UsesDynamicDisplayName_WhenSet()
+    {
+        var commands = new FakeCommandSet();
+
+        // With DynamicDisplayName set, first line is the dynamic value.
+        commands.Register(new EditorCommandDescriptor(
+            Id: "dyn.tip",
+            DisplayName: "Static Label",
+            Category: null,
+            Description: "A description",
+            IconKey: null,
+            DefaultKey: new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
+            IsEnabled: () => true,
+            DynamicDisplayName: () => "Dynamic Label"),
+            _ => { });
+
+        var tooltip = ToolbarCommandAdapter.ResolveTooltip(commands, "dyn.tip");
+
+        // First line should be the dynamic value, not DisplayName.
+        Assert.StartsWith("Dynamic Label", tooltip);
+        Assert.Contains("A description", tooltip);
+        Assert.Contains("Ctrl+S", tooltip);
+
+        // With DynamicDisplayName null, first line should be DisplayName.
+        commands = new FakeCommandSet();
+        commands.Register(new EditorCommandDescriptor(
+            Id: "static.tip",
+            DisplayName: "Static Label",
+            Category: null,
+            Description: null,
+            IconKey: null,
+            DefaultKey: null,
+            IsEnabled: () => true,
+            DynamicDisplayName: null),
+            _ => { });
+
+        var tooltip2 = ToolbarCommandAdapter.ResolveTooltip(commands, "static.tip");
+        Assert.Equal("Static Label", tooltip2);
     }
 }

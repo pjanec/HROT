@@ -223,4 +223,77 @@ public class MenuCommandAdapterTests
 
         Assert.Contains("nonexistent", ex.Message);
     }
+
+    // ── MTB2-T3: DynamicDisplayName ──────────────────────────────────────────
+
+    [Fact]
+    public void Descriptor_DynamicDisplayName_DefaultsNull()
+    {
+        var descriptor = new EditorCommandDescriptor(
+            Id: "test.cmd",
+            DisplayName: "Test",
+            Category: null,
+            Description: null,
+            IconKey: null,
+            DefaultKey: null,
+            IsEnabled: () => true);
+
+        Assert.Null(descriptor.DynamicDisplayName);
+    }
+
+    [Fact]
+    public void MenuNode_DynamicLabel_OverridesName_WhenSet()
+    {
+        // With DynamicLabel set, ResolveLabel returns the invoked value.
+        var node = new MenuItemNode { Name = "Save", DynamicLabel = () => "Save [x]" };
+        Assert.Equal("Save [x]", node.ResolveLabel());
+
+        // With DynamicLabel null, ResolveLabel falls back to Name.
+        var node2 = new MenuItemNode { Name = "Save", DynamicLabel = null };
+        Assert.Equal("Save", node2.ResolveLabel());
+    }
+
+    [Fact]
+    public void MenuAdapter_SetsDynamicLabel_FromDescriptor()
+    {
+        // Register a command whose descriptor's DynamicDisplayName returns "DYN".
+        var commands = new FakeCommandSet();
+        commands.Register(new EditorCommandDescriptor(
+            Id: "dyn.cmd",
+            DisplayName: "Dynamic Cmd",
+            Category: null,
+            Description: null,
+            IconKey: null,
+            DefaultKey: null,
+            IsEnabled: () => true,
+            DynamicDisplayName: () => "DYN"),
+            _ => { });
+
+        var menu = new GlobalMenuRegistry();
+        MenuCommandAdapter.Register(menu, commands, "dyn.cmd", "File/Dynamic");
+
+        var leaf = MenuCommandAdapter.FindNode(menu.Root, "File/Dynamic");
+        Assert.NotNull(leaf);
+        Assert.Equal("DYN", leaf!.ResolveLabel());
+
+        // With null DynamicDisplayName, ResolveLabel returns the path-leaf Name.
+        commands = new FakeCommandSet();
+        commands.Register(new EditorCommandDescriptor(
+            Id: "plain.cmd",
+            DisplayName: "Plain Cmd",
+            Category: null,
+            Description: null,
+            IconKey: null,
+            DefaultKey: null,
+            IsEnabled: () => true,
+            DynamicDisplayName: null),
+            _ => { });
+
+        menu = new GlobalMenuRegistry();
+        MenuCommandAdapter.Register(menu, commands, "plain.cmd", "File/Plain");
+
+        leaf = MenuCommandAdapter.FindNode(menu.Root, "File/Plain");
+        Assert.NotNull(leaf);
+        Assert.Equal("Plain", leaf!.ResolveLabel());
+    }
 }

@@ -31,7 +31,8 @@ public sealed record EditorCommandDescriptor(
     string? IconKey,
     KeyBinding? DefaultKey,
     Func<bool> IsEnabled,
-    Func<bool>? IsChecked = null);
+    Func<bool>? IsChecked = null,
+    Func<string>? DynamicDisplayName = null);
 
 /// <summary>Optional invocation context (e.g., screen position for context-menu commands).</summary>
 public readonly record struct EditorCommandContext(

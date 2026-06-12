@@ -534,7 +534,7 @@ public class WindowManager
             {
                 bool checkedState = child.GetCheckedState();
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.Name, child.Shortcut ?? "", ref checkedState, enabled))
+                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", ref checkedState, enabled))
                 {
                     child.OnCheckedChanged(checkedState);
                 }
@@ -545,7 +545,7 @@ public class WindowManager
             if (child.OnClick != null)
             {
                 bool enabled = child.GetEnabled?.Invoke() ?? true;
-                if (Gui.MenuItem(child.Name, child.Shortcut ?? "", false, enabled))
+                if (Gui.MenuItem(child.ResolveLabel(), child.Shortcut ?? "", false, enabled))
                 {
                     child.OnClick();
                 }
