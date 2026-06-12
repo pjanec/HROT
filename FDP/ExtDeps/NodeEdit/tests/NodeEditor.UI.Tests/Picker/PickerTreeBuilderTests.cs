@@ -143,4 +143,183 @@ public sealed class PickerTreeBuilderTests
 
         CountLeaves(root).Should().Be(4);
     }
+
+    // ── VisualRows flattening (BATCH-48 / BUG-A14) ──────────────────────────
+
+    /// <summary>
+    /// Pure helper that flattens a <see cref="PickerTreeBuilder.Node"/> tree +
+    /// an <see cref="ExpandedFolders"/> set into the expected VisualRows order
+    /// (folders + leaves, DFS; children are shown only when their folder IS in expandedFolders).
+    /// </summary>
+    private static List<PickerState.TreeRow> FlattenVisualRows(
+        PickerTreeBuilder.Node node,
+        HashSet<string> expandedFolders,
+        int depth = 0)
+    {
+        var rows = new List<PickerState.TreeRow>();
+
+        foreach (var folder in node.Folders)
+        {
+            // Folder row.
+            rows.Add(new PickerState.TreeRow(
+                IsFolder: true, FolderPath: folder.FullPath, FilteredIndex: -1, Depth: depth));
+
+            bool isExpanded = expandedFolders.Contains(folder.FullPath);
+            if (isExpanded)
+            {
+                // Recurse into folder (handles its sub-folders + direct leaves).
+                rows.AddRange(FlattenVisualRows(folder, expandedFolders, depth + 1));
+            }
+        }
+
+        // Root-level leaves.
+        foreach (var leaf in node.Leaves)
+            rows.Add(new PickerState.TreeRow(
+                IsFolder: false, FolderPath: "", FilteredIndex: leaf.FilteredIndex, Depth: depth));
+
+        return rows;
+    }
+
+    [Fact]
+    public void FlattenVisualRows_AllExpanded_ProducesDfsOrder()
+    {
+        // Build: A → {A/L1, A/B → {A/B/L2}}, C → {C/L3}, root-leaf L4
+        var items = new List<(int, string?, string)>
+        {
+            (0, "A",     "L1"),
+            (1, "A/B",   "L2"),
+            (2, "C",     "L3"),
+            (3, null,    "L4"),
+        };
+
+        var root = PickerTreeBuilder.Build(items);
+        var expanded = new HashSet<string> { "A", "A/B", "C" }; // all folders expanded
+
+        var rows = FlattenVisualRows(root, expanded, 0);
+
+        // Expected DFS order (sub-folders before leaves, matching TreeLayout rendering):
+        //   A (folder, depth 0)
+        //   A/B (folder, depth 1)
+        //   A/B/L2 (leaf, depth 2)
+        //   A/L1 (leaf, depth 1)
+        //   C (folder, depth 0)
+        //   C/L3 (leaf, depth 1)
+        //   L4 (root leaf, depth 0)
+        rows.Should().HaveCount(7);
+
+        // Folder A
+        rows[0].IsFolder.Should().BeTrue();
+        rows[0].FolderPath.Should().Be("A");
+        rows[0].FilteredIndex.Should().Be(-1);
+        rows[0].Depth.Should().Be(0);
+
+        // Folder A/B
+        rows[1].IsFolder.Should().BeTrue();
+        rows[1].FolderPath.Should().Be("A/B");
+        rows[1].FilteredIndex.Should().Be(-1);
+        rows[1].Depth.Should().Be(1);
+
+        // Leaf A/B/L2
+        rows[2].IsFolder.Should().BeFalse();
+        rows[2].FilteredIndex.Should().Be(1);
+        rows[2].Depth.Should().Be(2);
+
+        // Leaf A/L1
+        rows[3].IsFolder.Should().BeFalse();
+        rows[3].FilteredIndex.Should().Be(0);
+        rows[3].Depth.Should().Be(1);
+
+        // Folder C
+        rows[4].IsFolder.Should().BeTrue();
+        rows[4].FolderPath.Should().Be("C");
+        rows[4].Depth.Should().Be(0);
+
+        // Leaf C/L3
+        rows[5].IsFolder.Should().BeFalse();
+        rows[5].FilteredIndex.Should().Be(2);
+        rows[5].Depth.Should().Be(1);
+
+        // Root leaf L4
+        rows[6].IsFolder.Should().BeFalse();
+        rows[6].FilteredIndex.Should().Be(3);
+        rows[6].Depth.Should().Be(0);
+    }
+
+    [Fact]
+    public void FlattenVisualRows_CollapsedFolder_HidesDescendants()
+    {
+        // Build: A → {A/L1, A/B → {A/B/L2}}, C → {C/L3}
+        var items = new List<(int, string?, string)>
+        {
+            (0, "A",     "L1"),
+            (1, "A/B",   "L2"),
+            (2, "C",     "L3"),
+        };
+
+        var root = PickerTreeBuilder.Build(items);
+
+        // A is NOT expanded — its children (L1, sub-folder B, and B's leaf L2) should be hidden.
+        // C is expanded so its children show.
+        var expanded = new HashSet<string> { "C" };
+
+        var rows = FlattenVisualRows(root, expanded, 0);
+
+        // Expected: A (folder), C (folder), C/L3 (leaf). No A's children.
+        rows.Should().HaveCount(3);
+        rows[0].IsFolder.Should().BeTrue();
+        rows[0].FolderPath.Should().Be("A");
+        rows[1].IsFolder.Should().BeTrue();
+        rows[1].FolderPath.Should().Be("C");
+        rows[2].IsFolder.Should().BeFalse();
+        rows[2].FilteredIndex.Should().Be(2); // C/L3
+    }
+
+    [Fact]
+    public void FlattenVisualRows_DeeplyNested_CollapseRespectsHierarchy()
+    {
+        // A/B/C with leaf L1, plus A/L2
+        var items = new List<(int, string?, string)>
+        {
+            (0, "A/B/C", "L1"),
+            (1, "A",     "L2"),
+        };
+
+        var root = PickerTreeBuilder.Build(items);
+
+        // All expanded: A → {L2, B → {C → {L1}}}
+        {
+            var expanded = new HashSet<string> { "A", "A/B", "A/B/C" };
+            var rows = FlattenVisualRows(root, expanded, 0);
+            rows.Should().HaveCount(5); // A(f), A/B(f), A/B/C(f), A/B/C/L1, A/L2
+
+            rows[0].FolderPath.Should().Be("A");
+            rows[0].Depth.Should().Be(0);
+            rows[1].FolderPath.Should().Be("A/B");
+            rows[1].Depth.Should().Be(1);
+            rows[2].FolderPath.Should().Be("A/B/C");
+            rows[2].Depth.Should().Be(2);
+            rows[3].FilteredIndex.Should().Be(0); // A/B/C/L1
+            rows[3].Depth.Should().Be(3);
+            rows[4].FilteredIndex.Should().Be(1); // A/L2
+            rows[4].Depth.Should().Be(1);
+        }
+
+        // A expanded, A/B NOT expanded: hides C and L1, but L2 and A/B still visible.
+        {
+            var expanded = new HashSet<string> { "A" };
+            var rows = FlattenVisualRows(root, expanded, 0);
+            rows.Should().HaveCount(3); // A(f), A/B(f), A/L2 — no C or L1
+            rows[0].FolderPath.Should().Be("A");
+            rows[1].FolderPath.Should().Be("A/B");
+            rows[2].FilteredIndex.Should().Be(1); // L2
+        }
+
+        // Nothing expanded: only A shows.
+        {
+            var expanded = new HashSet<string>();
+            var rows = FlattenVisualRows(root, expanded, 0);
+            rows.Should().HaveCount(1); // just A(f)
+            rows[0].FolderPath.Should().Be("A");
+        }
+    }
 }

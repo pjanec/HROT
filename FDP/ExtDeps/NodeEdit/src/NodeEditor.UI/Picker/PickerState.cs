@@ -36,6 +36,19 @@ internal sealed class PickerState
     // ── Wide layout sidebar ───────────────────────────────────────────────────
     public string SelectedCategory = "";
 
+    // ── Tree layout state ─────────────────────────────────────────────────────
+
+    /// <summary>Folder full-paths that are currently expanded (Tree layout only).</summary>
+    public HashSet<string> ExpandedFolders = new();
+
+    /// <summary>Per-frame visual row list built by TreeLayout in render order (DFS).</summary>
+    public List<TreeRow> VisualRows = new();
+
+    /// <summary>Keyboard focus index into <see cref="VisualRows"/> (Tree layout only).</summary>
+    public int TreeFocusRow;
+
+    internal readonly record struct TreeRow(bool IsFolder, string FolderPath, int FilteredIndex, int Depth);
+
     // ── Misc ─────────────────────────────────────────────────────────────────
     public bool Confirmed;
     public bool FocusSearchNextFrame = true;
@@ -109,6 +122,9 @@ internal sealed class PickerState
         KeyboardFocusIndex      = 0;
         SelectionAnchorIndex    = 0;
         SelectedCategory        = "";
+        ExpandedFolders.Clear();
+        VisualRows.Clear();
+        TreeFocusRow            = 0;
         Confirmed               = false;
         FocusSearchNextFrame    = true;
         IsFirstFrame            = true;

@@ -233,8 +233,25 @@ public sealed class PickerWindow
         HandleKeyboardNavigation();
 
         bool enterPressed = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
-        
-        // Architecturally modified: Enter universally confirms the picker 
+
+        // Tree layout: Enter on a folder expands it (if collapsed) instead of confirming.
+        if (enterPressed && _layout == PickerLayout.Tree && _state.VisualRows.Count > 0)
+        {
+            int tf = _state.TreeFocusRow;
+            if (tf >= 0 && tf < _state.VisualRows.Count)
+            {
+                var focusRow = _state.VisualRows[tf];
+                if (focusRow.IsFolder)
+                {
+                    // Expand if not already expanded; no-op if already expanded.
+                    if (!_state.ExpandedFolders.Contains(focusRow.FolderPath))
+                        _state.ExpandedFolders.Add(focusRow.FolderPath);
+                    enterPressed = false; // suppress confirm
+                }
+            }
+        }
+
+        // Architecturally modified: Enter universally confirms the picker
         // regardless of Single or Multi-Select mode.
         bool shouldConfirm = _state.Confirmed || ImGui.Button("OK") || enterPressed;
 
@@ -265,6 +282,14 @@ public sealed class PickerWindow
         if (!ImGui.IsWindowFocused(ImGuiFocusedFlags.ChildWindows | ImGuiFocusedFlags.RootWindow))
             return;
 
+        // ── Tree layout: navigate visual rows (folders + leaves in DFS order) ──
+        if (_layout == PickerLayout.Tree && _state.VisualRows.Count > 0)
+        {
+            HandleTreeKeyboardNavigation();
+            return;
+        }
+
+        // ── Flat layouts (Standard/Compact/Wide/Grid): Filtered-index navigation ──
         int count = _state.Filtered.Count;
         if (count == 0) return;
 
@@ -310,6 +335,74 @@ public sealed class PickerWindow
         }
     }
 
+    private void HandleTreeKeyboardNavigation()
+    {
+        int count = _state.VisualRows.Count;
+        if (count == 0) return;
+
+        ref int focusRow = ref _state.TreeFocusRow;
+
+        // ↑/↓ — move focus through visual rows.
+        if (ImGui.IsKeyPressed(ImGuiKey.UpArrow))
+            focusRow = Math.Max(0, focusRow - 1);
+        else if (ImGui.IsKeyPressed(ImGuiKey.DownArrow))
+            focusRow = Math.Min(count - 1, focusRow + 1);
+        else if (ImGui.IsKeyPressed(ImGuiKey.PageUp))
+            focusRow = Math.Max(0, focusRow - 10);
+        else if (ImGui.IsKeyPressed(ImGuiKey.PageDown))
+            focusRow = Math.Min(count - 1, focusRow + 10);
+        else if (ImGui.IsKeyPressed(ImGuiKey.Home))
+            focusRow = 0;
+        else if (ImGui.IsKeyPressed(ImGuiKey.End))
+            focusRow = count - 1;
+
+        // → — expand focused folder.
+        if (ImGui.IsKeyPressed(ImGuiKey.RightArrow))
+        {
+            var row = _state.VisualRows[focusRow];
+            if (row.IsFolder)
+                _state.ExpandedFolders.Add(row.FolderPath);
+        }
+
+        // ← — collapse focused folder.
+        if (ImGui.IsKeyPressed(ImGuiKey.LeftArrow))
+        {
+            var row = _state.VisualRows[focusRow];
+            if (row.IsFolder)
+                _state.ExpandedFolders.Remove(row.FolderPath);
+        }
+
+        // Sync KeyboardFocusIndex from tree focus: mirror leaf's FilteredIndex
+        // so the existing leaf highlight + default-confirm logic continues to work;
+        // clear it when a folder is focused.
+        SyncTreeFocusToLeaf();
+    }
+
+    private void SyncTreeFocusToLeaf()
+    {
+        if (_state.VisualRows.Count == 0) return;
+
+        int tf = _state.TreeFocusRow;
+        if (tf < 0 || tf >= _state.VisualRows.Count) return;
+
+        var row = _state.VisualRows[tf];
+        if (row.IsFolder)
+        {
+            _state.KeyboardFocusIndex = -1;
+            if (_state.SelectionMode == PickerSelectionMode.Single)
+                _state.SelectedFilteredIndices.Clear();
+        }
+        else
+        {
+            _state.KeyboardFocusIndex = row.FilteredIndex;
+            if (_state.SelectionMode == PickerSelectionMode.Single)
+            {
+                _state.SelectedFilteredIndices.Clear();
+                _state.SelectedFilteredIndices.Add(row.FilteredIndex);
+            }
+        }
+    }
+
     private void MoveFocus(int delta, int count, bool extendSelection)
         => SetFocus(Math.Clamp(_state.KeyboardFocusIndex + delta, 0, count - 1), extendSelection);
 
@@ -347,6 +440,20 @@ public sealed class PickerWindow
 
     private void Confirm()
     {
+        // Tree layout guard: if the focused row is a folder, expand it instead of
+        // confirming a wrong item (e.g. when user clicks OK while a folder is focused).
+        if (_layout == PickerLayout.Tree && _state.VisualRows.Count > 0)
+        {
+            int tf = _state.TreeFocusRow;
+            if (tf >= 0 && tf < _state.VisualRows.Count && _state.VisualRows[tf].IsFolder)
+            {
+                var path = _state.VisualRows[tf].FolderPath;
+                if (!_state.ExpandedFolders.Contains(path))
+                    _state.ExpandedFolders.Add(path);
+                return;
+            }
+        }
+
         if (_state.SelectedFilteredIndices.Count == 0 && _state.Filtered.Count > 0)
         {
             // Default confirm: first item.

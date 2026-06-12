@@ -8,7 +8,7 @@ namespace NodeEditor.UI.Picker.Layouts;
 /// Tree layout: hierarchical expand/collapse list built from each entry's
 /// <see cref="PickerEntry.Category"/> path or from an explicit
 /// <see cref="CategoryNode"/> tree.
-/// Arrow ← / → collapse/expand nodes; ↑ / ↓ navigate.
+/// Arrow ← / → collapse/expand nodes; ↑ / ↓ navigate visual-order rows.
 /// </summary>
 internal static class TreeLayout
 {
@@ -24,10 +24,24 @@ internal static class TreeLayout
         {
             try
             {
+                // Rebuild visual rows from scratch each frame.
+                state.VisualRows.Clear();
+
                 if (explicitRoot is not null)
-                    DrawExplicitTree(state, ctx, explicitRoot, 0);
+                {
+                    foreach (var child in explicitRoot.Children)
+                        DrawExplicitFolderNode(state, ctx, child, "", 0);
+                }
                 else
+                {
                     DrawImplicitTree(state, ctx);
+                }
+
+                // Clamp tree focus after rebuild (row count may have changed).
+                if (state.VisualRows.Count > 0)
+                    state.TreeFocusRow = Math.Clamp(state.TreeFocusRow, 0, state.VisualRows.Count - 1);
+                else
+                    state.TreeFocusRow = 0;
             }
             finally
             {
@@ -55,29 +69,42 @@ internal static class TreeLayout
         var root = PickerTreeBuilder.Build(items);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
-        // Default-open always so every leaf is rendered and ↑/↓ keyboard nav reaches it.
-        // Mouse arrow-click collapse still works via the arrow triangle — this only
-        // changes the INITIAL state.
-        var flags = ImGuiTreeNodeFlags.DefaultOpen;
+
+        // REVERT BATCH-45: default-open ONLY while searching so matches are visible.
+        // For non-search, drive each folder's open state from ExpandedFolders.
+        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
 
         // Render folders.
         foreach (var folder in root.Folders)
-            DrawFolderNode(state, ctx, folder, flags);
+            DrawImplicitFolderNode(state, ctx, folder, "", 0, flags, isSearching);
 
         // Render uncategorized leaves.
         foreach (var leaf in root.Leaves)
-            DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex]);
+            DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex], 0);
     }
 
-    private static void DrawFolderNode(PickerState state, IPickerRenderContext ctx,
-        PickerTreeBuilder.Node folder, ImGuiTreeNodeFlags flags)
+    private static void DrawImplicitFolderNode(PickerState state, IPickerRenderContext ctx,
+        PickerTreeBuilder.Node folder, string parentPath, int depth,
+        ImGuiTreeNodeFlags baseFlags, bool isSearching)
     {
+        // Compute stable full-path for collapse state + IDs.
+        string fullPath = string.IsNullOrEmpty(parentPath)
+            ? folder.Name
+            : parentPath + "/" + folder.Name;
+
+        int visualRowIndex = state.VisualRows.Count;
+        bool isFocused = state.TreeFocusRow == visualRowIndex;
+
+        // Determine tree flags.
+        var treeFlags = baseFlags | ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
+        if (isFocused)
+            treeFlags |= ImGuiTreeNodeFlags.Selected;
+
         // Draw folder icon if available. Pick closed/open glyph from the node's
-        // persisted open-state (1-frame lag is acceptable for a folder glyph); the
-        // icon must be drawn BEFORE TreeNodeEx, so we read last frame's state from
-        // ImGui's per-id storage. Falls back to "folder" if "folder_open" is unknown.
-        uint nodeId = ImGui.GetID(folder.Name);
-        int defaultOpenInt = (flags & ImGuiTreeNodeFlags.DefaultOpen) != 0 ? 1 : 0;
+        // persisted open state (1-frame lag is acceptable); the icon must be
+        // drawn BEFORE TreeNodeEx.
+        uint nodeId = ImGui.GetID(fullPath);
+        int defaultOpenInt = (baseFlags & ImGuiTreeNodeFlags.DefaultOpen) != 0 ? 1 : 0;
         bool wasOpen = ImGui.GetStateStorage().GetInt(nodeId, defaultOpenInt) != 0;
 
         string folderKey = wasOpen ? "folder_open" : "folder";
@@ -89,15 +116,34 @@ internal static class TreeLayout
             ImGui.SameLine();
         }
 
-        bool open = ImGui.TreeNodeEx(folder.Name, flags);
+        // Drive open state from ExpandedFolders (non-search) or force open (search).
+        if (!isSearching)
+            ImGui.SetNextItemOpen(state.ExpandedFolders.Contains(fullPath), ImGuiCond.Always);
+
+        bool open = ImGui.TreeNodeEx(folder.Name, treeFlags);
+
+        // Record this folder as a visual row.
+        state.VisualRows.Add(new PickerState.TreeRow(
+            IsFolder: true, FolderPath: fullPath, FilteredIndex: -1, Depth: depth));
+
+        // Sync mouse-driven arrow toggle with ExpandedFolders (mirrors SaveAsBrowserDialog pattern).
+        if (open)
+            state.ExpandedFolders.Add(fullPath);
+        else if (folder.Folders.Count > 0 || folder.Leaves.Count > 0)
+            state.ExpandedFolders.Remove(fullPath);
+
+        // Scroll focused folder into view.
+        if (isFocused)
+            ImGui.SetScrollHereY(0.5f);
 
         if (open)
         {
+            // Recurse sub-folders and leaves only when expanded.
             foreach (var subFolder in folder.Folders)
-                DrawFolderNode(state, ctx, subFolder, flags);
+                DrawImplicitFolderNode(state, ctx, subFolder, fullPath, depth + 1, baseFlags, isSearching);
 
             foreach (var leaf in folder.Leaves)
-                DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex]);
+                DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex], depth + 1);
 
             ImGui.TreePop();
         }
@@ -105,22 +151,46 @@ internal static class TreeLayout
 
     // ── explicit tree ─────────────────────────────────────────────────────────
 
-    private static void DrawExplicitTree(PickerState state, IPickerRenderContext ctx,
-                                         CategoryNode node, int depth)
+    private static void DrawExplicitFolderNode(PickerState state, IPickerRenderContext ctx,
+                                               CategoryNode node, string parentPath, int depth)
     {
-        if (depth == 0)
-        {
-            // Root: render children directly (don't show the root node itself).
-            foreach (var child in node.Children)
-                DrawExplicitTree(state, ctx, child, 1);
-            return;
-        }
+        string fullPath = string.IsNullOrEmpty(parentPath)
+            ? node.Name
+            : parentPath + "/" + node.Name;
 
-        bool open = ImGui.TreeNodeEx(node.Name, ImGuiTreeNodeFlags.DefaultOpen); // default-open always
+        int visualRowIndex = state.VisualRows.Count;
+        bool isFocused = state.TreeFocusRow == visualRowIndex;
+
+        var treeFlags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanFullWidth;
+        if (isFocused)
+            treeFlags |= ImGuiTreeNodeFlags.Selected;
+        if (node.Children.Count == 0)
+            treeFlags |= ImGuiTreeNodeFlags.Leaf;
+
+        // Drive open state from ExpandedFolders (explicit tree has no search auto-expand).
+        ImGui.SetNextItemOpen(state.ExpandedFolders.Contains(fullPath), ImGuiCond.Always);
+
+        bool open = ImGui.TreeNodeEx(node.Name, treeFlags);
+
+        // Record this folder as a visual row.
+        state.VisualRows.Add(new PickerState.TreeRow(
+            IsFolder: true, FolderPath: fullPath, FilteredIndex: -1, Depth: depth));
+
+        // Sync mouse arrow toggle with ExpandedFolders.
+        if (open)
+            state.ExpandedFolders.Add(fullPath);
+        else if (node.Children.Count > 0)
+            state.ExpandedFolders.Remove(fullPath);
+
+        // Scroll focused folder into view.
+        if (isFocused)
+            ImGui.SetScrollHereY(0.5f);
+
         if (open)
         {
             foreach (var child in node.Children)
-                DrawExplicitTree(state, ctx, child, depth + 1);
+                DrawExplicitFolderNode(state, ctx, child, fullPath, depth + 1);
+
             ImGui.TreePop();
         }
     }
@@ -128,11 +198,16 @@ internal static class TreeLayout
     // ── leaf item ─────────────────────────────────────────────────────────────
 
     private static void DrawLeafItem(PickerState state, IPickerRenderContext ctx,
-                                     int filteredIdx, RankedEntry re)
+                                     int filteredIdx, RankedEntry re, int depth = 0)
     {
         bool sel    = state.SelectedFilteredIndices.Contains(filteredIdx);
         bool focus  = state.KeyboardFocusIndex == filteredIdx;
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
+
+        // Record this leaf as a visual row (before rendering, so the focus index
+        // computed in HandleKeyboardNavigation maps to the correct row).
+        state.VisualRows.Add(new PickerState.TreeRow(
+            IsFolder: false, FolderPath: "", FilteredIndex: filteredIdx, Depth: depth));
 
         ImGui.PushID(filteredIdx);
 
