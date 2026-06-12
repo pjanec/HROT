@@ -2627,7 +2627,8 @@ namespace Hrot.Editor
                         doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
                             doc.Asset, adapterBundle, _btreeSelectionStore,
                             btreeDebugSession:   _btreeDebugSession,
-                            breakpointManager:   _bpManager);
+                            breakpointManager:   _bpManager,
+                            actionSchema:        sharedSchemaExporter);
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Hsm:
                         // AIE-033: inject HSM debug session + breakpoint manager.

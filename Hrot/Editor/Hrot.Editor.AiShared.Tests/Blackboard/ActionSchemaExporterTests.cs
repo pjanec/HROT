@@ -439,4 +439,28 @@ public sealed class ActionSchemaExporterTests
         var entry = exporter.All[Fqn(nameof(ActionFixtures.HsmVoidPtrGuard_WithDtoType))];
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Hsm));
     }
+
+    // -------------------------------------------------------------------------
+    // T1 — exporter discriminator (BATCH-01)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Rebuild_BTreeAction_IsCondition_False()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        Assert.False(entry.IsCondition);
+    }
+
+    [Fact]
+    public void Rebuild_BTreeCondition_IsCondition_True()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
+        Assert.True(entry.IsCondition);
+    }
 }

@@ -2,15 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Blackboard;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
 namespace Hrot.BTree.Editor.Host;
 
 /// <summary>
-/// Static node catalog for the BTree canvas.
+/// Node catalog for the BTree canvas.
 /// Provides composite, leaf, and decorator palette entries.
-/// Dynamic action/condition entries require BehaviorRegistry injection (added in Slice 2).
+/// When constructed with an <see cref="IActionSchemaExporter"/>, also emits
+/// dynamic entries for registered BTree actions and conditions.
 /// </summary>
 public sealed class BTreeNodeCatalog : INodeCatalog
 {
@@ -28,12 +30,78 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private const string CatDecorator = "Decorator";
     private static readonly string CatReactiveGuard = ReactiveGuardVocabulary.CategoryName;
 
-    // ---- Static entries ----
-    private readonly IReadOnlyList<NodeCatalogEntry> _all;
+    // ---- Entries ----
+    private readonly IReadOnlyList<NodeCatalogEntry> _staticEntries;
+    private IReadOnlyList<NodeCatalogEntry> _dynamicEntries;
+    private IReadOnlyList<NodeCatalogEntry> _all;
+    private readonly IActionSchemaExporter? _actionSchema;
 
-    public BTreeNodeCatalog()
+    public BTreeNodeCatalog() : this(null) { }
+
+    public BTreeNodeCatalog(IActionSchemaExporter? actionSchema)
     {
-        _all = BuildStaticEntries();
+        _staticEntries = BuildStaticEntries();
+        _actionSchema = actionSchema;
+
+        if (actionSchema != null)
+        {
+            _dynamicEntries = BuildDynamicEntries(actionSchema);
+            actionSchema.Changed += OnSchemaChanged;
+        }
+        else
+        {
+            _dynamicEntries = Array.Empty<NodeCatalogEntry>();
+        }
+
+        _all = Concat(_staticEntries, _dynamicEntries);
+    }
+
+    private void OnSchemaChanged()
+    {
+        if (_actionSchema == null) return;
+        _dynamicEntries = BuildDynamicEntries(_actionSchema);
+        _all = Concat(_staticEntries, _dynamicEntries);
+    }
+
+    private static IReadOnlyList<NodeCatalogEntry> Concat(
+        IReadOnlyList<NodeCatalogEntry> a,
+        IReadOnlyList<NodeCatalogEntry> b)
+    {
+        if (b.Count == 0) return a;
+        var result = new List<NodeCatalogEntry>(a.Count + b.Count);
+        result.AddRange(a);
+        result.AddRange(b);
+        return result.AsReadOnly();
+    }
+
+    private static IReadOnlyList<NodeCatalogEntry> BuildDynamicEntries(IActionSchemaExporter schema)
+    {
+        var entries = new List<NodeCatalogEntry>();
+        foreach (var kv in schema.All)
+        {
+            var entry = kv.Value;
+            if (!entry.Hosting.HasFlag(ActionHosting.BTree))
+                continue;
+
+            var shortName = kv.Key.Substring(kv.Key.LastIndexOf('.') + 1);
+            var kindId = entry.IsCondition
+                ? BTreeKinds.ConditionPrefix + kv.Key
+                : BTreeKinds.ActionPrefix + kv.Key;
+
+            entries.Add(new NodeCatalogEntry(
+                new NodeKindKey(kindId),
+                shortName,
+                null,
+                CatLeaf,
+                new[] { kv.Key, shortName },
+                entry.IsCondition ? "bt/condition" : "bt/action",
+                entry.IsCondition,
+                false,
+                false,
+                Array.Empty<PinSignature>(),
+                new[] { ExecOut }));
+        }
+        return entries.AsReadOnly();
     }
 
     private static IReadOnlyList<NodeCatalogEntry> BuildStaticEntries()

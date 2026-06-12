@@ -97,13 +97,17 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         // Determine which AI system(s) host this method.
         var hosting = ActionHosting.None;
         Type? heavyDtoType = null;
+        bool isCondition = false;
 
         // BTree attributes
         if (method.IsDefined(typeof(BTreeActionAttribute), inherit: false))
             hosting |= ActionHosting.BTree;
 
         if (method.IsDefined(typeof(BTreeConditionAttribute), inherit: false))
+        {
             hosting |= ActionHosting.BTree;
+            isCondition = true;
+        }
 
         // HSM attributes
         if (method.IsDefined(typeof(HsmActionAttribute), inherit: false))
@@ -124,6 +128,7 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             method.GetCustomAttributes<SharedAiConditionAttribute>(inherit: false))
         {
             hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared;
+            isCondition = true;
             _ = attr;
         }
 
@@ -134,6 +139,16 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             // Prefer the first non-null HeavyDtoType encountered.
             if (heavyDtoType == null && attr.HeavyDtoType != null)
                 heavyDtoType = attr.HeavyDtoType;
+        }
+
+        foreach (SharedAiHeavyConditionAttribute attr in
+            method.GetCustomAttributes<SharedAiHeavyConditionAttribute>(inherit: false))
+        {
+            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared | ActionHosting.Heavy;
+            isCondition = true;
+            if (heavyDtoType == null && attr.HeavyDtoType != null)
+                heavyDtoType = attr.HeavyDtoType;
+            _ = attr;
         }
 
         // No relevant attribute found -- skip this method.
@@ -161,7 +176,7 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         string fqn = $"{declaringTypeName}.{method.Name}";
 
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
-        collected[fqn] = new ActionSchemaEntry(fqn, dtoType, hosting, access, heavyDtoType);
+        collected[fqn] = new ActionSchemaEntry(fqn, dtoType, hosting, access, heavyDtoType, isCondition);
     }
 
     /// <summary>

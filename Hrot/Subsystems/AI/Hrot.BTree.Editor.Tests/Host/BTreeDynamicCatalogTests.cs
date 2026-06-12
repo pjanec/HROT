@@ -1,0 +1,317 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using FluentAssertions;
+using Fbt;
+using Hrot.BTree.Editor.Host;
+using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared.Blackboard;
+using NodeEditor.Core.Commands;
+using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
+using Xunit;
+
+namespace Hrot.BTree.Editor.Tests.Host;
+
+// ---------------------------------------------------------------------------
+// Fake IActionSchemaExporter for headless tests
+// ---------------------------------------------------------------------------
+
+public sealed class FakeActionSchemaExporter : IActionSchemaExporter
+{
+    private readonly Dictionary<string, ActionSchemaEntry> _entries = new();
+
+    public IReadOnlyDictionary<string, ActionSchemaEntry> All => _entries;
+
+    public ActionSchemaEntry? Lookup(string fqn) =>
+        _entries.TryGetValue(fqn, out var entry) ? entry : null;
+
+    public void Rebuild()
+    {
+        Changed?.Invoke();
+    }
+
+    public event Action? Changed;
+
+    /// <summary>Add or overwrite an entry and fire Changed.</summary>
+    public void Add(string fqn, ActionSchemaEntry entry)
+    {
+        _entries[fqn] = entry;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Add without firing Changed (for initial seed before catalog construction).</summary>
+    public void Seed(string fqn, ActionSchemaEntry entry)
+    {
+        _entries[fqn] = entry;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests T2–T8
+// ---------------------------------------------------------------------------
+
+public sealed class BTreeDynamicCatalogTests
+{
+    private static BehaviorTreeBlob EmptyBlob() =>
+        new BehaviorTreeBlob
+        {
+            TreeName        = "test",
+            Nodes           = Array.Empty<NodeDefinition>(),
+            MethodNames     = Array.Empty<string>(),
+            FloatParams     = Array.Empty<float>(),
+            IntParams       = Array.Empty<int>(),
+            SubtreeAssetIds = Array.Empty<string>(),
+        };
+
+    private static BehaviorTreeAsset MakeAsset() =>
+        new BehaviorTreeAsset(
+            Guid.NewGuid(), "TestTree", "/TestTree.cs", true,
+            "BB", "Ctx", EmptyBlob());
+
+    // ---- T2 — action entry ----
+
+    [Fact]
+    public void Catalog_ActionEntry_QueryReturnsEncodedKind()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
+            "Ns.Combat.DoThing", typeof(object), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake);
+
+        var results = catalog.Query(new NodeSearchQuery("DoThing"));
+        results.Should().ContainSingle()
+            .Which.Kind.Id.Should().Be("bt.leaf.action::Ns.Combat.DoThing");
+    }
+
+    [Fact]
+    public void Catalog_ActionEntry_HasCorrectDisplayName()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
+            "Ns.Combat.DoThing", typeof(object), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake);
+
+        var results = catalog.Query(new NodeSearchQuery("DoThing"));
+        results.Should().ContainSingle()
+            .Which.DisplayName.Should().Be("DoThing");
+    }
+
+    // ---- T3 — condition entry ----
+
+    [Fact]
+    public void Catalog_ConditionEntry_QueryReturnsEncodedKind()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.IsThing", new ActionSchemaEntry(
+            "Ns.Combat.IsThing", typeof(object), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: true));
+
+        var catalog = new BTreeNodeCatalog(fake);
+
+        var results = catalog.Query(new NodeSearchQuery("IsThing"));
+        results.Should().ContainSingle()
+            .Which.Kind.Id.Should().Be("bt.leaf.condition::Ns.Combat.IsThing");
+    }
+
+    [Fact]
+    public void Catalog_ConditionEntry_IsPureTrue()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.IsThing", new ActionSchemaEntry(
+            "Ns.Combat.IsThing", typeof(object), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: true));
+
+        var catalog = new BTreeNodeCatalog(fake);
+
+        var results = catalog.Query(new NodeSearchQuery("IsThing"));
+        results.Should().ContainSingle()
+            .Which.IsPure.Should().BeTrue();
+    }
+
+    // ---- T4 — host filter ----
+
+    [Fact]
+    public void Catalog_HsmOnlyEntry_NotPresent()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Hsm.DoHsm", new ActionSchemaEntry(
+            "Ns.Hsm.DoHsm", typeof(object), ActionHosting.Hsm,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake);
+
+        // The HSM-only entry must not appear in catalog.All.
+        catalog.All.Should().NotContain(e => e.Kind.Id.Contains("Ns.Hsm.DoHsm"));
+    }
+
+    // ---- T5 — re-query on Changed ----
+
+    [Fact]
+    public void Catalog_OnChanged_NewEntryAppears()
+    {
+        var fake = new FakeActionSchemaExporter();
+        var catalog = new BTreeNodeCatalog(fake);
+
+        // Before adding: not present.
+        catalog.All.Should().NotContain(e => e.Kind.Id.Contains("Ns.Late.DoLate"));
+
+        // Add and raise Changed.
+        fake.Add("Ns.Late.DoLate", new ActionSchemaEntry(
+            "Ns.Late.DoLate", typeof(object), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        // After Changed: must be present.
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Late.DoLate");
+    }
+
+    // ---- T6 — kinds parse ----
+
+    [Fact]
+    public void TryParseLeafActionKind_ActionPrefix_ReturnsTrue()
+    {
+        var ok = BTreeKinds.TryParseLeafActionKind(
+            "bt.leaf.action::Ns.Combat.DoThing", out var fqn, out var isCond);
+
+        ok.Should().BeTrue();
+        fqn.Should().Be("Ns.Combat.DoThing");
+        isCond.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryParseLeafActionKind_ConditionPrefix_ReturnsTrue()
+    {
+        var ok = BTreeKinds.TryParseLeafActionKind(
+            "bt.leaf.condition::Ns.Combat.IsThing", out var fqn, out var isCond);
+
+        ok.Should().BeTrue();
+        fqn.Should().Be("Ns.Combat.IsThing");
+        isCond.Should().BeTrue();
+    }
+
+    [Fact]
+    public void TryParseLeafActionKind_GenericAction_ReturnsFalse()
+    {
+        var ok = BTreeKinds.TryParseLeafActionKind(
+            "bt.leaf.action", out _, out _);
+
+        ok.Should().BeFalse();
+    }
+
+    [Fact]
+    public void TryParseLeafActionKind_Composite_ReturnsFalse()
+    {
+        var ok = BTreeKinds.TryParseLeafActionKind(
+            "bt.composite.sequence", out _, out _);
+
+        ok.Should().BeFalse();
+    }
+
+    [Fact]
+    public void KindIdToNodeType_ActionEncoded_ReturnsAction()
+    {
+        BTreeKinds.KindIdToNodeType("bt.leaf.action::X")
+            .Should().Be(NodeType.Action);
+    }
+
+    [Fact]
+    public void KindIdToNodeType_ConditionEncoded_ReturnsCondition()
+    {
+        BTreeKinds.KindIdToNodeType("bt.leaf.condition::X")
+            .Should().Be(NodeType.Condition);
+    }
+
+    // ---- T7 — placement bakes identity ----
+
+    [Fact]
+    public void CommandSink_AddNode_EncodedAction_BakesMethodFqn()
+    {
+        var asset = MakeAsset();
+        var graph = new StubGraphModel();
+        var sink  = new BTreeCommandSink(asset, graph);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.action::Ns.Combat.DoThing"),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.KernelType.Should().Be(NodeType.Action);
+        node.Action.Should().NotBeNull();
+        node.Action!.MethodFqn.Should().Be("Ns.Combat.DoThing");
+    }
+
+    [Fact]
+    public void CommandSink_AddNode_EncodedCondition_BakesMethodFqn()
+    {
+        var asset = MakeAsset();
+        var graph = new StubGraphModel();
+        var sink  = new BTreeCommandSink(asset, graph);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey("bt.leaf.condition::Ns.Combat.IsThing"),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.KernelType.Should().Be(NodeType.Condition);
+        node.Condition.Should().NotBeNull();
+        node.Condition!.MethodFqn.Should().Be("Ns.Combat.IsThing");
+    }
+
+    // ---- T8 — generic fallback unchanged ----
+
+    [Fact]
+    public void CommandSink_AddNode_GenericAction_NoMethodFqn()
+    {
+        var asset = MakeAsset();
+        var graph = new StubGraphModel();
+        var sink  = new BTreeCommandSink(asset, graph);
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId,
+            new NodeKindKey(BTreeKinds.Action),
+            Vector2.Zero,
+            null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.KernelType.Should().Be(NodeType.Action);
+        // Generic action must NOT bake a MethodFqn.
+        node.Action.Should().BeNull();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Minimal IGraphModel stub for command-sink tests
+// ---------------------------------------------------------------------------
+
+public sealed class StubGraphModel : IGraphModel
+{
+    public GraphId Id => GraphId.NewId();
+    public string DisplayName => "stub";
+    public GraphKindDescriptor Kind => new("stub", "stub", false, false);
+    public IReadOnlyCollection<INodeModel>    Nodes    => Array.Empty<INodeModel>();
+    public IReadOnlyCollection<ILinkModel>    Links    => Array.Empty<ILinkModel>();
+    public IReadOnlyCollection<ICommentModel> Comments => Array.Empty<ICommentModel>();
+
+#pragma warning disable CS0067
+    public event Action<GraphChangeNotification>? Changed;
+#pragma warning restore CS0067
+
+    public INodeModel?  FindNode(NodeId id) => null;
+    public IPinModel?   FindPin(PinId id)   => null;
+    public ILinkModel?  FindLink(LinkId id) => null;
+}

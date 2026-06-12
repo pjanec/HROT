@@ -44,12 +44,18 @@ public enum BlackboardAccess
 /// Non-null for <c>[SharedAiHeavyAction]</c>/<c>[SharedAiHeavyCondition]</c> with an
 /// unmanaged heavy parameter; null otherwise.
 /// </param>
+/// <param name="IsCondition">
+/// True when the method was registered via a condition-declaring attribute
+/// (<c>[BTreeCondition]</c>, <c>[SharedAiCondition]</c>, <c>[SharedAiHeavyCondition]</c>);
+/// false for actions and guards. Defaults to false for backward compatibility.
+/// </param>
 public record ActionSchemaEntry(
     string Fqn,
     Type DtoType,
     ActionHosting Hosting,
     BlackboardAccess Access,
-    Type? HeavyDtoType
+    Type? HeavyDtoType,
+    bool IsCondition = false
 );
 
 /// <summary>

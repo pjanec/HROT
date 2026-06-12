@@ -6,6 +6,7 @@ using Hrot.BTree.Editor.Renderers;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Adapters;
+using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Documents;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Editor.AiShared.Windows;
@@ -71,6 +72,10 @@ public static class BTreeDocumentFactory
     /// <param name="extraRenderers">
     ///   Optional additional custom canvas renderers to append after the built-in BTree set.
     /// </param>
+    /// <param name="actionSchema">
+    ///   Optional <see cref="IActionSchemaExporter"/> for populating the node catalog with
+    ///   dynamic action/condition entries. When null, the catalog contains only static entries.
+    /// </param>
     /// <returns>A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the BTree canvas.</returns>
     /// <exception cref="ArgumentException">
@@ -83,7 +88,8 @@ public static class BTreeDocumentFactory
         IDebugSession?          debugSession        = null,
         IBTreeDebugSession?     btreeDebugSession   = null,
         IDataBreakpointManager? breakpointManager   = null,
-        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
+        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
+        IActionSchemaExporter?  actionSchema        = null)
     {
         if (asset is null)   throw new ArgumentNullException(nameof(asset));
         if (bundle is null)  throw new ArgumentNullException(nameof(bundle));
@@ -97,7 +103,7 @@ public static class BTreeDocumentFactory
         var graphModel = new BTreeGraphModel(btAsset);
 
         // ── 2. Kind-specific host components ─────────────────────────────────
-        var nodeCatalog  = new BTreeNodeCatalog();
+        var nodeCatalog  = new BTreeNodeCatalog(actionSchema);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
         var commandSink  = new BTreeCommandSink(btAsset, graphModel);

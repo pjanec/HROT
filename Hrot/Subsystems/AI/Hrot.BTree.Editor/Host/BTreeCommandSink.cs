@@ -116,6 +116,17 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             Position        = add.Position,
             DisplayLabel    = add.Kind.Id,
         };
+
+        if (BTreeKinds.TryParseLeafActionKind(add.Kind.Id, out var fqn, out var isCond))
+        {
+            node.KernelType = isCond ? NodeType.Condition : NodeType.Action;
+            node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);
+            if (isCond)
+                node.Condition = new BTreeConditionPayload { MethodFqn = fqn };
+            else
+                node.Action = new BTreeActionPayload { MethodFqn = fqn };
+        }
+
         _asset.AddNode(node);
         _asset.MarkDirty();
     }
