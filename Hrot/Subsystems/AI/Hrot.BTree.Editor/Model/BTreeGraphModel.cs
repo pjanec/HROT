@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using Fbt;
@@ -141,8 +142,31 @@ internal sealed class BTreePillAttachmentModel : IAttachmentModel
     public AttachmentId      Id         => new(_pill.VisualId);
     public NodeId            HostNodeId => new(_pill.HostNodeVisualId);
     public AttachmentCategory Category  => AttachmentCategory.Decorator;
-    public string?           Glyph     => null;
-    public string?           Label     => _pill.DecoratorType.ToString();
+
+    public string? Glyph => _pill.DecoratorType switch
+    {
+        NodeType.Inverter     => "!",
+        NodeType.Repeater     => "R",
+        NodeType.Cooldown     => "C",
+        NodeType.ForceSuccess => "S",
+        NodeType.ForceFailure => "F",
+        NodeType.UntilSuccess => "U+",
+        NodeType.UntilFailure => "U-",
+        _                     => "?",
+    };
+
+    public string? Label => _pill.DecoratorType switch
+    {
+        NodeType.Repeater => $"x{_pill.IntParam ?? 1}",
+        NodeType.Cooldown => FormattableString.Invariant($"{_pill.FloatParam ?? 0f}s"),
+        NodeType.Inverter     => nameof(NodeType.Inverter),
+        NodeType.ForceSuccess => nameof(NodeType.ForceSuccess),
+        NodeType.ForceFailure => nameof(NodeType.ForceFailure),
+        NodeType.UntilSuccess => nameof(NodeType.UntilSuccess),
+        NodeType.UntilFailure => nameof(NodeType.UntilFailure),
+        _                     => _pill.DecoratorType.ToString(),
+    };
+
     public string?           Tooltip   => _pill.Comment;
     public AttachmentState   State     => AttachmentState.Normal;
     public int               StackIndex => _pill.StackIndex;
