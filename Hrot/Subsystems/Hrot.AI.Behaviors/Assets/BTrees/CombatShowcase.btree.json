@@ -1,0 +1,148 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "aaaaaaaa-0000-0000-0000-000000000001",
+	"Name": "CombatShowcase",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "10000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"20000000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 400,
+				"Y": 0,
+				"Comment": "Combat Showcase Root — exercises ObserverSelector, Action+pills, Wait, and Subtree",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "ObserverSelector",
+			"VisualId": "20000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"40000000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "ObserverSelector",
+			"EditorMetadata": {
+				"X": 400,
+				"Y": 100,
+				"Comment": "Watches for threat; re-evaluates children when condition state changes",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "40000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"50000000-0000-0000-0000-000000000001",
+				"60000000-0000-0000-0000-000000000001",
+				"70000000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 650,
+				"Y": 230,
+				"Comment": "Wander → pause → patrol subtree",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "50000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wander",
+			"EditorMetadata": {
+				"X": 500,
+				"Y": 370,
+				"Comment": "Military wander via LocomotionChannel; pill-stacked with Repeater(3) + Cooldown(2s)",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+				"ExpressionTargetField": null,
+				"DelegateShape": "FourParamFull"
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "60000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1.5s)",
+			"EditorMetadata": {
+				"X": 670,
+				"Y": 370,
+				"Comment": "Pause between wander attempts",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.5
+			}
+		},
+		{
+			"kind": "Subtree",
+			"VisualId": "70000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "SampleScout",
+			"EditorMetadata": {
+				"X": 840,
+				"Y": 370,
+				"Comment": "Fall back to SampleScout patrol behavior after the wander burst",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Subtree": {
+				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
+				"SubtreeName": "SampleScout",
+				"IsResolved": true
+			}
+		}
+	],
+	"Pills": [
+		{
+			"VisualId": "51000000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "50000000-0000-0000-0000-000000000001",
+			"DecoratorType": "Repeater",
+			"IntParam": 3,
+			"FloatParam": null,
+			"Comment": "Repeat wander action 3 times before exiting",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "52000000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "50000000-0000-0000-0000-000000000001",
+			"DecoratorType": "Cooldown",
+			"IntParam": null,
+			"FloatParam": 2,
+			"Comment": "2 second cooldown between wander attempts",
+			"StackIndex": 1
+		}
+	],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

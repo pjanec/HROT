@@ -17,6 +17,7 @@ namespace Hrot.BTree.Editor;
 public sealed class BTreeNewAssetService : INewAssetService
 {
     private readonly IEditableAsset _emptyRecipe;
+    private readonly IEditableAsset _starterRecipe;
     private readonly string _assetRootPath;
 
     /// <summary>
@@ -37,6 +38,7 @@ public sealed class BTreeNewAssetService : INewAssetService
     public BTreeNewAssetService(string? assetRootPath)
     {
         _emptyRecipe = new BTreeEditableAssetAdapter(MakeEmptyDto(), "");
+        _starterRecipe = new BTreeEditableAssetAdapter(MakeStarterDto(), "");
         _assetRootPath = assetRootPath ?? AssetRoots.AssetsFor(AssetKind.BTree);
     }
 
@@ -81,12 +83,12 @@ public sealed class BTreeNewAssetService : INewAssetService
     /// <inheritdoc />
     public IReadOnlyList<IEditableAsset> AvailableRecipes()
     {
-        // Synthetic "Empty" entry.
-        var recipes = new List<IEditableAsset> { _emptyRecipe };
+        // Synthetic "Empty" and "Starter" entries.
+        var recipes = new List<IEditableAsset> { _emptyRecipe, _starterRecipe };
 
         // Discover on-disk BTree recipes (if any exist under Recipes/BTrees).
         // TODO: wire IRecipeDiscovery when a recipe-discovery service exists.
-        // For now, only the in-code "Empty" recipe is offered.
+        // For now, only the in-code recipes are offered.
 
         return recipes;
     }
@@ -119,6 +121,49 @@ public sealed class BTreeNewAssetService : INewAssetService
             ContextTypeName    = "",
             Canvas             = new CanvasDto { Zoom = 1.0f },
             Nodes              = new List<BTreeNodeDto>(),
+            Pills              = new List<BTreePillDto>(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions       = new SuppressionsDto(),
+            Blackboard         = new BlackboardBlockDto(),
+        };
+    }
+
+    /// <summary>
+    /// Synthesizes a "Starter" <see cref="BehaviorTreeAssetDto"/> — a minimal
+    /// valid tree with a Root node and one empty Sequence child, so a new-from-Starter
+    /// tree opens with a root + composite ready to build under (not a blank canvas).
+    /// Decision D-03: in-code recipe, no on-disk discovery needed.
+    /// </summary>
+    internal static BehaviorTreeAssetDto MakeStarterDto()
+    {
+        var rootId = Guid.NewGuid();
+        var seqId = Guid.NewGuid();
+
+        return new BehaviorTreeAssetDto
+        {
+            AssetId            = Guid.NewGuid(),
+            Name               = "Starter",
+            TargetNamespace    = "",
+            BlackboardTypeName = "",
+            ContextTypeName    = "",
+            Canvas             = new CanvasDto { Zoom = 1.0f },
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = rootId,
+                    ChildVisualIds = new List<Guid> { seqId },
+                    DisplayLabel = "Root",
+                    EditorMetadata = new NodeEditorMetadataDto { X = 400, Y = 0 },
+                },
+                new BTreeSequenceNodeDto
+                {
+                    VisualId = seqId,
+                    ChildVisualIds = new List<Guid>(),
+                    DisplayLabel = "Sequence",
+                    EditorMetadata = new NodeEditorMetadataDto { X = 400, Y = 100 },
+                },
+            },
             Pills              = new List<BTreePillDto>(),
             SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
             Suppressions       = new SuppressionsDto(),
