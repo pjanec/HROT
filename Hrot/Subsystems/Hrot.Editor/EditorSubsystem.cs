@@ -360,6 +360,9 @@ namespace Hrot.Editor
         // to avoid double-DrawFrame on the same registry instance.
         private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
 
+        // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
+        private Hrot.Editor.AiShared.Browser.AssetNameFolderModal? _assetNameFolderModal;
+
         // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
         // Scenario → IEditorLogic.LoadScenarioByName.
         private Hrot.Editor.AssetPickActionRouter? _assetPickRouter;
@@ -1833,6 +1836,9 @@ namespace Hrot.Editor
 
             // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
             _shellPickers?.DrawFrame();
+
+            // BATCH-40 (MTB2-T8): Draw the name+folder modal (New / Save-As).
+            _assetNameFolderModal?.DrawModal();
         }
 
         /// <inheritdoc/>
@@ -2285,6 +2291,14 @@ namespace Hrot.Editor
                 _editorLogic?.SaveScenarioAs(fullName);
             };
 
+            // Base-folder resolver for KnownSubfolders (mirrors AssetBrowserPanel.BaseFolderFor
+            // which is internal — lambda wraps the same try/catch over AssetRoots.AssetsFor).
+            Func<Hrot.Editor.AiShared.AssetKind, string?> baseFolderFor = kind =>
+            {
+                try { return Hrot.Editor.AiShared.AssetRoots.AssetsFor(kind); }
+                catch (ArgumentOutOfRangeException) { return null; }
+            };
+
             // ── BATCH-06: register shell save commands (Ctrl+S/Ctrl+Shift+S fix, §20) ──────────
             // Wire the three save commands into the global shell command set with production
             // save delegates and a requestSaveAs seam (DEC-9: connected to SaveAsDialog model).
@@ -2293,9 +2307,8 @@ namespace Hrot.Editor
                 _shellInputSource);
 
             // MTB2-T4: scenario Save-As seam — mirrors the existing ScenarioMenuCommands
-            // openSaveAsDialog path (seed + dialog + confirm). Duplicated inline here
-            // instead of refactoring shared state (per batch spec: leave
-            // ScenarioMenuCommands wiring unchanged).
+            // openSaveAsDialog path. BATCH-40 (DBT-2): opens the AssetNameFolderModal
+            // seeded with known subfolders from the catalog instead of auto-confirming.
             Action openScenarioSaveAs = () =>
             {
                 if (_editorLogic != null && _newAssetServices != null)
@@ -2303,23 +2316,20 @@ namespace Hrot.Editor
                     var scenarioAsset = new ScenarioSaveAsAsset(
                         _editorLogic.LoadedScenarioName ?? "Unnamed");
 
+                    var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario,
+                        baseFolderFor);
+
                     var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
                         scenarioAsset,
                         _newAssetServices,
+                        knownFolderPaths: known,
                         saveScenarioAs: fullName =>
                         {
                             _editorLogic?.SaveScenarioAs(fullName);
                         });
 
-                    var result = dialog.Confirm();
-                    if (result.IsSuccess)
-                    {
-                        _saveAllStatus = $"[OK] Saved scenario as '{scenarioAsset.Name}'.";
-                    }
-                    else
-                    {
-                        _saveAllStatus = $"[INFO] Scenario Save As: {result.Error}";
-                    }
+                    _assetNameFolderModal?.Open(dialog);
                 }
             };
 
@@ -2332,31 +2342,22 @@ namespace Hrot.Editor
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
                 requestSaveAs:     doc =>
                 {
-                    // DEC-9 RESOLVED: the requestSaveAs seam creates a SaveAsDialog
-                    // seeded from the document's asset and attempts to confirm.
-                    // UI surfacing (ImGui name/folder picker popup) deferred to
-                    // Phase 7 / DBT-2; until then Confirm() uses the source asset's
-                    // name and root path, which succeeds for empty-SourceFilePath
-                    // "promote to file" paths (§18.5) and fails gracefully with a
-                    // collision error when the target file already exists.
+                    // BATCH-40 (DBT-2): open the AssetNameFolderModal seeded from
+                    // the document's asset with known subfolders from the catalog.
                     if (_newAssetServices == null) return;
+
+                    var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, doc.Asset.Kind,
+                        baseFolderFor);
 
                     var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
                         doc.Asset,
                         _newAssetServices,
-                        knownFolderPaths: Array.Empty<string>(),
+                        knownFolderPaths: known,
                         saveMintOnlyAsset: saveAsBlueprintToFile,
                         saveScenarioAs:    saveAsScenario);
 
-                    var result = dialog.Confirm();
-                    if (result.IsSuccess)
-                    {
-                        _saveAllStatus = $"[OK] Saved '{result.Asset?.Name}' as new asset.";
-                    }
-                    else
-                    {
-                        _saveAllStatus = $"[INFO] Save As '{doc.Asset.Name}': {result.Error}";
-                    }
+                    _assetNameFolderModal?.Open(dialog);
                 },
                 report:               msg => _saveAllStatus = msg,
                 isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
@@ -2467,6 +2468,9 @@ namespace Hrot.Editor
             _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
             _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
 
+            // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
+            _assetNameFolderModal = new Hrot.Editor.AiShared.Browser.AssetNameFolderModal();
+
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AssetPickerLauncher(
@@ -2476,45 +2480,34 @@ namespace Hrot.Editor
                 : null;
 
             // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
-            // on pick → ShowNewAssetDialog seeds + confirms a NewAssetDialog with a
-            // default name, creates the asset, and opens it. Interactive name/folder UI
-            // deferred as DBT-A3.
+            // on pick → ShowNewAssetDialog opens the AssetNameFolderModal (BATCH-40: DBT-A3).
             void ShowNewAssetDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
             {
                 if (_newAssetServices == null) return;
 
+                var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                    catalog.All, kind, baseFolderFor);
                 var dlg = new Hrot.Editor.AiShared.Recipes.NewAssetDialog(
-                    _newAssetServices,
-                    knownFolderPaths: Array.Empty<string>(),
-                    saveMintOnlyAsset: saveAsBlueprintToFile);
+                    _newAssetServices, knownFolderPaths: known, saveMintOnlyAsset: saveAsBlueprintToFile);
                 dlg.Kind = kind;
                 dlg.Recipe = recipe;
                 dlg.Name = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
                     ? $"New{kind}"
                     : recipe.Name;
-
-                if (dlg.CanConfirm())
+                _assetNameFolderModal?.Open(dlg, onCreated: minted =>
                 {
-                    var r = dlg.Confirm(onCreated: minted =>
+                    // BUG-A1: open the CATALOGUED concrete asset (document kinds only); Scenario isn't document-backed.
+                    if (minted.Kind is Hrot.Editor.AiShared.AssetKind.Blueprint
+                        or Hrot.Editor.AiShared.AssetKind.BTree
+                        or Hrot.Editor.AiShared.AssetKind.Hsm)
                     {
-                        // BUG-A1: Open requires the catalogued concrete asset (e.g. BlueprintFileAsset),
-                        // NOT the minted INewAssetService adapter. Resolve via the catalog by AssetId
-                        // (mirrors the retired RecipeCreateModal). Scenario is not document-backed.
-                        if (minted.Kind is Hrot.Editor.AiShared.AssetKind.Blueprint
-                            or Hrot.Editor.AiShared.AssetKind.BTree
-                            or Hrot.Editor.AiShared.AssetKind.Hsm)
-                        {
-                            var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
-                            if (catalogued != null)
-                                _aiDocumentManager?.Open(catalogued);
-                            else
-                                _saveAllStatus = $"[INFO] Created '{minted.Name}'. Open it from the Asset Browser (catalog refresh pending).";
-                        }
-                    });
-                    _saveAllStatus = r.IsSuccess
-                        ? $"[OK] Created new {kind}: '{r.Asset?.Name}'."
-                        : $"[INFO] New {kind}: {r.Error}";
-                }
+                        var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
+                        if (catalogued != null)
+                            _aiDocumentManager?.Open(catalogued);
+                        else
+                            _saveAllStatus = $"[INFO] Created '{minted.Name}'. Open it from the Asset Browser (catalog refresh pending).";
+                    }
+                });
             }
 
             var newAssetLauncher = _newAssetServices != null
