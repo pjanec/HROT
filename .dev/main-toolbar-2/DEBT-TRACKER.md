@@ -47,7 +47,19 @@ choices so they aren't re-litigated.
 | BUG-A13 | P1 | runtime R4 | **Toolbar icons use divergent chrome.** Vector time-control (`TransportIconRenderer`) keeps a white hover frame; bitmap icons (`IconWidgets`, New Asset / perspective-switch) lost it after A10 → inconsistent. They MUST share ONE chrome (hover + toggle indicator); vector vs bitmap differ ONLY in the glyph draw. Scheme: **hover = white frame (inset 1px so the top edge is visible), toggled = blue/accent filled bg**, applied uniformly. | 994ba0c6 | **DONE** — shared `IconButtonChrome` (hover=inset white frame, toggle=blue fill) used by IconWidgets + both transport renderers (incl. Hrot TransportIcons). Live-test pending. |
 | BUG-A14 | P1 | runtime R4 | **Picker Tree keyboard nav broken.** ↑/↓ traverse the flat `Filtered` list, not the visual tree order (→ chaotic jumps); folder nodes are unreachable (not in `Filtered`) so they can't be expanded/collapsed by keyboard. (A7 auto-expand was the WRONG fix — user never asked for it, unusable at scale → revert it.) Need: ↑/↓ in VISUAL row order over folders+leaves; ←/→ collapse/expand the focused folder; Enter confirms a focused leaf. Tree-layout-specific (other flat layouts unchanged). | 540a8579 | **DONE** — visual-order keyboard nav over folders+leaves, ←/→ expand/collapse, folders default-collapsed (auto-expand reverted). Live-test pending. |
 
-## Notes ▸ Proper (a): open-from-in-memory (DBT-A4, deferred — full design to return to)
+### Round-5 runtime bugs (2026-06-12, after A12/A13/A14 runtime test)
+Confirmed good: A14 keyboard nav + ordered ↑/↓ + ←/→ expand; A13 icon hover/toggle; A12 perspective-bound Save.
+**DBT-A4 DROPPED** (user: "(b) seems good enough" — proper-(a) open-from-in-memory will not be pursued).
+| ID | Pri | Description | Batch | Status |
+|----|-----|-------------|-------|--------|
+| BUG-A15 | P1 | **New asset does not open the proper perspective.** Almost certainly a symptom of A17 (recipe Tree picker returns the wrong selection because mouse clicks don't move focus) → New creates/opens off the stuck row-0 selection. Re-verify after A17. | BATCH-50 | OPEN |
+| BUG-A16 | P2 | Picker Tree should NOT force "all collapsed" at start — let ImGui remember open/closed state across opens (native persistence); keyboard ←/→ + dbl-click drive it via one-shot SetNextItemOpen. (Refines A14's forced default.) | BATCH-50 | OPEN |
+| BUG-A17 | P1 | **Picker Tree mouse clicks don't update `TreeFocusRow`** → `SyncTreeFocusToLeaf` (runs every frame) snaps selection back to row 0. Click a node → selection must move there; dbl-click leaf → open (not expand row 0); dbl-click folder → expand/collapse. Root cause of A15 + Open-Asset dbl-click-doesn't-open + New-dialog selection-stuck. | BATCH-50 | OPEN |
+| BUG-A18 | P1 | **Open-Asset picker: double-click a leaf does not open** (Enter does). Same root cause as A17 (focus row not updated by mouse → Confirm hits a folder guard). | BATCH-50 | OPEN |
+| BUG-A19 | P2 | **SaveAs/New dialog:** (a) double-click a folder row should expand/collapse (today only the triangle works); (b) Overwrite popup UX — Enter=confirm, Tab moves focus between buttons, **Esc must return to the SaveAs dialog** (today Esc bubbles to the main dialog's Esc handler and closes EVERYTHING → must gate main Esc while a popup is open). | BATCH-51 | OPEN |
+| DBT-A5 | P3 | **Save does not gray out after saving** (Changed/dirty flag). Save `IsEnabled` ignores dirtiness, and the editable-asset adapters hard-code `IsDirty=false`, so real dirty-tracking (mark dirty on canvas edits, clean on save) is needed to disable Save once saved. User: "not critical but would feel safer." Deferred. | — | OPEN (deferred) |
+
+## Notes ▸ Proper (a): open-from-in-memory (DBT-A4, DROPPED 2026-06-12 — kept for reference only)
 **Goal:** New = recipe Tree picker → `INewAssetService.CreateNew(recipe, defaultName, "")` (default name, EMPTY
 `SourceFilePath`) → **open the in-memory asset immediately** (unsaved) → first Ctrl+S routes (empty path) to the
 Save-As browser. Uniform with scenarios (already native). Avoids the (b) "dialog at create time" + needs no rename
