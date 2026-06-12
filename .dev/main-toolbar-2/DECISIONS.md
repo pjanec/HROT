@@ -27,3 +27,10 @@ fully autonomous**). Decisions made mid-run are recorded here; design decisions 
   `child.DynamicLabel?.Invoke() ?? child.Name`, with `MenuCommandAdapter` setting it from
   `descriptor.DynamicDisplayName`. TASK-DETAIL T3 refined accordingly. (The toolbar tooltip side still reads
   `DynamicDisplayName ?? DisplayName` directly.)
+- **D-T2-1 (in-review fix, BATCH-31):** the Save-toolbar guardrail must assert the **entry exists**, but
+  `MainToolbarManager.GetVisibleItemPlan` is `internal` with `InternalsVisibleTo` only for `Fdp.Presentation.Tests`
+  (NOT `Hrot.Blueprints.Tests`), so the worker's test fell back to `Height > 0` (would pass even if Save were
+  missing). Lead fix: added a small **public `MainToolbarManager.ContainsEntry(string id)`** accessor (entries only)
+  and rewrote the guardrail to assert `ContainsEntry("shell.save")` + `ContainsEntry("shell.openAsset")`. Production
+  Save registration (sortOrder -9) was correct; only the test was weak. Re-verified: build 0 warnings, icon test 3/3,
+  guardrail 13/13.

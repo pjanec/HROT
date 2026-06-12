@@ -2989,7 +2989,13 @@ namespace Hrot.Editor
                 // ── BATCH-26: "Open Asset" button (leftmost, sortOrder -10) ─────────
                 ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
                     openAssetId, toolbarIconProvider, sortOrder: -10);
-                // Separator after Open Asset (between Open Asset and Perspective).
+
+                // ── BATCH-31: "Save" button (sortOrder -9, right of Open Asset) ──
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId,
+                    toolbarIconProvider, sortOrder: -9);
+
+                // Separator after Open Asset + Save (between toolbar group and Perspective).
                 windowManager.MainToolbar.RegisterSeparator("ToolbarSep_OpenAsset", sortOrder: 0);
 
                 // ── A. Perspective icon keys — register before creating the section so

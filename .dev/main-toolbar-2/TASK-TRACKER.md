@@ -7,7 +7,7 @@ lead hard-review. Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 ## Phase — File Operations & Toolbar Polish
 
 - [x] **MTB2-T1** Generic icon UX: 90% inset + hover/toggle + `ComputeIconRect` test — Item 4 — **BATCH-30** (`pro`) [details](./TASK-DETAIL.md#mtb2-t1)
-- [ ] **MTB2-T2** Save icon in MainToolbar (`shell.save`, next to Open Asset) + `shell/save` cell — Item 2 — **BATCH-31** (`pro`) [details](./TASK-DETAIL.md#mtb2-t2)
+- [x] **MTB2-T2** Save icon in MainToolbar (`shell.save`, next to Open Asset) + `shell/save` cell — Item 2 — **BATCH-31** (`pro`) [details](./TASK-DETAIL.md#mtb2-t2)
 - [ ] **MTB2-T3** `Func<string>? DynamicDisplayName` on `EditorCommandDescriptor` + menu/toolbar adapters — Item 3 — **BATCH-32** (`pro`) [details](./TASK-DETAIL.md#mtb2-t3)
 - [ ] **MTB2-T4** Active-save-target resolver + `Save Scenario`/`Save Scenario As` + dynamic Save label — Item 3 — **BATCH-33** (`pro`) [details](./TASK-DETAIL.md#mtb2-t4)
 - [ ] **MTB2-T5** Unified File menu + perspective display-label "Scenario" (no key rename) — Item 3 — **BATCH-34** (`pro`) [details](./TASK-DETAIL.md#mtb2-t5)

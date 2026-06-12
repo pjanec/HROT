@@ -82,6 +82,19 @@ public sealed class MainToolbarManager
     /// (entries and separators) for a given perspective, without performing
     /// any ImGui draw calls. This is the headless-test seam.
     /// </summary>
+    /// <summary>
+    /// Public diagnostic/test accessor: <c>true</c> when an <b>entry</b> (not a separator) with the given
+    /// <paramref name="id"/> is registered. Lets out-of-assembly tests assert toolbar composition without the
+    /// internal <see cref="GetVisibleItemPlan"/> seam.
+    /// </summary>
+    public bool ContainsEntry(string id)
+    {
+        foreach (var item in _items)
+            if (item is EntryItem && item.Id == id)
+                return true;
+        return false;
+    }
+
     internal IReadOnlyList<(string Id, bool IsSeparator, int SortOrder)> GetVisibleItemPlan(string perspective)
     {
         EnsureSorted();

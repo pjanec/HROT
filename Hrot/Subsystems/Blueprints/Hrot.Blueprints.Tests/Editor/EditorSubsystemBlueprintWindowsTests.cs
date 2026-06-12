@@ -1,6 +1,8 @@
 using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
+using Hrot.Editor.AiShared.Documents;
+using NodeEditor.Primitives;
 
 namespace Hrot.Blueprints.Tests.Editor;
 
@@ -307,5 +309,43 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         // group + AI-debug group all contribute. Height > 0 proves entries exist.
         Assert.True(wm.MainToolbar.Height > 0f,
             $"Expected MainToolbar.Height > 0 after RegisterWindows, but got {wm.MainToolbar.Height}.");
+    }
+
+    // ── BATCH-31 (MTB2-T2): Save toolbar entry ────────────────────────────
+
+    /// <summary>
+    /// BATCH-31: The <c>shell.save</c> command is registered in ShellCommands
+    /// with the correct DisplayName, DefaultKey (Ctrl+S), and the MainToolbar
+    /// has entries (the Save button is registered at sortOrder -9).
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersSaveToolbarEntry()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // Command must be registered.
+        var desc = wm.ShellCommands.Get(ShellSaveCommands.SaveId);
+        Assert.NotNull(desc);
+        Assert.Equal("Save", desc!.DisplayName);
+
+        // Enabled depends on Active document; on a bare subsystem there is
+        // no document, so IsEnabled returns false — but the descriptor exists.
+        Assert.False(desc.IsEnabled());
+
+        // Default key is Ctrl+S.
+        Assert.NotNull(desc.DefaultKey);
+        Assert.Equal(EditorKey.S, desc.DefaultKey!.Value.Key);
+        Assert.Equal(KeyModifiers.Ctrl, desc.DefaultKey!.Value.Modifiers);
+
+        // The Save button MUST be registered as a toolbar ENTRY (not merely the command).
+        // Height > 0 alone would pass even if the Save button were missing — assert the entry by id.
+        Assert.True(wm.MainToolbar.ContainsEntry(ShellSaveCommands.SaveId),
+            "Expected a 'shell.save' entry in the MainToolbar after RegisterWindows.");
+        // Open Asset must also still be present (Save sits to its right).
+        Assert.True(wm.MainToolbar.ContainsEntry("shell.openAsset"),
+            "Expected the 'shell.openAsset' entry to remain in the MainToolbar.");
     }
 }

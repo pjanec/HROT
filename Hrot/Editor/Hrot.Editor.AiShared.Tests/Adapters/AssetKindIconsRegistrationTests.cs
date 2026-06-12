@@ -87,4 +87,37 @@ public sealed class AssetKindIconsRegistrationTests
         Assert.DoesNotContain(folderCell, assetKindCells);
         Assert.DoesNotContain(folderOpenCell, assetKindCells);
     }
+
+    // ── BATCH-31 (MTB2-T2): shell/save icon ────────────────────────────
+
+    [Fact]
+    public void ShellSave_Icon_Resolves_DistinctCell()
+    {
+        var provider = new SilkIconProvider(MakeAtlas());
+
+        // shell/save must resolve via TryGet.
+        Assert.True(provider.TryGet("shell/save", out _),
+            "Key 'shell/save' must resolve via TryGet.");
+
+        // shell/save must be in the cell map.
+        Assert.True(provider.KeyToCellMap.ContainsKey("shell/save"),
+            "Key 'shell/save' must be in KeyToCellMap.");
+
+        var saveCell = provider.KeyToCellMap["shell/save"];
+
+        // Collect all asset-kind cells.
+        var assetKindCells = new HashSet<string>();
+        foreach (var kind in Enum.GetValues<AssetKind>())
+        {
+            var key = AssetKindIcons.GetIconKey(kind);
+            assetKindCells.Add(provider.KeyToCellMap[key]);
+        }
+
+        // shell/save cell must be distinct from every asset-kind cell.
+        Assert.DoesNotContain(saveCell, assetKindCells);
+
+        // shell/save cell must be distinct from folder and folder_open.
+        Assert.NotEqual(saveCell, provider.KeyToCellMap["folder"]);
+        Assert.NotEqual(saveCell, provider.KeyToCellMap["folder_open"]);
+    }
 }

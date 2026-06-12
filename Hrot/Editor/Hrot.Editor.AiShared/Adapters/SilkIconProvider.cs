@@ -116,6 +116,11 @@ public sealed class SilkIconProvider : IIconProvider
 
             // ── Perspective toolbar icons ────────────────────────────────────
             ["perspective/editor"]    = "a1",   // house → Editor (home/main perspective)
+
+            // ── Shell commands (toolbar) ──────────────────────────────────────
+            ["shell/save"]            = "g9",   // disk / floppy — save
+            ["shell/saveAs"]          = "h8",   // disk variant — save as
+            ["shell/saveAll"]         = "i1",   // disk shape — save all
         };
 
     /// <summary>
