@@ -232,12 +232,27 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     {
         foreach (var id in linkIds)
         {
-            if (_links.TryGetValue(id.Value, out var pair))
+            // Resolve via the graph model first — works for both projected
+            // (JSON-loaded) and session-added links.
+            var link = _graph.FindLink(id);
+            if (link != null)
             {
+                var fromPin = _graph.FindPin(link.FromPin);
+                var toPin   = _graph.FindPin(link.ToPin);
+                if (fromPin != null && toPin != null)
+                {
+                    var childId  = fromPin.OwnerNodeId.Value;
+                    var parentId = toPin.OwnerNodeId.Value;
+                    _asset.FindNode(parentId)?.ChildVisualIds.Remove(childId);
+                }
+            }
+            else if (_links.TryGetValue(id.Value, out var pair))
+            {
+                // Fallback: session-only lookup (defensive).
                 var parent = _asset.FindNode(pair.parent);
                 parent?.ChildVisualIds.Remove(pair.child);
-                _links.Remove(id.Value);
             }
+            _links.Remove(id.Value);
         }
         _asset.MarkDirty();
     }

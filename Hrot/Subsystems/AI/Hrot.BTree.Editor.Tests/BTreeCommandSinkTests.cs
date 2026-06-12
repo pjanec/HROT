@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using FluentAssertions;
 using Fbt;
@@ -54,16 +55,31 @@ public sealed class BTreeCommandSinkTests
         }
     }
 
+    private sealed class StubLink : ILinkModel
+    {
+        public LinkId Id { get; }
+        public PinId FromPin { get; }
+        public PinId ToPin { get; }
+        public LinkStyle Style => LinkStyle.Solid;
+        public IReadOnlyList<Vector2> Waypoints => Array.Empty<Vector2>();
+
+        public StubLink(LinkId id, PinId from, PinId to)
+        {
+            Id = id; FromPin = from; ToPin = to;
+        }
+    }
+
     private sealed class StubGraph : IGraphModel
     {
         private readonly Dictionary<NodeId, INodeModel>   _nodes = new();
         private readonly Dictionary<PinId,  StubPin>      _pins  = new();
+        private readonly Dictionary<LinkId, StubLink>     _links = new();
 
         public GraphId Id => GraphId.NewId();
         public string DisplayName => "test";
         public GraphKindDescriptor Kind => new("test", "test", false, false);
         public IReadOnlyCollection<INodeModel>    Nodes    => _nodes.Values;
-        public IReadOnlyCollection<ILinkModel>    Links    => Array.Empty<ILinkModel>();
+        public IReadOnlyCollection<ILinkModel>    Links    => _links.Values;
         public IReadOnlyCollection<ICommentModel> Comments => Array.Empty<ICommentModel>();
 
 #pragma warning disable CS0067
@@ -79,9 +95,15 @@ public sealed class BTreeCommandSinkTests
             _pins[inputPin]  = new StubPin(inputPin,  nodeId, PinDirection.Input);
         }
 
+        // Register a link for FindLink resolution.
+        public void RegisterLink(LinkId linkId, PinId fromPin, PinId toPin)
+        {
+            _links[linkId] = new StubLink(linkId, fromPin, toPin);
+        }
+
         public INodeModel?  FindNode(NodeId id) => _nodes.TryGetValue(id, out var n) ? n : null;
         public IPinModel?   FindPin(PinId id)   => _pins.TryGetValue(id, out var p) ? p : null;
-        public ILinkModel?  FindLink(LinkId id) => null;
+        public ILinkModel?  FindLink(LinkId id) => _links.TryGetValue(id, out var l) ? l : null;
     }
 
     private static (BehaviorTreeAsset asset, StubGraph graph, BTreeCommandSink sink) Build()
@@ -499,5 +521,107 @@ public sealed class BTreeCommandSinkTests
         result.Success.Should().BeTrue();
         asset.FindNode(id1.Value)!.Position.Should().Be(pos1);
         asset.FindNode(id2.Value)!.Position.Should().Be(pos2);
+    }
+
+    // ---- BATCH-16: break-link works for projected (JSON-loaded) links ---------
+
+    /// <summary>
+    /// A projected link (one that exists in the asset but was NOT created via
+    /// ApplyAddLink) must be deletable. This is the core fix: ApplyRemoveLinks
+    /// resolves via _graph.FindLink instead of the session-only _links dict.
+    /// </summary>
+    [Fact]
+    public void RemoveLinks_ProjectedLink_DeletesIt()
+    {
+        var asset = MakeAsset();
+        var root = new BTreeEditorNode
+        {
+            VisualId     = Guid.NewGuid(),
+            KernelType   = NodeType.Root,
+            DisplayLabel = "Root",
+        };
+        var child = new BTreeEditorNode
+        {
+            VisualId     = Guid.NewGuid(),
+            KernelType   = NodeType.Action,
+            DisplayLabel = "Leaf",
+        };
+        asset.AddNode(root);
+        asset.AddNode(child);
+
+        // Project the link directly: Root has Child as a child
+        // (no ApplyAddLink — simulates JSON-loaded topology).
+        root.ChildVisualIds.Add(child.VisualId);
+
+        // Construct BTreeGraphModel so the link is projected.
+        var graph = new BTreeGraphModel(asset);
+        var sink  = new BTreeCommandSink(asset, graph);
+
+        // Get the projected link's LinkId from graph.Links.
+        var link = graph.Links
+            .First(l => graph.FindPin(l.FromPin)?.OwnerNodeId.Value == child.VisualId
+                     && graph.FindPin(l.ToPin)?.OwnerNodeId.Value == root.VisualId);
+        var linkId = link.Id;
+
+        // Act: remove the projected link.
+        var result = sink.Apply(new GraphCommand.RemoveLinks(new[] { linkId }));
+
+        // Assert: child no longer in root's ChildVisualIds.
+        result.Success.Should().BeTrue();
+        root.ChildVisualIds.Should().NotContain(child.VisualId);
+    }
+
+    /// <summary>
+    /// Regression: a session-added link (via ApplyAddLink) is still removable.
+    /// Exercises the graph-model path (not the _links fallback).
+    /// </summary>
+    [Fact]
+    public void RemoveLinks_SessionAddedLink_DeletesIt()
+    {
+        var (asset, graph, sink) = Build();
+        var parentId = NodeId.NewId();
+        var childId  = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(parentId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(childId,  new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(parentId, out _, out var parentIn);
+        graph.RegisterPins(childId,  out var childOut, out _);
+
+        var linkId = new LinkId(Guid.NewGuid());
+
+        // Register the link in the stub so FindLink resolves it
+        // (exercises graph path, not fallback).
+        graph.RegisterLink(linkId, childOut, parentIn);
+
+        // Add link via sink (populates _links AND attaches child to parent).
+        sink.Apply(new GraphCommand.AddLink(linkId, childOut, parentIn));
+        asset.FindNode(parentId.Value)!.ChildVisualIds.Should().Contain(childId.Value);
+
+        // Act: remove via graph path.
+        sink.Apply(new GraphCommand.RemoveLinks(new[] { linkId }));
+
+        // Assert: child detached.
+        asset.FindNode(parentId.Value)!.ChildVisualIds.Should().NotContain(childId.Value);
+    }
+
+    /// <summary>
+    /// Removing a random/non-existent LinkId must not throw and must leave the model unchanged.
+    /// </summary>
+    [Fact]
+    public void RemoveLinks_UnknownLink_NoThrow()
+    {
+        var (asset, graph, sink) = Build();
+        var nodeId = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+
+        var randomLinkId = new LinkId(Guid.NewGuid());
+
+        // Act: removing a non-existent link should not throw.
+        var result = sink.Apply(new GraphCommand.RemoveLinks(new[] { randomLinkId }));
+
+        // Assert: success, model unchanged.
+        result.Success.Should().BeTrue();
+        asset.FindNode(nodeId.Value).Should().NotBeNull();
     }
 }
