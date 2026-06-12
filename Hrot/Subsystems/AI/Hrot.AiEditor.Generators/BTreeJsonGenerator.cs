@@ -36,14 +36,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                     return (at.Path, text);
                 });
 
-        // Per-asset: deserialize → emit topology core → register source output
-        context.RegisterSourceOutput(rawFiles, static (spc, item) =>
+        // Combine with the full compilation so the method-compatibility validator can
+        // resolve type/method symbols.
+        //
+        // Incrementality note: combining with the full CompilationProvider means
+        // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
+        // This is acceptable for the small *.btree.json asset set.  A fancier
+        // incremental symbol extraction is deferred (VE-DEBT-003).
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation)> combined =
+            rawFiles.Combine(context.CompilationProvider)
+                    .Select(static (pair, _) => (pair.Left.Path, pair.Left.Text, pair.Right));
+
+        // Per-asset: deserialize → validate bound methods → emit topology core → register source output
+        context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation);
         });
     }
 
-    private static void GenerateOneAsset(SourceProductionContext spc, string path, string text)
+    private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
+        Compilation compilation)
     {
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
@@ -62,6 +74,28 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         {
             spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
                 "Deserialization returned null (empty or invalid JSON)."));
+            return;
+        }
+
+        // Validate bound method signatures before emitting.
+        // An asset with any incompatible/unresolved bound leaf is skipped + BTREE0002 Warning.
+        // This prevents the emitted .Action(Method,...) / .Condition(Method,...) calls from
+        // breaking the Hrot.AI.Behaviors assembly build (the catastrophic hole fixed by BT-17).
+        string? compatError;
+        try
+        {
+            compatError = BTreeMethodCompatibilityValidator.Validate(dto, compilation);
+        }
+        catch (Exception ex)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "Exception during method compatibility validation: " + ex.Message));
+            return;
+        }
+
+        if (compatError != null)
+        {
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path, compatError));
             return;
         }
 

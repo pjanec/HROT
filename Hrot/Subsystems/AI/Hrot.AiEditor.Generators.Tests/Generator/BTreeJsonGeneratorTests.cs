@@ -492,6 +492,290 @@ public sealed class BTreeJsonGeneratorTests
         return BTreeJsonServices.Serialize(dto);
     }
 
+    // ── BATCH-17: method compatibility validation ───────────────────────────────
+
+    /// <summary>
+    /// Runs the generator with a compilation that contains the given stub source code.
+    /// The stub source should define the blackboard/context types and the action/condition methods.
+    /// </summary>
+    private static GeneratorDriverRunResult RunGeneratorWithStubs(
+        string stubSource, params AdditionalText[] additionalTexts)
+    {
+        // Parse the stub source into a syntax tree.
+        var stubTree = CSharpSyntaxTree.ParseText(stubSource);
+
+        // Build a compilation with:
+        //   - the stub source (defines test types + methods)
+        //   - mscorlib / netstandard references
+        //   - the Fbt.Kernel assembly (provides Fbt.NodeStatus, Fbt.BehaviorTreeState)
+        var references = new System.Collections.Generic.List<MetadataReference>
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            // Fbt.NodeStatus lives in the assembly that contains NodeLogicDelegate.
+            MetadataReference.CreateFromFile(typeof(Fbt.NodeLogicDelegate<,>).Assembly.Location),
+        };
+
+        // Add transitive references needed by Fbt.Kernel (e.g. System.Runtime).
+        foreach (var asmName in new[] { "System.Runtime", "netstandard" })
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.Load(asmName);
+                references.Add(MetadataReference.CreateFromFile(asm.Location));
+            }
+            catch { /* not present in all TFMs — ignore */ }
+        }
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "StubAssembly",
+            syntaxTrees:  new[] { stubTree },
+            references:   references,
+            options:      new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var generator = new BTreeJsonGenerator();
+        var driver = CSharpGeneratorDriver
+            .Create(generator)
+            .AddAdditionalTexts(additionalTexts.ToImmutableArrayCompat());
+        driver = (CSharpGeneratorDriver)driver.RunGenerators(compilation);
+        return driver.GetRunResult();
+    }
+
+    // Shared stubs: defines TBB = StubBb, TCtx = StubCtx,
+    // plus a valid method (CompatAction) and several invalid ones.
+    private const string ValidMethodStubs = @"
+using Fbt;
+
+namespace Stub
+{
+    public struct StubBb { }
+    public struct StubCtx { }
+
+    public static class StubNodes
+    {
+        // VALID: matches NodeLogicDelegate<StubBb, StubCtx> exactly.
+        public static NodeStatus CompatAction(
+            ref StubBb blackboard,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx,
+            int paramIndex) => NodeStatus.Running;
+
+        // INVALID: param 0 is a DTO struct, not the declared blackboard type.
+        public struct SomeDtoParam { }
+        public static NodeStatus DtoParamAction(
+            ref SomeDtoParam dto,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx,
+            int paramIndex) => NodeStatus.Running;
+
+        // INVALID: param 0 matches the blackboard but wrong arity (3 params instead of 4).
+        public static NodeStatus WrongArityAction(
+            ref StubBb blackboard,
+            ref BehaviorTreeState state,
+            int paramIndex) => NodeStatus.Running;
+
+        // INVALID: returns void instead of NodeStatus.
+        public static void WrongReturnAction(
+            ref StubBb blackboard,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx,
+            int paramIndex) { }
+    }
+}
+";
+
+    private static string BuildBoundActionJson(string methodFqn,
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+    {
+        var actionId = new Guid("BB170000-0000-0000-0000-000000000001");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("BB170000-0000-0000-0000-AABBCCDD0001"),
+            Name = "BoundActionAsset",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.StubBb",
+            ContextTypeName    = "Stub.StubCtx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = methodFqn,
+                        DelegateShape = shape,
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+        return BTreeJsonServices.Serialize(dto);
+    }
+
+    private static string BuildBoundConditionJson(string methodFqn,
+        BTreeDelegateShapeDto shape = BTreeDelegateShapeDto.FourParamFull)
+    {
+        var condId = new Guid("BB170000-0000-0000-0000-000000000002");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("BB170000-0000-0000-0000-AABBCCDD0002"),
+            Name = "BoundConditionAsset",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.StubBb",
+            ContextTypeName    = "Stub.StubCtx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeConditionNodeDto
+                {
+                    VisualId = condId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Condition = new BTreeConditionPayloadDto
+                    {
+                        MethodFqn = methodFqn,
+                        DelegateShape = shape,
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+        return BTreeJsonServices.Serialize(dto);
+    }
+
+    [Fact]
+    public void Generator_IncompatibleBoundMethod_DtoParam_SkipsAndWarns_NoErrors()
+    {
+        // Action leaf binds a method whose first param is a DTO, not the blackboard type.
+        string json = BuildBoundActionJson("Stub.StubNodes.DtoParamAction");
+        var result = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/DtoParam.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty(
+            "an Action with a DTO-param method must not emit any source");
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "incompatible binding must produce BTREE0002 Warning");
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        errors.Should().BeEmpty("zero Error diagnostics — build must survive");
+    }
+
+    [Fact]
+    public void Generator_IncompatibleBoundCondition_DtoParam_SkipsAndWarns_NoErrors()
+    {
+        // Condition leaf binds a method whose first param is a DTO, not the blackboard type.
+        string json = BuildBoundConditionJson("Stub.StubNodes.DtoParamAction");
+        var result = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/DtoParamCond.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty(
+            "a Condition with a DTO-param method must not emit any source");
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId);
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        errors.Should().BeEmpty("zero Error diagnostics — build must survive");
+    }
+
+    [Fact]
+    public void Generator_UnresolvedMethod_SkipsAndWarns()
+    {
+        // MethodFqn points to a method that doesn't exist in the compilation.
+        string json = BuildBoundActionJson("Stub.StubNodes.NonExistentMethod");
+        var result = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/Unresolved.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty(
+            "an asset binding an unresolved method must not emit any source");
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "unresolved method must produce BTREE0002 Warning");
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        errors.Should().BeEmpty("zero Error diagnostics");
+    }
+
+    [Fact]
+    public void Generator_CompatibleBoundMethod_EmitsNormally()
+    {
+        // Action leaf binds a fully-compatible NodeLogicDelegate<StubBb,StubCtx> method.
+        string json = BuildBoundActionJson("Stub.StubNodes.CompatAction");
+        var result = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/CompatAction.btree.json", json));
+
+        result.GeneratedTrees.Should().HaveCount(2,
+            "a compatible bound method must emit topology core + bridge normally");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "a compatible bound method must not produce BTREE0002");
+        result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Should().BeEmpty("zero Error diagnostics");
+    }
+
+    [Fact]
+    public void Generator_IncompatibleAsset_DoesNotSuppressValidSibling()
+    {
+        // One incompatible asset + one valid (compatible) asset in the same run.
+        string badJson   = BuildBoundActionJson("Stub.StubNodes.DtoParamAction");
+        string goodJson  = BuildBoundActionJson("Stub.StubNodes.CompatAction");
+
+        // Rename to avoid hint-name collision.
+        var goodDto = BTreeJsonServices.Deserialize(goodJson)!;
+        goodDto.Name = "GoodAsset";
+        string renamedGood = BTreeJsonServices.Serialize(goodDto);
+
+        var result = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/Bad.btree.json", badJson),
+            MakeAdditionalText("/p/GoodAsset.btree.json", renamedGood));
+
+        result.GeneratedTrees.Should().HaveCount(2,
+            "the valid sibling must still emit core+bridge despite the incompatible asset");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("GoodAsset.g.cs"),
+            "topology-core file for valid sibling must be present");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("GoodAsset.Registrar.g.cs"),
+            "bridge file for valid sibling must be present");
+
+        result.Diagnostics.Should().ContainSingle(d =>
+            d.Id == BTreeJsonGenerator.CodegenWarningId &&
+            d.Severity == DiagnosticSeverity.Warning,
+            "exactly one BTREE0002 Warning for the incompatible asset");
+        result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Should().BeEmpty("zero Error diagnostics");
+    }
+
+    [Fact]
+    public void Generator_WrongArityOrReturn_IsInvalid()
+    {
+        // Wrong arity (3 params instead of 4) — proves it's a real signature check.
+        string wrongArityJson = BuildBoundActionJson("Stub.StubNodes.WrongArityAction");
+        var arityResult = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/WrongArity.btree.json", wrongArityJson));
+
+        arityResult.GeneratedTrees.Should().BeEmpty("wrong-arity method must not emit");
+        arityResult.Diagnostics.Should().HaveCount(1);
+        arityResult.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId);
+        arityResult.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+
+        // Wrong return type (void instead of NodeStatus).
+        string wrongReturnJson = BuildBoundActionJson("Stub.StubNodes.WrongReturnAction");
+        var returnResult = RunGeneratorWithStubs(ValidMethodStubs,
+            MakeAdditionalText("/p/WrongReturn.btree.json", wrongReturnJson));
+
+        returnResult.GeneratedTrees.Should().BeEmpty("wrong-return-type method must not emit");
+        returnResult.Diagnostics.Should().HaveCount(1);
+        returnResult.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId);
+        returnResult.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+    }
+
     // ── BATCH-14 JSON helpers ───────────────────────────────────────────────────
 
     private static string BuildCyclicTreeJson()
