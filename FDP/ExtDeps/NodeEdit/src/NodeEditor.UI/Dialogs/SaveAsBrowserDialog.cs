@@ -357,6 +357,14 @@ public sealed class SaveAsBrowserDialog
             _destination = fullPath;
         }
 
+        // Double-click toggles expand/collapse AND selects the folder.
+        if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            if (_collapsedFolders.Contains(fullPath)) _collapsedFolders.Remove(fullPath);
+            else                                      _collapsedFolders.Add(fullPath);
+            _destination = fullPath;
+        }
+
         // Right-click context menu → "New Folder…"
         if (_request?.OnCreateFolder != null && ImGui.BeginPopupContextItem())
         {
@@ -437,6 +445,7 @@ public sealed class SaveAsBrowserDialog
     {
         string? error = _request?.ValidateName?.Invoke(_name);
         bool isValid = error == null && !string.IsNullOrWhiteSpace(_name);
+        bool noPopupOpen = !_pendingOverwriteConfirm && _newFolderTarget == null;
 
         float btnW = 110f, sp = ImGui.GetStyle().ItemSpacing.X;
         float contentWidth = ImGui.GetContentRegionAvail().X; // capture before buttons reduce it
@@ -466,17 +475,23 @@ public sealed class SaveAsBrowserDialog
 
         ImGui.SameLine();
 
-        // Cancel / Esc
-        if (ImGui.Button("Cancel", new Vector2(btnW, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape))
+        // Cancel / Esc — Esc key is gated: only closes when no popup is open,
+        // so popups can consume Esc to dismiss themselves without close-all.
+        if (ImGui.Button("Cancel", new Vector2(btnW, 0))
+            || (noPopupOpen && ImGui.IsKeyPressed(ImGuiKey.Escape)))
         {
             Close();
         }
 
         // Global Enter in window (when name field doesn't have focus).
-        bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
-        if (globalEnter && isValid && !ImGui.IsAnyItemActive())
+        // Also gated: only fires when no popup is open.
+        if (noPopupOpen)
         {
-            ConfirmActive();
+            bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
+            if (globalEnter && isValid && !ImGui.IsAnyItemActive())
+            {
+                ConfirmActive();
+            }
         }
     }
 
@@ -542,11 +557,16 @@ public sealed class SaveAsBrowserDialog
             ImGui.Text("Overwrite?");
             ImGui.Spacing();
 
+            // Default focus on the Overwrite button so Enter confirms.
+            if (ImGui.IsWindowAppearing())
+                ImGui.SetKeyboardFocusHere();
+
             if (ImGui.Button("Overwrite", new Vector2(120, 0)))
             {
                 ConfirmOverwrite();
                 ImGui.CloseCurrentPopup();
             }
+            ImGui.SetItemDefaultFocus();
 
             ImGui.SameLine();
 
@@ -554,6 +574,13 @@ public sealed class SaveAsBrowserDialog
                 || ImGui.IsKeyPressed(ImGuiKey.Escape))
             {
                 _pendingOverwriteConfirm = false;
+                ImGui.CloseCurrentPopup();
+            }
+
+            // Enter / KeypadEnter confirms overwrite when the popup is open.
+            if (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter))
+            {
+                ConfirmOverwrite();
                 ImGui.CloseCurrentPopup();
             }
 
