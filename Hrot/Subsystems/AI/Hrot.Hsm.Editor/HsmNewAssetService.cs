@@ -17,6 +17,7 @@ namespace Hrot.Hsm.Editor;
 public sealed class HsmNewAssetService : INewAssetService
 {
     private readonly IEditableAsset _emptyRecipe;
+    private readonly IEditableAsset _starterRecipe;
     private readonly string _assetRootPath;
 
     /// <summary>
@@ -37,6 +38,7 @@ public sealed class HsmNewAssetService : INewAssetService
     public HsmNewAssetService(string? assetRootPath)
     {
         _emptyRecipe = new HsmEditableAssetAdapter(MakeEmptyDto(), "");
+        _starterRecipe = new HsmEditableAssetAdapter(MakeStarterDto(), "");
         _assetRootPath = assetRootPath ?? AssetRoots.AssetsFor(AssetKind.Hsm);
     }
 
@@ -81,7 +83,8 @@ public sealed class HsmNewAssetService : INewAssetService
     /// <inheritdoc />
     public IReadOnlyList<IEditableAsset> AvailableRecipes()
     {
-        var recipes = new List<IEditableAsset> { _emptyRecipe };
+        // Synthetic "Empty" and "Starter" entries.
+        var recipes = new List<IEditableAsset> { _emptyRecipe, _starterRecipe };
 
         // Discover on-disk HSM recipes (if any exist under Recipes/HSMs).
         // TODO: wire IRecipeDiscovery when a recipe-discovery service exists.
@@ -123,6 +126,74 @@ public sealed class HsmNewAssetService : INewAssetService
             Events             = new List<EventDefinitionDto>(),
             Suppressions       = new HsmSuppressionsDto(),
             Blackboard         = new HsmBlackboardBlockDto(),
+        };
+    }
+
+    /// <summary>
+    /// Synthesizes a "Starter" <see cref="HsmAssetDto"/> — a minimal
+    /// valid machine with a root composite and one Simple state flagged
+    /// IsInitial, so a new-from-Starter HSM opens with a root + initial
+    /// child ready to build under (not a blank canvas).
+    /// Mirrors <see cref="Hrot.BTree.Editor.BTreeNewAssetService.MakeStarterDto"/>.
+    /// </summary>
+    internal static HsmAssetDto MakeStarterDto()
+    {
+        var rootId  = new Guid("5e010000-0000-0000-0000-000000000001");
+        var initId  = new Guid("5e020000-0000-0000-0000-000000000001");
+        var regionId = new Guid("5e100000-0000-0000-0000-000000000001");
+
+        return new HsmAssetDto
+        {
+            AssetId            = Guid.NewGuid(),
+            Name               = "Starter",
+            TargetNamespace    = "",
+            BlackboardTypeName = "",
+            Canvas             = new HsmCanvasDto { Zoom = 1.0f },
+            States = new List<StateNodeDto>
+            {
+                new StateNodeDto
+                {
+                    StableId       = rootId,
+                    Name           = "__Root",
+                    ChildStableIds = new List<Guid> { initId },
+                    ParentStableId = null,
+                    IsInitial      = false,
+                    IsParallel     = false,
+                    IsFinal        = false,
+                    RegionIndex    = 0,
+                    X              = 0,
+                    Y              = 0,
+                },
+                new StateNodeDto
+                {
+                    StableId       = initId,
+                    Name           = "InitState",
+                    ChildStableIds = new List<Guid>(),
+                    ParentStableId = rootId,
+                    IsInitial      = true,
+                    IsParallel     = false,
+                    IsFinal        = false,
+                    RegionIndex    = 0,
+                    X              = 100,
+                    Y              = 100,
+                },
+            },
+            Regions = new List<RegionNodeDto>
+            {
+                new RegionNodeDto
+                {
+                    StableId             = regionId,
+                    RegionIndex          = 0,
+                    Name                 = "Region0",
+                    Priority             = 0,
+                    InitialChildStableId = rootId,
+                },
+            },
+            Transitions       = new List<TransitionNodeDto>(),
+            GlobalTransitions = new List<GlobalTransitionNodeDto>(),
+            Events            = new List<EventDefinitionDto>(),
+            Suppressions      = new HsmSuppressionsDto(),
+            Blackboard        = new HsmBlackboardBlockDto(),
         };
     }
 }
