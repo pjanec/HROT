@@ -2095,60 +2095,7 @@ namespace Hrot.Editor
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 
-            var recipeModal = new Hrot.Blueprints.Editor.Windows.RecipeCreateModal((recipe, newName) =>
-            {
-                var service = new Hrot.Blueprints.Editor.NewFromRecipeService();
-                var newAsset = service.CreateFromRecipe(recipe, newName);
-
-                string? recipeProjectDir = null;
-                var relativeProjectPath = System.IO.Path.Combine(AiBehaviorsProjectPath);
-                foreach (var start in new[] { Environment.CurrentDirectory, AppDomain.CurrentDomain.BaseDirectory })
-                {
-                    var dir = start;
-                    while (!string.IsNullOrEmpty(dir))
-                    {
-                        var candidate = System.IO.Path.Combine(dir, relativeProjectPath);
-                        if (System.IO.File.Exists(candidate))
-                        {
-                            recipeProjectDir = System.IO.Path.GetDirectoryName(candidate);
-                            break;
-                        }
-                        dir = System.IO.Path.GetDirectoryName(dir);
-                    }
-
-                    if (recipeProjectDir != null)
-                        break;
-                }
-
-                string saveDir = recipeProjectDir != null
-                    ? System.IO.Path.Combine(recipeProjectDir, AssetRoots.RecipesRelative(AssetKind.Blueprint))
-                    : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recipes", "Blueprints");
-                System.IO.Directory.CreateDirectory(saveDir);
-                string path = System.IO.Path.Combine(saveDir, $"{newName}.bp.json");
-
-                Hrot.Blueprints.Editor.SaveActiveBlueprintCommand.Save(newAsset, path);
-
-                var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
-
-                if (aiAsm != null)
-                {
-                    _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
-
-                    var editableAsset = _aiCatalogBuilder?.Catalog.FindByAssetId(newAsset.AssetId);
-                    if (editableAsset != null)
-                        _aiDocumentManager?.Open(editableAsset);
-                }
-            });
-
-            _aiAssetBrowser.CustomToolbarDraw = () =>
-            {
-                if (ImGuiNET.ImGui.Button("+ New from Recipe..."))
-                    recipeModal.Open();
-
-                ImGuiNET.ImGui.Separator();
-                recipeModal.Draw();
-            };
+            // (MTB2-T7: RecipeCreateModal production wiring removed; class + tests kept.)
 
             // Register all three perspective side-panel sets.
             _btreeRegistrar.RegisterWindows(windowManager);
@@ -2528,6 +2475,40 @@ namespace Hrot.Editor
                     openPicker: _shellPickers.OpenPicker,
                     catalog:    catalog,
                     router:     _assetPickRouter)
+                : null;
+
+            // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
+            // on pick → ShowNewAssetDialog seeds + confirms a NewAssetDialog with a
+            // default name, creates the asset, and opens it. Interactive name/folder UI
+            // deferred as DBT-A3.
+            void ShowNewAssetDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
+            {
+                if (_newAssetServices == null) return;
+
+                var dlg = new Hrot.Editor.AiShared.Recipes.NewAssetDialog(
+                    _newAssetServices,
+                    knownFolderPaths: Array.Empty<string>(),
+                    saveMintOnlyAsset: saveAsBlueprintToFile);
+                dlg.Kind = kind;
+                dlg.Recipe = recipe;
+                dlg.Name = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
+                    ? $"New{kind}"
+                    : recipe.Name;
+
+                if (dlg.CanConfirm())
+                {
+                    var r = dlg.Confirm(onCreated: a => _aiDocumentManager?.Open(a));
+                    _saveAllStatus = r.IsSuccess
+                        ? $"[OK] Created new {kind}: '{r.Asset?.Name}'."
+                        : $"[INFO] New {kind}: {r.Error}";
+                }
+            }
+
+            var newAssetLauncher = _newAssetServices != null
+                ? new Hrot.Editor.NewAssetLauncher(
+                    openPicker:         _shellPickers.OpenPicker,
+                    services:           _newAssetServices,
+                    showNewAssetDialog: ShowNewAssetDialog)
                 : null;
 
             var saveAsScenarioDelegate = new Action<string>(fullName =>
@@ -3029,11 +3010,32 @@ namespace Hrot.Editor
                     assetPickerLauncher?.Open(AssetKindFilter.All);
                 });
 
+            // ── BATCH-36 (MTB2-T7): "New Asset" command (shell.newAsset) — opens the recipe
+            // Tree picker via NewAssetLauncher. Ctrl+N hotkey. ───────────────────────
+            string newAssetId = "shell.newAsset";
+            windowManager.ShellCommands.Register(
+                new EditorCommandDescriptor(
+                    Id:          newAssetId,
+                    DisplayName: "New Asset…",
+                    Category:    "File",
+                    Description: "Create a new AI asset from a recipe",
+                    IconKey:     "asset/new",
+                    DefaultKey:  new KeyBinding(EditorKey.N, KeyModifiers.Ctrl),
+                    IsEnabled:   () => true),
+                _ =>
+                {
+                    newAssetLauncher?.Open();
+                });
+
             // ── BATCH-24: Main toolbar groups (Perspective §8 + AI-debug §9) ──────────────────
             // All wiring is null-safe so RegisterWindows does not throw on a bare EditorSubsystem.
             if (windowManager.MainToolbar != null)
             {
                 var toolbarIconProvider = new SilkIconProvider(windowManager.Atlas);
+
+                // ── BATCH-36: "New Asset" button (sortOrder -11, left of Open Asset) ──
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    newAssetId, toolbarIconProvider, sortOrder: -11);
 
                 // ── BATCH-26: "Open Asset" button (leftmost, sortOrder -10) ─────────
                 ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
@@ -3088,6 +3090,10 @@ namespace Hrot.Editor
             // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).
             MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                 openAssetId, "File/Open Asset…");
+
+            // BATCH-36: File → New Asset… menu item (Ctrl+N shortcut attached via descriptor).
+            MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                newAssetId, "File/New Asset…");
 
             // ── MTB2-T5 (BATCH-34): File menu save entries ──────────────────────────
             // Guard each with Get(id) != null so the bare-ctor RegisterWindows path is null-safe.

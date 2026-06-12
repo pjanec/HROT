@@ -382,4 +382,41 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         // The Editor perspective label must be set to "Scenario".
         Assert.Equal("Scenario", wm.GetPerspectiveLabel("Editor"));
     }
+
+    // ── MTB2-T7 (BATCH-36): New Asset command + toolbar + menu ─────────────
+
+    /// <summary>
+    /// MTB2-T7: After <see cref="EditorSubsystem.RegisterWindows"/> the
+    /// <c>shell.newAsset</c> command is registered with DisplayName "New Asset…",
+    /// DefaultKey Ctrl+N, a MainToolbar entry, and a File→New Asset… menu item.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_RegistersNewAssetCommandAndEntries()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // Command must be registered.
+        var desc = wm.ShellCommands.Get("shell.newAsset");
+        Assert.NotNull(desc);
+        Assert.Equal("New Asset…", desc!.DisplayName);
+        Assert.True(desc.IsEnabled());
+
+        // Default key is Ctrl+N.
+        Assert.NotNull(desc.DefaultKey);
+        Assert.Equal(NodeEditor.Primitives.EditorKey.N, desc.DefaultKey!.Value.Key);
+        Assert.Equal(NodeEditor.Primitives.KeyModifiers.Ctrl, desc.DefaultKey!.Value.Modifiers);
+
+        // Toolbar entry must exist.
+        Assert.True(wm.MainToolbar.ContainsEntry("shell.newAsset"),
+            "Expected a 'shell.newAsset' entry in the MainToolbar after RegisterWindows.");
+
+        // File→New Asset… menu item must exist.
+        Assert.True(wm.GlobalMenu.Root.Children.TryGetValue("File", out var fileNode),
+            "Expected 'File' top-level menu to exist.");
+        Assert.True(fileNode.Children.ContainsKey("New Asset…"),
+            "Expected 'New Asset…' under File menu.");
+    }
 }

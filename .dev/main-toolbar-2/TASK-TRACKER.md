@@ -12,12 +12,14 @@ lead hard-review. Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 - [x] **MTB2-T4** Active-save-target resolver + `Save Scenario`/`Save Scenario As` + dynamic Save label — Item 3 — **BATCH-33** (`pro`) [details](./TASK-DETAIL.md#mtb2-t4)
 - [x] **MTB2-T5** Unified File menu + perspective display-label "Scenario" (no key rename) — Item 3 — **BATCH-34** (`pro`) [details](./TASK-DETAIL.md#mtb2-t5)
 - [x] **MTB2-T6** `RecipePickerSource` (per-kind recipes incl. "Empty") — Item 1 — **BATCH-35** (`pro`) [details](./TASK-DETAIL.md#mtb2-t6)
-- [ ] **MTB2-T7** `NewAssetLauncher` + File/New + New toolbar button; retire `RecipeCreateModal` wiring — Item 1 — **BATCH-36** (`pro`) [details](./TASK-DETAIL.md#mtb2-t7)
+- [x] **MTB2-T7** `NewAssetLauncher` + File/New + New toolbar button; retire `RecipeCreateModal` wiring — Item 1 — **BATCH-36** (`pro`) [details](./TASK-DETAIL.md#mtb2-t7)
 
 **Dependencies:** T3 → T4 (dynamic label needs the descriptor field); T4 → T5 (menu wires the save/scenario commands);
 T6 → T7 (launcher needs the source). T1, T2 independent (do first).
 
-**Progress:** 0 / 7 done.
+**Progress:** 7 / 7 done. ✅ All tasks complete (lead-verified; build 0 warnings, suites green, Blueprints at PRE-1
+baseline). Residual: DBT-A2 (scenario-menu duplicate Save/SaveAs cleanup) + DBT-A3 (New Asset interactive popup) —
+deferred polish, tracked in DEBT-TRACKER. Pending your runtime/manual test of the live editor.
 
 ## Done definition
 - **Task done** = its TASK-DETAIL success conditions met, verified by the lead against the diff + an independent test

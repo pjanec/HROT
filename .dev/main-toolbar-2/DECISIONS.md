@@ -40,3 +40,11 @@ fully autonomous**). Decisions made mid-run are recorded here; design decisions 
   `Func<IEditableAsset,string?>? recipeCategory` (both default null) — mirroring Phase-8 `AssetPickerSource.describe`.
   Default `Category = "<Kind>"`; with a `recipeCategory` → `"<Kind>/<sub>"`. Keeps the source headless-testable and
   unblocks T7 (production can pass null now; per-kind metadata mapping is a later enhancement).
+- **D-T7-1 (BATCH-36):** there is **no generic `NewAssetDialog` ImGui renderer** (only the blueprint-only
+  `RecipeCreateModal`; `NewAssetDialog` is a model). Building the interactive name/folder popup is the same
+  deferred-UI class as the SaveAsDialog UI (main-toolbar-1 DBT-2). So T7 delivers: testable `NewAssetLauncher`
+  (openPicker + services + `showNewAssetDialog` seam) + `shell.newAsset` command + File/New + New toolbar button +
+  retire `RecipeCreateModal` production wiring (keep the class). Production `showNewAssetDialog` **seeds a
+  `NewAssetDialog` and `Confirm()`s with a default name** (recipe name, or `New{Kind}` for the "Empty" recipe) →
+  opens the created asset — a **functional** pick→create→open flow. The interactive name/folder popup is deferred
+  as **DBT-A3**. Launcher is unit-tested up to the `showNewAssetDialog(kind, recipe)` boundary.
