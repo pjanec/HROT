@@ -2,6 +2,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
@@ -29,21 +31,33 @@ public sealed class InMemoryRoslynCompiler
         string virtualSourcePath,
         string assemblyName,
         DiagnosticSink sink)
+        => Compile(new[] { (source, virtualSourcePath) }, assemblyName, sink);
+
+    /// <summary>
+    /// Compile multiple C# sources into one assembly with one EmbeddedText per source.
+    /// Throws BlueprintCompileException on Roslyn errors.
+    /// </summary>
+    public (byte[] Pe, byte[] Pdb) Compile(
+        IReadOnlyList<(string Source, string VirtualPath)> sources,
+        string assemblyName,
+        DiagnosticSink sink)
     {
         var encoding = Encoding.UTF8;
-        var sourceText = SourceText.From(source, encoding);
         var parseOptions = new CSharpParseOptions(
             LanguageVersion.Latest,
             DocumentationMode.None,
             SourceCodeKind.Regular);
-        var syntaxTree = CSharpSyntaxTree.ParseText(
-            sourceText,
-            parseOptions,
-            path: virtualSourcePath);
+
+        var syntaxTrees = sources
+            .Select(s => CSharpSyntaxTree.ParseText(
+                SourceText.From(s.Source, encoding),
+                parseOptions,
+                path: s.VirtualPath))
+            .ToArray();
 
         var compilation = CSharpCompilation.Create(
             assemblyName,
-            new[] { syntaxTree },
+            syntaxTrees,
             _references.Resolve(),
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
@@ -51,7 +65,10 @@ public sealed class InMemoryRoslynCompiler
                 deterministic: true,
                 allowUnsafe: true));
 
-        var embeddedText = EmbeddedTextHelper.Create(virtualSourcePath, source);
+        var embeddedTexts = sources
+            .Select(s => EmbeddedTextHelper.Create(s.VirtualPath, s.Source))
+            .ToArray();
+
         var emitOptions = new EmitOptions(
             debugInformationFormat: DebugInformationFormat.PortablePdb);
 
@@ -61,7 +78,7 @@ public sealed class InMemoryRoslynCompiler
         var result = compilation.Emit(
             peStream: peStream,
             pdbStream: pdbStream,
-            embeddedTexts: new[] { embeddedText },
+            embeddedTexts: embeddedTexts,
             options: emitOptions);
 
         if (!result.Success)

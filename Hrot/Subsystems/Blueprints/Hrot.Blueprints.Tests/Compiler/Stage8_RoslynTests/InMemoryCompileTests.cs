@@ -1,3 +1,4 @@
+using System.Reflection;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
@@ -74,5 +75,63 @@ public sealed class InMemoryCompileTests
             $"End-to-end Roslyn compile failed: {string.Join(", ", result.Diagnostics.Select(d => d.Code))}");
         Assert.NotNull(result.PortablePe);
         Assert.True(result.PortablePe!.Length > 0);
+    }
+
+    [Fact]
+    public void MultiSource_TwoFiles_CompilesOneAssembly()
+    {
+        const string sourceA =
+            "namespace NsA { public static class A { public static int V() => 41; } }";
+        const string sourceB =
+            "namespace NsB { public static class B { public static int W() => NsA.A.V() + 1; } }";
+
+        var sink     = new DiagnosticSink();
+        var resolver = MakeResolver();
+        var compiler = new InMemoryRoslynCompiler(resolver);
+
+        var sources = new (string Source, string VirtualPath)[]
+        {
+            (sourceA, "fileA.g.cs"),
+            (sourceB, "fileB.g.cs"),
+        };
+
+        var (pe, pdb) = compiler.Compile(sources, "CrossFileAssembly", sink);
+
+        Assert.False(sink.HasErrors, "Cross-file compile should succeed without errors.");
+        Assert.NotNull(pe);
+        Assert.True(pe!.Length > 0, "PE should be non-empty.");
+
+        var asm = Assembly.Load(pe);
+        var typeA = asm.GetType("NsA.A");
+        Assert.NotNull(typeA);
+        var typeB = asm.GetType("NsB.B");
+        Assert.NotNull(typeB);
+
+        var result = (int)typeB.GetMethod("W")!.Invoke(null, null)!;
+        Assert.Equal(42, result);
+    }
+
+    [Fact]
+    public void MultiSource_BrokenSecondFile_ReportsError()
+    {
+        const string validSource =
+            "namespace NsA { public static class A { public static int V() => 41; } }";
+        const string brokenSource = "this is NOT valid C#!";
+
+        var sink     = new DiagnosticSink();
+        var resolver = MakeResolver();
+        var compiler = new InMemoryRoslynCompiler(resolver);
+
+        var sources = new (string Source, string VirtualPath)[]
+        {
+            (validSource, "fileA.g.cs"),
+            (brokenSource, "broken.g.cs"),
+        };
+
+        Assert.ThrowsAny<Exception>(() =>
+            compiler.Compile(sources, "BrokenAssembly", sink));
+
+        Assert.True(sink.HasErrors, "Sink should have errors after BP7001.");
+        Assert.Contains(sink.All, d => d.Code == "BP7001");
     }
 }
