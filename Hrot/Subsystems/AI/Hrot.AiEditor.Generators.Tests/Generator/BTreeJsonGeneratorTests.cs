@@ -374,6 +374,66 @@ public sealed class BTreeJsonGeneratorTests
             && d.Severity == DiagnosticSeverity.Error);
     }
 
+    // ── BATCH-14: cyclic asset → BTREE0002 Warning, no Error ────────────────────
+
+    [Fact]
+    public void Generator_CyclicAsset_DoesNotEmitSource_AndReportsWarning_NoErrors()
+    {
+        // Arrange: a cyclic .btree.json (Root → A → B → A)
+        string json = BuildCyclicTreeJson();
+        var cyclicText = MakeAdditionalText("/path/CyclicTree.btree.json", json);
+
+        // Act
+        var result = RunGenerator(cyclicText);
+
+        // Assert: no sources emitted for the cyclic asset
+        result.GeneratedTrees.Should().BeEmpty(
+            "a cyclic asset must not emit any generated source (can't produce infinite code)");
+
+        // Assert: a Warning diagnostic with BTREE0002 is reported
+        result.Diagnostics.Should().HaveCount(1,
+            "exactly one diagnostic must be reported for the cyclic asset");
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "diagnostic must carry the BTREE0002 id");
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning,
+            "cycle diagnostic must be Warning severity (not Error) — so the build survives");
+        result.Diagnostics[0].GetMessage().Should().Contain("Cycle detected",
+            "diagnostic message must mention the cycle");
+
+        // Assert: zero Error diagnostics — the key guarantee
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        errors.Should().BeEmpty(
+            "the generator must not produce Error diagnostics for a cyclic asset (build must survive)");
+    }
+
+    [Fact]
+    public void Generator_CyclicAsset_DoesNotSuppressSiblingValidAsset()
+    {
+        // Arrange: one valid + one cyclic
+        var model = LoadSampleScout();
+        var dto   = BehaviorTreeAssetMapper.ToDto(model);
+        string validJson = BTreeJsonServices.Serialize(dto);
+        string cyclicJson = BuildCyclicTreeJson();
+
+        var validText  = MakeAdditionalText("/p/Valid.btree.json", validJson);
+        var cyclicText = MakeAdditionalText("/p/Cyclic.btree.json", cyclicJson);
+
+        // Act
+        var result = RunGenerator(validText, cyclicText);
+
+        // Assert: valid asset still emits 2 files (core + bridge) — fault isolation
+        result.GeneratedTrees.Should().HaveCount(2,
+            "the valid sibling must still emit core+bridge despite the cyclic asset");
+
+        // Assert: exactly one BTREE0002 Warning for the cyclic asset
+        result.Diagnostics.Should().ContainSingle(d => d.Id == BTreeJsonGenerator.CodegenWarningId
+            && d.Severity == DiagnosticSeverity.Warning);
+
+        // No BTREE0001 errors
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.DiagnosticId
+            && d.Severity == DiagnosticSeverity.Error);
+    }
+
     // ── BATCH-12 JSON helpers ───────────────────────────────────────────────────
 
     private static string BuildUnboundActionJson()
@@ -422,6 +482,50 @@ public sealed class BTreeJsonGeneratorTests
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
                     Condition = null, // unbound — no method
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+        return BTreeJsonServices.Serialize(dto);
+    }
+
+    // ── BATCH-14 JSON helpers ───────────────────────────────────────────────────
+
+    private static string BuildCyclicTreeJson()
+    {
+        var rootId = new Guid("CA000000-0000-0000-0000-000000000001");
+        var aId    = new Guid("CA000000-0000-0000-0000-000000000002");
+        var bId    = new Guid("CA000000-0000-0000-0000-000000000003");
+
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("CC000000-0000-0000-0000-000000000001"),
+            Name = "CyclicTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = rootId,
+                    ChildVisualIds = new List<Guid> { aId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeSequenceNodeDto
+                {
+                    VisualId = aId,
+                    ChildVisualIds = new List<Guid> { bId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeSequenceNodeDto
+                {
+                    VisualId = bId,
+                    ChildVisualIds = new List<Guid> { aId }, // cycle! B → A
+                    EditorMetadata = new NodeEditorMetadataDto(),
                 },
             },
             Pills = new List<BTreePillDto>(),

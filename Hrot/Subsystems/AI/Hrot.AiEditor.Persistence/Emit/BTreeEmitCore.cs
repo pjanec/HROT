@@ -176,6 +176,39 @@ public static class BTreeEmitCore
         else set.Add(fqn.Substring(0, last));
     }
 
+    // ---- Cycle guard (BATCH-14) ----
+
+    /// <summary>
+    /// Pre-pass cycle detection via DFS over <see cref="BTreeNodeDto.ChildVisualIds"/>
+    /// starting at <paramref name="entry"/>. Uses a path-visited set to detect back-edges.
+    /// Throws <see cref="InvalidOperationException"/> (a normal, catchable exception)
+    /// on the first back-edge — BEFORE the recursive emit walk so a
+    /// <see cref="StackOverflowException"/> never occurs.
+    /// </summary>
+    private static void CheckNoCycles(BehaviorTreeAssetDto dto, Dictionary<Guid, BTreeNodeDto> nodeById, BTreeNodeDto entry)
+    {
+        var pathSet = new HashSet<Guid>();
+        DfsCheckNoCycles(entry, nodeById, pathSet);
+    }
+
+    private static void DfsCheckNoCycles(BTreeNodeDto node, Dictionary<Guid, BTreeNodeDto> nodeById, HashSet<Guid> pathSet)
+    {
+        if (!pathSet.Add(node.VisualId))
+        {
+            throw new InvalidOperationException(
+                $"Cycle detected in BTree topology at node {node.VisualId:D} — a node cannot be its own ancestor. Fix the wiring in the editor.");
+        }
+
+        foreach (var childId in node.ChildVisualIds)
+        {
+            if (nodeById.TryGetValue(childId, out var child))
+                DfsCheckNoCycles(child, nodeById, pathSet);
+            // Missing child ids in nodeById are simply skipped (matching emit walk behavior).
+        }
+
+        pathSet.Remove(node.VisualId);
+    }
+
     // ---- CreateBuilder ----
 
     private static void EmitCreateBuilder(StringBuilder sb, BehaviorTreeAssetDto dto)
@@ -198,7 +231,10 @@ public static class BTreeEmitCore
         if (root != null)
         {
             if (root.ChildVisualIds.Count > 0 && nodeById.TryGetValue(root.ChildVisualIds[0], out var entryChild))
+            {
+                CheckNoCycles(dto, nodeById, entryChild);
                 EmitNode(sb, dto, nodeById, entryChild, depth: 3, isLast: true);
+            }
             else
                 sb.AppendLine($"{Indent}{Indent};");
         }
@@ -206,6 +242,7 @@ public static class BTreeEmitCore
         {
             // No explicit root — emit the first node directly (reflection-loaded blob pattern).
             // The generated CreateBuilder() chains: new BTreeBuilder<>().FirstNode(...)
+            CheckNoCycles(dto, nodeById, dto.Nodes[0]);
             EmitNode(sb, dto, nodeById, dto.Nodes[0], depth: 3, isLast: true);
         }
         else
