@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using Fbt;
+using Hrot.BTree.Editor.Validation;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -59,10 +60,14 @@ internal sealed class BTreeNodeModel : INodeModel
 {
     private readonly BTreeEditorNode _node;
     private readonly BTreePinModel[] _pins;
+    private readonly NodeState       _state;
+    private readonly string?         _statusTooltip;
 
-    internal BTreeNodeModel(BTreeEditorNode node)
+    internal BTreeNodeModel(BTreeEditorNode node, NodeState state, string? statusTooltip)
     {
         _node = node;
+        _state = state;
+        _statusTooltip = statusTooltip;
         // Reversed-pin convention: child output → parent input.
         // Pin 0 = Output (the child's "send to parent" pin)
         // Pin 1 = Input  (the parent's "receive from child" pin)
@@ -97,8 +102,8 @@ internal sealed class BTreeNodeModel : INodeModel
         };
     public Vector2             Position      => _node.Position;
     public Vector2?            SizeOverride  => null;
-    public NodeState           State         => NodeState.Normal;
-    public string?             StatusTooltip => null;
+    public NodeState           State         => _state;
+    public string?             StatusTooltip => _statusTooltip;
     public bool                IsCollapsed   => false;
     public bool                ShowAdvancedPins => false;
     public IReadOnlyList<IPinModel> Pins     => _pins;
@@ -223,11 +228,40 @@ public sealed class BTreeGraphModel : IGraphModel
         _linkCache.Clear();
         _attachmentCache.Clear();
 
+        // ── Per-node diagnostics (canvas node-state projection) ──────────────
+        var nodeDiagnostics = new Dictionary<Guid, (NodeState State, string Tooltip)>();
+        foreach (var d in new BTreeValidator().Validate(_asset))
+        {
+            if (d.VisualId == Guid.Empty) continue; // tree-level diagnostic → no single node
+
+            NodeState severity = d.Severity switch
+            {
+                BTreeDiagnosticSeverity.Error   => NodeState.Error,
+                BTreeDiagnosticSeverity.Warning => NodeState.Warning,
+                _                               => NodeState.Normal,
+            };
+            if (severity == NodeState.Normal) continue;
+
+            if (!nodeDiagnostics.TryGetValue(d.VisualId, out var existing))
+            {
+                nodeDiagnostics[d.VisualId] = (severity, d.Message);
+            }
+            else if (severity == NodeState.Error && existing.State != NodeState.Error)
+            {
+                // Error wins over Warning; store the error's message.
+                nodeDiagnostics[d.VisualId] = (severity, d.Message);
+            }
+        }
+
         // Build a VisualId→BTreeEditorNode lookup for link projection.
         var byVisualId = new Dictionary<Guid, BTreeEditorNode>(_asset.Nodes.Count);
         foreach (var node in _asset.Nodes)
         {
-            var model = new BTreeNodeModel(node);
+            var (state, tooltip) = nodeDiagnostics.TryGetValue(node.VisualId, out var diag)
+                ? (diag.State, diag.Tooltip)
+                : (NodeState.Normal, (string?)null);
+
+            var model = new BTreeNodeModel(node, state, tooltip);
             _nodeCache[model.Id] = model;
             foreach (var pin in model.Pins)
                 _pinCache[pin.Id] = (BTreePinModel)pin;
