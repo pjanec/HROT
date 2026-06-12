@@ -34,3 +34,9 @@ fully autonomous**). Decisions made mid-run are recorded here; design decisions 
   and rewrote the guardrail to assert `ContainsEntry("shell.save")` + `ContainsEntry("shell.openAsset")`. Production
   Save registration (sortOrder -9) was correct; only the test was weak. Re-verified: build 0 warnings, icon test 3/3,
   guardrail 13/13.
+- **D-T6-1 (BATCH-35):** recipe metadata (Category/Description) is NOT uniformly exposed on the `IEditableAsset`
+  returned by `INewAssetService.AvailableRecipes()` (only kind-specific paths like `BlueprintAsset.EditorMetadata.Recipe`
+  have it). So `RecipePickerSource` takes **injected delegates** `Func<IEditableAsset,string?>? describe` and
+  `Func<IEditableAsset,string?>? recipeCategory` (both default null) — mirroring Phase-8 `AssetPickerSource.describe`.
+  Default `Category = "<Kind>"`; with a `recipeCategory` → `"<Kind>/<sub>"`. Keeps the source headless-testable and
+  unblocks T7 (production can pass null now; per-kind metadata mapping is a later enhancement).
