@@ -1,6 +1,7 @@
 # Main Toolbar 2 — File Operations & Toolbar Polish — DESIGN (for review)
 
-**Status:** DESIGN — **approved 2026-06-12**; ready to decompose into tasks. **No tasks kicked yet** (awaiting separate go-ahead).
+**Status:** DESIGN — **approved 2026-06-12**; tasks T1–T7 done. **+ post-runtime addendum (DEC-A8 / MTB2-T8)
+approved 2026-06-12** for the generic New-Asset/Save-As name+folder modal.
 **Process:** same as main-toolbar-1 (batches → claude-worker-orchestrator `pro` → hard review → gated commit).
 **Dev rules:** [../.guides/DEV-GUIDE.md](../.guides/DEV-GUIDE.md) · **Lead rules:** [../.guides/DEV-LEAD-GUIDE.md](../.guides/DEV-LEAD-GUIDE.md)
 
@@ -211,3 +212,39 @@ asset/perspective; a "top-level shared blackboard" is explicitly out of scope (l
 saves its blackboard. `AssetKind.Blackboard`/`Utility` are sub-element/catalog kinds, not document save targets. So
 the blackboard editor does not stress this model; if a standalone shared blackboard ever lands as a document, it
 flows through `Active` like any other document.
+
+---
+
+## Addendum — DEC-A8: generic New-Asset / Save-As name+folder modal (MTB2-T8)
+
+**Why:** runtime testing showed New-asset needs a proper **name + subfolder** step (not a default name), and Save-As
+likewise — over the **logical asset-folder model** (scenarios are not single files). The *models* already exist
+(`NewAssetDialog`/`SaveAsDialog` with `Name`/`FolderPicker`/`CanConfirm`/`Confirm`; `FolderPickerState` with
+`SelectedRelPath`/`FolderPaths`/`AddFolder`/`ContainsFolder`; `FolderTreePicker.Build`). The only gap is the **ImGui
+renderer**. (Resolves DBT-A3 here and main-toolbar-1 DBT-2's Save-As UI.)
+
+**Design:**
+- **`INameFolderDialog`** — small interface (`string Title`, `string Name {get;set;}`, `FolderPickerState FolderPicker`,
+  `bool CanConfirm()`, `ConfirmResult Confirm(Action<IEditableAsset>? onCreated = null)`) implemented by BOTH
+  `NewAssetDialog` and `SaveAsDialog` (they already have these members).
+- **`AssetNameFolderModal`** (generic ImGui modal) renders any `INameFolderDialog`: a **name** textbox with live
+  validation (CanConfirm gates "Create/Save"), a **folder tree** (`FolderTreePicker` over `FolderPicker.FolderPaths`,
+  selectable → `SelectedRelPath`), and **"＋ New subfolder"** (inline text input → `FolderPicker.AddFolder(selected,
+  name)`), plus OK/Cancel. Mirror `AssetPickerModal`'s pending-flag + identical-popup-id + explicit-size pattern
+  (BATCH-26 lesson) for a reliably-visible modal; expose `Open(dialog)`/`DrawModal()`/`IsOpen` test seams.
+- **Known folders are catalog-derived, logical (not filesystem):** a pure helper
+  `AssetFolderDerivation.KnownSubfolders(catalog assets, kind, baseFolderResolver)` → distinct relative subfolder
+  paths for the kind (from each asset's `AssetRelPath` directory part). Scenarios use their nested-name path the same
+  way. "New subfolder" is a logical relpath — it materializes on save (no disk `mkdir`).
+- **Wiring:** New flow (recipe Tree picker → on pick) opens the modal over a `NewAssetDialog` seeded with kind+recipe
+  + known folders; on confirm → create + open the **catalogued** asset (BUG-A1 path). Save-As seams
+  (`requestSaveAs` / `requestScenarioSaveAs`) open the modal over a `SaveAsDialog`. The modal is `DrawModal()`-ed once
+  per frame at the top-level DrawUI. Retire the BATCH-36 default-name stopgap and the deferred default-name Save-As.
+- **Recipe/asset *selection* stays the NodeEdit Tree picker; naming/placement is this modal** (a form, not a list) —
+  two complementary surfaces.
+
+**Testability:** `INameFolderDialog` (both dialogs implement it); `KnownSubfolders` pure helper (catalog → relpaths);
+modal `Open`/`IsOpen`/confirm seam headless; the ImGui draw is runtime-verified.
+
+**Execution (Zoo, 2 batches):** BATCH-39 = `INameFolderDialog` + `KnownSubfolders` helper + tests (model layer);
+BATCH-40 = `AssetNameFolderModal` renderer + wire New + Save-As + per-frame draw + retire stopgaps (UI layer).

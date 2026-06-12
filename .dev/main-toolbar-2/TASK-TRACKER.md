@@ -13,6 +13,12 @@ lead hard-review. Status: `[ ]` todo · `[~]` in progress · `[x]` done.
 - [x] **MTB2-T5** Unified File menu + perspective display-label "Scenario" (no key rename) — Item 3 — **BATCH-34** (`pro`) [details](./TASK-DETAIL.md#mtb2-t5)
 - [x] **MTB2-T6** `RecipePickerSource` (per-kind recipes incl. "Empty") — Item 1 — **BATCH-35** (`pro`) [details](./TASK-DETAIL.md#mtb2-t6)
 - [x] **MTB2-T7** `NewAssetLauncher` + File/New + New toolbar button; retire `RecipeCreateModal` wiring — Item 1 — **BATCH-36** (`pro`) [details](./TASK-DETAIL.md#mtb2-t7)
+- [ ] **MTB2-T8** Generic New-Asset/Save-As **name+subfolder modal** (`AssetNameFolderModal`) — resolves DBT-A3 + DBT-2 — **BATCH-39** (model: `INameFolderDialog` + `KnownSubfolders` + tests) → **BATCH-40** (modal renderer + wire New/Save-As + retire stopgaps). DEC-A8.
+
+### Post-runtime corrective fixes (from your manual test)
+- [x] **BUG-A4** toolbar icon UX (smaller inset + restored white hover frame + distinct toggle fill) — `2dec34d3`
+- [x] **BUG-A1** New-asset crash (open catalogued asset) — BATCH-37 — `0329272a`
+- [x] **BUG-A2/A3** scenario Save via icon + save feedback — BATCH-38 — `3533c059`
 
 **Dependencies:** T3 → T4 (dynamic label needs the descriptor field); T4 → T5 (menu wires the save/scenario commands);
 T6 → T7 (launcher needs the source). T1, T2 independent (do first).
