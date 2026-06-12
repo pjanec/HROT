@@ -54,7 +54,8 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 - [x] **TASK-BT-14** *(CRITICAL)* Emit cycle guard — path-visited DFS pre-pass throws on cycle (caught → BTREE0002); no more uncatchable StackOverflow. *(BATCH-14, verified+committed)*
 - [x] **TASK-BT-15** *(CRITICAL)* Single-parent + no-cycle on wire — `ApplyAddLink` detaches child from old parent, rejects self-parent/cycles. Fixes "disappearing links" + stops cycle creation. *(BATCH-15, verified+committed)*
 - [x] **TASK-BT-16** Break-link for projected links — `ApplyRemoveLinks` resolves via the graph model; deletes JSON-loaded + session links. *(BATCH-16, verified+committed)*
-- [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..16 (incl. add-node→wire→build-survives, break-link, re-parent, vertical pins, color).
+- [x] **TASK-BT-18** *(lead, REVIEW-BT-2 findings)* (1) Manual-connect parent/child was inverted when the drag started on a bottom Input pin — `ApplyAddLink` now resolves child/parent by pin **direction**, not From/To order (rejects same-direction). (2) Drag-from-pin→canvas→pick created the node but didn't auto-wire — BTree's derived pin IDs never matched the canvas's pre-generated ones; `BTreeEditorNode` now adopts supplied `PinIds` (session override) so the auto-wire link resolves. +5 tests. *(lead-implemented+verified, BTree.Editor.Tests 511/0)*
+- [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..18 (incl. add-node→wire→build-survives, break-link, re-parent, vertical pins+wires, color, **drag-to-create auto-wire**, **connect-direction both ways**).
 
 ## Phase B — HSM to usable (after Phase A pattern is proven)
 
