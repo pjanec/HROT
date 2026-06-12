@@ -37,7 +37,7 @@ namespace Hrot.Editor.AiShared.Recipes;
 /// can run without real filesystem access or editor backends.
 /// </para>
 /// </remarks>
-public sealed class SaveAsDialog
+public sealed class SaveAsDialog : INameFolderDialog
 {
     private readonly IEditableAsset _sourceAsset;
     private readonly IReadOnlyDictionary<AssetKind, INewAssetService> _services;
@@ -50,6 +50,9 @@ public sealed class SaveAsDialog
     /// The kind of the source asset (fixed — not settable).
     /// </summary>
     public AssetKind Kind => _sourceAsset.Kind;
+
+    /// <inheritdoc/>
+    public string Title => "Save As";
 
     /// <summary>
     /// The source asset being saved under a new identity.

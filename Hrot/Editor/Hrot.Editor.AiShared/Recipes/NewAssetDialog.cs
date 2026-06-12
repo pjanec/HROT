@@ -23,7 +23,7 @@ namespace Hrot.Editor.AiShared.Recipes;
 /// access or Blueprint serialization.
 /// </para>
 /// </remarks>
-public sealed class NewAssetDialog
+public sealed class NewAssetDialog : INameFolderDialog
 {
     private readonly IReadOnlyDictionary<AssetKind, INewAssetService> _services;
     private readonly Func<string, IEnumerable<string>> _listFilesInDir;
@@ -35,6 +35,9 @@ public sealed class NewAssetDialog
     /// because recipe lists are per-kind (caller responsibility).
     /// </summary>
     public AssetKind Kind { get; set; }
+
+    /// <inheritdoc/>
+    public string Title => $"New {Kind}";
 
     /// <summary>
     /// The selected recipe (including the in-code "Empty" entry from
