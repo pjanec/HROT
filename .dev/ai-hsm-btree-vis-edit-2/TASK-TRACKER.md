@@ -74,7 +74,9 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 
 ## Progress
 
-Phase A: **6/6 functional ✅** (BT-01..06; BT-07 optional-deferred). Autonomous headless work COMPLETE → **REVIEW-BT (user visual gate) pending**. Phase B: 0/8 (after REVIEW-BT; + DEBT-BF-04 design call, REVIEW-HS). Deferred: BT-05b inspector banner, VE-DEBT-002 (OBSERVES/real-condition).
+Phase A: **functional ✅** (BT-01..06 + REVIEW-BT follow-ups BT-08..18; BT-07 optional-deferred). REVIEW-BT-2 wiring confirmed by user.
+Phase B: **8/8 headless ✅** (HS-01..08, Hsm.Editor.Tests 456/0; Hrot.AI.Behaviors builds clean with the showcase). Also fixed a latent HSM-codegen build-break (HsmBridgeEmitCore lambda→fn-ptr). **Remaining for Phase B:** REVIEW-HS (user/lead visual gate — initial arrows, region-conflict overlay, container/history rendering), VE-DEBT-005 (Events/Globals window doc-retarget wiring), DEBT-BF-04 (HSM 4-slot state param-binding — architect design call, blocks REVIEW-BB1(HSM)).
+Deferred debt: BT-05b inspector banner, VE-DEBT-002 (BTree OBSERVES/real-condition), VE-DEBT-004 (HSM real-guard binding), VE-DEBT-005 (HSM events/globals windows).
 
 ## Done-definition for this thread
 
