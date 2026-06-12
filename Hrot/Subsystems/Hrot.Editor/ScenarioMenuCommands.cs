@@ -7,16 +7,18 @@ using NodeEditor.Core.Action;
 namespace Hrot.Editor;
 
 /// <summary>
-/// Registers the global <c>scenario.new</c>, <c>scenario.load</c>, and
-/// <c>scenario.migrationHistory</c> shell commands and surfaces them as <b>Scenario</b>
-/// main-menu items via <see cref="MenuCommandAdapter"/>.
-/// (<c>scenario.save</c> / <c>scenario.saveAs</c> are registered by <see cref="ShellSaveCommands"/>;
-/// the consts remain declared here for other consumers.)
+/// Registers the global <c>scenario.new</c>, <c>scenario.load</c>, <c>scenario.save</c>,
+/// <c>scenario.saveAs</c>, and <c>scenario.migrationHistory</c> shell commands and surfaces
+/// them as <b>File → Scenario</b> submenu items via <see cref="MenuCommandAdapter"/>.
 /// </summary>
 /// <remarks>
 /// <para>The registrar operates over <see cref="IEditorLogic"/> plus modal/dialog seams so
 /// all decision logic is headless-testable. ImGui draw calls live in the production
 /// composition root (EditorSubsystem), not here.</para>
+/// <para>Save/Save‑As are always enabled; the handlers fall back to the Save‑As dialog
+/// when no scenario is loaded.  ShellSaveCommands still registers the same ids (gated),
+/// but because ScenarioMenuCommands.Register runs later, the always-enabled versions
+/// win via last-registration-wins.</para>
 /// </remarks>
 public static class ScenarioMenuCommands
 {
@@ -39,14 +41,14 @@ public static class ScenarioMenuCommands
 
     // ── Menu path prefix ───────────────────────────────────────────────────────
 
-    /// <summary>Top-level menu path segment for scenario items.</summary>
-    public const string MenuPrefix = "Scenario";
+    /// <summary>Menu path prefix: items land under <b>File → Scenario</b>.</summary>
+    public const string MenuPrefix = "File/Scenario";
 
     // ── Public API ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Registers the three scenario shell commands and surfaces them as
-    /// <b>Scenario</b> menu items.
+    /// Registers the five scenario shell commands and surfaces them as
+    /// <b>File → Scenario</b> submenu items.
     /// </summary>
     /// <param name="registerCommand">
     /// Registration delegate: receives an <see cref="EditorCommandDescriptor"/> and its
@@ -98,14 +100,14 @@ public static class ScenarioMenuCommands
         // ── scenario.new ───────────────────────────────────────────────────────
         RegisterCommand(
             registerCommand, menu, commands,
-            NewId, "New", "Create an empty scenario",
+            NewId, "New Scenario", "Create an empty scenario",
             isEnabled: () => true,
             handler: _ => editorLogic.NewScenario());
 
         // ── scenario.load ──────────────────────────────────────────────────────
         RegisterCommand(
             registerCommand, menu, commands,
-            LoadId, "Load…", "Load a scenario from the scenario catalog",
+            LoadId, "Load Scenario…", "Load a scenario from the scenario catalog",
             isEnabled: () => true,
             handler: _ =>
             {
@@ -118,15 +120,32 @@ public static class ScenarioMenuCommands
                     });
             });
 
-        // ── scenario.migrationHistory ──────────────────────────────────────────
-        bool migrationHistoryEnabled() =>
-            !string.IsNullOrEmpty(editorLogic.LoadedScenarioName);
+        // ── scenario.save ──────────────────────────────────────────────────────
+        RegisterCommand(
+            registerCommand, menu, commands,
+            SaveId, "Save Scenario", "Save the currently loaded scenario",
+            isEnabled: () => true,
+            handler: _ =>
+            {
+                if (string.IsNullOrEmpty(editorLogic.LoadedScenarioName))
+                    openSaveAsDialog(name => editorLogic.SaveScenarioAs(name));
+                else
+                    editorLogic.SaveCurrentScenario();
+            });
 
+        // ── scenario.saveAs ────────────────────────────────────────────────────
+        RegisterCommand(
+            registerCommand, menu, commands,
+            SaveAsId, "Save Scenario As…", "Save the scenario under a new name",
+            isEnabled: () => true,
+            handler: _ => openSaveAsDialog(name => editorLogic.SaveScenarioAs(name)));
+
+        // ── scenario.migrationHistory ──────────────────────────────────────────
         RegisterCommand(
             registerCommand, menu, commands,
             MigrationHistoryId, "Migration History…",
             "Show migration sidecars for the loaded scenario",
-            isEnabled: migrationHistoryEnabled,
+            isEnabled: () => true,
             handler: _ =>
             {
                 var sidecars = editorLogic.GetMigrationSidecarsForCurrentScenario();

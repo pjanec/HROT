@@ -133,34 +133,42 @@ public sealed class ScenarioMenuTests
         return (editorLogic, commands, menu, pickerCapture, saveAsCapture, migrationCapture);
     }
 
-    // ── MenuItems_Registered_UnderScenario ───────────────────────────────────
+    // ── MenuItems_Registered_UnderFileScenario ──────────────────────────────
 
     [Fact]
-    public void MenuItems_Registered_UnderScenario()
+    public void MenuItems_Registered_UnderFileScenario()
     {
         var (_, _, menu, _, _, _) = CreateRegistrar();
 
-        // Verify "Scenario" top-level menu node exists.
-        Assert.True(menu.Root.Children.ContainsKey("Scenario"));
-        var scenarioNode = menu.Root.Children["Scenario"];
+        // Verify "File" top-level menu node exists.
+        Assert.True(menu.Root.Children.ContainsKey("File"));
+        var fileNode = menu.Root.Children["File"];
 
-        // Three sub-items expected: New, Load, Migration History.
-        Assert.Equal(3, scenarioNode.Children.Count);
-        Assert.True(scenarioNode.Children.ContainsKey("New"));
-        Assert.True(scenarioNode.Children.ContainsKey("Load"));
+        // Verify "Scenario" submenu exists under File.
+        Assert.True(fileNode.Children.ContainsKey("Scenario"));
+        var scenarioNode = fileNode.Children["Scenario"];
+
+        // Five sub-items expected: New Scenario, Load Scenario, Save Scenario, Save Scenario As, Migration History.
+        Assert.Equal(5, scenarioNode.Children.Count);
+        Assert.True(scenarioNode.Children.ContainsKey("New Scenario"));
+        Assert.True(scenarioNode.Children.ContainsKey("Load Scenario"));
+        Assert.True(scenarioNode.Children.ContainsKey("Save Scenario"));
+        Assert.True(scenarioNode.Children.ContainsKey("Save Scenario As"));
         Assert.True(scenarioNode.Children.ContainsKey("Migration History"));
     }
 
-    // ── New_Invoke_EditorLogic ───────────────────────────────────────────────
+    // ── FiveCommands_Registered_InCommandSet ─────────────────────────────────
 
     [Fact]
-    public void ThreeCommands_Registered_InCommandSet()
+    public void FiveCommands_Registered_InCommandSet()
     {
         var (_, commands, _, _, _, _) = CreateRegistrar();
 
-        Assert.Equal(3, commands.RegisterCallCount);
+        Assert.Equal(5, commands.RegisterCallCount);
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
+        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
     }
 
@@ -229,6 +237,102 @@ public sealed class ScenarioMenuTests
         Assert.Empty(editorLogic.LoadScenarioByNameCalls);
     }
 
+    // ── Save ─────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Save_WithLoadedScenario_CallsSaveCurrentScenario()
+    {
+        var (editorLogic, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "MyScenario");
+
+        var result = commands.Invoke(ScenarioMenuCommands.SaveId);
+        Assert.True(result.Success);
+        Assert.Equal(1, editorLogic.SaveCurrentScenarioCallCount);
+        Assert.Empty(editorLogic.SaveScenarioAsCalls);
+    }
+
+    [Fact]
+    public void Save_WithoutLoadedScenario_OpensSaveAsDialog()
+    {
+        var editorLogic = new FakeEditorLogic { LoadedScenarioNameValue = null }; // no loaded scenario
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+
+        ScenarioMenuCommands.Register(
+            registerCommand:    (desc, handler) => commands.Register(desc, handler),
+            menu:               menu,
+            commands:           commands,
+            editorLogic:        editorLogic,
+            openPicker:         (kinds, cb) => { },
+            openSaveAsDialog:   cb =>
+            {
+                // Simulate user entering a name and confirming.
+                cb("NewName");
+            },
+            showMigrationHistory: null);
+
+        var result = commands.Invoke(ScenarioMenuCommands.SaveId);
+        Assert.True(result.Success);
+        // Should NOT call SaveCurrentScenario (no loaded scenario).
+        Assert.Equal(0, editorLogic.SaveCurrentScenarioCallCount);
+        // Should call SaveScenarioAs via the save-as dialog.
+        var saveAsCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
+        Assert.Equal("NewName", saveAsCall);
+    }
+
+    // ── Save As ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SaveAs_OpensSaveAsDialog_AndCallsSaveScenarioAs()
+    {
+        var editorLogic = new FakeEditorLogic();
+        var commands = new RecordingCommandSet();
+        var menu = new GlobalMenuRegistry();
+
+        ScenarioMenuCommands.Register(
+            registerCommand:    (desc, handler) => commands.Register(desc, handler),
+            menu:               menu,
+            commands:           commands,
+            editorLogic:        editorLogic,
+            openPicker:         (kinds, cb) => { },
+            openSaveAsDialog:   cb =>
+            {
+                // Simulate user entering a name and confirming.
+                cb("RenamedScenario");
+            },
+            showMigrationHistory: null);
+
+        var result = commands.Invoke(ScenarioMenuCommands.SaveAsId);
+        Assert.True(result.Success);
+        var saveAsCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
+        Assert.Equal("RenamedScenario", saveAsCall);
+    }
+
+    // ── All five commands are always-enabled ─────────────────────────────────
+
+    [Fact]
+    public void AllFiveCommands_AreEnabled()
+    {
+        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: null);
+
+        Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.MigrationHistoryId)!.IsEnabled());
+    }
+
+    [Fact]
+    public void AllFiveCommands_AreEnabled_WhenScenarioLoaded()
+    {
+        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario");
+
+        Assert.True(commands.Get(ScenarioMenuCommands.NewId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.LoadId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.SaveId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.SaveAsId)!.IsEnabled());
+        Assert.True(commands.Get(ScenarioMenuCommands.MigrationHistoryId)!.IsEnabled());
+    }
+
     // ── Migration History ────────────────────────────────────────────────────
 
     [Fact]
@@ -266,26 +370,6 @@ public sealed class ScenarioMenuTests
         Assert.Equal(SidecarKind.Snapshot, capturedSidecars[0].Kind);
     }
 
-    [Fact]
-    public void MigrationHistory_DisabledWhenNoScenarioLoaded()
-    {
-        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: null);
-
-        var descriptor = commands.Get(ScenarioMenuCommands.MigrationHistoryId);
-        Assert.NotNull(descriptor);
-        Assert.False(descriptor!.IsEnabled());
-    }
-
-    [Fact]
-    public void MigrationHistory_EnabledWhenScenarioLoaded()
-    {
-        var (_, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "LoadedScenario");
-
-        var descriptor = commands.Get(ScenarioMenuCommands.MigrationHistoryId);
-        Assert.NotNull(descriptor);
-        Assert.True(descriptor!.IsEnabled());
-    }
-
     // ── Menu leaf nodes have correct OnClick handlers ───────────────────────
 
     [Fact]
@@ -293,8 +377,9 @@ public sealed class ScenarioMenuTests
     {
         var (editorLogic, commands, menu, _, _, _) = CreateRegistrar();
 
-        Assert.True(menu.Root.Children.TryGetValue("Scenario", out var scenarioNode));
-        Assert.True(scenarioNode.Children.TryGetValue("New", out var leaf));
+        Assert.True(menu.Root.Children.TryGetValue("File", out var fileNode));
+        Assert.True(fileNode.Children.TryGetValue("Scenario", out var scenarioNode));
+        Assert.True(scenarioNode.Children.TryGetValue("New Scenario", out var leaf));
         Assert.NotNull(leaf.OnClick);
 
         leaf.OnClick();

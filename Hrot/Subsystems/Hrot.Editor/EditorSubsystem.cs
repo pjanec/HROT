@@ -3238,13 +3238,6 @@ namespace Hrot.Editor
                 MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                     Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId, "File/Save All");
 
-            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveId) != null)
-                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveId, "File/Save Scenario");
-
-            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveAsId) != null)
-                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
-                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveAsId, "File/Save Scenario As…");
             // ─────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;
