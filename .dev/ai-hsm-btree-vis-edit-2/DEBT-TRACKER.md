@@ -11,6 +11,8 @@
 
 | VE-DEBT-003 | BTree generator incrementality | P3 | BATCH-17 | `BTreeJsonGenerator` now `Combine`s with the full `CompilationProvider` (for the BT-17 method-compatibility symbol-check), so generation re-runs on any compilation change, not just `.btree.json` changes. Acceptable for the small asset count; a fancier incremental symbol-extraction would restore per-asset incrementality. | OPEN (best-effort) |
 
+| VE-DEBT-004 | No real HSM guard registered (showcase transitions can't bind a guard) | P2 | BATCH-HS-07 scout | HSM **actions** exist (`Hrot.AI.Behaviors.CgfHsmNodes.StubIdle`, `unsafe void(void*,void*,HsmCommandWriter*)`) so state action slots (OnEntry/Activity/...) and transition `ActionFunction` can bind. But **no production `[HsmGuard]`** is registered anywhere (only test stubs); `HsmValidator` has `UnboundGuard`/`ActionSignatureMismatch`. So the HSM showcase binds actions to `StubIdle` but **leaves transition `GuardFunction = null`** — directly analogous to [[VE-DEBT-002]] (BTree real-condition gap, D-05). The guard-binding demo is deferred until a real `[HsmGuard]` exists (likely BB1 / blackboard-slice adjacent). | OPEN — flag at REVIEW-HS |
+
 ---
 
 ## Notes
