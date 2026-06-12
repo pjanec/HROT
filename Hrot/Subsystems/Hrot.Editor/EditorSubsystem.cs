@@ -2640,11 +2640,6 @@ namespace Hrot.Editor
                     showNewAssetDialog: ShowNewAssetDialog)
                 : null;
 
-            var saveAsScenarioDelegate = new Action<string>(fullName =>
-            {
-                _editorLogic?.SaveScenarioAs(fullName);
-            });
-
             // Guard: a minimally-constructed EditorSubsystem (e.g. window-registration unit tests)
             // has no IEditorLogic. Skip the scenario-menu wiring in that case so RegisterWindows
             // still registers the perspective windows. Production always has _editorLogic set.
@@ -2661,28 +2656,7 @@ namespace Hrot.Editor
                     // existing scenario-load contract (ScenarioMenuCommands) is preserved.
                     assetPickerLauncher?.Open(kinds, callback);
                 },
-                openSaveAsDialog:     cb =>
-                {
-                    // For scenario Save-As, open the dialog UI (inline asset for the model).
-                    // The SaveAsDialog.Confirm() routes to saveScenarioAs → IEditorLogic.SaveScenarioAs.
-                    if (_editorLogic != null && _newAssetServices != null)
-                    {
-                        var scenarioAsset = new ScenarioSaveAsAsset(
-                            _editorLogic.LoadedScenarioName ?? "Unnamed");
-
-                        var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
-                            scenarioAsset,
-                            _newAssetServices,
-                            saveScenarioAs:    saveAsScenarioDelegate);
-
-                        var result = dialog.Confirm();
-                        if (result.IsSuccess)
-                        {
-                            // Pass the confirmed name back through the callback.
-                            cb(scenarioAsset.Name);
-                        }
-                    }
-                },
+                openSaveAsDialog:     cb => openScenarioSaveAs(),
                 showMigrationHistory:  sidecars =>
                 {
                     // Log migration sidecars to the save status line for visibility.

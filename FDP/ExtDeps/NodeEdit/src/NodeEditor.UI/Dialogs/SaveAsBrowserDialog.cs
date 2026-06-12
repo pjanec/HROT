@@ -100,6 +100,10 @@ public sealed class SaveAsBrowserDialog
     private readonly List<string> _visibleFolderPaths = new();
     private bool _nameInputActive;
 
+    // BUG-A22: swallow the Enter key that opened the dialog so it doesn't
+    // immediately confirm the name field.
+    private bool _swallowEnter;
+
     // ── public API ─────────────────────────────────────────────────────────
 
     /// <summary>Whether the dialog is currently open.</summary>
@@ -126,6 +130,8 @@ public sealed class SaveAsBrowserDialog
         _newFolderName = "";
         _focusNewFolderName = false;
         _collapsedFolders.Clear();
+
+        _swallowEnter = true;
 
         _isOpen = true;
     }
@@ -207,6 +213,11 @@ public sealed class SaveAsBrowserDialog
     {
         if (!_isOpen || _request == null) return;
 
+        // BUG-A22: clear the swallow flag once Enter is released, so a deliberate
+        // second Enter-key press confirms normally.
+        if (_swallowEnter && !ImGui.IsKeyDown(ImGuiKey.Enter) && !ImGui.IsKeyDown(ImGuiKey.KeypadEnter))
+            _swallowEnter = false;
+
         var size = new Vector2(720f, 560f);
         ImGui.SetNextWindowSize(size, ImGuiCond.Appearing);
 
@@ -266,8 +277,8 @@ public sealed class SaveAsBrowserDialog
             ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), error);
         }
 
-        // Enter in name field confirms
-        if (nameEnter)
+        // Enter in name field confirms (gated on _swallowEnter – BUG-A22)
+        if (nameEnter && !_swallowEnter)
         {
             ConfirmActive();
         }
@@ -488,7 +499,7 @@ public sealed class SaveAsBrowserDialog
         if (noPopupOpen)
         {
             bool globalEnter = ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter);
-            if (globalEnter && isValid && !ImGui.IsAnyItemActive())
+            if (globalEnter && isValid && !_swallowEnter && !ImGui.IsAnyItemActive())
             {
                 ConfirmActive();
             }
@@ -578,7 +589,8 @@ public sealed class SaveAsBrowserDialog
             }
 
             // Enter / KeypadEnter confirms overwrite when the popup is open.
-            if (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter))
+            // Gated on _swallowEnter (BUG-A22).
+            if (!_swallowEnter && (ImGui.IsKeyPressed(ImGuiKey.Enter) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter)))
             {
                 ConfirmOverwrite();
                 ImGui.CloseCurrentPopup();
