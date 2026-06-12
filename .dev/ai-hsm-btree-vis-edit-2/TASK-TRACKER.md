@@ -50,7 +50,7 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 - [x] **TASK-BT-12** *(CRITICAL)* Fault-tolerant codegen — emit core throws on emitted-unbound leaf; generator skips asset + `BTREE0002` Warning (not Error); csproj exempts BTREE0002 from TWAE. *(BATCH-12, verified+committed via generator/emit tests + clean build; live full-build-with-invalid-asset proof blocked by an unrelated MSBuild sandbox crash → confirm in REVIEW-BT-2)*
 - [ ] **TASK-BT-13** Palette offers only **bindable** actions/conditions (DtoType matches blackboard) — closes the 2nd build-break path (DTO-param method can't bind) at the source + usability. Editor-side. (VE-DEBT-002 partial.)
 - [x] **TASK-BT-14** *(CRITICAL)* Emit cycle guard — path-visited DFS pre-pass throws on cycle (caught → BTREE0002); no more uncatchable StackOverflow. *(BATCH-14, verified+committed)*
-- [ ] **TASK-BT-15** *(CRITICAL)* Single-parent enforcement in `ApplyAddLink` — re-wiring adds a 2nd parent (no detach) → multi-parent → cycles (evades validator's single-chain `FindParent`) + "disappearing links" (one-link-per-child cache collision). Detach child from old parent on wire (host §5.3). + validator hardening.
+- [x] **TASK-BT-15** *(CRITICAL)* Single-parent + no-cycle on wire — `ApplyAddLink` detaches child from old parent, rejects self-parent/cycles. Fixes "disappearing links" + stops cycle creation. *(BATCH-15, verified+committed)*
 - [ ] **TASK-BT-16** Break-link for projected links — `ApplyRemoveLinks` only knows session-added links (`_links` dict); JSON-loaded links can't be deleted. Resolve via graph model.
 - [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..16 (incl. add-node→wire→build-survives, break-link, re-parent, vertical pins, color).
 
