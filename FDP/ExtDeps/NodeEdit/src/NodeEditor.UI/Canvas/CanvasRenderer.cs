@@ -461,7 +461,7 @@ public sealed class CanvasRenderer
             : ImGui.GetColorU32(new Vector4(0.8f, 0.8f, 0.8f, 0.85f));
 
         float thickness = isExec ? view.Host.Theme.WireThicknessExec : view.Host.Theme.WireThicknessData;
-        var (c1, c2) = HitTester.WireTangents(a, b);
+        var (c1, c2) = HitTester.WireTangents(a, b, view.Model.Kind.Orientation);
 
         if (isExec)
             dl.AddBezierWithArrow(a, c1, c2, b, wireColor, thickness, thickness * 2.5f);

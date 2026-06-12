@@ -75,7 +75,7 @@ internal sealed class WireRenderer
             else if (selected)
                 color = ImGui.GetColorU32(theme.SelectionAccent);
 
-            DrawLinkSegments(dl, view, a, b, link, color, thickness, isExec);
+            DrawLinkSegments(dl, view, a, b, link, color, thickness, isExec, view.Model.Kind.Orientation);
         }
 
         // Reroute dots
@@ -89,13 +89,13 @@ internal sealed class WireRenderer
         GraphView view,
         Vector2 a, Vector2 b,
         ILinkModel link,
-        uint color, float thickness, bool isExec)
+        uint color, float thickness, bool isExec, PinOrientation orientation)
     {
         var waypoints = link.Waypoints;
 
         if (waypoints.Count == 0)
         {
-            DrawBezierSegment(dl, a, b, color, thickness, isExec, BezierSegments);
+            DrawBezierSegment(dl, a, b, color, thickness, isExec, BezierSegments, orientation);
             return;
         }
 
@@ -105,18 +105,19 @@ internal sealed class WireRenderer
             var rr = new RerouteRef(link.Id, i);
             var wpGraph = view.Interaction.RerouteDragOverridePositions.TryGetValue(rr, out var ovr) ? ovr : waypoints[i];
             var wp = view.Viewport.GraphToScreen(wpGraph);
-            DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments);
+            DrawBezierSegment(dl, prev, wp, color, thickness, false, BezierSegments, orientation);
             prev = wp;
         }
-        DrawBezierSegment(dl, prev, b, color, thickness, false, BezierSegments);
+        DrawBezierSegment(dl, prev, b, color, thickness, false, BezierSegments, orientation);
     }
 
     private static void DrawBezierSegment(
         ImDrawListPtr dl,
         Vector2 a, Vector2 b,
-        uint color, float thickness, bool withArrow, int segments)
+        uint color, float thickness, bool withArrow, int segments,
+        PinOrientation orientation = PinOrientation.Horizontal)
     {
-        var (c1, c2) = HitTester.WireTangents(a, b);
+        var (c1, c2) = HitTester.WireTangents(a, b, orientation);
 
         if (withArrow)
             dl.AddBezierWithArrow(a, c1, c2, b, color, thickness, thickness * 2.5f, segments);

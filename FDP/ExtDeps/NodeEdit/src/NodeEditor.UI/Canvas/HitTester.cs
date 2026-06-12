@@ -119,7 +119,7 @@ internal sealed class HitTester
             if (!pinPositions.TryGetValue(link.FromPin, out var a)) continue;
             if (!pinPositions.TryGetValue(link.ToPin, out var b)) continue;
 
-            if (HitsWire(mouse, a, b, link, view.Viewport))
+            if (HitsWire(mouse, a, b, link, view.Viewport, view.Model.Kind.Orientation))
                 SubmitHit(new HoverInfo { Kind = HoverKind.Link, Link = link.Id }, ZLayerWire, wireIndex, 1);
         }
 
@@ -270,27 +270,27 @@ internal sealed class HitTester
         }
     }
 
-    private static bool HitsWire(Vector2 mouse, Vector2 a, Vector2 b, ILinkModel link, ViewportState viewport)
+    private static bool HitsWire(Vector2 mouse, Vector2 a, Vector2 b, ILinkModel link, ViewportState viewport, PinOrientation orientation)
     {
         var waypoints = link.Waypoints;
         if (waypoints.Count == 0)
         {
-            return BezierHit(mouse, a, b);
+            return BezierHit(mouse, a, b, orientation);
         }
 
         var prev = a;
         for (int i = 0; i < waypoints.Count; i++)
         {
             var wpt = viewport.GraphToScreen(waypoints[i]);
-            if (BezierHit(mouse, prev, wpt)) return true;
+            if (BezierHit(mouse, prev, wpt, orientation)) return true;
             prev = wpt;
         }
-        return BezierHit(mouse, prev, b);
+        return BezierHit(mouse, prev, b, orientation);
     }
 
-    private static bool BezierHit(Vector2 mouse, Vector2 a, Vector2 b)
+    private static bool BezierHit(Vector2 mouse, Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal)
     {
-        var (c1, c2) = WireTangents(a, b);
+        var (c1, c2) = WireTangents(a, b, orientation);
         for (int s = 0; s <= WireSampleCount; s++)
         {
             float t = s / (float)WireSampleCount;
@@ -301,8 +301,19 @@ internal sealed class HitTester
         return false;
     }
 
-    internal static (Vector2 c1, Vector2 c2) WireTangents(Vector2 a, Vector2 b)
+    internal static (Vector2 c1, Vector2 c2) WireTangents(Vector2 a, Vector2 b, PinOrientation orientation = PinOrientation.Horizontal)
     {
+        if (orientation == PinOrientation.Vertical)
+        {
+            // Pins face along Y: the From/output pin (a) is on the node's top edge
+            // and faces up; the To/input pin (b) is on the bottom edge and faces
+            // down. Tangents leave/enter vertically so the spline doesn't sprout
+            // sideways like a horizontal (Blueprint) wire.
+            float dy = MathF.Abs(b.Y - a.Y);
+            float tangentV = MathF.Max(50f, dy * 0.5f);
+            return (a - new Vector2(0f, tangentV), b + new Vector2(0f, tangentV));
+        }
+
         float dx = MathF.Abs(b.X - a.X);
         float tangent = MathF.Max(50f, dx * 0.5f);
         return (a + new Vector2(tangent, 0f), b - new Vector2(tangent, 0f));
