@@ -51,7 +51,7 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 - [ ] **TASK-BT-13** Palette offers only **bindable** actions/conditions (DtoType matches blackboard) — closes the 2nd build-break path (DTO-param method can't bind) at the source + usability. Editor-side. (VE-DEBT-002 partial.)
 - [x] **TASK-BT-14** *(CRITICAL)* Emit cycle guard — path-visited DFS pre-pass throws on cycle (caught → BTREE0002); no more uncatchable StackOverflow. *(BATCH-14, verified+committed)*
 - [x] **TASK-BT-15** *(CRITICAL)* Single-parent + no-cycle on wire — `ApplyAddLink` detaches child from old parent, rejects self-parent/cycles. Fixes "disappearing links" + stops cycle creation. *(BATCH-15, verified+committed)*
-- [ ] **TASK-BT-16** Break-link for projected links — `ApplyRemoveLinks` only knows session-added links (`_links` dict); JSON-loaded links can't be deleted. Resolve via graph model.
+- [x] **TASK-BT-16** Break-link for projected links — `ApplyRemoveLinks` resolves via the graph model; deletes JSON-loaded + session links. *(BATCH-16, verified+committed)*
 - [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..16 (incl. add-node→wire→build-survives, break-link, re-parent, vertical pins, color).
 
 ## Phase B — HSM to usable (after Phase A pattern is proven)
