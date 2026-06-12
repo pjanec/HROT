@@ -136,7 +136,52 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         }
     }
 
-    private void ApplyAddNode(GraphCommand.AddNode cmd)               { /* TODO */ }
+    private void ApplyAddNode(GraphCommand.AddNode cmd)
+    {
+        // Map the palette kind key to StateNode flags + a readable default name.
+        var kindId = cmd.Kind.Id;
+        string name;
+        bool isParallel    = false;
+        bool isFinal       = false;
+        bool isHistory     = false;
+        bool isDeepHistory = false;
+
+        switch (kindId)
+        {
+            case HsmKinds.Parallel:
+                isParallel = true;
+                name = "Parallel";
+                break;
+            case HsmKinds.Final:
+                isFinal = true;
+                name = "Final";
+                break;
+            case HsmKinds.History:
+                isHistory = true;
+                name = "History";
+                break;
+            case HsmKinds.DeepHistory:
+                isDeepHistory = true;
+                name = "DeepHistory";
+                break;
+            default:
+                // Simple / Composite / unknown → normal state, no pseudo/parallel flags.
+                name = "State";
+                break;
+        }
+
+        var state = new StateNode(name)
+        {
+            StableId        = cmd.AssignedId.Value,
+            Position        = cmd.Position,
+            IsParallel      = isParallel,
+            IsFinal         = isFinal,
+            IsHistory       = isHistory,
+            IsDeepHistory   = isDeepHistory,
+        };
+
+        _asset.RegisterState(state, _asset.RootState);
+    }
 
     private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)
     {

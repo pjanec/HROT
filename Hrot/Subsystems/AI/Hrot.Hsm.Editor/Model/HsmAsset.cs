@@ -296,7 +296,9 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     private readonly Dictionary<ushort, TransitionNode> _flatIndexToTransition;
     private readonly Dictionary<ushort, EventDefinition> _eventIdToEvent;
 
-    // Mutable backing lists for regions, global transitions, and attachments.
+    // Mutable backing lists for states, transitions, regions, global transitions, and attachments.
+    private readonly List<StateNode>            _allStatesList;
+    private readonly List<TransitionNode>       _allTransitionsList;
     private readonly List<RegionNode>           _allRegionsList;
     private readonly List<GlobalTransitionNode> _allGlobalTransitionsList;
     private readonly Dictionary<AttachmentId, HsmAttachment> _attachments = new();
@@ -332,6 +334,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         AllGlobalTransitions = allGlobalTransitions.AsReadOnly();
         AllRegions = allRegions.AsReadOnly();
         AllEvents = allEvents.AsReadOnly();
+        _allStatesList            = allStates;
+        _allTransitionsList       = allTransitions;
         _allRegionsList           = allRegions;
         _allGlobalTransitionsList = allGlobalTransitions;
 
@@ -519,6 +523,68 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     {
         _allRegionsList.Remove(region);
         _stableIdToRegion.Remove(region.StableId);
+    }
+
+    // ---- State mutation helpers (called by HsmCommandSink) ----
+
+    // Registers a newly-created (editor-authored) state under `parent`. Updates the
+    // backing list + identity maps. FlatIndex is assigned to the next free value so the
+    // flat-index map stays collision-free in-session; it is authoritatively re-derived
+    // from the blob on save->reload.
+    internal void RegisterState(StateNode state, StateNode parent)
+    {
+        state.Parent = parent;
+        if (!parent.Children.Contains(state)) parent.Children.Add(state);
+        if (state.FlatIndex == 0 || _flatIndexToState.ContainsKey(state.FlatIndex))
+            state.FlatIndex = NextFreeStateFlatIndex();
+        _allStatesList.Add(state);
+        _stableIdToState[state.StableId] = state;
+        _flatIndexToState[state.FlatIndex] = state;
+    }
+
+    internal void UnregisterState(StateNode state)
+    {
+        state.Parent?.Children.Remove(state);
+        _allStatesList.Remove(state);
+        _stableIdToState.Remove(state.StableId);
+        _flatIndexToState.Remove(state.FlatIndex);
+    }
+
+    // ---- Transition mutation helpers ----
+
+    internal void RegisterTransition(TransitionNode t)
+    {
+        if (t.FlatIndex == 0 || _flatIndexToTransition.ContainsKey(t.FlatIndex))
+            t.FlatIndex = NextFreeTransitionFlatIndex();
+        if (!t.Source.OutgoingTransitions.Contains(t)) t.Source.OutgoingTransitions.Add(t);
+        _allTransitionsList.Add(t);
+        _visualIdToTransition[t.VisualId] = t;
+        _flatIndexToTransition[t.FlatIndex] = t;
+    }
+
+    internal void UnregisterTransition(Guid visualId)
+    {
+        if (!_visualIdToTransition.TryGetValue(visualId, out var t)) return;
+        t.Source?.OutgoingTransitions.Remove(t);
+        _allTransitionsList.Remove(t);
+        _visualIdToTransition.Remove(visualId);
+        _flatIndexToTransition.Remove(t.FlatIndex);
+    }
+
+    private ushort NextFreeStateFlatIndex()
+    {
+        ushort max = 0;
+        foreach (var key in _flatIndexToState.Keys)
+            if (key > max) max = key;
+        return (ushort)(max + 1);
+    }
+
+    private ushort NextFreeTransitionFlatIndex()
+    {
+        ushort max = 0;
+        foreach (var key in _flatIndexToTransition.Keys)
+            if (key > max) max = key;
+        return (ushort)(max + 1);
     }
 
     // ---- Global transition mutation helpers ----
