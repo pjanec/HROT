@@ -115,6 +115,29 @@ just channel commands. AN4/AN5 delivered the channel SUBSET. FunctionCall is NOT
 ONE variable (per-field binding rejected); "+ Promote to new variable" auto-creates a **node-owned** variable
 (`IsAutoManaged`) for the blueprint-like node-local feel. Builds on SE1/SE2. Each batch: lead reviews + commits;
 visual bits confirmed at the gate.
+
+> **STATUS (2026-06-12): CODE-COMPLETE; VISUAL GATE POSTPONED.** B-1..B-5 are implemented, headless-tested green,
+> live-wired in the composition root, and committed — batches **BB1A `07f56325`, BB1B `cb07da24`, BB1C `03c478f9`,
+> BB1D `f3beca1d`** (BB1D = the EditorSubsystem wiring that makes it actually appear in the running editor).
+> The only open item, **REVIEW-BB1**, is a *running-editor visual smoke* and is **PARKED** because BTree/HSM
+> visual editing isn't usable yet (BTree closer; HSM far) — user decision 2026-06-12.
+>
+> **NOTE — BB1 does NOT apply to Blueprints.** Blueprint action params are data-IN pins on the node (no blackboard
+> variable / no `ExpressionTargetField` / no Promote) — see Addendum §5. So BB1 cannot be exercised in the (more
+> mature) Blueprint editor; the analogous blueprint capability is pins + inline editors + enum combos
+> (AN1/AN6/BATCH-07), gated separately by **REVIEW-V1**.
+>
+> **HOW TO RESUME when BTree/HSM editing is usable:**
+> 1. Run the editor: `dotnet run --project Hrot/Runner/Hrot.ClusterRunner -- --mode editor`.
+> 2. Do **REVIEW-BB1** below — start with **BTree** (Action/Condition node); the full step-by-step procedure
+>    (launch, setup, the 5 checks, pass criteria) is in `reviews/BATCH-BB1A..D-REVIEW.md` context and was written
+>    out in chat 2026-06-12; re-derive from the B-1..B-5 rows + the Addendum §5 workflow if needed.
+> 3. **HSM caveat:** the picker/Promote currently cover HSM **transitions only, NOT states**. REVIEW-BB1's stated
+>    surface is "HSM state", but an HSM state hosts 4 action slots (Entry/Exit/Activity/Timer), so it needs a
+>    per-slot design extension first — tracked as **DEBT-BF-04** in [DEBT-TRACKER.md](./DEBT-TRACKER.md) and
+>    flagged as needing an architect/design call. Resolve DEBT-BF-04 (its own batch) as part of, or just before,
+>    the HSM visual pass.
+> 4. Fix any visual findings as focused follow-up batches (same Plan→Delegate→Review→Commit loop).
 - [x] **B-1** (BATCH-BB1A, committed) -- Type-filtered binding picker: `[BlackboardFieldPicker]` shows only variables of the action's
       `DtoType` (from `IActionSchemaExporter`); `(no compatible variables)` + Promote affordance otherwise. (DD §11.2)
       BTree+HSM live drawers wired via facet-FQN context. -> [details](./TASK-DETAIL.md#b-1----type-filtered-binding-picker)
@@ -129,8 +152,10 @@ visual bits confirmed at the gate.
       `HsmCommandSink` auto-delete the node-owned var + re-pack on owning-node delete. -> [details](./TASK-DETAIL.md#b-4----node-owned-variable-presentation--lifecycle)
 - [x] **B-5** (BATCH-BB1C — DONE) -- Inspector one-line static-vs-dynamic tooltip (BTree/HSM static = applied once at assignment; bind a
       variable for live values). -> [details](./TASK-DETAIL.md#b-5----static-vs-dynamic-tooltip)
-- [ ] **REVIEW-BB1** -- user smoke: select a BTree action/HSM state → type-filtered picker; Promote → set static
+- [~] **REVIEW-BB1** (POSTPONED 2026-06-12 — blocked on BTree/HSM visual editor maturity; see STATUS banner above)
+      -- user smoke: select a BTree action/HSM state → type-filtered picker; Promote → set static
       params in-context → compile/assign uses them; node-owned var dimmed/hidden + auto-deleted with the node.
+      **Resume:** BTree first (usable sooner); HSM after DEBT-BF-04 (state per-slot picker) is designed + built.
 
 ## Phase 8 -- Follow-ups (smaller; after BB1 / on demand)
 - [x] **HSM-TRANS** (COMMITTED `6495f536`) -- extend the FIX-A bridge to HSM **transitions** (links/`ILinkModel`), not just states, so
