@@ -65,6 +65,14 @@ Confirmed good: A14 keyboard nav + ordered ↑/↓ + ←/→ expand; A13 icon ho
 | BUG-A20 | P1 | **Picker mouse-wheel scrolling impossible** — `SetScrollHereY` fired on the focused row every frame, snapping the view back. | BATCH-52 | **DONE (2458fc00)** — one-shot `ScrollToFocus` flag set only by keyboard nav; gates all `SetScrollHereY` sites. |
 | BUG-A21 | P1 | **Scenario menu inconsistency** — after DBT-A2 the File menu kept a DISABLED Save Scenario / Save Scenario As while the Scenario menu lost Save. User: drop the top-level Scenario menu; add a **File → Scenario** submenu with New/Load/Save/Save As/Migration History, all always-enabled. | BATCH-54 | **DONE (8547a53c)** — MenuPrefix→`File/Scenario`; 5 always-enabled items; disabled File surfacings removed; Ctrl+S unchanged. Supersedes the BATCH-53 DBT-A2 removal. |
 
+### Round-7 (2026-06-12)
+| ID | Pri | Description | Batch | Status |
+|----|-----|-------------|-------|--------|
+| BUG-A22 | P1 | New → recipe → **Enter auto-confirmed the SaveAs dialog** (the recipe-picker Enter bled through same-frame), skipping the name. | BATCH-55 | **DONE (b7cacc67)** — `_swallowEnter` set on Open, cleared once Enter releases, gates all Enter-confirm paths. NodeEditor.UI 0-warn. |
+| BUG-A23 | P1 | **File→Scenario→Save Scenario As did nothing** — the `openSaveAsDialog` seam built the dead `Recipes.SaveAsDialog` + `Confirm()` with no UI. | BATCH-55 | **DONE (b7cacc67)** — seam routed to the working `openScenarioSaveAs()` (SaveAsBrowser). Hrot.Editor full build pending the generator fix; change scope/grep-verified. |
+| BUG-A24 | P2 | **Feature:** main-toolbar **Compile/Reload** icon (Blueprint perspective; same action as the Blueprint-tools button — `_blueprintCompileCallback`) + a **global Full Rebuild** icon (`_blueprintFullRebuildCallback`). Both callbacks already exist; needs shell commands + `ToolbarCommandAdapter` registration + enabled-state. **BLOCKERS:** (1) no atlas icon for compile/reload/rebuild (only asset/*, debug/{continue,pause,step}, shell/{save,…} exist) → needs icon assets or a chosen reuse; (2) Hrot.Editor can't build until the BTree/HSM generator fix lands. | next | OPEN (needs icons + green build) |
+| OBS-A1 | — | **Observation (user owns the fix):** creating a New **Empty BTree/HSM** writes a source `.btree.json`/`.hsm.json` that the source generator currently compiles to BROKEN C# (`NewBTree.g.cs`: `AssetId` unbound, unbound generic) → **breaks the build**. The committed `SampleScout.g.cs` has the same `AssetId` error. The in-progress generator fix must handle freshly-created Empty assets. | — | tracked (user) |
+
 ## Notes ▸ Proper (a): open-from-in-memory (DBT-A4, DROPPED 2026-06-12 — kept for reference only)
 **Goal:** New = recipe Tree picker → `INewAssetService.CreateNew(recipe, defaultName, "")` (default name, EMPTY
 `SourceFilePath`) → **open the in-memory asset immediately** (unsaved) → first Ctrl+S routes (empty path) to the
