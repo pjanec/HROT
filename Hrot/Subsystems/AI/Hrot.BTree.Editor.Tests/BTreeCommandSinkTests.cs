@@ -605,6 +605,134 @@ public sealed class BTreeCommandSinkTests
         asset.FindNode(parentId.Value)!.ChildVisualIds.Should().NotContain(childId.Value);
     }
 
+    // ---- Wire direction: drag may start on either endpoint ------------------
+
+    /// <summary>
+    /// The user can start a wire drag from a parent's bottom (Input) pin and drop on
+    /// a child's top (Output) pin — so the AddLink command's From is the Input pin.
+    /// ApplyAddLink must resolve child/parent by pin DIRECTION, not by From/To order,
+    /// so the parent still receives the child (not the inverse).
+    /// </summary>
+    [Fact]
+    public void AddLink_ReversedDragDirection_AssignsParentCorrectly()
+    {
+        var (asset, graph, sink) = Build();
+        var parentId = NodeId.NewId();
+        var childId  = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(parentId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(childId,  new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(parentId, out _, out var parentIn);
+        graph.RegisterPins(childId,  out var childOut, out _);
+
+        // Drag STARTED at the parent's Input pin -> From = parentIn, To = childOut.
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), parentIn, childOut));
+
+        // Parent (Input-pin owner) must receive the child (Output-pin owner) — not inverted.
+        asset.FindNode(parentId.Value)!.ChildVisualIds.Should().Contain(childId.Value);
+        asset.FindNode(childId.Value)!.ChildVisualIds.Should().NotContain(parentId.Value);
+    }
+
+    /// <summary>
+    /// A same-direction drag (two Output or two Input pins) is invalid and must be rejected.
+    /// </summary>
+    [Fact]
+    public void AddLink_SameDirectionPins_IsRejected()
+    {
+        var (asset, graph, sink) = Build();
+        var aId = NodeId.NewId();
+        var bId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(aId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(bId, new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(aId, out var aOut, out _);
+        graph.RegisterPins(bId, out var bOut, out _);
+
+        // Output -> Output: nonsensical, must not attach either way.
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), aOut, bOut));
+
+        asset.FindNode(aId.Value)!.ChildVisualIds.Should().NotContain(bId.Value);
+        asset.FindNode(bId.Value)!.ChildVisualIds.Should().NotContain(aId.Value);
+    }
+
+    // ---- Drag-to-create auto-wire: adopt canvas-supplied pin IDs ------------
+
+    /// <summary>
+    /// A leaf created via drag-to-create carries pre-generated PinIds ([output] only).
+    /// The node must adopt that ID for its OutputPinId so the auto-wire link resolves.
+    /// </summary>
+    [Fact]
+    public void AddNode_LeafAdoptsSuppliedOutputPinId()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var suppliedOut = new PinId(Guid.NewGuid());
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId, new NodeKindKey(BTreeKinds.Action), Vector2.Zero,
+            new Dictionary<string, object?> { ["PinIds"] = new List<PinId> { suppliedOut } }));
+
+        asset.FindNode(nodeId.Value)!.OutputPinId.Should().Be(suppliedOut.Value);
+    }
+
+    /// <summary>
+    /// A composite created via drag-to-create carries PinIds in catalog order
+    /// ([input, output]). Both must be adopted onto the matching pin.
+    /// </summary>
+    [Fact]
+    public void AddNode_CompositeAdoptsSuppliedInputThenOutputPinIds()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var suppliedIn  = new PinId(Guid.NewGuid());
+        var suppliedOut = new PinId(Guid.NewGuid());
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero,
+            new Dictionary<string, object?> { ["PinIds"] = new List<PinId> { suppliedIn, suppliedOut } }));
+
+        var node = asset.FindNode(nodeId.Value)!;
+        node.InputPinId.Should().Be(suppliedIn.Value);
+        node.OutputPinId.Should().Be(suppliedOut.Value);
+    }
+
+    /// <summary>
+    /// End-to-end auto-wire over the real BTreeGraphModel: a leaf dropped from a
+    /// parent's Input pin is created with the canvas-supplied output PinId, then the
+    /// auto-wire AddLink (which references that exact PinId) must resolve and attach
+    /// the leaf as the parent's child. Before the adopt-pin-IDs fix, FindPin failed
+    /// and the link was silently dropped.
+    /// </summary>
+    [Fact]
+    public void AddNode_then_AutoWire_AttachesChild_OverRealGraphModel()
+    {
+        var asset = MakeAsset();
+        var parent = new BTreeEditorNode { VisualId = Guid.NewGuid(), KernelType = NodeType.Sequence };
+        asset.AddNode(parent);
+
+        var graph = new BTreeGraphModel(asset);
+        var sink  = new BTreeCommandSink(asset, graph);
+
+        var childId  = NodeId.NewId();
+        var childOut = new PinId(Guid.NewGuid());
+
+        // Drop-create the leaf with a pre-generated output pin id (as the canvas does).
+        sink.Apply(new GraphCommand.AddNode(
+            childId, new NodeKindKey(BTreeKinds.Action), Vector2.Zero,
+            new Dictionary<string, object?> { ["PinIds"] = new List<PinId> { childOut } }));
+
+        // The supplied pin id now resolves to the child over the real graph model.
+        graph.FindPin(childOut)!.OwnerNodeId.Value.Should().Be(childId.Value);
+
+        // Auto-wire: child.Output -> parent.Input (parent's pin id is derived).
+        var parentIn = new PinId(parent.InputPinId);
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), childOut, parentIn));
+
+        parent.ChildVisualIds.Should().Contain(childId.Value);
+    }
+
     /// <summary>
     /// Removing a random/non-existent LinkId must not throw and must leave the model unchanged.
     /// </summary>

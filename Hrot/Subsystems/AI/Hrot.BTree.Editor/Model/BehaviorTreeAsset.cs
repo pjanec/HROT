@@ -125,17 +125,38 @@ public sealed class BTreeEditorNode
         return new Guid(bytes);
     }
 
+    // Session-local pin-id overrides. Set when a node is created via the canvas
+    // drag-to-create flow, which pre-generates pin IDs (for stable Undo/Redo) and
+    // forms the auto-wire link against them. Not persisted — on reload the derived
+    // IDs are used and links are re-projected from ChildVisualIds, so this only
+    // needs to be consistent within a session.
+    private Guid? _outputPinIdOverride;
+    private Guid? _inputPinIdOverride;
+
+    /// <summary>
+    /// Adopt externally-supplied pin IDs (from the canvas drag-create flow). A null
+    /// argument leaves that pin on its derived ID. Lets <see cref="OutputPinId"/> /
+    /// <see cref="InputPinId"/> match the IDs the canvas baked into the auto-wire link.
+    /// </summary>
+    public void SetExplicitPinIds(Guid? output, Guid? input)
+    {
+        if (output.HasValue) _outputPinIdOverride = output;
+        if (input.HasValue)  _inputPinIdOverride  = input;
+    }
+
     /// <summary>
     /// Stable output-pin ID for this node (child's upward exec link).
-    /// Derived deterministically from <see cref="VisualId"/> — never null.
+    /// Session override if one was supplied, else derived deterministically from
+    /// <see cref="VisualId"/> — never null.
     /// </summary>
-    public Guid OutputPinId => XorGuid(VisualId, 0xBB_00_00_00_00_00_00_01UL, 0x00_00_00_00_00_00_00_02UL);
+    public Guid OutputPinId => _outputPinIdOverride ?? XorGuid(VisualId, 0xBB_00_00_00_00_00_00_01UL, 0x00_00_00_00_00_00_00_02UL);
 
     /// <summary>
     /// Stable input-pin ID for this node (parent's downward exec link).
-    /// Derived deterministically from <see cref="VisualId"/> — never null.
+    /// Session override if one was supplied, else derived deterministically from
+    /// <see cref="VisualId"/> — never null.
     /// </summary>
-    public Guid InputPinId  => XorGuid(VisualId, 0xBB_00_00_00_00_00_00_03UL, 0x00_00_00_00_00_00_00_04UL);
+    public Guid InputPinId  => _inputPinIdOverride ?? XorGuid(VisualId, 0xBB_00_00_00_00_00_00_03UL, 0x00_00_00_00_00_00_00_04UL);
 
     /// <summary>Returns true when this node kind cannot have children in a BTree.</summary>
     public bool IsLeaf =>

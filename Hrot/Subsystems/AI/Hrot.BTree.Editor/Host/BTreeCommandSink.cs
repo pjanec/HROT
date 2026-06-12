@@ -127,8 +127,39 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 node.Action = new BTreeActionPayload { MethodFqn = fqn };
         }
 
+        // Canvas drag-to-create pre-generates pin IDs and bakes them into the
+        // auto-wire link. Adopt them so the link's pins resolve to this node;
+        // otherwise the node is created but the wire is silently dropped.
+        AdoptPreGeneratedPinIds(node, add.InitialProperties);
+
         _asset.AddNode(node);
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// Maps the canvas-supplied <c>PinIds</c> list onto the node's input/output pins,
+    /// mirroring the catalog entry's pin order ([inputs…, outputs…]). A node declares
+    /// an input pin unless it is a leaf or decorator; it declares an output pin unless
+    /// it is the Root or a decorator — matching <c>BTreeNodeCatalog</c>.
+    /// </summary>
+    private static void AdoptPreGeneratedPinIds(
+        BTreeEditorNode node, IReadOnlyDictionary<string, object?>? props)
+    {
+        if (props == null ||
+            !props.TryGetValue("PinIds", out var raw) ||
+            raw is not IReadOnlyList<PinId> pinIds ||
+            pinIds.Count == 0)
+            return;
+
+        bool declaresInput  = !node.IsLeaf && !node.IsDecorator;
+        bool declaresOutput = node.KernelType != NodeType.Root && !node.IsDecorator;
+
+        int idx = 0;
+        Guid? inputOverride = null, outputOverride = null;
+        if (declaresInput  && idx < pinIds.Count) inputOverride  = pinIds[idx++].Value;
+        if (declaresOutput && idx < pinIds.Count) outputOverride = pinIds[idx++].Value;
+
+        node.SetExplicitPinIds(outputOverride, inputOverride);
     }
 
     private void ApplyRemoveNodes(IReadOnlyList<NodeId> nodeIds)
@@ -164,9 +195,17 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         if (fromPin == null || toPin == null)
             return;
 
-        // Reversed convention: From = child output, To = parent input.
-        var childId  = fromPin.OwnerNodeId.Value;
-        var parentId = toPin.OwnerNodeId.Value;
+        // Reversed convention: child links via its Output pin, parent via its Input.
+        // Resolve roles by pin DIRECTION, not by From/To order: a drag can start on
+        // either endpoint (e.g. from a parent's bottom Input pin), so From is not
+        // necessarily the child's output. Reject same-direction (invalid) drags.
+        if (fromPin.Direction == toPin.Direction)
+            return;
+
+        var childPin  = fromPin.Direction == PinDirection.Output ? fromPin : toPin;
+        var parentPin = fromPin.Direction == PinDirection.Output ? toPin   : fromPin;
+        var childId   = childPin.OwnerNodeId.Value;
+        var parentId  = parentPin.OwnerNodeId.Value;
 
         var parent = _asset.FindNode(parentId);
         if (parent == null)
