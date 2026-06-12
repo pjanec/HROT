@@ -277,6 +277,13 @@ namespace Hrot.Editor
         private AiAssetCatalogBuilder?         _aiCatalogBuilder;
         private AiDocumentManager?             _aiDocumentManager;
         private WindowManagerPerspectiveSwitcher? _perspectiveSwitcher;
+        // BUG-A6: scan roots and JSON contributors captured from Initialize so RegisterWindows
+        // can target new-asset writes at the source dir and refresh the right contributor.
+        private string?                             _bpRootDir;
+        private string?                             _btreeJsonRootDir;
+        private string?                             _hsmJsonRootDir;
+        private BTreeJsonAssetContributor?          _btreeJsonContrib;
+        private HsmJsonAssetContributor?            _hsmJsonContrib;
         // MTB-P5-T2: Scenario catalog contributor (non-file-backed; refreshed on scenario list change).
         private Hrot.Editor.Catalog.ScenarioCatalogContributor? _scenarioContributor;
         // AIE-026: save → emit → reload scheduler (ticked in Update)
@@ -674,13 +681,26 @@ namespace Hrot.Editor
                 return null;
             }
 
-            var aiRootDir          = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
-            var bpRootDir          = aiRootDir != null
+            var aiRootDir  = ResolveAiBehaviorsDir(AiBehaviorsProjectPath);
+            // BUG-A6: store scan roots and JSON contributors as fields so RegisterWindows
+            // can target new-asset writes at the source dir and refresh the right contributor.
+            _bpRootDir       = aiRootDir != null
                 ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Blueprint))
                 : System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blueprints");
-            var bpContrib          = new BlueprintAssetContributor(bpRootDir);
-            var btreeJsonContrib   = new BTreeJsonAssetContributor(_btreeDebugSession);
-            var hsmJsonContrib     = new HsmJsonAssetContributor();
+            _btreeJsonRootDir = aiRootDir != null
+                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree))
+                : null;
+            _hsmJsonRootDir  = aiRootDir != null
+                ? System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Hsm))
+                : null;
+            var bpRootDir        = _bpRootDir;
+            var bpContrib        = new BlueprintAssetContributor(bpRootDir);
+            _btreeJsonContrib    = new BTreeJsonAssetContributor(_btreeDebugSession);
+            _hsmJsonContrib      = new HsmJsonAssetContributor();
+            var btreeJsonContrib = _btreeJsonContrib;
+            var hsmJsonContrib   = _hsmJsonContrib;
+            var btreeJsonRootDir = _btreeJsonRootDir;
+            var hsmJsonRootDir   = _hsmJsonRootDir;
             if (aiRootDir == null)
             {
                 Console.WriteLine("[EditorSubsystem] WARNING: Hrot.AI.Behaviors project dir not found " +
@@ -689,14 +709,12 @@ namespace Hrot.Editor
             }
             else
             {
-                var btreeJsonRootDir = System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.BTree));
-                var hsmJsonRootDir   = System.IO.Path.Combine(aiRootDir, AssetRoots.AssetsRelative(AssetKind.Hsm));
-                if (System.IO.Directory.Exists(btreeJsonRootDir))
+                if (System.IO.Directory.Exists(btreeJsonRootDir!))
                     btreeJsonContrib.Refresh(rootDirectory: btreeJsonRootDir);
                 else
                     Console.WriteLine($"[EditorSubsystem] WARNING: BTree JSON root not found: {btreeJsonRootDir}");
 
-                if (System.IO.Directory.Exists(hsmJsonRootDir))
+                if (System.IO.Directory.Exists(hsmJsonRootDir!))
                     hsmJsonContrib.Refresh(rootDirectory: hsmJsonRootDir);
                 else
                     Console.WriteLine($"[EditorSubsystem] WARNING: HSM JSON root not found: {hsmJsonRootDir}");
@@ -2257,11 +2275,15 @@ namespace Hrot.Editor
             // ── BATCH-20 (DEC-9): per-kind service registry for Save-As ──────────────────────────
             // Create the INewAssetService dictionary so ShellSaveCommands.requestSaveAs
             // can seed a SaveAsDialog from the current document's asset.
+            // BUG-A6: pass the SOURCE-project JSON scan roots so CreateNew writes the
+            // new file where _btreeJsonContrib / _hsmJsonContrib will find it on Refresh.
+            // Fallback to null lets the service default to AssetRoots.AssetsFor (bin dir)
+            // when the source dir is unavailable (e.g. CI build without source tree).
             _newAssetServices = new Dictionary<Hrot.Editor.AiShared.AssetKind, Hrot.Editor.AiShared.Recipes.INewAssetService>
             {
                 [Hrot.Editor.AiShared.AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
-                [Hrot.Editor.AiShared.AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(),
-                [Hrot.Editor.AiShared.AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(),
+                [Hrot.Editor.AiShared.AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(_btreeJsonRootDir),
+                [Hrot.Editor.AiShared.AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(_hsmJsonRootDir),
             };
 
             // Scenario: create a thin session adapter for IEditorLogic → IScenarioCreationSession.
@@ -2573,9 +2595,13 @@ namespace Hrot.Editor
                     // BTree/HSM/Scenario persist in CreateNew.
                     if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
                     {
+                        // BUG-A6: pass _bpRootDir as the asset-root override so the file
+                        // lands in the SOURCE project dir that BlueprintAssetContributor
+                        // scans (_bpRootDir), not the bin/output dir (AssetRoots.AssetsFor).
                         var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
                             Hrot.Editor.AiShared.AssetKind.Blueprint,
-                            result.DestinationPath, result.Name);
+                            result.DestinationPath, result.Name,
+                            assetRootOverride: _bpRootDir);
                         saveAsBlueprintToFile(minted, bpPath);
                     }
                     // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
@@ -2586,6 +2612,13 @@ namespace Hrot.Editor
                         var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
                             .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
                         if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
+                        // BUG-A6: RefreshFromAssembly only refreshes assembly-based contributors;
+                        // JSON contributors must be refreshed separately so the newly-written
+                        // .btree.json / .hsm.json file is discovered and FindByAssetId succeeds.
+                        if (kind == Hrot.Editor.AiShared.AssetKind.BTree && _btreeJsonRootDir != null)
+                            _btreeJsonContrib?.Refresh(rootDirectory: _btreeJsonRootDir);
+                        if (kind == Hrot.Editor.AiShared.AssetKind.Hsm && _hsmJsonRootDir != null)
+                            _hsmJsonContrib?.Refresh(rootDirectory: _hsmJsonRootDir);
                         var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
                         if (catalogued != null)
                             _aiDocumentManager?.Open(catalogued);
