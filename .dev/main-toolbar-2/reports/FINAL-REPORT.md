@@ -78,3 +78,31 @@ Your runtime test surfaced 4 bugs + promoted the New-asset dialog to a real requ
 
 If all good, say the word on **DBT-A1** (delete retired classes) and whether to retire the duplicate Scenario-menu
 Save/Save-As (**DBT-A2**).
+
+---
+
+## Round 3 (2026-06-12): generic Save-As/New dialog (MTB2-T8) — option (b)
+After the runtime test of the editor-specific modal, redesigned the name+folder dialog as a **generic NodeEdit
+component** (your "reuse / generic" directive) and converged the New/Save-As UX with you.
+
+| Batch | Delivered | Commit |
+|-------|-----------|--------|
+| 41 | Generic `NodeEditor.UI/Dialogs/SaveAsBrowserDialog` — name + two-pane folder-tree(icons) \| folder-contents(kind icons) + New Folder (button **and** right-click) + commit-time overwrite-confirm + path preview; demo S14; reuses `CategoryNode`/`IIconProvider`/picker idioms. No `Hrot.*` types. | `a5ef2683` |
+| 42 | New flow → the dialog: recipe Tree picker → Save-As browser → `CreateNew` → blueprint save (`AssetSavePath.Compose`) → `RefreshFromAssembly` → open catalogued. `ToCategoryNode` helper. | `20c42974` |
+| 43 | Document + scenario Save-As → the same dialog (shared `BuildSaveAsRequest`); `AssetNameFolderModal` retired (class kept). | `f7478924` |
+
+**Decision (D-T8-4):** chose **(b)** — name up front via the Save-As browser — because the proper-(a) enabler
+(open-from-in-memory) turned out to be **per-subsystem document-pipeline surgery across 3 divergent factories**, not a
+uniform tweak. **Proper (a) is fully designed and deferred → DBT-A4** (marked **sonnet, not Zoo**).
+
+## Please runtime-test (round 3)
+- **New** (toolbar/File→New/Ctrl+N) → recipe picker → **Save-As browser**: Name auto-focused; folders show with icons;
+  selecting a folder lists its existing assets (kind icons); **＋ New Folder** *and* right-click → New Folder (focused
+  popup, Enter/Esc); created folder appears + selectable; clicking an existing asset prefills the name; **Create**
+  with an existing name → overwrite confirmation; Enter=Create, Esc=Cancel → asset is created **and opened**.
+- **Save As** (document + scenario) → the same dialog.
+
+## Still user-gated (no action without your OK)
+- **DBT-A1:** delete the retired `RecipeCreateModal`/`NewFromRecipeService` **and now `AssetNameFolderModal`** (+tests) — awaits your approval.
+- **DBT-A2:** Scenario menu kept per your directive.
+- **DBT-A4:** proper-(a) open-from-in-memory (name-on-first-save) — deferred; **sonnet, not Zoo** when you want it.
