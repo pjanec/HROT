@@ -61,7 +61,7 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 
 - [x] **TASK-HS-01** Command sink: **create state** (`ApplyAddNode`, incl. promote-to-composite) → [details](./TASK-DETAIL.md#task-hs-01--command-sink-create-state) *(BATCH-HS-01, verified+committed; adds HsmAsset Register/Unregister State+Transition API; promotion automatic via Kind/reparent; Hsm.Editor.Tests 390/0)*
 - [x] **TASK-HS-02** Command sink: **delete state** (`ApplyRemoveNodes` full cascade) → [details](./TASK-DETAIL.md#task-hs-02--command-sink-delete-state) *(BATCH-HS-02, verified+committed; full subtree cascade + incident transition cleanup + BB1 auto-var removal; Hsm.Editor.Tests 402/0)*
-- [ ] **TASK-HS-03** Command sink: **draw transition** (`ApplyAddLink` → new `TransitionNode`) → [details](./TASK-DETAIL.md#task-hs-03--command-sink-draw-transition)
+- [x] **TASK-HS-03** Command sink: **draw transition** (`ApplyAddLink` → new `TransitionNode`) → [details](./TASK-DETAIL.md#task-hs-03--command-sink-draw-transition) *(BATCH-HS-03, verified+committed; HsmAsset pin→state resolvers + validator-gated ApplyAddLink; projects to Links; Hsm.Editor.Tests 408/0)*
 - [ ] **TASK-HS-04** Command sink: **delete transition** + container collapse (`ApplyRemoveLinks` create-path, `ApplySetContainerCollapsed`) → [details](./TASK-DETAIL.md#task-hs-04--command-sink-delete-transition--collapse)
 - [ ] **TASK-HS-05** Initial-state arrows (finish `HsmInitialArrowRenderer` TODO) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-hs-05--initial-state-arrows)
 - [ ] **TASK-HS-06** Validation surfacing: Diagnostics + node state + feed `HsmRegionConflictsRenderer` **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-hs-06--validation-surfacing)
