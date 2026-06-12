@@ -47,7 +47,9 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 - [x] **TASK-BT-09** Fix duplicate CombatShowcase — `[BTreeDefinition]` now carries `AssetId` (mirrors HSM); assembly contributor uses it → dedupes vs JSON. *(BATCH-09, verified+committed; lead reverted a showcase scope-creep + verified the 2 Generators.Tests fails are pre-existing on HEAD; one-entry confirmed → REVIEW-BT-2)*
 - [ ] **TASK-BT-10** **BTree vertical pin orientation** (NodeEditor change) — input/parent pin on TOP, child pin on BOTTOM, vertical wires (tree look). Wire routing already position-agnostic; needs a per-graph-kind orientation flag in `CanvasLayoutBuilder` + label/editor positioning. **DESIGN NUANCE:** interacts with the reversed-pin convention — see DECISIONS D-06 (pending user confirm). Shared-lib + visual → lead-spec.
 - [ ] **TASK-BT-11** *(minor)* FlowControl composite color (gray → orange per host doc) — theme tweak.
-- [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..11.
+- [x] **TASK-BT-12** *(CRITICAL)* Fault-tolerant codegen — emit core throws on emitted-unbound leaf; generator skips asset + `BTREE0002` Warning (not Error); csproj exempts BTREE0002 from TWAE. *(BATCH-12, verified+committed via generator/emit tests + clean build; live full-build-with-invalid-asset proof blocked by an unrelated MSBuild sandbox crash → confirm in REVIEW-BT-2)*
+- [ ] **TASK-BT-13** Palette offers only **bindable** actions/conditions (DtoType matches blackboard) — closes the 2nd build-break path (DTO-param method can't bind) at the source + usability. Editor-side. (VE-DEBT-002 partial.)
+- [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..13 (incl. add-node→wire→build-survives, vertical pins, color).
 
 ## Phase B — HSM to usable (after Phase A pattern is proven)
 
