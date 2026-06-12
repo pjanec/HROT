@@ -40,6 +40,15 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 - [ ] **TASK-BT-07** *(optional — DEFERRED)* In-process quick reload for BTree (PU-09) → [details](./TASK-DETAIL.md#task-bt-07-optional--in-process-quick-reload) *(large/risky; lead-handled or post-REVIEW-BT)*
 - [ ] **REVIEW-BT** *(USER visual smoke — pending)* — run the editor, open CombatShowcase: confirm category colors (BT-02), pill glyph+param (BT-03), inline validation outline/⚠ (BT-05), specific actions in palette (BT-01); note OBSERVES/real-condition gap (VE-DEBT-002) + deferred inspector banner (BT-05b). Then signal blueprint-finalize to run **REVIEW-BB1(BTree)**.
 
+## REVIEW-BT findings (2026-06-12 user visual smoke) — follow-ups
+
+Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT-02), red validation frame on invalid tree (BT-05). Two CombatShowcase shown (1 rich/JSON, 1 single-node/assembly).
+- [x] **TASK-BT-08** Wire Add-Node picker (`BTreePickerSources` → `"nodes.all"`) — root cause: picker source never registered (Blueprint has it). *(BATCH-08, verified+committed; picker-opens-visually → REVIEW-BT-2)*
+- [ ] **TASK-BT-09** Fix duplicate CombatShowcase — generated `[BTreeDefinition]` lacks `AssetId` → assembly contributor not deduped vs JSON. Emit `AssetId` so they dedupe (verify in batch).
+- [ ] **TASK-BT-10** **BTree vertical pin orientation** (NodeEditor change) — input/parent pin on TOP, child pin on BOTTOM, vertical wires (tree look). Wire routing already position-agnostic; needs a per-graph-kind orientation flag in `CanvasLayoutBuilder` + label/editor positioning. **DESIGN NUANCE:** interacts with the reversed-pin convention — see DECISIONS D-06 (pending user confirm). Shared-lib + visual → lead-spec.
+- [ ] **TASK-BT-11** *(minor)* FlowControl composite color (gray → orange per host doc) — theme tweak.
+- [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..11.
+
 ## Phase B — HSM to usable (after Phase A pattern is proven)
 
 - [ ] **TASK-HS-01** Command sink: **create state** (`ApplyAddNode`, incl. promote-to-composite) → [details](./TASK-DETAIL.md#task-hs-01--command-sink-create-state)
