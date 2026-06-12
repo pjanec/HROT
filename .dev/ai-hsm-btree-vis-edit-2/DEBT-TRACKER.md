@@ -7,6 +7,8 @@
 |---|---|---|---|---|---|
 | VE-DEBT-001 | HSM-state 4-slot param binding (= DEBT-BF-04) | P2 | blueprint-finalize/BATCH-BB1A review | BB1's type-filtered param-binding picker + Promote covers HSM **transitions/globals only, NOT states**. An HSM state hosts 4 action slots (Entry/Exit/Activity/Timer); the "one DTO → one variable" model needs a per-slot extension. **Needs an architect design call** — not an autonomous guess. Blocks `REVIEW-BB1(HSM)` (NOT the HSM authoring tasks HS-01..08). Cross-ref: `.dev/blueprint-finalize/DEBT-TRACKER.md` DEBT-BF-04. | OPEN — design call (NotebookLM/architect) before/at the HSM visual pass |
 
+| VE-DEBT-002 | Real-condition codegen binding for BrainBlackboard trees | P2 | BATCH-06 review | The BTree generator emits `.Condition(Method)` as a 4-param `NodeLogicDelegate<TBB,TContext>`, but every real `[BTreeCondition]` takes a typed DTO param and `BrainBlackboard` has no DTO-typed field for the `ThreeParamReusable` expression-target path → a real condition can't be bound into a BrainBlackboard-typed generated tree that compiles. CombatShowcase therefore omits its bound Condition guard (so the **OBSERVES-badge demo** is not exercised). Needs the expression-target/blackboard-field machinery (BB1-adjacent) — likely resolved alongside BB1 / Blackboard Slice 1.5. | OPEN — flag at REVIEW-BT |
+
 ---
 
 ## Notes
