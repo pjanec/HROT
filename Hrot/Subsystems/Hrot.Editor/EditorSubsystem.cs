@@ -110,6 +110,10 @@ using Fdp.Toolkit.ReplayBrowser.Search;
 // AIE-015: shared AI editor infrastructure
 using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Host;
+using Hrot.BTree.Editor.Model;
+using Hrot.BTree.Editor.Persistence;
+using Hrot.AiEditor.Persistence.BTree;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.Blueprints.Editor.Catalog;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Catalog;
@@ -291,6 +295,9 @@ namespace Hrot.Editor
         // AIE-026 (Blueprint): Quick Reload trigger — null until Phase 4 wires QuickReloadService.
         // Receives IEditableAsset (a BlueprintFileAsset in Phase 2; a loaded BlueprintAsset in Phase 4).
         private Action<Hrot.Editor.AiShared.IEditableAsset>? _blueprintQuickReloadTrigger;
+        // QR-03: BTree quick-reload trigger — wired in Phase 4 alongside _blueprintQuickReloadTrigger.
+        // Invokes ToDto → EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (no IEditableAsset param).
+        private Action? _btreeQuickReloadTrigger;
         // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
         private QuickReloadService? _blueprintQuickReloadService;
         private Hrot.Blueprints.Editor.BlueprintPeerSource? _blueprintAssetCatalog;
@@ -3004,6 +3011,29 @@ namespace Hrot.Editor
                     _blueprintCompileStatus = result.Succeeded
                         ? $"Compiled in {result.DurationMs}ms"
                         : $"Compile failed: {result.ErrorMessage}";
+                };
+
+                // QR-03: BTree quick-reload trigger — active BehaviorTreeAsset → ToDto →
+                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
+                _btreeQuickReloadTrigger = () =>
+                {
+                    var ctx     = _aiDocumentManager?.Active?.ViewState
+                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var btAsset = ctx?.AssetRef as Hrot.BTree.Editor.Model.BehaviorTreeAsset;
+                    if (btAsset == null) { _blueprintCompileStatus = "No active BTree document."; return; }
+
+                    var dto      = Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(btAsset);
+                    var topology  = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitTopologyCore(dto);
+                    var bridge    = Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.EmitBridge(dto);
+
+                    var asmName = $"BTreePatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
+                    var result = quickReloadService.TriggerFromSourcesAsync(
+                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
+                        asmName).GetAwaiter().GetResult();
+
+                    _blueprintCompileStatus = result.Succeeded
+                        ? $"Compiled BTree '{dto.Name}' in {result.DurationMs}ms"
+                        : $"BTree compile failed: {result.ErrorMessage}";
                 };
 
                 var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
