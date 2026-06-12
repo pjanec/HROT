@@ -35,13 +35,17 @@ public sealed class BTreeNodeCatalog : INodeCatalog
     private IReadOnlyList<NodeCatalogEntry> _dynamicEntries;
     private IReadOnlyList<NodeCatalogEntry> _all;
     private readonly IActionSchemaExporter? _actionSchema;
+    private readonly string? _blackboardTypeName;
 
     public BTreeNodeCatalog() : this(null) { }
 
-    public BTreeNodeCatalog(IActionSchemaExporter? actionSchema)
+    public BTreeNodeCatalog(
+        IActionSchemaExporter? actionSchema,
+        string? blackboardTypeName = null)
     {
         _staticEntries = BuildStaticEntries();
         _actionSchema = actionSchema;
+        _blackboardTypeName = blackboardTypeName;
 
         if (actionSchema != null)
         {
@@ -74,13 +78,19 @@ public sealed class BTreeNodeCatalog : INodeCatalog
         return result.AsReadOnly();
     }
 
-    private static IReadOnlyList<NodeCatalogEntry> BuildDynamicEntries(IActionSchemaExporter schema)
+    private IReadOnlyList<NodeCatalogEntry> BuildDynamicEntries(IActionSchemaExporter schema)
     {
         var entries = new List<NodeCatalogEntry>();
         foreach (var kv in schema.All)
         {
             var entry = kv.Value;
             if (!entry.Hosting.HasFlag(ActionHosting.BTree))
+                continue;
+
+            // When a blackboard type name is known, filter to actions/conditions
+            // whose DtoType matches the asset's blackboard so the codegen can bind.
+            if (!string.IsNullOrEmpty(_blackboardTypeName)
+                && entry.DtoType?.FullName != _blackboardTypeName)
                 continue;
 
             var shortName = kv.Key.Substring(kv.Key.LastIndexOf('.') + 1);

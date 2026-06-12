@@ -103,7 +103,7 @@ public static class BTreeDocumentFactory
         var graphModel = new BTreeGraphModel(btAsset);
 
         // ── 2. Kind-specific host components ─────────────────────────────────
-        var nodeCatalog  = new BTreeNodeCatalog(actionSchema);
+        var nodeCatalog  = new BTreeNodeCatalog(actionSchema, btAsset.BlackboardTypeName);
         var typeSystem   = new BTreeTypeSystem();
         var validator    = new BTreeLinkValidator(graphModel);
         var commandSink  = new BTreeCommandSink(btAsset, graphModel);

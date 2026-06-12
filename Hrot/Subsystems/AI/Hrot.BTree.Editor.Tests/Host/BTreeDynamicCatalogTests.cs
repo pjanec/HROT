@@ -52,6 +52,10 @@ public sealed class FakeActionSchemaExporter : IActionSchemaExporter
 // Tests T2–T8
 // ---------------------------------------------------------------------------
 
+// Test DTO types for blackboard-type filtering tests (BATCH-13).
+public sealed class BrainBlackboardStub { }
+public sealed class SomeOtherDto { }
+
 public sealed class BTreeDynamicCatalogTests
 {
     private static BehaviorTreeBlob EmptyBlob() =>
@@ -291,6 +295,101 @@ public sealed class BTreeDynamicCatalogTests
         node!.KernelType.Should().Be(NodeType.Action);
         // Generic action must NOT bake a MethodFqn.
         node.Action.Should().BeNull();
+    }
+
+    // ---- BATCH-13 — blackboard-type filtering ----
+
+    [Fact]
+    public void Catalog_FiltersToBlackboardCompatibleActions()
+    {
+        var fake = new FakeActionSchemaExporter();
+        var matchingFqn    = "Ns.Combat.DoThing";
+        var mismatchedFqn  = "Ns.Combat.DoOther";
+
+        fake.Seed(matchingFqn, new ActionSchemaEntry(
+            matchingFqn, typeof(BrainBlackboardStub), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+        fake.Seed(mismatchedFqn, new ActionSchemaEntry(
+            mismatchedFqn, typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        // Matching DtoType → offered.
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::" + matchingFqn);
+        // Mismatched DtoType → filtered out.
+        catalog.All.Should().NotContain(e => e.Kind.Id == "bt.leaf.action::" + mismatchedFqn);
+    }
+
+    [Fact]
+    public void Catalog_FiltersToBlackboardCompatibleConditions()
+    {
+        var fake = new FakeActionSchemaExporter();
+        var matchingFqn    = "Ns.Combat.IsThing";
+        var mismatchedFqn  = "Ns.Combat.IsOther";
+
+        fake.Seed(matchingFqn, new ActionSchemaEntry(
+            matchingFqn, typeof(BrainBlackboardStub), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: true));
+        fake.Seed(mismatchedFqn, new ActionSchemaEntry(
+            mismatchedFqn, typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: true));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.condition::" + matchingFqn);
+        catalog.All.Should().NotContain(e => e.Kind.Id == "bt.leaf.condition::" + mismatchedFqn);
+    }
+
+    [Fact]
+    public void Catalog_NullBlackboard_NoDtoFilter()
+    {
+        var fake = new FakeActionSchemaExporter();
+        fake.Seed("Ns.Combat.DoThing", new ActionSchemaEntry(
+            "Ns.Combat.DoThing", typeof(BrainBlackboardStub), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+        fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
+            "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        // blackboardTypeName: null → no DTO filter (back-compat).
+        var catalog = new BTreeNodeCatalog(fake, null);
+
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Combat.DoThing");
+        catalog.All.Should().Contain(e => e.Kind.Id == "bt.leaf.action::Ns.Combat.DoOther");
+    }
+
+    [Fact]
+    public void Catalog_StaticEntries_AlwaysPresent()
+    {
+        var fake = new FakeActionSchemaExporter();
+        // Seed only an incompatible action to ensure dynamic entries are filtered out.
+        fake.Seed("Ns.Combat.DoOther", new ActionSchemaEntry(
+            "Ns.Combat.DoOther", typeof(SomeOtherDto), ActionHosting.BTree,
+            BlackboardAccess.Unknown, null, IsCondition: false));
+
+        var catalog = new BTreeNodeCatalog(fake, typeof(BrainBlackboardStub).FullName);
+
+        // Dynamic mismatched entry must NOT appear.
+        catalog.All.Should().NotContain(e => e.Kind.Id == "bt.leaf.action::Ns.Combat.DoOther");
+
+        // Static entries must always be present regardless of the filter.
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Sequence);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Selector);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Parallel);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Root);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Action);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Condition);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Wait);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Subtree);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Inverter);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Repeater);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.Cooldown);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.ForceSuccess);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.ForceFailure);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.UntilSuccess);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.UntilFailure);
+        catalog.All.Should().Contain(e => e.Kind.Id == BTreeKinds.ObserverSelector);
     }
 }
 
