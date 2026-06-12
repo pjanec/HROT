@@ -3187,6 +3187,35 @@ namespace Hrot.Editor
                 // Blueprint-only StepBack — registered too; toolbar adapter resolves enabled state live.
                 ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
                     AiDebugCommands.StepBackId, toolbarIconProvider, aiSort++);
+
+                // ── C. Build / reload (§9, sortOrder range 50–51) ──────────────────────
+                windowManager.ShellCommands.Register(
+                    new EditorCommandDescriptor(
+                        Id:          "blueprint.compileReload",
+                        DisplayName: "Compile / Reload",
+                        Category:    "Blueprint",
+                        Description: "Compile & hot-reload the active blueprint",
+                        IconKey:     "build/compile",
+                        DefaultKey:  null,
+                        IsEnabled:   () => _aiDocumentManager?.Active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint),
+                    _ => _blueprintCompileCallback?.Invoke());
+
+                windowManager.ShellCommands.Register(
+                    new EditorCommandDescriptor(
+                        Id:          "blueprint.fullRebuild",
+                        DisplayName: "Full Rebuild",
+                        Category:    "Build",
+                        Description: "Rebuild all AI behavior assets",
+                        IconKey:     "build/rebuild",
+                        DefaultKey:  null,
+                        IsEnabled:   () => true),
+                    _ => _blueprintFullRebuildCallback?.Invoke());
+
+                windowManager.MainToolbar.RegisterSeparator("ToolbarSep_AiDebugToBuild", sortOrder: 49);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    "blueprint.compileReload", toolbarIconProvider, sortOrder: 50);
+                ToolbarCommandAdapter.Register(windowManager.MainToolbar, windowManager.ShellCommands,
+                    "blueprint.fullRebuild", toolbarIconProvider, sortOrder: 51);
             }
             // ───────────────────────────────────────────────────────────────────────────────────
 

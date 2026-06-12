@@ -121,6 +121,10 @@ public sealed class SilkIconProvider : IIconProvider
             ["shell/save"]            = "g9",   // disk / floppy — save
             ["shell/saveAs"]          = "h8",   // disk variant — save as
             ["shell/saveAll"]         = "i1",   // disk shape — save all
+
+            // ── Build / reload (toolbar) ──────────────────────────────────────
+            ["build/compile"]         = "b4",   // lightning → compile / quick reload
+            ["build/rebuild"]         = "d4",   // refresh → full rebuild
         };
 
     /// <summary>
