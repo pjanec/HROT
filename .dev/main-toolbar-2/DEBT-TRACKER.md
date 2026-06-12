@@ -63,6 +63,7 @@ Confirmed good: A14 keyboard nav + ordered ↑/↓ + ←/→ expand; A13 icon ho
 | ID | Pri | Description | Batch | Status |
 |----|-----|-------------|-------|--------|
 | BUG-A20 | P1 | **Picker mouse-wheel scrolling impossible** — `SetScrollHereY` fired on the focused row every frame, snapping the view back. | BATCH-52 | **DONE (2458fc00)** — one-shot `ScrollToFocus` flag set only by keyboard nav; gates all `SetScrollHereY` sites. |
+| BUG-A21 | P1 | **Scenario menu inconsistency** — after DBT-A2 the File menu kept a DISABLED Save Scenario / Save Scenario As while the Scenario menu lost Save. User: drop the top-level Scenario menu; add a **File → Scenario** submenu with New/Load/Save/Save As/Migration History, all always-enabled. | BATCH-54 | **DONE (8547a53c)** — MenuPrefix→`File/Scenario`; 5 always-enabled items; disabled File surfacings removed; Ctrl+S unchanged. Supersedes the BATCH-53 DBT-A2 removal. |
 
 ## Notes ▸ Proper (a): open-from-in-memory (DBT-A4, DROPPED 2026-06-12 — kept for reference only)
 **Goal:** New = recipe Tree picker → `INewAssetService.CreateNew(recipe, defaultName, "")` (default name, EMPTY
