@@ -348,4 +348,38 @@ public sealed class EditorSubsystemBlueprintWindowsTests
         Assert.True(wm.MainToolbar.ContainsEntry("shell.openAsset"),
             "Expected the 'shell.openAsset' entry to remain in the MainToolbar.");
     }
+
+    // ── MTB2-T5 (BATCH-34): File menu has all save commands ────────────────
+
+    /// <summary>
+    /// MTB2-T5: After <see cref="EditorSubsystem.RegisterWindows"/> the File menu
+    /// contains the five save entries plus the existing Open Asset… entry.
+    /// </summary>
+    [Fact]
+    public void EditorSubsystem_RegisterWindows_FileMenuHasSaveCommands()
+    {
+        var subsystem = new EditorSubsystem();
+        var wm = MakeWindowManager();
+
+        subsystem.RegisterWindows(wm);
+
+        // Navigate to the File menu node.
+        Assert.True(wm.GlobalMenu.Root.Children.TryGetValue("File", out var fileNode),
+            "Expected 'File' top-level menu to exist.");
+
+        // Assert all expected items are present.
+        Assert.True(fileNode.Children.ContainsKey("Save"),
+            "Expected 'Save' under File menu.");
+        Assert.True(fileNode.Children.ContainsKey("Save As…"),
+            "Expected 'Save As…' under File menu.");
+        Assert.True(fileNode.Children.ContainsKey("Save All"),
+            "Expected 'Save All' under File menu.");
+        Assert.True(fileNode.Children.ContainsKey("Open Asset…"),
+            "Expected 'Open Asset…' under File menu.");
+        Assert.True(fileNode.Children.ContainsKey("Save Scenario"),
+            "Expected 'Save Scenario' under File menu.");
+
+        // The Editor perspective label must be set to "Scenario".
+        Assert.Equal("Scenario", wm.GetPerspectiveLabel("Editor"));
+    }
 }

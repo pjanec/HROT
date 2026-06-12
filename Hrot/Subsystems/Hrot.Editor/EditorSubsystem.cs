@@ -3055,6 +3055,9 @@ namespace Hrot.Editor
                 windowManager.RegisterPerspectiveIconKey("Blueprints", "asset/blueprint");
                 windowManager.RegisterPerspectiveIconKey("Editor",     "perspective/editor");
 
+                // MTB2-T5: Show "Editor" perspective as "Scenario" in the Perspective menu.
+                windowManager.RegisterPerspectiveLabel("Editor", "Scenario");
+
                 // ── A. Perspective group (§8, sortOrder range 20–29) ──────────────────────
                 _perspectiveToolbarSection = new PerspectiveToolbarSection(
                     windowManager, toolbarIconProvider, windowManager.MainToolbar, sortOrder: 20);
@@ -3085,6 +3088,29 @@ namespace Hrot.Editor
             // BATCH-26: File → Open Asset… menu item (Ctrl+O shortcut attached via descriptor).
             MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
                 openAssetId, "File/Open Asset…");
+
+            // ── MTB2-T5 (BATCH-34): File menu save entries ──────────────────────────
+            // Guard each with Get(id) != null so the bare-ctor RegisterWindows path is null-safe.
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId) != null)
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId, "File/Save");
+
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId) != null)
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAsId, "File/Save As…");
+
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId) != null)
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveAllId, "File/Save All");
+
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveId) != null)
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveId, "File/Save Scenario");
+
+            if (windowManager.ShellCommands.Get(Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveAsId) != null)
+                MenuCommandAdapter.Register(windowManager.GlobalMenu, windowManager.ShellCommands,
+                    Hrot.Editor.AiShared.Documents.ShellSaveCommands.ScenarioSaveAsId, "File/Save Scenario As…");
+            // ─────────────────────────────────────────────────────────────────────────
 
             if (_editorLogic == null) return;
 

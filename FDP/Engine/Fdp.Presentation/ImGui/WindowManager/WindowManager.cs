@@ -19,6 +19,7 @@ public class WindowManager
 
     private readonly Dictionary<string, ManagedWindow> _windows = new();
     private readonly Dictionary<string, string> _perspectiveIconKeys = new();
+    private readonly Dictionary<string, string> _perspectiveLabels = new();
     private readonly IconAtlas _atlas;
     private const int ActionAbout = -1;
 
@@ -196,6 +197,23 @@ public class WindowManager
     /// </summary>
     public void RegisterPerspectiveIconKey(string perspective, string iconKey)
         => _perspectiveIconKeys[perspective] = iconKey;
+
+    /// <summary>
+    /// Registers a display label override for <paramref name="perspective"/>.
+    /// When set, <see cref="GetPerspectiveLabel"/> returns the label instead of the id.
+    /// Used by <see cref="RenderPerspectiveMenu"/> to show a human-readable name while
+    /// <see cref="SelectPerspective"/> continues to use the id (§MTB2-T5).
+    /// </summary>
+    public void RegisterPerspectiveLabel(string perspective, string label)
+        => _perspectiveLabels[perspective] = label;
+
+    /// <summary>
+    /// Returns the display label for <paramref name="perspective"/> when one was
+    /// registered via <see cref="RegisterPerspectiveLabel"/>; otherwise returns
+    /// <paramref name="perspective"/> unchanged.
+    /// </summary>
+    public string GetPerspectiveLabel(string perspective)
+        => _perspectiveLabels.TryGetValue(perspective, out var l) ? l : perspective;
 
     /// <summary>
     /// Returns the icon key for <paramref name="perspective"/>: checks the directly
@@ -653,7 +671,7 @@ public class WindowManager
             foreach (var (perspective, isChecked) in BuildPerspectiveMenuModel())
             {
                 bool isCheckedCopy = isChecked;
-                if (Gui.MenuItem(perspective, "", ref isCheckedCopy))
+                if (Gui.MenuItem(GetPerspectiveLabel(perspective), "", ref isCheckedCopy))
                 {
                     SelectPerspective(perspective);
                 }
