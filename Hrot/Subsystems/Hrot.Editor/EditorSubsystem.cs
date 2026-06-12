@@ -3252,11 +3252,22 @@ namespace Hrot.Editor
                         Id:          "blueprint.compileReload",
                         DisplayName: "Compile / Reload",
                         Category:    "Blueprint",
-                        Description: "Compile & hot-reload the active blueprint",
+                        Description: "Compile & hot-reload the active blueprint / BTree / HSM",
                         IconKey:     "build/compile",
                         DefaultKey:  null,
-                        IsEnabled:   () => _aiDocumentManager?.Active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint),
-                    _ => _blueprintCompileCallback?.Invoke());
+                        IsEnabled:   () => _aiDocumentManager?.Active?.Kind
+                            is Hrot.Editor.AiShared.AssetKind.Blueprint
+                            or Hrot.Editor.AiShared.AssetKind.BTree
+                            or Hrot.Editor.AiShared.AssetKind.Hsm),
+                    _ =>
+                    {
+                        switch (_aiDocumentManager?.Active?.Kind)
+                        {
+                            case Hrot.Editor.AiShared.AssetKind.Blueprint: _blueprintCompileCallback?.Invoke(); break;
+                            case Hrot.Editor.AiShared.AssetKind.BTree:     _btreeQuickReloadTrigger?.Invoke();  break;
+                            case Hrot.Editor.AiShared.AssetKind.Hsm:       _hsmQuickReloadTrigger?.Invoke();    break;
+                        }
+                    });
 
                 windowManager.ShellCommands.Register(
                     new EditorCommandDescriptor(
