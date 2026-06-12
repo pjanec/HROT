@@ -436,10 +436,10 @@ public static class BTreeEmitCore
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
-        if (p == null)
+        if (p == null || string.IsNullOrEmpty(p.MethodFqn))
         {
-            sb.AppendLine($"{pad}{methodPrefix}Action({visualId}){term}");
-            return;
+            throw new InvalidOperationException(
+                $"Action node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
         string methodRef = ShortMethodRef(p.MethodFqn);
@@ -462,10 +462,10 @@ public static class BTreeEmitCore
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
         string term = isLast ? ";" : ",";
 
-        if (p == null)
+        if (p == null || string.IsNullOrEmpty(p.MethodFqn))
         {
-            sb.AppendLine($"{pad}{methodPrefix}Condition({visualId}){term}");
-            return;
+            throw new InvalidOperationException(
+                $"Condition node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
         string methodRef = ShortMethodRef(p.MethodFqn);

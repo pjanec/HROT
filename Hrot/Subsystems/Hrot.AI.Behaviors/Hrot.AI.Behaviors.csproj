@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- BTREE0002 = "BTree asset skipped (codegen validation)" — an editor-owned asset that is
+         mid-edit/invalid (e.g. an unbound Action/Condition) must NOT break the assembly build;
+         it is skipped + surfaced as a warning so the editor still launches (JSON-DD §1). Keep TWAE
+         for everything else. Mirror for BTREE HSM equivalent if/when added. -->
+    <WarningsNotAsErrors>BTREE0002</WarningsNotAsErrors>
     <OutputType>Library</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

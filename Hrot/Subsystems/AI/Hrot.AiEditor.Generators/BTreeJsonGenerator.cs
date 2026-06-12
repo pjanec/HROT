@@ -17,8 +17,11 @@ namespace Hrot.AiEditor.Generators;
 [Generator(LanguageNames.CSharp)]
 public sealed class BTreeJsonGenerator : IIncrementalGenerator
 {
-    /// <summary>Diagnostic code for BTree JSON parse/emit errors.</summary>
+    /// <summary>Diagnostic code for BTree JSON parse/deserialize errors.</summary>
     public const string DiagnosticId = "BTREE0001";
+
+    /// <summary>Diagnostic code for BTree codegen validation failures (skipped asset, non-build-breaking).</summary>
+    public const string CodegenWarningId = "BTREE0002";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -70,7 +73,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
         catch (Exception ex)
         {
-            spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
                 "Exception during code generation: " + ex.Message));
             return;
         }
@@ -89,7 +92,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
         catch (Exception ex)
         {
-            spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
                 "Exception during bridge code generation: " + ex.Message));
             return;
         }
@@ -97,7 +100,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         spc.AddSource(baseName + ".Registrar.g.cs", bridge);
     }
 
-    /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/emit error.</summary>
+    /// <summary>Creates a Roslyn diagnostic for a BTree JSON parse/deserialize error.</summary>
     internal static Diagnostic MakeParseErrorDiagnostic(string path, string detail)
     {
         // Descriptor created inline to avoid RS2008 (release tracking required for static fields).
@@ -108,6 +111,19 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             messageFormat:      "Failed to process '{0}': {1}",
             category:           "BTreeJsonGenerator",
             defaultSeverity:    DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+        return Diagnostic.Create(descriptor, Location.None, path, detail);
+    }
+
+    /// <summary>Creates a Roslyn Warning diagnostic for a BTree codegen validation failure.</summary>
+    internal static Diagnostic MakeCodegenWarningDiagnostic(string path, string detail)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            id:                 CodegenWarningId,
+            title:              "BTree asset skipped (codegen validation)",
+            messageFormat:      "Skipped '{0}': {1}. Fix the asset in the editor.",
+            category:           "BTreeJsonGenerator",
+            defaultSeverity:    DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
         return Diagnostic.Create(descriptor, Location.None, path, detail);
     }

@@ -259,4 +259,176 @@ public sealed class BTreeJsonGeneratorTests
         full.Should().Contain("[BTreeDefinition(",
             "full emit must include [BTreeDefinition]");
     }
+
+    // ── BATCH-12: unbound leaf → codegen warning, not build break ───────────────
+
+    [Fact]
+    public void Generator_UnboundActionAsset_DoesNotEmitSource_AndReportsWarning()
+    {
+        // Arrange: a .btree.json whose reachable tree contains an Action leaf with no Action payload
+        string json = BuildUnboundActionJson();
+        var additionalText = MakeAdditionalText("/path/UnboundAction.btree.json", json);
+
+        // Act
+        var result = RunGenerator(additionalText);
+
+        // Assert: no sources emitted (asset skipped)
+        result.GeneratedTrees.Should().BeEmpty(
+            "an unbound Action asset must not emit any generated source");
+
+        // Assert: a Warning diagnostic with BTREE0002 is reported
+        result.Diagnostics.Should().HaveCount(1,
+            "exactly one diagnostic must be reported for the unbound asset");
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "diagnostic must carry the BTREE0002 id");
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning,
+            "codegen validation diagnostic must be Warning severity (not Error) — so the build survives");
+    }
+
+    [Fact]
+    public void Generator_UnboundActionAsset_OutputCompilation_HasNoErrors()
+    {
+        // Arrange
+        string json = BuildUnboundActionJson();
+        var additionalText = MakeAdditionalText("/path/UnboundAction.btree.json", json);
+
+        // Act
+        var result = RunGenerator(additionalText);
+
+        // Assert: zero Error diagnostics in the generator output (the core guarantee)
+        var errors = result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        errors.Should().BeEmpty(
+            "the generator must not produce Error diagnostics for an unbound asset (build must survive)");
+
+        // Also verify the warning IS present
+        result.Diagnostics.Should().ContainSingle(d => d.Id == BTreeJsonGenerator.CodegenWarningId
+            && d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void Generator_UnboundConditionAsset_DoesNotEmitSource_AndReportsWarning()
+    {
+        // Arrange: a .btree.json whose reachable tree contains a Condition leaf with no Condition payload
+        string json = BuildUnboundConditionJson();
+        var additionalText = MakeAdditionalText("/path/UnboundCondition.btree.json", json);
+
+        // Act
+        var result = RunGenerator(additionalText);
+
+        // Assert: no sources emitted
+        result.GeneratedTrees.Should().BeEmpty(
+            "an unbound Condition asset must not emit any generated source");
+
+        // Assert: Warning with BTREE0002
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId);
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void Generator_ValidAsset_EmitsTopologyAndBridge_NoWarning()
+    {
+        // Arrange: a fully-bound valid asset (Root → Wait)
+        var model = LoadSampleScout();
+        var dto   = BehaviorTreeAssetMapper.ToDto(model);
+        string json = BTreeJsonServices.Serialize(dto);
+        var additionalText = MakeAdditionalText("/path/ValidAsset.btree.json", json);
+
+        // Act
+        var result = RunGenerator(additionalText);
+
+        // Assert: normal emission (core + bridge)
+        result.GeneratedTrees.Should().HaveCount(2,
+            "valid asset must emit topology core + bridge");
+
+        // Assert: no BTREE0002 warning
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "valid asset must not produce BTREE0002 warning");
+    }
+
+    [Fact]
+    public void Generator_UnboundActionAsset_DoesNotSuppressSiblingValidAsset()
+    {
+        // Arrange: one valid + one unbound
+        var model = LoadSampleScout();
+        var dto   = BehaviorTreeAssetMapper.ToDto(model);
+        string validJson = BTreeJsonServices.Serialize(dto);
+        string unboundJson = BuildUnboundActionJson();
+
+        var validText   = MakeAdditionalText("/p/Valid.btree.json", validJson);
+        var unboundText = MakeAdditionalText("/p/Unbound.btree.json", unboundJson);
+
+        // Act
+        var result = RunGenerator(validText, unboundText);
+
+        // Assert: valid asset still emits 2 files
+        result.GeneratedTrees.Should().HaveCount(2,
+            "the valid sibling must still emit core+bridge despite the unbound asset");
+
+        // Assert: exactly one Warning for the unbound asset
+        result.Diagnostics.Should().ContainSingle(d => d.Id == BTreeJsonGenerator.CodegenWarningId
+            && d.Severity == DiagnosticSeverity.Warning);
+
+        // No BTREE0001 errors (valid asset + unbound asset with codegen warning, not parse error)
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.DiagnosticId
+            && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    // ── BATCH-12 JSON helpers ───────────────────────────────────────────────────
+
+    private static string BuildUnboundActionJson()
+    {
+        var actionId = new Guid("20000000-0000-0000-0000-000000000002");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("10000000-0000-0000-0000-000000000001"),
+            Name = "UnboundAction",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = null, // unbound — no method
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+        return BTreeJsonServices.Serialize(dto);
+    }
+
+    private static string BuildUnboundConditionJson()
+    {
+        var condId = new Guid("30000000-0000-0000-0000-000000000003");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("10000000-0000-0000-0000-000000000001"),
+            Name = "UnboundCondition",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeConditionNodeDto
+                {
+                    VisualId = condId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Condition = null, // unbound — no method
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+        return BTreeJsonServices.Serialize(dto);
+    }
 }
