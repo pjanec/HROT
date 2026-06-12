@@ -341,6 +341,7 @@ public sealed class PickerWindow
         if (count == 0) return;
 
         ref int focusRow = ref _state.TreeFocusRow;
+        int oldFocusRow = focusRow;
 
         // ↑/↓ — move focus through visual rows.
         if (ImGui.IsKeyPressed(ImGuiKey.UpArrow))
@@ -355,6 +356,10 @@ public sealed class PickerWindow
             focusRow = 0;
         else if (ImGui.IsKeyPressed(ImGuiKey.End))
             focusRow = count - 1;
+
+        // One-shot scroll to the newly focused row (BATCH-52: only on keyboard focus change).
+        if (focusRow != oldFocusRow)
+            _state.ScrollToFocus = true;
 
         // → — request expand for focused folder (A16).
         if (ImGui.IsKeyPressed(ImGuiKey.RightArrow))
@@ -440,6 +445,7 @@ public sealed class PickerWindow
             }
         }
         _state.KeyboardFocusIndex = idx;
+        _state.ScrollToFocus = true;
     }
 
     // ── confirm / cancel ──────────────────────────────────────────────────────

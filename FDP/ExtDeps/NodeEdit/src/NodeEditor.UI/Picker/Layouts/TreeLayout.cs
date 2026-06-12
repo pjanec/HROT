@@ -141,9 +141,12 @@ internal static class TreeLayout
             state.PendingToggleOpen = !open;
         }
 
-        // Scroll focused folder into view.
-        if (isFocused)
+        // Scroll focused folder into view (one-shot, gated on keyboard-nav flag — BATCH-52).
+        if (isFocused && state.ScrollToFocus)
+        {
             ImGui.SetScrollHereY(0.5f);
+            state.ScrollToFocus = false;
+        }
 
         if (open)
         {
@@ -200,9 +203,12 @@ internal static class TreeLayout
             state.PendingToggleOpen = !open;
         }
 
-        // Scroll focused folder into view.
-        if (isFocused)
+        // Scroll focused folder into view (one-shot, gated on keyboard-nav flag — BATCH-52).
+        if (isFocused && state.ScrollToFocus)
+        {
             ImGui.SetScrollHereY(0.5f);
+            state.ScrollToFocus = false;
+        }
 
         if (open)
         {
@@ -310,9 +316,12 @@ internal static class TreeLayout
             state.Confirmed = true;
         }
 
-        // Scroll focused leaf into view.
-        if (focus)
+        // Scroll focused leaf into view (one-shot, gated on keyboard-nav flag — BATCH-52).
+        if (focus && state.ScrollToFocus)
+        {
             ImGui.SetScrollHereY(0.5f);
+            state.ScrollToFocus = false;
+        }
 
         ImGui.PopID();
     }

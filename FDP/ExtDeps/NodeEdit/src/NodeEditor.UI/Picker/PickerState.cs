@@ -52,6 +52,12 @@ internal sealed class PickerState
 
     internal readonly record struct TreeRow(bool IsFolder, string FolderPath, int FilteredIndex, int Depth);
 
+    // ── Scroll ───────────────────────────────────────────────────────────────
+    /// <summary>One-shot flag: set by keyboard navigation, consumed by the next
+    /// focused-row render to scroll it into view. Cleared after the scroll fires,
+    /// so mouse-wheel scrolling isn't snapped back on subsequent frames.</summary>
+    public bool ScrollToFocus;
+
     // ── Misc ─────────────────────────────────────────────────────────────────
     public bool Confirmed;
     public bool FocusSearchNextFrame = true;
@@ -129,6 +135,7 @@ internal sealed class PickerState
         PendingToggleOpen       = false;
         VisualRows.Clear();
         TreeFocusRow            = 0;
+        ScrollToFocus           = false;
         Confirmed               = false;
         FocusSearchNextFrame    = true;
         IsFirstFrame            = true;

@@ -217,8 +217,11 @@ internal static class PickerItemListHelper
             ImGui.EndPopup();
         }
 
-        if (isFocused)
+        if (isFocused && state.ScrollToFocus)
+        {
             ImGui.SetScrollHereY(0.5f);
+            state.ScrollToFocus = false;
+        }
 
         ImGui.PopID();
     }
