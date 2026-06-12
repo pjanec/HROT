@@ -12,6 +12,9 @@ namespace Fbt
         /// <summary>The logical name of the behavior tree (used as the catalog key).</summary>
         public string TreeName { get; }
 
+        /// <summary>Stable editor asset GUID (8-4-4-4-12). Set by the editor codegen; null for hand-authored.</summary>
+        public string? AssetId { get; set; }
+
         /// <summary>
         /// When true, signals that this asset uses an editor-managed companion blackboard file
         /// (e.g. {AssetName}.Blackboard.cs). The runtime ignores this flag; it is read by the

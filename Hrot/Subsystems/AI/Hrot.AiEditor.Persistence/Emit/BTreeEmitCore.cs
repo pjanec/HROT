@@ -508,9 +508,7 @@ public static class BTreeEmitCore
 
     private static void EmitBuild(StringBuilder sb, BehaviorTreeAssetDto dto)
     {
-        // Note: BTreeDefinitionAttribute does not have an AssetId property (unlike HsmDefinitionAttribute).
-        // The AssetId is recorded in the file header comment only.
-        sb.AppendLine($"{Indent}[BTreeDefinition(\"{dto.Name}\")]");
+        sb.AppendLine($"{Indent}[BTreeDefinition({QuoteStr(dto.Name)}, AssetId = {QuoteStr(dto.AssetId.ToString("D"))})]");
         sb.AppendLine($"{Indent}public static BehaviorTreeBlob Build() =>");
         sb.AppendLine($"{Indent}{Indent}CreateBuilder().Compile(\"{dto.Name}\");");
     }
@@ -692,6 +690,8 @@ public static class BTreeEmitCore
         if (char.IsDigit(sb[0])) sb.Insert(0, '_');
         return sb.ToString();
     }
+
+    private static string QuoteStr(string s) => $"\"{s}\"";
 
     private static string EscapeString(string s) =>
         s.Replace("\\", "\\\\").Replace("\"", "\\\"");

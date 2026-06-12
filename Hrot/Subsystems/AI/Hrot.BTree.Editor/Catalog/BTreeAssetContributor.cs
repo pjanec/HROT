@@ -48,8 +48,10 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
                 catch { blob = null; }
                 if (blob is null) continue;
 
-                // Derive an AssetId from the tree name via FNV-1a-32.
-                var assetId = AssetIdHasher.FromName(defAttr.TreeName);
+                // Derive an AssetId: prefer an explicit GUID on the attribute, else hash the tree name.
+                var assetId = !string.IsNullOrWhiteSpace(defAttr.AssetId) && Guid.TryParse(defAttr.AssetId, out var parsed)
+                    ? parsed
+                    : AssetIdHasher.FromName(defAttr.TreeName);
 
                 // Look for a matching layout method.
                 var layout = LayoutDiscovery.TryGetLayout<BTreeLayoutAttribute, BTreeEditorLayout>(

@@ -219,8 +219,8 @@ public sealed class ByteIdenticalGateTests
             "emitted file must begin with the HROT_EDITOR_GENERATED marker");
         coreOutput.Should().Contain(model.AssetId.ToString("D"),
             "emitted file must contain the AssetId");
-        coreOutput.Should().Contain("[BTreeDefinition(\"SampleScout\"",
-            "emitted file must contain the [BTreeDefinition] attribute");
+        coreOutput.Should().Contain("[BTreeDefinition(\"SampleScout\", AssetId = \"",
+            "emitted file must contain the [BTreeDefinition] attribute with const AssetId form");
         coreOutput.Should().Contain("[BTreeLayout(",
             "emitted file must contain the [BTreeLayout] method");
     }
@@ -253,5 +253,41 @@ public sealed class ByteIdenticalGateTests
         AiEmitCoreBase.EditorGeneratedMarker
             .Should().Be(Hrot.Editor.AiShared.Emit.FluentCSharpEmitterBase.EditorGeneratedMarker,
                 "AiEmitCoreBase and FluentCSharpEmitterBase must expose the same marker constant");
+    }
+
+    // ── BATCH-09: AssetId in [BTreeDefinition] ──────────────────────────────────
+
+    [Fact]
+    public void BTree_EmitTopologyCore_EmitsAssetId_InBTreeDefinitionAttribute()
+    {
+        // Arrange: a DTO with a known AssetId
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("12345678-90ab-cdef-1234-567890abcdef"),
+            Name = "TestTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = new Guid("10000000-0000-0000-0000-000000000001"),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+
+        // Act
+        string output = BTreeEmitCore.EmitTopologyCore(dto);
+
+        // Assert: [BTreeDefinition("TestTree", AssetId = "12345678-90ab-cdef-1234-567890abcdef")]
+        output.Should().Contain(
+            "[BTreeDefinition(\"TestTree\", AssetId = \"12345678-90ab-cdef-1234-567890abcdef\")]",
+            "EmitTopologyCore must emit AssetId in [BTreeDefinition] attribute");
     }
 }
