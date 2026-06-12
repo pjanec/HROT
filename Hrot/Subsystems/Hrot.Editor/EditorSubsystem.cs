@@ -2497,7 +2497,22 @@ namespace Hrot.Editor
 
                 if (dlg.CanConfirm())
                 {
-                    var r = dlg.Confirm(onCreated: a => _aiDocumentManager?.Open(a));
+                    var r = dlg.Confirm(onCreated: minted =>
+                    {
+                        // BUG-A1: Open requires the catalogued concrete asset (e.g. BlueprintFileAsset),
+                        // NOT the minted INewAssetService adapter. Resolve via the catalog by AssetId
+                        // (mirrors the retired RecipeCreateModal). Scenario is not document-backed.
+                        if (minted.Kind is Hrot.Editor.AiShared.AssetKind.Blueprint
+                            or Hrot.Editor.AiShared.AssetKind.BTree
+                            or Hrot.Editor.AiShared.AssetKind.Hsm)
+                        {
+                            var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
+                            if (catalogued != null)
+                                _aiDocumentManager?.Open(catalogued);
+                            else
+                                _saveAllStatus = $"[INFO] Created '{minted.Name}'. Open it from the Asset Browser (catalog refresh pending).";
+                        }
+                    });
                     _saveAllStatus = r.IsSuccess
                         ? $"[OK] Created new {kind}: '{r.Asset?.Name}'."
                         : $"[INFO] New {kind}: {r.Error}";
