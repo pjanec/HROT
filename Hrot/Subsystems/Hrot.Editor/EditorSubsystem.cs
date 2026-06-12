@@ -360,9 +360,6 @@ namespace Hrot.Editor
         // to avoid double-DrawFrame on the same registry instance.
         private NodeEditor.UI.Picker.PickerRegistry? _shellPickers;
 
-        // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
-        private Hrot.Editor.AiShared.Browser.AssetNameFolderModal? _assetNameFolderModal;
-
         // BATCH-42 (MTB2-T8b): Save-As browser dialog host for the New-asset flow.
         private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
 
@@ -1847,9 +1844,6 @@ namespace Hrot.Editor
             // BATCH-42 (MTB2-T8b): Draw the Save-As browser dialog (New flow).
             if (_saveAsBrowser != null && _iconProvider != null)
                 _saveAsBrowser.DrawFrame(_iconProvider);
-
-            // BATCH-40 (MTB2-T8): Draw the name+folder modal (New / Save-As).
-            _assetNameFolderModal?.DrawModal();
         }
 
         /// <inheritdoc/>
@@ -2317,31 +2311,37 @@ namespace Hrot.Editor
             _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
                 _shellInputSource);
 
-            // MTB2-T4: scenario Save-As seam — mirrors the existing ScenarioMenuCommands
-            // openSaveAsDialog path. BATCH-40 (DBT-2): opens the AssetNameFolderModal
-            // seeded with known subfolders from the catalog instead of auto-confirming.
+            // BATCH-43 (MTB2-T8b): scenario Save-As → SaveAsBrowserDialog (same browser as New + doc Save-As).
             Action openScenarioSaveAs = () =>
             {
-                if (_editorLogic != null && _newAssetServices != null)
+                if (_editorLogic == null || _newAssetServices == null) return;
+
+                var currentName = _editorLogic.LoadedScenarioName ?? "";
+                // Extract leaf name (e.g. "folder/my_scenario" → "my_scenario").
+                int lastSlash = currentName.LastIndexOf('/');
+                string initialName = lastSlash >= 0 ? currentName.Substring(lastSlash + 1) : currentName;
+
+                var fp = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+                    Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario, baseFolderFor));
+
+                var req = BuildSaveAsRequest(
+                    Hrot.Editor.AiShared.AssetKind.Scenario, "Save Scenario As",
+                    initialName, "", "Save", fp);
+
+                _saveAsBrowser?.Open(req, result =>
                 {
-                    var scenarioAsset = new ScenarioSaveAsAsset(
-                        _editorLogic.LoadedScenarioName ?? "Unnamed");
+                    if (!result.Confirmed) return;
 
-                    var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
-                        catalog.All, Hrot.Editor.AiShared.AssetKind.Scenario,
-                        baseFolderFor);
+                    // Compute full scenario name (trim leading "/").
+                    string dest = result.DestinationPath.TrimStart('/');
+                    string fullName = string.IsNullOrEmpty(dest)
+                        ? result.Name
+                        : dest + "/" + result.Name;
 
-                    var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
-                        scenarioAsset,
-                        _newAssetServices,
-                        knownFolderPaths: known,
-                        saveScenarioAs: fullName =>
-                        {
-                            _editorLogic?.SaveScenarioAs(fullName);
-                        });
-
-                    _assetNameFolderModal?.Open(dialog);
-                }
+                    _editorLogic?.SaveScenarioAs(fullName);
+                    _saveAllStatus = $"[OK] Saved scenario as '{fullName}'.";
+                });
             };
 
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
@@ -2353,22 +2353,36 @@ namespace Hrot.Editor
                 saveScenario:      null, // Scenario saved via IEditorLogic, not file delegate
                 requestSaveAs:     doc =>
                 {
-                    // BATCH-40 (DBT-2): open the AssetNameFolderModal seeded from
-                    // the document's asset with known subfolders from the catalog.
+                    // BATCH-43 (MTB2-T8b): open the SaveAsBrowserDialog;
+                    // on confirm, seed a SaveAsDialog to perform the fresh-id duplicate write.
                     if (_newAssetServices == null) return;
 
-                    var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
-                        catalog.All, doc.Asset.Kind,
-                        baseFolderFor);
+                    var fp = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+                        Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                            catalog.All, doc.Asset.Kind, baseFolderFor));
 
-                    var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
-                        doc.Asset,
-                        _newAssetServices,
-                        knownFolderPaths: known,
-                        saveMintOnlyAsset: saveAsBlueprintToFile,
-                        saveScenarioAs:    saveAsScenario);
+                    var req = BuildSaveAsRequest(
+                        doc.Asset.Kind, $"Save {doc.Asset.Kind} As",
+                        doc.Asset.Name, FolderOf(doc.Asset, doc.Asset.Kind, baseFolderFor),
+                        "Save", fp);
 
-                    _assetNameFolderModal?.Open(dialog);
+                    _saveAsBrowser?.Open(req, result =>
+                    {
+                        if (!result.Confirmed) return;
+                        if (_newAssetServices == null) return;
+
+                        var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
+                            doc.Asset, _newAssetServices,
+                            saveMintOnlyAsset: saveAsBlueprintToFile,
+                            saveScenarioAs:    saveAsScenario);
+
+                        dialog.Name = result.Name;
+                        dialog.FolderPicker.SelectedRelPath = result.DestinationPath;
+                        var r = dialog.Confirm();
+                        _saveAllStatus = r.IsSuccess
+                            ? $"[OK] Saved as '{result.Name}'."
+                            : $"[INFO] Save As: {r.Error}";
+                    });
                 },
                 report:               msg => _saveAllStatus = msg,
                 isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
@@ -2479,9 +2493,6 @@ namespace Hrot.Editor
             _shellPickers = new NodeEditor.UI.Picker.PickerRegistry();
             _shellPickers.SetServices(adapterBundle.IconProvider, adapterBundle.EditorTheme);
 
-            // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
-            _assetNameFolderModal = new Hrot.Editor.AiShared.Browser.AssetNameFolderModal();
-
             // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
             _iconProvider = adapterBundle.IconProvider;
             _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
@@ -2494,23 +2505,30 @@ namespace Hrot.Editor
                     router:     _assetPickRouter)
                 : null;
 
-            // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
-            // on pick → ShowNewAssetDialog opens the Save-As browser (BATCH-42: MTB2-T8b).
-            void ShowNewAssetDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
+            // Local helper: directory part of an asset's relative path for the given kind.
+            // Promoted from ShowNewAssetDialog so BuildSaveAsRequest can also use it.
+            static string FolderOf(
+                Hrot.Editor.AiShared.IEditableAsset a,
+                Hrot.Editor.AiShared.AssetKind k,
+                Func<Hrot.Editor.AiShared.AssetKind, string?> bf)
             {
-                if (_newAssetServices == null) return;
+                var rel = Hrot.Editor.AiShared.Browser.AssetRelPath.RelPath(a, bf(k));
+                int lastSlash = rel.LastIndexOf('/');
+                return lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
+            }
 
-                var folderPicker = new Hrot.Editor.AiShared.Browser.FolderPickerState(
-                    Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
-                        catalog.All, kind, baseFolderFor));
-
-                var request = new NodeEditor.UI.Dialogs.SaveAsRequest
+            // ── BATCH-43 (MTB2-T8b): shared SaveAsRequest builder for New + Save-As flows. ──
+            NodeEditor.UI.Dialogs.SaveAsRequest BuildSaveAsRequest(
+                Hrot.Editor.AiShared.AssetKind kind, string title, string initialName,
+                string initialDestination, string confirmLabel,
+                Hrot.Editor.AiShared.Browser.FolderPickerState folderPicker)
+            {
+                return new NodeEditor.UI.Dialogs.SaveAsRequest
                 {
-                    Title        = $"New {kind}",
-                    InitialName  = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
-                        ? $"New{kind}"
-                        : recipe.Name,
-                    ConfirmLabel = "Create",
+                    Title              = title,
+                    InitialName        = initialName,
+                    InitialDestination = initialDestination,
+                    ConfirmLabel       = confirmLabel,
                     GetFolderTree = () => Hrot.Editor.AiShared.Browser.AssetFolderDerivation.ToCategoryNode(
                         folderPicker.FolderPaths.ToList()),
                     GetFolderContents = folder => catalog.All
@@ -2529,6 +2547,23 @@ namespace Hrot.Editor
                         ? "Name must not be empty."
                         : null,
                 };
+            }
+
+            // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
+            // on pick → ShowNewAssetDialog opens the Save-As browser (BATCH-42: MTB2-T8b).
+            void ShowNewAssetDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
+            {
+                if (_newAssetServices == null) return;
+
+                var folderPicker = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+                    Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, kind, baseFolderFor));
+
+                string initialName = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
+                    ? $"New{kind}"
+                    : recipe.Name;
+
+                var request = BuildSaveAsRequest(kind, $"New {kind}", initialName, "", "Create", folderPicker);
 
                 _saveAsBrowser?.Open(request, result =>
                 {
@@ -2560,17 +2595,6 @@ namespace Hrot.Editor
                     else
                         _saveAllStatus = $"[OK] Created {kind}: '{minted.Name}'.";
                 });
-
-                // Local helper: directory part of an asset's relative path for the given kind.
-                static string FolderOf(
-                    Hrot.Editor.AiShared.IEditableAsset a,
-                    Hrot.Editor.AiShared.AssetKind k,
-                    Func<Hrot.Editor.AiShared.AssetKind, string?> bf)
-                {
-                    var rel = Hrot.Editor.AiShared.Browser.AssetRelPath.RelPath(a, bf(k));
-                    int lastSlash = rel.LastIndexOf('/');
-                    return lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
-                }
             }
 
             var newAssetLauncher = _newAssetServices != null
