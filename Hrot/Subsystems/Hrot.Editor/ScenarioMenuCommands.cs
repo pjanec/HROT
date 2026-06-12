@@ -7,9 +7,11 @@ using NodeEditor.Core.Action;
 namespace Hrot.Editor;
 
 /// <summary>
-/// Registers the global <c>scenario.new</c>, <c>scenario.save</c>, <c>scenario.saveAs</c>,
-/// <c>scenario.load</c>, and <c>scenario.migrationHistory</c> shell commands and surfaces them
-/// as <b>Scenario</b> main-menu items via <see cref="MenuCommandAdapter"/>.
+/// Registers the global <c>scenario.new</c>, <c>scenario.load</c>, and
+/// <c>scenario.migrationHistory</c> shell commands and surfaces them as <b>Scenario</b>
+/// main-menu items via <see cref="MenuCommandAdapter"/>.
+/// (<c>scenario.save</c> / <c>scenario.saveAs</c> are registered by <see cref="ShellSaveCommands"/>;
+/// the consts remain declared here for other consumers.)
 /// </summary>
 /// <remarks>
 /// <para>The registrar operates over <see cref="IEditorLogic"/> plus modal/dialog seams so
@@ -43,7 +45,7 @@ public static class ScenarioMenuCommands
     // ── Public API ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Registers the five scenario shell commands and surfaces them as
+    /// Registers the three scenario shell commands and surfaces them as
     /// <b>Scenario</b> menu items.
     /// </summary>
     /// <param name="registerCommand">
@@ -99,34 +101,6 @@ public static class ScenarioMenuCommands
             NewId, "New", "Create an empty scenario",
             isEnabled: () => true,
             handler: _ => editorLogic.NewScenario());
-
-        // ── scenario.save ──────────────────────────────────────────────────────
-        RegisterCommand(
-            registerCommand, menu, commands,
-            SaveId, "Save", "Save the current scenario",
-            isEnabled: () => true,
-            handler: _ =>
-            {
-                if (string.IsNullOrEmpty(editorLogic.LoadedScenarioName))
-                {
-                    // No scenario loaded → route to Save-As.
-                    openSaveAsDialog(name => editorLogic.SaveScenarioAs(name));
-                }
-                else
-                {
-                    editorLogic.SaveCurrentScenario();
-                }
-            });
-
-        // ── scenario.saveAs ────────────────────────────────────────────────────
-        RegisterCommand(
-            registerCommand, menu, commands,
-            SaveAsId, "Save As…", "Save the current scenario under a new name",
-            isEnabled: () => true,
-            handler: _ =>
-            {
-                openSaveAsDialog(name => editorLogic.SaveScenarioAs(name));
-            });
 
         // ── scenario.load ──────────────────────────────────────────────────────
         RegisterCommand(

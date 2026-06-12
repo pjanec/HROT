@@ -144,11 +144,9 @@ public sealed class ScenarioMenuTests
         Assert.True(menu.Root.Children.ContainsKey("Scenario"));
         var scenarioNode = menu.Root.Children["Scenario"];
 
-        // Five sub-items expected: New, Save, Save As, Load, Migration History.
-        Assert.Equal(5, scenarioNode.Children.Count);
+        // Three sub-items expected: New, Load, Migration History.
+        Assert.Equal(3, scenarioNode.Children.Count);
         Assert.True(scenarioNode.Children.ContainsKey("New"));
-        Assert.True(scenarioNode.Children.ContainsKey("Save"));
-        Assert.True(scenarioNode.Children.ContainsKey("Save As"));
         Assert.True(scenarioNode.Children.ContainsKey("Load"));
         Assert.True(scenarioNode.Children.ContainsKey("Migration History"));
     }
@@ -156,14 +154,12 @@ public sealed class ScenarioMenuTests
     // ── New_Invoke_EditorLogic ───────────────────────────────────────────────
 
     [Fact]
-    public void FiveCommands_Registered_InCommandSet()
+    public void ThreeCommands_Registered_InCommandSet()
     {
         var (_, commands, _, _, _, _) = CreateRegistrar();
 
-        Assert.Equal(5, commands.RegisterCallCount);
+        Assert.Equal(3, commands.RegisterCallCount);
         Assert.NotNull(commands.Get(ScenarioMenuCommands.NewId));
-        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveId));
-        Assert.NotNull(commands.Get(ScenarioMenuCommands.SaveAsId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.LoadId));
         Assert.NotNull(commands.Get(ScenarioMenuCommands.MigrationHistoryId));
     }
@@ -175,74 +171,6 @@ public sealed class ScenarioMenuTests
         var result = commands.Invoke(ScenarioMenuCommands.NewId);
         Assert.True(result.Success);
         Assert.Equal(1, editorLogic.NewScenarioCallCount);
-    }
-
-    // ── Save ─────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void Save_WhenScenarioLoaded_CallsSaveCurrentScenario()
-    {
-        var (editorLogic, commands, _, _, _, _) = CreateRegistrar(loadedScenarioName: "MyScenario");
-        var result = commands.Invoke(ScenarioMenuCommands.SaveId);
-        Assert.True(result.Success);
-        Assert.Equal(1, editorLogic.SaveCurrentScenarioCallCount);
-    }
-
-    [Fact]
-    public void Save_WhenNoScenarioLoaded_RoutesToSaveAs()
-    {
-        var editorLogic = new FakeEditorLogic { LoadedScenarioNameValue = null };
-
-        var menu2 = new GlobalMenuRegistry();
-        var commands2 = new RecordingCommandSet();
-
-        // Re-create with saveAs that actually captures.
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands2.Register(desc, handler),
-            menu:               menu2,
-            commands:           commands2,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb =>
-            {
-                // Simulate user confirming Save-As with a name.
-                cb("NewName");
-            },
-            showMigrationHistory: null);
-
-        var result2 = commands2.Invoke(ScenarioMenuCommands.SaveId);
-        Assert.True(result2.Success);
-        Assert.Equal(0, editorLogic.SaveCurrentScenarioCallCount);
-        var saveCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
-        Assert.Equal("NewName", saveCall);
-    }
-
-    // ── SaveAs ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void SaveAs_Invoke_OpensSaveAsDialog_AndCallsSaveScenarioAs()
-    {
-        var editorLogic = new FakeEditorLogic();
-        var commands = new RecordingCommandSet();
-        var menu = new GlobalMenuRegistry();
-
-        ScenarioMenuCommands.Register(
-            registerCommand:    (desc, handler) => commands.Register(desc, handler),
-            menu:               menu,
-            commands:           commands,
-            editorLogic:        editorLogic,
-            openPicker:         (kinds, cb) => { },
-            openSaveAsDialog:   cb =>
-            {
-                // Simulate user confirming Save-As with a name.
-                cb("Combat/NewName");
-            },
-            showMigrationHistory: null);
-
-        var result = commands.Invoke(ScenarioMenuCommands.SaveAsId);
-        Assert.True(result.Success);
-        var saveCall = Assert.Single(editorLogic.SaveScenarioAsCalls);
-        Assert.Equal("Combat/NewName", saveCall);
     }
 
     // ── Load ─────────────────────────────────────────────────────────────────
@@ -371,18 +299,6 @@ public sealed class ScenarioMenuTests
 
         leaf.OnClick();
         Assert.Equal(1, editorLogic.NewScenarioCallCount);
-    }
-
-    [Fact]
-    public void Save_MenuItem_HasEnabledState()
-    {
-        var (_, _, menu, _, _, _) = CreateRegistrar();
-
-        Assert.True(menu.Root.Children.TryGetValue("Scenario", out var scenarioNode));
-        Assert.True(scenarioNode.Children.TryGetValue("Save", out var leaf));
-        // Enabled state should always be true (GetEnabled is set via adapter).
-        Assert.NotNull(leaf.GetEnabled);
-        Assert.True(leaf.GetEnabled());
     }
 
     // ── Edge case: MigrationHistory handler is no-op when seam is null ──────

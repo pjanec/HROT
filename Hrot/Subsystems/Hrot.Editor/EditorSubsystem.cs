@@ -2124,7 +2124,7 @@ namespace Hrot.Editor
                 onAssetActivated: asset => _aiDocumentManager?.Open(asset),
                 id:               "ai_asset_browser"); // prior global Asset Browser id (MTB-P7-T4: register docked host with the prior id/scope)
 
-            // (MTB2-T7: RecipeCreateModal production wiring removed; class + tests kept.)
+            // (MTB2-T7: legacy RecipeCreateModal removed.)
 
             // Register all three perspective side-panel sets.
             _btreeRegistrar.RegisterWindows(windowManager);
