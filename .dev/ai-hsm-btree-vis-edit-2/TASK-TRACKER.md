@@ -32,7 +32,7 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 ## Phase A — BTree to usable (do first; unparks `REVIEW-BB1(BTree)`)
 
 - [x] **TASK-BT-01** Live action/condition palette (wire `IActionSchemaExporter` → `BTreeNodeCatalog`) → [details](./TASK-DETAIL.md#task-bt-01--live-actioncondition-palette) *(BATCH-01, verified+committed; visual confirm deferred to REVIEW-BT)*
-- [ ] **TASK-BT-02** Node colors by kind (composite/leaf/decorator) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-02--node-colors-by-kind)
+- [x] **TASK-BT-02** Node colors by kind (composite/leaf/decorator) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-02--node-colors-by-kind) *(BATCH-02, verified+committed; pixel confirm → REVIEW-BT)*
 - [ ] **TASK-BT-03** Pill glyph + param label (↺×3 / ⏲2s) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-03--pill-glyph--param-label)
 - [ ] **TASK-BT-04** Validators → Diagnostics window (register `BTreeAssetValidator`) → [details](./TASK-DETAIL.md#task-bt-04--validators--diagnostics-window)
 - [ ] **TASK-BT-05** Validation inline on canvas (node `State`/tooltip + inspector banner) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-05--validation-inline-on-canvas)
@@ -57,7 +57,7 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 
 ## Progress
 
-Phase A: 1/7 (BT-01 ✅; + REVIEW-BT). Phase B: 0/8 (+ DEBT-BF-04 design call, REVIEW-HS).
+Phase A: 2/7 (BT-01, BT-02 ✅; + REVIEW-BT). Phase B: 0/8 (+ DEBT-BF-04 design call, REVIEW-HS).
 
 ## Done-definition for this thread
 
