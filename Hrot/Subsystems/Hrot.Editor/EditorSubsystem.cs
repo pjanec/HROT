@@ -2345,6 +2345,37 @@ namespace Hrot.Editor
             _shellHotkeyDispatcher = new Hrot.Editor.AiShared.Windows.EditorHotkeyDispatcher(
                 _shellInputSource);
 
+            // MTB2-T4: scenario Save-As seam — mirrors the existing ScenarioMenuCommands
+            // openSaveAsDialog path (seed + dialog + confirm). Duplicated inline here
+            // instead of refactoring shared state (per batch spec: leave
+            // ScenarioMenuCommands wiring unchanged).
+            Action openScenarioSaveAs = () =>
+            {
+                if (_editorLogic != null && _newAssetServices != null)
+                {
+                    var scenarioAsset = new ScenarioSaveAsAsset(
+                        _editorLogic.LoadedScenarioName ?? "Unnamed");
+
+                    var dialog = new Hrot.Editor.AiShared.Recipes.SaveAsDialog(
+                        scenarioAsset,
+                        _newAssetServices,
+                        saveScenarioAs: fullName =>
+                        {
+                            _editorLogic?.SaveScenarioAs(fullName);
+                        });
+
+                    var result = dialog.Confirm();
+                    if (result.IsSuccess)
+                    {
+                        _saveAllStatus = $"[OK] Saved scenario as '{scenarioAsset.Name}'.";
+                    }
+                    else
+                    {
+                        _saveAllStatus = $"[INFO] Scenario Save As: {result.Error}";
+                    }
+                }
+            };
+
             Hrot.Editor.AiShared.Documents.ShellSaveCommands.Register(
                 register:          windowManager.ShellCommands.Register,
                 docManager:        _aiDocumentManager,
@@ -2380,7 +2411,25 @@ namespace Hrot.Editor
                         _saveAllStatus = $"[INFO] Save As '{doc.Asset.Name}': {result.Error}";
                     }
                 },
-                report:            msg => _saveAllStatus = msg);
+                report:               msg => _saveAllStatus = msg,
+                isScenarioContext:    () => windowManager.CurrentPerspective == "Editor",
+                hasLoadedScenario:    () => !string.IsNullOrEmpty(_editorLogic?.LoadedScenarioName),
+                saveScenarioAction:   () => _editorLogic?.SaveCurrentScenario(),
+                requestScenarioSaveAs: openScenarioSaveAs,
+                describeActiveTarget: () =>
+                {
+                    if (windowManager.CurrentPerspective == "Editor"
+                        && _editorLogic != null
+                        && !string.IsNullOrEmpty(_editorLogic.LoadedScenarioName))
+                    {
+                        return $"Save [scenario: {_editorLogic.LoadedScenarioName}]";
+                    }
+                    if (_aiDocumentManager.Active != null)
+                    {
+                        return $"Save [{_aiDocumentManager.Active.Kind.ToString().ToLowerInvariant()}: {_aiDocumentManager.Active.Asset.Name}]";
+                    }
+                    return "Save";
+                });
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // PU-603: flush-on-close — save dirty path'd docs before close.

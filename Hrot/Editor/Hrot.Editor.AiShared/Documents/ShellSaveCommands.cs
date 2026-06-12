@@ -43,6 +43,18 @@ public static class ShellSaveCommands
     /// <summary>Id for the Save All command: <c>"shell.saveAll"</c> (Ctrl+Shift+S).</summary>
     public const string SaveAllId = "shell.saveAll";
 
+    /// <summary>
+    /// Id for the Scenario Save command: <c>"scenario.save"</c>.
+    /// Only registered when the <c>saveScenario</c> seam is supplied.
+    /// </summary>
+    public const string ScenarioSaveId = "scenario.save";
+
+    /// <summary>
+    /// Id for the Scenario Save As command: <c>"scenario.saveAs"</c>.
+    /// Only registered when the <c>requestScenarioSaveAs</c> seam is supplied.
+    /// </summary>
+    public const string ScenarioSaveAsId = "scenario.saveAs";
+
     // ── Public API ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -79,6 +91,25 @@ public static class ShellSaveCommands
     /// <param name="report">
     /// Optional status reporter (e.g. for warnings on unsupported kinds). May be null.
     /// </param>
+    /// <param name="isScenarioContext">
+    /// When not null and returns <c>true</c>, the save/saveAs commands resolve the
+    /// scenario as the active save target instead of the active document.
+    /// </param>
+    /// <param name="hasLoadedScenario">
+    /// When not null, determines whether Save/Save-As is enabled in scenario context.
+    /// </param>
+    /// <param name="saveScenarioAction">
+    /// Scenario save action. When not null and scenario context is active, shell.save
+    /// delegates here instead of the per-kind document delegates.
+    /// </param>
+    /// <param name="requestScenarioSaveAs">
+    /// Scenario Save-As action. When not null, shell.saveAs delegates here in scenario
+    /// context, and the <c>scenario.saveAs</c> command is registered.
+    /// </param>
+    /// <param name="describeActiveTarget">
+    /// When not null, provides a dynamic label for the shell.save command (e.g.
+    /// "Save [scenario: TestScenario]" or "Save [blueprint: MyBP]").
+    /// </param>
     public static void Register(
         Action<EditorCommandDescriptor, Action<EditorCommandContext>> register,
         AiDocumentManager                                         docManager,
@@ -87,7 +118,12 @@ public static class ShellSaveCommands
         SaveAllAiDocumentsCommand.SaveDelegate?                   saveHsm,
         SaveAllAiDocumentsCommand.SaveDelegate?                   saveScenario,
         Action<AiDocument>                                        requestSaveAs,
-        Action<string>?                                           report = null)
+        Action<string>?                                           report = null,
+        Func<bool>?                                               isScenarioContext = null,
+        Func<bool>?                                               hasLoadedScenario = null,
+        Action?                                                   saveScenarioAction = null,
+        Action?                                                   requestScenarioSaveAs = null,
+        Func<string>?                                             describeActiveTarget = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
@@ -102,9 +138,22 @@ public static class ShellSaveCommands
                 Description: "Save the active document (Ctrl+S)",
                 IconKey:     "shell/save",
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
-                IsEnabled:   () => docManager.Active != null),
+                IsEnabled:   () => (isScenarioContext?.Invoke() == true)
+                    ? (hasLoadedScenario?.Invoke() == true)
+                    : docManager.Active != null,
+                DynamicDisplayName: describeActiveTarget != null
+                    ? () => describeActiveTarget()
+                    : null),
             _ =>
             {
+                // Branch on scenario context first.
+                if (isScenarioContext?.Invoke() == true)
+                {
+                    saveScenarioAction?.Invoke();
+                    return;
+                }
+
+                // Existing per-kind active-document logic (unchanged).
                 var doc = docManager.Active;
                 if (doc == null) return;
 
@@ -149,9 +198,19 @@ public static class ShellSaveCommands
                 Description: "Save the active document under a new name/path",
                 IconKey:     "shell/saveAs",
                 DefaultKey:  null,
-                IsEnabled:   () => docManager.Active != null),
+                IsEnabled:   () => (isScenarioContext?.Invoke() == true)
+                    ? (hasLoadedScenario?.Invoke() == true)
+                    : docManager.Active != null),
             _ =>
             {
+                // Branch on scenario context first.
+                if (isScenarioContext?.Invoke() == true)
+                {
+                    requestScenarioSaveAs?.Invoke();
+                    return;
+                }
+
+                // Existing active-document logic (unchanged).
                 var doc = docManager.Active;
                 if (doc != null)
                     requestSaveAs(doc);
@@ -183,5 +242,41 @@ public static class ShellSaveCommands
                     saveHsm,
                     report);
             });
+
+        // ── scenario.save (only when saveScenarioAction seam is supplied) ──────
+        if (saveScenarioAction != null)
+        {
+            register(
+                new EditorCommandDescriptor(
+                    Id:          ScenarioSaveId,
+                    DisplayName: "Save Scenario",
+                    Category:    "File",
+                    Description: "Save the currently loaded scenario",
+                    IconKey:     null,
+                    DefaultKey:  null,
+                    IsEnabled:   () => hasLoadedScenario?.Invoke() == true),
+                _ =>
+                {
+                    saveScenarioAction.Invoke();
+                });
+        }
+
+        // ── scenario.saveAs (only when requestScenarioSaveAs seam is supplied) ──
+        if (requestScenarioSaveAs != null)
+        {
+            register(
+                new EditorCommandDescriptor(
+                    Id:          ScenarioSaveAsId,
+                    DisplayName: "Save Scenario As…",
+                    Category:    "File",
+                    Description: "Save the current world state as a new scenario",
+                    IconKey:     null,
+                    DefaultKey:  null,
+                    IsEnabled:   () => hasLoadedScenario?.Invoke() == true),
+                _ =>
+                {
+                    requestScenarioSaveAs.Invoke();
+                });
+        }
     }
 }

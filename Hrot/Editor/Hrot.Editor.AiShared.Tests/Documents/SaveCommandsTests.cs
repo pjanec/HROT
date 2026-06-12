@@ -362,4 +362,332 @@ public sealed class SaveCommandsTests
         var saveAllDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveAllId);
         Assert.False(saveAllDesc.IsEnabled(), "SaveAll should be disabled when nothing is dirty");
     }
+
+    // ── MTB2-T4: Scenario-context save/resolver tests ──────────────────────────
+
+    /// <summary>
+    /// When scenario context is active, invoking shell.save calls saveScenarioAction
+    /// and does NOT fall through to the per-kind document save delegate.
+    /// </summary>
+    [Fact]
+    public void Save_InScenarioContext_CallsSaveScenario_NotDocument()
+    {
+        var mgr = MakeManager();
+        // Open a document too — to prove it is ignored in scenario context.
+        var asset = new FakeAsset(AssetKind.Blueprint, "BP", "/fake/bp.bp.json");
+        mgr.Open(asset).MarkDirty();
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool blueprintSaved = false;
+        bool saveScenarioCalled = false;
+        bool requestSaveAsCalled = false;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           (_, _) => blueprintSaved = true,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => requestSaveAsCalled = true,
+            report:                  null,
+            isScenarioContext:       () => true,
+            hasLoadedScenario:       () => true,
+            saveScenarioAction:      () => saveScenarioCalled = true,
+            requestScenarioSaveAs:   null,
+            describeActiveTarget:    null);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+
+        Assert.True(saveScenarioCalled, "saveScenarioAction should be called in scenario context");
+        Assert.False(blueprintSaved, "Per-kind blueprint save delegate must NOT be called");
+        Assert.False(requestSaveAsCalled, "Document requestSaveAs must NOT be called");
+    }
+
+    /// <summary>
+    /// When scenario context is NOT active and a Blueprint doc is open, shell.save
+    /// calls the per-kind blueprint delegate and does NOT call saveScenarioAction.
+    /// </summary>
+    [Fact]
+    public void Save_InDocumentContext_CallsDocumentSave_NotScenario()
+    {
+        var mgr = MakeManager();
+        var asset = new FakeAsset(AssetKind.Blueprint, "MyBP", "/fake/path.bp.json");
+        var doc = mgr.Open(asset);
+        doc.MarkDirty();
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool blueprintSaved = false;
+        bool saveScenarioCalled = false;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           (_, _) => blueprintSaved = true,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => { },
+            report:                  null,
+            isScenarioContext:       () => false,
+            hasLoadedScenario:       null,
+            saveScenarioAction:      () => saveScenarioCalled = true,
+            requestScenarioSaveAs:   null,
+            describeActiveTarget:    null);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+
+        Assert.True(blueprintSaved, "Blueprint save delegate should be called in document context");
+        Assert.False(saveScenarioCalled, "saveScenarioAction must NOT be called in document context");
+        Assert.False(doc.IsDirty, "Doc should be marked clean after save");
+    }
+
+    /// <summary>
+    /// When scenario context is active, shell.saveAs calls requestScenarioSaveAs
+    /// and does NOT fall through to the document-level requestSaveAs.
+    /// </summary>
+    [Fact]
+    public void SaveAs_InScenarioContext_RequestsScenarioSaveAs()
+    {
+        var mgr = MakeManager();
+        // Open a document to prove it is ignored in scenario context.
+        mgr.Open(new FakeAsset(AssetKind.Blueprint, "BP", "/fake/bp.bp.json"));
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool scenarioSaveAsCalled = false;
+        bool documentSaveAsCalled = false;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           null,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => documentSaveAsCalled = true,
+            report:                  null,
+            isScenarioContext:       () => true,
+            hasLoadedScenario:       () => true,
+            saveScenarioAction:      null,
+            requestScenarioSaveAs:   () => scenarioSaveAsCalled = true,
+            describeActiveTarget:    null);
+
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsId);
+
+        Assert.True(scenarioSaveAsCalled, "requestScenarioSaveAs should be called in scenario context");
+        Assert.False(documentSaveAsCalled, "Document requestSaveAs must NOT be called");
+    }
+
+    /// <summary>
+    /// shell.save IsEnabled reflects the active target: in scenario context it is
+    /// enabled iff hasLoadedScenario is true; in document context it is enabled iff
+    /// a document is active. Covers all four combinations.
+    /// </summary>
+    [Fact]
+    public void Save_IsEnabled_ReflectsActiveTarget()
+    {
+        // ── Scenario context, loaded → enabled ──────────────────────────────
+        {
+            var mgr = MakeManager();
+            var (descriptors, unusedActions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register:            RecordingRegister(descriptors, unusedActions),
+                docManager:          mgr,
+                saveBlueprint:       null,
+                saveBTree:           null,
+                saveHsm:             null,
+                saveScenario:        null,
+                requestSaveAs:       _ => { },
+                report:              null,
+                isScenarioContext:   () => true,
+                hasLoadedScenario:   () => true,
+                saveScenarioAction:  null,
+                requestScenarioSaveAs: null);
+            var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+            Assert.True(saveDesc.IsEnabled(), "Save enabled in scenario context with loaded scenario");
+        }
+
+        // ── Scenario context, not loaded → disabled ────────────────────────
+        {
+            var mgr = MakeManager();
+            var (descriptors, unusedActions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register:            RecordingRegister(descriptors, unusedActions),
+                docManager:          mgr,
+                saveBlueprint:       null,
+                saveBTree:           null,
+                saveHsm:             null,
+                saveScenario:        null,
+                requestSaveAs:       _ => { },
+                report:              null,
+                isScenarioContext:   () => true,
+                hasLoadedScenario:   () => false,
+                saveScenarioAction:  null,
+                requestScenarioSaveAs: null);
+            var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+            Assert.False(saveDesc.IsEnabled(), "Save disabled in scenario context without loaded scenario");
+        }
+
+        // ── Document context, active → enabled ─────────────────────────────
+        {
+            var mgr = MakeManager();
+            mgr.Open(new FakeAsset(AssetKind.Blueprint, "BP", "/fake/bp.bp.json"));
+            var (descriptors, unusedActions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register:            RecordingRegister(descriptors, unusedActions),
+                docManager:          mgr,
+                saveBlueprint:       null,
+                saveBTree:           null,
+                saveHsm:             null,
+                saveScenario:        null,
+                requestSaveAs:       _ => { },
+                report:              null,
+                isScenarioContext:   () => false,
+                hasLoadedScenario:   null);
+            var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+            Assert.True(saveDesc.IsEnabled(), "Save enabled in document context with active doc");
+        }
+
+        // ── Document context, no active → disabled ─────────────────────────
+        {
+            var mgr = MakeManager(); // No docs open
+            var (descriptors, unusedActions) = MakeRecordingRegister();
+            ShellSaveCommands.Register(
+                register:            RecordingRegister(descriptors, unusedActions),
+                docManager:          mgr,
+                saveBlueprint:       null,
+                saveBTree:           null,
+                saveHsm:             null,
+                saveScenario:        null,
+                requestSaveAs:       _ => { },
+                report:              null,
+                isScenarioContext:   () => false,
+                hasLoadedScenario:   null);
+            var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+            Assert.False(saveDesc.IsEnabled(), "Save disabled in document context with no active doc");
+        }
+    }
+
+    /// <summary>
+    /// When describeActiveTarget is set, the shell.save descriptor's
+    /// DynamicDisplayName returns the supplied value.
+    /// </summary>
+    [Fact]
+    public void DynamicDisplayName_NamesKindAndAsset()
+    {
+        var mgr = MakeManager();
+        var (descriptors, unusedActions) = MakeRecordingRegister();
+
+        ShellSaveCommands.Register(
+            register:              RecordingRegister(descriptors, unusedActions),
+            docManager:            mgr,
+            saveBlueprint:         null,
+            saveBTree:             null,
+            saveHsm:               null,
+            saveScenario:          null,
+            requestSaveAs:         _ => { },
+            report:                null,
+            describeActiveTarget:  () => "Save [scenario: test-move]");
+
+        var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+        Assert.NotNull(saveDesc.DynamicDisplayName);
+        Assert.Equal("Save [scenario: test-move]", saveDesc.DynamicDisplayName!());
+    }
+
+    /// <summary>
+    /// With saveScenarioAction supplied, scenario.save is registered and its handler
+    /// routes to saveScenarioAction. With requestScenarioSaveAs supplied, scenario.saveAs
+    /// is likewise registered.
+    /// </summary>
+    [Fact]
+    public void ScenarioSave_Command_RoutesToSaveScenario()
+    {
+        var mgr = MakeManager();
+        var (descriptors, actions) = MakeRecordingRegister();
+        int saveScenarioCalls = 0;
+        int scenarioSaveAsCalls = 0;
+
+        ShellSaveCommands.Register(
+            register:                RecordingRegister(descriptors, actions),
+            docManager:              mgr,
+            saveBlueprint:           null,
+            saveBTree:               null,
+            saveHsm:                 null,
+            saveScenario:            null,
+            requestSaveAs:           _ => { },
+            report:                  null,
+            saveScenarioAction:      () => saveScenarioCalls++,
+            requestScenarioSaveAs:   () => scenarioSaveAsCalls++);
+
+        // Verify both commands are registered.
+        var scenarioSaveDesc = FindDescriptor(descriptors, ShellSaveCommands.ScenarioSaveId);
+        Assert.Equal("Save Scenario", scenarioSaveDesc.DisplayName);
+        Assert.Equal("File", scenarioSaveDesc.Category);
+
+        var scenarioSaveAsDesc = FindDescriptor(descriptors, ShellSaveCommands.ScenarioSaveAsId);
+        Assert.Equal("Save Scenario As…", scenarioSaveAsDesc.DisplayName);
+        Assert.Equal("File", scenarioSaveAsDesc.Category);
+
+        // Invoke scenario.save → fires saveScenarioAction.
+        InvokeAction(descriptors, actions, ShellSaveCommands.ScenarioSaveId);
+        Assert.Equal(1, saveScenarioCalls);
+        Assert.Equal(0, scenarioSaveAsCalls);
+
+        // Invoke scenario.saveAs → fires requestScenarioSaveAs.
+        InvokeAction(descriptors, actions, ShellSaveCommands.ScenarioSaveAsId);
+        Assert.Equal(1, saveScenarioCalls); // unchanged
+        Assert.Equal(1, scenarioSaveAsCalls);
+    }
+
+    /// <summary>
+    /// With ALL new seams null, shell.save/shell.saveAs/shell.saveAll behave exactly
+    /// as before (back-compat), and scenario.save/scenario.saveAs are NOT registered.
+    /// </summary>
+    [Fact]
+    public void NullSeams_PreserveLegacySaveBehavior()
+    {
+        var mgr = MakeManager();
+        var asset = new FakeAsset(AssetKind.Blueprint, "MyBlueprint", "/fake/path.bp.json");
+        var doc = mgr.Open(asset);
+        doc.MarkDirty();
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool blueprintSaved = false;
+        string? savedPath = null;
+        bool saveAsCalled = false;
+
+        // All new seams default to null (positional omitted).
+        ShellSaveCommands.Register(
+            register:      RecordingRegister(descriptors, actions),
+            docManager:    mgr,
+            saveBlueprint: (a, p) => { blueprintSaved = true; savedPath = p; },
+            saveBTree:     null,
+            saveHsm:       null,
+            saveScenario:  null,
+            requestSaveAs: _ => saveAsCalled = true,
+            report:        null);
+
+        // shell.save: per-kind delegate runs, doc marked clean.
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+        Assert.True(blueprintSaved, "Blueprint save delegate should be called (legacy)");
+        Assert.Equal("/fake/path.bp.json", savedPath);
+        Assert.False(doc.IsDirty, "Doc should be marked clean after save");
+        Assert.False(saveAsCalled, "requestSaveAs must NOT be called when SourceFilePath is set");
+
+        // shell.saveAs: routes to requestSaveAs.
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsId);
+        Assert.True(saveAsCalled, "requestSaveAs should be called for SaveAs (legacy)");
+
+        // shell.save descriptor: no DynamicDisplayName, DisplayName is "Save".
+        var saveDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+        Assert.Null(saveDesc.DynamicDisplayName);
+        Assert.Equal("Save", saveDesc.DisplayName);
+
+        // scenario.save and scenario.saveAs are NOT registered.
+        var scenarioSaveDesc = descriptors.Find(x => x.Id == ShellSaveCommands.ScenarioSaveId);
+        Assert.Null(scenarioSaveDesc);
+
+        var scenarioSaveAsDesc = descriptors.Find(x => x.Id == ShellSaveCommands.ScenarioSaveAsId);
+        Assert.Null(scenarioSaveAsDesc);
+    }
 }
