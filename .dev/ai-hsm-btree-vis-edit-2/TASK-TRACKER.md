@@ -35,7 +35,7 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 - [x] **TASK-BT-02** Node colors by kind (composite/leaf/decorator) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-02--node-colors-by-kind) *(BATCH-02, verified+committed; pixel confirm → REVIEW-BT)*
 - [x] **TASK-BT-03** Pill glyph + param label (↺×3 / ⏲2s) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-03--pill-glyph--param-label) *(BATCH-03, verified+committed; pixel confirm → REVIEW-BT)*
 - [x] **TASK-BT-04** Validators → Diagnostics window (register `BTreeAssetValidator`) → [details](./TASK-DETAIL.md#task-bt-04--validators--diagnostics-window) *(BATCH-04, verified+committed)*
-- [ ] **TASK-BT-05** Validation inline on canvas (node `State`/tooltip + inspector banner) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-05--validation-inline-on-canvas)
+- [x] **TASK-BT-05** Validation inline on canvas (node `State`/tooltip; inspector banner deferred per D-04) **[VISUAL GATE]** → [details](./TASK-DETAIL.md#task-bt-05--validation-inline-on-canvas) *(BATCH-05, verified+committed; pixel confirm → REVIEW-BT)*
 - [ ] **TASK-BT-06** Showcase `.btree.json` + Starter recipe → [details](./TASK-DETAIL.md#task-bt-06--showcase-btree--starter-recipe)
 - [ ] **TASK-BT-07** *(optional)* In-process quick reload for BTree (PU-09) → [details](./TASK-DETAIL.md#task-bt-07-optional--in-process-quick-reload)
 - [ ] **REVIEW-BT** *(lead/user visual smoke)* — full BTree authoring pass on the showcase; then signal blueprint-finalize to run **REVIEW-BB1(BTree)**.
@@ -57,7 +57,7 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 
 ## Progress
 
-Phase A: 4/7 (BT-01..04 ✅; + REVIEW-BT). Phase B: 0/8 (+ DEBT-BF-04 design call, REVIEW-HS).
+Phase A: 5/7 (BT-01..05 ✅; + REVIEW-BT). Phase B: 0/8 (+ DEBT-BF-04 design call, REVIEW-HS). Note: BT-05 inspector banner deferred (BT-05b / REVIEW-BT).
 
 ## Done-definition for this thread
 
