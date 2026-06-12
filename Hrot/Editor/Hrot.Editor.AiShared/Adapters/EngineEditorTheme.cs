@@ -57,7 +57,7 @@ public sealed class EngineEditorTheme : IEditorTheme
         NodeCategory.Macro       => new Vector4(0.25f, 0.15f, 0.50f, 1f),
         NodeCategory.VariableGet => new Vector4(0.07f, 0.40f, 0.20f, 1f),
         NodeCategory.VariableSet => new Vector4(0.05f, 0.35f, 0.15f, 1f),
-        NodeCategory.FlowControl => new Vector4(0.20f, 0.20f, 0.20f, 1f),
+        NodeCategory.FlowControl => new Vector4(0.85f, 0.45f, 0.12f, 1f),
         _                        => new Vector4(0.15f, 0.15f, 0.15f, 1f),
     };
 

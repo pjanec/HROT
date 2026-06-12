@@ -214,6 +214,39 @@ public sealed class AIE004_EngineEditorThemeTests
         Assert.Equal(0.20f, color.Z, 4);
     }
 
+    // ── AIE-004-05: BATCH-11 — FlowControl is orange, distinct from Comment ───
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_FlowControl_IsOrange()
+    {
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.FlowControl);
+        // BATCH-11: FlowControl should be a clear orange, not the old gray (0.20,0.20,0.20).
+        Assert.Equal(0.85f, color.X, 4);
+        Assert.Equal(0.45f, color.Y, 4);
+        Assert.Equal(0.12f, color.Z, 4);
+        Assert.Equal(1.00f, color.W, 4);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_FlowControl_DiffersFromComment()
+    {
+        var fcColor = MakeTheme().GetCategoryHeaderColor(NodeCategory.FlowControl);
+        var commentColor = MakeTheme().GetCategoryHeaderColor(NodeCategory.Comment);
+
+        // FlowControl should NOT be the same as Comment (the catch-all default gray).
+        Assert.NotEqual(commentColor, fcColor);
+    }
+
+    [Fact]
+    public void EngineEditorTheme_GetCategoryHeaderColor_Function_Unchanged()
+    {
+        // Guard: other categories' colors are NOT affected by the FlowControl change.
+        var color = MakeTheme().GetCategoryHeaderColor(NodeCategory.Function);
+        Assert.Equal(0.07f, color.X, 4);
+        Assert.Equal(0.30f, color.Y, 4);
+        Assert.Equal(0.60f, color.Z, 4);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static void AssertColorSane(Vector4 color, string name)
