@@ -247,7 +247,31 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         _asset.UnregisterTransition(transition.VisualId);
     }
 
-    private void ApplyAddLink(GraphCommand.AddLink cmd)               { /* TODO */ }
+    private void ApplyAddLink(GraphCommand.AddLink cmd)
+    {
+        // 1. Validate the proposed link against HSM rules.
+        var validator = new HsmLinkValidator(_asset);
+        var validation = validator.Validate(cmd.From, cmd.To);
+        if (validation.Verdict != LinkValidity.Valid)
+            return;
+
+        // 2. Resolve the source and target states from their hidden pins.
+        var source = _asset.FindStateByOutputPin(cmd.From.Value);
+        var target = _asset.FindStateByInputPin(cmd.To.Value);
+        if (source is null || target is null)
+            return;
+
+        // 3. Create the transition and register it.
+        var t = new TransitionNode
+        {
+            VisualId = cmd.AssignedId.Value,
+            Source   = source,
+            Target   = target,
+            Kind     = TransitionKind.External,
+            EventId  = 0,
+        };
+        _asset.RegisterTransition(t);
+    }
 
     private void ApplyRemoveLinks(GraphCommand.RemoveLinks cmd)
     {

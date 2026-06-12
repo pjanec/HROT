@@ -381,6 +381,22 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public EventDefinition? FindEventById(ushort eventId) =>
         _eventIdToEvent.GetValueOrDefault(eventId);
 
+    /// <summary>Resolve the state whose hidden OUTPUT pin matches <paramref name="pinId"/> (transition source side).</summary>
+    public StateNode? FindStateByOutputPin(Guid pinId)
+    {
+        foreach (var s in AllStates)
+            if (s.HiddenOutputPinId == pinId) return s;
+        return null;
+    }
+
+    /// <summary>Resolve the state whose hidden INPUT pin matches <paramref name="pinId"/> (transition target side).</summary>
+    public StateNode? FindStateByInputPin(Guid pinId)
+    {
+        foreach (var s in AllStates)
+            if (s.HiddenInputPinId == pinId) return s;
+        return null;
+    }
+
     // ── PU-302: Post-reload stitch ───────────────────────────────────────────
 
     /// <summary>
