@@ -172,11 +172,60 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         if (parent == null)
             return;
 
+        // Self-parent is always invalid.
+        if (childId == parentId)
+            return;
+
+        // Reject if attaching childId under parentId would create a cycle
+        // (parentId is already in childId's subtree).
+        if (SubtreeContains(childId, parentId))
+            return;
+
+        // Single-parent: detach child from any previous parent.
+        foreach (var node in _asset.Nodes)
+        {
+            if (node != parent && node.ChildVisualIds.Contains(childId))
+                node.ChildVisualIds.Remove(childId);
+        }
+
         if (!parent.ChildVisualIds.Contains(childId))
             parent.ChildVisualIds.Add(childId);
 
         _links[linkId.Value] = (childId, parentId);
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="targetId"/> is reachable by following
+    /// <c>ChildVisualIds</c> from <paramref name="rootId"/> (including rootId itself).
+    /// Uses BFS with a visited set to guard against cycles.
+    /// </summary>
+    private bool SubtreeContains(Guid rootId, Guid targetId)
+    {
+        var visited = new HashSet<Guid>();
+        var queue   = new Queue<Guid>();
+        queue.Enqueue(rootId);
+
+        while (queue.Count > 0)
+        {
+            var currentId = queue.Dequeue();
+            if (currentId == targetId)
+                return true;
+            if (!visited.Add(currentId))
+                continue;
+
+            var node = _asset.FindNode(currentId);
+            if (node == null)
+                continue;
+
+            foreach (var childId in node.ChildVisualIds)
+            {
+                if (!visited.Contains(childId))
+                    queue.Enqueue(childId);
+            }
+        }
+
+        return false;
     }
 
     private void ApplyRemoveLinks(IReadOnlyList<LinkId> linkIds)

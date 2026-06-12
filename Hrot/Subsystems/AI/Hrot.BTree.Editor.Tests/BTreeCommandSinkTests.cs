@@ -179,6 +179,140 @@ public sealed class BTreeCommandSinkTests
     }
 
     [Fact]
+    public void AddLink_NormalAttach_adds_parentless_node_to_parent()
+    {
+        var (asset, graph, sink) = Build();
+        var parentId = NodeId.NewId();
+        var childId  = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(parentId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(childId,  new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(parentId, out _, out var parentIn);
+        graph.RegisterPins(childId,  out var childOut, out _);
+
+        var linkId = new LinkId(Guid.NewGuid());
+        sink.Apply(new GraphCommand.AddLink(linkId, childOut, parentIn));
+
+        asset.FindNode(parentId.Value)!.ChildVisualIds.Should().Contain(childId.Value);
+    }
+
+    [Fact]
+    public void AddLink_MovesChildToNewParent()
+    {
+        var (asset, graph, sink) = Build();
+        var p1 = NodeId.NewId();
+        var p2 = NodeId.NewId();
+        var c  = NodeId.NewId();
+
+        // Set up: two parent-capable nodes, one action child.
+        sink.Apply(new GraphCommand.AddNode(p1, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(p2, new NodeKindKey(BTreeKinds.Selector), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(c,  new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(p1, out _, out var p1In);
+        graph.RegisterPins(p2, out _, out var p2In);
+        graph.RegisterPins(c,  out var cOut, out _);
+
+        // Wire c -> p1 (c becomes child of p1).
+        var link1 = new LinkId(Guid.NewGuid());
+        sink.Apply(new GraphCommand.AddLink(link1, cOut, p1In));
+        asset.FindNode(p1.Value)!.ChildVisualIds.Should().Contain(c.Value);
+
+        // Re-wire c -> p2 (c should move from p1 to p2).
+        var link2 = new LinkId(Guid.NewGuid());
+        sink.Apply(new GraphCommand.AddLink(link2, cOut, p2In));
+
+        // p1 must no longer contain c.
+        asset.FindNode(p1.Value)!.ChildVisualIds.Should().NotContain(c.Value);
+        // p2 must contain c.
+        asset.FindNode(p2.Value)!.ChildVisualIds.Should().Contain(c.Value);
+    }
+
+    [Fact]
+    public void AddLink_NoDuplicateParents()
+    {
+        var (asset, graph, sink) = Build();
+        var p1 = NodeId.NewId();
+        var p2 = NodeId.NewId();
+        var c  = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(p1, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(p2, new NodeKindKey(BTreeKinds.Selector), Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(c,  new NodeKindKey(BTreeKinds.Action),   Vector2.Zero, null));
+
+        graph.RegisterPins(p1, out _, out var p1In);
+        graph.RegisterPins(p2, out _, out var p2In);
+        graph.RegisterPins(c,  out var cOut, out _);
+
+        // Wire c -> p1.
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), cOut, p1In));
+        // Re-wire c -> p2.
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), cOut, p2In));
+
+        // Exactly one node has c in its ChildVisualIds.
+        var count = 0;
+        foreach (var node in asset.Nodes)
+        {
+            if (node.ChildVisualIds.Contains(c.Value))
+                count++;
+        }
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public void AddLink_WouldCreateCycle_IsRejected()
+    {
+        var (asset, graph, sink) = Build();
+        var p = NodeId.NewId(); // root / ancestor
+        var a = NodeId.NewId(); // middle
+        var b = NodeId.NewId(); // leaf
+
+        // Tree: p -> a -> b
+        sink.Apply(new GraphCommand.AddNode(p, new NodeKindKey(BTreeKinds.Selector),  Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(a, new NodeKindKey(BTreeKinds.Sequence),  Vector2.Zero, null));
+        sink.Apply(new GraphCommand.AddNode(b, new NodeKindKey(BTreeKinds.Action),    Vector2.Zero, null));
+
+        graph.RegisterPins(p, out var pOut, out var pIn);
+        graph.RegisterPins(a, out var aOut, out var aIn);
+        graph.RegisterPins(b, out var bOut, out var bIn);
+
+        // Wire a -> p  (a child of p).
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), aOut, pIn));
+        asset.FindNode(p.Value)!.ChildVisualIds.Should().Contain(a.Value);
+        // Wire b -> a  (b child of a).
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), bOut, aIn));
+        asset.FindNode(a.Value)!.ChildVisualIds.Should().Contain(b.Value);
+
+        // Attempt: make p a child of b (would create cycle p->a->b->p).
+        // Reversed convention: child output = pOut, parent input = bIn.
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), pOut, bIn));
+
+        // Model unchanged — b must NOT have p as a child.
+        asset.FindNode(b.Value)!.ChildVisualIds.Should().NotContain(p.Value);
+        // Original structure intact.
+        asset.FindNode(p.Value)!.ChildVisualIds.Should().Contain(a.Value);
+        asset.FindNode(a.Value)!.ChildVisualIds.Should().Contain(b.Value);
+    }
+
+    [Fact]
+    public void AddLink_SelfParent_IsRejected()
+    {
+        var (asset, graph, sink) = Build();
+        var n = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(n, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+
+        graph.RegisterPins(n, out var nOut, out var nIn);
+
+        // Attempt to wire n -> n (self-parent).
+        sink.Apply(new GraphCommand.AddLink(new LinkId(Guid.NewGuid()), nOut, nIn));
+
+        // Node must not list itself as a child.
+        asset.FindNode(n.Value)!.ChildVisualIds.Should().NotContain(n.Value);
+    }
+
+    [Fact]
     public void MoveNodes_updates_position()
     {
         var (asset, _, sink) = Build();
