@@ -42,8 +42,8 @@ lead review → `reviews/BATCH-QR-XX-REVIEW.md`.
 - [x] **QR-03** BTree quick-reload trigger in `EditorSubsystem` (`_btreeQuickReloadTrigger`): active `BehaviorTreeAsset`
       → DTO (reuse save-path mapper) → `BTreeEmitCore.EmitTopologyCore` + `BTreeBridgeEmitCore.EmitBridge` →
       `TriggerFromSourcesAsync`. **[RUNTIME GATE]** → [details](./TASK-DETAIL.md#qr-03) *(2026-06-13 — _btreeQuickReloadTrigger wired; build 0/0; tests 185/0)*
-- [ ] **QR-04** HSM quick-reload trigger (`_hsmQuickReloadTrigger`), symmetric to QR-03 via `HsmEmitCore` /
-      `HsmBridgeEmitCore`. **[RUNTIME GATE]** → [details](./TASK-DETAIL.md#qr-04)
+- [x] **QR-04** HSM quick-reload trigger (`_hsmQuickReloadTrigger`), symmetric to QR-03 via `HsmEmitCore` /
+      `HsmBridgeEmitCore`. **[RUNTIME GATE]** → [details](./TASK-DETAIL.md#qr-04) *(2026-06-13 — _hsmQuickReloadTrigger wired; build 0/0; tests 185/0)*
 - [ ] **QR-05** Widen the `blueprint.compileReload` toolbar command to dispatch by active-doc **kind**
       (Blueprint/BTree/HSM) and be enabled in all three perspectives. (Rename concept → generic "Compile / Reload".)
       → [details](./TASK-DETAIL.md#qr-05)
@@ -51,7 +51,7 @@ lead review → `reviews/BATCH-QR-XX-REVIEW.md`.
       hot-swaps in the running sim (no full rebuild), within target latency; blueprint reload still works.
 
 ## Progress
-2/5 + REVIEW-QR. Foundation: QR-01, QR-02. QR-03 (BTree) proves the path; QR-04 (HSM) mirrors; QR-05 wires UX.
+3/5 + REVIEW-QR. Foundation: QR-01, QR-02. QR-03 (BTree) proves the path; QR-04 (HSM) mirrors; QR-05 wires UX.
 
 ## Done-definition
 Editing a BTree or HSM asset and triggering Compile/Reload hot-swaps the behavior in-process (no MSBuild rebuild),

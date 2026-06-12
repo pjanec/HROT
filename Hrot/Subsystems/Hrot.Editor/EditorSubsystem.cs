@@ -130,6 +130,9 @@ using NodeEditor.Core.Action;
 using NodeEditor.Primitives;
 using Hrot.Hsm.Editor.Catalog;
 using Hrot.Hsm.Editor.Host;
+using Hrot.Hsm.Editor.Model;
+using Hrot.Hsm.Editor.Persistence;
+using Hrot.AiEditor.Persistence.Hsm;
 // AIE-030/031/032: BTree/HSM debug session infrastructure
 using Hrot.BTree.Editor.Inspector;
 using Hrot.Hsm.Editor.Inspector;
@@ -298,6 +301,8 @@ namespace Hrot.Editor
         // QR-03: BTree quick-reload trigger — wired in Phase 4 alongside _blueprintQuickReloadTrigger.
         // Invokes ToDto → EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (no IEditableAsset param).
         private Action? _btreeQuickReloadTrigger;
+        // QR-04: HSM quick-reload trigger — symmetric to QR-03 via HsmEmitCore / HsmBridgeEmitCore.
+        private Action? _hsmQuickReloadTrigger;
         // CF-7-rev: QuickReloadService and asset catalog stored for auto-instrumentation callback.
         private QuickReloadService? _blueprintQuickReloadService;
         private Hrot.Blueprints.Editor.BlueprintPeerSource? _blueprintAssetCatalog;
@@ -3034,6 +3039,29 @@ namespace Hrot.Editor
                     _blueprintCompileStatus = result.Succeeded
                         ? $"Compiled BTree '{dto.Name}' in {result.DurationMs}ms"
                         : $"BTree compile failed: {result.ErrorMessage}";
+                };
+
+                // QR-04: HSM quick-reload trigger — active HsmAsset → ToDto →
+                // EmitTopologyCore + EmitBridge → TriggerFromSourcesAsync (self-registering bridge).
+                _hsmQuickReloadTrigger = () =>
+                {
+                    var ctx      = _aiDocumentManager?.Active?.ViewState
+                        as Hrot.Editor.AiShared.Windows.AiCanvasContext;
+                    var hsmAsset = ctx?.AssetRef as Hrot.Hsm.Editor.Model.HsmAsset;
+                    if (hsmAsset == null) { _blueprintCompileStatus = "No active HSM document."; return; }
+
+                    var dto      = Hrot.Hsm.Editor.Persistence.HsmAssetMapper.ToDto(hsmAsset);
+                    var topology = Hrot.AiEditor.Persistence.Emit.HsmEmitCore.EmitTopologyCore(dto);
+                    var bridge   = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(dto);
+
+                    var asmName = $"HsmPatch_{dto.AssetId:N}_{Guid.NewGuid():N}";
+                    var result = quickReloadService.TriggerFromSourcesAsync(
+                        new[] { (topology, dto.Name + ".g.cs"), (bridge, dto.Name + ".Registrar.g.cs") },
+                        asmName).GetAwaiter().GetResult();
+
+                    _blueprintCompileStatus = result.Succeeded
+                        ? $"Compiled HSM '{dto.Name}' in {result.DurationMs}ms"
+                        : $"HSM compile failed: {result.ErrorMessage}";
                 };
 
                 var rebuildRegistrar = new Hrot.Blueprints.Editor.Internal.CaptureWindowRegistrar();
