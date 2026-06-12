@@ -292,7 +292,8 @@ public sealed class BTreeGraphModel : IGraphModel
     public GraphId              Id          => new(_asset.AssetId);
     public string               DisplayName => _asset.Name;
     public GraphKindDescriptor  Kind        { get; } =
-        new("BTreeGraph", "Behavior Tree", AllowsLatent: false, RequiresEntryNode: true);
+        new("BTreeGraph", "Behavior Tree", AllowsLatent: false, RequiresEntryNode: true)
+            { Orientation = PinOrientation.Vertical };
 
     public IReadOnlyCollection<INodeModel>       Nodes    => _nodeCache.Values;
     public IReadOnlyCollection<ILinkModel>       Links    => _linkCache.Values;

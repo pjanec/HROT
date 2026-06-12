@@ -3,6 +3,7 @@ using System.Linq;
 using Fbt;
 using FluentAssertions;
 using Hrot.BTree.Editor.Model;
+using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 using Xunit;
 
@@ -153,5 +154,16 @@ public sealed class BTreeGraphModelTests
         // Mirror: create a second model on the richer asset.
         var model2 = new BTreeGraphModel(newAsset);
         model2.Links.Should().HaveCount(3, "after rebuild the richer tree has 3 links");
+    }
+
+    [Fact]
+    public void Kind_Orientation_IsVertical()
+    {
+        // BTree opts into vertical pin layout (output top / input bottom).
+        var asset = MakeAsset(EmptyBlob());
+        var model = new BTreeGraphModel(asset);
+
+        model.Kind.Orientation.Should().Be(PinOrientation.Vertical,
+            "BTree graph kind must declare Vertical so pins render on top/bottom edges");
     }
 }

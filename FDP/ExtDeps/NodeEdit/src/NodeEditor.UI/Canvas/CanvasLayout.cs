@@ -131,7 +131,10 @@ internal sealed class CanvasLayoutBuilder
             float nodeWGu = node.SizeOverride?.X ?? Math.Max(NodeMinWidthGu, Math.Max(titleWidthGu, requiredWidthGu));
 
             int rowCount = Math.Max(inputPins.Count, outputPins.Count);
-            float nodeHGu = headerHt + PinTopPadGu + rowCount * PinRowHeightGu + PinBottomPadGu;
+            bool vertical = view.Model.Kind.Orientation == PinOrientation.Vertical;
+            float nodeHGu = vertical
+                ? headerHt + PinTopPadGu + PinBottomPadGu
+                : headerHt + PinTopPadGu + rowCount * PinRowHeightGu + PinBottomPadGu;
 
             var screenPos = view.Viewport.GraphToScreen(graphPos);
             float sw = nodeWGu * zoom;
@@ -170,15 +173,17 @@ internal sealed class CanvasLayoutBuilder
 
             for (int i = 0; i < inputPins.Count; i++)
             {
-                float offsetYGu = headerHt + PinTopPadGu + i * PinRowHeightGu + PinRowHeightGu * 0.5f;
-                var pinGraphPos = graphPos + new Vector2(NodeHorizPadGu, offsetYGu);
+                var pinGraphPos = ComputePinGraphPosition(
+                    view.Model.Kind.Orientation, PinDirection.Input,
+                    graphPos, nodeWGu, nodeHGu, headerHt, i, inputPins.Count);
                 layout.PinScreenPositions[inputPins[i].Id] = view.Viewport.GraphToScreen(pinGraphPos);
             }
 
             for (int i = 0; i < outputPins.Count; i++)
             {
-                float offsetYGu = headerHt + PinTopPadGu + i * PinRowHeightGu + PinRowHeightGu * 0.5f;
-                var pinGraphPos = graphPos + new Vector2(nodeWGu - NodeHorizPadGu, offsetYGu);
+                var pinGraphPos = ComputePinGraphPosition(
+                    view.Model.Kind.Orientation, PinDirection.Output,
+                    graphPos, nodeWGu, nodeHGu, headerHt, i, outputPins.Count);
                 layout.PinScreenPositions[outputPins[i].Id] = view.Viewport.GraphToScreen(pinGraphPos);
             }
         }
@@ -308,6 +313,50 @@ internal sealed class CanvasLayoutBuilder
         }
 
         return interiorOrigin + new Vector2(node.Position.X + regionOffsetX, node.Position.Y + regionOffsetY);
+    }
+
+    /// <summary>
+    /// Compute the X position for a pin spread across the top/bottom edge.
+    /// Centers a single pin; space-multiple even-spaced between the padding margins.
+    /// </summary>
+    internal static float PinCenterX(float originX, float nodeW, int index, int count)
+    {
+        if (count <= 1)
+            return originX + nodeW * 0.5f;
+        float available = nodeW - 2f * NodeHorizPadGu;
+        return originX + NodeHorizPadGu + (available * index) / (count - 1);
+    }
+
+    /// <summary>
+    /// Compute the graph-space position of a pin given the graph orientation,
+    /// node geometry, and pin index.  Exposed for headless testing.
+    /// </summary>
+    internal static Vector2 ComputePinGraphPosition(
+        PinOrientation orientation,
+        PinDirection direction,
+        Vector2 graphPos,
+        float nodeWGu,
+        float nodeHGu,
+        float headerHt,
+        int index,
+        int count)
+    {
+        if (orientation == PinOrientation.Vertical)
+        {
+            float x = PinCenterX(graphPos.X, nodeWGu, index, count);
+            if (direction == PinDirection.Output)
+                return new Vector2(x, graphPos.Y + PinTopPadGu);         // top edge
+            else
+                return new Vector2(x, graphPos.Y + nodeHGu - PinBottomPadGu); // bottom edge
+        }
+        else
+        {
+            float offsetYGu = headerHt + PinTopPadGu + index * PinRowHeightGu + PinRowHeightGu * 0.5f;
+            if (direction == PinDirection.Input)
+                return graphPos + new Vector2(NodeHorizPadGu, offsetYGu);           // left edge
+            else
+                return graphPos + new Vector2(nodeWGu - NodeHorizPadGu, offsetYGu); // right edge
+        }
     }
 
     private static bool IsHiddenByCollapsedParent(GraphView view, NodeId id)

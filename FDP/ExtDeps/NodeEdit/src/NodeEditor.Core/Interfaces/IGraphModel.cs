@@ -61,7 +61,24 @@ public sealed record GraphKindDescriptor(
     string Id,
     string DisplayName,
     bool AllowsLatent,
-    bool RequiresEntryNode);
+    bool RequiresEntryNode)
+{
+    /// <summary>
+    /// Controls where pins are placed on the node: Horizontal (input left / output right)
+    /// or Vertical (output top / input bottom).  Default is Horizontal.
+    /// </summary>
+    public PinOrientation Orientation { get; init; } = PinOrientation.Horizontal;
+}
+
+/// <summary>Controls which node edges pins are placed on.</summary>
+public enum PinOrientation
+{
+    /// <summary>Input pins on the left edge, output pins on the right edge (default).</summary>
+    Horizontal = 0,
+
+    /// <summary>Output pins on the top edge, input pins on the bottom edge.</summary>
+    Vertical = 1,
+}
 
 /// <summary>Payload describing what changed in a graph.</summary>
 public sealed record GraphChangeNotification(
