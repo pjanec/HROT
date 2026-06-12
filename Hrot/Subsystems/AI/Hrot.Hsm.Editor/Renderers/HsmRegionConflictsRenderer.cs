@@ -38,6 +38,8 @@ public sealed class HsmRegionConflictsRenderer : ICustomCanvasRenderer, ICustomC
 
     public void SetDiagnostics(IReadOnlyList<HsmDiagnostic>? diagnostics) => _diagnostics = diagnostics;
 
+    internal IReadOnlyList<HsmDiagnostic>? CurrentDiagnostics => _diagnostics;
+
     public void Render(ICanvasRenderContext ctx)
     {
         _glyphPositions.Clear();

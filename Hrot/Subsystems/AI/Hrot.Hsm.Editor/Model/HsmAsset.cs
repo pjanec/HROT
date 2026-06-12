@@ -695,6 +695,10 @@ public sealed class StateNode : IContainerNodeModel
     // Editor-only ephemeral (not persisted)
     public bool IsBreakpoint;
 
+    // Editor-only ephemeral (not persisted) — set by HsmGraphModel from validation each rebuild.
+    public NodeState? DiagnosticState;
+    public string?    DiagnosticTooltip;
+
     // Hidden pin IDs used by HsmTransitionLink to connect this state in the node graph.
     // Derived deterministically from StableId so they are stable across reloads.
     // Output pin = source side of a transition FROM this state.
@@ -747,8 +751,8 @@ public sealed class StateNode : IContainerNodeModel
     public string Title => Name;
     public string? Subtitle => null;
     public NodeCategory Category => NodeCategory.Custom;
-    public NodeState State => IsBreakpoint ? NodeState.Warning : NodeState.Normal;
-    public string? StatusTooltip => null;
+    public NodeState State => DiagnosticState ?? (IsBreakpoint ? NodeState.Warning : NodeState.Normal);
+    public string?   StatusTooltip => DiagnosticTooltip;
     public bool ShowAdvancedPins => false;
 
     // Two hidden pins: output (source of transitions FROM this state) and input (target TO this state).

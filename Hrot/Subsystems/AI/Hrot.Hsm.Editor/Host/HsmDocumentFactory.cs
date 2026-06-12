@@ -93,7 +93,11 @@ public static class HsmDocumentFactory
         var commandSink  = new HsmCommandSink(hsmAsset);
 
         // ── 3. Custom renderers (built-in HSM set + caller extras) ────────────
-        var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers);
+        var renderers = BuildRenderers(hsmAsset, hsmDebugSession, breakpointManager, extraRenderers, out var regionConflicts);
+
+        // Feed region-conflict diagnostics to the renderer on every validation rebuild.
+        graphModel.DiagnosticsRecomputed += regionConflicts.SetDiagnostics;
+        regionConflicts.SetDiagnostics(graphModel.LastDiagnostics); // initial push
 
         // ── 4. Host services ──────────────────────────────────────────────────
         var hostServices = new HsmEditorHostServices(
@@ -146,7 +150,8 @@ public static class HsmDocumentFactory
         HsmAsset                hsmAsset,
         IHsmDebugSession?       hsmDebugSession,
         IDataBreakpointManager? breakpointManager,
-        IReadOnlyList<ICustomCanvasRenderer>? extra)
+        IReadOnlyList<ICustomCanvasRenderer>? extra,
+        out HsmRegionConflictsRenderer regionConflictsRenderer)
     {
         // ── Registration order (per design-talk §9) ──────────────────────────
         // AfterWires pass:
@@ -160,6 +165,7 @@ public static class HsmDocumentFactory
 
         var runtimeOverlay = new HsmRuntimeOverlayRenderer(hsmAsset);
         var gutterRenderer = new HsmBreakpointGutterRenderer(hsmAsset);
+        regionConflictsRenderer = new HsmRegionConflictsRenderer(hsmAsset);
 
         // Wire HSM-specific debug session into overlay and gutter.
         if (hsmDebugSession != null)
@@ -174,7 +180,7 @@ public static class HsmDocumentFactory
         {
             new HsmTransitionLabelRenderer(hsmAsset),  // AfterWires
             new HsmInitialArrowRenderer(hsmAsset),     // AfterNodes
-            new HsmRegionConflictsRenderer(hsmAsset),  // AfterNodes (above initial arrows)
+            regionConflictsRenderer,                   // AfterNodes (above initial arrows)
             new HsmHistoryGlyphsRenderer(hsmAsset),    // AfterNodes (above conflicts)
             gutterRenderer,                            // AfterNodes (above glyphs)
             runtimeOverlay,                            // AfterNodes (last — most ephemeral)

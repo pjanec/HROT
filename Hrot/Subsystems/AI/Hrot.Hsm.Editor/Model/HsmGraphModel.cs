@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Hsm.Editor.Validation;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
 
@@ -36,9 +38,48 @@ public sealed class HsmGraphModel : IGraphModel
     private void BuildCaches()
     {
         _linkCache.Clear();
+
+        // Run validation once (include blackboard for region-conflict checks).
+        var diagnostics = new HsmValidator().Validate(_asset, _asset as IBlackboardManagedAsset);
+
+        // Map StableId -> worst (Error-wins) severity + message.
+        var perState = new Dictionary<Guid, (NodeState State, string Tooltip)>();
+        foreach (var d in diagnostics)
+        {
+            NodeState sev = d.Severity switch
+            {
+                HsmDiagnosticSeverity.Error   => NodeState.Error,
+                HsmDiagnosticSeverity.Warning => NodeState.Warning,
+                _                             => NodeState.Normal,
+            };
+            if (sev == NodeState.Normal) continue;
+            foreach (var id in d.TargetStableIds)
+            {
+                if (!perState.TryGetValue(id, out var ex))
+                    perState[id] = (sev, d.Message);
+                else if (sev == NodeState.Error && ex.State != NodeState.Error)
+                    perState[id] = (sev, d.Message);
+            }
+        }
+
+        // Project onto states; RESET to null when no diagnostic (preserves breakpoint state).
+        foreach (var s in _asset.AllStates)
+        {
+            if (perState.TryGetValue(s.StableId, out var diag))
+            { s.DiagnosticState = diag.State; s.DiagnosticTooltip = diag.Tooltip; }
+            else
+            { s.DiagnosticState = null; s.DiagnosticTooltip = null; }
+        }
+
         foreach (var t in _asset.AllTransitions)
             _linkCache[new LinkId(t.VisualId)] = new HsmTransitionLink(t);
+
+        LastDiagnostics = diagnostics;
+        DiagnosticsRecomputed?.Invoke(diagnostics);
     }
+
+    public IReadOnlyList<HsmDiagnostic> LastDiagnostics { get; private set; } = Array.Empty<HsmDiagnostic>();
+    public event Action<IReadOnlyList<HsmDiagnostic>>? DiagnosticsRecomputed;
 
     // ---- IGraphModel ----
 

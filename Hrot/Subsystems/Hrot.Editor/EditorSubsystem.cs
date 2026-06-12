@@ -1999,6 +1999,10 @@ namespace Hrot.Editor
                 expressionTargetFieldAccessor: ResolveExpressionTargetField);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
+                validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
+                {
+                    new Hrot.Hsm.Editor.Validation.HsmAssetValidator(sharedSchemaExporter),
+                },
                 breakpointManager:             _bpManager,
                 sanitizerRegistry:             sanitizerRegistry,
                 exportBuilder:                 comparisonExportBuilder,
