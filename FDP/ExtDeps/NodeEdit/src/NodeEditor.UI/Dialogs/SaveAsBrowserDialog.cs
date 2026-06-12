@@ -95,6 +95,11 @@ public sealed class SaveAsBrowserDialog
     private string _newFolderName = "";
     private bool _focusNewFolderName;
 
+    // BUG-A8: keyboard folder navigation state
+    private readonly HashSet<string> _collapsedFolders = new();
+    private readonly List<string> _visibleFolderPaths = new();
+    private bool _nameInputActive;
+
     // ── public API ─────────────────────────────────────────────────────────
 
     /// <summary>Whether the dialog is currently open.</summary>
@@ -120,6 +125,7 @@ public sealed class SaveAsBrowserDialog
         _newFolderTarget = null;
         _newFolderName = "";
         _focusNewFolderName = false;
+        _collapsedFolders.Clear();
 
         _isOpen = true;
     }
@@ -219,10 +225,10 @@ public sealed class SaveAsBrowserDialog
 
             if (!visible) return;
 
-            DrawNameField();
-            ImGui.Spacing();
             DrawTwoPanes(icons);
+            HandleFolderKeys();
             ImGui.Spacing();
+            DrawNameField();
             DrawPathPreview();
             ImGui.Spacing();
             DrawButtons();
@@ -251,6 +257,7 @@ public sealed class SaveAsBrowserDialog
         ImGui.SetNextItemWidth(-1f);
         var inputFlags = ImGuiInputTextFlags.EnterReturnsTrue;
         bool nameEnter = ImGui.InputText("Name", ref _name, 256, inputFlags);
+        _nameInputActive = ImGui.IsItemActive();
 
         // Validate name
         string? error = _request?.ValidateName?.Invoke(_name);
@@ -270,9 +277,11 @@ public sealed class SaveAsBrowserDialog
 
     private void DrawTwoPanes(IIconProvider icons)
     {
-        // Reserve space for path preview + buttons below
-        float reservedBelow = ImGui.GetTextLineHeightWithSpacing() * 2
-                            + ImGui.GetFrameHeightWithSpacing() * 1.5f;
+        // Reserve space for Name input + error, path preview, and buttons below the panes
+        float reservedBelow = ImGui.GetTextLineHeightWithSpacing() * 2     // path preview
+                            + ImGui.GetFrameHeightWithSpacing() * 1.5f     // buttons
+                            + ImGui.GetFrameHeightWithSpacing()            // Name input
+                            + ImGui.GetTextLineHeightWithSpacing();        // Name error line
         float availHeight = Math.Max(ImGui.GetContentRegionAvail().Y - reservedBelow, 80f);
 
         float leftWidth = ImGui.GetContentRegionAvail().X * 0.4f;
@@ -298,6 +307,8 @@ public sealed class SaveAsBrowserDialog
 
     private void DrawFolderTree(IIconProvider icons)
     {
+        _visibleFolderPaths.Clear();
+
         var root = _request?.GetFolderTree();
         if (root == null) return;
 
@@ -332,7 +343,13 @@ public sealed class SaveAsBrowserDialog
         if (node.Children.Count == 0)
             treeFlags |= ImGuiTreeNodeFlags.Leaf;
 
+        ImGui.SetNextItemOpen(!_collapsedFolders.Contains(fullPath), ImGuiCond.Always);
+        _visibleFolderPaths.Add(fullPath);
         bool expanded = ImGui.TreeNodeEx(node.Name, treeFlags);
+
+        // Sync manual collapse state with mouse-driven arrow toggle.
+        if (expanded) _collapsedFolders.Remove(fullPath);
+        else if (node.Children.Count > 0) _collapsedFolders.Add(fullPath);
 
         // Single-click selects this folder as destination.
         if (ImGui.IsItemClicked())
@@ -421,7 +438,10 @@ public sealed class SaveAsBrowserDialog
         string? error = _request?.ValidateName?.Invoke(_name);
         bool isValid = error == null && !string.IsNullOrWhiteSpace(_name);
 
-        // "+ New Folder" button
+        float btnW = 110f, sp = ImGui.GetStyle().ItemSpacing.X;
+        float contentWidth = ImGui.GetContentRegionAvail().X; // capture before buttons reduce it
+
+        // "+ New Folder" on the LEFT
         if (_request?.OnCreateFolder != null)
         {
             if (ImGui.Button("+ New Folder"))
@@ -430,13 +450,15 @@ public sealed class SaveAsBrowserDialog
                 _newFolderName = "";
                 _focusNewFolderName = true;
             }
-            ImGui.SameLine();
         }
+
+        // Right-align Confirm + Cancel
+        ImGui.SameLine(contentWidth - (btnW * 2 + sp));
 
         // Confirm button
         ImGui.BeginDisabled(!isValid);
         string confirmLabel = _request?.ConfirmLabel ?? "Save";
-        if (ImGui.Button(confirmLabel))
+        if (ImGui.Button(confirmLabel, new Vector2(btnW, 0)))
         {
             ConfirmActive();
         }
@@ -445,7 +467,7 @@ public sealed class SaveAsBrowserDialog
         ImGui.SameLine();
 
         // Cancel / Esc
-        if (ImGui.Button("Cancel") || ImGui.IsKeyPressed(ImGuiKey.Escape))
+        if (ImGui.Button("Cancel", new Vector2(btnW, 0)) || ImGui.IsKeyPressed(ImGuiKey.Escape))
         {
             Close();
         }
@@ -455,6 +477,46 @@ public sealed class SaveAsBrowserDialog
         if (globalEnter && isValid && !ImGui.IsAnyItemActive())
         {
             ConfirmActive();
+        }
+    }
+
+    // ── BUG-A8: keyboard folder navigation ─────────────────────────────────
+
+    private void HandleFolderKeys()
+    {
+        if (_newFolderTarget != null || _pendingOverwriteConfirm) return;
+
+        int idx = _visibleFolderPaths.IndexOf(_destination);
+
+        // Down — select next visible folder (safe while Name input is active)
+        if (ImGui.IsKeyPressed(ImGuiKey.DownArrow))
+        {
+            idx = Math.Min(idx + 1, _visibleFolderPaths.Count - 1);
+            if (idx >= 0 && idx < _visibleFolderPaths.Count)
+                _destination = _visibleFolderPaths[idx];
+        }
+
+        // Up — select previous visible folder
+        if (ImGui.IsKeyPressed(ImGuiKey.UpArrow))
+        {
+            idx = Math.Max(idx - 1, 0);
+            if (_visibleFolderPaths.Count > 0)
+                _destination = _visibleFolderPaths[Math.Max(idx, 0)];
+        }
+
+        // Right — expand selected folder (only when name input is NOT active,
+        // otherwise it would move the text caret)
+        if (!_nameInputActive && ImGui.IsKeyPressed(ImGuiKey.RightArrow))
+        {
+            if (_destination.Length > 0)
+                _collapsedFolders.Remove(_destination);
+        }
+
+        // Left — collapse selected folder (only when name input is NOT active)
+        if (!_nameInputActive && ImGui.IsKeyPressed(ImGuiKey.LeftArrow))
+        {
+            if (_destination.Length > 0)
+                _collapsedFolders.Add(_destination);
         }
     }
 

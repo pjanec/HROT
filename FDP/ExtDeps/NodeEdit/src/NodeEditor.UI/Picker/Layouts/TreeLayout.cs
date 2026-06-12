@@ -55,7 +55,10 @@ internal static class TreeLayout
         var root = PickerTreeBuilder.Build(items);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
-        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+        // Default-open always so every leaf is rendered and ↑/↓ keyboard nav reaches it.
+        // Mouse arrow-click collapse still works via the arrow triangle — this only
+        // changes the INITIAL state.
+        var flags = ImGuiTreeNodeFlags.DefaultOpen;
 
         // Render folders.
         foreach (var folder in root.Folders)
@@ -113,7 +116,7 @@ internal static class TreeLayout
             return;
         }
 
-        bool open = ImGui.TreeNode(node.Name);
+        bool open = ImGui.TreeNodeEx(node.Name, ImGuiTreeNodeFlags.DefaultOpen); // default-open always
         if (open)
         {
             foreach (var child in node.Children)

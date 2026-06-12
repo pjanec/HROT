@@ -266,8 +266,8 @@ public static class IconWidgets
 
     /// <summary>
     /// A stateful icon button that draws from an <see cref="IconHandle"/> at an explicit size.
-    /// Flips <paramref name="isToggled"/> on click and draws a filled background when
-    /// toggled or hovered. Returns <c>true</c> on click.
+    /// Flips <paramref name="isToggled"/> on click and draws a filled hover highlight.
+    /// Returns <c>true</c> on click.
     /// </summary>
     /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
     /// <param name="id">Unique ImGui ID for this button.</param>
@@ -317,15 +317,29 @@ public static class IconWidgets
         var (iconMin, iconMax) = ComputeIconRect(screenPos, size, iconScale);
         var iconSize = iconMax - iconMin;
 
-        // ── Toggled-state fill (only when enabled) ───────────────────────────
-        // A clearly-visible accent fill marks the "active"/toggled state. The hover
-        // indicator is a SEPARATE white frame (drawn after the icon, below) so that a
-        // toggled icon that is ALSO hovered shows BOTH cues.
+        // ── Hover highlight (non-toggled, behind icon) ──────────────────────
+        // A filled, position-independent highlight drawn BEFORE the icon image.
+        if (enabled && isHovered && !isToggled)
+        {
+            var hoverCol = Gui.GetStyle().Colors[(int)ImGuiCol.HeaderHovered];
+            hoverCol.W = 0.55f; // solid, position-independent highlight — not a thin edge
+            drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(hoverCol), 2f);
+        }
+
+        // ── Toggled-state fill ───────────────────────────────────────────────
         if (enabled && isToggled)
         {
             var toggleCol = Gui.GetStyle().Colors[(int)ImGuiCol.HeaderActive];
             toggleCol.W = 0.85f; // strong, unmistakable "active" fill
             drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(toggleCol), 2f);
+
+            // Hover overlay on top of toggled fill — subtle lighter overlay
+            // so hover is still perceptible on a toggled icon.
+            if (isHovered)
+            {
+                drawList.AddRectFilled(screenPos, screenPos + size,
+                    Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.15f)), 2f);
+            }
         }
 
         // Icon image; shift 1px when pressed.
@@ -349,15 +363,6 @@ public static class IconWidgets
         }
 
         drawList.AddImage(icon.TextureId, imagePos, imagePos + iconSize, icon.Uv0, icon.Uv1, imageTint);
-
-        // ── Hover frame (independent of toggle) ──────────────────────────────
-        // A white border around the full box, drawn on top of everything — the clear,
-        // toggle-independent hover indicator. Composes with the toggled fill above.
-        if (enabled && isHovered)
-        {
-            drawList.AddRect(screenPos, screenPos + size,
-                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)), 2f);
-        }
 
         // Flip state on click (only when enabled)
         if (clicked)
