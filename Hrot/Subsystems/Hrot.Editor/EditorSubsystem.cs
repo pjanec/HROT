@@ -1943,6 +1943,11 @@ namespace Hrot.Editor
             var facetEditService = new ComponentEditServiceBuilder().Build();
             _btreeRegistrar    = new PerspectiveWorkspaceRegistrar(
                 "BTree", _btreeSelectionStore, catalog, refactorService, debugRegistry,
+                validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
+                {
+                    new Hrot.BTree.Editor.Validation.BTreeAssetValidator(
+                        new Hrot.BTree.Editor.Validation.BTreeValidator()),
+                },
                 breakpointManager:             _bpManager,
                 sanitizerRegistry:             sanitizerRegistry,
                 exportBuilder:                 comparisonExportBuilder,
