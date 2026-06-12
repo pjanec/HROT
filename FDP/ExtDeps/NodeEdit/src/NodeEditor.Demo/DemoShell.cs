@@ -86,6 +86,7 @@ public sealed class DemoShell
         _scenarios.Add(new S10_TypePicker());
         _scenarios.Add(new S11_FlagsEnumMultiPicker());
         _scenarios.Add(new S12_AssetGridPicker());
+        _scenarios.Add(new S13_TreeIconPicker());
         _scenarios.Add(new S13_DebugVizMock());
         _scenarios.Add(new S15_VariablesGetSet());
         _scenarios.Add(new S16_PromoteToVariable());

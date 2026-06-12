@@ -12,6 +12,9 @@ namespace NodeEditor.UI.Picker.Layouts;
 /// </summary>
 internal static class TreeLayout
 {
+    private const float RowHeight = 22f;
+    private static readonly Vector2 IconSize = new(16f, 16f);
+
     /// <summary>Render the tree view.</summary>
     public static void Draw(PickerState state, IPickerRenderContext ctx,
                             CategoryNode? explicitRoot = null)
@@ -41,92 +44,59 @@ internal static class TreeLayout
 
     private static void DrawImplicitTree(PickerState state, IPickerRenderContext ctx)
     {
-        // Group entries by top-level category segment.
-        var byRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
-        var uncategorized = new List<(int idx, RankedEntry re)>();
-
+        // Build the pure tree model from the filtered list.
+        var items = new List<(int FilteredIndex, string? Category, string Name)>(state.Filtered.Count);
         for (int i = 0; i < state.Filtered.Count; i++)
         {
             var re = state.Filtered[i];
-            if (re.Entry.Category is { Length: > 0 } cat)
-            {
-                string root = cat.Contains('/') ? cat[..cat.IndexOf('/')] : cat;
-                if (!byRoot.TryGetValue(root, out var list))
-                    byRoot[root] = list = [];
-                list.Add((i, re));
-            }
-            else
-            {
-                uncategorized.Add((i, re));
-            }
+            items.Add((i, re.Entry.Category, re.Entry.Name));
         }
+
+        var root = PickerTreeBuilder.Build(items);
 
         bool isSearching = !string.IsNullOrEmpty(state.SearchText);
         var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
 
-        foreach (var (root, items) in byRoot)
-        {
-            if (ImGui.TreeNodeEx(root, flags))
-            {
-                DrawGroupedItems(state, ctx, root, items, isSearching);
-                ImGui.TreePop();
-            }
-        }
+        // Render folders.
+        foreach (var folder in root.Folders)
+            DrawFolderNode(state, ctx, folder, flags);
 
-        foreach (var (idx, re) in uncategorized)
-            DrawLeafItem(state, ctx, idx, re);
+        // Render uncategorized leaves.
+        foreach (var leaf in root.Leaves)
+            DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex]);
     }
 
-    private static void DrawGroupedItems(PickerState state, IPickerRenderContext ctx,
-        string parentCategoryPath,
-        List<(int idx, RankedEntry re)> items,
-        bool isSearching)
+    private static void DrawFolderNode(PickerState state, IPickerRenderContext ctx,
+        PickerTreeBuilder.Node folder, ImGuiTreeNodeFlags flags)
     {
-        var bySubRoot = new SortedDictionary<string, List<(int idx, RankedEntry re)>>(StringComparer.OrdinalIgnoreCase);
-        var leaves = new List<(int idx, RankedEntry re)>();
+        // Draw folder icon if available. Pick closed/open glyph from the node's
+        // persisted open-state (1-frame lag is acceptable for a folder glyph); the
+        // icon must be drawn BEFORE TreeNodeEx, so we read last frame's state from
+        // ImGui's per-id storage. Falls back to "folder" if "folder_open" is unknown.
+        uint nodeId = ImGui.GetID(folder.Name);
+        int defaultOpenInt = (flags & ImGuiTreeNodeFlags.DefaultOpen) != 0 ? 1 : 0;
+        bool wasOpen = ImGui.GetStateStorage().GetInt(nodeId, defaultOpenInt) != 0;
 
-        string prefix = parentCategoryPath + "/";
-
-        foreach (var item in items)
+        string folderKey = wasOpen ? "folder_open" : "folder";
+        bool hasIcon = ctx.Icons.TryGet(folderKey, out var folderIcon)
+                       || ctx.Icons.TryGet("folder", out folderIcon);
+        if (hasIcon)
         {
-            string? cat = item.re.Entry.Category;
-            
-            // If the category path extends beyond the current parent, group it by the next segment.
-            if (cat != null && cat.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                string remainder = cat[prefix.Length..];
-                string subRoot = remainder.Contains('/') ? remainder[..remainder.IndexOf('/')] : remainder;
-
-                if (!bySubRoot.TryGetValue(subRoot, out var list))
-                {
-                    list = new List<(int idx, RankedEntry re)>();
-                    bySubRoot[subRoot] = list;
-                }
-                list.Add(item);
-            }
-            else
-            {
-                // The item belongs exactly to the current parent category.
-                leaves.Add(item);
-            }
+            ImGui.Image(folderIcon.TextureId, IconSize, folderIcon.Uv0, folderIcon.Uv1);
+            ImGui.SameLine();
         }
 
-        var flags = isSearching ? ImGuiTreeNodeFlags.DefaultOpen : ImGuiTreeNodeFlags.None;
+        bool open = ImGui.TreeNodeEx(folder.Name, flags);
 
-        // 1. Draw sub-category folders recursively
-        foreach (var (subRoot, subItems) in bySubRoot)
+        if (open)
         {
-            if (ImGui.TreeNodeEx(subRoot, flags))
-            {
-                DrawGroupedItems(state, ctx, prefix + subRoot, subItems, isSearching);
-                ImGui.TreePop();
-            }
-        }
+            foreach (var subFolder in folder.Folders)
+                DrawFolderNode(state, ctx, subFolder, flags);
 
-        // 2. Draw leaf items at this depth
-        foreach (var (idx, re) in leaves)
-        {
-            DrawLeafItem(state, ctx, idx, re);
+            foreach (var leaf in folder.Leaves)
+                DrawLeafItem(state, ctx, leaf.FilteredIndex, state.Filtered[leaf.FilteredIndex]);
+
+            ImGui.TreePop();
         }
     }
 
@@ -159,23 +129,92 @@ internal static class TreeLayout
     {
         bool sel    = state.SelectedFilteredIndices.Contains(filteredIdx);
         bool focus  = state.KeyboardFocusIndex == filteredIdx;
+        bool isSearching = !string.IsNullOrEmpty(state.SearchText);
 
         ImGui.PushID(filteredIdx);
 
-        // Architecturally critical: Supply AllowDoubleClick so ImGui captures the double-click event
-        // rather than treating it as two distinct single clicks that toggle state.
-        if (ImGui.Selectable(re.Entry.Name, sel || focus, ImGuiSelectableFlags.AllowDoubleClick))
+        var pos = ImGui.GetCursorScreenPos();
+        var availWidth = ImGui.GetContentRegionAvail().X;
+        var size = new Vector2(availWidth, RowHeight - 4f);
+
+        // Invisible selectable captures hit-tests without fighting visual layout
+        // (mirrors PickerItemListHelper.DrawRow technique).
+        bool clicked = ImGui.Selectable("##sel", false,
+            ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowDoubleClick,
+            size);
+
+        bool actualMouseClicked = clicked && ImGui.IsMouseReleased(ImGuiMouseButton.Left);
+
+        var dl = ImGui.GetWindowDrawList();
+
+        // Highlight background (selected or focused).
+        if (sel || focus)
+        {
+            uint bgColor = sel
+                ? ImGui.GetColorU32(ctx.Theme.SelectionAccent with { W = 0.35f })
+                : ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.2f });
+            dl.AddRectFilled(pos, pos + size, bgColor, 2f);
+        }
+
+        // Keyboard focus indicator.
+        if (focus)
+            dl.AddRect(pos, pos + size, ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.5f }), 2f);
+
+        float textX = pos.X + 4f;
+        float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
+
+        // Draw type icon if available.
+        float iconPadLeft = 0f;
+        if (re.Entry.IconKey is { Length: > 0 } iconKey &&
+            ctx.Icons.TryGet(iconKey, out var leafIcon))
+        {
+            float iconY = pos.Y + (size.Y - IconSize.Y) * 0.5f;
+            dl.AddImage(leafIcon.TextureId,
+                new Vector2(textX, iconY),
+                new Vector2(textX + IconSize.X, iconY + IconSize.Y),
+                leafIcon.Uv0, leafIcon.Uv1);
+            textX += IconSize.X + 4f;
+            iconPadLeft = IconSize.X + 4f;
+        }
+        else
+        {
+            // Left-pad when no icon so text aligns with icon-bearing leaves.
+            textX += IconSize.X + 4f;
+        }
+
+        // Render name with match highlights.
+        uint defaultTextColor = sel
+            ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
+            : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        uint highlightColor = sel
+            ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f))
+            : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
+
+        var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
+        foreach (var run in runs)
+        {
+            uint color = run.IsMatch ? highlightColor : defaultTextColor;
+            dl.AddText(new Vector2(textX, textY), color, run.Text);
+            textX += ImGui.CalcTextSize(run.Text).X;
+        }
+
+        // Handle mouse click for selection.
+        if (actualMouseClicked)
         {
             state.SelectedFilteredIndices.Clear();
             state.SelectedFilteredIndices.Add(filteredIdx);
             state.KeyboardFocusIndex = filteredIdx;
         }
 
-        // Evaluate the double-click immediately after the selectable
+        // Double-click confirms.
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             state.Confirmed = true;
         }
+
+        // Scroll focused leaf into view.
+        if (focus)
+            ImGui.SetScrollHereY(0.5f);
 
         ImGui.PopID();
     }

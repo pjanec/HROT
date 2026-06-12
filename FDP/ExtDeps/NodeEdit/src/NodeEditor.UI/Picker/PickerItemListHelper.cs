@@ -134,36 +134,12 @@ internal static class PickerItemListHelper
         uint defaultTextColor = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
         uint highlightColor   = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
-        if (re.MatchPositions is { Count: > 0 } matchSet)
+        var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);
+        foreach (var run in runs)
         {
-            var set = new HashSet<int>(matchSet);
-            int chunkStart = 0;
-
-            // Determine whether the first character is a search-match highlight.
-            bool isMatch = set.Contains(0);
-
-            for (int i = 1; i <= re.Entry.Name.Length; i++)
-            {
-                bool isNextMatch = i < re.Entry.Name.Length && set.Contains(i);
-
-                // Flush the current chunk when highlight state changes or we reach the end.
-                if (i == re.Entry.Name.Length || isMatch != isNextMatch)
-                {
-                    string chunk = re.Entry.Name.Substring(chunkStart, i - chunkStart);
-                    uint color = isMatch ? highlightColor : defaultTextColor;
-
-                    dl.AddText(new Vector2(textX, textY), color, chunk);
-                    textX += ImGuiNET.ImGui.CalcTextSize(chunk).X;
-
-                    // Begin the next chunk.
-                    chunkStart = i;
-                    isMatch = isNextMatch;
-                }
-            }
-        }
-        else
-        {
-            dl.AddText(new Vector2(textX, textY), defaultTextColor, re.Entry.Name);
+            uint color = run.IsMatch ? highlightColor : defaultTextColor;
+            dl.AddText(new Vector2(textX, textY), color, run.Text);
+            textX += ImGuiNET.ImGui.CalcTextSize(run.Text).X;
         }
 
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))

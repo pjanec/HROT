@@ -13,6 +13,11 @@ namespace NodeEditor.UI.Picker;
 /// <param name="Keywords">Additional search terms beyond the display name.</param>
 /// <param name="IconTextureId">Optional icon texture handle for Grid thumbnails or inline icons.</param>
 /// <param name="Tag">Opaque caller payload returned via <see cref="PickerResult"/>.</param>
+/// <param name="IconKey">
+/// Optional <see cref="Core.Interfaces.IIconProvider"/> key resolved to an
+/// <see cref="Core.Interfaces.IconHandle"/> (atlas cell) for inline row icons in flat/tree layouts.
+/// Distinct from <see cref="IconTextureId"/> (whole-texture Grid thumbnails).
+/// </param>
 public sealed record PickerEntry(
     string Id,
     string Name,
@@ -20,4 +25,5 @@ public sealed record PickerEntry(
     string? Category,
     IReadOnlyList<string>? Keywords,
     IntPtr? IconTextureId,
-    object? Tag);
+    object? Tag,
+    string? IconKey = null);
