@@ -9,6 +9,8 @@
 
 | VE-DEBT-002 | Real-condition codegen binding for BrainBlackboard trees | P2 | BATCH-06 review | The BTree generator emits `.Condition(Method)` as a 4-param `NodeLogicDelegate<TBB,TContext>`, but every real `[BTreeCondition]` takes a typed DTO param and `BrainBlackboard` has no DTO-typed field for the `ThreeParamReusable` expression-target path → a real condition can't be bound into a BrainBlackboard-typed generated tree that compiles. CombatShowcase therefore omits its bound Condition guard (so the **OBSERVES-badge demo** is not exercised). Needs the expression-target/blackboard-field machinery (BB1-adjacent) — likely resolved alongside BB1 / Blackboard Slice 1.5. | OPEN — flag at REVIEW-BT |
 
+| VE-DEBT-003 | BTree generator incrementality | P3 | BATCH-17 | `BTreeJsonGenerator` now `Combine`s with the full `CompilationProvider` (for the BT-17 method-compatibility symbol-check), so generation re-runs on any compilation change, not just `.btree.json` changes. Acceptable for the small asset count; a fancier incremental symbol-extraction would restore per-asset incrementality. | OPEN (best-effort) |
+
 ---
 
 ## Notes
