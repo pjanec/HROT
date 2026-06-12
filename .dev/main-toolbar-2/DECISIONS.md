@@ -74,3 +74,9 @@ fully autonomous**). Decisions made mid-run are recorded here; design decisions 
   (a) needs open-from-in-memory (no file exists until first Save-As; nothing to rename/clean). Batches: 41 = generic
   NodeEdit Save-As browser dialog; 42 = open-from-in-memory (3 factories); 43 = New/Save-As wiring + retire
   `AssetNameFolderModal`.
+- **D-T8-4 (2026-06-12, user chose (b)):** the open-from-in-memory enabler is NOT uniform (the 3 document factories
+  diverge — Blueprint loads from file via `LoadAsset`; BTree/HSM differ), i.e. real per-subsystem pipeline surgery.
+  Now that the generic `SaveAsBrowserDialog` exists (BATCH-41), ship **(b)**: New = recipe picker → Save-As browser
+  (name+folder) → `CreateNew(recipe,name,folder)` → write + catalog-refresh (RefreshFromAssembly) + open catalogued;
+  Save-As (doc+scenario) → the same dialog. Retire `AssetNameFolderModal`. Proper (a) deferred → **DBT-A4** (full
+  design in DEBT-TRACKER Notes ▸ "Proper (a)").

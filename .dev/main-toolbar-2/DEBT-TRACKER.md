@@ -23,6 +23,7 @@ choices so they aren't re-litigated.
 | BUG-A2 | P1 | runtime BATCH-33 | **Scenario Save via icon broken** in the "Scenario"/Editor perspective: Save disabled + tooltip shows the **stale doc** ("blueprint: Count5"). Causes: `IsEnabled` gates on empty `LoadedScenarioName` (empty after `NewScenario`); `describeActiveTarget` falls through to the doc branch when unnamed. **FIXED (3533c059, BATCH-38):** scenario-context Save always enabled, named→SaveCurrent/unnamed→SaveAs, label always describes scenario. | BATCH-38 | ✅ |
 | BUG-A3 | P2 | runtime | **No save feedback. FIXED (3533c059, BATCH-38):** document save reports `[OK] Saved {Kind}: '{Name}'.`; scenario save sets the status line. | BATCH-38 | ✅ |
 | BUG-A4 | P1 | runtime BATCH-30 | **Toolbar icon UX:** icons not visibly scaled down (margin too small); toggled bg too faint; hover bg == toggle bg (toggled+hovered shows nothing); the **white hover frame was removed**. Fix: smaller icon inset; **restore the white hover frame** (independent hover indicator); distinct + visible toggled bg; the two must compose. **FIXED (2dec34d3):** inset 0.72; white hover frame restored; HeaderActive@0.85 toggle fill; composable. | direct | ✅ |
+| DBT-A4 | P2 | MTB2-T8 | **Proper-(a) New-asset UX deferred** (chose (b): name up front via the Save-As browser). Proper (a) = create-from-recipe → open the unsaved in-memory asset (default name) → first Save = Save-As. Needs **open-from-in-memory** in the 3 document factories (see Notes ▸ "Proper (a)"). **Do with sonnet, NOT Zoo** (complex/integration). | future · sonnet | open (detailed) |
 | DBT-A1 | P3 | T7 (BATCH-36) | `RecipeCreateModal`/`NewFromRecipeService` production wiring retired (classes/tests kept). **USER DIRECTIVE (2026-06-12): POSTPONE deletion — AWAITS USER APPROVAL** (only after new-asset creation fully works). | hold (user approval) | open |
 
 ## Notes
@@ -31,3 +32,26 @@ choices so they aren't re-litigated.
   [DESIGN.md](./DESIGN.md) "Active-save-target model".
 - **Zoo guardrails** (no asset exclusion / no diagnostic suppression / no test weakening / no cross-batch edits /
   don't-stop-until-`Failed:0`) live in TASK-DETAIL's "Zoo Execution Contract" and must be pasted into every batch.
+
+## Notes ▸ Proper (a): open-from-in-memory (DBT-A4, deferred — full design to return to)
+**Goal:** New = recipe Tree picker → `INewAssetService.CreateNew(recipe, defaultName, "")` (default name, EMPTY
+`SourceFilePath`) → **open the in-memory asset immediately** (unsaved) → first Ctrl+S routes (empty path) to the
+Save-As browser. Uniform with scenarios (already native). Avoids the (b) "dialog at create time" + needs no rename
+(none exists — Save-As mints a fresh AssetId = copy, §18.5).
+
+**Why it's real work (not a uniform tweak):** the 3 document factories diverge:
+- **Blueprint** (`BlueprintDocumentFactory.Build`): requires `BlueprintFileAsset` (internal, file-backed) and calls
+  `LoadAsset(bpFile)` = `File.ReadAllText(SourceFilePath)+Deserialize`; *everything after runs off the in-memory
+  `BlueprintAsset`*. The minted `BlueprintEditableAssetAdapter` ALREADY exposes `public BlueprintAsset Asset` +
+  `SourceFilePath => ""`. **Change:** in `Build`, branch — if the asset is `BlueprintEditableAssetAdapter`, use
+  `adapter.Asset` directly (skip `LoadAsset`), treat as unsaved (empty path); route dirty to the `AiDocument` (not
+  `bpFile.MarkDirty`). Else the existing file path.
+- **BTree / HSM** (`BTreeDocumentFactory`/`HsmDocumentFactory`): do NOT use the `*FileAsset`+`LoadAsset(file)` pattern
+  (different Build); their adapters (`BTreeEditableAssetAdapter`/`HsmEditableAssetAdapter`) carry a **settable
+  `_sourceFilePath`**. **Investigate each** Build's load path and add the equivalent in-memory branch. (HSM new also
+  crashed at runtime, so it has the same gap.)
+
+**Then:** New-flow wiring opens the in-memory asset (no dialog at create); the empty-`SourceFilePath`→Save-As routing
+in `ShellSaveCommands` (already present) triggers the Save-As browser on first Ctrl+S. **Risk:** integration-sensitive,
+per-subsystem; per the Zoo notes this is **complex/integration-sensitive work — assign to sonnet (NOT the deepseek Zoo worker)**; prescribe each factory precisely. Verify each kind opens
+unsaved + first-save→Save-As + no regression to opening EXISTING file-backed assets.

@@ -363,6 +363,13 @@ namespace Hrot.Editor
         // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
         private Hrot.Editor.AiShared.Browser.AssetNameFolderModal? _assetNameFolderModal;
 
+        // BATCH-42 (MTB2-T8b): Save-As browser dialog host for the New-asset flow.
+        private NodeEditor.UI.Dialogs.SaveAsBrowserDialog? _saveAsBrowser;
+
+        // BATCH-42 (MTB2-T8b): icon provider captured from adapter bundle for per-frame
+        // SaveAsBrowserDialog draw.
+        private NodeEditor.Core.Interfaces.IIconProvider? _iconProvider;
+
         // BATCH-26: Asset-pick action router — routes file kinds → AiDocumentManager.Open,
         // Scenario → IEditorLogic.LoadScenarioByName.
         private Hrot.Editor.AssetPickActionRouter? _assetPickRouter;
@@ -1837,6 +1844,10 @@ namespace Hrot.Editor
             // BATCH-29 (MTB-P8-T3): Draw the shell-global picker frame (Open Asset via Tree layout).
             _shellPickers?.DrawFrame();
 
+            // BATCH-42 (MTB2-T8b): Draw the Save-As browser dialog (New flow).
+            if (_saveAsBrowser != null && _iconProvider != null)
+                _saveAsBrowser.DrawFrame(_iconProvider);
+
             // BATCH-40 (MTB2-T8): Draw the name+folder modal (New / Save-As).
             _assetNameFolderModal?.DrawModal();
         }
@@ -2471,6 +2482,10 @@ namespace Hrot.Editor
             // BATCH-40 (MTB2-T8): generic name+folder modal for New and Save-As.
             _assetNameFolderModal = new Hrot.Editor.AiShared.Browser.AssetNameFolderModal();
 
+            // BATCH-42 (MTB2-T8b): capture icon provider + init Save-As browser dialog.
+            _iconProvider = adapterBundle.IconProvider;
+            _saveAsBrowser = new NodeEditor.UI.Dialogs.SaveAsBrowserDialog();
+
             // Null-safe guard: _assetPickRouter may be null in bare-ctor tests.
             var assetPickerLauncher = _assetPickRouter != null
                 ? new Hrot.Editor.AssetPickerLauncher(
@@ -2480,34 +2495,82 @@ namespace Hrot.Editor
                 : null;
 
             // ── BATCH-36 (MTB2-T7): NewAssetLauncher — opens the recipe Tree picker; ──
-            // on pick → ShowNewAssetDialog opens the AssetNameFolderModal (BATCH-40: DBT-A3).
+            // on pick → ShowNewAssetDialog opens the Save-As browser (BATCH-42: MTB2-T8b).
             void ShowNewAssetDialog(Hrot.Editor.AiShared.AssetKind kind, Hrot.Editor.AiShared.IEditableAsset recipe)
             {
                 if (_newAssetServices == null) return;
 
-                var known = Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
-                    catalog.All, kind, baseFolderFor);
-                var dlg = new Hrot.Editor.AiShared.Recipes.NewAssetDialog(
-                    _newAssetServices, knownFolderPaths: known, saveMintOnlyAsset: saveAsBlueprintToFile);
-                dlg.Kind = kind;
-                dlg.Recipe = recipe;
-                dlg.Name = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
-                    ? $"New{kind}"
-                    : recipe.Name;
-                _assetNameFolderModal?.Open(dlg, onCreated: minted =>
+                var folderPicker = new Hrot.Editor.AiShared.Browser.FolderPickerState(
+                    Hrot.Editor.AiShared.Browser.AssetFolderDerivation.KnownSubfolders(
+                        catalog.All, kind, baseFolderFor));
+
+                var request = new NodeEditor.UI.Dialogs.SaveAsRequest
                 {
-                    // BUG-A1: open the CATALOGUED concrete asset (document kinds only); Scenario isn't document-backed.
-                    if (minted.Kind is Hrot.Editor.AiShared.AssetKind.Blueprint
+                    Title        = $"New {kind}",
+                    InitialName  = string.Equals(recipe.Name, "Empty", System.StringComparison.OrdinalIgnoreCase)
+                        ? $"New{kind}"
+                        : recipe.Name,
+                    ConfirmLabel = "Create",
+                    GetFolderTree = () => Hrot.Editor.AiShared.Browser.AssetFolderDerivation.ToCategoryNode(
+                        folderPicker.FolderPaths.ToList()),
+                    GetFolderContents = folder => catalog.All
+                        .Where(a => a.Kind == kind &&
+                            FolderOf(a, kind, baseFolderFor) == folder)
+                        .Select(a => new NodeEditor.UI.Dialogs.SaveAsContentItem(
+                            a.Name,
+                            Hrot.Editor.AiShared.AssetKindIcons.GetIconKey(kind)))
+                        .ToList(),
+                    OnCreateFolder = (parent, newName) => folderPicker.AddFolder(parent, newName),
+                    NameExists = (name, dest) => catalog.All.Any(a =>
+                        a.Kind == kind &&
+                        FolderOf(a, kind, baseFolderFor) == dest &&
+                        a.Name == name),
+                    ValidateName = name => string.IsNullOrWhiteSpace(name)
+                        ? "Name must not be empty."
+                        : null,
+                };
+
+                _saveAsBrowser?.Open(request, result =>
+                {
+                    if (!result.Confirmed) return;
+                    var minted = _newAssetServices![kind].CreateNew(recipe, result.Name, result.DestinationPath);
+                    // Blueprint is mint-only — write its file at the chosen folder;
+                    // BTree/HSM/Scenario persist in CreateNew.
+                    if (kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+                    {
+                        var bpPath = Hrot.Editor.AiShared.AssetSavePath.Compose(
+                            Hrot.Editor.AiShared.AssetKind.Blueprint,
+                            result.DestinationPath, result.Name);
+                        saveAsBlueprintToFile(minted, bpPath);
+                    }
+                    // Refresh the catalog then open the catalogued (concrete) asset (document kinds).
+                    if (kind is Hrot.Editor.AiShared.AssetKind.Blueprint
                         or Hrot.Editor.AiShared.AssetKind.BTree
                         or Hrot.Editor.AiShared.AssetKind.Hsm)
                     {
+                        var aiAsm = AppDomain.CurrentDomain.GetAssemblies()
+                            .FirstOrDefault(a => a.GetName().Name == "Hrot.AI.Behaviors");
+                        if (aiAsm != null) _aiCatalogBuilder?.RefreshFromAssembly(aiAsm);
                         var catalogued = _aiCatalogBuilder?.Catalog?.FindByAssetId(minted.AssetId);
                         if (catalogued != null)
                             _aiDocumentManager?.Open(catalogued);
                         else
-                            _saveAllStatus = $"[INFO] Created '{minted.Name}'. Open it from the Asset Browser (catalog refresh pending).";
+                            _saveAllStatus = $"[INFO] Created '{minted.Name}'.";
                     }
+                    else
+                        _saveAllStatus = $"[OK] Created {kind}: '{minted.Name}'.";
                 });
+
+                // Local helper: directory part of an asset's relative path for the given kind.
+                static string FolderOf(
+                    Hrot.Editor.AiShared.IEditableAsset a,
+                    Hrot.Editor.AiShared.AssetKind k,
+                    Func<Hrot.Editor.AiShared.AssetKind, string?> bf)
+                {
+                    var rel = Hrot.Editor.AiShared.Browser.AssetRelPath.RelPath(a, bf(k));
+                    int lastSlash = rel.LastIndexOf('/');
+                    return lastSlash >= 0 ? rel.Substring(0, lastSlash) : "";
+                }
             }
 
             var newAssetLauncher = _newAssetServices != null

@@ -148,4 +148,35 @@ public sealed class AssetFolderDerivationTests
         Assert.Single(result);
         Assert.Equal("", result[0]);
     }
+
+    // ── ToCategoryNode_BuildsNestedTree ───────────────────────────────
+
+    [Fact]
+    public void ToCategoryNode_BuildsNestedTree()
+    {
+        var relPaths = new[] { "", "AI", "AI/Combat", "Patrol" };
+
+        var root = AssetFolderDerivation.ToCategoryNode(relPaths);
+
+        // Root has empty name.
+        Assert.Equal("", root.Name);
+
+        // Root children: "AI" and "Patrol" (sorted by name, ordinal).
+        Assert.Equal(2, root.Children.Count);
+        Assert.Equal("AI", root.Children[0].Name);
+        Assert.Equal("Patrol", root.Children[1].Name);
+
+        // "AI" has one child: "Combat".
+        var aiNode = root.Children[0];
+        Assert.Single(aiNode.Children);
+        Assert.Equal("Combat", aiNode.Children[0].Name);
+
+        // "Combat" has no children.
+        var combatNode = aiNode.Children[0];
+        Assert.Empty(combatNode.Children);
+
+        // "Patrol" has no children.
+        var patrolNode = root.Children[1];
+        Assert.Empty(patrolNode.Children);
+    }
 }
