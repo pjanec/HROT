@@ -132,6 +132,14 @@ public class PerspectiveWorkspaceRegistrar
     ///   Optional map of CLR type → <see cref="IImGuiFieldDrawer"/> forwarded to
     ///   <see cref="InspectorWindow"/> for attribute-dispatched picker fields (SE1).
     /// </param>
+    /// <param name="expressionTargetFieldAccessor">
+    ///   Optional delegate (injected from composition root) that extracts the
+    ///   <c>ExpressionTargetField</c> value from a boxed facet struct (B-3).
+    ///   When supplied, enables the "Static Parameters" default-value StructEdit panel in
+    ///   <see cref="InspectorWindow"/>. The delegate should return non-null only for
+    ///   facet types that carry an <c>ExpressionTargetField</c> (BTree Action/Condition
+    ///   facets; HSM Transition/GlobalTransition facets). Return null for other types.
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -146,7 +154,8 @@ public class PerspectiveWorkspaceRegistrar
         BlackboardAggregatorService? aggregatorService = null,
         IActionSchemaExporter? schemaExporter = null,
         IComponentEditService? facetEditService = null,
-        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null)
+        IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
+        Func<object?, string?>? expressionTargetFieldAccessor = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -165,14 +174,15 @@ public class PerspectiveWorkspaceRegistrar
             owningPerspective: perspectiveName);
 
         Inspector = new InspectorWindow(
-            store:              selectionStore,
-            refactorService:    refactorService,
-            findResults:        FindResults,
-            idOverride:         $"ai_inspector_{suffix}",
-            owningPerspective:  perspectiveName,
-            schemaExporter:     schemaExporter,
-            facetEditService:   facetEditService,
-            facetCustomDrawers: facetCustomDrawers);
+            store:                         selectionStore,
+            refactorService:               refactorService,
+            findResults:                   FindResults,
+            idOverride:                    $"ai_inspector_{suffix}",
+            owningPerspective:             perspectiveName,
+            schemaExporter:                schemaExporter,
+            facetEditService:              facetEditService,
+            facetCustomDrawers:            facetCustomDrawers,
+            expressionTargetFieldAccessor: expressionTargetFieldAccessor);
 
         RuntimeInspector = new RuntimeInspectorWindow(
             store:             selectionStore,

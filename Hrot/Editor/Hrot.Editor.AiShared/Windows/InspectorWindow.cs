@@ -354,7 +354,7 @@ public sealed class InspectorWindow : ManagedWindow
                         try
                         {
                             instance = (!string.IsNullOrEmpty(varEntry.DefaultValueJson))
-                                ? JsonSerializer.Deserialize(varEntry.DefaultValueJson, varEntry.FieldType)
+                                ? JsonSerializer.Deserialize(varEntry.DefaultValueJson, varEntry.FieldType, DefaultValueAuthoring.JsonOptions)
                                     ?? Activator.CreateInstance(varEntry.FieldType)!
                                 : Activator.CreateInstance(varEntry.FieldType)!;
                         }
@@ -391,7 +391,7 @@ public sealed class InspectorWindow : ManagedWindow
                     {
                         var committed = _defaultValueSession.Commit();
                         string json;
-                        try   { json = JsonSerializer.Serialize(committed, varEntry.FieldType); }
+                        try   { json = JsonSerializer.Serialize(committed, varEntry.FieldType, DefaultValueAuthoring.JsonOptions); }
                         catch { json = "{}"; }
                         bbAsset.UpdateVariableDefaultValueJson(boundVarName, json);
                         // Drop and rebuild next frame so the session reflects the persisted JSON.
@@ -478,6 +478,26 @@ public sealed class InspectorWindow : ManagedWindow
     /// fields instead of the fallback stub (SE1 live-wiring).
     /// </summary>
     internal bool HasFacetEditService => _facetEditService is not null;
+
+    /// <summary>
+    /// True when an <c>expressionTargetFieldAccessor</c> delegate has been wired (B-3).
+    /// Used by headless tests to verify the composition root forwarded the accessor so the
+    /// "Static Parameters" panel is active for Action/Transition facets.
+    /// </summary>
+    internal bool HasExpressionTargetFieldAccessor => _expressionTargetFieldAccessor is not null;
+
+    /// <summary>
+    /// Returns the bound variable name for the current facet (if any) using the wired
+    /// <c>expressionTargetFieldAccessor</c>. Returns null when no accessor is wired or the
+    /// current facet does not carry an ExpressionTargetField. Safe to call from headless
+    /// tests — does not require an ImGui context.
+    /// </summary>
+    internal string? GetCurrentExpressionTargetField()
+    {
+        if (_expressionTargetFieldAccessor is null) return null;
+        var facet = GetCurrentFacet();
+        return _expressionTargetFieldAccessor(facet);
+    }
 
     /// <summary>
     /// Exposes the currently cached default-value StructEdit session for headless tests (B-3).

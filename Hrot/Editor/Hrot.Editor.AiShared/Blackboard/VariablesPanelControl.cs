@@ -137,7 +137,7 @@ public sealed class VariablesPanelControl
         {
             ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
         }
-        
+
         if (section.Warning == PackWarning.InlineMemoryExceeded)
             ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Inline memory exceeded!");
         else if (section.Warning == PackWarning.HeavyMemoryExceeded)
@@ -155,7 +155,8 @@ public sealed class VariablesPanelControl
             _addValidationError = null;
         }
 
-        if (schema.Variables.Any(v => v.IsUnused) && !schema.IsReadOnly)
+        // Only count hand-authored unused vars for the "Remove unused" button.
+        if (schema.Variables.Any(v => v.IsUnused && !v.IsAutoManaged) && !schema.IsReadOnly)
         {
             ImGui.SameLine();
             if (ImGui.Button($"[ Remove unused ]##rmvu_{section.TableId}"))
@@ -165,14 +166,31 @@ public sealed class VariablesPanelControl
             }
         }
 
-        if (schema.Variables.Count == 0)
+        // Split into hand-authored and node-owned groups.
+        var mainVars     = schema.Variables.Where(v => !v.IsAutoManaged).ToList();
+        var nodeOwnedVars = schema.Variables.Where(v => v.IsAutoManaged).ToList();
+
+        if (mainVars.Count == 0)
         {
             ImGui.TextDisabled("No variables declared.");
             // even if empty, show unbound
         }
         else
         {
-            DrawTable(section, rowDecoration);
+            DrawTable(section, mainVars, rowDecoration);
+        }
+
+        // Node-Owned Allocations sub-group (dimmed, read-only).
+        if (nodeOwnedVars.Count > 0)
+        {
+            ImGui.Spacing();
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0.5f);
+            if (ImGui.CollapsingHeader($"Node-Owned Allocations ({nodeOwnedVars.Count})##no_{section.TableId}",
+                ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                DrawNodeOwnedTable(section, nodeOwnedVars);
+            }
+            ImGui.PopStyleVar();
         }
 
         if (section.AliasingEnabled && section.Schema.UnboundRequirements.Count > 0)
@@ -207,7 +225,21 @@ public sealed class VariablesPanelControl
         }
     }
 
+    // ── B-4: headless-testable alias drop predicate ───────────────────────────
+
+    /// <summary>
+    /// Returns true when a BB_UNBOUND_DRAG alias drop is accepted onto <paramref name="targetRow"/>.
+    /// Auto-managed variables are never valid alias targets (B-4 §3.7).
+    /// The DTO type must also match the target's field type.
+    /// </summary>
+    public static bool IsAliasDropAccepted(VariableViewModel targetRow, Type draggedDtoType)
+    {
+        if (targetRow.IsAutoManaged) return false;
+        return draggedDtoType == targetRow.FieldType;
+    }
+
     private void DrawTable(VariablesPanelSection section,
+        List<VariableViewModel> rows,
         Func<string, FieldDecoration?>? rowDecoration = null)
     {
         var schema = section.Schema;
@@ -219,9 +251,9 @@ public sealed class VariablesPanelControl
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
 
-            for (int rowIdx = 0; rowIdx < schema.Variables.Count; rowIdx++)
+            for (int rowIdx = 0; rowIdx < rows.Count; rowIdx++)
             {
-                var row = schema.Variables[rowIdx];
+                var row = rows[rowIdx];
                 ImGui.TableNextRow();
                 FieldDecoration? dec = rowDecoration?.Invoke(row.Name);
                 if (dec != null)
@@ -306,7 +338,8 @@ public sealed class VariablesPanelControl
                                 if (srcIdx >= 0 && srcIdx < schema.UnboundRequirements.Count)
                                 {
                                     var req = schema.UnboundRequirements[srcIdx];
-                                    if (req.DtoType == row.FieldType)
+                                    // B-4 §3.7: auto-managed vars are excluded from alias drop-targets.
+                                    if (IsAliasDropAccepted(row, req.DtoType))
                                     {
                                         var newBinding = new BlackboardAliasBinding(req.RequiringAssetId, req.RequiringElementId, req.RequiringAssetName, req.RequiredByPath, req.DtoType);
                                         var map = schema.GetParallelRegionMap();
@@ -315,7 +348,7 @@ public sealed class VariablesPanelControl
                                             if (!BlackboardAliasDropValidator.WouldCreateCrossRegionConflict(bbma, row.Name, newBinding, map))
                                                 schema.AddAlias(row.Name, newBinding);
                                         }
-                                        else 
+                                        else
                                         {
                                             schema.AddAlias(row.Name, newBinding);
                                         }
@@ -360,6 +393,38 @@ public sealed class VariablesPanelControl
                 }
 
                 if (row.IsUnused) ImGui.PopStyleVar();
+                ImGui.PopID();
+            }
+            ImGui.EndTable();
+        }
+    }
+
+    /// <summary>
+    /// Renders the read-only "Node-Owned Allocations" table for auto-managed variables (B-4 §3.6).
+    /// This table is always dimmed (caller wraps in PushStyleVar Alpha) and has no
+    /// edit controls — auto-managed vars are removed by the command sink when the owning node is deleted.
+    /// </summary>
+    private void DrawNodeOwnedTable(VariablesPanelSection section, List<VariableViewModel> rows)
+    {
+        string tableId = $"##no_tbl_{section.TableId}";
+        if (ImGui.BeginTable(tableId, 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        {
+            ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
+            ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
+            ImGui.TableHeadersRow();
+
+            for (int rowIdx = 0; rowIdx < rows.Count; rowIdx++)
+            {
+                var row = rows[rowIdx];
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.PushID(50000 + rowIdx);
+                ImGui.TextUnformatted(row.Name);
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("Auto-allocated by node. Removed when the owning node is deleted.");
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
+                ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString());
                 ImGui.PopID();
             }
             ImGui.EndTable();
@@ -431,7 +496,8 @@ public sealed class VariablesPanelControl
         {
             if (_removeUnusedPopupSchema != null)
             {
-                var unused = _removeUnusedPopupSchema.Variables.Where(v => v.IsUnused).ToList();
+                // B-4: exclude auto-managed vars from the "Remove unused" bulk operation.
+                var unused = _removeUnusedPopupSchema.Variables.Where(v => v.IsUnused && !v.IsAutoManaged).ToList();
                 int totalBytes = unused.Sum(v => v.ByteSize);
                 ImGui.Text($"Remove {unused.Count} unused variables?");
                 ImGui.Text($"This will free {totalBytes} bytes from the blackboard.");

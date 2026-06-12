@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Hrot.Hsm.Editor.Model;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
@@ -136,9 +137,41 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     }
 
     private void ApplyAddNode(GraphCommand.AddNode cmd)               { /* TODO */ }
-    private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)       { /* TODO */ }
+
+    private void ApplyRemoveNodes(GraphCommand.RemoveNodes cmd)
+    {
+        foreach (var nodeId in cmd.Nodes)
+        {
+            var state = _asset.FindStateByStableId(nodeId.Value);
+            if (state is null) continue;
+            state.Parent?.Children.Remove(state);
+        }
+    }
+
     private void ApplyAddLink(GraphCommand.AddLink cmd)               { /* TODO */ }
-    private void ApplyRemoveLinks(GraphCommand.RemoveLinks cmd)       { /* TODO */ }
+
+    private void ApplyRemoveLinks(GraphCommand.RemoveLinks cmd)
+    {
+        // B-4 lifecycle: when a transition (link) is removed, check if it owns an auto-managed
+        // variable via ExpressionTargetField. If so, remove that variable from the blackboard.
+        // Only deletes variables that are BOTH IsAutoManaged AND named by THIS transition's field.
+        foreach (var linkId in cmd.Links)
+        {
+            var transition = _asset.FindTransitionByVisualId(linkId.Value);
+            if (transition is null) continue;
+
+            if (!string.IsNullOrEmpty(transition.ExpressionTargetField))
+            {
+                var varEntry = _asset.BlackboardVariables
+                    .FirstOrDefault(v => v.Name == transition.ExpressionTargetField);
+                if (varEntry is { IsAutoManaged: true })
+                    _asset.RemoveVariable(transition.ExpressionTargetField);
+            }
+
+            // Remove the transition from source state's outgoing transitions list.
+            transition.Source?.OutgoingTransitions.Remove(transition);
+        }
+    }
     private void ApplySetNodeProperty(GraphCommand.SetNodeProperty cmd)
     {
         // Handle well-known property keys.

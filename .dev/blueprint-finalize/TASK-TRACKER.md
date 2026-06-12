@@ -122,12 +122,12 @@ visual bits confirmed at the gate.
       (persisted) + `BlackboardVariableEntry`; Promote creates an `_auto_{VisualId:N}` (BTree) / `_auto_{StableId:N}`
       (HSM) variable of the action's DtoType, `IsAutoManaged=true`, binds `ExpressionTargetField`. (DD §11.3)
       -> [details](./TASK-DETAIL.md#b-2----promote-to-new-variable--isautomanaged)
-- [~] **B-3** (BATCH-BB1B: data layer + panel DONE; live-wiring + edit-service test = BB1C Corrective Task 0) -- Edit the bound (node-owned or shared) variable's `DefaultValueJson` via the SE1 StructEdit surface
+- [x] **B-3** (BATCH-BB1B data layer + panel; BB1C live-wiring + real edit-service test — DONE) -- Edit the bound (node-owned or shared) variable's `DefaultValueJson` via the SE1 StructEdit surface
       (enums/vectors/etc.) — the static-param authoring. -> [details](./TASK-DETAIL.md#b-3----structedit-editing-of-the-variable-default)
-- [ ] **B-4** -- Node-owned presentation + lifecycle: `VariablesPanelControl` filters `IsAutoManaged` into a dimmed
+- [x] **B-4** (BATCH-BB1C — DONE) -- Node-owned presentation + lifecycle: `VariablesPanelControl` filters `IsAutoManaged` into a dimmed
       read-only "Node-Owned Allocations" group; EXCLUDE from Approach-A alias drop-targets; `BTreeCommandSink`/
       `HsmCommandSink` auto-delete the node-owned var + re-pack on owning-node delete. -> [details](./TASK-DETAIL.md#b-4----node-owned-variable-presentation--lifecycle)
-- [ ] **B-5** -- Inspector one-line static-vs-dynamic tooltip (BTree/HSM static = applied once at assignment; bind a
+- [x] **B-5** (BATCH-BB1C — DONE) -- Inspector one-line static-vs-dynamic tooltip (BTree/HSM static = applied once at assignment; bind a
       variable for live values). -> [details](./TASK-DETAIL.md#b-5----static-vs-dynamic-tooltip)
 - [ ] **REVIEW-BB1** -- user smoke: select a BTree action/HSM state → type-filtered picker; Promote → set static
       params in-context → compile/assign uses them; node-owned var dimmed/hidden + auto-deleted with the node.

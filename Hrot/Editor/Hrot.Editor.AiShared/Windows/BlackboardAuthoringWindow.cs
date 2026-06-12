@@ -22,7 +22,8 @@ public sealed record VariableViewModel(
     Type   FieldType,
     string? Comment,
     IReadOnlyList<(string AssetName, Guid AssetId, Guid ElementId)> AliasedBy,
-    bool   IsUnused);
+    bool   IsUnused,
+    bool   IsAutoManaged = false);
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -245,7 +246,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 aliases.Count > 0
                     ? aliases
                     : (IReadOnlyList<(string, Guid, Guid)>)Array.Empty<(string, Guid, Guid)>(),
-                isUnused));
+                isUnused,
+                IsAutoManaged: v.IsAutoManaged));
         }
 
         return new BlackboardWindowViewModel(

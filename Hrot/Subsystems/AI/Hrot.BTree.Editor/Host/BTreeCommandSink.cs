@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fbt;
 using Hrot.BTree.Editor.Model;
@@ -122,7 +123,26 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     private void ApplyRemoveNodes(IReadOnlyList<NodeId> nodeIds)
     {
         foreach (var id in nodeIds)
+        {
+            // B-4 lifecycle: if the node owns an auto-managed variable (via ExpressionTargetField),
+            // remove that variable before removing the node.
+            // Only deletes a variable that is BOTH IsAutoManaged AND named by THIS node's field —
+            // never touches a shared/hand-authored variable.
+            var node = _asset.FindNode(id.Value);
+            if (node is not null)
+            {
+                string? etf = node.Action?.ExpressionTargetField
+                           ?? node.Condition?.ExpressionTargetField;
+                if (!string.IsNullOrEmpty(etf))
+                {
+                    var varEntry = _asset.BlackboardVariables
+                        .FirstOrDefault(v => v.Name == etf);
+                    if (varEntry is { IsAutoManaged: true })
+                        _asset.RemoveVariable(etf);
+                }
+            }
             _asset.RemoveNode(id.Value);
+        }
         _asset.MarkDirty();
     }
 
