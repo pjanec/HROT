@@ -47,4 +47,34 @@ The headless suites are green; the visual/interactive behaviors want an eyeball 
   menu/tooltip reads `Save [kind: name]`; perspective switcher shows "Scenario";
 - New Asset (button / File menu / Ctrl+N) opens the recipe Tree picker → creates + opens.
 
-**Workstream status: 7/7 tasks ✅ complete and verified.** Deferred items DBT-A1/A2/A3 await your call.
+**Workstream status: 7/7 tasks ✅ complete and verified.**
+
+---
+
+## Post-runtime corrective round (2026-06-12, after your manual test)
+Your runtime test surfaced 4 bugs + promoted the New-asset dialog to a real requirement. All fixed/delivered
+(lead delegated to Zoo per the lead-only correction; the icon visual was done directly before that correction):
+
+| Item | Fix | Commit |
+|------|-----|--------|
+| BUG-A4 toolbar icon UX | smaller inset (0.72), restored white hover frame, distinct `HeaderActive@0.85` toggle fill (composable) | `2dec34d3` |
+| BUG-A1 New Asset crash | open the **catalogued** asset (`FindByAssetId`), not the minted adapter; scenario skipped | `0329272a` (BATCH-37) |
+| BUG-A2 scenario Save via icon | scenario-context Save always enabled; named→SaveCurrent / unnamed→SaveAs; label always names the scenario | `3533c059` (BATCH-38) |
+| BUG-A3 no save feedback | document save reports `[OK] Saved {Kind}: '{Name}'.`; scenario save sets the status line | `3533c059` (BATCH-38) |
+| **MTB2-T8** generic New/Save-As **name+subfolder modal** (DBT-A3 + DBT-2) | `INameFolderDialog` + `KnownSubfolders` (model) → `AssetNameFolderModal` (name + logical folder tree + create-subfolder) wired into New + document/scenario Save-As | `7a3364a3` + `c0e8ba27` (BATCH-39/40) |
+
+## Remaining — user-gated holds (no further work without your go-ahead)
+- **DBT-A1** — delete the retired `RecipeCreateModal`/`NewFromRecipeService` classes: **awaits your approval** (only
+  after you confirm new-asset creation works).
+- **DBT-A2** — the old **Scenario menu** is intentionally **kept** per your directive until the replacement is confirmed.
+
+## Please runtime-test (the headless suites are green; visuals/interaction need your eye)
+1. **Icons:** clearly smaller w/ margin; **hover = white frame**; toggled = filled highlight; toggled+hovered shows both.
+2. **New Asset** (New button / File→New Asset… / Ctrl+N): recipe Tree picker → pick → **name+folder modal** opens
+   (edit name, pick/create a subfolder) → Create → asset opens. No crash for Blueprint/BTree/HSM/Scenario.
+3. **Save:** Ctrl+S in a canvas saves the active doc with feedback; in the "Scenario" perspective it saves the
+   scenario (unnamed → name+folder modal); Save menu/tooltip reads `Save [kind: name]`.
+4. **Save As** (document + scenario): opens the same name+folder modal.
+
+If all good, say the word on **DBT-A1** (delete retired classes) and whether to retire the duplicate Scenario-menu
+Save/Save-As (**DBT-A2**).
