@@ -59,7 +59,7 @@ Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT
 
 ## Phase B — HSM to usable (after Phase A pattern is proven)
 
-- [ ] **TASK-HS-01** Command sink: **create state** (`ApplyAddNode`, incl. promote-to-composite) → [details](./TASK-DETAIL.md#task-hs-01--command-sink-create-state)
+- [x] **TASK-HS-01** Command sink: **create state** (`ApplyAddNode`, incl. promote-to-composite) → [details](./TASK-DETAIL.md#task-hs-01--command-sink-create-state) *(BATCH-HS-01, verified+committed; adds HsmAsset Register/Unregister State+Transition API; promotion automatic via Kind/reparent; Hsm.Editor.Tests 390/0)*
 - [ ] **TASK-HS-02** Command sink: **delete state** (`ApplyRemoveNodes` full cascade) → [details](./TASK-DETAIL.md#task-hs-02--command-sink-delete-state)
 - [ ] **TASK-HS-03** Command sink: **draw transition** (`ApplyAddLink` → new `TransitionNode`) → [details](./TASK-DETAIL.md#task-hs-03--command-sink-draw-transition)
 - [ ] **TASK-HS-04** Command sink: **delete transition** + container collapse (`ApplyRemoveLinks` create-path, `ApplySetContainerCollapsed`) → [details](./TASK-DETAIL.md#task-hs-04--command-sink-delete-transition--collapse)
