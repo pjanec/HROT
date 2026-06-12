@@ -739,6 +739,65 @@ public sealed class SaveCommandsTests
         Assert.StartsWith("[OK]", reportedMessage);
     }
 
+    // ── BUG-A12: perspective-scoped resolver disables Save when no matching doc ──
+
+    /// <summary>
+    /// When <c>resolveActiveDocument</c> returns <c>null</c> (current perspective has no
+    /// matching open document), Save and Save-As must be DISABLED and their handlers must
+    /// be a no-op — even if <see cref="AiDocumentManager.Active"/> points to a document
+    /// from a different perspective.
+    /// </summary>
+    [Fact]
+    public void Save_ResolverReturnsNull_DisabledAndNoOp_EvenWhenActiveExists()
+    {
+        // Arrange: open an HSM document so docManager.Active is non-null.
+        var mgr = MakeManager();
+        var hsmAsset = new FakeAsset(AssetKind.Hsm, "MyHsm", "/fake/my.hsm.json");
+        var hsmDoc = mgr.Open(hsmAsset);
+        hsmDoc.MarkDirty();
+
+        // The resolver simulates "current perspective is Blueprint but no Blueprint doc is open".
+        Func<AiDocument?> resolver = () => null;
+
+        var (descriptors, actions) = MakeRecordingRegister();
+        bool hsmSaveCalled = false;
+        bool saveAsCalled = false;
+
+        ShellSaveCommands.Register(
+            register:               RecordingRegister(descriptors, actions),
+            docManager:             mgr,
+            saveBlueprint:          null,
+            saveBTree:              null,
+            saveHsm:                (_, _) => hsmSaveCalled = true,
+            saveScenario:           null,
+            requestSaveAs:          _ => saveAsCalled = true,
+            report:                 null,
+            isScenarioContext:      () => false,
+            hasLoadedScenario:      null,
+            saveScenarioAction:     null,
+            requestScenarioSaveAs:  null,
+            describeActiveTarget:   null,
+            resolveActiveDocument:  resolver);
+
+        // IsEnabled must be false for Save and SaveAs.
+        var saveDesc   = FindDescriptor(descriptors, ShellSaveCommands.SaveId);
+        var saveAsDesc = FindDescriptor(descriptors, ShellSaveCommands.SaveAsId);
+        Assert.False(saveDesc.IsEnabled(),   "Save must be DISABLED when resolver returns null");
+        Assert.False(saveAsDesc.IsEnabled(), "Save-As must be DISABLED when resolver returns null");
+
+        // Invoking Save must be a no-op (handler must not call any save delegate).
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveId);
+        Assert.False(hsmSaveCalled, "HSM save delegate must NOT be called when resolver returns null");
+        Assert.False(saveAsCalled,  "requestSaveAs must NOT be called when resolver returns null");
+
+        // Invoking Save-As must also be a no-op.
+        InvokeAction(descriptors, actions, ShellSaveCommands.SaveAsId);
+        Assert.False(saveAsCalled, "requestSaveAs must NOT be called by SaveAs when resolver returns null");
+
+        // The HSM document (docManager.Active) must remain dirty.
+        Assert.True(hsmDoc.IsDirty, "HSM doc must remain dirty — it was not the save target");
+    }
+
     /// <summary>
     /// With ALL new seams null, shell.save/shell.saveAs/shell.saveAll behave exactly
     /// as before (back-compat), and scenario.save/scenario.saveAs are NOT registered.

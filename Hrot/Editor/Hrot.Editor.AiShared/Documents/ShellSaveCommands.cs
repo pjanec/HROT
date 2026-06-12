@@ -110,6 +110,14 @@ public static class ShellSaveCommands
     /// When not null, provides a dynamic label for the shell.save command (e.g.
     /// "Save [scenario: TestScenario]" or "Save [blueprint: MyBP]").
     /// </param>
+    /// <param name="resolveActiveDocument">
+    /// When not null, the non-scenario branch uses this to resolve the save target
+    /// (and determine <c>IsEnabled</c>) instead of <see cref="AiDocumentManager.Active"/>.
+    /// Return <c>null</c> to indicate that no document is targetable from the current
+    /// perspective — Save/Save-As will be DISABLED and the handler is a no-op.
+    /// When this parameter is null, <see cref="AiDocumentManager.Active"/> is used
+    /// (back-compat: legacy behavior preserved for tests that omit this seam).
+    /// </param>
     public static void Register(
         Action<EditorCommandDescriptor, Action<EditorCommandContext>> register,
         AiDocumentManager                                         docManager,
@@ -123,7 +131,8 @@ public static class ShellSaveCommands
         Func<bool>?                                               hasLoadedScenario = null,
         Action?                                                   saveScenarioAction = null,
         Action?                                                   requestScenarioSaveAs = null,
-        Func<string>?                                             describeActiveTarget = null)
+        Func<string>?                                             describeActiveTarget = null,
+        Func<AiDocument?>?                                        resolveActiveDocument = null)
     {
         if (register       is null) throw new ArgumentNullException(nameof(register));
         if (docManager     is null) throw new ArgumentNullException(nameof(docManager));
@@ -140,7 +149,9 @@ public static class ShellSaveCommands
                 DefaultKey:  new KeyBinding(EditorKey.S, KeyModifiers.Ctrl),
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
                     ? true
-                    : docManager.Active != null,
+                    : (resolveActiveDocument != null
+                        ? resolveActiveDocument() != null
+                        : docManager.Active != null),
                 DynamicDisplayName: describeActiveTarget != null
                     ? () => describeActiveTarget()
                     : null),
@@ -154,8 +165,10 @@ public static class ShellSaveCommands
                     return;
                 }
 
-                // Existing per-kind active-document logic (unchanged).
-                var doc = docManager.Active;
+                // Use perspective-scoped resolver when supplied; fall back to docManager.Active.
+                var doc = resolveActiveDocument != null
+                    ? resolveActiveDocument()
+                    : docManager.Active;
                 if (doc == null) return;
 
                 if (string.IsNullOrEmpty(doc.Asset.SourceFilePath))
@@ -204,7 +217,9 @@ public static class ShellSaveCommands
                 DefaultKey:  null,
                 IsEnabled:   () => (isScenarioContext?.Invoke() == true)
                     ? true
-                    : docManager.Active != null),
+                    : (resolveActiveDocument != null
+                        ? resolveActiveDocument() != null
+                        : docManager.Active != null)),
             _ =>
             {
                 // Branch on scenario context first.
@@ -214,8 +229,10 @@ public static class ShellSaveCommands
                     return;
                 }
 
-                // Existing active-document logic (unchanged).
-                var doc = docManager.Active;
+                // Use perspective-scoped resolver when supplied; fall back to docManager.Active.
+                var doc = resolveActiveDocument != null
+                    ? resolveActiveDocument()
+                    : docManager.Active;
                 if (doc != null)
                     requestSaveAs(doc);
             });

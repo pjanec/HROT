@@ -2418,11 +2418,14 @@ namespace Hrot.Editor
                         var n = _editorLogic?.LoadedScenarioName;
                         return string.IsNullOrEmpty(n) ? "Save Scenario" : $"Save [scenario: {n}]";
                     }
-                    var act = _aiDocumentManager?.Active;
+                    // BUG-A12: resolve from the current perspective, not docManager.Active.
+                    var act = ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager);
                     return act != null
                         ? $"Save [{act.Kind.ToString().ToLowerInvariant()}: {act.Asset.Name}]"
                         : "Save";
-                });
+                },
+                resolveActiveDocument: () =>
+                    ResolveDocumentForCurrentPerspective(windowManager, _aiDocumentManager));
             // ───────────────────────────────────────────────────────────────────────────────────
 
             // PU-603: flush-on-close — save dirty path'd docs before close.
@@ -3781,6 +3784,47 @@ namespace Hrot.Editor
             GlobalTransitionFacet gtf    => gtf.ExpressionTargetField,
             _                            => null,
         };
+
+        /// <summary>
+        /// BUG-A12: Resolves the open document that belongs to the CURRENT canvas perspective.
+        /// Returns null when the current perspective is the Scenario/"Editor" perspective (the
+        /// scenario branch handles it) or when no document of the matching kind is open.
+        /// <para>
+        /// Path: <c>windowManager.CurrentPerspective</c> (string) → canonical
+        /// <see cref="AssetKind"/> via reverse of <see cref="AssetKindExtensions.ToPerspectiveName"/>
+        /// → last open document in <paramref name="docManager"/> whose
+        /// <see cref="AiDocument.Kind"/> matches → returned as the save target.
+        /// </para>
+        /// </summary>
+        private static Hrot.Editor.AiShared.Documents.AiDocument? ResolveDocumentForCurrentPerspective(
+            Fdp.Presentation.WindowManager.WindowManager windowManager,
+            Hrot.Editor.AiShared.Documents.AiDocumentManager? docManager)
+        {
+            if (docManager == null) return null;
+
+            // Map the current perspective name back to an AssetKind.
+            // "Editor" (Scenario perspective) is handled by the scenario branch — return null here.
+            var perspectiveName = windowManager.CurrentPerspective;
+            Hrot.Editor.AiShared.AssetKind? targetKind = perspectiveName switch
+            {
+                "Blueprint" => Hrot.Editor.AiShared.AssetKind.Blueprint,
+                "BTree"     => Hrot.Editor.AiShared.AssetKind.BTree,
+                "HSM"       => Hrot.Editor.AiShared.AssetKind.Hsm,
+                _           => (Hrot.Editor.AiShared.AssetKind?)null,
+            };
+
+            if (targetKind == null) return null;
+
+            // Return the last open document whose kind matches the current perspective
+            // (mirrors the logic in WindowManagerPerspectiveSwitcher.OnPerspectiveChanged).
+            Hrot.Editor.AiShared.Documents.AiDocument? match = null;
+            foreach (var doc in docManager.OpenDocuments)
+            {
+                if (doc.Kind == targetKind.Value)
+                    match = doc; // take the last match
+            }
+            return match;
+        }
 
         // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
