@@ -48,3 +48,29 @@ fully autonomous**). Decisions made mid-run are recorded here; design decisions 
   `NewAssetDialog` and `Confirm()`s with a default name** (recipe name, or `New{Kind}` for the "Empty" recipe) →
   opens the created asset — a **functional** pick→create→open flow. The interactive name/folder popup is deferred
   as **DBT-A3**. Launcher is unit-tested up to the `showNewAssetDialog(kind, recipe)` boundary.
+- **D-T8-2 (2026-06-12, supersedes the editor-specific modal): the name+folder dialog is GENERIC, in NodeEdit.**
+  User: aim generic + ALWAYS reuse existing first. The BATCH-40 `AssetNameFolderModal` (in `Hrot.Editor.AiShared`)
+  was the wrong layer. **Reuse search:** the picker already has `CategoryNode` + `PickerTreeBuilder` (pure tree model
+  from T1), an auto-focused text box, Enter/Esc/OK-Cancel, and the once-per-frame `DrawFrame` host pattern
+  (`AllowArbitraryTextInput` is declared-but-unimplemented; `MiniEditors` are pin editors). A "type a name + pick
+  destination + create folder + return (name, dest)" interaction is NOT the picker's "select one of N", so it is a
+  **generic sibling dialog in `NodeEditor.UI`** that REUSES `CategoryNode`/`PickerTreeBuilder` + the picker UX idioms.
+  Neutral API: `Title`, name + **`Func<string,string?> ValidateName`** (null=OK, else error — covers the
+  **must-not-already-exist** rule, host-driven per user), destination `CategoryNode`, create-folder callback,
+  confirm→`(name, destPath)`. NO asset/editor types. Editor adapts: folders from `KnownSubfolders`, `ValidateName`
+  from the dialog models (`NewAssetDialog.CanConfirm`/collision), create via `FolderPickerState.AddFolder`,
+  confirm→create+catalog-refresh+open. Retire `AssetNameFolderModal`. The 5 runtime UX bugs (focus, Enter, ESC,
+  New-Folder-as-button-popup, show-created-folder) are fixed IN the generic component; the create→open
+  catalog-refresh (BUG-A1 root cause) stays editor-side. Batches: BATCH-41 = generic NodeEdit dialog (+demo+tests);
+  BATCH-42 = editor adapter/wiring + retire the modal.
+- **D-T8-3 (2026-06-12, user-chosen "proper (a)"):** New = **always from a recipe** (incl "Empty"); the recipe's
+  output is an **in-memory** asset (not yet on disk). Flow: recipe **Tree picker** → `CreateNew(recipe, defaultName,
+  "")` (default name, **empty SourceFilePath**) → **open** → first Ctrl+S → **Save-As** (empty path already routes
+  there). Uniform with scenarios (which already do this natively via the map + `IEditorLogic`).
+  **Enabler:** documents are file-backed (`*DocumentFactory.Build` only touches the file in `LoadAsset` =
+  ReadAllText+Deserialize; everything after runs off the in-memory `BlueprintAsset`), so add an **open-from-in-memory**
+  entry point to the 3 document factories (use the supplied in-memory asset instead of `LoadAsset`). **Rename is NOT
+  supported** (Save-As mints a fresh AssetId = duplicate/copy, §18.5; no true asset-rename) — which is *why* proper
+  (a) needs open-from-in-memory (no file exists until first Save-As; nothing to rename/clean). Batches: 41 = generic
+  NodeEdit Save-As browser dialog; 42 = open-from-in-memory (3 factories); 43 = New/Save-As wiring + retire
+  `AssetNameFolderModal`.
