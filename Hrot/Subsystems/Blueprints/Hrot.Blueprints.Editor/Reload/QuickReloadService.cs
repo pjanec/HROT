@@ -8,6 +8,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Roslyn;
 using Hrot.Blueprints.Core.Debug;
 
@@ -43,53 +44,67 @@ public sealed class QuickReloadService
 
     /// <summary>
     /// Triggers an in-memory quick reload for <paramref name="asset"/>.
-    /// Compiles the asset, loads the result into a collectible ALC, registers
-    /// the debug map, then hands off to the coordinator which handles staging
-    /// and ALC swap atomically.
+    /// Compiles the asset, then delegates to <see cref="TriggerFromSourcesAsync"/>
+    /// for the kind-agnostic Roslyn-to-coordinator pipeline.
     /// </summary>
     public Task<QuickReloadResult> TriggerAsync(BlueprintAsset asset)
     {
         if (asset == null) throw new ArgumentNullException(nameof(asset));
-        var sw = Stopwatch.StartNew();
         _outputConsole.LogInfo($"Quick Reload starting for '{asset.Name}'...");
+
+        // Step 1: Build sibling signatures from catalog + in-memory overrides.
+        var siblings = BuildSiblingSignatures(asset);
+
+        // Step 2: Compile in memory with embedded PDB for debugger support.
+        var options = new CompileOptions(
+            Mode:                      asset.EditorMetadata.CompilerMode,
+            NodeRegistry:              BuiltInNodeRegistry.Instance,
+            TypeRegistry:              StaticTypeRegistry.Instance,
+            EngineEvents:              BuiltInEngineEventCatalog.Instance,
+            ChannelCommands:           BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives:            BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures:         siblings,
+            EmitPdbWithEmbeddedSource: true);
+
+        var result = _compiler.Compile(asset, options);
+        if (!result.Succeeded)
+        {
+            foreach (var d in result.Diagnostics)
+                _outputConsole.LogError($"[{d.Code}] {d.Message}");
+            return Task.FromResult(new QuickReloadResult(false, "AST compilation failed.", 0));
+        }
+
+        // Steps 2.5–7: Delegate to the kind-agnostic source reload.
+        return TriggerFromSourcesAsync(
+            new[] { (result.GeneratedSource!, result.GeneratedFileName ?? "dynamic.cs") },
+            $"BlueprintPatch_{result.BlueprintId:X8}_{Guid.NewGuid():N}",
+            result.DebugMap,
+            asset.AssetId);
+    }
+
+    /// <summary>
+    /// Triggers an in-memory quick reload from pre-emitted C# sources.
+    /// Roslyn-compiles the sources, loads the result into a collectible ALC,
+    /// registers the debug map, then hands off to the coordinator.
+    /// Kind-agnostic — callers (Blueprint, BTree, HSM) supply their own sources.
+    /// </summary>
+    public Task<QuickReloadResult> TriggerFromSourcesAsync(
+        IReadOnlyList<(string Source, string VirtualPath)> sources,
+        string assemblyName,
+        DebugMap? debugMap = null,
+        Guid? assetIdForDebugMap = null)
+    {
+        var sw = Stopwatch.StartNew();
+        _outputConsole.LogInfo($"Quick Reload starting from sources...");
 
         try
         {
-            // Step 1: Build sibling signatures from catalog + in-memory overrides.
-            var siblings = BuildSiblingSignatures(asset);
-
-            // Step 2: Compile in memory with embedded PDB for debugger support.
-            var options = new CompileOptions(
-                Mode:                      asset.EditorMetadata.CompilerMode,
-                NodeRegistry:              BuiltInNodeRegistry.Instance,
-                TypeRegistry:              StaticTypeRegistry.Instance,
-                EngineEvents:              BuiltInEngineEventCatalog.Instance,
-                ChannelCommands:           BuiltInChannelCommandCatalog.Instance,
-                WaitPrimitives:            BuiltInWaitPrimitiveCatalog.Instance,
-                SiblingSignatures:         siblings,
-                EmitPdbWithEmbeddedSource: true);
-
-            var result = _compiler.Compile(asset, options);
-            if (!result.Succeeded)
-            {
-                foreach (var d in result.Diagnostics)
-                    _outputConsole.LogError($"[{d.Code}] {d.Message}");
-                sw.Stop();
-                return Task.FromResult(new QuickReloadResult(false, "AST compilation failed.", sw.ElapsedMilliseconds));
-            }
-
-            // Step 2.5: Roslyn compile generated source to PE/PDB bytes.
+            // Step 2.5: Roslyn compile generated sources to PE/PDB bytes.
             var references = MetadataReferenceResolver.ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies());
             var roslynCompiler = new InMemoryRoslynCompiler(references);
             var roslynSink = new DiagnosticSink();
 
-            string assemblyName = $"BlueprintPatch_{result.BlueprintId:X8}_{Guid.NewGuid():N}";
-            string sourcePath = result.GeneratedFileName ?? "dynamic.cs";
-            var (peBytes, pdbBytes) = roslynCompiler.Compile(
-                result.GeneratedSource!,
-                sourcePath,
-                assemblyName,
-                roslynSink);
+            var (peBytes, pdbBytes) = roslynCompiler.Compile(sources, assemblyName, roslynSink);
 
             if (roslynSink.HasErrors)
             {
@@ -102,7 +117,7 @@ public sealed class QuickReloadService
             // Step 3: Load compiled PE + PDB into a new collectible ALC.
             var alc = new AssemblyLoadContext(assemblyName, isCollectible: true);
 
-            System.Reflection.Assembly assembly;
+            Assembly assembly;
             using (var peStream  = new MemoryStream(peBytes))
             using (var pdbStream = new MemoryStream(pdbBytes))
             {
@@ -118,8 +133,8 @@ public sealed class QuickReloadService
             BlueprintRegistrarScanner.Scan(assembly, blueprintStaging, behaviorStaging);
 
             // Step 6: Register debug map BEFORE coordinator handoff (Patch 2).
-            if (result.DebugMap != null)
-                _session?.RegisterDebugMap(result.DebugMap);
+            if (debugMap != null)
+                _session?.RegisterDebugMap(debugMap);
 
             // Step 7: Coordinator handoff -- atomic commit and ALC swap.
             try
@@ -129,8 +144,8 @@ public sealed class QuickReloadService
             catch
             {
                 // Rollback debug map on coordinator failure to avoid stale state.
-                if (result.DebugMap != null)
-                    _session?.UnregisterDebugMap(asset.AssetId);
+                if (debugMap != null && assetIdForDebugMap != null)
+                    _session?.UnregisterDebugMap(assetIdForDebugMap.Value);
                 throw;
             }
 

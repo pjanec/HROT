@@ -34,11 +34,11 @@ lead review → `reviews/BATCH-QR-XX-REVIEW.md`.
 
 ## Tasks
 
-- [ ] **QR-01** Multi-source overload on `InMemoryRoslynCompiler` (parse N C# sources → one `CSharpCompilation`). Pure,
-      unit-testable. → [details](./TASK-DETAIL.md#qr-01)
-- [ ] **QR-02** `QuickReloadService.TriggerFromSourcesAsync(sources, assemblyName/assetIdHash, debugMap?)` — extract the
+- [x] **QR-01** Multi-source overload on `InMemoryRoslynCompiler` (parse N C# sources → one `CSharpCompilation`). Pure,
+      unit-testable. → [details](./TASK-DETAIL.md#qr-01) *(e01b6efb — multi-source Compile; single-source delegates; +2 tests; 5/0)*
+- [x] **QR-02** `QuickReloadService.TriggerFromSourcesAsync(sources, assemblyName/assetIdHash, debugMap?)` — extract the
       Roslyn→ALC→scan→coordinator steps; refactor `TriggerAsync(BlueprintAsset)` to call it. Blueprint reload must be
-      byte-for-byte behavior-identical. → [details](./TASK-DETAIL.md#qr-02)
+      byte-for-byte behavior-identical. → [details](./TASK-DETAIL.md#qr-02) *(2026-06-13 — TriggerFromSourcesAsync extracted; TriggerAsync delegates; +1 test; 12/0)*
 - [ ] **QR-03** BTree quick-reload trigger in `EditorSubsystem` (`_btreeQuickReloadTrigger`): active `BehaviorTreeAsset`
       → DTO (reuse save-path mapper) → `BTreeEmitCore.EmitTopologyCore` + `BTreeBridgeEmitCore.EmitBridge` →
       `TriggerFromSourcesAsync`. **[RUNTIME GATE]** → [details](./TASK-DETAIL.md#qr-03)
@@ -51,7 +51,7 @@ lead review → `reviews/BATCH-QR-XX-REVIEW.md`.
       hot-swaps in the running sim (no full rebuild), within target latency; blueprint reload still works.
 
 ## Progress
-0/5 + REVIEW-QR. Foundation: QR-01, QR-02. Then QR-03 (BTree) proves the path; QR-04 (HSM) mirrors; QR-05 wires UX.
+1/5 + REVIEW-QR. Foundation: QR-01, QR-02. Then QR-03 (BTree) proves the path; QR-04 (HSM) mirrors; QR-05 wires UX.
 
 ## Done-definition
 Editing a BTree or HSM asset and triggering Compile/Reload hot-swaps the behavior in-process (no MSBuild rebuild),

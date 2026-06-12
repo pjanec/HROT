@@ -135,5 +135,42 @@ public sealed class QuickReloadServiceTests
         Assert.NotNull(service.LastSignaturesUsedForTesting);
         Assert.True(service.LastSignaturesUsedForTesting!.Count >= 1);
     }
+
+    // SC5 -- TriggerFromSourcesAsync: valid source → SUCCESS; broken source → FAILURE
+    [Fact]
+    public async Task QuickReloadService_TriggerFromSourcesAsync_ValidSucceeds_BrokenFails()
+    {
+        var registry    = new BlueprintRegistry();
+        var behReg      = new BehaviorRegistry();
+        var coordinator = new AiHotReloadCoordinator(
+            behReg, registry, new AiHotReloadCoordinatorOptions());
+        var console     = new MockOutputConsole();
+        var service     = new QuickReloadService(
+            StubCatalog, new EditorState(), console,
+            new BlueprintCompiler(), coordinator);
+
+        // Ensure Fhsm.Kernel assembly is loaded into the AppDomain for Roslyn compilation.
+        var fhsmPath = Path.Combine(AppContext.BaseDirectory, "Fhsm.Kernel.dll");
+        if (File.Exists(fhsmPath))
+            System.Reflection.Assembly.LoadFrom(fhsmPath);
+
+        // Valid source: minimal compilable C# class.
+        var result = await service.TriggerFromSourcesAsync(
+            new[] { ("public class TestFoo { }", "test.cs") },
+            "TestAssembly_Valid");
+
+        Assert.True(result.Succeeded, $"Expected success but got: {result.ErrorMessage}");
+        Assert.Null(result.ErrorMessage);
+        Assert.True(result.DurationMs >= 0);
+
+        // Broken source: syntax error.
+        var failResult = await service.TriggerFromSourcesAsync(
+            new[] { ("class Broken { error!!! }", "broken.cs") },
+            "TestAssembly_Broken");
+
+        Assert.False(failResult.Succeeded);
+        Assert.NotNull(failResult.ErrorMessage);
+        Assert.True(failResult.DurationMs >= 0);
+    }
 }
 
