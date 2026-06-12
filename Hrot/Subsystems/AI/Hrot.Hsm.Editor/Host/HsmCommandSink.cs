@@ -189,8 +189,62 @@ internal sealed class HsmCommandSink : IGraphCommandSink
         {
             var state = _asset.FindStateByStableId(nodeId.Value);
             if (state is null) continue;
-            state.Parent?.Children.Remove(state);
+
+            // 1. Collect the subtree: the state + all transitive Children (defensive against cycles).
+            var subtree = new HashSet<StateNode>();
+            var stack = new Stack<StateNode>();
+            stack.Push(state);
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                if (!subtree.Add(current)) continue; // already visited
+                foreach (var child in current.Children)
+                    stack.Push(child);
+            }
+
+            // 2. Remove all incident transitions for every state in the subtree:
+            //    - outgoing: state.OutgoingTransitions
+            //    - incoming: any transition in AllTransitions whose Target is in the subtree.
+            //    Dedupe by VisualId so transitions fully inside the deleted subtree are removed once.
+            var removedTransitionIds = new HashSet<Guid>();
+            foreach (var s in subtree)
+            {
+                // Snapshot the outgoing list before mutating.
+                var outgoing = s.OutgoingTransitions.ToList();
+                foreach (var t in outgoing)
+                {
+                    if (removedTransitionIds.Add(t.VisualId))
+                        RemoveTransitionInternal(t);
+                }
+            }
+            // Incoming: scan AllTransitions for transitions whose Target is in the subtree.
+            // Snapshot before mutating.
+            var incoming = _asset.AllTransitions
+                .Where(t => subtree.Contains(t.Target) && removedTransitionIds.Add(t.VisualId))
+                .ToList();
+            foreach (var t in incoming)
+                RemoveTransitionInternal(t);
+
+            // 3. Unregister every state in the subtree.
+            foreach (var s in subtree)
+                _asset.UnregisterState(s);
         }
+    }
+
+    /// <summary>
+    /// Removes a transition: BB1 auto-managed variable cleanup (mirrors the existing
+    /// ApplyRemoveLinks logic) + full identity-map removal via UnregisterTransition.
+    /// </summary>
+    private void RemoveTransitionInternal(TransitionNode transition)
+    {
+        if (!string.IsNullOrEmpty(transition.ExpressionTargetField))
+        {
+            var varEntry = _asset.BlackboardVariables
+                .FirstOrDefault(v => v.Name == transition.ExpressionTargetField);
+            if (varEntry is { IsAutoManaged: true })
+                _asset.RemoveVariable(transition.ExpressionTargetField);
+        }
+        _asset.UnregisterTransition(transition.VisualId);
     }
 
     private void ApplyAddLink(GraphCommand.AddLink cmd)               { /* TODO */ }
