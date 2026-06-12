@@ -44,7 +44,7 @@ Status: `[ ]` open · `[~]` in progress · `[x]` done (verified + committed) · 
 
 Confirmed working: pills `R x3`/`C 2s` (BT-03), Macro=violet + Function=blue (BT-02), red validation frame on invalid tree (BT-05). Two CombatShowcase shown (1 rich/JSON, 1 single-node/assembly).
 - [x] **TASK-BT-08** Wire Add-Node picker (`BTreePickerSources` → `"nodes.all"`) — root cause: picker source never registered (Blueprint has it). *(BATCH-08, verified+committed; picker-opens-visually → REVIEW-BT-2)*
-- [ ] **TASK-BT-09** Fix duplicate CombatShowcase — generated `[BTreeDefinition]` lacks `AssetId` → assembly contributor not deduped vs JSON. Emit `AssetId` so they dedupe (verify in batch).
+- [x] **TASK-BT-09** Fix duplicate CombatShowcase — `[BTreeDefinition]` now carries `AssetId` (mirrors HSM); assembly contributor uses it → dedupes vs JSON. *(BATCH-09, verified+committed; lead reverted a showcase scope-creep + verified the 2 Generators.Tests fails are pre-existing on HEAD; one-entry confirmed → REVIEW-BT-2)*
 - [ ] **TASK-BT-10** **BTree vertical pin orientation** (NodeEditor change) — input/parent pin on TOP, child pin on BOTTOM, vertical wires (tree look). Wire routing already position-agnostic; needs a per-graph-kind orientation flag in `CanvasLayoutBuilder` + label/editor positioning. **DESIGN NUANCE:** interacts with the reversed-pin convention — see DECISIONS D-06 (pending user confirm). Shared-lib + visual → lead-spec.
 - [ ] **TASK-BT-11** *(minor)* FlowControl composite color (gray → orange per host doc) — theme tweak.
 - [ ] **REVIEW-BT-2** re-run visual smoke after BT-08..11.
