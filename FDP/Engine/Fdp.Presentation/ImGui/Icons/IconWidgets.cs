@@ -59,7 +59,8 @@ public static class IconWidgets
 
     /// <summary>
     /// A stateful icon button. Flips <paramref name="isToggled"/> on click and
-    /// draws a gray filled background when toggled. Returns <c>true</c> on click.
+    /// draws a shared toggle fill / hover frame via <see cref="IconButtonChrome"/>.
+    /// Returns <c>true</c> on click.
     /// </summary>
     /// <param name="tint">
     /// Optional RGBA color tint applied to the icon texture.
@@ -75,12 +76,8 @@ public static class IconWidgets
         var (uv0, uv1) = atlas.GetUvCoordinates(coordinate);
         var drawList = Gui.GetWindowDrawList();
 
-        // Filled background only when toggled
-        if (isToggled)
-            drawList.AddRectFilled(
-                screenPos,
-                screenPos + atlas.IconSizeVec,
-                Gui.GetColorU32(new Vector4(0.3f, 0.3f, 0.3f, 1.0f)));
+        // Shared chrome: toggle fill behind icon, hover frame on top.
+        IconButtonChrome.DrawToggleFill(drawList, screenPos, atlas.IconSizeVec, isToggled);
 
         // Icon image; shift 1px when pressed.
         // Resolve tint: null => full-white (no tint), otherwise convert to U32.
@@ -88,12 +85,7 @@ public static class IconWidgets
         uint imageTint = tint.HasValue ? Gui.GetColorU32(tint.Value) : 0xFFFFFFFF;
         drawList.AddImage(atlas.TextureId, imagePos, imagePos + atlas.IconSizeVec, uv0, uv1, imageTint);
 
-        // Hover border
-        if (isHovered)
-            drawList.AddRect(
-                screenPos,
-                screenPos + atlas.IconSizeVec,
-                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)));
+        IconButtonChrome.DrawHoverFrame(drawList, screenPos, atlas.IconSizeVec, isHovered);
 
         // Flip state on click
         if (clicked)
@@ -107,7 +99,8 @@ public static class IconWidgets
     /// <summary>
     /// Like <see cref="ToggleIcon"/> but swaps the icon face based on state instead of drawing
     /// a filled background. The coordinate is evaluated <b>after</b> the click flip so the
-    /// displayed face immediately reflects the new state.
+    /// displayed face immediately reflects the new state. Uses shared hover frame via
+    /// <see cref="IconButtonChrome"/>.
     /// </summary>
     public static bool AlternatingFaceToggleIcon(
         IconAtlas atlas, string id,
@@ -133,11 +126,7 @@ public static class IconWidgets
         var imagePos = isPressed ? screenPos + new Vector2(1f, 1f) : screenPos;
         drawList.AddImage(atlas.TextureId, imagePos, imagePos + atlas.IconSizeVec, uv0, uv1);
 
-        if (isHovered)
-            drawList.AddRect(
-                screenPos,
-                screenPos + atlas.IconSizeVec,
-                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)));
+        IconButtonChrome.DrawHoverFrame(drawList, screenPos, atlas.IconSizeVec, isHovered);
 
         return clicked;
     }
@@ -147,7 +136,8 @@ public static class IconWidgets
     /// <summary>
     /// Renders the currently selected icon and opens a popup grid of all available icons
     /// when clicked. Sets <paramref name="selectedIndex"/> when the user picks a new icon
-    /// and returns <c>true</c>. Out-of-range indices are clamped to 0.
+    /// and returns <c>true</c>. Out-of-range indices are clamped to 0. Uses shared hover
+    /// frame via <see cref="IconButtonChrome"/>.
     /// </summary>
     public static bool DropdownFaceIcon(
         IconAtlas atlas, string id,
@@ -172,11 +162,7 @@ public static class IconWidgets
         var imagePos = isPressed ? screenPos + new Vector2(1f, 1f) : screenPos;
         drawList.AddImage(atlas.TextureId, imagePos, imagePos + atlas.IconSizeVec, uv0, uv1);
 
-        if (isHovered)
-            drawList.AddRect(
-                screenPos,
-                screenPos + atlas.IconSizeVec,
-                Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.8f)));
+        IconButtonChrome.DrawHoverFrame(drawList, screenPos, atlas.IconSizeVec, isHovered);
 
         var popupId = $"{id}_popup";
         if (clicked)
@@ -266,8 +252,8 @@ public static class IconWidgets
 
     /// <summary>
     /// A stateful icon button that draws from an <see cref="IconHandle"/> at an explicit size.
-    /// Flips <paramref name="isToggled"/> on click and draws a filled hover highlight.
-    /// Returns <c>true</c> on click.
+    /// Flips <paramref name="isToggled"/> on click and draws shared toggle fill / hover frame
+    /// via <see cref="IconButtonChrome"/>. Returns <c>true</c> on click.
     /// </summary>
     /// <param name="icon">Resolved icon handle from an <see cref="IIconProvider"/>.</param>
     /// <param name="id">Unique ImGui ID for this button.</param>
@@ -317,30 +303,8 @@ public static class IconWidgets
         var (iconMin, iconMax) = ComputeIconRect(screenPos, size, iconScale);
         var iconSize = iconMax - iconMin;
 
-        // ── Hover highlight (non-toggled, behind icon) ──────────────────────
-        // A filled, position-independent highlight drawn BEFORE the icon image.
-        if (enabled && isHovered && !isToggled)
-        {
-            var hoverCol = Gui.GetStyle().Colors[(int)ImGuiCol.HeaderHovered];
-            hoverCol.W = 0.55f; // solid, position-independent highlight — not a thin edge
-            drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(hoverCol), 2f);
-        }
-
-        // ── Toggled-state fill ───────────────────────────────────────────────
-        if (enabled && isToggled)
-        {
-            var toggleCol = Gui.GetStyle().Colors[(int)ImGuiCol.HeaderActive];
-            toggleCol.W = 0.85f; // strong, unmistakable "active" fill
-            drawList.AddRectFilled(screenPos, screenPos + size, Gui.GetColorU32(toggleCol), 2f);
-
-            // Hover overlay on top of toggled fill — subtle lighter overlay
-            // so hover is still perceptible on a toggled icon.
-            if (isHovered)
-            {
-                drawList.AddRectFilled(screenPos, screenPos + size,
-                    Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.15f)), 2f);
-            }
-        }
+        // Shared chrome: toggle fill behind icon (blue/accent, HeaderActive @ 0.85).
+        IconButtonChrome.DrawToggleFill(drawList, screenPos, size, enabled && isToggled);
 
         // Icon image; shift 1px when pressed.
         // Enabled: normal tint (null → full-white). Disabled: dimmed alpha (~0.28f, mirroring TransportIconRenderer).
@@ -363,6 +327,9 @@ public static class IconWidgets
         }
 
         drawList.AddImage(icon.TextureId, imagePos, imagePos + iconSize, icon.Uv0, icon.Uv1, imageTint);
+
+        // Shared chrome: inset white hover frame on top.
+        IconButtonChrome.DrawHoverFrame(drawList, screenPos, size, enabled && isHovered);
 
         // Flip state on click (only when enabled)
         if (clicked)

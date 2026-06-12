@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.Presentation.Icons;
 using ImGuiNET;
 
 namespace Hrot.UI.Common.Panels;
@@ -49,21 +50,12 @@ public static class TransportIcons
 
         var dl = ImGui.GetWindowDrawList();
 
-        // Hover highlight background.
-        if (hovered)
-            dl.AddRectFilled(
-                pos, pos + new Vector2(size, size),
-                ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.12f)), 2f);
-
         // Icon shape — shift 1 px down-right when pressed for tactile feedback.
         var drawPos = pressed ? pos + new Vector2(1f, 1f) : pos;
         DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered);
 
-        // Hover border.
-        if (hovered)
-            dl.AddRect(
-                pos, pos + new Vector2(size, size),
-                ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.55f)), 2f);
+        // Shared chrome: inset white hover frame on top (transport has no persistent toggle).
+        IconButtonChrome.DrawHoverFrame(dl, pos, new Vector2(size, size), hovered);
 
         return clicked;
     }

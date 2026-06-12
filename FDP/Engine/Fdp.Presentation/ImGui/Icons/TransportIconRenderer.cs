@@ -49,22 +49,11 @@ public static class TransportIconRenderer
         isHeld = pressed;
         var dl = ImGui.GetWindowDrawList();
 
-        if (hovered && enabled)
-            dl.AddRectFilled(
-                pos,
-                pos + new Vector2(size, size),
-                ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.12f)),
-                2f);
-
         var drawPos = pressed ? pos + new Vector2(1f, 1f) : pos;
         DrawShape(dl, shape, drawPos, size, dim: !enabled, hovered: hovered && enabled);
 
-        if (hovered && enabled)
-            dl.AddRect(
-                pos,
-                pos + new Vector2(size, size),
-                ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.55f)),
-                2f);
+        // Shared chrome: inset white hover frame on top (transport has no persistent toggle).
+        IconButtonChrome.DrawHoverFrame(dl, pos, new Vector2(size, size), hovered && enabled);
 
         return clicked;
     }
