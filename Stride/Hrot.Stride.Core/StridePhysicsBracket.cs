@@ -1,4 +1,5 @@
 #nullable enable
+using System.Diagnostics;
 using Fdp.Core;
 using Fdp.ModuleHost.Scheduling;
 
@@ -49,6 +50,27 @@ namespace Hrot.Stride.Core;
 /// </summary>
 public sealed class StridePhysicsBracket
 {
+    // ── Diagnostics logger ───────────────────────────────────────────────────
+    private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
+
+    // ── Sub-step Stopwatches (reused, no per-frame alloc) ────────────────────
+    private readonly Stopwatch _lifecycleSw       = new();
+    private readonly Stopwatch _vehicleNavIntentSw = new();
+    private readonly Stopwatch _charMotorSw        = new();
+    private readonly Stopwatch _vehicleMotorSw     = new();
+    private readonly Stopwatch _reverseSyncSw      = new();
+
+    // ── Accumulators for avg/max over the throttle window ────────────────────
+    private double _accLifecycle,       _maxLifecycle;
+    private double _accVehicleNavIntent, _maxVehicleNavIntent;
+    private double _accCharMotor,       _maxCharMotor;
+    private double _accVehicleMotor,    _maxVehicleMotor;
+    private double _accReverseSync,     _maxReverseSync;
+    private int    _bracketFrameCount;
+
+    /// <summary>Log one breakdown line per this many frames (~1 s at 60 fps).</summary>
+    private const int BracketLogIntervalFrames = 60;
+
     /// <summary>True only when a real (non-NoOp) physics service was supplied.</summary>
     public bool PhysicsIsActive { get; }
 
@@ -137,17 +159,74 @@ public sealed class StridePhysicsBracket
     {
         // Step 2: Physics body lifecycle — create/destroy bodies before motors.
         // Guard matches the original: only when a real physics service is active.
+        _lifecycleSw.Restart();
         if (PhysicsIsActive)
             PhysicsBodyLifecycle?.Execute(world, dt);
+        _lifecycleSw.Stop();
 
         // Step 2b: Pre-physics motors (VehicleNavIntent first — STR-D21 F7 fix, then motors).
+        _vehicleNavIntentSw.Restart();
         VehicleNavIntentSystem?.Execute(world, dt);
+        _vehicleNavIntentSw.Stop();
+
+        _charMotorSw.Restart();
         CharacterMotor?.Execute(world, dt);
+        _charMotorSw.Stop();
+
+        _vehicleMotorSw.Restart();
         VehicleMotor?.Execute(world, dt);
+        _vehicleMotorSw.Stop();
 
         // Step 3: Reverse-sync BEFORE kernel tick — writes Bullet pose+velocity into
         // SimTransform/SimVelocity for owned entities (design §8.3).
+        _reverseSyncSw.Restart();
         ReverseSyncGroup.Execute(world, dt);
+        _reverseSyncSw.Stop();
+
+        // ── Throttled breakdown log (~once per second at 60 fps) ─────────────
+        double msLifecycle       = _lifecycleSw.Elapsed.TotalMilliseconds;
+        double msVehicleNavIntent = _vehicleNavIntentSw.Elapsed.TotalMilliseconds;
+        double msCharMotor       = _charMotorSw.Elapsed.TotalMilliseconds;
+        double msVehicleMotor    = _vehicleMotorSw.Elapsed.TotalMilliseconds;
+        double msReverseSync     = _reverseSyncSw.Elapsed.TotalMilliseconds;
+
+        _accLifecycle       += msLifecycle;
+        _accVehicleNavIntent += msVehicleNavIntent;
+        _accCharMotor       += msCharMotor;
+        _accVehicleMotor    += msVehicleMotor;
+        _accReverseSync     += msReverseSync;
+
+        if (msLifecycle        > _maxLifecycle)        _maxLifecycle        = msLifecycle;
+        if (msVehicleNavIntent > _maxVehicleNavIntent) _maxVehicleNavIntent = msVehicleNavIntent;
+        if (msCharMotor        > _maxCharMotor)        _maxCharMotor        = msCharMotor;
+        if (msVehicleMotor     > _maxVehicleMotor)     _maxVehicleMotor     = msVehicleMotor;
+        if (msReverseSync      > _maxReverseSync)      _maxReverseSync      = msReverseSync;
+
+        if (++_bracketFrameCount >= BracketLogIntervalFrames)
+        {
+            double n = _bracketFrameCount;
+            Log.Info(
+                "[Bracket breakdown] avg/{0}f — " +
+                "Lifecycle={1:F1} VehicleNavIntent={2:F1} CharMotor={3:F1} VehicleMotor={4:F1} ReverseSync={5:F1}  " +
+                "(max: Lifecycle={6:F1} VehicleNavIntent={7:F1} CharMotor={8:F1} VehicleMotor={9:F1} ReverseSync={10:F1})  (all ms)",
+                _bracketFrameCount,
+                _accLifecycle        / n,
+                _accVehicleNavIntent / n,
+                _accCharMotor        / n,
+                _accVehicleMotor     / n,
+                _accReverseSync      / n,
+                _maxLifecycle,
+                _maxVehicleNavIntent,
+                _maxCharMotor,
+                _maxVehicleMotor,
+                _maxReverseSync);
+
+            _accLifecycle = _accVehicleNavIntent = _accCharMotor =
+            _accVehicleMotor = _accReverseSync = 0;
+            _maxLifecycle = _maxVehicleNavIntent = _maxCharMotor =
+            _maxVehicleMotor = _maxReverseSync = 0;
+            _bracketFrameCount = 0;
+        }
     }
 
     /// <summary>
