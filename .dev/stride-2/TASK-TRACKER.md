@@ -46,3 +46,10 @@
 - This ALSO explains **"car won't move"**: velocity never applied because the setter always throws+skips.
 - [x] **bb3a5390** — stop the per-frame exception+log storm (NativeBodyNotReady flag, skip cheap, Warn ONCE — surfaced not masked, Info on recovery). Perf win; does NOT mask.
 - [ ] **OPEN ROOT (#2-core):** WHY is the vehicle's native Bullet body never ready/stepped in hosted mode (worked in old self-contained F2/F4)? Hypothesis: Stride physics Simulation not stepping that body / visual entity not in the simulated scene in the hosted spawn path. Next: compare hosted vs old spawn+scene+physics membership; confirm via the new recovered-vs-Warn log. THIS is the real "car moves + smooth always" fix.
+
+## ROOT CAUSE (high confidence): TkbDb duplication in hosted mode
+One cause → all three symptoms. Two separate TkbDatabase instances:
+- Real `EditorSubsystem` TkbDb = `HrotEnvironment.CreateTkb()` (EditorSubsystem.cs:864) — NedTkbCatalog military, NO StrideRenderModelDefDto. **Scenario spawn (NetworkSpawningSystem) uses THIS.**
+- `EditorStrideSubsystem.InitializeHosted` TkbDb (EditorStrideSubsystem.cs:943) — UrbanCombat demo + Stride render-defs. **StrideVisualBindingSystem + VehicleKinematicsTkbTranslator query THIS.**
+Disjoint → (1) visuals=0 (StrideVisualBindingSystem.TryGetByType miss → null, StrideVisualBindingSystem.cs:218-224); (2) VehicleState injected on infantry (translator renderDef==null → assumes vehicle, VehicleKinematicsTkbTranslator.cs:54-56); (3) orphaned demo bodies not cleaned on scenario load (MEDIUM).
+FIX direction: ONE TkbDb — Stride visual binding + translator read the editor's spawn TkbDb, which must carry StrideRenderModelDefDto + correct ShapeKind for the scenario's entity types. CONTENT DECISION pending (user): editor scenarios likely use NedTkbCatalog military types with NO Stride models (only Box2x1x1 + mannequin exist) → need model mapping (generic placeholder vs specific).
