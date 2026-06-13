@@ -16,8 +16,8 @@ internal sealed class HsmPinModel : IPinModel
     public PinDirection Direction { get; }
     public PinKind Kind => PinKind.Data;
     public TypeKey? Type => null;
-    public PinShape Shape => PinShape.Circle;
-    public bool IsAdvanced => true;
+    public PinShape Shape => PinShape.None;
+    public bool IsAdvanced => false;
     public bool IsOptional => true;
     public string? Tooltip => null;
     public IPinDefaultValue? Default => null;
@@ -27,6 +27,6 @@ internal sealed class HsmPinModel : IPinModel
         Id = id;
         OwnerNodeId = ownerNodeId;
         Direction = direction;
-        Label = direction == PinDirection.Output ? "out" : "in";
+        Label = "";
     }
 }

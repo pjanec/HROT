@@ -231,6 +231,31 @@ public class HsmGraphModelTests
         state.Pins.Should().HaveCount(2);
     }
 
+    // RHS-08: HsmPinModel must be a layout participant (IsAdvanced==false) with no glyph (Shape==None).
+    [Fact]
+    public void HsmPin_IsAdvanced_false()
+    {
+        var state = new StateNode("S");
+        foreach (var pin in state.Pins)
+            pin.IsAdvanced.Should().BeFalse("HSM pins must not be skipped by CanvasLayout");
+    }
+
+    [Fact]
+    public void HsmPin_Shape_is_None()
+    {
+        var state = new StateNode("S");
+        foreach (var pin in state.Pins)
+            pin.Shape.Should().Be(PinShape.None, "HSM pins must be glyph-less so PinRenderer skips drawing them");
+    }
+
+    [Fact]
+    public void HsmPin_Label_is_empty()
+    {
+        var state = new StateNode("S");
+        foreach (var pin in state.Pins)
+            pin.Label.Should().BeEmpty("HSM pins must have no label");
+    }
+
     [Fact]
     public void State_output_pin_Id_matches_HiddenOutputPinId()
     {

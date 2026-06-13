@@ -39,6 +39,10 @@ internal sealed class PinRenderer
             if (pin.IsAdvanced && !node.ShowAdvancedPins) continue;
             if (!pinPositions.TryGetValue(pin.Id, out var screenPos)) continue;
 
+            // PinShape.None: pin is laid out and present in PinScreenPositions for wire routing,
+            // but no glyph or label should be drawn. Skip all rendering for this pin.
+            if (pin.Shape == PinShape.None) continue;
+
             bool isInput  = pin.Direction == PinDirection.Input;
             bool isExec   = pin.Kind == PinKind.Exec;
             bool connected = isInput

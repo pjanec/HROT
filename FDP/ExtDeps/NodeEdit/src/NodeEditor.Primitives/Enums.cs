@@ -30,6 +30,13 @@ public enum PinShape
     Square,
     Pentagon,
     Triangle,
+
+    /// <summary>
+    /// No glyph is rendered. The pin is still laid out and participates in wire routing,
+    /// but no shape or label is drawn on the canvas. Used by HSM hidden state pins so that
+    /// transition wires route correctly without visible glyph clutter.
+    /// </summary>
+    None,
 }
 
 /// <summary>Coarse node category used to pick header color and icon.</summary>
