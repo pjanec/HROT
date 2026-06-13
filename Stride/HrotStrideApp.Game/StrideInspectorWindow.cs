@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Presentation.Icons;
@@ -463,6 +464,27 @@ public sealed class StrideInspectorWindow : IDisposable
     // Kept for unload on Close().
     private Raylib_cs.Texture2D _atlasTexture;
 
+    // ── P1 frame-timing instrumentation ──────────────────────────────────────
+    // Measures PumpFrame cost and its sub-phases; logs ~once per second (throttled).
+    // Stopwatches are reused across frames — no allocation per frame.
+    private readonly Stopwatch _timingTotal   = new();
+    private readonly Stopwatch _timingDrawWorld = new();
+    private readonly Stopwatch _timingUi      = new();
+    private readonly Stopwatch _timingPresent = new();  // EndDrawing (GL SwapBuffers)
+
+    // Accumulated ms for the log window (reset each log interval).
+    private double _accTotal;
+    private double _accDrawWorld;
+    private double _accUi;
+    private double _accPresent;
+    private int    _timingFrameCount;
+
+    /// <summary>
+    /// How many PumpFrame calls between timing log lines.
+    /// At ~60 FPS this is ~1 second.  At 30 FPS it is ~2 s — still acceptable.
+    /// </summary>
+    private const int TimingLogIntervalFrames = 60;
+
     // WindowManager constructed in Open() once the atlas is loaded.
     // Non-null from Open() onward.
     private Fdp.Presentation.WindowManager.WindowManager? _windowManager;
@@ -521,9 +543,17 @@ public sealed class StrideInspectorWindow : IDisposable
         // Raylib/GLFW multi-window: each InitWindow call creates an independent OS window
         // and OpenGL context — separate from Stride's Direct3D context.
         // SetTargetFPS(0): unlimited — Stride's throttler governs the overall frame rate.
+        // NOTE: VSyncHint is intentionally NOT included in ConfigFlags — we do not want
+        // the GL swap interval locked to the monitor refresh (would block ~16ms per
+        // EndDrawing and contend with Stride's DirectX present).
         Raylib_cs.Raylib.SetConfigFlags(
             ConfigFlags.ResizableWindow | ConfigFlags.UnfocusedWindow);
         Raylib_cs.Raylib.InitWindow(_width, _height, "Hrot Editor — Stride editor_stride");
+        // P0-FIX (ESC crash): disable the default ESC exit key so pressing ESC in the
+        // editor (close popups, etc.) does NOT flip WindowShouldClose() → true mid-session,
+        // which would tear down the GL/ImGui context and trigger an "No current context"
+        // assert.  Mirrors RaylibPresentationShell.InitWindow line 16.
+        Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(0);
 
         // ── 2. Set up ImGui for this window ───────────────────────────────────
@@ -599,11 +629,16 @@ public sealed class StrideInspectorWindow : IDisposable
         var editor = _subsystem.HostedEditor;
         var wm     = _windowManager;
 
+        // ── P1 timing: total frame ────────────────────────────────────────────
+        _timingTotal.Restart();
+
         Raylib_cs.Raylib.BeginDrawing();
         Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
 
         // ── DrawWorld: 2-D map canvas (no-op when editor is null or headless) ──
+        _timingDrawWorld.Restart();
         editor?.DrawWorld();
+        _timingDrawWorld.Stop();
 
         rlImGui.Begin();
 
@@ -648,15 +683,52 @@ public sealed class StrideInspectorWindow : IDisposable
         ImGuiNET.ImGui.End();
         // ─────────────────────────────────────────────────────────────────────
 
+        // ── WindowManager.Render() + editor.DrawUI() — timed together as "UI" ─
+        _timingUi.Restart();
+
         // ── WindowManager.Render(): all registered editor panels ─────────────
         wm?.Render();
 
         // ── editor.DrawUI(): menus, popups, hotkey dispatch ───────────────────
         editor?.DrawUI();
 
+        _timingUi.Stop();
+
         rlImGui.End();
 
+        // ── EndDrawing: GL SwapBuffers — timed separately to detect vsync block ─
+        // If this number is ~16ms (≈ 60Hz monitor period) even though SetTargetFPS(0)
+        // was set, the driver's vsync swap interval is still 1 and is blocking here.
+        // raylib-cs does not expose glfwSwapInterval(); if that is the root cause the
+        // fix would require a native interop call or moving to a separate thread.
+        _timingPresent.Restart();
         Raylib_cs.Raylib.EndDrawing();
+        _timingPresent.Stop();
+
+        _timingTotal.Stop();
+
+        // ── Throttled log: ~once per second ──────────────────────────────────
+        _accTotal     += _timingTotal.Elapsed.TotalMilliseconds;
+        _accDrawWorld += _timingDrawWorld.Elapsed.TotalMilliseconds;
+        _accUi        += _timingUi.Elapsed.TotalMilliseconds;
+        _accPresent   += _timingPresent.Elapsed.TotalMilliseconds;
+        _timingFrameCount++;
+
+        if (_timingFrameCount >= TimingLogIntervalFrames)
+        {
+            double inv = 1.0 / _timingFrameCount;
+            Log.Info(
+                "[PumpFrame timing] avg over {0} frames — " +
+                "PumpFrame={1:F1}ms  DrawWorld={2:F1}ms  UI(wm+drawUI)={3:F1}ms  Present(EndDrawing)={4:F1}ms",
+                _timingFrameCount,
+                _accTotal     * inv,
+                _accDrawWorld * inv,
+                _accUi        * inv,
+                _accPresent   * inv);
+
+            _accTotal = _accDrawWorld = _accUi = _accPresent = 0;
+            _timingFrameCount = 0;
+        }
     }
 
     /// <summary>Returns <c>true</c> if the window is open and has not been closed by the user.</summary>
