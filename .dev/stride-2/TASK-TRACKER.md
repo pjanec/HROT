@@ -38,3 +38,11 @@
 - [x] BATCH-S2-B (Stage 1): modularize Stride muscle + host physics-bracket. (sonnet) → edba115a, GPU-verified ✅
 - [x] BATCH-S2-C (Stage 3a): pre/post-kernel host hooks in EditorSubsystem.Update. (sonnet) → CPU-verified
 - [ ] BATCH-S2-D (Stage 3b): EditorStrideSubsystem hosts real EditorSubsystem. (sonnet, GPU gate)
+
+## Perf/correctness chase (2026-06-13 eve) — hosted-editor frame cost
+- Instrumented full frame: editor Tick ~1.3ms, PumpFrame ~1.5ms, base.Update ~2ms, Draw ~1.6ms — all CHEAP. Idle ~60fps.
+- Bottleneck localized: **`StridePhysicsBracket` `VehicleMotor`=31-34ms (max 117ms)** when a scenario is loaded.
+- ROOT: `KinematicVehicleMotor` → `BulletPhysicsBodyService.SetLinearVelocityXZ/SetYawRate` throw `InvalidOperationException` EVERY frame ('Visual_Models/Box2x1x1' "not ready"; ~600 log lines) → exception+**file-log storm** = the 32ms. The vehicle's native Bullet body has `rb.Simulation != null` but `btRigidBody` **never stepped/ready** for ~19s (not a 1-frame transient).
+- This ALSO explains **"car won't move"**: velocity never applied because the setter always throws+skips.
+- [x] **bb3a5390** — stop the per-frame exception+log storm (NativeBodyNotReady flag, skip cheap, Warn ONCE — surfaced not masked, Info on recovery). Perf win; does NOT mask.
+- [ ] **OPEN ROOT (#2-core):** WHY is the vehicle's native Bullet body never ready/stepped in hosted mode (worked in old self-contained F2/F4)? Hypothesis: Stride physics Simulation not stepping that body / visual entity not in the simulated scene in the hosted spawn path. Next: compare hosted vs old spawn+scene+physics membership; confirm via the new recovered-vs-Warn log. THIS is the real "car moves + smooth always" fix.
