@@ -173,6 +173,8 @@ internal sealed class FakeDebugSessionRegistry : IDebugSessionRegistry
     /// <summary>Fires the <see cref="Changed"/> event.</summary>
     public void FireChanged() => Changed?.Invoke();
 
+    public void SetActiveSession(IAiDebugSession? session) => ActiveSession = session;
+
     // -- Remaining stubs --
     public bool TryAcquireSession<TSession>(out TSession? session) where TSession : class, IAiDebugSession
     {

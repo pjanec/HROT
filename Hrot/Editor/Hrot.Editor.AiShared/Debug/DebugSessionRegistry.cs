@@ -60,6 +60,17 @@ public sealed class DebugSessionRegistry : IDebugSessionRegistry
         }
     }
 
+    public void SetActiveSession(IAiDebugSession? session)
+    {
+        bool changed;
+        lock (_lock)
+        {
+            changed = !ReferenceEquals(ActiveSession, session);
+            if (changed) ActiveSession = session;
+        }
+        if (changed) Changed?.Invoke();
+    }
+
     public IDisposable RegisterObserver<TObserver>(TObserver observer)
         where TObserver : IAiTraceObserver
     {

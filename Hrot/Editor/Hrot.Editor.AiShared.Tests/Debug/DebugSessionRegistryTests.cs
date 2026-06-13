@@ -25,6 +25,40 @@ public sealed class DebugSessionRegistryTests
         protected override void OnStepOutImpl() { }
     }
 
+    // Minimal IAiDebugSession fake that counts Detach calls.
+    // Used to verify that SetActiveSession(null) does NOT call Detach() (unlike ReleaseSession).
+    private sealed class DetachCountingFake : IAiDebugSession
+    {
+        public int DetachCallCount { get; private set; }
+        public bool IsAttached { get; set; } = true;
+        public bool IsPaused => false;
+        public Breakpoint? PausedAt => null;
+        public Entity? PausedOnEntity => null;
+        public bool IsAnyBreakpointActive => false;
+        private Action? _onSessionStateChanged;
+        event Action? IAiDebugSession.OnSessionStateChanged
+        {
+            add => _onSessionStateChanged += value;
+            remove => _onSessionStateChanged -= value;
+        }
+
+        public void Detach() { DetachCallCount++; IsAttached = false; }
+        public BreakpointId SetBreakpoint(Guid assetId, Guid elementId) => default;
+        public void ClearBreakpoint(BreakpointId id) { }
+        public void ClearAllBreakpoints() { }
+        public IReadOnlyList<Breakpoint> GetBreakpoints() => Array.Empty<Breakpoint>();
+        public void Continue() { }
+        public void Pause() { }
+        public void StepOver() { }
+        public void StepInto() { }
+        public void StepOut() { }
+
+        // IAiTraceObserver stubs.
+        public void BeginObservingAsset(Guid assetId, TraceLevel level) { }
+        public void EndObservingAsset(Guid assetId) { }
+        public IReadOnlyList<Entity> GetActiveEntities(Guid assetId) => Array.Empty<Entity>();
+    }
+
     // Minimal trace observer for observer registration tests.
     private sealed class StubObserver : IAiTraceObserver
     {
@@ -141,5 +175,71 @@ public sealed class DebugSessionRegistryTests
         token.Dispose();
 
         Assert.Empty(r.ActiveObservers);
+    }
+
+    // ── SetActiveSession tests ────────────────────────────────────────────────
+
+    [Fact]
+    public void SetActiveSession_SetsActiveSessionAndFiresChanged()
+    {
+        var r = MakeRegistry();
+        var session = new SessionA();
+
+        int changedCount = 0;
+        r.Changed += () => changedCount++;
+
+        r.SetActiveSession(session);
+
+        Assert.Same(session, r.ActiveSession);
+        Assert.Equal(1, changedCount);
+    }
+
+    [Fact]
+    public void SetActiveSession_NullAfterSet_ClearsAndFiresChanged()
+    {
+        var r = MakeRegistry();
+        var session = new SessionA();
+        r.SetActiveSession(session);
+
+        int changedCount = 0;
+        r.Changed += () => changedCount++;
+
+        r.SetActiveSession(null);
+
+        Assert.Null(r.ActiveSession);
+        Assert.Equal(1, changedCount);
+    }
+
+    [Fact]
+    public void SetActiveSession_SameReferenceTwice_FiresChangedOnlyOnce()
+    {
+        var r = MakeRegistry();
+        var session = new SessionA();
+        r.SetActiveSession(session);
+
+        int changedCount = 0;
+        r.Changed += () => changedCount++;
+
+        r.SetActiveSession(session); // same reference — no change
+
+        Assert.Same(session, r.ActiveSession);
+        Assert.Equal(0, changedCount); // no redundant event
+    }
+
+    [Fact]
+    public void SetActiveSession_Null_DoesNotCallDetach()
+    {
+        var r = new DebugSessionRegistry();
+        var session = new DetachCountingFake();
+        Assert.True(session.IsAttached);
+        Assert.Equal(0, session.DetachCallCount);
+
+        r.SetActiveSession(session);
+        r.SetActiveSession(null);
+
+        // SetActiveSession must NOT call Detach — unlike ReleaseSession which does.
+        Assert.Equal(0, session.DetachCallCount);
+        Assert.True(session.IsAttached); // still attached
+        Assert.Null(r.ActiveSession);
     }
 }

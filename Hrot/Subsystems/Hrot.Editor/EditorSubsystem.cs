@@ -2019,6 +2019,23 @@ namespace Hrot.Editor
             _aiDocumentManager = new AiDocumentManager(_perspectiveSwitcher);
             _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
 
+            // Toolbar debug icons (AiDebugCommands) gate IsEnabled on debugRegistry.ActiveSession. Mirror the active
+            // document's debug session into the registry so those icons enable/disable live. Side-effect-free setter
+            // (NOT TryAcquire/Release) — the blueprint session is eagerly attached + is DebugProbe.Sink and must NOT be
+            // detached. Blueprint only: BTree/HSM debug sessions are not yet attached/working → mapped to null for now.
+            void SyncActiveDebugSession()
+            {
+                Hrot.Editor.AiShared.Debug.IAiDebugSession? session = _aiDocumentManager?.Active?.Kind switch
+                {
+                    Hrot.Editor.AiShared.AssetKind.Blueprint => _blueprintDebugSession,
+                    // BTree/HSM debug sessions are not yet attached/working — intentionally null until wired.
+                    _ => null,
+                };
+                debugRegistry.SetActiveSession(session);
+            }
+            _aiDocumentManager.ActiveChanged += SyncActiveDebugSession;
+            SyncActiveDebugSession(); // initialise for whatever doc (if any) is already active
+
             // BATCH-26: Asset-pick action router — file kinds → AiDocumentManager.Open,
             // Scenario → IEditorLogic.LoadScenarioByName. Null-safe delegates guard
             // against bare-ctor scenarios.

@@ -24,7 +24,7 @@ public readonly record struct BreakpointTarget(Guid AssetId, Guid GraphId, Guid 
 /// execution history, and editor UI event dispatch.
 /// Implements soft-pause semantics per Patch 1: probes never block the calling thread.
 /// </summary>
-public sealed class BlueprintDebugSession : IBlueprintDebugSession
+public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.AiShared.Debug.IAiDebugSession
 {
     private readonly BlueprintRegistry _registry;
     private readonly ISimulationView _view;
@@ -1744,4 +1744,48 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession
         if (type == typeof(double)) return System.Runtime.InteropServices.MemoryMarshal.Read<double>(bytes);
         return bytes;
     }
+
+    // ── IAiDebugSession bridge (toolbar/registry surface; UBP toolbar debug icons) ───────────────
+    // BlueprintDebugSession also implements IAiDebugSession so it can be the registry's ActiveSession,
+    // which drives the main-toolbar debug icons. The shared step/pause/state members above already
+    // satisfy the contract; only the breakpoint members collide (AiShared BreakpointId/Breakpoint are
+    // distinct types from the Core ones) → explicit interface impls that bridge to the Core store.
+
+    Hrot.Editor.AiShared.Debug.BreakpointId Hrot.Editor.AiShared.Debug.IAiDebugSession.SetBreakpoint(
+        Guid assetId, Guid elementId)
+    {
+        // The 2-arg AiShared surface has no graphId; bridge to the 3-arg Core API with Guid.Empty.
+        var coreId = SetBreakpoint(assetId, Guid.Empty, elementId);
+        return new Hrot.Editor.AiShared.Debug.BreakpointId(coreId.Value);
+    }
+
+    void Hrot.Editor.AiShared.Debug.IAiDebugSession.ClearBreakpoint(Hrot.Editor.AiShared.Debug.BreakpointId id)
+        => ClearBreakpoint(new BreakpointId(id.Value));
+
+    IReadOnlyList<Hrot.Editor.AiShared.Debug.Breakpoint>
+        Hrot.Editor.AiShared.Debug.IAiDebugSession.GetBreakpoints()
+    {
+        var core = GetBreakpoints();
+        var list = new List<Hrot.Editor.AiShared.Debug.Breakpoint>(core.Count);
+        foreach (var bp in core) list.Add(ToAiSharedBreakpoint(bp));
+        return list;
+    }
+
+    Hrot.Editor.AiShared.Debug.Breakpoint? Hrot.Editor.AiShared.Debug.IAiDebugSession.PausedAt
+        => PausedAt is { } core ? ToAiSharedBreakpoint(core) : null;
+
+    private static Hrot.Editor.AiShared.Debug.Breakpoint ToAiSharedBreakpoint(Breakpoint bp)
+        => new(
+            new Hrot.Editor.AiShared.Debug.BreakpointId(bp.Id.Value),
+            bp.AssetId,
+            Guid.TryParse(bp.NodeId, out var nid) ? nid : Guid.Empty,
+            bp.HitCount,
+            bp.Enabled,
+            bp.NodeId);
+
+    // IAiTraceObserver: blueprint trace data flows through DebugProbe.Sink (global), not the per-asset
+    // AiTracerCoordinator ref-counting used by BTree/HSM — so these are intentional no-ops here.
+    void Hrot.Editor.AiShared.Debug.IAiTraceObserver.BeginObservingAsset(
+        Guid assetId, Hrot.Editor.AiShared.Debug.TraceLevel level) { }
+    void Hrot.Editor.AiShared.Debug.IAiTraceObserver.EndObservingAsset(Guid assetId) { }
 }
