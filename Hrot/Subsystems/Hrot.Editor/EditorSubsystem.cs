@@ -181,15 +181,16 @@ namespace Hrot.Editor
 
         // ?? Core state ????????????????????????????????????????????????????????
 
-        private EntityRepository?       _world;
-        private ModuleHostKernel?       _kernel;
-        private MasterSyncController?   _timeController;
-        private PhysicsToolkitModule?   _physicsModule;
-        private IEditorLogic?           _editorLogic;
-        private EditorApplication?      _editorApp;
-        private MapCanvas?              _canvas;
-        private MapCamera?              _camera;
-        private bool                    _headless;
+        private EntityRepository?                       _world;
+        private ModuleHostKernel?                       _kernel;
+        private MasterSyncController?                   _timeController;
+        private PhysicsToolkitModule?                   _physicsModule;
+        private IEditorLogic?                           _editorLogic;
+        private EditorApplication?                      _editorApp;
+        private MapCanvas?                              _canvas;
+        private MapCamera?                              _camera;
+        private bool                                    _headless;
+        private ScenarioEntityCreationRequestSource?    _scenarioLoadSource;
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
@@ -470,27 +471,54 @@ namespace Hrot.Editor
             public void Dispose() { }
         }
 
-        // ?? Internal test accessors ???????????????????????????????????????????
+        // ?? Public host-integration surface ???????????????????????????????????????????
+        // These properties are the seam for external host assemblies (e.g. HrotStrideApp.Game)
+        // to reach the live ECS world, kernel, and time controller without reflection.
+        // Behavior is identical to the former internal accessors — throw if not yet initialized.
 
-        /// <summary>Internal test hook: direct access to the ECS world.</summary>
-        internal EntityRepository World =>
+        /// <summary>
+        /// Host-integration: live ECS world (EntityRepository).
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public EntityRepository World =>
             _world ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the kernel.</summary>
-        internal ModuleHostKernel Kernel =>
+        /// <summary>
+        /// Host-integration: module-host kernel (ModuleHostKernel).
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public ModuleHostKernel Kernel =>
             _kernel ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the editor logic facade.</summary>
-        internal IEditorLogic EditorLogic =>
+        /// <summary>
+        /// Host-integration: editor logic facade (IEditorLogic).
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public IEditorLogic EditorLogic =>
             _editorLogic ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the time controller.</summary>
-        internal MasterSyncController TimeController =>
+        /// <summary>
+        /// Host-integration: master time controller (MasterSyncController).
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public MasterSyncController TimeController =>
             _timeController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
-        /// <summary>Internal test hook: direct access to the preview controller.</summary>
-        internal IPreviewController PreviewController =>
+        /// <summary>
+        /// Host-integration: preview controller (IPreviewController).
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public IPreviewController PreviewController =>
             _previewController ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
+
+        /// <summary>
+        /// Host-integration: entity-creation request source.
+        /// Enqueue an <see cref="EntityCreationRequest"/> here to spawn entities through the
+        /// production <c>CreateEntityRequestSystem → NetworkSpawningSystem</c> pipeline.
+        /// Available after <see cref="Initialize"/> returns; throws otherwise.
+        /// </summary>
+        public ScenarioEntityCreationRequestSource EntityCreationRequestSource =>
+            _scenarioLoadSource ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
@@ -842,6 +870,7 @@ namespace Hrot.Editor
             var idAllocator       = new SequentialIdAllocator();
             var spawnSys          = new NetworkSpawningSystem(tkbDb, elm, entityMap, idAllocator, localNodeId: EditorNodeId, translators: translators);
             var scenarioLoadSource = new ScenarioEntityCreationRequestSource();
+            _scenarioLoadSource    = scenarioLoadSource;
             var extractor          = new StagingEntityExtractor();
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
 

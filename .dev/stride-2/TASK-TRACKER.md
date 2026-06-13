@@ -17,8 +17,8 @@
   - [x] **3b-1** — muscle adapter `StrideMuscleModuleSet.ToEditorModuleList()` (+`StrideMuscleModule` matching today's phase order) + faithful headless test booting the REAL EditorSubsystem(Headless) with Stride muscle injected, driving nav frame-locked. **CPU-verified: 4 new tests (SI1–SI4) pass, 589 total.** Real editor boots headless w/ muscle ✅.
   - **Time model RESOLVED:** keep editor Deterministic; host calls `editor.TimeController.Step(dt)` in `PreKernelUpdateHook` (frame-locked), then `editor.Update(dt)` ticks kernel.
   - **3b-2 blockers surfaced (need additive editor seams, CPU-verifiable):** (1) host must register `CrowdAgent`/`CrowdMotorIntent`/`NavAgentProfile` (done in factory lambda — no editor change); (2) need PUBLIC access to editor World/Kernel/TimeController + a public entity-spawn path (test used reflection on `_requestSource`/World/Kernel — production must not).
-  - [ ] **3b-2a** — additive editor seams: expose World/Kernel/TimeController + public spawn entrypoint (or confirm existing public path). CPU-verify clusterrunner editor unchanged.
-  - [ ] **3b-2b** — live rewire: `EditorStrideSubsystem` hosts real `EditorSubsystem`, drives bracket via hooks, repoints view systems at editor.World, deletes hand-built kernel. ⛳ GPU gate F1–F7.
+  - [x] **3b-2a** — public host surface on EditorSubsystem: `World`/`Kernel`/`TimeController`/`PreviewController`/`EditorLogic` promoted internal→public + new `EntityCreationRequestSource` accessor; headless boot test de-reflected. CPU-verified (589 + 15 editor tests; pre-existing FileMenuHasSaveCommands fail unrelated).
+  - [ ] **3b-2b** — live rewire: `EditorStrideSubsystem` hosts real `EditorSubsystem`, drives bracket via hooks, repoints view systems at editor.World, deletes hand-built kernel. ⛳ GPU gate F1–F7. (All prerequisites now in place.)
 - [ ] **Stage 4 — Editor UI in window #2.** WindowManager + DrawUI over shared world; panels incrementally. ⛳ user GPU gate per panel group.
 - [ ] **Stage 5 — Later.** Stride perception + EQS `IEcsModule`s; networked muscle node via `StrideNodeBootstrapper` + `SimHostMode.External`; 3D-pick ↔ editor-selection sync.
 

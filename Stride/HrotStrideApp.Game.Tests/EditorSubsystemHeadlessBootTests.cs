@@ -183,16 +183,16 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
     ///
     /// <para>
     /// Uses <see cref="Fdp.ModuleHost.ModuleHostKernel.GetRegisteredModuleTypeNames()"/>
-    /// accessed via reflection on the internal <c>Kernel</c> property.
+    /// accessed via the public <see cref="EditorSubsystem.Kernel"/> property.
     /// </para>
     /// </summary>
     [Fact]
     public void SI2_KernelContainsStrideMuscleModule_AfterMuscleFactoryBoot()
     {
-        var kernel = GetKernelViaReflection();
+        var kernel = _editor.Kernel;
         Assert.NotNull(kernel);
 
-        var moduleTypeNames = kernel!.GetRegisteredModuleTypeNames();
+        var moduleTypeNames = kernel.GetRegisteredModuleTypeNames();
         Assert.NotNull(moduleTypeNames);
 
         bool hasStrideModule = moduleTypeNames.Any(
@@ -243,13 +243,11 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         Assert.True(goalSnapped,  $"SI3: F6 goal {F6GoalFdp} must snap to navmesh.");
 
         // ── Get world and scenario source ───────────────────────────────────────────
-        var world          = GetWorldViaReflection();
-        var scenarioSource = GetScenarioSourceViaCreateEntityReflection();
-        Assert.NotNull(world);
-        Assert.NotNull(scenarioSource);
+        var world          = _editor.World;
+        var scenarioSource = _editor.EntityCreationRequestSource;
 
         // ── Spawn InfantrySoldier (TKB 2002) via production spawn pipeline ─────────
-        scenarioSource!.Enqueue(new EntityCreationRequest
+        scenarioSource.Enqueue(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -263,7 +261,7 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         // Pump 5 frames to materialise the entity.
         DriveFrames(5);
 
-        var entity = world!.Query().With<SimTransform>().Build().FirstOrNull();
+        var entity = world.Query().With<SimTransform>().Build().FirstOrNull();
         Assert.True(entity != Entity.Null,
             "SI3: InfantrySoldier must have spawned (SimTransform present) after 5 frames.");
         var e = entity;
@@ -370,14 +368,12 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         var provider = new DotRecastNavmeshProvider(
             new Dictionary<NavLayerMask, DtNavMesh> { [NavLayerMask.Vehicle] = navMesh });
 
-        var world = GetWorldViaReflection();
-        Assert.NotNull(world);
-        world!.SetSingletonManaged<INavmeshProvider>(provider);
+        var world = _editor.World;
+        world.SetSingletonManaged<INavmeshProvider>(provider);
 
         // ── Spawn APC ─────────────────────────────────────────────────────────────
-        var scenarioSource = GetScenarioSourceViaCreateEntityReflection();
-        Assert.NotNull(scenarioSource);
-        scenarioSource!.Enqueue(new EntityCreationRequest
+        var scenarioSource = _editor.EntityCreationRequestSource;
+        scenarioSource.Enqueue(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -462,119 +458,6 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         const float dt = 1f / 60f;
         for (int i = 0; i < count; i++)
             _editor.Update(dt);
-    }
-
-    /// <summary>
-    /// Returns the <see cref="Fdp.ModuleHost.ModuleHostKernel"/> from <c>EditorSubsystem._kernel</c>
-    /// via reflection. The field is private; accessing it is acceptable for test diagnostics.
-    /// </summary>
-    private Fdp.ModuleHost.ModuleHostKernel? GetKernelViaReflection()
-    {
-        var field = typeof(EditorSubsystem)
-            .GetField("_kernel",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.NonPublic);
-        return field?.GetValue(_editor) as Fdp.ModuleHost.ModuleHostKernel;
-    }
-
-    /// <summary>
-    /// Returns the <see cref="EntityRepository"/> from <c>EditorSubsystem._world</c>
-    /// via reflection.
-    /// </summary>
-    private EntityRepository? GetWorldViaReflection()
-    {
-        var field = typeof(EditorSubsystem)
-            .GetField("_world",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.NonPublic);
-        return field?.GetValue(_editor) as EntityRepository;
-    }
-
-    /// <summary>
-    /// Locates the <see cref="ScenarioEntityCreationRequestSource"/> used by
-    /// <c>EditorSubsystem.Initialize</c> by walking the kernel's <c>_registeredGlobalSystems</c>
-    /// list to find <c>CreateEntityRequestSystem</c>, then extracting its <c>_requestSource</c>
-    /// field via reflection.
-    ///
-    /// <para>
-    /// <c>scenarioLoadSource</c> is a local variable in <c>Initialize</c>, not a field, so
-    /// it can only be reached through a system that captured it. <c>CreateEntityRequestSystem</c>
-    /// stores it as <c>_requestSource : IEntityCreationRequestSource</c> whose concrete value is
-    /// a <see cref="ScenarioEntityCreationRequestSource"/>.
-    /// </para>
-    /// </summary>
-    private ScenarioEntityCreationRequestSource? GetScenarioSourceViaCreateEntityReflection()
-    {
-        var kernel = GetKernelViaReflection();
-        if (kernel == null) return null;
-
-        // ModuleHostKernel.RegisterGlobalSystem stores systems in _registeredGlobalSystems (List<IEcsModuleSystem>).
-        var globalSysField = typeof(Fdp.ModuleHost.ModuleHostKernel)
-            .GetField("_registeredGlobalSystems",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.NonPublic);
-        var globalSystems = globalSysField?.GetValue(kernel) as System.Collections.IEnumerable;
-        if (globalSystems != null)
-        {
-            foreach (var sys in globalSystems)
-            {
-                if (sys is CreateEntityRequestSystem cers)
-                {
-                    var srcField = typeof(CreateEntityRequestSystem)
-                        .GetField("_requestSource",
-                            System.Reflection.BindingFlags.Instance |
-                            System.Reflection.BindingFlags.NonPublic);
-                    var src = srcField?.GetValue(cers) as ScenarioEntityCreationRequestSource;
-                    if (src != null) return src;
-                }
-            }
-        }
-
-        // Fallback: also check the active topology's scheduler for systems registered through modules.
-        // The scheduler holds per-phase lists in _systemsByPhase. Walk all systems looking for CERS.
-        var topologyField = typeof(Fdp.ModuleHost.ModuleHostKernel)
-            .GetField("_activeTopology",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.NonPublic);
-        var topology = topologyField?.GetValue(kernel);
-        if (topology != null)
-        {
-            var schedulerField = topology.GetType().GetProperty("Scheduler");
-            var scheduler = schedulerField?.GetValue(topology);
-            if (scheduler != null)
-            {
-                var systemsByPhaseField = scheduler.GetType()
-                    .GetField("_systemsByPhase",
-                        System.Reflection.BindingFlags.Instance |
-                        System.Reflection.BindingFlags.NonPublic);
-                var systemsByPhase = systemsByPhaseField?.GetValue(scheduler)
-                    as System.Collections.IDictionary;
-                if (systemsByPhase != null)
-                {
-                    foreach (System.Collections.DictionaryEntry kv in systemsByPhase)
-                    {
-                        if (kv.Value is System.Collections.IEnumerable systems)
-                        {
-                            foreach (var sys in systems)
-                            {
-                                if (sys is CreateEntityRequestSystem cers2)
-                                {
-                                    var srcField = typeof(CreateEntityRequestSystem)
-                                        .GetField("_requestSource",
-                                            System.Reflection.BindingFlags.Instance |
-                                            System.Reflection.BindingFlags.NonPublic);
-                                    var src = srcField?.GetValue(cers2)
-                                        as ScenarioEntityCreationRequestSource;
-                                    if (src != null) return src;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     // ── Navmesh geometry helpers (mirrors AssembledNavIntegrationTests) ────────────
