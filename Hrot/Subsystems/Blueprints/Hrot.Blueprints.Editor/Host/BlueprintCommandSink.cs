@@ -133,6 +133,15 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             case GraphCommand.Batch batch:
                 return ApplyBatch(batch);
 
+            case GraphCommand.InsertReroute insertReroute:
+                return ApplyInsertReroute(insertReroute);
+
+            case GraphCommand.MoveReroute moveReroute:
+                return ApplyMoveReroute(moveReroute);
+
+            case GraphCommand.RemoveReroute removeReroute:
+                return ApplyRemoveReroute(removeReroute);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);
@@ -619,6 +628,55 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
             node.PinDefaults ??= new Dictionary<string, string>();
             node.PinDefaults[pinName] = value;
         }
+    }
+
+    // ── Reroute ──────────────────────────────────────────────────────────────
+
+    private GraphCommandResult ApplyInsertReroute(GraphCommand.InsertReroute cmd)
+    {
+        var assetLink = _model.FindAssetLink(cmd.Link);
+        if (assetLink == null)
+            return new GraphCommandResult(true, null);   // unknown link — safe no-op
+
+        assetLink.Waypoints ??= new List<LinkWaypoint>();
+        assetLink.Waypoints.Add(new LinkWaypoint { X = cmd.Position.X, Y = cmd.Position.Y });
+
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private GraphCommandResult ApplyMoveReroute(GraphCommand.MoveReroute cmd)
+    {
+        var assetLink = _model.FindAssetLink(cmd.Link);
+        if (assetLink == null || assetLink.Waypoints == null)
+            return new GraphCommandResult(true, null);   // unknown link / no waypoints — safe no-op
+
+        if (cmd.WaypointIndex < 0 || cmd.WaypointIndex >= assetLink.Waypoints.Count)
+            return new GraphCommandResult(true, null);   // out-of-range — safe no-op
+
+        assetLink.Waypoints[cmd.WaypointIndex] = new LinkWaypoint
+            { X = cmd.NewPosition.X, Y = cmd.NewPosition.Y };
+
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
+    }
+
+    private GraphCommandResult ApplyRemoveReroute(GraphCommand.RemoveReroute cmd)
+    {
+        var assetLink = _model.FindAssetLink(cmd.Link);
+        if (assetLink == null || assetLink.Waypoints == null)
+            return new GraphCommandResult(true, null);   // unknown link / no waypoints — safe no-op
+
+        if (cmd.WaypointIndex < 0 || cmd.WaypointIndex >= assetLink.Waypoints.Count)
+            return new GraphCommandResult(true, null);   // out-of-range — safe no-op
+
+        assetLink.Waypoints.RemoveAt(cmd.WaypointIndex);
+
+        _markDirty(_asset);
+        _model.RebuildAndNotify();
+        return new GraphCommandResult(true, null);
     }
 
     // ── Batch ────────────────────────────────────────────────────────────────

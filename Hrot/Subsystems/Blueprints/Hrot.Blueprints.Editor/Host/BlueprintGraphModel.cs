@@ -299,7 +299,7 @@ public sealed class BlueprintGraphModel : IGraphModel
             var fromPin = new PinId(assetLink.FromPinId);
             var toPin   = new PinId(assetLink.ToPinId);
             var linkId  = MakeLinkId(assetLink.FromPinId, assetLink.ToPinId);
-            links[linkId] = new BlueprintLinkModel(linkId, fromPin, toPin);
+            links[linkId] = new BlueprintLinkModel(linkId, fromPin, toPin, assetLink.Waypoints);
         }
 
         _nodes = nodes;
@@ -342,5 +342,21 @@ public sealed class BlueprintGraphModel : IGraphModel
     {
         var key = $"link:{fromPinId:N}:{toPinId:N}";
         return new LinkId(IdGenerator.Deterministic(key));
+    }
+
+    /// <summary>
+    /// Finds the asset-level <see cref="Link"/> whose derived <see cref="LinkId"/> equals
+    /// <paramref name="id"/>.  Uses the canonical <see cref="MakeLinkId"/> derivation so the
+    /// resolution is consistent with the projection.
+    /// Returns <see langword="null"/> when no matching link exists (safe no-op for callers).
+    /// </summary>
+    internal Link? FindAssetLink(LinkId id)
+    {
+        foreach (var link in _graph.Links)
+        {
+            if (MakeLinkId(link.FromPinId, link.ToPinId) == id)
+                return link;
+        }
+        return null;
     }
 }

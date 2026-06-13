@@ -40,6 +40,25 @@ public sealed class Link
     public Guid FromPinId { get; set; }
     public Guid ToNodeId { get; set; }
     public Guid ToPinId { get; set; }
+
+    /// <summary>
+    /// Reroute waypoints along the wire.  Empty list = straight wire (default).
+    /// Serialized as a JSON array; omitted from output only when null (we default to new() so
+    /// it will appear as [] in JSON when no waypoints have been added — consistent with other list fields).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<LinkWaypoint>? Waypoints { get; set; }
+}
+
+/// <summary>
+/// A single reroute point on a Blueprint wire.  Uses float properties (not fields) so
+/// System.Text.Json serializes correctly even without <c>IncludeFields = true</c>.
+/// Mirrors the shape of <see cref="NodeMetadata"/> (X/Y float properties).
+/// </summary>
+public sealed class LinkWaypoint
+{
+    public float X { get; set; }
+    public float Y { get; set; }
 }
 
 public sealed class AssetMetadata
