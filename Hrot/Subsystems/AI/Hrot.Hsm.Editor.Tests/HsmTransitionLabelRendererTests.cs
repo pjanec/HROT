@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using FluentAssertions;
 using Hrot.Hsm.Editor.Model;
 using Hrot.Hsm.Editor.Renderers;
@@ -83,5 +84,82 @@ public sealed class HsmTransitionLabelRendererTests
     {
         var t = MakeTransition(eventName: "Hit", syncGroupId: 3);
         HsmTransitionLabelRenderer.FormatLabel(t).Should().Be("Hit [SG:3]");
+    }
+
+    // ── ComputeArrowheadGeometry tests ──────────────────────────────────────
+
+    [Fact]
+    public void ComputeArrowheadGeometry_tip_is_at_target()
+    {
+        var source = new Vector2(0f, 0f);
+        var target = new Vector2(100f, 0f);
+
+        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
+
+        result.Should().NotBeNull();
+        result!.Value.tip.Should().Be(target);
+    }
+
+    [Fact]
+    public void ComputeArrowheadGeometry_tip_points_toward_target()
+    {
+        // Source → target goes right (+X). Tip must be closer to target than base vertices.
+        var source = new Vector2(0f, 0f);
+        var target = new Vector2(100f, 0f);
+
+        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
+
+        result.Should().NotBeNull();
+        var (tip, left, right) = result!.Value;
+
+        // Both base vertices should be behind (lower X) the tip when going right.
+        left.X.Should().BeLessThan(tip.X);
+        right.X.Should().BeLessThan(tip.X);
+
+        // Base vertices should be symmetric around the shaft axis (same X, opposite Y).
+        left.X.Should().BeApproximately(right.X, 1e-4f);
+        left.Y.Should().BeApproximately(-right.Y, 1e-4f);
+    }
+
+    [Fact]
+    public void ComputeArrowheadGeometry_triangle_is_non_degenerate()
+    {
+        // A non-degenerate triangle has non-zero area.
+        // Area = 0.5 * |cross(b-a, c-a)|
+        var source = new Vector2(10f, 20f);
+        var target = new Vector2(80f, 50f);
+
+        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
+
+        result.Should().NotBeNull();
+        var (tip, left, right) = result!.Value;
+
+        var ab = left  - tip;
+        var ac = right - tip;
+        float cross = ab.X * ac.Y - ab.Y * ac.X;   // Z-component of 3D cross product
+        MathF.Abs(cross).Should().BeGreaterThan(1e-4f, "triangle must have non-zero area");
+    }
+
+    [Fact]
+    public void ComputeArrowheadGeometry_coincident_points_returns_null()
+    {
+        var pos = new Vector2(50f, 50f);
+
+        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(pos, pos, 7f, 5f);
+
+        result.Should().BeNull("coincident source and target give no valid direction");
+    }
+
+    [Fact]
+    public void ComputeArrowheadGeometry_diagonal_direction_tip_at_target()
+    {
+        var source = new Vector2(0f, 0f);
+        var target = new Vector2(30f, 40f);  // 3-4-5 triangle scaled ×10 → length 50
+
+        var result = HsmTransitionLabelRenderer.ComputeArrowheadGeometry(source, target, 7f, 5f);
+
+        result.Should().NotBeNull();
+        result!.Value.tip.X.Should().BeApproximately(target.X, 1e-4f);
+        result!.Value.tip.Y.Should().BeApproximately(target.Y, 1e-4f);
     }
 }

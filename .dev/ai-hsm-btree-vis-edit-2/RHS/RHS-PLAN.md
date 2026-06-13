@@ -44,8 +44,9 @@ Independent gaps: (B) all states hardcode `Category => NodeCategory.Custom` → 
 
 **RHS-06 VISUAL GATE: PASSED (2026-06-13).** User confirmed the canvas now renders correctly — wires + labels, per-kind colors, region dividers (RegionA/B/C), H/F glyphs on their nodes, initial-state arrows. VE-DEBT-007 resolved.
 
-### Optional follow-ups (not blocking)
-- **RHS-09 (offered):** arrowheads on transition wires for explicit direction (currently directionless mid-blue beziers; HSM semantics benefit from a target-end arrow). Small, HSM-side (transition label renderer can draw it from source→target pin positions) — pending user go-ahead.
+### Follow-ups
+- **RHS-09:** ✅ DONE — target-end arrowheads on HSM transition wires (mid-blue filled triangle, source→target, via `HsmTransitionLabelRenderer.ComputeArrowheadGeometry`). HSM tests 486/0. Pending user visual confirm.
+- **Reroutes:** user requests draggable reroute/waypoint points on wires in ALL editors → split into the new **RR workstream** ([../RR/RR-PLAN.md](../RR/RR-PLAN.md)). NodeEditor UI already emits InsertReroute/MoveReroute/RemoveReroute; host sinks drop them.
 - **Layout:** EndState (top-level, IsFinal) visually overlaps ParallelWork's grown bbox; user hand-tunes positions in the editor (auto-saved). Not a code defect.
 - **Autosave UX:** debounced regeneration scheduler auto-persists edits with no explicit Save (EditorSubsystem.cs:1550) — user accepted as-is.
 

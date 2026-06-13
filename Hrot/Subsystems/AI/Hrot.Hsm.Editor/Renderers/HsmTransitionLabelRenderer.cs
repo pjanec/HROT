@@ -9,10 +9,16 @@ using NodeEditor.Primitives;
 
 namespace Hrot.Hsm.Editor.Renderers;
 
-// Custom canvas renderer that draws Event[Guard]/Action labels at transition midpoints.
-// Runs in the AfterWires pass so labels appear above wire lines.
+// Custom canvas renderer that draws Event[Guard]/Action labels at transition midpoints
+// and a filled-triangle arrowhead at the target end of each external transition wire.
+// Runs in the AfterWires pass so labels and arrowheads appear above wire lines.
 public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
 {
+    // Arrowhead size constants (in screen pixels at zoom == 1; scaled by ctx.Zoom at draw time).
+    // Color: mid-blue to match the Data-kind wire colour rendered by NodeEditor's WireRenderer.
+    private static readonly Vector4 ArrowheadColor = new(0.4f, 0.55f, 0.9f, 1f);
+    private const float ArrowheadLength    = 7f;   // tip-to-base distance in px at zoom 1
+    private const float ArrowheadHalfWidth = 5f;   // half-width of base in px at zoom 1
     private readonly HsmAsset _asset;
 
     public HsmTransitionLabelRenderer(HsmAsset asset)
@@ -80,17 +86,22 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
                 // External transitions: use true wire midpoint from pin screen positions.
                 // Fall back to node-rect centres if pin lookup fails; skip if those also fail.
                 Vector2 mid;
+                Vector2 srcPoint, tgtPoint;
                 var srcPinId = new PinId(t.Source.HiddenOutputPinId);
                 var tgtPinId = new PinId(t.Target.HiddenInputPinId);
 
                 if (ctx.TryGetPinScreenPosition(srcPinId, out var srcPin) &&
                     ctx.TryGetPinScreenPosition(tgtPinId, out var tgtPin))
                 {
+                    srcPoint = srcPin;
+                    tgtPoint = tgtPin;
                     mid = (srcPin + tgtPin) * 0.5f;
                 }
                 else if (ctx.TryGetNodeScreenRect(new NodeId(t.Source.StableId), out var srcRect) &&
                          ctx.TryGetNodeScreenRect(new NodeId(t.Target.StableId), out var tgtRect))
                 {
+                    srcPoint = srcRect.Center;
+                    tgtPoint = tgtRect.Center;
                     mid = (srcRect.Center + tgtRect.Center) * 0.5f;
                 }
                 else
@@ -100,6 +111,16 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
 
                 uint textColor = ImGui.GetColorU32(new Vector4(0.9f, 0.9f, 0.9f, 1f));
                 drawList.AddText(mid, textColor, label);
+
+                // Arrowhead at the target end, pointing source → target.
+                var arrowVerts = ComputeArrowheadGeometry(srcPoint, tgtPoint,
+                    ArrowheadLength * ctx.Zoom, ArrowheadHalfWidth * ctx.Zoom);
+                if (arrowVerts.HasValue)
+                {
+                    uint arrowColor = ImGui.GetColorU32(ArrowheadColor);
+                    var (tip, left, right) = arrowVerts.Value;
+                    drawList.AddTriangleFilled(tip, left, right, arrowColor);
+                }
             }
         }
     }
@@ -132,5 +153,33 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
 
         string result = eventPart + guardPart + actionPart + syncBadge + priorityBadge;
         return result.Length == 0 ? "<unnamed>" : result;
+    }
+
+    /// <summary>
+    /// Computes screen-space vertices for a filled-triangle arrowhead pointing from
+    /// <paramref name="source"/> toward <paramref name="target"/>.
+    /// The tip is placed at <paramref name="target"/>; the base is
+    /// <paramref name="length"/> pixels behind it and <paramref name="halfWidth"/> pixels
+    /// wide on each side of the shaft direction.
+    /// </summary>
+    /// <returns>
+    /// (tip, leftBase, rightBase) when the direction is non-degenerate; <c>null</c> when
+    /// source and target coincide (direction would be zero-length).
+    /// </returns>
+    internal static (Vector2 tip, Vector2 left, Vector2 right)?
+        ComputeArrowheadGeometry(Vector2 source, Vector2 target, float length, float halfWidth)
+    {
+        var delta = target - source;
+        float mag = delta.Length();
+        if (mag < 1e-6f) return null;   // degenerate — coincident points
+
+        var dir  = delta / mag;                         // normalised shaft direction
+        var perp = new Vector2(-dir.Y, dir.X);          // perpendicular (left of dir)
+
+        var tip   = target;
+        var left  = target - dir * length + perp * halfWidth;
+        var right = target - dir * length - perp * halfWidth;
+
+        return (tip, left, right);
     }
 }
