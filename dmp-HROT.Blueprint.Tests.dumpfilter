@@ -12,6 +12,7 @@
 - **/artifacts
 - **/Generated/*
 - **/*.png
+- **/*.jpg
 - **/*.dll
 - **/*.exe
 - **/*.md
