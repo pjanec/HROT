@@ -175,6 +175,24 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         /// </summary>
         public DynamicConfig? PendingDynamicConfig { get; set; }
 
+        /// <summary>
+        /// True when at least one velocity/config call has thrown <see cref="InvalidOperationException"/>
+        /// indicating the native Bullet body is registered in the simulation (<c>Simulation != null</c>)
+        /// but the underlying <c>btRigidBody</c> has not yet been fully initialised by Bullet's
+        /// <c>stepSimulation</c>.  While this flag is set all motor calls skip cheaply (no throw,
+        /// no per-frame log).  Cleared by <see cref="BulletPhysicsBodyService.ApplyDynamicConfigIfReady"/>
+        /// on the first frame the deferred config is successfully applied (proving the native body is ready).
+        /// Re-armed automatically if the component is replaced.
+        /// </summary>
+        public bool NativeBodyNotReady { get; set; }
+
+        /// <summary>
+        /// True once the single Warn log "body never became physics-ready" has been emitted for
+        /// this body, so we do not spam the log every frame.  Reset together with
+        /// <see cref="NativeBodyNotReady"/> so a re-armed body logs again if it fails again.
+        /// </summary>
+        public bool NativeNotReadyWarnLogged { get; set; }
+
         public BodyEntry(
             global::Stride.Engine.Entity strideEntity,
             PhysicsComponent physicsComponent,
@@ -656,8 +674,10 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
     ///
     /// <para>
     /// Config is applied exactly once (idempotent via the <see cref="BodyEntry.PendingDynamicConfig"/>
-    /// nullable flag).  A defensive <c>try/catch</c> at Debug level ensures any unexpected state
-    /// does not crash the app — the body retries on the next call.
+    /// nullable flag).  On success, <see cref="BodyEntry.NativeBodyNotReady"/> is cleared so
+    /// motor calls resume. On failure (native body not yet stepped by Bullet despite
+    /// <c>Simulation != null</c>), <see cref="BodyEntry.NativeBodyNotReady"/> is set so the
+    /// motor skips cheaply — zero throws, zero per-frame logs.
     /// </para>
     /// </summary>
     private void ApplyDynamicConfigIfReady(BodyEntry entry)
@@ -691,6 +711,10 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
             // Mark config as applied — set PendingDynamicConfig to null.
             entry.PendingDynamicConfig = null;
 
+            // Native body is now confirmed ready: clear the not-ready guard so motor calls resume.
+            entry.NativeBodyNotReady       = false;
+            entry.NativeNotReadyWarnLogged = false;
+
             Log.Info(
                 "[BulletPhysicsBodyService] ApplyDynamicConfig: '{0}' — " +
                 "AngularFactor={1} LinearFactor={2} CanSleep={3} LinearDamping={4:F3} " +
@@ -699,13 +723,16 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                 cfg.AngularFactor, cfg.LinearFactor, cfg.CanSleep,
                 cfg.LinearDamping, cfg.AngularDamping, cfg.Friction);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Native body not yet ready despite Simulation != null (edge case).
-            // Log at Debug and retry next frame.
-            Log.Debug(
-                "[BulletPhysicsBodyService] ApplyDynamicConfig: '{0}' not yet ready ({1}); will retry.",
-                entry.StrideEntity.Name, ex.GetType().Name);
+            // Native body not yet stepped by Bullet despite Simulation != null.
+            // This happens in hosted mode when the component was added to the scene entity
+            // in the same bracket-pre step as the motor (base.Update / Simulate hasn't run yet).
+            // Mark the body as not-ready so all motor calls skip cheaply this frame.
+            // The body will be retried next frame (ApplyDynamicConfigIfReady is called again
+            // from SetLinearVelocityXZ/SetYawRate once Simulation != null).
+            entry.NativeBodyNotReady = true;
+            // Warn is emitted by the caller (SetLinearVelocityXZ) on first detection.
         }
     }
 
@@ -728,11 +755,60 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
         if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
         {
-            // Readiness guard: native body not yet created by PhysicsProcessor.
+            // Readiness guard 1: Simulation not yet assigned by PhysicsProcessor.
             if (rb.Simulation == null) return;
 
+            // Readiness guard 2: native Bullet body not yet stepped (NativeBodyNotReady set by
+            // ApplyDynamicConfigIfReady or a prior SetLinearVelocityXZ throw).
+            // Skip cheaply — zero exception, zero per-frame log.
+            if (entry.NativeBodyNotReady)
+            {
+                // Emit a single Warn per body so the problem is visible without log spam.
+                if (!entry.NativeNotReadyWarnLogged)
+                {
+                    entry.NativeNotReadyWarnLogged = true;
+                    Log.Warn(
+                        "[BulletPhysicsBodyService] '{0}': native Bullet body not yet physics-ready " +
+                        "(Simulation != null but btRigidBody not yet stepped). " +
+                        "Velocity commands will be skipped until the body becomes ready. " +
+                        "Vehicle will not move until then.",
+                        entry.StrideEntity.Name);
+                }
+                // Retry: if deferred config is still pending, try to apply it — success clears the flag.
+                // If config is already applied (PendingDynamicConfig == null), probe LinearVelocity
+                // directly; a successful read means the body is now ready.
+                if (entry.PendingDynamicConfig != null)
+                {
+                    ApplyDynamicConfigIfReady(entry);
+                }
+                else
+                {
+                    // Config already applied — probe readiness with a LinearVelocity read.
+                    try
+                    {
+                        _ = rb.LinearVelocity; // throws if not ready
+                        // Succeeded — body is now ready; clear the not-ready flag.
+                        entry.NativeBodyNotReady       = false;
+                        entry.NativeNotReadyWarnLogged = false;
+                        Log.Info("[BulletPhysicsBodyService] '{0}': native body became physics-ready (recovered).",
+                            entry.StrideEntity.Name);
+                    }
+                    catch (Exception)
+                    {
+                        // Still not ready — skip and retry next frame.
+                        return;
+                    }
+                }
+                // If the flag is still set (config retry failed), skip this frame.
+                if (entry.NativeBodyNotReady) return;
+            }
+
             // Apply deferred config (AngularFactor/CanSleep/etc.) on the first ready frame.
+            // ApplyDynamicConfigIfReady sets NativeBodyNotReady on failure, clears it on success.
             ApplyDynamicConfigIfReady(entry);
+
+            // If config application just failed (body became not-ready), skip this frame.
+            if (entry.NativeBodyNotReady) return;
 
             try
             {
@@ -740,13 +816,16 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                 float currentY = rb.LinearVelocity.Y;
                 rb.LinearVelocity = new SMath.Vector3(strideLinearVel.X, currentY, strideLinearVel.Z);
                 // Activate so the solver sees the updated velocity immediately.
-                // IsActive is a read-only flag on RigidbodyComponent (reflects Bullet activation state).
                 // Bullet activates a dynamic body automatically when its velocity is set.
             }
             catch (Exception ex)
             {
-                Log.Debug(
-                    "[BulletPhysicsBodyService] SetLinearVelocityXZ: '{0}' not ready ({1}); skipping.",
+                // Unexpected throw after config succeeded — mark not-ready and log once.
+                entry.NativeBodyNotReady       = true;
+                entry.NativeNotReadyWarnLogged = false; // re-arm warn so it fires on next frame
+                Log.Warn(
+                    "[BulletPhysicsBodyService] SetLinearVelocityXZ: '{0}' threw {1} after config; " +
+                    "marking not-ready. Vehicle will not move until body recovers.",
                     entry.StrideEntity.Name, ex.GetType().Name);
             }
         }
@@ -770,11 +849,18 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
         if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
         {
-            // Readiness guard: native body not yet created by PhysicsProcessor.
+            // Readiness guard 1: Simulation not yet assigned by PhysicsProcessor.
             if (rb.Simulation == null) return;
 
+            // Readiness guard 2: native body not yet stepped — skip cheaply.
+            // (NativeBodyNotReady is managed by SetLinearVelocityXZ which runs first in the motor;
+            // SetYawRate simply checks the same flag and returns without logging again.)
+            if (entry.NativeBodyNotReady) return;
+
             // Apply deferred config on first ready frame (idempotent).
-            ApplyDynamicConfigIfReady(entry);
+            if (entry.PendingDynamicConfig != null)
+                ApplyDynamicConfigIfReady(entry);
+            if (entry.NativeBodyNotReady) return; // config just failed
 
             try
             {
@@ -782,8 +868,11 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
             }
             catch (Exception ex)
             {
+                // Unexpected throw — mark not-ready (warn already logged by SetLinearVelocityXZ
+                // which ran earlier this frame; don't double-log).
+                entry.NativeBodyNotReady = true;
                 Log.Debug(
-                    "[BulletPhysicsBodyService] SetYawRate: '{0}' not ready ({1}); skipping.",
+                    "[BulletPhysicsBodyService] SetYawRate: '{0}' threw {1}; body re-marked not-ready.",
                     entry.StrideEntity.Name, ex.GetType().Name);
             }
         }
@@ -833,8 +922,15 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
 
         if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
         {
-            linearVel  = rb.LinearVelocity;
-            angularVel = rb.AngularVelocity;
+            // Guard: if the native body is not yet stepped by Bullet, LinearVelocity /
+            // AngularVelocity throw InvalidOperationException. Return zero until the body
+            // becomes ready (NativeBodyNotReady is cleared by ApplyDynamicConfigIfReady on
+            // the first successful config application).
+            if (!entry.NativeBodyNotReady)
+            {
+                linearVel  = rb.LinearVelocity;
+                angularVel = rb.AngularVelocity;
+            }
         }
         // CharacterComponents and kinematic rigidbodies: velocity returned as zero;
         // the motor's PostCollisionLinearVelocityFdp channel is used by the reverse-sync.
