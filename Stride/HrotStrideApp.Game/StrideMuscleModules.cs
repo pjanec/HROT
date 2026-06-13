@@ -12,6 +12,11 @@ using Hrot.Stride.Core;
 
 namespace HrotStrideApp;
 
+// Stage 3 seam: MuscleModuleContext lives in Hrot.Editor which is already referenced
+// by HrotStrideApp.Game (see HrotStrideApp.Game.csproj). The using below makes
+// ToEditorModuleList() visible without a separate adapter project.
+using Hrot.Editor;
+
 /// <summary>
 /// <b>StrideMuscleModules</b> — reusable factory for the kernel-resident Stride muscle
 /// module set (STR-P1, BATCH refactor).
@@ -131,4 +136,132 @@ public sealed class StrideMuscleModuleSet
         PersonalRoute    = personalRoute;
         VehicleNavIntent = vehicleNavIntent;
     }
+
+    // ── Stage-3 seam: MuscleModuleFactory adapter ─────────────────────────────────────
+    //
+    // Converts this StrideMuscleModuleSet into a single IEcsModule suitable for injection
+    // into EditorSubsystem.MuscleModuleFactory (type Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>).
+    //
+    // The returned module's RegisterSystems() reproduces EXACTLY the same kernel-phase
+    // membership as EditorStrideSubsystem.Initialize steps 7–7c:
+    //
+    //   Input phase (from [UpdateInPhase(SystemPhase.Input)] on the concrete types):
+    //     Combat.InputSystems          (all)
+    //     PersonalRoute
+    //
+    //   Simulation phase (from [UpdateInPhase(SystemPhase.Simulation)]):
+    //     Damage.SimulationSystems     (all)
+    //     NavIntentBridge
+    //     RouteTrajSync
+    //     StrideKinematics.SimulationSystems (all)
+    //     VehicleNavIntent
+    //     UnitHierarchySystem          (new instance)
+    //     EqsResultUpdateSystem        (new instance)
+    //
+    //   Post-simulation phase (from [UpdateInPhase(SystemPhase.PostSimulation)]):
+    //     Combat.PostSimulationSystems (all)
+    //     StrideKinematics.PostSimulationSystems (all)
+    //
+    // IMPORTANT: The CGF systems (cgfPack.InputSystems, cgfPack.SimulationSystems) are
+    // NOT included here.  In EditorSubsystem's injected path the CGF systems are registered
+    // through their own TogglableInputGroup / TogglableSimulationGroup.  Only the MUSCLE
+    // portion is the factory's responsibility.
+    //
+    // Usage:
+    //   editor.MuscleModuleFactory = ctx =>
+    //   {
+    //       var crowd = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
+    //       var muscleSet = StrideMuscleModules.Build(crowd);
+    //       return muscleSet.ToEditorModuleList();
+    //   };
+
+    /// <summary>
+    /// Returns a single <see cref="IEcsModule"/> that registers all kernel-resident muscle
+    /// systems in the EXACT same phases and order as
+    /// <see cref="EditorStrideSubsystem.Initialize"/> steps 7–7c.
+    ///
+    /// <para>
+    /// Suitable for injection into
+    /// <c>EditorSubsystem.MuscleModuleFactory</c> (Stage-3 de-risk seam).
+    /// The CGF systems are NOT included — <c>EditorSubsystem</c> registers those itself through
+    /// its own toggleable groups.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<IEcsModule> ToEditorModuleList()
+        => new IEcsModule[] { new StrideMuscleModule(this) };
+}
+
+/// <summary>
+/// <b>StrideMuscleModule</b> — the single <see cref="IEcsModule"/> that registers all
+/// kernel-resident Stride muscle systems in the correct FDP phases when injected into
+/// <see cref="Hrot.Editor.EditorSubsystem"/> via <c>MuscleModuleFactory</c>.
+///
+/// <para>
+/// Phase composition mirrors <see cref="EditorStrideSubsystem.Initialize"/> steps 7–7c exactly:
+/// <list type="bullet">
+///   <item><b>Input</b>: Combat input systems + PersonalRouteAuthoringSystem.</item>
+///   <item><b>Simulation</b>: Damage sim systems, NavIntentBridge, RouteTrajSync,
+///     StrideKinematics sim systems, VehicleNavIntent, UnitHierarchySystem, EqsResultUpdateSystem.</item>
+///   <item><b>PostSimulation</b>: Combat post-sim systems + StrideKinematics post-sim systems.</item>
+/// </list>
+/// Each system carries its own <c>[UpdateInPhase]</c> attribute; the kernel uses that attribute
+/// to assign the phase — no manual phase specification is needed here.
+/// </para>
+/// </summary>
+public sealed class StrideMuscleModule : IEcsModule
+{
+    private readonly StrideMuscleModuleSet _set;
+
+    public string          Name   => "StrideMuscle";
+    public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+
+    public StrideMuscleModule(StrideMuscleModuleSet set)
+        => _set = set;
+
+    /// <summary>
+    /// Registers muscle systems in the same order as
+    /// <see cref="EditorStrideSubsystem.Initialize"/> steps 7–7c.
+    /// Duplicate types (by exact reference, not type) are skipped — same guard as
+    /// <c>EditorStrideSimulationModule</c> in the existing composition.
+    /// </summary>
+    public void RegisterSystems(ISystemRegistry registry)
+    {
+        var seen = new System.Collections.Generic.HashSet<System.Type>();
+
+        void Add(IEcsModuleSystem sys)
+        {
+            if (seen.Add(sys.GetType())) registry.RegisterSystem(sys);
+        }
+
+        // ── Input phase ───────────────────────────────────────────────────────────
+        // Mirrors: foreach (var sys in muscleSet.Combat.InputSystems) Kernel.RegisterGlobalSystem(sys);
+        //          Kernel.RegisterGlobalSystem(muscleSet.PersonalRoute);
+        foreach (var sys in _set.Combat.InputSystems)        Add(sys);
+        Add(_set.PersonalRoute);
+
+        // ── Simulation phase ──────────────────────────────────────────────────────
+        // Mirrors the simSystems list in EditorStrideSubsystem.Initialize:
+        //   foreach (var s in muscleSet.Damage.SimulationSystems) simSystems.Add(s);
+        //   simSystems.Add(muscleSet.NavIntentBridge);
+        //   simSystems.Add(muscleSet.RouteTrajSync);
+        //   foreach (var s in muscleSet.StrideKinematics.SimulationSystems) simSystems.Add(s);
+        //   simSystems.Add(muscleSet.VehicleNavIntent);
+        //   simSystems.Add(new UnitHierarchySystem());
+        //   simSystems.Add(new EqsResultUpdateSystem());
+        foreach (var sys in _set.Damage.SimulationSystems)              Add(sys);
+        Add(_set.NavIntentBridge);
+        Add(_set.RouteTrajSync);
+        foreach (var sys in _set.StrideKinematics.SimulationSystems)    Add(sys);
+        Add(_set.VehicleNavIntent);
+        Add(new UnitHierarchySystem());
+        Add(new EqsResultUpdateSystem());
+
+        // ── Post-simulation phase ─────────────────────────────────────────────────
+        // Mirrors: foreach (var sys in muscleSet.Combat.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
+        //          foreach (var sys in muscleSet.StrideKinematics.PostSimulationSystems) Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in _set.Combat.PostSimulationSystems)           Add(sys);
+        foreach (var sys in _set.StrideKinematics.PostSimulationSystems) Add(sys);
+    }
+
+    public void Tick(ISimulationView view, float deltaTime) { }
 }

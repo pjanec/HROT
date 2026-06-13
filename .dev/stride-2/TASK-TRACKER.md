@@ -14,8 +14,11 @@
 - [x] **Stage 2 — Editor Internal-muscle module-set injectable.** DONE (421d9514). `EditorSubsystem.MuscleModuleFactory` additive seam; default = SimHost set. Build 0 err; 15 editor tests pass; clusterrunner -m editor behavior-identical.
 - [~] **Stage 3 — Run real editor in Stride app.** Decomposed:
   - [x] **3a** — additive pre/post-kernel host hooks in `EditorSubsystem.Update` (`PreKernelUpdateHook`/`PostKernelUpdateHook`, default null). CPU-verified, 15 editor tests pass.
-  - [ ] **3b** — `EditorStrideSubsystem` hosts the real `EditorSubsystem` (Headless): inject Stride muscle via `MuscleModuleFactory` (+`ToModuleList()`), drive `StridePhysicsBracket` via 3a hooks, repoint Stride view systems (visual/animation/gizmo/selection) at editor.World, delete hand-built kernel. ⛳ GPU gate F1–F7.
-  - **⚠ 3b risk:** `EditorSubsystem.Update` does NOT call `TimeController.Step` (EditorStrideSubsystem did). Must resolve the editor's time-advance model so the sim ticks under Stride's loop.
+  - [x] **3b-1** — muscle adapter `StrideMuscleModuleSet.ToEditorModuleList()` (+`StrideMuscleModule` matching today's phase order) + faithful headless test booting the REAL EditorSubsystem(Headless) with Stride muscle injected, driving nav frame-locked. **CPU-verified: 4 new tests (SI1–SI4) pass, 589 total.** Real editor boots headless w/ muscle ✅.
+  - **Time model RESOLVED:** keep editor Deterministic; host calls `editor.TimeController.Step(dt)` in `PreKernelUpdateHook` (frame-locked), then `editor.Update(dt)` ticks kernel.
+  - **3b-2 blockers surfaced (need additive editor seams, CPU-verifiable):** (1) host must register `CrowdAgent`/`CrowdMotorIntent`/`NavAgentProfile` (done in factory lambda — no editor change); (2) need PUBLIC access to editor World/Kernel/TimeController + a public entity-spawn path (test used reflection on `_requestSource`/World/Kernel — production must not).
+  - [ ] **3b-2a** — additive editor seams: expose World/Kernel/TimeController + public spawn entrypoint (or confirm existing public path). CPU-verify clusterrunner editor unchanged.
+  - [ ] **3b-2b** — live rewire: `EditorStrideSubsystem` hosts real `EditorSubsystem`, drives bracket via hooks, repoints view systems at editor.World, deletes hand-built kernel. ⛳ GPU gate F1–F7.
 - [ ] **Stage 4 — Editor UI in window #2.** WindowManager + DrawUI over shared world; panels incrementally. ⛳ user GPU gate per panel group.
 - [ ] **Stage 5 — Later.** Stride perception + EQS `IEcsModule`s; networked muscle node via `StrideNodeBootstrapper` + `SimHostMode.External`; 3D-pick ↔ editor-selection sync.
 
