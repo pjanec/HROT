@@ -78,7 +78,7 @@ namespace HrotStrideApp;
 /// <b>Threading invariant:</b> all calls happen on the single Stride host thread (§8.3).
 /// </para>
 /// </summary>
-public sealed class BulletPhysicsBodyService : IPhysicsBodyService
+public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyRepositionService
 {
     // ── NLog ─────────────────────────────────────────────────────────────────────
     private static readonly Logger Log = LogManager.GetCurrentClassLogger();
@@ -193,6 +193,28 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         /// </summary>
         public bool NativeNotReadyWarnLogged { get; set; }
 
+        // ── Task 1: initial-pose slam (BATCH-S2-G) ────────────────────────────
+        /// <summary>
+        /// Stride-space position captured at CreateBody time (after the final
+        /// <c>Transform.Position</c> assignment, including the restingY override for OrientedBox).
+        /// Used by <see cref="BulletPhysicsBodyService.ApplyDynamicConfigIfReady"/> to slam
+        /// the native body to its intended spawn position on the first ready frame
+        /// (belt-and-suspenders guard for hosted-mode timing).
+        /// </summary>
+        public SMath.Vector3 InitialStridePos { get; set; }
+
+        /// <summary>
+        /// Stride-space rotation captured at CreateBody time.
+        /// Paired with <see cref="InitialStridePos"/> for the first-ready slam.
+        /// </summary>
+        public SMath.Quaternion InitialStrideRot { get; set; }
+
+        /// <summary>
+        /// False until the first-ready slam has been applied (exactly once per body).
+        /// Prevents repeated re-slamming after the body starts moving.
+        /// </summary>
+        public bool InitialPoseApplied { get; set; }
+
         public BodyEntry(
             global::Stride.Engine.Entity strideEntity,
             PhysicsComponent physicsComponent,
@@ -216,6 +238,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         public bool LastGrounded        { get; set; }
         public bool GroundedInitialised { get; set; }
         public int  FrameCounter        { get; set; }
+        public int  EarlyPosCount       { get; set; }
     }
 
     // ── Constructor ───────────────────────────────────────────────────────────
@@ -287,6 +310,10 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         // ── Initial Stride-space position ──────────────────────────────────
         var initialPos = FdpStrideTransform.ToStridePosition(initialPose.Position);
         var initialRot = FdpStrideTransform.ToStrideRotation(initialPose.Rotation);
+        Log.Info("[DIAG-POS] CreateBody entity=#{0} shape={1} FDP=({2:F3},{3:F3},{4:F3}) StrideInit=({5:F3},{6:F3},{7:F3})",
+            entity.Index, shapeKind,
+            initialPose.Position.X, initialPose.Position.Y, initialPose.Position.Z,
+            initialPos.X, initialPos.Y, initialPos.Z);
 
         // We set the entity transform to the initial pose so the physics component
         // is placed correctly when registered.
@@ -345,6 +372,9 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                     StepHeight    = 0.35f,
                 };
 
+                // BATCH-S2-G Task 1: commit the entity world matrix before Add so
+                // Stride's PhysicsProcessor creates the native body at the intended position.
+                strideEntity.Transform.UpdateWorldMatrix();
                 strideEntity.Add(character);
                 physComp    = character;
                 isKinematic = true; // CharacterComponent is internally kinematic
@@ -480,6 +510,10 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                     Mass          = 1f,
                 };
 
+                // BATCH-S2-G Task 1: commit the entity world matrix before Add so
+                // Stride's PhysicsProcessor creates the native btRigidBody at the intended
+                // world position (not at the stale origin world matrix).
+                strideEntity.Transform.UpdateWorldMatrix();
                 strideEntity.Add(rigidbody);
                 physComp    = rigidbody;
                 isKinematic = false;  // DYNAMIC — BodyEntry.IsKinematic = false
@@ -515,6 +549,8 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                     IsKinematic   = false,
                     Mass          = 1f,
                 };
+                // BATCH-S2-G Task 1: commit world matrix before Add.
+                strideEntity.Transform.UpdateWorldMatrix();
                 strideEntity.Add(rigidbody);
                 physComp    = rigidbody;
                 isKinematic = false;
@@ -535,6 +571,8 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
                     IsKinematic   = false,
                     Mass          = 1f,
                 };
+                // BATCH-S2-G Task 1: commit world matrix before Add.
+                strideEntity.Transform.UpdateWorldMatrix();
                 strideEntity.Add(rigidbody);
                 physComp    = rigidbody;
                 isKinematic = false;
@@ -550,6 +588,13 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         var handle = $"BulletBody_{++_handleCounter}_{shapeKind}";
         var entry  = new BodyEntry(strideEntity, physComp, isKinematic, shapeKind,
                                    boxHalfExtentsStride, pendingDynamicConfig);
+
+        // BATCH-S2-G Task 1: capture the initial Stride pose (after all restingY adjustments)
+        // for the belt-and-suspenders first-ready slam in ApplyDynamicConfigIfReady.
+        entry.InitialStridePos = strideEntity.Transform.Position;
+        entry.InitialStrideRot = strideEntity.Transform.Rotation;
+        entry.InitialPoseApplied = false;
+
         _bodies[handle]   = entry;
         _diagState[handle] = new DiagState();
 
@@ -714,6 +759,29 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
             // Native body is now confirmed ready: clear the not-ready guard so motor calls resume.
             entry.NativeBodyNotReady       = false;
             entry.NativeNotReadyWarnLogged = false;
+
+            // BATCH-S2-G Task 1 — belt-and-suspenders initial-pose slam.
+            // On the FIRST frame the native body is confirmed physics-ready, slam its position
+            // to the stored spawn pose and zero all velocity.  This guards against hosted-mode
+            // timing where the native btRigidBody was silently created at origin despite the
+            // UpdateWorldMatrix() call in CreateBody (the body was already partially settled).
+            if (!entry.InitialPoseApplied)
+            {
+                entry.StrideEntity.Transform.Position = entry.InitialStridePos;
+                entry.StrideEntity.Transform.Rotation = entry.InitialStrideRot;
+                entry.StrideEntity.Transform.UpdateWorldMatrix();
+                // Push the entity transform INTO the native btRigidBody. For a dynamic body,
+                // setting Transform alone does not move it — physics drives the transform, not
+                // vice-versa. Stride API: "Forces an update from the TransformComponent to the
+                // Collider.PhysicsWorldTransform. Useful to manually force movements."
+                rb.UpdatePhysicsTransformation(true);
+                rb.LinearVelocity  = SMath.Vector3.Zero;
+                rb.AngularVelocity = SMath.Vector3.Zero;
+                entry.InitialPoseApplied = true;
+                Log.Info("[BulletPhysicsBodyService] InitialPose slammed: '{0}' -> ({1:F2},{2:F2},{3:F2})",
+                    entry.StrideEntity.Name,
+                    entry.InitialStridePos.X, entry.InitialStridePos.Y, entry.InitialStridePos.Z);
+            }
 
             Log.Info(
                 "[BulletPhysicsBodyService] ApplyDynamicConfig: '{0}' — " +
@@ -906,6 +974,12 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
         // ── Per-entity position diagnostic (throttled) ─────────────────────
         if (_diagState.TryGetValue(bodyHandle, out var diag))
         {
+            if (diag.EarlyPosCount < 5)
+            {
+                diag.EarlyPosCount++;
+                Log.Info("[DIAG-POS] GetBodyState '{0}' earlyFrame={1} StridePos=({2:F3},{3:F3},{4:F3}) shape={5} kinematic={6}",
+                    entry.StrideEntity.Name, diag.EarlyPosCount, pos.X, pos.Y, pos.Z, entry.ShapeKind, entry.IsKinematic);
+            }
             diag.FrameCounter++;
             if (diag.FrameCounter >= PositionLogInterval)
             {
@@ -937,6 +1011,99 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
 
         return new BodyState(pos, rot, linearVel, angularVel, IsKinematic: entry.IsKinematic);
     }
+
+    // ── BATCH-S2-G Task 2: external-reposition detection + teleport ───────────
+
+    /// <summary>
+    /// Detects when an entity's <see cref="SimTransform"/> was changed externally
+    /// (operator drag) and teleports the dynamic Bullet body to match.
+    ///
+    /// <para>
+    /// <b>Baseline:</b> the body's current Stride position (read from
+    /// <c>StrideEntity.Transform.Position</c>) is compared against the Stride-space
+    /// projection of <paramref name="simTf"/>.  Because <see cref="BulletReverseSyncSystem"/>
+    /// writes <c>SimTransform = body position</c> each post-physics frame for owned entities,
+    /// <c>SimTransform</c> and the body position stay in sync during normal physics motion.
+    /// A divergence larger than <see cref="RepositionEpsilonM"/> therefore indicates that
+    /// <c>SimTransform</c> was written from OUTSIDE the muscle (e.g. an editor drag) → teleport.
+    /// </para>
+    ///
+    /// <para>
+    /// Only called for dynamic (non-kinematic) bodies; kinematic bodies are moved by
+    /// their motor on every frame anyway.  Only called AFTER <see cref="InitialPoseApplied"/>
+    /// is true to avoid fighting the first-ready slam.
+    /// </para>
+    /// </summary>
+    /// <param name="bodyHandle">Opaque handle returned by <see cref="CreateBody"/>.</param>
+    /// <param name="simTf">Current <see cref="SimTransform"/> of the entity from the ECS.</param>
+    public void SyncBodyToExternalPose(object bodyHandle, in SimTransform simTf)
+    {
+        if (bodyHandle is SkippedBodyHandle) return;
+        if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
+        // Only dynamic bodies — kinematic bodies are moved by the motor every frame.
+        if (entry.IsKinematic) return;
+        // Don't act until the initial-pose slam has happened (body must be physics-ready).
+        if (!entry.InitialPoseApplied) return;
+        if (entry.PhysicsComponent is not RigidbodyComponent rb) return;
+        if (rb.Simulation == null) return;
+        if (entry.NativeBodyNotReady) return;
+
+        // Convert the FDP SimTransform position to Stride space.
+        var targetStridePos = FdpStrideTransform.ToStridePosition(simTf.Position);
+        var targetStrideRot = FdpStrideTransform.ToStrideRotation(simTf.Rotation);
+
+        // Compare to the body's CURRENT Stride position (what the body actually is at).
+        // The reverse-sync keeps SimTransform == body pos during normal physics motion,
+        // so a distance > epsilon means an external write repositioned SimTransform.
+        //
+        // HORIZONTAL (XZ) ONLY: the operator drags on the 2D map (FDP X,Y → Stride X,Z).
+        // The vertical axis (Stride Y) is owned by physics — the body rests on the floor at
+        // its half-height, while the externally-authored SimTransform.Z is typically 0 (ground).
+        // Comparing/teleporting Y would set the body into the floor; gravity then nudges it up,
+        // re-triggering the reposition every frame (a limit cycle that pins the body and
+        // re-zeros its velocity forever). So we detect and teleport in XZ and PRESERVE the
+        // body's current Y, letting it rest naturally.
+        var currentBodyPos = entry.StrideEntity.Transform.Position;
+        float dx = targetStridePos.X - currentBodyPos.X;
+        float dz = targetStridePos.Z - currentBodyPos.Z;
+        float distSqXZ = dx * dx + dz * dz;
+
+        if (distSqXZ <= RepositionEpsilonM * RepositionEpsilonM) return; // normal physics motion
+
+        // External reposition detected: teleport the native body (XZ from the request, Y kept) and
+        // zero velocity.
+        var newPos = new SMath.Vector3(targetStridePos.X, currentBodyPos.Y, targetStridePos.Z);
+        entry.StrideEntity.Transform.Position = newPos;
+        entry.StrideEntity.Transform.Rotation = targetStrideRot;
+        entry.StrideEntity.Transform.UpdateWorldMatrix();
+        try
+        {
+            // Push the entity transform INTO the native btRigidBody (dynamic bodies are
+            // physics-driven; setting Transform alone does not move them). Stride API:
+            // "Forces an update from the TransformComponent to the Collider.PhysicsWorldTransform."
+            rb.UpdatePhysicsTransformation(true);
+            rb.LinearVelocity  = SMath.Vector3.Zero;
+            rb.AngularVelocity = SMath.Vector3.Zero;
+        }
+        catch (Exception ex)
+        {
+            // Body not yet ready for velocity calls — safe to ignore; position is set.
+            Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose: velocity zero/teleport failed for '{0}' ({1}); position set.",
+                entry.StrideEntity.Name, ex.GetType().Name);
+        }
+
+        Log.Info("[BulletPhysicsBodyService] ExternalReposition '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity.",
+            entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
+            newPos.X, newPos.Y, newPos.Z);
+    }
+
+    /// <summary>
+    /// Threshold (metres) for <see cref="SyncBodyToExternalPose"/>: a divergence of more
+    /// than this between the mapped <c>SimTransform</c> and the body's Stride position is
+    /// treated as an external reposition (operator drag).  Set to 0.01 m — far larger
+    /// than per-frame Bullet jitter but smaller than any intentional reposition.
+    /// </summary>
+    public const float RepositionEpsilonM = 0.01f;
 
     // ── IPhysicsBodyService: kinematic vehicle motor ──────────────────────────
 
@@ -1274,7 +1441,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService
 /// all subsequent calls use the cached instance.
 /// </para>
 /// </summary>
-public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService
+public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBodyRepositionService
 {
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
@@ -1334,6 +1501,21 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService
     /// <inheritdoc/>
     public bool IsGrounded(object bodyHandle)
         => Inner.IsGrounded(bodyHandle);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Forwards external-reposition requests to the inner service ONLY if it already exists
+    /// (a body has been created). Never force-creates the inner service here: if no body
+    /// exists there is nothing to reposition, so a no-op is correct. Without this forwarding
+    /// the live hosted path (which uses this deferred wrapper) would silently drop all
+    /// reposition requests, since PhysicsBodyLifecycleSystem downcasts its IPhysicsBodyService
+    /// to IBodyRepositionService.
+    /// </remarks>
+    public void SyncBodyToExternalPose(object bodyHandle, in SimTransform simTf)
+    {
+        if (_inner != null)
+            _inner.SyncBodyToExternalPose(bodyHandle, in simTf);
+    }
 
     /// <inheritdoc/>
     public BodyState GetBodyState(object bodyHandle)

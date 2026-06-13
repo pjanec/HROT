@@ -119,6 +119,11 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
     private readonly IPhysicsBodyService    _bodyService;
     private readonly StrideVisualBindingSystem _visualBindingSystem;
 
+    // BATCH-S2-G Task 2: optional reposition service — present when the body service also
+    // implements IBodyRepositionService (i.e. in the live GPU path with BulletPhysicsBodyService).
+    // Headless fakes do not implement it, so the cast is null and the loop is a no-op.
+    private readonly IBodyRepositionService? _repositionService;
+
     // Parallel dictionary: FDP entity ↔ PhysicsBodyReference.
     // Not in the ECS because Bullet body objects are managed class references.
     private readonly Dictionary<Entity, PhysicsBodyReference> _bodies = new();
@@ -145,6 +150,8 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
     {
         _bodyService         = bodyService         ?? throw new ArgumentNullException(nameof(bodyService));
         _visualBindingSystem = visualBindingSystem ?? throw new ArgumentNullException(nameof(visualBindingSystem));
+        // BATCH-S2-G Task 2: try to obtain the optional reposition service (live GPU path only).
+        _repositionService   = bodyService as IBodyRepositionService;
     }
 
     /// <summary>
@@ -206,11 +213,32 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
                 continue; // visual not yet created — skip; retry next frame
 
             ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
+            Log.Info("[DIAG-POS] LC-CREATE entity=#{0} shape={1} SimTransform.Position=({2:F3},{3:F3},{4:F3})",
+                entity.Index, visualRef.ShapeKind,
+                simTf.Position.X, simTf.Position.Y, simTf.Position.Z);
             var handle = _bodyService.CreateBody(
                 entity, visualRef.ShapeKind, visualRef.Dims, in simTf);
 
             _bodies[entity] = new PhysicsBodyReference(handle, visualRef.ShapeKind, visualRef.Dims);
             LogCreate(entity);
+        }
+
+        // ── 4. External-reposition detection (BATCH-S2-G Task 2) ────────────
+        // For each owned entity that already has a body, check whether SimTransform
+        // was changed from outside the muscle (operator drag).  The IBodyRepositionService
+        // implementation in BulletPhysicsBodyService compares SimTransform against the
+        // body's current Stride position — the reverse-sync keeps them in sync during
+        // normal physics motion, so a divergence > epsilon means an external write.
+        // This pass is a no-op when _repositionService is null (headless fakes, NoOp service).
+        if (_repositionService != null)
+        {
+            foreach (var entity in ownedQuery)
+            {
+                if (!_bodies.TryGetValue(entity, out var bodyRef))
+                    continue; // just created — skip (baseline not yet established)
+                ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
+                _repositionService.SyncBodyToExternalPose(bodyRef.BodyHandle, in simTf);
+            }
         }
     }
 
@@ -237,4 +265,27 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
             _bodyService.RemoveBody(kvp.Value.BodyHandle);
         _bodies.Clear();
     }
+}
+
+/// <summary>
+/// Optional seam implemented by <c>BulletPhysicsBodyService</c> (live GPU path).
+///
+/// <para>
+/// Kept separate from <see cref="IPhysicsBodyService"/> so that headless fakes do not have
+/// to implement the GPU-specific reposition logic.  <see cref="PhysicsBodyLifecycleSystem"/>
+/// tries a downcast at construction time; when the cast yields <c>null</c> the reposition
+/// pass is a no-op.
+/// </para>
+/// </summary>
+public interface IBodyRepositionService
+{
+    /// <summary>
+    /// Compares the entity's <see cref="SimTransform"/> position to the body's current
+    /// Stride-space position.  If the difference exceeds the implementation's epsilon,
+    /// the change is assumed to be an external reposition (operator drag) and the native
+    /// Bullet body is teleported to the new pose with zeroed velocity.
+    /// </summary>
+    /// <param name="bodyHandle">Opaque handle returned by <see cref="IPhysicsBodyService.CreateBody"/>.</param>
+    /// <param name="simTf">The entity's current <see cref="SimTransform"/> from the ECS.</param>
+    void SyncBodyToExternalPose(object bodyHandle, in SimTransform simTf);
 }

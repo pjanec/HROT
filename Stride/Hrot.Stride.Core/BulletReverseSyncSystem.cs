@@ -75,6 +75,8 @@ public sealed class BulletReverseSyncSystem : IEcsModuleSystem
     private const int VelocityLogIntervalFrames = 120;
     private readonly Dictionary<ulong, int> _velocityLogCounter = new();
 
+    private readonly Dictionary<ulong, int> _diagEarlyWriteCount = new();
+
     /// <summary>
     /// Previous-frame FDP position for each capsule (character) entity.
     /// Used to compute actual measured velocity = (currentPos − prevPos) / dt.
@@ -157,6 +159,17 @@ public sealed class BulletReverseSyncSystem : IEcsModuleSystem
                 Rotation = FdpStrideTransform.ToFdpRotation(state.Rotation),
             };
             repo.SetComponent(entity, newTransform);
+            ulong dkey = entity.PackedValue;
+            if (!_diagEarlyWriteCount.TryGetValue(dkey, out var dn)) dn = 0;
+            if (dn < 5)
+            {
+                _diagEarlyWriteCount[dkey] = dn + 1;
+                Log.Info("[DIAG-POS] ReverseSync entity=#{0} earlyFrame={1} StrideStatePos=({2:F3},{3:F3},{4:F3}) -> wroteSimPos=({5:F3},{6:F3},{7:F3}) kinematic={8}",
+                    entity.Index, dn + 1,
+                    state.Position.X, state.Position.Y, state.Position.Z,
+                    newTransform.Position.X, newTransform.Position.Y, newTransform.Position.Z,
+                    state.IsKinematic);
+            }
 
             // ── Current FDP position (just written to SimTransform above) ────
             var currentFdpPos = newTransform.Position;

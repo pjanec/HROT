@@ -638,15 +638,29 @@ public sealed class StrideHrotGame : Game
         //   SceneSystem.SceneInstance.GetProcessor<PhysicsProcessor>() returns the live
         //   PhysicsProcessor. From it, .Simulation is the Bullet Simulation instance.
         //   The MainScene's 144 static colliders guarantee PhysicsProcessor is present in BeginRun.
+        // ── BATCH-S2-H: autonomous self-test mode ────────────────────────────────
+        // When STRIDE_SELFTEST=1 is set the app runs StrideSelfTest and exits automatically.
+        // The self-test requires the hosted real-editor + Stride muscle path, so force
+        // hostRealEditor=true regardless of STRIDE_HOST_REAL_EDITOR.
+        // STRIDE_EDITOR_WINDOW remains gated by its own flag (defaults OFF — no raylib window
+        // needed for the self-test, only the 3D Stride window + physics).
+        bool selfTestEnabled = string.Equals(
+            System.Environment.GetEnvironmentVariable("STRIDE_SELFTEST"),
+            "1",
+            StringComparison.Ordinal);
+        if (selfTestEnabled)
+            Log.Info("[StrideHrotGame] STRIDE_SELFTEST=1 — autonomous self-test mode ENABLED.");
+
         // ── 4a. Flag-gated hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ─────────
         // When the env var is set, EditorStrideSubsystem boots the real EditorSubsystem
         // headlessly and reuses its World/Kernel/TimeController. Default = OFF (today's path).
-        bool hostRealEditor = string.Equals(
+        // STRIDE_SELFTEST=1 also forces this path (self-test needs the full hosted pipeline).
+        bool hostRealEditor = selfTestEnabled || string.Equals(
             System.Environment.GetEnvironmentVariable("STRIDE_HOST_REAL_EDITOR"),
             "1",
             StringComparison.Ordinal);
         if (hostRealEditor)
-            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR=1 — hosted-editor mode ENABLED.");
+            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR=1 (or STRIDE_SELFTEST=1) — hosted-editor mode ENABLED.");
         else
             Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR not set — self-contained kernel mode (default).");
 
@@ -734,6 +748,35 @@ public sealed class StrideHrotGame : Game
 
         // ── 6. Build the in-app test harness (BATCH-12, STR-TEST-1) ───────
         BuildTestHarness(scene);
+
+        // ── 6a. BATCH-S2-H: register autonomous self-test if STRIDE_SELFTEST=1 ──
+        // Registered AFTER BuildTestHarness so _testHarness context is live and
+        // its RegisterUpdate pump is already wired into StrideHrotGame.Update.
+        // The self-test drives via the same context (ScenarioSource, World) and
+        // exits the process via game.Exit() when done.
+        if (selfTestEnabled && _testHarness != null && _editorSubsystem != null)
+        {
+            var harnessCtx = _testHarness.Context;
+            // In hosted mode EditorStrideSubsystem.EntityMap is not assigned (the editor owns the
+            // map); resolve the LIVE NetworkEntityMap from the world singleton the spawn pipeline uses
+            // (set in both the hosted and OFF paths via World.SetSingletonManaged<NetworkEntityMap>).
+            var emap = _editorSubsystem.World?.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
+            if (emap != null)
+            {
+                StrideSelfTest.RegisterIfEnabled(harnessCtx, emap, this);
+            }
+            else
+            {
+                Log.Warn("[SELFTEST] RESULT initialHold=FAIL repos=FAIL reason=no-entitymap " +
+                         "(could not resolve NetworkEntityMap at boot)");
+                System.Environment.Exit(2);
+            }
+        }
+        else if (selfTestEnabled)
+        {
+            Log.Warn("[StrideHrotGame] STRIDE_SELFTEST=1 but test harness or editor subsystem is null — " +
+                     "self-test cannot be registered. Process will NOT exit automatically.");
+        }
 
         // ── 7. Optional second raylib/ImGui inspector window (BATCH-22, STR-P5-T2) ──
         // Opened only when STRIDE_EDITOR_WINDOW=1 is set (or ForceEnabled=true).
