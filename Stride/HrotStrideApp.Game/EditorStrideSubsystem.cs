@@ -372,6 +372,15 @@ public sealed class EditorStrideSubsystem : IDisposable
     // The hosted real EditorSubsystem (non-null only when _hostRealEditor == true).
     private EditorSubsystem? _editor;
 
+    /// <summary>
+    /// The <see cref="IEditorLogic"/> facade of the hosted real editor.
+    /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
+    /// <see cref="Initialize"/> has been called.
+    /// Used by <c>StrideEditorUiHost</c> to drive the editor's ImGui panels
+    /// in the second inspector window (Stage-4.1).
+    /// </summary>
+    public IEditorLogic? HostedEditorLogic => _editor?.EditorLogic;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
     /// <summary>

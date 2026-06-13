@@ -460,6 +460,10 @@ public sealed class StrideInspectorWindow : IDisposable
     // Cached rows updated each PumpFrame call.
     private IReadOnlyList<EntityRow> _rows = Array.Empty<EntityRow>();
 
+    // Stage-4.1: real-editor UI host (non-null only when HostRealEditor + editor window both active).
+    // Constructed lazily in Open() once the ImGui context is live.
+    private StrideEditorUiHost? _editorUiHost;
+
     /// <summary>
     /// Constructs the inspector window.  Does NOT open the window yet.
     /// Call <see cref="Open"/> to create the OS window.
@@ -515,6 +519,14 @@ public sealed class StrideInspectorWindow : IDisposable
         // creates a SECOND ImGui context bound to our OpenGL window — they are independent.
         rlImGui.Setup(true); // dark theme
 
+        // Stage-4.1: if hosted mode is active, wire up the real editor's ImGui panels.
+        // HostedEditorLogic is non-null when STRIDE_HOST_REAL_EDITOR=1 and Initialize() has run.
+        if (_subsystem.HostRealEditor && _subsystem.HostedEditorLogic != null)
+        {
+            _editorUiHost = new StrideEditorUiHost(_subsystem.HostedEditorLogic);
+            Log.Info("[StrideInspectorWindow] StrideEditorUiHost wired — editor panels active.");
+        }
+
         _opened = true;
         Log.Info("[StrideInspectorWindow] Raylib/ImGui inspector window opened ({0}x{1}).", _width, _height);
     }
@@ -551,7 +563,24 @@ public sealed class StrideInspectorWindow : IDisposable
         _opened && !_disposed && !Raylib_cs.Raylib.WindowShouldClose();
 
     /// <summary>
-    /// Draws the two-panel ImGui UI: entity list on the left, inspector on the right.
+    /// Draws the inspector window UI.
+    ///
+    /// <para>
+    /// Layout when hosted mode is active (<c>STRIDE_HOST_REAL_EDITOR=1</c>
+    /// + <c>STRIDE_EDITOR_WINDOW=1</c>):
+    /// <list type="bullet">
+    ///   <item><b>Left column (45%)</b> — simple entity list (unchanged).</item>
+    ///   <item><b>Right column (55%)</b> — split vertically:
+    ///     <list type="bullet">
+    ///       <item>Top section: real editor panels (<see cref="StrideEditorUiHost"/>
+    ///         — toolbar + orbat, Stage-4.1).</item>
+    ///       <item>Bottom section: existing simple component inspector (unchanged,
+    ///         collapsible header).</item>
+    ///     </list>
+    ///   </item>
+    /// </list>
+    /// When hosted mode is off, layout is identical to the pre-4.1 behaviour.
+    /// </para>
     /// </summary>
     private void DrawInspectorUi()
     {
@@ -573,7 +602,7 @@ public sealed class StrideInspectorWindow : IDisposable
         ImGui.Begin("##root", windowFlags);
         ImGui.PopStyleVar();
 
-        // Two columns: left = entity list, right = inspector.
+        // Two columns: left = entity list, right = inspector (+ editor panels when hosted).
         float listWidth = _width * 0.45f;
 
         // ── LEFT: entity list ──────────────────────────────────────────────
@@ -597,8 +626,39 @@ public sealed class StrideInspectorWindow : IDisposable
 
         ImGui.EndChild();
 
-        // ── RIGHT: inspector ───────────────────────────────────────────────
+        // ── RIGHT: editor panels (hosted mode) + simple inspector ──────────
         ImGui.SameLine();
+        ImGui.BeginChild("##right_pane", Vector2.Zero, ImGuiChildFlags.None);
+
+        // Stage-4.1: real editor toolbar + orbat panels (only when hosted mode active).
+        if (_editorUiHost != null)
+        {
+            _editorUiHost.DrawEditorPanels();
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+        }
+
+        // Simple component inspector (always present; collapsible when editor panels shown).
+        bool showSimpleInspector = _editorUiHost == null ||
+            ImGui.CollapsingHeader("Simple Inspector##stride_inspector");
+
+        if (showSimpleInspector)
+        {
+            DrawSimpleInspector();
+        }
+
+        ImGui.EndChild();
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// The original simple component inspector panel (entity fields read from
+    /// <see cref="StrideInspectorViewModel"/>).  Extracted so it can be shown
+    /// standalone (no hosted mode) or as a collapsible section below the editor panels.
+    /// </summary>
+    private void DrawSimpleInspector()
+    {
         ImGui.BeginChild("##inspector", Vector2.Zero, ImGuiChildFlags.Borders);
 
         var inspector = StrideInspectorViewModel.BuildInspector(_subsystem.World, _selection.SelectedEntity);
@@ -628,7 +688,6 @@ public sealed class StrideInspectorWindow : IDisposable
         }
 
         ImGui.EndChild();
-        ImGui.End();
     }
 
     /// <summary>Closes and disposes the raylib/ImGui window.</summary>
