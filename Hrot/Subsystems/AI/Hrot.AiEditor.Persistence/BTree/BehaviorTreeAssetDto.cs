@@ -88,6 +88,17 @@ public sealed class SubtreeSyncBindingDto
 
 // ── EditorMetadata (§5.1 recommendation: Blueprint-style X/Y) ────────────────
 
+/// <summary>
+/// A single waypoint coordinate for a BTree link. Uses properties (not fields) so
+/// System.Text.Json round-trips correctly without IncludeFields.
+/// Named BTreeWaypointDto to avoid collision with Hrot.AiEditor.Persistence.Hsm.WaypointDto.
+/// </summary>
+public sealed class BTreeWaypointDto
+{
+    public float X { get; set; }
+    public float Y { get; set; }
+}
+
 /// <summary>Per-node layout metadata. Uses X/Y floats per §5.1 recommendation.</summary>
 public sealed class NodeEditorMetadataDto
 {
@@ -96,6 +107,13 @@ public sealed class NodeEditorMetadataDto
     public string? Comment { get; set; }
     public bool Collapsed { get; set; }
     public string? Color { get; set; }
+
+    /// <summary>
+    /// Waypoints for the edge from this node up to its parent.
+    /// Null/empty when no reroute points exist — omitted from JSON when null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<BTreeWaypointDto>? Waypoints { get; set; }
 }
 
 // ── Payload types ─────────────────────────────────────────────────────────────

@@ -591,6 +591,14 @@ public static class BTreeEmitCore
             EmitLayoutNodeEntry(sb, node, lastEntry);
         }
 
+        // Emit per-child waypoints — only for nodes that have any.
+        var waypointEntries = nodeEntries
+            .Where(n => n.EditorMetadata.Waypoints != null && n.EditorMetadata.Waypoints.Count > 0)
+            .OrderBy(n => n.VisualId.ToString("D"), StringComparer.Ordinal)
+            .ToList();
+        foreach (var node in waypointEntries)
+            EmitLayoutLinkWaypoints(sb, node);
+
         for (int i = 0; i < pillEntries.Count; i++)
         {
             var pill = pillEntries[i];
@@ -697,6 +705,15 @@ public static class BTreeEmitCore
         }
 
         if (isLast) sb.AppendLine($"{Indent}{Indent}.Build();");
+    }
+
+    private static void EmitLayoutLinkWaypoints(StringBuilder sb, BTreeNodeDto node)
+    {
+        var waypoints = node.EditorMetadata.Waypoints!;
+        string guidStr = $"\"{node.VisualId:D}\"";
+        var pts = string.Join(", ",
+            waypoints.Select(wp => $"new Vector2({wp.X.ToString("R", CultureInfo.InvariantCulture)}f, {wp.Y.ToString("R", CultureInfo.InvariantCulture)}f)"));
+        sb.AppendLine($"{Indent}{Indent}.LinkWaypoints({guidStr}, new Vector2[] {{ {pts} }})");
     }
 
     // ---- Helpers ----

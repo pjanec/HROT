@@ -109,6 +109,12 @@ public sealed class BTreeEditorNode
     /// <summary>Session-local breakpoint flag; not persisted in the layout method.</summary>
     public bool IsBreakpoint;
 
+    /// <summary>
+    /// Waypoints for the edge from this node UP to its parent.
+    /// Empty when no reroute points have been added. Persisted in the layout method.
+    /// </summary>
+    public List<Vector2> Waypoints { get; } = new();
+
     // ── Stable pin IDs derived from VisualId ─────────────────────────────────
     // Deterministically derived so they survive reload and are not persisted.
     // XOR with fixed constants avoids collisions when VisualId is the same Guid.

@@ -33,19 +33,29 @@ internal sealed class BTreeParentChildLink : ILinkModel
         return new Guid(bytes);
     }
 
+    private readonly BTreeEditorNode _child;
+
     internal BTreeParentChildLink(BTreeEditorNode child, BTreeEditorNode parent)
     {
+        _child  = child;
         // Id is keyed on child VisualId (one link per child)
         Id      = new LinkId(XorGuid(child.VisualId, LinkIdXorKey.hi, LinkIdXorKey.lo));
         FromPin = new PinId(child.OutputPinId);
         ToPin   = new PinId(parent.InputPinId);
     }
 
+    /// <summary>
+    /// Recovers the child's VisualId from a LinkId by reversing the XOR transform.
+    /// XOR is self-inverse: <c>childVisualId = XorGuid(linkId.Value, LinkIdXorKey)</c>.
+    /// </summary>
+    internal static Guid ChildVisualIdFromLinkId(LinkId linkId)
+        => XorGuid(linkId.Value, LinkIdXorKey.hi, LinkIdXorKey.lo);
+
     public LinkId                     Id        { get; }
     public PinId                      FromPin   { get; }
     public PinId                      ToPin     { get; }
     public LinkStyle                  Style     => LinkStyle.Solid;
-    public IReadOnlyList<Vector2>     Waypoints => Array.Empty<Vector2>();
+    public IReadOnlyList<Vector2>     Waypoints => _child.Waypoints;
 }
 
 // ── BTreeNodeModel ────────────────────────────────────────────────────────────

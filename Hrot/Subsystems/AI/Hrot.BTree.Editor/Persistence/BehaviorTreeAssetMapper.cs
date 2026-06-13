@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fbt;
 using Hrot.AiEditor.Persistence.BTree;
@@ -209,6 +210,9 @@ public static class BehaviorTreeAssetMapper
             Comment   = node.Comment,
             Collapsed = false,   // BTreeEditorNode has no Collapsed field — always false
             Color     = null,    // BTreeEditorNode has no Color field
+            Waypoints = node.Waypoints.Count > 0
+                ? node.Waypoints.Select(wp => new BTreeWaypointDto { X = wp.X, Y = wp.Y }).ToList()
+                : null,
         };
 
         // Payloads
@@ -271,6 +275,11 @@ public static class BehaviorTreeAssetMapper
             KernelBlobIndex = -1,
         };
         node.ChildVisualIds.AddRange(dto.ChildVisualIds);
+        if (dto.EditorMetadata.Waypoints != null)
+        {
+            foreach (var wp in dto.EditorMetadata.Waypoints)
+                node.Waypoints.Add(new Vector2(wp.X, wp.Y));
+        }
 
         if (dto is BTreeActionNodeDto actDto && actDto.Action != null)
         {

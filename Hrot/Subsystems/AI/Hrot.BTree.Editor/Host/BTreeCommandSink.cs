@@ -80,6 +80,18 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 ApplyNodeMoves(cpm.Moves.Select(m => new NodeMove(m.NodeId, m.NewLocalPosition)).ToList());
                 break;
 
+            case GraphCommand.InsertReroute insertReroute:
+                ApplyInsertReroute(insertReroute.Link, insertReroute.Position);
+                break;
+
+            case GraphCommand.MoveReroute moveReroute:
+                ApplyMoveReroute(moveReroute.Link, moveReroute.WaypointIndex, moveReroute.NewPosition);
+                break;
+
+            case GraphCommand.RemoveReroute removeReroute:
+                ApplyRemoveReroute(removeReroute.Link, removeReroute.WaypointIndex);
+                break;
+
             case GraphCommand.Batch batch:
                 foreach (var sub in batch.Commands)
                     Apply(sub);
@@ -367,6 +379,35 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 pill.Comment = value as string;
                 break;
         }
+        _asset.MarkDirty();
+    }
+
+    private void ApplyInsertReroute(LinkId linkId, Vector2 position)
+    {
+        var childVisualId = BTreeParentChildLink.ChildVisualIdFromLinkId(linkId);
+        var node = _asset.FindNode(childVisualId);
+        if (node == null) return;
+        node.Waypoints.Add(position);
+        _asset.MarkDirty();
+    }
+
+    private void ApplyMoveReroute(LinkId linkId, int index, Vector2 newPosition)
+    {
+        var childVisualId = BTreeParentChildLink.ChildVisualIdFromLinkId(linkId);
+        var node = _asset.FindNode(childVisualId);
+        if (node == null) return;
+        if (index < 0 || index >= node.Waypoints.Count) return;
+        node.Waypoints[index] = newPosition;
+        _asset.MarkDirty();
+    }
+
+    private void ApplyRemoveReroute(LinkId linkId, int index)
+    {
+        var childVisualId = BTreeParentChildLink.ChildVisualIdFromLinkId(linkId);
+        var node = _asset.FindNode(childVisualId);
+        if (node == null) return;
+        if (index < 0 || index >= node.Waypoints.Count) return;
+        node.Waypoints.RemoveAt(index);
         _asset.MarkDirty();
     }
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Editor.AiShared.Blackboard;
 
@@ -15,6 +16,7 @@ public sealed class BTreeEditorLayoutBuilder
     private readonly Dictionary<Guid, List<SubtreeSyncBinding>> _syncBindings = new();
     private readonly List<(string VariableName, string WriterPairKey)> _conflictSuppressions = new();
     private readonly List<string> _unusedSuppressions = new();
+    private readonly Dictionary<Guid, IReadOnlyList<Vector2>> _linkWaypoints = new();
 
     public BTreeEditorLayoutBuilder Canvas(Vector2 panOffset, float zoomLevel)
     {
@@ -74,6 +76,16 @@ public sealed class BTreeEditorLayoutBuilder
         return this;
     }
 
+    /// <summary>
+    /// Records waypoints for the edge from the child node (identified by <paramref name="childVisualId"/>)
+    /// up to its parent. Called in the emitted <c>[BTreeLayout]</c> method only when waypoints exist.
+    /// </summary>
+    public BTreeEditorLayoutBuilder LinkWaypoints(string childVisualId, Vector2[] waypoints)
+    {
+        _linkWaypoints[Guid.Parse(childVisualId)] = waypoints;
+        return this;
+    }
+
     public BTreeEditorLayout Build() => new BTreeEditorLayout
     {
         PanOffset = _panOffset,
@@ -84,5 +96,6 @@ public sealed class BTreeEditorLayoutBuilder
             kv => (IReadOnlyList<SubtreeSyncBinding>)kv.Value.AsReadOnly()),
         BlackboardConflictSuppressions = _conflictSuppressions,
         UnusedWarningSuppressions = _unusedSuppressions,
+        LinkWaypoints = _linkWaypoints,
     };
 }

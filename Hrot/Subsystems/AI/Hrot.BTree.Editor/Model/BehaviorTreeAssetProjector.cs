@@ -51,6 +51,11 @@ internal static class BehaviorTreeAssetProjector
                     if (entry.Comment != null)
                         node.Comment = entry.Comment;
                 }
+                if (layout.LinkWaypoints.TryGetValue(node.VisualId, out var waypoints))
+                {
+                    node.Waypoints.Clear();
+                    node.Waypoints.AddRange(waypoints);
+                }
             }
             asset.CanvasPanOffset = layout.PanOffset;
             asset.CanvasZoomLevel = layout.ZoomLevel > 0f ? layout.ZoomLevel : 1f;

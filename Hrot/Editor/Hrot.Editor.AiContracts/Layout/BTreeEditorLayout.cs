@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Editor.AiShared.Blackboard;
 
@@ -22,4 +23,11 @@ public sealed class BTreeEditorLayout
         Array.Empty<(string, string)>();
     public IReadOnlyList<string> UnusedWarningSuppressions { get; init; } =
         Array.Empty<string>();
+
+    /// <summary>
+    /// Per-child-node waypoints for the edge from that child up to its parent.
+    /// Key = child node's VisualId. Empty when no reroute points exist.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<Vector2>> LinkWaypoints { get; init; } =
+        new Dictionary<Guid, IReadOnlyList<Vector2>>();
 }
