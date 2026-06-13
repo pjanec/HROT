@@ -262,6 +262,21 @@ public static class HsmAssetMapper
             stableIdToRegion[rDto.StableId] = region;
         }
 
+        // Attach each region to the parent state of its initial child so parallel states
+        // expose IContainerNodeModel.Regions (→ NodeEditor draws region dividers). The flat
+        // JSON region list carries no parent ref; InitialChild.Parent is the unambiguous owner.
+        // (RHS-05)
+        foreach (var region in regionNodes)
+        {
+            var owner = region.InitialChild?.Parent;
+            if (owner != null && !owner.RegionNodes.Contains(region))
+                owner.RegionNodes.Add(region);
+        }
+        // Keep each owner's regions ordered by RegionIndex (divider layout depends on order).
+        foreach (var s in stateNodes)
+            if (s.RegionNodes.Count > 1)
+                s.RegionNodes.Sort((a, b) => a.RegionIndex.CompareTo(b.RegionIndex));
+
         // Build transitions
         var transitions = new List<TransitionNode>();
         foreach (var tDto in dto.Transitions)
