@@ -97,6 +97,7 @@ using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
+using Fdp.Toolkit.Tkb;
 using Hrot.Editor.Commands;
 using Hrot.Common.Events;
 using Hrot.Diagnostics.Breakpoints;
@@ -520,6 +521,15 @@ namespace Hrot.Editor
         public ScenarioEntityCreationRequestSource EntityCreationRequestSource =>
             _scenarioLoadSource ?? throw new InvalidOperationException("EditorSubsystem is not initialized.");
 
+        /// <summary>
+        /// The editor's authoritative spawn TKB (NED catalog + UrbanCombat templates). This is the
+        /// instance NetworkSpawningSystem and every ITkbEntityTranslator resolve templates from.
+        /// Exposed so an in-process host (e.g. the Stride muscle's StrideVisualBindingSystem) can
+        /// bind to the SAME database instead of a duplicate, avoiding template-resolution drift.
+        /// Null until Initialize() has run.
+        /// </summary>
+        public TkbDatabase? TkbDatabase { get; private set; }
+
         /// <summary>Internal test hook: exposes the data breakpoint manager (UBP-P10T1).</summary>
         internal IDataBreakpointManager? DataBreakpointManager => _bpManager;
 
@@ -865,6 +875,7 @@ namespace Hrot.Editor
             // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
+            TkbDatabase = tkbDb;   // expose the authoritative spawn DB to in-process hosts
             var translators = new List<ITkbEntityTranslator>
             {
                 new SpatialCoreTkbTranslator(),

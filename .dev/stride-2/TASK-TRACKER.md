@@ -38,6 +38,7 @@
 - [x] BATCH-S2-B (Stage 1): modularize Stride muscle + host physics-bracket. (sonnet) → edba115a, GPU-verified ✅
 - [x] BATCH-S2-C (Stage 3a): pre/post-kernel host hooks in EditorSubsystem.Update. (sonnet) → CPU-verified
 - [ ] BATCH-S2-D (Stage 3b): EditorStrideSubsystem hosts real EditorSubsystem. (sonnet, GPU gate)
+- [ ] BATCH-S2-E (TkbDb unification): bind Stride view to editor's spawn DB + augment NED types with generic Stride render-defs (option A: Box=vehicle, mannequin=infantry). Fixes visuals=0 / VehicleState-on-infantry. (sonnet → `.dev/stride-2/batches/BATCH-S2-E-INSTRUCTIONS.md`; CPU build+tests, then user GPU sign-off). CONTENT DECISION resolved 2026-06-13: option A. Scenario types confirmed: hill-attack uses 100 (tank), 303 (auto-platoon, no body), 8803 (area overlay, no body).
 
 ## Perf/correctness chase (2026-06-13 eve) — hosted-editor frame cost
 - Instrumented full frame: editor Tick ~1.3ms, PumpFrame ~1.5ms, base.Update ~2ms, Draw ~1.6ms — all CHEAP. Idle ~60fps.

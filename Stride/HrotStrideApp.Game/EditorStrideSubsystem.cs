@@ -938,10 +938,15 @@ public sealed class EditorStrideSubsystem : IDisposable
         // go through the production EditorSubsystem spawn path.
         ScenarioSource = _editor.EntityCreationRequestSource;
 
-        // TkbDb: EditorSubsystem builds its own TkbDb internally. Mirror the same
-        // UrbanCombat registration so IsAnimatedClass works correctly (template lookup).
-        TkbDb = new TkbDatabase();
-        UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(TkbDb);
+        // TkbDb UNIFICATION (BATCH-S2-E): bind the Stride view to the editor's authoritative spawn DB
+        // — the exact instance NetworkSpawningSystem + translators resolve from — instead of a duplicate.
+        // Then augment its NED platform/infantry templates with Stride render+collision descriptors
+        // (generic placeholders). UrbanCombat types already carry render-defs (added inside CreateTkb path),
+        // so we must NOT re-register them here (would throw "already exists").
+        TkbDb = _editor.TkbDatabase
+                ?? throw new InvalidOperationException(
+                    "[EditorStrideSubsystem] Hosted mode: _editor.TkbDatabase is null after Initialize.");
+        StrideNedRenderDescriptors.Apply(TkbDb);
 
         // ── H3. Build Stride view systems (steps 9-16, bound to editor's World) ──
         // These are identical to the OFF path because they all operate on World (= editor's World).
