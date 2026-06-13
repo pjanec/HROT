@@ -321,7 +321,21 @@ public sealed class StrideHrotGame : Game
         // Internal-loop mode (BATCH-10): drive EditorStrideSubsystem.
         if (_editorSubsystem != null)
         {
-            _loopDriver.AdvanceFrame(wallDt, dt => _editorSubsystem.Tick(dt));
+            // FIX-PERF-1 (hosted-mode substepping):
+            // When the editor subsystem is hosting the real EditorSubsystem
+            // (STRIDE_HOST_REAL_EDITOR=1), call Tick ONCE per render frame with the wall dt
+            // — the fixed-step loop driver would cause up to 8 sub-steps per frame, each
+            // running the full editor.Update() (canvas + AI hot-reload + kernel + Bullet),
+            // causing a spiral-of-death at low render rates.
+            // The OFF path (self-contained kernel) keeps the loop driver unchanged.
+            if (_editorSubsystem.HostRealEditor)
+            {
+                _editorSubsystem.Tick(wallDt);
+            }
+            else
+            {
+                _loopDriver.AdvanceFrame(wallDt, dt => _editorSubsystem.Tick(dt));
+            }
 
             // Spawn diagnostics (follow-up to BATCH-10): throttled to ~once per second.
             LogSpawnDiagnostics();

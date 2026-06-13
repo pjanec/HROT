@@ -625,6 +625,9 @@ public sealed class StrideInspectorWindow : IDisposable
     {
         if (!_opened || _disposed) return;
         if (Raylib_cs.Raylib.WindowShouldClose()) return;
+        // FIX-CLOSE-2: Guard against any stale PumpFrame call after rlImGui.Shutdown().
+        // Close() nulls _windowManager before Shutdown, so this is belt-and-suspenders.
+        if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
         var editor = _subsystem.HostedEditor;
         var wm     = _windowManager;
@@ -741,7 +744,22 @@ public sealed class StrideInspectorWindow : IDisposable
         if (!_opened || _disposed) return;
         _disposed = true;
 
+        // FIX-CLOSE-2: Drop all references that could trigger ImGui calls BEFORE
+        // rlImGui.Shutdown() tears down the ImGui context.
+        // Order matters:
+        //   1. Null out _windowManager so PumpFrame's wm?.Render() and editor?.DrawUI() become
+        //      no-ops on any frame racing to call PumpFrame after Close() is entered.
+        //   2. rlImGui.Shutdown() — destroys the ImGui context.  Nothing must call ImGui.* after this.
+        //   3. UnloadTexture (GL call, still valid while the GLFW context is live).
+        //   4. Raylib.CloseWindow() — tears down the GLFW/OpenGL context.
+        _windowManager = null;
+
+        // If the hosted editor is still registered (from RegisterWindows), un-register it
+        // by calling rlImGui.Shutdown immediately (the WindowManager holds no back-ref into
+        // the editor that survives this call — all editor ImGui pumping goes through
+        // _windowManager.Render() which we just nulled out above).
         rlImGui.Shutdown();
+
         if (_atlasTexture.Id != 0)
             Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
         Raylib_cs.Raylib.CloseWindow();

@@ -45,6 +45,13 @@ namespace HrotStrideApp;
 /// <b>editor_stride</b> composition skeleton (STR-P0-T6, Mode 1 of the Stride integration).
 ///
 /// <para>
+/// FIX-PERF-1 (hosted-mode substepping): <see cref="TickHosted"/> is designed to be called
+/// ONCE per render frame with the render wall delta — NOT through the fixed-step loop driver.
+/// See <see cref="StrideHrotGame.Update"/> which bypasses <see cref="StrideHostLoopDriver.AdvanceFrame"/>
+/// when <see cref="HostRealEditor"/> is true.
+/// </para>
+///
+/// <para>
 /// Mirrors the simulation+orchestration core of <c>EditorSubsystem</c> (see
 /// <c>Hrot.Editor/EditorSubsystem.cs</c> lines 449–1092) without the Raylib/WinForms/ImGui
 /// editor panels, AI hot-reload, breakpoints, or replay-UI scaffolding.  Those belong to
@@ -343,6 +350,16 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// the live GPU app); <c>null</c> in headless runs without a clip installer. Exposed for tests.
     /// </summary>
     public MannequinAnimationBinder? AnimationBinder { get; private set; }
+
+    // ── Logging ───────────────────────────────────────────────────────────
+    private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
+
+    // ── Hosted-mode tick timing (FIX-PERF-1) ─────────────────────────────
+    // Measures TickHosted (_editor.Update + view steps) cost and logs ~once per second.
+    private readonly System.Diagnostics.Stopwatch _tickHostedSw = new();
+    private double _tickHostedAccMs;
+    private int    _tickHostedFrameCount;
+    private const int TickHostedLogIntervalFrames = 60;
 
     // ── Internal helpers ─────────────────────────────────────────────────
     private bool _disposed;
@@ -1158,6 +1175,9 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// </summary>
     private void TickHosted(float dt)
     {
+        // FIX-PERF-1: called ONCE per render frame with the wall dt — no fixed-step substepping.
+        _tickHostedSw.Restart();
+
         // ── Step 1+4: Real editor Update ──────────────────────────────────
         // Internally: orchestration → PreKernelUpdateHook(dt) → kernel.Update() → PostKernelUpdateHook
         // PreKernelUpdateHook = TimeController.Step(dt) + _physicsBracket.RunPreKernelStep(World, dt)
@@ -1186,6 +1206,18 @@ public sealed class EditorStrideSubsystem : IDisposable
         // ── Step 7: Selection alive-guard + highlight gizmo ───────────────
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
+
+        // ── Throttled timing log (~once per second) ───────────────────────
+        _tickHostedSw.Stop();
+        _tickHostedAccMs += _tickHostedSw.Elapsed.TotalMilliseconds;
+        if (++_tickHostedFrameCount >= TickHostedLogIntervalFrames)
+        {
+            Log.Info("[TickHosted timing] avg over {0} frames — editor.Update+viewSteps={1:F1}ms",
+                _tickHostedFrameCount,
+                _tickHostedAccMs / _tickHostedFrameCount);
+            _tickHostedAccMs   = 0;
+            _tickHostedFrameCount = 0;
+        }
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────
