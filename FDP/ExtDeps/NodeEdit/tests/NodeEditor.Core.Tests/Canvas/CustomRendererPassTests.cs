@@ -32,6 +32,8 @@ file sealed class FakeRenderContext : ICanvasRenderContext
     public Vector2 CanvasToScreen(Vector2 p) => p;
     public Vector2 ScreenToCanvas(Vector2 p) => p;
     public RectF CanvasToScreen(RectF r) => r;
+    public bool TryGetNodeScreenRect(NodeId id, out RectF screenRect) { screenRect = default; return false; }
+    public bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos) { screenPos = default; return false; }
 }
 
 // A test renderer that records which pass it was invoked for, and how many times.

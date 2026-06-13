@@ -22,6 +22,7 @@ internal sealed class CanvasRenderContextImpl : ICanvasRenderContext, IHitTestCo
     internal GraphView?       _view;
     internal IReadOnlySet<NodeId> _visibleNodes = new HashSet<NodeId>();
     internal IReadOnlySet<LinkId> _visibleLinks = new HashSet<LinkId>();
+    internal CanvasLayout?    _layout;
 
     // ── ICanvasRenderContext ──────────────────────────────────────────────────
 
@@ -51,6 +52,18 @@ internal sealed class CanvasRenderContextImpl : ICanvasRenderContext, IHitTestCo
         return RectF.FromMinMax(screenMin, screenMax);
     }
 
+    public bool TryGetNodeScreenRect(NodeId id, out RectF screenRect)
+    {
+        if (_layout != null && _layout.NodeScreenRects.TryGetValue(id, out screenRect)) return true;
+        screenRect = default; return false;
+    }
+
+    public bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos)
+    {
+        if (_layout != null && _layout.PinScreenPositions.TryGetValue(id, out screenPos)) return true;
+        screenPos = default; return false;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>Reset scratch state between frames.</summary>
@@ -58,12 +71,14 @@ internal sealed class CanvasRenderContextImpl : ICanvasRenderContext, IHitTestCo
         GraphView view,
         ImDrawListPtr drawList,
         IReadOnlySet<NodeId> visibleNodes,
-        IReadOnlySet<LinkId> visibleLinks)
+        IReadOnlySet<LinkId> visibleLinks,
+        CanvasLayout layout)
     {
         _view         = view;
         _drawList     = drawList;
         _visibleNodes = visibleNodes;
         _visibleLinks = visibleLinks;
+        _layout       = layout;
         _frameScratch.Clear();
     }
 }

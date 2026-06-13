@@ -80,6 +80,8 @@ file sealed class StubRenderCtxOvl : ICanvasRenderContext
     public Vector2 CanvasToScreen(Vector2 p) => p;
     public Vector2 ScreenToCanvas(Vector2 p) => p;
     public RectF CanvasToScreen(RectF r) => r;
+    public bool TryGetNodeScreenRect(NodeId id, out RectF screenRect) { screenRect = default; return false; }
+    public bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos) { screenPos = default; return false; }
 
     public StubRenderCtxOvl(
         StubGraphOvl graph,

@@ -77,6 +77,19 @@ public interface ICanvasRenderContext
 
     /// <summary>Transform a canvas-coordinate rect to a screen-coordinate rect.</summary>
     RectF CanvasToScreen(RectF canvasRect);
+
+    /// <summary>
+    /// Screen-space bounding rect of a node as laid out this frame (post pan/zoom,
+    /// container position resolved). Returns false if the node was not laid out
+    /// (e.g. hidden inside a collapsed parent, or unknown id).
+    /// </summary>
+    bool TryGetNodeScreenRect(NodeId id, out RectF screenRect);
+
+    /// <summary>
+    /// Screen-space attachment point of a pin as laid out this frame.
+    /// Returns false if the pin was not laid out.
+    /// </summary>
+    bool TryGetPinScreenPosition(PinId id, out Vector2 screenPos);
 }
 
 /// <summary>
