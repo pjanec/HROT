@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Components;
@@ -177,6 +178,27 @@ public sealed class StrideHrotGame : Game
     /// <summary>Throttle interval (in render frames) for the spawn-diagnostics log.</summary>
     private const int DiagnosticsLogIntervalFrames = 60;
 
+    // ── Frame-timing diagnostics (DIAG-ONLY, no behaviour change) ────────
+    // Reused Stopwatches — no per-frame alloc.
+    // _frameDeltaSw: measures wall-clock time BETWEEN successive Update entries (true frame time).
+    // _baseUpdateSw: measures duration of base.Update(gameTime) (Stride scene/physics pipeline).
+    // _totalUpdateSw: measures the entire StrideHrotGame.Update body (base + our code).
+    // _drawSw: measures base.Draw(gameTime) in the Draw override (3D render submission).
+    private readonly Stopwatch _frameDeltaSw   = new Stopwatch();
+    private readonly Stopwatch _baseUpdateSw   = new Stopwatch();
+    private readonly Stopwatch _totalUpdateSw  = new Stopwatch();
+    private readonly Stopwatch _drawSw         = new Stopwatch();
+
+    // Running accumulators (reset every DiagnosticsLogIntervalFrames frames).
+    private double _accumFrameDeltaMs;
+    private double _maxFrameDeltaMs;
+    private double _accumBaseUpdateMs;
+    private double _maxBaseUpdateMs;
+    private double _accumTotalUpdateMs;
+    private double _accumDrawMs;
+    private double _maxDrawMs;
+    private int    _timingFrameCount;
+
     // ── Construction ──────────────────────────────────────────────────────
 
     /// <param name="fixedDt">
@@ -314,7 +336,21 @@ public sealed class StrideHrotGame : Game
     /// </summary>
     protected override void Update(GameTime gameTime)
     {
+        // ── Frame-delta timing (DIAG) ─────────────────────────────────────
+        // Capture the elapsed time since the PREVIOUS Update call — this is the
+        // true wall-clock frame time (includes GPU present, vsync wait, OS scheduling).
+        // On the very first call _frameDeltaSw is not running; Elapsed returns zero.
+        double frameDeltaMs = _frameDeltaSw.Elapsed.TotalMilliseconds;
+        _frameDeltaSw.Restart();
+
+        // ── Total StrideHrotGame.Update timing (DIAG) ─────────────────────
+        _totalUpdateSw.Restart();
+
+        // ── base.Update timing (DIAG) ─────────────────────────────────────
+        _baseUpdateSw.Restart();
         base.Update(gameTime);
+        _baseUpdateSw.Stop();
+        double baseUpdateMs = _baseUpdateSw.Elapsed.TotalMilliseconds;
 
         float wallDt = (float)gameTime.Elapsed.TotalSeconds;
 
@@ -382,6 +418,39 @@ public sealed class StrideHrotGame : Game
                 ExecuteCenterOnEntity(selection.SelectedEntity);
             }
         }
+
+        // ── Accumulate frame-timing stats (DIAG) ──────────────────────────
+        _totalUpdateSw.Stop();
+        double totalUpdateMs = _totalUpdateSw.Elapsed.TotalMilliseconds;
+
+        // Skip the very first call (frameDeltaMs is zero / unrepresentative).
+        if (_timingFrameCount > 0)
+        {
+            _accumFrameDeltaMs  += frameDeltaMs;
+            if (frameDeltaMs > _maxFrameDeltaMs)  _maxFrameDeltaMs  = frameDeltaMs;
+            _accumBaseUpdateMs  += baseUpdateMs;
+            if (baseUpdateMs > _maxBaseUpdateMs)  _maxBaseUpdateMs  = baseUpdateMs;
+            _accumTotalUpdateMs += totalUpdateMs;
+        }
+        _timingFrameCount++;
+    }
+
+    /// <summary>
+    /// Wraps <c>base.Draw</c> in a Stopwatch to measure the 3D render-submission cost
+    /// (diagnostics only — no behaviour change, DIAG).
+    /// </summary>
+    protected override void Draw(GameTime gameTime)
+    {
+        _drawSw.Restart();
+        base.Draw(gameTime);
+        _drawSw.Stop();
+
+        double drawMs = _drawSw.Elapsed.TotalMilliseconds;
+        if (_timingFrameCount > 1)   // skip frame 0 (unrepresentative startup draw)
+        {
+            _accumDrawMs += drawMs;
+            if (drawMs > _maxDrawMs) _maxDrawMs = drawMs;
+        }
     }
 
     /// <summary>
@@ -407,6 +476,42 @@ public sealed class StrideHrotGame : Game
         if (++_diagnosticsFrameCounter < DiagnosticsLogIntervalFrames)
             return;
         _diagnosticsFrameCounter = 0;
+
+        // ── Frame-timing diagnostics (DIAG) ───────────────────────────────
+        // Log one summary line covering the measurement window (≈1 s / 60 frames).
+        // Counts usable samples: _timingFrameCount starts at 0, first frame is skipped,
+        // so usable = max(0, _timingFrameCount - 1).
+        int usableFrames = Math.Max(0, _timingFrameCount - 1);
+        if (usableFrames > 0)
+        {
+            double avgFrameDeltaMs  = _accumFrameDeltaMs  / usableFrames;
+            double avgBaseUpdateMs  = _accumBaseUpdateMs  / usableFrames;
+            double avgTotalUpdateMs = _accumTotalUpdateMs / usableFrames;
+            double avgDrawMs        = _accumDrawMs        / usableFrames;
+
+            double avgFps = avgFrameDeltaMs > 0.0 ? 1000.0 / avgFrameDeltaMs : 0.0;
+            double minFps = _maxFrameDeltaMs > 0.0 ? 1000.0 / _maxFrameDeltaMs : 0.0;
+
+            Log.Info(
+                "[Frame timing] over {0} frames — " +
+                "FrameDelta avg={1:F1}ms max={2:F1}ms (FPS avg={3:F1} min={4:F1}) | " +
+                "BaseUpdate avg={5:F1}ms max={6:F1}ms | " +
+                "StrideHrotGame.Update avg={7:F1}ms | " +
+                "Draw avg={8:F1}ms max={9:F1}ms",
+                usableFrames,
+                avgFrameDeltaMs,  _maxFrameDeltaMs,
+                avgFps,           minFps,
+                avgBaseUpdateMs,  _maxBaseUpdateMs,
+                avgTotalUpdateMs,
+                avgDrawMs,        _maxDrawMs);
+        }
+
+        // Reset accumulators for the next window.
+        _accumFrameDeltaMs  = 0; _maxFrameDeltaMs  = 0;
+        _accumBaseUpdateMs  = 0; _maxBaseUpdateMs  = 0;
+        _accumTotalUpdateMs = 0;
+        _accumDrawMs        = 0; _maxDrawMs        = 0;
+        _timingFrameCount   = 0;
 
         var subsystem = _editorSubsystem;
         if (subsystem == null)
