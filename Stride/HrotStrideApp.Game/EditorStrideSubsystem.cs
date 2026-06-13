@@ -355,9 +355,28 @@ public sealed class EditorStrideSubsystem : IDisposable
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
     // ── Hosted-mode tick timing (FIX-PERF-1) ─────────────────────────────
-    // Measures TickHosted (_editor.Update + view steps) cost and logs ~once per second.
-    private readonly System.Diagnostics.Stopwatch _tickHostedSw = new();
-    private double _tickHostedAccMs;
+    // Fine-grained breakdown: reuse Stopwatch instances, accumulate, log ~once per second.
+    // A  = TimeController.Step(dt)              [inside PreKernelUpdateHook]
+    // B  = _physicsBracket.RunPreKernelStep     [inside PreKernelUpdateHook]
+    // C  = _kernel.Update()                     [PreKernelHook end → PostKernelHook start]
+    // D  = _editor.Update(dt)                   [whole call, wraps A+B+C]
+    // E1 = AnimationBridge (DispatchTraversals+Execute)
+    // E2 = RunPostKernelStep (forward-sync)
+    // E3 = Gizmo render
+    // E4 = Selection alive-guard + highlight
+    // Total = whole TickHosted body
+    private readonly System.Diagnostics.Stopwatch _tickHostedSw    = new(); // Total
+    private readonly System.Diagnostics.Stopwatch _editorTotalSw   = new(); // D
+    private readonly System.Diagnostics.Stopwatch _stepSw          = new(); // A
+    private readonly System.Diagnostics.Stopwatch _bracketPreSw    = new(); // B
+    private readonly System.Diagnostics.Stopwatch _kernelSw        = new(); // C
+    private readonly System.Diagnostics.Stopwatch _animBridgeSw    = new(); // E1
+    private readonly System.Diagnostics.Stopwatch _postSyncSw      = new(); // E2
+    private readonly System.Diagnostics.Stopwatch _gizmoSw         = new(); // E3
+    private readonly System.Diagnostics.Stopwatch _selectionSw     = new(); // E4
+
+    private double _accTotal, _accEditorTotal, _accStep, _accBracketPre,
+                   _accKernel, _accAnimBridge, _accPostSync, _accGizmo, _accSelection;
     private int    _tickHostedFrameCount;
     private const int TickHostedLogIntervalFrames = 60;
 
@@ -981,14 +1000,29 @@ public sealed class EditorStrideSubsystem : IDisposable
         // then runs the physics bracket's pre-kernel steps (body lifecycle, motors, reverse-sync).
         // This replaces the manual TimeController.Step + _physicsBracket.RunPreKernelStep
         // calls that the OFF-path Tick does before Kernel.Update().
+        // DIAG: wrap each sub-step with its own Stopwatch (no allocation — fields reused).
         _editor.PreKernelUpdateHook = dt =>
         {
+            // A: TimeController.Step
+            _stepSw.Restart();
             _editor.TimeController.Step(dt);
+            _stepSw.Stop();
+
+            // B: physics bracket pre-kernel
+            _bracketPreSw.Restart();
             _physicsBracket.RunPreKernelStep(World, dt);
+            _bracketPreSw.Stop();
+
+            // C-start: kernel.Update() begins immediately after this hook returns.
+            // Start the kernel stopwatch here so it covers only the kernel call itself.
+            _kernelSw.Restart();
         };
-        // PostKernelUpdateHook: left null. The post-kernel Stride view steps (animation bridge,
-        // forward-sync, gizmo, selection) are driven directly in hosted Tick() AFTER
-        // _editor.Update() returns, preserving the exact post-kernel ORDER.
+        // PostKernelUpdateHook: stop the kernel stopwatch (C-end).
+        // No other functional work — diagnostics only.
+        _editor.PostKernelUpdateHook = () =>
+        {
+            _kernelSw.Stop();
+        };
 
         // ── (step 14) Animation backend + bridge ──────────────────────────
         AnimationBackend = new StrideAnimationBackend();
@@ -1176,46 +1210,81 @@ public sealed class EditorStrideSubsystem : IDisposable
     private void TickHosted(float dt)
     {
         // FIX-PERF-1: called ONCE per render frame with the wall dt — no fixed-step substepping.
+        // DIAG: fine-grained breakdown (no per-frame allocation; accumulate → log ~1/sec).
         _tickHostedSw.Restart();
 
         // ── Step 1+4: Real editor Update ──────────────────────────────────
         // Internally: orchestration → PreKernelUpdateHook(dt) → kernel.Update() → PostKernelUpdateHook
-        // PreKernelUpdateHook = TimeController.Step(dt) + _physicsBracket.RunPreKernelStep(World, dt)
-        // (wired in InitializeHosted / H4).
+        // PreKernelUpdateHook times A (TimeController.Step) and B (BracketPre), then starts C.
+        // PostKernelUpdateHook stops C.  All three Stopwatches are fields (no allocation).
+        _editorTotalSw.Restart();
         _editor!.Update(dt);
+        _editorTotalSw.Stop();
 
-        // ── Step 4b: Animation bridge ─────────────────────────────────────
+        // ── Step 4b: Animation bridge (E1) ───────────────────────────────
         // Identical to OFF path: runs after kernel.Update() to read post-physics state.
+        _animBridgeSw.Restart();
         var traversals = ((ISimulationView)World)
             .ReadEvents<OffMeshTraversalStartedEvent>();
         AnimationBridge.DispatchTraversals(traversals);
         AnimationBridge.Execute(World, dt);
+        _animBridgeSw.Stop();
 
-        // ── Step 5: Physics bracket post-kernel step (forward-sync) ──────
+        // ── Step 5: Physics bracket post-kernel step (forward-sync) (E2) ─
+        _postSyncSw.Restart();
         _physicsBracket.RunPostKernelStep(World);
-
-        // ── Step 5b: Live animation glue reconcile ────────────────────────
+        // Step 5b: Live animation glue reconcile (folded into PostSync bucket — tiny)
         AnimationBinder?.Reconcile();
+        _postSyncSw.Stop();
 
-        // ── Step 6: 3D gizmo render ───────────────────────────────────────
+        // ── Step 6: 3D gizmo render (E3) ──────────────────────────────────
+        _gizmoSw.Restart();
         GizmoRenderer3D.Sink.BeginFrame();
         GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
         GizmoRenderer3D.Sink.EndFrame();
         ProducerBuffer.EndFrame(dt);
+        _gizmoSw.Stop();
 
-        // ── Step 7: Selection alive-guard + highlight gizmo ───────────────
+        // ── Step 7: Selection alive-guard + highlight gizmo (E4) ──────────
+        _selectionSw.Restart();
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
+        _selectionSw.Stop();
 
-        // ── Throttled timing log (~once per second) ───────────────────────
+        // ── Throttled breakdown log (~once per second at 60 fps) ──────────
         _tickHostedSw.Stop();
-        _tickHostedAccMs += _tickHostedSw.Elapsed.TotalMilliseconds;
+        _accTotal       += _tickHostedSw.Elapsed.TotalMilliseconds;
+        _accEditorTotal += _editorTotalSw.Elapsed.TotalMilliseconds;
+        _accStep        += _stepSw.Elapsed.TotalMilliseconds;
+        _accBracketPre  += _bracketPreSw.Elapsed.TotalMilliseconds;
+        _accKernel      += _kernelSw.Elapsed.TotalMilliseconds;
+        _accAnimBridge  += _animBridgeSw.Elapsed.TotalMilliseconds;
+        _accPostSync    += _postSyncSw.Elapsed.TotalMilliseconds;
+        _accGizmo       += _gizmoSw.Elapsed.TotalMilliseconds;
+        _accSelection   += _selectionSw.Elapsed.TotalMilliseconds;
+
         if (++_tickHostedFrameCount >= TickHostedLogIntervalFrames)
         {
-            Log.Info("[TickHosted timing] avg over {0} frames — editor.Update+viewSteps={1:F1}ms",
+            double n        = _tickHostedFrameCount;
+            double edTotal  = _accEditorTotal / n;
+            double step     = _accStep        / n;
+            double bracket  = _accBracketPre  / n;
+            double kernel   = _accKernel      / n;
+            double overhead = edTotal - (step + bracket + kernel); // editor's own UI/orchestration work
+            Log.Info(
+                "[TickHosted breakdown] avg/{0}f — " +
+                "Total={1:F1} | EditorUpdate={2:F1} (Step={3:F1} Bracket={4:F1} Kernel={5:F1} Overhead={6:F1}) | " +
+                "View: Anim={7:F1} PostSync={8:F1} Gizmo={9:F1} Sel={10:F1}  (all ms)",
                 _tickHostedFrameCount,
-                _tickHostedAccMs / _tickHostedFrameCount);
-            _tickHostedAccMs   = 0;
+                _accTotal        / n,
+                edTotal, step, bracket, kernel, overhead,
+                _accAnimBridge   / n,
+                _accPostSync     / n,
+                _accGizmo        / n,
+                _accSelection    / n);
+
+            _accTotal = _accEditorTotal = _accStep = _accBracketPre =
+            _accKernel = _accAnimBridge = _accPostSync = _accGizmo = _accSelection = 0;
             _tickHostedFrameCount = 0;
         }
     }
