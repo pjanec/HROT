@@ -750,7 +750,18 @@ public sealed class StateNode : IContainerNodeModel
 
     public string Title => Name;
     public string? Subtitle => null;
-    public NodeCategory Category => NodeCategory.Custom;
+    public NodeCategory Category
+    {
+        get
+        {
+            // Pseudo-states keep Custom → HsmEditorTheme maps Custom to transparent so the
+            // glyph renderer (H / H* / F) owns their visual. (RHS-04)
+            if (IsHistory || IsDeepHistory || IsFinal) return NodeCategory.Custom;
+            if (IsParallel)         return NodeCategory.Event;    // parallel composite
+            if (Children.Count > 0) return NodeCategory.Macro;   // composite
+            return NodeCategory.Function;                         // simple state
+        }
+    }
     public NodeState State => DiagnosticState ?? (IsBreakpoint ? NodeState.Warning : NodeState.Normal);
     public string?   StatusTooltip => DiagnosticTooltip;
     public bool ShowAdvancedPins => false;

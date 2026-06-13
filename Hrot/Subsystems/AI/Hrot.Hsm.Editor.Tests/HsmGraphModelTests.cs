@@ -112,6 +112,55 @@ public class HsmGraphModelTests
         state.Kind.Id.Should().Be(HsmKinds.DeepHistory);
     }
 
+    // ---- Category mapping tests (RHS-04) ----
+
+    [Fact]
+    public void Category_simple_state_is_Function()
+    {
+        var state = new StateNode("S");
+        state.Category.Should().Be(NodeCategory.Function);
+    }
+
+    [Fact]
+    public void Category_composite_state_is_Macro()
+    {
+        var state = new StateNode("Parent");
+        state.Children.Add(new StateNode("Child"));
+        state.Category.Should().Be(NodeCategory.Macro);
+    }
+
+    [Fact]
+    public void Category_parallel_state_is_Event()
+    {
+        var state = new StateNode("Par");
+        state.IsParallel = true;
+        state.Category.Should().Be(NodeCategory.Event);
+    }
+
+    [Fact]
+    public void Category_history_is_Custom()
+    {
+        var state = new StateNode("H");
+        state.IsHistory = true;
+        state.Category.Should().Be(NodeCategory.Custom);
+    }
+
+    [Fact]
+    public void Category_deepHistory_is_Custom()
+    {
+        var state = new StateNode("DH");
+        state.IsDeepHistory = true;
+        state.Category.Should().Be(NodeCategory.Custom);
+    }
+
+    [Fact]
+    public void Category_final_is_Custom()
+    {
+        var state = new StateNode("F");
+        state.IsFinal = true;
+        state.Category.Should().Be(NodeCategory.Custom);
+    }
+
     [Fact]
     public void State_ChildNodeIds_match_children()
     {
