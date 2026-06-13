@@ -40,7 +40,7 @@ One line per task. `[ ]` open · `[~]` in progress · `[x]` done (built + tests 
 - [!] **TDA-01** (superseded by TDA-02) — blocked: `BlueprintDebugSession` does not implement `IAiDebugSession`
       (parallel interface hierarchy), so it can't be assigned to `SetActiveSession(IAiDebugSession?)`. Zoo
       correctly stopped (no files changed). See `reports/BATCH-TDA-01-REPORT.md`.
-- [ ] **TDA-02** Prereq + wiring (supersedes TDA-01): make production `BlueprintDebugSession` implement
+- [x] **TDA-02** *(cd127296 — build 0/0; registry 17/0 incl. no-Detach guard; AiDebugCommands 16/0; Hrot.Editor.Tests 185/0)* Prereq + wiring (supersedes TDA-01): make production `BlueprintDebugSession` implement
       **both** `IBlueprintDebugSession` + `IAiDebugSession` (mirror the established `FakeBlueprintDebugSession`
       dual-interface pattern — explicit interface impls for the 4 colliding breakpoint members), then add
       `SetActiveSession` to `DebugSessionRegistry` (+ interface) and wire `AiDocumentManager.ActiveChanged` →
