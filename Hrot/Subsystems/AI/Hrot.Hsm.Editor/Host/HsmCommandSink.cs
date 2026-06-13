@@ -67,6 +67,15 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             case GraphCommand.RemoveAttachments cmd:
                 ApplyRemoveAttachments(cmd);
                 break;
+            case GraphCommand.InsertReroute cmd:
+                ApplyInsertReroute(cmd);
+                break;
+            case GraphCommand.MoveReroute cmd:
+                ApplyMoveReroute(cmd);
+                break;
+            case GraphCommand.RemoveReroute cmd:
+                ApplyRemoveReroute(cmd);
+                break;
             case GraphCommand.Batch cmd:
                 foreach (var sub in cmd.Commands)
                 {
@@ -421,5 +430,28 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     private void ApplyRemoveAttachments(GraphCommand.RemoveAttachments cmd)
     {
         _asset.RemoveAttachments(cmd.AttachmentIds);
+    }
+
+    private void ApplyInsertReroute(GraphCommand.InsertReroute cmd)
+    {
+        var t = _asset.FindTransitionByVisualId(cmd.Link.Value);
+        if (t is null) return;
+        t.Waypoints.Add(cmd.Position);
+    }
+
+    private void ApplyMoveReroute(GraphCommand.MoveReroute cmd)
+    {
+        var t = _asset.FindTransitionByVisualId(cmd.Link.Value);
+        if (t is null) return;
+        if (cmd.WaypointIndex < 0 || cmd.WaypointIndex >= t.Waypoints.Count) return;
+        t.Waypoints[cmd.WaypointIndex] = cmd.NewPosition;
+    }
+
+    private void ApplyRemoveReroute(GraphCommand.RemoveReroute cmd)
+    {
+        var t = _asset.FindTransitionByVisualId(cmd.Link.Value);
+        if (t is null) return;
+        if (cmd.WaypointIndex < 0 || cmd.WaypointIndex >= t.Waypoints.Count) return;
+        t.Waypoints.RemoveAt(cmd.WaypointIndex);
     }
 }

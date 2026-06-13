@@ -1,0 +1,32 @@
+# RR — Wire reroute points across all graph editors
+
+> **Origin:** user request (2026-06-13) — draggable reroute/waypoint points on wires (to route around nodes, e.g. for back-and-forth transitions between adjacent states). "Missing in all the graphs (btree, hsm, blueprints)."
+> **Companions:** [../DEBT-TRACKER.md](../DEBT-TRACKER.md) (VE-DEBT-008).
+> **Execution:** lead specs + hard-verifies; coding via sonnet agents.
+
+## Finding (confirmed in code)
+
+The NodeEditor **UI side is complete**: the wire context-menu "Insert Reroute Node Here" (`CanvasRenderer.cs:634-642`), Ctrl/double-click on a wire (`CanvasInput.cs:280-301`), and reroute drag (`WireRenderer.cs` `RerouteDragOverridePositions`) all emit `GraphCommand.InsertReroute(LinkId, Vector2)` / `MoveReroute(LinkId, int, Vector2)` / `RemoveReroute(LinkId, int)`. Reroute dots + bent beziers already render. **The only gap is host-side:** no host command sink handles these commands (all have a `default` arm that drops/ignores them), and BTree/Blueprint links have no waypoint backing store.
+
+## Tasks (per editor; do HSM first to validate the UI integration end-to-end)
+
+| ID | Editor | Size | Work | Status |
+|---|---|---|---|---|
+| RR-01 | HSM | **trivial** | Add InsertReroute/MoveReroute/RemoveReroute to `HsmCommandSink`, mutating `TransitionNode.Waypoints` (+`MarkDirty`). Model list + `.hsm.json` persistence already exist. | ✅ DONE — 3 handlers (append on insert; range-guarded move/remove; unknown-link no-op); covered by the existing end-of-Apply `MarkDirty`. HSM tests 497/0 (11 new). |
+| RR-02 | Blueprint | medium | Add `List<Vector2> Waypoints` to `Link` (`GraphTypes.cs`); expose via `BlueprintLinkModel`; handle the 3 commands in `BlueprintCommandSink`. JSON auto-serializes the asset → persistence ~free. | TODO |
+| RR-03 | BTree | larger | BTree links are derived parent→child edges with NO waypoint store. Add a per-edge waypoint store (keyed by parent+child or LinkId) on `BehaviorTreeAsset`; expose via the BTree link model (currently `Waypoints => Array.Empty`); handle the 3 commands in `BTreeCommandSink`; add `Waypoints` to the BTree DTO + mapper/emitter so they persist + round-trip. | TODO |
+
+### Shared command shape (all editors)
+- `InsertReroute(LinkId, Vector2 pos)` → resolve link → `waypoints.Insert(<end or nearest-segment index>, pos)`. (Demo appends; for correctness insert at the segment nearest `pos` so multiple reroutes order along the wire. v1 may append + rely on drag; document choice.)
+- `MoveReroute(LinkId, int idx, Vector2 pos)` → `waypoints[idx] = pos` (guard idx range).
+- `RemoveReroute(LinkId, int idx)` → `waypoints.RemoveAt(idx)` (guard).
+- After each: `MarkDirty()` (or the editor's equivalent dirty/save trigger).
+
+### Verification per batch
+- Build the editor + run its test project (no regressions; HSM baseline 486/0).
+- Add command-sink unit tests: InsertReroute adds a waypoint to the right link; MoveReroute updates index; RemoveReroute removes; round-trip persists (where applicable: HSM .hsm.json, BTree .btree.json, Blueprint asset JSON).
+- Visual gate: user inserts + drags a reroute on a wire and confirms the bezier bends and survives save/reopen.
+
+## Notes
+- `LinkId` for HSM = transition `VisualId`; resolve via `_asset.FindTransitionByVisualId`. BTree/Blueprint resolve per their link-id scheme.
+- Insertion index ordering matters when a wire has multiple reroutes — prefer nearest-segment insertion over append so dragging doesn't tangle. Confirm what the canvas drag expects (it passes a `WaypointIndex` from the rendered dot order).
