@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -63,6 +64,58 @@ namespace Hrot.Stride.Core;
 [UpdateInPhase(SystemPhase.Simulation)]
 public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
 {
+    // ── Diagnostics (DIAG-LC) ──────────────────────────────────────────────
+    private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
+
+    // First N verbatim events, then throttled.
+    private const int VerbatimLimit = 10;
+    private int _verbatimCount;                // total verbatim lines emitted so far
+
+    // Throttled counters (reset each ~1 s window).
+    private int _throttledCreates;
+    private int _throttledTeardowns;
+    private readonly Stopwatch _throttleSw = Stopwatch.StartNew();
+    private const double ThrottleWindowSec = 1.0;
+
+    private void LogCreate(Entity entity)
+    {
+        if (_verbatimCount < VerbatimLimit)
+        {
+            ++_verbatimCount;
+            Log.Info("[Lifecycle] CREATE entity={0} (owned)", entity);
+        }
+        else
+        {
+            ++_throttledCreates;
+            FlushThrottleIfDue();
+        }
+    }
+
+    private void LogTeardown(Entity entity, string reason)
+    {
+        if (_verbatimCount < VerbatimLimit)
+        {
+            ++_verbatimCount;
+            Log.Info("[Lifecycle] TEARDOWN entity={0} ({1})", entity, reason);
+        }
+        else
+        {
+            ++_throttledTeardowns;
+            FlushThrottleIfDue();
+        }
+    }
+
+    private void FlushThrottleIfDue()
+    {
+        if (_throttleSw.Elapsed.TotalSeconds < ThrottleWindowSec) return;
+        Log.Info("[Lifecycle] last {0:F1}s: creates={1} teardowns={2}",
+            _throttleSw.Elapsed.TotalSeconds, _throttledCreates, _throttledTeardowns);
+        _throttledCreates   = 0;
+        _throttledTeardowns = 0;
+        _throttleSw.Restart();
+    }
+    // ── End diagnostics ────────────────────────────────────────────────────
+
     private readonly IPhysicsBodyService    _bodyService;
     private readonly StrideVisualBindingSystem _visualBindingSystem;
 
@@ -106,6 +159,7 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
         var destructions = view.ReadEvents<DestructionOrder>();
         foreach (ref readonly var evt in destructions)
         {
+            LogTeardown(evt.Entity, "destruction event");
             TeardownBody(evt.Entity);
             _destroyedThisFrame.Add(evt.Entity);
         }
@@ -124,7 +178,10 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
                 _staleEntities.Add(entity);
         }
         foreach (var entity in _staleEntities)
+        {
+            LogTeardown(entity, "ownership revoked");
             TeardownBody(entity);
+        }
 
         // ── 3. Creation: WithOwned<SimTransform> + no body yet ───────────────
         var ownedQuery = view.Query()
@@ -153,6 +210,7 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
                 entity, visualRef.ShapeKind, visualRef.Dims, in simTf);
 
             _bodies[entity] = new PhysicsBodyReference(handle, visualRef.ShapeKind, visualRef.Dims);
+            LogCreate(entity);
         }
     }
 

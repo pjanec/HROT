@@ -11,6 +11,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Spatial;
+using CarKinem.Core;
 using CarKinem.Tkb;
 using Hrot.CGF.Systems;
 using Fdp.Toolkit.Combat.Modules;
@@ -379,6 +380,14 @@ public sealed class EditorStrideSubsystem : IDisposable
                    _accKernel, _accAnimBridge, _accPostSync, _accGizmo, _accSelection;
     private int    _tickHostedFrameCount;
     private const int TickHostedLogIntervalFrames = 60;
+
+    // ── [Authority] vehicle ownership oscillation probe (DIAG-AUTH) ──────────
+    // Tracks per-entity: whether HasAuthority<SimTransform> was true last tick,
+    // and how many times it flipped within the current ~1-second window.
+    private readonly Dictionary<Entity, bool>  _authLastValue  = new();
+    private readonly Dictionary<Entity, int>   _authFlipCount  = new();
+    private readonly System.Diagnostics.Stopwatch _authThrottleSw = System.Diagnostics.Stopwatch.StartNew();
+    private const double AuthThrottleWindowSec = 1.0;
 
     // ── Internal helpers ─────────────────────────────────────────────────
     private bool _disposed;
@@ -1221,6 +1230,9 @@ public sealed class EditorStrideSubsystem : IDisposable
         _editor!.Update(dt);
         _editorTotalSw.Stop();
 
+        // ── DIAG-AUTH: vehicle entity authority probe (throttled ~1/sec) ───
+        ProbeVehicleAuthority();
+
         // ── Step 4b: Animation bridge (E1) ───────────────────────────────
         // Identical to OFF path: runs after kernel.Update() to read post-physics state.
         _animBridgeSw.Restart();
@@ -1392,6 +1404,59 @@ public sealed class EditorStrideSubsystem : IDisposable
         line.LifetimeSeconds = lifetime;
         ProducerBuffer.EmitRaw(line);
     }
+
+    // ── DIAG-AUTH: vehicle authority oscillation probe ────────────────────────
+    /// <summary>
+    /// Probes every entity that has VehicleState and logs whether
+    /// HasAuthority&lt;SimTransform&gt; flipped since the previous tick.
+    /// Throttled: emits a per-entity summary line ~once per second.
+    /// </summary>
+    private void ProbeVehicleAuthority()
+    {
+        if (!World.IsComponentTypeRegistered<SimTransform>()) return;
+        if (!World.IsComponentTypeRegistered<VehicleState>())  return;
+
+        var vehicleQuery = World.Query()
+            .With<VehicleState>()
+            .With<SimTransform>()
+            .Build();
+
+        foreach (var entity in vehicleQuery)
+        {
+            bool hasAuth = World.HasAuthority<SimTransform>(entity);
+
+            // Detect flip vs last tick.
+            if (_authLastValue.TryGetValue(entity, out bool prev) && prev != hasAuth)
+            {
+                // Flipped — count it.
+                _authFlipCount.TryGetValue(entity, out int flips);
+                _authFlipCount[entity] = flips + 1;
+            }
+            _authLastValue[entity] = hasAuth;
+        }
+
+        // Throttled summary flush.
+        if (_authThrottleSw.Elapsed.TotalSeconds >= AuthThrottleWindowSec)
+        {
+            double elapsed = _authThrottleSw.Elapsed.TotalSeconds;
+            foreach (var entity in _authFlipCount.Keys)
+            {
+                bool hasAuth = _authLastValue.TryGetValue(entity, out bool a) && a;
+                Log.Info("[Authority] vehicle entity={0} HasAuthority<SimTransform>={1} (flips this second={2})",
+                    entity, hasAuth, _authFlipCount[entity]);
+            }
+            // Also log entities that have never flipped (present in _authLastValue but not _authFlipCount).
+            foreach (var kv in _authLastValue)
+            {
+                if (!_authFlipCount.ContainsKey(kv.Key))
+                    Log.Info("[Authority] vehicle entity={0} HasAuthority<SimTransform>={1} (flips this second=0)",
+                        kv.Key, kv.Value);
+            }
+            _authFlipCount.Clear();
+            _authThrottleSw.Restart();
+        }
+    }
+    // ── End DIAG-AUTH ─────────────────────────────────────────────────────────
 
     private static IReadOnlyList<ITkbEntityTranslator> BuildTranslators()
     {
