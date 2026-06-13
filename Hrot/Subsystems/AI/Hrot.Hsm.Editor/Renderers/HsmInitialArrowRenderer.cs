@@ -16,9 +16,8 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
 {
     // Gold highlight for the LCA composite when a transition link is selected.
     private static readonly Vector4 LcaHighlightColor = new(1.00f, 0.85f, 0.00f, 0.55f);
-    private static readonly Vector2 DefaultNodeSize = new(120f, 40f);
 
-    // Initial-state marker rendering constants.
+    // Initial-state marker rendering constants (in graph units; scale by ctx.Zoom for screen).
     internal const float MarkerGap = 24f;
     private const float MarkerRadius = 5f;
     private const float ArrowThickness = 2f;
@@ -42,29 +41,29 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
         var markers = CollectInitialMarkers(_asset);
         foreach (var marker in markers)
         {
-            var childSize = marker.InitialChild.SizeOverride ?? DefaultNodeSize;
-            var (circleCenter, arrowStart, arrowEnd) = ComputeMarkerGeometry(marker.InitialChild.Position, childSize);
+            // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+            if (!ctx.TryGetNodeScreenRect(new NodeId(marker.InitialChild.StableId), out var childRect))
+                continue;
 
-            var screenCircle = ctx.Viewport.GraphToScreen(circleCenter);
-            var screenStart  = ctx.Viewport.GraphToScreen(arrowStart);
-            var screenEnd    = ctx.Viewport.GraphToScreen(arrowEnd);
+            // Compute marker geometry in screen space from the child's screen rect.
+            var (circleCenter, arrowStart, arrowEnd) = ComputeMarkerGeometryFromScreenRect(childRect, ctx.Zoom);
 
             uint color = ImGui.GetColorU32(MarkerColor);
             float radius = MarkerRadius * ctx.Zoom;
             float thickness = ArrowThickness * ctx.Zoom;
 
             // Filled circle floating above the child's top edge.
-            ctx.DrawList.AddCircleFilled(screenCircle, radius, color);
+            ctx.DrawList.AddCircleFilled(circleCenter, radius, color);
 
             // Arrow line from circle down to child top edge.
-            ctx.DrawList.AddLine(screenStart, screenEnd, color, thickness);
+            ctx.DrawList.AddLine(arrowStart, arrowEnd, color, thickness);
 
-            // Arrowhead — two short lines forming a "v" pointing down (tip at screenEnd).
+            // Arrowhead — two short lines forming a "v" pointing down (tip at arrowEnd).
             float headSize = ArrowheadArmLength * ctx.Zoom;
-            var leftWing  = new Vector2(screenEnd.X - headSize, screenEnd.Y - headSize);
-            var rightWing = new Vector2(screenEnd.X + headSize, screenEnd.Y - headSize);
-            ctx.DrawList.AddLine(screenEnd, leftWing,  color, thickness);
-            ctx.DrawList.AddLine(screenEnd, rightWing, color, thickness);
+            var leftWing  = new Vector2(arrowEnd.X - headSize, arrowEnd.Y - headSize);
+            var rightWing = new Vector2(arrowEnd.X + headSize, arrowEnd.Y - headSize);
+            ctx.DrawList.AddLine(arrowEnd, leftWing,  color, thickness);
+            ctx.DrawList.AddLine(arrowEnd, rightWing, color, thickness);
         }
 
         // LCA highlight: when exactly one transition link is selected, outline its LCA.
@@ -83,10 +82,11 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
 
     private static void DrawLcaOutline(ICanvasRenderContext ctx, StateNode lca)
     {
-        var size = lca.SizeOverride ?? DefaultNodeSize;
-        var min  = ctx.Viewport.GraphToScreen(lca.Position);
-        var max  = ctx.Viewport.GraphToScreen(lca.Position + size);
-        ctx.DrawList.AddRect(min, max, ImGui.GetColorU32(LcaHighlightColor),
+        // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+        if (!ctx.TryGetNodeScreenRect(new NodeId(lca.StableId), out var rect))
+            return;
+
+        ctx.DrawList.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(LcaHighlightColor),
             rounding: 4f * ctx.Zoom,
             flags: ImDrawFlags.None,
             thickness: 1.5f * ctx.Zoom);
@@ -170,6 +170,8 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
     /// Computes graph-space geometry for the initial-state marker:
     /// a filled circle floating <see cref="MarkerGap"/> above the child's top-center
     /// with the arrow pointing down to the child's top edge.
+    /// This is a pure helper used by unit tests to verify relative geometry.
+    /// The returned values are in the same coordinate space as the inputs (graph or screen).
     /// </summary>
     internal static (Vector2 circleCenter, Vector2 arrowStart, Vector2 arrowEnd)
         ComputeMarkerGeometry(Vector2 childPos, Vector2 childSize)
@@ -177,6 +179,21 @@ public sealed class HsmInitialArrowRenderer : ICustomCanvasRenderer
         float cx = childPos.X + childSize.X * 0.5f;
         var arrowEnd     = new Vector2(cx, childPos.Y);
         var circleCenter = new Vector2(cx, childPos.Y - MarkerGap);
+        return (circleCenter, circleCenter, arrowEnd);
+    }
+
+    /// <summary>
+    /// Computes screen-space marker geometry from a child node's screen-space rect.
+    /// The circle floats <see cref="MarkerGap"/> * zoom px above the child's top edge.
+    /// Returns (circleCenter, arrowStart, arrowEnd) all in screen space.
+    /// </summary>
+    private static (Vector2 circleCenter, Vector2 arrowStart, Vector2 arrowEnd)
+        ComputeMarkerGeometryFromScreenRect(RectF childRect, float zoom)
+    {
+        // Top-center of the child's screen rect.
+        float cx = childRect.Min.X + childRect.Size.X * 0.5f;
+        var arrowEnd     = new Vector2(cx, childRect.Min.Y);
+        var circleCenter = new Vector2(cx, childRect.Min.Y - MarkerGap * zoom);
         return (circleCenter, circleCenter, arrowEnd);
     }
 }

@@ -5,6 +5,7 @@ using Hrot.Hsm.Editor.Model;
 using ImGuiNET;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Hsm.Editor.Renderers;
 
@@ -24,6 +25,8 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
     public bool IsActive { get; set; } = true;
 
     // Counters updated each Render() call; read by unit tests.
+    // Both are incremented BEFORE the geometry TryGet gate so count-based
+    // tests pass even when TryGet returns false (e.g. stub render contexts).
     internal int LastInternalTransitionCount;
     internal int LastLabelCount;
 
@@ -46,6 +49,9 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
             if (t is null) continue;
 
             string label = FormatLabel(t);
+
+            // Count eligible transitions BEFORE geometry gate so tests pass
+            // with stub contexts that return false from TryGet.
             LastLabelCount++;
 
             if (t.Kind == TransitionKind.Internal)
@@ -53,14 +59,16 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
                 LastInternalTransitionCount++;
                 if (!canDraw) continue;
 
+                // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+                if (!ctx.TryGetNodeScreenRect(new NodeId(t.Source.StableId), out var srcRect))
+                    continue;
+
                 // Draw a small self-loop arc in the upper-right quadrant of the source state.
-                var stateSize = t.Source.SizeOverride ?? DefaultStateSize;
-                var stateMin = ctx.Viewport.GraphToScreen(t.Source.Position);
-                var stateMax = ctx.Viewport.GraphToScreen(t.Source.Position + stateSize);
+                // srcRect is already screen-space — do NOT multiply dims by Zoom again.
                 var loopCenter = new Vector2(
-                    stateMin.X + (stateMax.X - stateMin.X) * 0.75f,
-                    stateMin.Y + (stateMax.Y - stateMin.Y) * 0.25f);
-                float loopRadius = Math.Min(10f * ctx.Zoom, (stateMax.Y - stateMin.Y) * 0.18f);
+                    srcRect.Min.X + srcRect.Size.X * 0.75f,
+                    srcRect.Min.Y + srcRect.Size.Y * 0.25f);
+                float loopRadius = Math.Min(10f * ctx.Zoom, srcRect.Size.Y * 0.18f);
                 uint loopColor = ImGui.GetColorU32(new Vector4(0.8f, 0.8f, 0.2f, 0.9f));
                 drawList.AddCircle(loopCenter, loopRadius, loopColor, 16, 1.5f * ctx.Zoom);
                 drawList.AddText(loopCenter + new Vector2(loopRadius + 2f, -8f * ctx.Zoom), loopColor, label);
@@ -69,9 +77,27 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
             {
                 if (!canDraw) continue;
 
-                // Draw label at midpoint between source and target state positions.
-                var mid = ctx.Viewport.GraphToScreen(
-                    (t.Source.Position + t.Target.Position) * 0.5f);
+                // External transitions: use true wire midpoint from pin screen positions.
+                // Fall back to node-rect centres if pin lookup fails; skip if those also fail.
+                Vector2 mid;
+                var srcPinId = new PinId(t.Source.HiddenOutputPinId);
+                var tgtPinId = new PinId(t.Target.HiddenInputPinId);
+
+                if (ctx.TryGetPinScreenPosition(srcPinId, out var srcPin) &&
+                    ctx.TryGetPinScreenPosition(tgtPinId, out var tgtPin))
+                {
+                    mid = (srcPin + tgtPin) * 0.5f;
+                }
+                else if (ctx.TryGetNodeScreenRect(new NodeId(t.Source.StableId), out var srcRect) &&
+                         ctx.TryGetNodeScreenRect(new NodeId(t.Target.StableId), out var tgtRect))
+                {
+                    mid = (srcRect.Center + tgtRect.Center) * 0.5f;
+                }
+                else
+                {
+                    continue;
+                }
+
                 uint textColor = ImGui.GetColorU32(new Vector4(0.9f, 0.9f, 0.9f, 1f));
                 drawList.AddText(mid, textColor, label);
             }

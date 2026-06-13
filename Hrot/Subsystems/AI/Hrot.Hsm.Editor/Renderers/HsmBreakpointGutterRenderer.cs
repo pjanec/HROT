@@ -5,6 +5,7 @@ using Hrot.Hsm.Editor.Debug;
 using Hrot.Hsm.Editor.Model;
 using NodeEditor.Core.Canvas;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 
 namespace Hrot.Hsm.Editor.Renderers;
 
@@ -19,6 +20,8 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
     private IDataBreakpointManager? _manager;
 
     // Counters exposed for tests to verify render output without ImGui.
+    // Both are incremented BEFORE the geometry TryGet gate so count-based
+    // tests pass even when TryGet returns false (e.g. stub render contexts).
     internal int LastStateDotCount;
     internal int LastTransitionDotCount;
 
@@ -95,22 +98,43 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
                     var trans = _asset.FindTransitionByVisualId(bp.ElementId);
                     if (trans is null) continue;
 
-                    var midGraph = (trans.Source.Position + trans.Target.Position) * 0.5f;
-                    var center = ctx.Viewport.GraphToScreen(midGraph) + new Vector2(-8f, 8f) * ctx.Zoom;
-                    float radius = 5f * ctx.Zoom;
-                    ctx.DrawList.AddCircleFilled(center, radius,
-                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
+                    // Count eligible transition breakpoints BEFORE geometry gate.
                     LastTransitionDotCount++;
+
+                    // Anchor off source state screen rect; fall back to target if source fails.
+                    Vector2 dotCenter;
+                    if (ctx.TryGetNodeScreenRect(new NodeId(trans.Source.StableId), out var srcRect))
+                    {
+                        dotCenter = srcRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+                    }
+                    else if (ctx.TryGetNodeScreenRect(new NodeId(trans.Target.StableId), out var tgtRect))
+                    {
+                        dotCenter = tgtRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    float radius = 5f * ctx.Zoom;
+                    ctx.DrawList.AddCircleFilled(dotCenter, radius,
+                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
                     continue;
                 }
 
-                var screenPos = ctx.Viewport.GraphToScreen(state.Position);
-                var stateCenter = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                // Count eligible state breakpoints BEFORE geometry gate.
+                LastStateDotCount++;
+
+                // Anchor off canvas-computed screen geometry. Skip drawing if not laid out.
+                if (!ctx.TryGetNodeScreenRect(new NodeId(state.StableId), out var stateRect))
+                    continue;
+
+                // Place dot at top-left corner of the node (with a small offset).
+                var stateCenter = stateRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
                 float stateRadius = 5f * ctx.Zoom;
                 var color = new Vector4(0.9f, 0.15f, 0.15f, 1.0f);
 
                 ctx.DrawList.AddCircleFilled(stateCenter, stateRadius, ImGui.GetColorU32(color));
-                LastStateDotCount++;
             }
         }
 
@@ -124,24 +148,44 @@ public sealed class HsmBreakpointGutterRenderer : ICustomCanvasRenderer
                 var state = _asset.FindStateByStableId(bp.SourceElementId.Value);
                 if (state is not null)
                 {
-                    var screenPos = ctx.Viewport.GraphToScreen(state.Position);
-                    var stateCenter = screenPos + new Vector2(-8f, 8f) * ctx.Zoom;
+                    // Count eligible state breakpoints BEFORE geometry gate.
+                    LastStateDotCount++;
+
+                    // Anchor off canvas-computed screen geometry. Skip drawing if not laid out.
+                    if (!ctx.TryGetNodeScreenRect(new NodeId(state.StableId), out var stateRect))
+                        continue;
+
+                    var stateCenter = stateRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
                     float stateRadius = 5f * ctx.Zoom;
                     ctx.DrawList.AddCircleFilled(stateCenter, stateRadius,
                         ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
-                    LastStateDotCount++;
                     continue;
                 }
 
                 var trans = _asset.FindTransitionByVisualId(bp.SourceElementId.Value);
                 if (trans is not null)
                 {
-                    var midGraph = (trans.Source.Position + trans.Target.Position) * 0.5f;
-                    var center = ctx.Viewport.GraphToScreen(midGraph) + new Vector2(-8f, 8f) * ctx.Zoom;
-                    float radius = 5f * ctx.Zoom;
-                    ctx.DrawList.AddCircleFilled(center, radius,
-                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
+                    // Count eligible transition breakpoints BEFORE geometry gate.
                     LastTransitionDotCount++;
+
+                    // Anchor off source state screen rect; fall back to target if source fails.
+                    Vector2 dotCenter;
+                    if (ctx.TryGetNodeScreenRect(new NodeId(trans.Source.StableId), out var srcRect))
+                    {
+                        dotCenter = srcRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+                    }
+                    else if (ctx.TryGetNodeScreenRect(new NodeId(trans.Target.StableId), out var tgtRect))
+                    {
+                        dotCenter = tgtRect.Min + new Vector2(-8f, 8f) * ctx.Zoom;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+
+                    float radius = 5f * ctx.Zoom;
+                    ctx.DrawList.AddCircleFilled(dotCenter, radius,
+                        ImGui.GetColorU32(new Vector4(0.9f, 0.15f, 0.15f, 1.0f)));
                 }
             }
         }

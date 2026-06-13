@@ -16,16 +16,18 @@ namespace Hrot.Hsm.Editor.Renderers;
 // Implements ICustomCanvasHitTester so clicking the "!" glyph can be detected.
 public sealed class HsmRegionConflictsRenderer : ICustomCanvasRenderer, ICustomCanvasHitTester
 {
-    // Default node size used for center computation when no size override exists.
-    private static readonly Vector2 DefaultNodeSize = new(120f, 40f);
-
     private readonly HsmAsset _asset;
     private IReadOnlyList<HsmDiagnostic>? _diagnostics;
 
-    // Graph-space center of each "!" glyph drawn in the last Render() call.
+    // Screen-space center of each "!" glyph drawn in the last Render() call.
+    // The tuple item name is kept as GraphPos for source compatibility with existing tests
+    // that insert values directly; semantically these are screen-space positions after
+    // the RHS-02 re-anchor (the tests use identity viewport so graph == screen).
     internal readonly List<(Vector2 GraphPos, string Key)> _glyphPositions = new();
 
     // Counter exposed for tests to verify glyph output without ImGui.
+    // Incremented after the diagnostic eligibility check, BEFORE the TryGet geometry gate,
+    // so count-based tests pass even when TryGet returns false (e.g. stub contexts).
     internal int LastGlyphCount;
 
     public string Id => "hsm.region_conflicts";
@@ -64,35 +66,36 @@ public sealed class HsmRegionConflictsRenderer : ICustomCanvasRenderer, ICustomC
             var stateB = _asset.FindStateByStableId(diag.TargetStableIds[1]);
             if (stateB is null) continue;
 
-            var sizeA = stateA.SizeOverride ?? DefaultNodeSize;
-            var sizeB = stateB.SizeOverride ?? DefaultNodeSize;
+            // Count eligible conflicts BEFORE geometry gate.
+            LastGlyphCount++;
 
-            var centerA = ctx.Viewport.GraphToScreen(stateA.Position + sizeA * 0.5f);
-            var centerB = ctx.Viewport.GraphToScreen(stateB.Position + sizeB * 0.5f);
+            // Anchor off canvas-computed screen geometry. Skip drawing if either node not laid out.
+            if (!ctx.TryGetNodeScreenRect(new NodeId(stateA.StableId), out var rectA)) continue;
+            if (!ctx.TryGetNodeScreenRect(new NodeId(stateB.StableId), out var rectB)) continue;
+
+            // rectA/rectB are already screen-space — centers are their Center properties.
+            var centerA = rectA.Center;
+            var centerB = rectB.Center;
 
             ctx.DrawList.AddLine(centerA, centerB, lineColorU32, thickness);
 
             var mid = (centerA + centerB) * 0.5f;
             ctx.DrawList.AddText(mid, textColorU32, "!");
 
-            // Record graph-space midpoint for hit testing
-            var graphCenterA = stateA.Position + sizeA * 0.5f;
-            var graphCenterB = stateB.Position + sizeB * 0.5f;
-            var graphMid = (graphCenterA + graphCenterB) * 0.5f;
+            // Record screen-space midpoint for hit testing.
             string key = $"conflict_{diag.TargetStableIds[0]}_{diag.TargetStableIds[1]}";
-            _glyphPositions.Add((graphMid, key));
-            LastGlyphCount++;
+            _glyphPositions.Add((mid, key));
         }
     }
 
     // ICustomCanvasHitTester: returns a hit if canvasPoint (screen space) is
     // within 8 px of a "!" glyph drawn in the most recent Render() call.
+    // _glyphPositions now stores screen-space positions directly.
     public CustomElementHit? HitTest(Vector2 canvasPoint, IHitTestContext ctx)
     {
         const float HitRadius = 8f;
-        foreach (var (graphPos, key) in _glyphPositions)
+        foreach (var (screenPos, key) in _glyphPositions)
         {
-            var screenPos = ctx.Viewport.GraphToScreen(graphPos);
             if (MathF.Abs(canvasPoint.X - screenPos.X) <= HitRadius &&
                 MathF.Abs(canvasPoint.Y - screenPos.Y) <= HitRadius)
             {

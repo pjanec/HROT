@@ -24,9 +24,6 @@ public sealed class HsmRuntimeOverlayRenderer : ICustomCanvasRenderer
     // Transition pulse marker color (gold).
     private static readonly Vector4 TransitionPulse    = new(1.00f, 0.85f, 0.10f, 0.80f);
 
-    // Default state size used when SizeOverride is not set.
-    private static readonly Vector2 DefaultNodeSize = new(120f, 40f);
-
     private readonly HsmAsset _asset;
     private IHsmDebugSession? _session;
 
@@ -82,10 +79,12 @@ public sealed class HsmRuntimeOverlayRenderer : ICustomCanvasRenderer
         var srcState = _asset.FindStateByStableId(lastFired.SourceStateStableId);
         if (srcState is not null)
         {
-            var srcSize = srcState.SizeOverride ?? DefaultNodeSize;
-            var midGraph = srcState.Position + srcSize * 0.5f;
-            var midScreen = ctx.Viewport.GraphToScreen(midGraph);
+            // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+            if (!ctx.TryGetNodeScreenRect(new NodeId(srcState.StableId), out var srcRect))
+                return;
+
             // Draw a small pulsing diamond marker at the source state center.
+            var midScreen = srcRect.Center;
             float r = 6f * ctx.Zoom;
             ctx.DrawList.AddNgonFilled(midScreen, r, ImGui.GetColorU32(TransitionPulse), 4);
         }
@@ -97,10 +96,12 @@ public sealed class HsmRuntimeOverlayRenderer : ICustomCanvasRenderer
         Vector4 color,
         float thickness)
     {
-        var size = state.SizeOverride ?? DefaultNodeSize;
-        var min  = ctx.Viewport.GraphToScreen(state.Position);
-        var max  = ctx.Viewport.GraphToScreen(state.Position + size);
-        ctx.DrawList.AddRect(min, max, ImGui.GetColorU32(color),
+        // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+        if (!ctx.TryGetNodeScreenRect(new NodeId(state.StableId), out var rect))
+            return;
+
+        // rect is already screen-space — do NOT multiply dims by Zoom again.
+        ctx.DrawList.AddRect(rect.Min, rect.Max, ImGui.GetColorU32(color),
             rounding: 4f * ctx.Zoom,
             flags: ImDrawFlags.None,
             thickness: thickness * ctx.Zoom);

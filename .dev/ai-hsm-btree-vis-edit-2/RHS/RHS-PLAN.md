@@ -35,8 +35,8 @@ Independent gaps: (B) all states hardcode `Category => NodeCategory.Custom` → 
 | ID | Layer | Title | Depends | Status |
 |---|---|---|---|---|
 | RHS-01 | NodeEditor core | Expose per-frame layout geometry (node screen rects + pin screen positions) on `ICanvasRenderContext` | — | ✅ DONE — `TryGetNodeScreenRect`/`TryGetPinScreenPosition` added; 6 implementers satisfied (5 test fakes stubbed); NodeEditor.UI.Tests 70/0; BTree/HSM/Blueprint editors + their test projects build clean |
-| RHS-02 | HSM renderers | Re-anchor initial-arrow / history-glyph / region-conflict / breakpoint-gutter renderers off RHS-01 geometry | RHS-01 | TODO |
-| RHS-03 | HSM renderers | Transition labels at true wire midpoint via pin screen positions | RHS-01 | TODO |
+| RHS-02 | HSM renderers | Re-anchor initial-arrow / history-glyph / region-conflict / breakpoint-gutter / runtime-overlay renderers off RHS-01 geometry | RHS-01 | ✅ DONE — all 6 renderers now anchor off `TryGetNodeScreenRect`; skip-on-cull; counter discipline preserved; HSM tests 458/0. (Folded RHS-03.) Minor follow-up: no render-ctx-seeded regression test added — RHS-06 visual gate is the proof. |
+| RHS-03 | HSM renderers | Transition labels at true wire midpoint via pin screen positions | RHS-01 | ✅ DONE — folded into RHS-02; external label = midpoint of source-output/target-input pin screen positions (fallback to node-rect centers). |
 | RHS-04 | HSM theming | State-flag → NodeCategory/color mapping (composite/parallel/simple colored; history/final keep transparent body for glyph bypass) | — | TODO |
 | RHS-05 | NodeEditor/HSM | Parallel-state region dividers + headers render | RHS-01 (maybe) | TODO |
 | RHS-06 | Data + visual gate | Re-author HsmShowcase.hsm.json to the coordinate convention; **user screenshot confirmation** | RHS-02..05 | TODO |

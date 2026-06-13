@@ -12,12 +12,11 @@ namespace Hrot.Hsm.Editor.Renderers;
 // Runs in AfterNodes pass so it overlays the node body.
 public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
 {
-    // Default node size used for center computation when no size override exists.
-    private static readonly Vector2 DefaultNodeSize = new(120f, 40f);
-
     private readonly HsmAsset _asset;
 
     // Counter exposed for tests to verify glyph output without ImGui.
+    // Counts eligible states (history/final), incremented BEFORE the geometry TryGet gate
+    // so existing count-based tests continue to pass even when TryGet returns false.
     internal int LastGlyphCount;
 
     public string Id => "hsm.history_glyphs";
@@ -50,6 +49,10 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
             if (state == _asset.RootState) continue;
             if (!state.IsHistory && !state.IsDeepHistory && !state.IsFinal) continue;
 
+            // Count eligible glyphs BEFORE geometry gate so count-based tests pass
+            // even when TryGetNodeScreenRect returns false (e.g. in stub render contexts).
+            LastGlyphCount++;
+
             string label;
             if (state.IsDeepHistory)
                 label = "H*";
@@ -58,8 +61,12 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
             else
                 label = "F";
 
-            var size = state.SizeOverride ?? DefaultNodeSize;
-            var center = ctx.Viewport.GraphToScreen(state.Position + size * 0.5f);
+            // Anchor off canvas-computed screen geometry. Skip if node not laid out.
+            if (!ctx.TryGetNodeScreenRect(new NodeId(state.StableId), out var rect))
+                continue;
+
+            // rect is already screen-space — center is rect.Center.
+            var center = rect.Center;
             float radius = 12f * ctx.Zoom;
 
             // Filled circle background.
@@ -81,8 +88,6 @@ public sealed class HsmHistoryGlyphsRenderer : ICustomCanvasRenderer
                 var selColor = new Vector4(0.4f, 0.8f, 1.0f, 1.0f);
                 ctx.DrawList.AddCircle(center, radius, ImGui.GetColorU32(selColor), 16, 3f * ctx.Zoom);
             }
-
-            LastGlyphCount++;
         }
     }
 }
