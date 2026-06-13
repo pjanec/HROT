@@ -562,6 +562,30 @@ namespace Hrot.Editor
         public string[] AiBehaviorsProjectPath { get; set; } =
             new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
 
+        /// <summary>
+        /// Optional factory that supplies the "muscle" <see cref="IEcsModule"/> set used
+        /// when the editor runs in <see cref="SimHostMode.Internal"/> mode.
+        ///
+        /// <para>
+        /// When <c>null</c> (the default) the editor constructs its standard SimHost
+        /// muscle layer: <see cref="SimHostCoreLogicPack"/> and
+        /// <see cref="Hrot.SimHost.Modules.CognitiveSpatialModule"/>.
+        /// This reproduces today's behavior exactly and requires no caller-side setup.
+        /// </para>
+        ///
+        /// <para>
+        /// Set this property <b>before</b> calling <see cref="Initialize"/> to inject
+        /// alternative modules (e.g. Bullet physics + DotRecast navigation from a Stride
+        /// host).  The returned modules are:
+        /// <list type="bullet">
+        ///   <item>registered with the kernel via <c>RegisterModule</c>, and</item>
+        ///   <item>included in the logic-pack list passed to <see cref="EditorApplication"/>
+        ///   so that <see cref="IEditorLogic.SwitchToInternalAsync"/> /
+        ///   <see cref="IEditorLogic.SwitchToExternalAsync"/> installs/ejects them.</item>
+        /// </list>
+        /// </para>
+        /// </summary>
+        public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
@@ -838,13 +862,39 @@ namespace Hrot.Editor
                 }));
 
             // ?? 4. Module registration (offline ? no translator packs) ????????
-            var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
-            var perceptionMod    = new CognitiveSpatialModule(
-                _world,
-                colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
-                    ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
-                    : 0f);
-            _perceptionMod = perceptionMod;
+
+            // ── Muscle module set (injectable; defaults to SimHost) ───────────────────────
+            // MuscleModuleFactory == null  →  standard SimHostCoreLogicPack + CognitiveSpatialModule
+            //                                  (behavior-identical default, zero caller setup).
+            // MuscleModuleFactory != null  →  caller supplies replacement IEcsModules (e.g. from
+            //                                  a Stride host with Bullet physics + DotRecast nav).
+            IReadOnlyList<IEcsModuleSystem> muscleInputSystems   = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModuleSystem> muscleSimSystems     = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModuleSystem> musclePostSimSystems = Array.Empty<IEcsModuleSystem>();
+            IReadOnlyList<IEcsModule>       muscleModules;
+
+            if (MuscleModuleFactory == null)
+            {
+                // Default path — exactly today's behavior.
+                var simHostCorePack = new SimHostCoreLogicPack(entityMap);
+                var perceptionMod   = new CognitiveSpatialModule(
+                    _world,
+                    colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
+                        ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
+                        : 0f);
+                _perceptionMod = perceptionMod;
+
+                muscleInputSystems   = simHostCorePack.InputSystems;
+                muscleSimSystems     = simHostCorePack.SimulationSystems;
+                musclePostSimSystems = simHostCorePack.PostSimulationSystems;
+                muscleModules        = new IEcsModule[] { simHostCorePack, perceptionMod };
+            }
+            else
+            {
+                // Injected path — caller provides the full muscle module set.
+                muscleModules = MuscleModuleFactory(new MuscleModuleContext(_world!, entityMap));
+            }
+
             var mapperRegistry = new TacticalIntentMapperRegistry();
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
@@ -854,7 +904,7 @@ namespace Hrot.Editor
 
             var toggleInput = new TogglableInputGroup(
                 "EditorInput",
-                cgfLogicPackInst.InputSystems.Concat(simHostCorePack.InputSystems).ToArray());
+                cgfLogicPackInst.InputSystems.Concat(muscleInputSystems).ToArray());
 
             // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
             // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
@@ -871,16 +921,18 @@ namespace Hrot.Editor
 
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                cgfLogicPackInst.SimulationSystems.Concat(simHostCorePack.SimulationSystems).Append(bpTick).ToArray());
+                cgfLogicPackInst.SimulationSystems.Concat(muscleSimSystems).Append(bpTick).ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
-                simHostCorePack.PostSimulationSystems.ToArray());
+                musclePostSimSystems.ToArray());
             var orchPack         = new OrchestrationLogicPack(clusterSlave);
             var scenarioMod      = new ScenarioEditorModule(fileService);
 
             _kernel.RegisterModule(new BehaviorDiagnosticsModule());
-            _kernel.RegisterModule(perceptionMod);
+            // Register each muscle module with the kernel.
+            foreach (var mod in muscleModules)
+                _kernel.RegisterModule(mod);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.AreaQueryResultMaterializationSystem());
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
@@ -939,7 +991,8 @@ namespace Hrot.Editor
                 _kernel, _blueprintRegistry);
 
             // ?? 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ??
-            var logicPacks = new List<IEcsModule> { simHostCorePack, perceptionMod, cgfLogicPackInst };
+            // Muscle modules are determined by MuscleModuleFactory (default = SimHost set).
+            var logicPacks = new List<IEcsModule>(muscleModules) { cgfLogicPackInst };
 
             // ?? 4d. MapLayerAssignmentSystem ? must be registered BEFORE Initialize() ??
             // Stamps MapDisplayComponent.LayerMask on each entity so the DebugGizmoLayer
