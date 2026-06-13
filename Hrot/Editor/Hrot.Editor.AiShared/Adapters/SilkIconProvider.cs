@@ -26,7 +26,7 @@ public sealed class SilkIconProvider : IIconProvider
 
     // ── Silk atlas cell map ────────────────────────────────────────────────────
     //
-    // Cells use the famfamfam-silk coordinate notation: letter = row (a=0, b=1, …),
+    // Cells use the famfamfam-silk coordinate notation: letter = row (a=1, b=2, …),
     // number = column (1-based).  The mapping below is a best-effort semantic
     // assignment using silk icons that are visually appropriate.
     //
@@ -41,90 +41,90 @@ public sealed class SilkIconProvider : IIconProvider
         new Dictionary<string, string>
         {
             // ── BTree composites ────────────────────────────────────────────────
-            ["bt/sequence"]           = "c9",   // arrow-right → sequential flow
-            ["bt/selector"]           = "c10",  // arrow-branch → select
-            ["bt/observer_selector"]  = "c11",  // arrow-circle → reactive
-            ["bt/parallel"]           = "c12",  // arrow-fork → parallel
-            ["bt/root"]               = "a1",   // house → root/entry
-            ["bt/composite"]          = "c8",   // folder → composite category
+            ["bt/sequence"]           = "t31",   // arrow-right → sequential flow
+            ["bt/selector"]           = "e7",  // arrow-branch → select
+            ["bt/observer_selector"]  = "e8",  // arrow-circle → reactive
+            ["bt/parallel"]           = "f7",  // arrow-fork → parallel
+            ["bt/root"]               = "v11",   // house → root/entry
+            ["bt/composite"]          = "b23",   // folder → composite category
 
             // ── BTree leaves ────────────────────────────────────────────────────
-            ["bt/action"]             = "b4",   // lightning-bolt → action
-            ["bt/condition"]          = "b5",   // tick circle → condition/check
-            ["bt/wait"]               = "b6",   // clock → wait/delay
-            ["bt/subtree"]            = "b7",   // page-code → subtree reference
-            ["bt/leaf"]               = "b3",   // bullet → leaf category
+            ["bt/action"]             = "w13",   // lightning-bolt → action
+            ["bt/condition"]          = "a2",   // tick circle → condition/check
+            ["bt/wait"]               = "v6",   // clock → wait/delay
+            ["bt/subtree"]            = "o6",   // page-code → subtree reference
+            ["bt/leaf"]               = "ab1",   // bullet → leaf category
 
             // ── BTree decorator pills ────────────────────────────────────────────
-            ["bt/decorator"]          = "d2",   // tag → decorator category
-            ["bt/inverter"]           = "d3",   // exclamation → invert
-            ["bt/repeater"]           = "d4",   // refresh → repeat
-            ["bt/cooldown"]           = "d5",   // hourglass → cooldown
-            ["bt/force_success"]      = "d6",   // tick → force success
-            ["bt/force_failure"]      = "d7",   // cross → force failure
-            ["bt/until_success"]      = "d8",   // arrow-circle-ok → until success
-            ["bt/until_failure"]      = "d9",   // arrow-circle-error → until failure
+            ["bt/decorator"]          = "ad6",   // tag → decorator category
+            ["bt/inverter"]           = "g8",   // exclamation → invert
+            ["bt/repeater"]           = "f8",   // refresh → repeat
+            ["bt/cooldown"]           = "v6",   // hourglass → cooldown
+            ["bt/force_success"]      = "a2",   // tick → force success
+            ["bt/force_failure"]      = "i14",   // cross → force failure
+            ["bt/until_success"]      = "ae13",   // arrow-circle-ok → until success
+            ["bt/until_failure"]      = "ae14",   // arrow-circle-error → until failure
 
             // ── HSM states ───────────────────────────────────────────────────────
-            ["hsm/state_simple"]      = "e1",   // circle → simple state
-            ["hsm/state_composite"]   = "e2",   // layers → composite state
-            ["hsm/state_parallel"]    = "e3",   // parallel-lines → parallel state
-            ["hsm/state_final"]       = "e4",   // stop-disc → final state
-            ["hsm/state_history"]     = "e5",   // clock-history → history
-            ["hsm/state_deep_history"]= "e6",   // clock-double → deep history
-            ["hsm/transition"]        = "e7",   // arrow-right → transition
-            ["hsm/initial"]           = "e8",   // dot → initial pseudostate
+            ["hsm/state_simple"]      = "n8",   // circle → simple state
+            ["hsm/state_composite"]   = "b23",   // layers → composite state
+            ["hsm/state_parallel"]    = "p29",   // parallel-lines → parallel state
+            ["hsm/state_final"]       = "e30",   // stop-disc → final state
+            ["hsm/state_history"]     = "ae12",   // clock-history → history
+            ["hsm/state_deep_history"]= "ae13",   // clock-double → deep history
+            ["hsm/transition"]        = "d8",   // arrow-right → transition
+            ["hsm/initial"]           = "s32",   // dot → initial pseudostate
 
             // ── Blueprint node categories ────────────────────────────────────────
-            ["bp/event"]              = "f1",   // lightning → event
-            ["bp/function"]           = "f2",   // gear → function
-            ["bp/variable_get"]       = "f3",   // box-get → variable read
-            ["bp/variable_set"]       = "f4",   // box-set → variable write
-            ["bp/pure"]               = "f5",   // leaf-pure → pure function
-            ["bp/flow"]               = "f6",   // diamond → flow control
-            ["bp/macro"]              = "f7",   // cube → macro
-            ["bp/comment"]            = "f8",   // chat-bubble → comment node
-            ["bp/cast"]               = "f9",   // wand → type cast
+            ["bp/event"]              = "w13",   // lightning → event
+            ["bp/function"]           = "f26",   // gear → function
+            ["bp/variable_get"]       = "e29",   // box-get → variable read
+            ["bp/variable_set"]       = "c29",   // box-set → variable write
+            ["bp/pure"]               = "m26",   // leaf-pure → pure function
+            ["bp/flow"]               = "ad1",   // diamond → flow control
+            ["bp/macro"]              = "e11",   // cube → macro
+            ["bp/comment"]            = "q7",   // chat-bubble → comment node
+            ["bp/cast"]               = "m32",   // wand → type cast
 
             // ── Status / diagnostic ──────────────────────────────────────────────
-            ["status/error"]          = "g1",   // error badge
-            ["status/warning"]        = "g2",   // warning badge
-            ["status/info"]           = "g3",   // information badge
-            ["status/ok"]             = "g4",   // tick badge
-            ["status/running"]        = "g5",   // spinner/running
+            ["status/error"]          = "v13",   // error badge
+            ["status/warning"]        = "l7",   // warning badge
+            ["status/info"]           = "c23",   // information badge
+            ["status/ok"]             = "af12",   // tick badge
+            ["status/running"]        = "j14",   // spinner/running
 
             // ── Debug controls (§5.1) ───────────────────────────────────────
-            ["debug/continue"]        = "a2",   // play / continue
-            ["debug/step_back"]       = "a3",   // rewind / step back
-            ["debug/step_over"]       = "a4",   // step over
-            ["debug/step_into"]       = "a5",   // step into
-            ["debug/step_out"]        = "a6",   // step out
+            ["debug/continue"]        = "d8",   // play / continue
+            ["debug/step_back"]       = "g5",   // rewind / step back
+            ["debug/step_over"]       = "f8",   // step over
+            ["debug/step_into"]       = "g1",   // step into
+            ["debug/step_out"]        = "h4",   // step out
 
             // ── Asset kind icons (§5.1, §5.2) ──────────────────────────────
-            ["asset/scenario"]        = "b1",   // world → scenario
-            ["asset/blueprint"]       = "b2",   // blueprint
-            ["asset/btree"]           = "c10",  // branch → behavior tree
-            ["asset/hsm"]             = "c11",  // state machine
-            ["asset/blackboard"]      = "c12",  // blackboard
-            ["asset/utility"]         = "b8",   // utility
+            ["asset/scenario"]        = "ab15",   // world → scenario
+            ["asset/blueprint"]       = "n15",   // blueprint
+            ["asset/btree"]           = "o6",  // branch → behavior tree
+            ["asset/hsm"]             = "p5",  // state machine
+            ["asset/blackboard"]      = "w31",  // blackboard
+            ["asset/utility"]         = "ad32",   // utility
 
             // ── Generic / browser (§5.1) ────────────────────────────────────
-            ["browser/open"]          = "c8",   // folder → open browser
+            ["browser/open"]          = "d4",   // folder → open browser
             ["asset/new"]             = "b9",   // new document
-            ["folder"]                = "c8",   // folder (closed)
-            ["folder_open"]           = "a1",   // folder open
+            ["folder"]                = "u3",   // folder (closed)
+            ["folder_open"]           = "u3",   // folder open
 
             // ── Perspective toolbar icons ────────────────────────────────────
-            ["perspective/editor"]    = "a1",   // house → Editor (home/main perspective)
+            ["perspective/editor"]    = "v11",   // house → Editor (home/main perspective)
 
             // ── Shell commands (toolbar) ──────────────────────────────────────
-            ["shell/save"]            = "g9",   // disk / floppy — save
-            ["shell/saveAs"]          = "h8",   // disk variant — save as
-            ["shell/saveAll"]         = "i1",   // disk shape — save all
+            ["shell/save"]            = "m19",   // disk / floppy — save
+            ["shell/saveAs"]          = "m19",   // disk variant — save as
+            ["shell/saveAll"]         = "n19",   // disk shape — save all
 
             // ── Build / reload (toolbar) ──────────────────────────────────────
-            ["build/compile"]         = "b4",   // lightning → compile / quick reload
-            ["build/rebuild"]         = "d4",   // refresh → full rebuild
+            ["build/compile"]         = "w13",   // lightning → compile / quick reload
+            ["build/rebuild"]         = "b8",   // refresh → full rebuild
         };
 
     /// <summary>

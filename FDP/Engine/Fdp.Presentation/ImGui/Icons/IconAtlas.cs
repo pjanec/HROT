@@ -44,7 +44,7 @@ public class IconAtlas : IDisposable
     }
 
     /// <summary>
-    /// Parses a string coordinate (e.g. <c>"b12"</c>) and returns the UV pair
+    /// Parses a string coordinate (e.g. <c>"b12"</c> or "af32") and returns the UV pair
     /// (<c>uv0</c> top-left, <c>uv1</c> bottom-right) for that icon cell.
     /// Returns <c>(Vector2.Zero, Vector2.One)</c> for any malformed or null input.
     /// </summary>
@@ -53,15 +53,38 @@ public class IconAtlas : IDisposable
         if (string.IsNullOrEmpty(coordinate) || coordinate.Length < 2)
             return (Vector2.Zero, Vector2.One);
 
-        var rowChar = char.ToLowerInvariant(coordinate[0]);
-        if (rowChar < 'a' || rowChar > 'z')
+        // 1. Separate the alphabetic row prefix from the numeric column suffix
+        int splitIdx = 0;
+        while (splitIdx < coordinate.Length && char.IsLetter(coordinate[splitIdx]))
+        {
+            splitIdx++;
+        }
+
+        // Must have at least one letter and at least one number
+        if (splitIdx == 0 || splitIdx == coordinate.Length)
             return (Vector2.Zero, Vector2.One);
 
-        var numericPart = coordinate.Substring(1);
+        string rowStr = coordinate.Substring(0, splitIdx).ToLowerInvariant();
+        string numericPart = coordinate.Substring(splitIdx);
+
         if (!int.TryParse(numericPart, out var column) || column < 1)
             return (Vector2.Zero, Vector2.One);
 
-        int rowIndex = rowChar - 'a';
+        // 2. Decode the base-26 alphabetic string to a 0-based row index
+        // 'a' -> 0, 'z' -> 25, 'aa' -> 26, 'af' -> 31
+        int rowIndex = 0;
+        for (int i = 0; i < rowStr.Length; i++)
+        {
+            char c = rowStr[i];
+            if (c < 'a' || c > 'z')
+                return (Vector2.Zero, Vector2.One);
+            
+            rowIndex *= 26;
+            rowIndex += (c - 'a' + 1);
+        }
+        rowIndex -= 1; // Shift to 0-based index
+
+        // 3. Compute existing UV coordinates using the parsed dynamic rowIndex
         int colIndex = column - 1; // 1-based input → 0-based index
 
         var uv0 = new Vector2(
