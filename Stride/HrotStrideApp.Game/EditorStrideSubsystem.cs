@@ -376,10 +376,25 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// The <see cref="IEditorLogic"/> facade of the hosted real editor.
     /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
     /// <see cref="Initialize"/> has been called.
-    /// Used by <c>StrideEditorUiHost</c> to drive the editor's ImGui panels
-    /// in the second inspector window (Stage-4.1).
     /// </summary>
     public IEditorLogic? HostedEditorLogic => _editor?.EditorLogic;
+
+    /// <summary>
+    /// The hosted <see cref="EditorSubsystem"/> instance (implements
+    /// <c>IWindowRegistrar</c>, <c>DrawWorld</c>, and <c>DrawUI</c>).
+    /// Non-null only when <see cref="HostRealEditor"/> is <c>true</c> AND
+    /// <see cref="Initialize"/> has been called.
+    ///
+    /// <para>
+    /// Used by <see cref="StrideInspectorWindow"/> to wire the full editor UI:
+    /// <c>HostedEditor.RegisterWindows(wm)</c> registers ALL editor panels with the
+    /// <c>WindowManager</c>; <c>HostedEditor.DrawWorld()</c> renders the 2-D map canvas;
+    /// <c>HostedEditor.DrawUI()</c> renders menus + popups outside the window manager.
+    /// Non-headless (i.e. <c>buildEditorUi=true</c> was passed to <see cref="Initialize"/>)
+    /// is a precondition — these are no-ops when the editor is headless.
+    /// </para>
+    /// </summary>
+    public EditorSubsystem? HostedEditor => _editor;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -427,18 +442,32 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// Default = <c>false</c> (today's behavior, byte-identical).
     /// Activated at runtime by setting the <c>STRIDE_HOST_REAL_EDITOR=1</c> environment variable.
     /// </param>
+    /// <param name="buildEditorUi">
+    /// When <c>true</c> (and <paramref name="hostRealEditor"/> is also <c>true</c>), the hosted
+    /// <see cref="Hrot.Editor.EditorSubsystem"/> is initialized with
+    /// <see cref="Hrot.Editor.SubsystemConfig.Headless"/> = <c>false</c>, enabling MapCanvas,
+    /// adapters, layers, and all non-GPU editor UI.  Must be paired with a live GLFW/OpenGL
+    /// context (call after <c>rlImGui.Setup</c>).
+    ///
+    /// <para>
+    /// Default = <c>false</c> so headless tests and CI are byte-identical (editor remains headless).
+    /// Activated at runtime when <c>STRIDE_EDITOR_WINDOW=1</c> is also set — threaded from
+    /// <see cref="StrideHrotGame"/> which reads that flag.
+    /// </para>
+    /// </param>
     public void Initialize(
         IStrideVisualFactory? visualFactory = null,
         IMannequinBlendTreeInstaller? blendTreeInstaller = null,
         IPhysicsBodyService? physicsBodyService = null,
         Hrot.Stride.Core.IDebugDrawSink3D? debugDrawSink = null,
-        bool hostRealEditor = false)
+        bool hostRealEditor = false,
+        bool buildEditorUi = false)
     {
         _hostRealEditor = hostRealEditor;
 
         if (_hostRealEditor)
         {
-            InitializeHosted(visualFactory, blendTreeInstaller, physicsBodyService, debugDrawSink);
+            InitializeHosted(visualFactory, blendTreeInstaller, physicsBodyService, debugDrawSink, buildEditorUi);
             return;
         }
 
@@ -794,7 +823,8 @@ public sealed class EditorStrideSubsystem : IDisposable
         IStrideVisualFactory? visualFactory,
         IMannequinBlendTreeInstaller? blendTreeInstaller,
         IPhysicsBodyService? physicsBodyService,
-        Hrot.Stride.Core.IDebugDrawSink3D? debugDrawSink)
+        Hrot.Stride.Core.IDebugDrawSink3D? debugDrawSink,
+        bool buildEditorUi = false)
     {
         // ── H1. Build deferred crowd and EditorSubsystem ─────────────────
         // Mirror EditorStrideSubsystem.Initialize step 7 + boot-test recipe.
@@ -823,12 +853,16 @@ public sealed class EditorStrideSubsystem : IDisposable
             return ms.ToEditorModuleList();
         };
 
-        // Boot the real EditorSubsystem headlessly.
-        // Headless = true skips all Raylib/ImGui calls.
+        // Boot the real EditorSubsystem.
+        // Headless = !buildEditorUi:
+        //   false  → full non-headless editor (MapCanvas + adapters + layers + all ImGui panels)
+        //             required when the second raylib window is active (STRIDE_EDITOR_WINDOW=1).
+        //   true   → headless (default, keeps CI/tests GL-free).
+        // OwnWindow = false: the host (StrideInspectorWindow) provides the GLFW/OpenGL context.
         // IsActiveMapOwner = () => false matches the boot-test recipe.
         var config = new SubsystemConfig
         {
-            Headless         = true,
+            Headless         = !buildEditorUi,
             OwnWindow        = false,
             Deterministic    = true,
             SubsystemName    = "Editor",

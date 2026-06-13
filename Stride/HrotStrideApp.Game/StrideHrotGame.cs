@@ -573,8 +573,14 @@ public sealed class StrideHrotGame : Game
         // Initialize subsystem with the real physics service + concrete GPU draw sink.
         // Pass hostRealEditor so the subsystem knows whether to boot its own kernel or
         // delegate to the real EditorSubsystem (STRIDE_HOST_REAL_EDITOR=1 path).
+        // Pass buildEditorUi so the hosted EditorSubsystem is initialized non-headless when
+        // the second raylib window is also enabled (STRIDE_EDITOR_WINDOW=1) — this activates
+        // MapCanvas, adapters, layers, and all ImGui panels inside the editor so that
+        // RegisterWindows/DrawWorld/DrawUI work correctly.
+        bool buildEditorUi = hostRealEditor && StrideInspectorWindowConfig.IsEnabled;
         _editorSubsystem.Initialize(visualFactory, blendTreeInstaller, bulletService, debugDrawSink,
-            hostRealEditor: hostRealEditor);
+            hostRealEditor: hostRealEditor,
+            buildEditorUi: buildEditorUi);
 
         // ── 4b. Bake navmesh from arena static colliders (BATCH-18, STR-D19) ─────────
         // Runs after Initialize so the scene+physics are ready. The baked provider

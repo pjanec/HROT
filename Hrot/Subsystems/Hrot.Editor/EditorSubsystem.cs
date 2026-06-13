@@ -567,6 +567,14 @@ namespace Hrot.Editor
         // Non-interface helper kept for backward-compat with tests.
         public MapCamera? GetMapCamera() => _camera;
 
+        /// <summary>
+        /// Returns <c>true</c> when this subsystem was initialized with
+        /// <see cref="SubsystemConfig.Headless"/> = <c>true</c> (no MapCanvas, no ImGui panels).
+        /// Exposed so the Stride integration layer can assert on the headless/non-headless state
+        /// in tests without requiring a GPU context.
+        /// </summary>
+        public bool IsHeadless => _headless;
+
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests

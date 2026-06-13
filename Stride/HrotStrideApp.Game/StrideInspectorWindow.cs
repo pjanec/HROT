@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Presentation.Icons;
+using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial;
@@ -457,12 +459,13 @@ public sealed class StrideInspectorWindow : IDisposable
     private bool _opened;
     private bool _disposed;
 
-    // Cached rows updated each PumpFrame call.
-    private IReadOnlyList<EntityRow> _rows = Array.Empty<EntityRow>();
+    // Icon atlas texture loaded into this window's GL context after InitWindow.
+    // Kept for unload on Close().
+    private Raylib_cs.Texture2D _atlasTexture;
 
-    // Stage-4.1: real-editor UI host (non-null only when HostRealEditor + editor window both active).
-    // Constructed lazily in Open() once the ImGui context is live.
-    private StrideEditorUiHost? _editorUiHost;
+    // WindowManager constructed in Open() once the atlas is loaded.
+    // Non-null from Open() onward.
+    private Fdp.Presentation.WindowManager.WindowManager? _windowManager;
 
     /// <summary>
     /// Constructs the inspector window.  Does NOT open the window yet.
@@ -473,13 +476,13 @@ public sealed class StrideInspectorWindow : IDisposable
     /// Shared selection state (writer: this window; reader: <see cref="EditorStrideSubsystem"/>
     /// for highlight + CenterOnEntityCommand).
     /// </param>
-    /// <param name="width">Window width in pixels (default 700).</param>
-    /// <param name="height">Window height in pixels (default 600).</param>
+    /// <param name="width">Window width in pixels (default 1280).</param>
+    /// <param name="height">Window height in pixels (default 800).</param>
     public StrideInspectorWindow(
         EditorStrideSubsystem subsystem,
         EditorSelectionState  selection,
-        int width  = 700,
-        int height = 600)
+        int width  = 1280,
+        int height = 800)
     {
         _subsystem = subsystem ?? throw new ArgumentNullException(nameof(subsystem));
         _selection = selection ?? throw new ArgumentNullException(nameof(selection));
@@ -488,71 +491,169 @@ public sealed class StrideInspectorWindow : IDisposable
     }
 
     /// <summary>
-    /// Opens the raylib/ImGui window.  Must be called from the same thread that will
-    /// call <see cref="PumpFrame"/>.
+    /// Opens the raylib/ImGui window and wires the full editor UI.
+    /// Must be called from the same thread that will call <see cref="PumpFrame"/>.
     ///
     /// <para>
-    /// Creates a new GLFW/OpenGL window via <c>Raylib.InitWindow</c>.
-    /// Raylib supports multiple windows via GLFW multi-window (each <c>InitWindow</c>
-    /// call creates an independent GLFW context).
+    /// Sequence (mirrors clusterrunner's <c>RaylibPresentationShell.InitWindow</c> +
+    /// <c>SetupImGui</c> + <c>LoadIconAtlas</c>):
+    /// <list type="number">
+    ///   <item><c>Raylib.InitWindow</c> — creates a new GLFW/OpenGL context independent
+    ///     of Stride's Direct3D context.</item>
+    ///   <item><c>rlImGui.Setup</c> — creates the ImGui context bound to this GL context
+    ///     and enables DockingEnable.</item>
+    ///   <item>Icon atlas load — calls <c>EmbeddedAtlasResources.GetSilkAtlasPngBytes()</c>
+    ///     (CPU-only, no GL) then <c>Raylib.LoadTextureFromImage</c> (GPU, MUST run after
+    ///     <c>InitWindow</c> so the GL context is active) and wraps the result in an
+    ///     <c>IconAtlas</c>.</item>
+    ///   <item><c>new WindowManager(atlas)</c> — constructs the window manager.</item>
+    ///   <item><c>editor.RegisterWindows(wm)</c> — registers ALL editor windows into the
+    ///     manager (no-op when the editor is headless; non-headless when
+    ///     <c>buildEditorUi=true</c> was passed to <c>EditorStrideSubsystem.Initialize</c>).</item>
+    /// </list>
     /// </para>
     /// </summary>
     public void Open()
     {
         if (_opened) return;
 
-        // Raylib/GLFW multi-window: InitWindow while another window already exists
-        // works via GLFW's glfwCreateWindow — each call creates an independent OS
-        // window and OpenGL context.  IMPORTANT: call SetWindowFocused/SetTargetFPS
-        // before the first BeginDrawing so the frame budget is not conflated with
-        // Stride's throttler.  We set target FPS to 0 (unlimited) so the raylib
-        // PollEvents/BeginDrawing/EndDrawing calls return immediately — Stride's
-        // internal throttler governs the overall frame rate.
+        // ── 1. Create the GLFW/OpenGL window ─────────────────────────────────
+        // Raylib/GLFW multi-window: each InitWindow call creates an independent OS window
+        // and OpenGL context — separate from Stride's Direct3D context.
+        // SetTargetFPS(0): unlimited — Stride's throttler governs the overall frame rate.
         Raylib_cs.Raylib.SetConfigFlags(
             ConfigFlags.ResizableWindow | ConfigFlags.UnfocusedWindow);
-        Raylib_cs.Raylib.InitWindow(_width, _height, "FDP Inspector — Stride editor_stride");
-        Raylib_cs.Raylib.SetTargetFPS(0); // unlimited — driven by Stride's loop
+        Raylib_cs.Raylib.InitWindow(_width, _height, "Hrot Editor — Stride editor_stride");
+        Raylib_cs.Raylib.SetTargetFPS(0);
 
-        // Initialize ImGui for this window.  rlImGui.Setup creates the ImGui context and
-        // binds it to the current (most-recently-opened) GLFW/OpenGL window.
-        // NOTE: if Stride's rlImGui is already initialized for a different context, this
-        // creates a SECOND ImGui context bound to our OpenGL window — they are independent.
+        // ── 2. Set up ImGui for this window ───────────────────────────────────
+        // rlImGui.Setup creates the ImGui context bound to the current GL window.
+        // Enables DockingEnable so panels dock inside the dockspace (mirrors clusterrunner).
         rlImGui.Setup(true); // dark theme
+        var io = ImGuiNET.ImGui.GetIO();
+        io.ConfigFlags |= ImGuiNET.ImGuiConfigFlags.DockingEnable;
 
-        // Stage-4.1: if hosted mode is active, wire up the real editor's ImGui panels.
-        // HostedEditorLogic is non-null when STRIDE_HOST_REAL_EDITOR=1 and Initialize() has run.
-        if (_subsystem.HostRealEditor && _subsystem.HostedEditorLogic != null)
+        // ── 3. Load the icon atlas into THIS GL context ───────────────────────
+        // EmbeddedAtlasResources.GetSilkAtlasPngBytes() is CPU-only (no GL).
+        // Raylib.LoadTextureFromImage uploads to GPU — MUST be called after InitWindow.
+        // Recipe mirrors RaylibPresentationShell.LoadIconAtlas() (lines ~63-71).
+        byte[] pngBytes = Fdp.Presentation.Icons.EmbeddedAtlasResources.GetSilkAtlasPngBytes();
+        var img = Raylib_cs.Raylib.LoadImageFromMemory(".png", pngBytes);
+        _atlasTexture = Raylib_cs.Raylib.LoadTextureFromImage(img);
+        Raylib_cs.Raylib.UnloadImage(img);
+        var atlas = new Fdp.Presentation.Icons.IconAtlas(
+            (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);
+
+        Log.Info("[StrideInspectorWindow] Icon atlas loaded ({0}x{1}, texId={2}).",
+            _atlasTexture.Width, _atlasTexture.Height, _atlasTexture.Id);
+
+        // ── 4. Build the WindowManager ────────────────────────────────────────
+        _windowManager = new Fdp.Presentation.WindowManager.WindowManager(atlas);
+
+        // ── 5. Register all editor windows ───────────────────────────────────
+        // HostedEditor is non-null when STRIDE_HOST_REAL_EDITOR=1.
+        // RegisterWindows is a no-op when the editor is headless (Headless=true).
+        // When buildEditorUi=true was passed to EditorStrideSubsystem.Initialize,
+        // the editor is non-headless and RegisterWindows registers ALL panels
+        // (map canvas adapters, layers, AI editor, blueprints, orbat, spawner, …).
+        if (_subsystem.HostedEditor != null)
         {
-            _editorUiHost = new StrideEditorUiHost(_subsystem.HostedEditorLogic);
-            Log.Info("[StrideInspectorWindow] StrideEditorUiHost wired — editor panels active.");
+            _subsystem.HostedEditor.RegisterWindows(_windowManager);
+            Log.Info("[StrideInspectorWindow] editor.RegisterWindows(wm) — full editor UI wired.");
+        }
+        else
+        {
+            Log.Info("[StrideInspectorWindow] No hosted editor (STRIDE_HOST_REAL_EDITOR not set) — " +
+                     "WindowManager is empty; window shows black canvas only.");
         }
 
         _opened = true;
-        Log.Info("[StrideInspectorWindow] Raylib/ImGui inspector window opened ({0}x{1}).", _width, _height);
+        Log.Info("[StrideInspectorWindow] Window opened ({0}x{1}).", _width, _height);
     }
 
     /// <summary>
-    /// Pumps one frame of the inspector window.
+    /// Pumps one frame of the editor window.
     /// Must be called from the same thread as <see cref="Open"/>.
     ///
     /// <para>
-    /// If the window has been closed by the user (X button), this call is a no-op;
-    /// <see cref="IsOpen"/> returns <c>false</c> and the caller can stop calling.
+    /// Canonical per-frame sequence (mirrors clusterrunner Program.cs ~281-332):
+    /// <list type="number">
+    ///   <item><c>BeginDrawing</c> / <c>ClearBackground</c></item>
+    ///   <item><c>editor.DrawWorld()</c> — 2-D map canvas (skipped when headless)</item>
+    ///   <item><c>rlImGui.Begin()</c></item>
+    ///   <item>Dockspace setup (GetMainViewport → SetNextWindow* → PushStyle* → Begin/DockSpace/End → pop)</item>
+    ///   <item><c>wm.Render()</c> — all registered editor windows</item>
+    ///   <item><c>editor.DrawUI()</c> — menus, popups, hotkey dispatch</item>
+    ///   <item><c>rlImGui.End()</c></item>
+    ///   <item><c>EndDrawing</c></item>
+    /// </list>
+    /// When no editor is hosted, steps 2 and 5-6 are no-ops so the window shows
+    /// a black canvas (same as clusterrunner in headless / no-windows mode).
     /// </para>
     /// </summary>
     public void PumpFrame()
     {
         if (!_opened || _disposed) return;
-        if (Raylib_cs.Raylib.WindowShouldClose()) return; // user closed, skip gracefully
+        if (Raylib_cs.Raylib.WindowShouldClose()) return;
 
-        // Rebuild entity list from the live world each frame.
-        _rows = StrideInspectorViewModel.BuildEntityList(_subsystem.World);
+        var editor = _subsystem.HostedEditor;
+        var wm     = _windowManager;
 
         Raylib_cs.Raylib.BeginDrawing();
-        Raylib_cs.Raylib.ClearBackground(new Color(30, 30, 30, 255));
+        Raylib_cs.Raylib.ClearBackground(Raylib_cs.Color.Black);
+
+        // ── DrawWorld: 2-D map canvas (no-op when editor is null or headless) ──
+        editor?.DrawWorld();
 
         rlImGui.Begin();
-        DrawInspectorUi();
+
+        // ── Dockspace (mirrors clusterrunner Program.cs §4.1.2) ──────────────
+        // Fills the entire viewport work area with a transparent passthrough dockspace
+        // so all WindowManager-registered panels can be docked freely.
+        var viewport      = ImGuiNET.ImGui.GetMainViewport();
+        float toolbarH    = 0f;   // toolbar is inside the main menu bar (BATCH-25 convention)
+        float statusBarH  = wm?.StatusBar?.Height ?? 0f;
+
+        ImGuiNET.ImGui.SetNextWindowPos(
+            Fdp.Presentation.WindowManager.DockspaceLayout.CentralPos(viewport.WorkPos, toolbarH));
+        ImGuiNET.ImGui.SetNextWindowSize(
+            Fdp.Presentation.WindowManager.DockspaceLayout.CentralSize(
+                viewport.WorkSize.X, viewport.WorkSize.Y, toolbarH, statusBarH));
+        ImGuiNET.ImGui.SetNextWindowViewport(viewport.ID);
+
+        ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowRounding, 0f);
+        ImGuiNET.ImGui.PushStyleVar(ImGuiNET.ImGuiStyleVar.WindowBorderSize, 0f);
+        ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.WindowBg, System.Numerics.Vector4.Zero);
+
+        var dockFlags =
+            ImGuiNET.ImGuiWindowFlags.NoDocking       |
+            ImGuiNET.ImGuiWindowFlags.NoTitleBar       |
+            ImGuiNET.ImGuiWindowFlags.NoCollapse       |
+            ImGuiNET.ImGuiWindowFlags.NoResize         |
+            ImGuiNET.ImGuiWindowFlags.NoMove           |
+            ImGuiNET.ImGuiWindowFlags.NoBringToFrontOnFocus |
+            ImGuiNET.ImGuiWindowFlags.NoNavFocus       |
+            ImGuiNET.ImGuiWindowFlags.NoBackground;
+
+        ImGuiNET.ImGui.Begin("##DockSpace", dockFlags);
+        ImGuiNET.ImGui.PopStyleColor();
+        ImGuiNET.ImGui.PopStyleVar(2);
+
+        ImGuiNET.ImGui.DockSpace(
+            ImGuiNET.ImGui.GetID("MainDockSpace"),
+            Fdp.Presentation.WindowManager.DockspaceLayout.CentralSize(
+                viewport.WorkSize.X, viewport.WorkSize.Y, toolbarH, statusBarH),
+            ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+
+        ImGuiNET.ImGui.End();
+        // ─────────────────────────────────────────────────────────────────────
+
+        // ── WindowManager.Render(): all registered editor panels ─────────────
+        wm?.Render();
+
+        // ── editor.DrawUI(): menus, popups, hotkey dispatch ───────────────────
+        editor?.DrawUI();
+
         rlImGui.End();
 
         Raylib_cs.Raylib.EndDrawing();
@@ -562,134 +663,6 @@ public sealed class StrideInspectorWindow : IDisposable
     public bool IsOpen =>
         _opened && !_disposed && !Raylib_cs.Raylib.WindowShouldClose();
 
-    /// <summary>
-    /// Draws the inspector window UI.
-    ///
-    /// <para>
-    /// Layout when hosted mode is active (<c>STRIDE_HOST_REAL_EDITOR=1</c>
-    /// + <c>STRIDE_EDITOR_WINDOW=1</c>):
-    /// <list type="bullet">
-    ///   <item><b>Left column (45%)</b> — simple entity list (unchanged).</item>
-    ///   <item><b>Right column (55%)</b> — split vertically:
-    ///     <list type="bullet">
-    ///       <item>Top section: real editor panels (<see cref="StrideEditorUiHost"/>
-    ///         — toolbar + orbat, Stage-4.1).</item>
-    ///       <item>Bottom section: existing simple component inspector (unchanged,
-    ///         collapsible header).</item>
-    ///     </list>
-    ///   </item>
-    /// </list>
-    /// When hosted mode is off, layout is identical to the pre-4.1 behaviour.
-    /// </para>
-    /// </summary>
-    private void DrawInspectorUi()
-    {
-        // Full-window dockspace so panels fill the window.
-        var viewport = ImGui.GetMainViewport();
-        ImGui.SetNextWindowPos(viewport.Pos);
-        ImGui.SetNextWindowSize(viewport.Size);
-        ImGui.SetNextWindowViewport(viewport.ID);
-
-        var windowFlags =
-            ImGuiWindowFlags.NoTitleBar    |
-            ImGuiWindowFlags.NoCollapse    |
-            ImGuiWindowFlags.NoResize      |
-            ImGuiWindowFlags.NoMove        |
-            ImGuiWindowFlags.NoBringToFrontOnFocus |
-            ImGuiWindowFlags.NoNavFocus;
-
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
-        ImGui.Begin("##root", windowFlags);
-        ImGui.PopStyleVar();
-
-        // Two columns: left = entity list, right = inspector (+ editor panels when hosted).
-        float listWidth = _width * 0.45f;
-
-        // ── LEFT: entity list ──────────────────────────────────────────────
-        ImGui.BeginChild("##entity_list", new Vector2(listWidth, 0), ImGuiChildFlags.Borders);
-        ImGui.TextColored(new Vector4(0.4f, 0.8f, 1f, 1f), $"Entities ({_rows.Count})");
-        ImGui.Separator();
-
-        foreach (var row in _rows)
-        {
-            bool selected = _selection.SelectedEntity == row.Entity;
-            string label = $"{row.DisplayName}  ({row.Position.X:F1},{row.Position.Y:F1},{row.Position.Z:F1})";
-
-            if (ImGui.Selectable(label + $"##{row.NetworkId}", selected))
-                _selection.Select(row.Entity);
-        }
-
-        if (_rows.Count == 0)
-        {
-            ImGui.TextDisabled("(no entities)");
-        }
-
-        ImGui.EndChild();
-
-        // ── RIGHT: editor panels (hosted mode) + simple inspector ──────────
-        ImGui.SameLine();
-        ImGui.BeginChild("##right_pane", Vector2.Zero, ImGuiChildFlags.None);
-
-        // Stage-4.1: real editor toolbar + orbat panels (only when hosted mode active).
-        if (_editorUiHost != null)
-        {
-            _editorUiHost.DrawEditorPanels();
-            ImGui.Spacing();
-            ImGui.Separator();
-            ImGui.Spacing();
-        }
-
-        // Simple component inspector (always present; collapsible when editor panels shown).
-        bool showSimpleInspector = _editorUiHost == null ||
-            ImGui.CollapsingHeader("Simple Inspector##stride_inspector");
-
-        if (showSimpleInspector)
-        {
-            DrawSimpleInspector();
-        }
-
-        ImGui.EndChild();
-        ImGui.End();
-    }
-
-    /// <summary>
-    /// The original simple component inspector panel (entity fields read from
-    /// <see cref="StrideInspectorViewModel"/>).  Extracted so it can be shown
-    /// standalone (no hosted mode) or as a collapsible section below the editor panels.
-    /// </summary>
-    private void DrawSimpleInspector()
-    {
-        ImGui.BeginChild("##inspector", Vector2.Zero, ImGuiChildFlags.Borders);
-
-        var inspector = StrideInspectorViewModel.BuildInspector(_subsystem.World, _selection.SelectedEntity);
-        ImGui.TextColored(new Vector4(1f, 0.85f, 0.4f, 1f), inspector.Title);
-
-        // "Center" button — sets the CenterRequested flag; StrideHrotGame reads it.
-        if (_selection.HasSelection)
-        {
-            ImGui.SameLine();
-            if (ImGui.Button("Center [C]"))
-                _selection.RequestCenter();
-        }
-
-        ImGui.Separator();
-
-        foreach (var field in inspector.Fields)
-        {
-            ImGui.TextUnformatted(field.Name);
-            ImGui.SameLine();
-            ImGui.SetCursorPosX(220f);
-            ImGui.TextColored(new Vector4(0.9f, 0.9f, 0.9f, 1f), field.Value);
-        }
-
-        if (inspector.Fields.Count == 0 && inspector.Title == "(no selection)")
-        {
-            ImGui.TextDisabled("Select an entity from the list.");
-        }
-
-        ImGui.EndChild();
-    }
-
     /// <summary>Closes and disposes the raylib/ImGui window.</summary>
     public void Close()
     {
@@ -697,6 +670,8 @@ public sealed class StrideInspectorWindow : IDisposable
         _disposed = true;
 
         rlImGui.Shutdown();
+        if (_atlasTexture.Id != 0)
+            Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
         Raylib_cs.Raylib.CloseWindow();
 
         Log.Info("[StrideInspectorWindow] Closed.");
