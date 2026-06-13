@@ -335,12 +335,7 @@
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
-      "Waypoints": [
-        {
-          "X": 280,
-          "Y": 170
-        }
-      ],
+      "Waypoints": [],
       "Comment": "Idle → Scanning on Alert, Action bound to StubIdle"
     },
     {
@@ -353,12 +348,7 @@
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
-      "Waypoints": [
-        {
-          "X": 530,
-          "Y": 250
-        }
-      ],
+      "Waypoints": [],
       "Comment": "Scanning → AlertState on second Alert"
     },
     {
@@ -371,12 +361,7 @@
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
-      "Waypoints": [
-        {
-          "X": 280,
-          "Y": 360
-        }
-      ],
+      "Waypoints": [],
       "Comment": "AlertState → HistoryPseudo on Resolved"
     }
   ],
