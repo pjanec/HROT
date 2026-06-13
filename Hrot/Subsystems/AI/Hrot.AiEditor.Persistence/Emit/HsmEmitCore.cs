@@ -264,14 +264,63 @@ public static class HsmEmitCore
         if (userTopLevel.Count > 0)
         {
             sb.AppendLine();
-            // Pass 1: emit all state variable declarations + config chains + nested children.
-            // Transitions are collected and emitted in Pass 2 to avoid forward-reference errors
-            // in the HsmBuilder when a transition's GoTo target state hasn't been declared yet.
+
+            // VE-DEBT-006: two-pass emission for the WHOLE hierarchy (top-level + nested).
+            // Pass 1 declares every state (vars + config + Child(...) calls) WITHOUT any
+            // transition; Pass 2 emits every transition once all states exist. This makes
+            // forward / cross-hierarchy GoTo targets safe — HsmBuilder.GoTo resolves the
+            // target eagerly, so a transition to a later-declared state would otherwise throw
+            // "Target state not found" and crash the editor at boot (the registrar runs Compile()).
+            //
+            // Nested transition-bearing states are not visible at method-body scope (they live
+            // behind a Child(...) lambda parameter sbN). So we pre-declare a method-body-scope
+            // StateBuilder variable for each and capture the lambda parameter into it; Pass 2 then
+            // references that variable.
+            var stateVarNames     = new Dictionary<Guid, string>();
+            var usedVarNames      = new HashSet<string>(StringComparer.Ordinal);
+            var nestedCaptureVars = new System.Collections.Generic.List<string>();
+
+            // Allocate builder-variable names. A state needs a variable when:
+            //   - (top-level) it has children or outgoing transitions — declared inline as `var x = builder.State(...)`;
+            //   - (nested)    it has outgoing transitions — pre-declared + captured from inside its Child(...) lambda.
+            void AllocateVars(StateNodeDto state, bool isTopLevel)
+            {
+                var childStates = state.ChildStableIds
+                    .Where(id => stableIdToState.ContainsKey(id))
+                    .Select(id => stableIdToState[id])
+                    .ToList();
+                bool hasOutgoing = dto.Transitions.Any(t => t.SourceStableId == state.StableId);
+                bool needsVar    = isTopLevel ? (childStates.Count > 0 || hasOutgoing) : hasOutgoing;
+
+                if (needsVar)
+                {
+                    string varName = AllocVarName(state.Name, usedVarNames);
+                    stateVarNames[state.StableId] = varName;
+                    if (!isTopLevel)
+                        nestedCaptureVars.Add(varName);
+                }
+
+                foreach (var child in childStates)
+                    AllocateVars(child, isTopLevel: false);
+            }
+
+            foreach (var topState in userTopLevel)
+                AllocateVars(topState, isTopLevel: true);
+
+            // Pre-declare nested capture variables at method-body scope (assigned inside Child lambdas).
+            foreach (var v in nestedCaptureVars)
+                sb.AppendLine($"{pad}StateBuilder {v} = null!;");
+            if (nestedCaptureVars.Count > 0)
+                sb.AppendLine();
+
+            // Pass 1: declarations only (no transitions).
             var pendingTransitions = new System.Collections.Generic.List<(string VarName, TransitionNodeDto T)>();
             foreach (var topState in userTopLevel)
-                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions);
+                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames);
 
             // Pass 2: emit transitions after all states are declared (avoids GoTo forward-ref error).
+            // Each state's own transitions are appended consecutively in document order, so the
+            // per-state TransitionNode order (and thus the compiled blob) is unchanged.
             foreach (var (varName, t) in pendingTransitions)
                 EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap);
         }
@@ -304,47 +353,11 @@ public static class HsmEmitCore
         sb.AppendLine($"{Indent}}}");
     }
 
-    private static void EmitTopLevelState(
-        StringBuilder sb, HsmAssetDto dto,
-        StateNodeDto state,
-        Dictionary<Guid, StateNodeDto> stableIdToState,
-        string pad,
-        Dictionary<string, ushort> eventIdMap)
-    {
-        var outgoing = dto.Transitions
-            .Where(t => t.SourceStableId == state.StableId)
-            .ToList();
-
-        var children = state.ChildStableIds
-            .Where(id => stableIdToState.ContainsKey(id))
-            .Select(id => stableIdToState[id])
-            .ToList();
-
-        bool needsVar = children.Count > 0 || outgoing.Count > 0;
-        string varName = MakeVarName(state.Name);
-
-        string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
-        var config   = BuildStateConfig(state, eventIdMap);
-
-        if (needsVar)
-            sb.Append($"{pad}var {varName} = {decl}");
-        else
-            sb.Append($"{pad}{decl}");
-
-        EmitConfigChain(sb, config, pad + "    ");
-        sb.AppendLine(";");
-
-        foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName, pad, depth: 2, eventIdMap);
-
-        foreach (var t in outgoing)
-            EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap);
-    }
-
     /// <summary>
-    /// Pass 1 of the two-pass state emission (PU-203 compilable output):
+    /// Pass 1 of the two-pass state emission (VE-DEBT-006 compilable + boot-safe output):
     /// emits the state variable declaration + config chain + children, but NOT transitions.
-    /// Transitions are collected in <paramref name="pendingTransitions"/> for Pass 2.
+    /// Transitions (top-level AND nested) are collected in <paramref name="pendingTransitions"/>
+    /// for Pass 2, so every GoTo target is already declared when it is resolved.
     /// </summary>
     private static void EmitTopLevelStateDecl(
         StringBuilder sb, HsmAssetDto dto,
@@ -352,7 +365,8 @@ public static class HsmEmitCore
         Dictionary<Guid, StateNodeDto> stableIdToState,
         string pad,
         Dictionary<string, ushort> eventIdMap,
-        System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions)
+        System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
+        Dictionary<Guid, string> stateVarNames)
     {
         var outgoing = dto.Transitions
             .Where(t => t.SourceStableId == state.StableId)
@@ -363,9 +377,9 @@ public static class HsmEmitCore
             .Select(id => stableIdToState[id])
             .ToList();
 
-        // Always use a var when there are outgoing transitions (so Pass 2 can reference the var).
-        bool needsVar = children.Count > 0 || outgoing.Count > 0;
-        string varName = MakeVarName(state.Name);
+        // A pre-allocated var name exists iff this state has children or outgoing transitions.
+        stateVarNames.TryGetValue(state.StableId, out var varName);
+        bool needsVar = varName != null;
 
         string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
         var config   = BuildStateConfig(state, eventIdMap);
@@ -379,11 +393,11 @@ public static class HsmEmitCore
         sb.AppendLine(";");
 
         foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName, pad, depth: 2, eventIdMap);
+            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames);
 
         // Collect transitions for Pass 2 (not emitted here to avoid forward-ref errors).
         foreach (var t in outgoing)
-            pendingTransitions.Add((varName, t));
+            pendingTransitions.Add((varName!, t));
     }
 
     private static void EmitChildCall(
@@ -391,7 +405,9 @@ public static class HsmEmitCore
         StateNodeDto child,
         Dictionary<Guid, StateNodeDto> stableIdToState,
         string parentVar, string pad, int depth,
-        Dictionary<string, ushort> eventIdMap)
+        Dictionary<string, ushort> eventIdMap,
+        System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
+        Dictionary<Guid, string> stateVarNames)
     {
         string stableGuid  = QuoteStr(child.StableId.ToString("D"));
         string lambdaParam = $"sb{depth}";
@@ -407,7 +423,12 @@ public static class HsmEmitCore
             .Where(t => t.SourceStableId == child.StableId)
             .ToList();
 
-        bool hasBody = config.Count > 0 || children.Count > 0 || outgoing.Count > 0;
+        // A nested state gets a capture variable iff it has outgoing transitions (allocated
+        // by AllocateVars). Capturing the lambda parameter into it lets Pass 2 attach the
+        // transitions at method-body scope after every state is declared.
+        bool hasCaptureVar = stateVarNames.TryGetValue(child.StableId, out var captureVar);
+
+        bool hasBody = config.Count > 0 || children.Count > 0 || hasCaptureVar;
 
         if (!hasBody)
         {
@@ -418,6 +439,10 @@ public static class HsmEmitCore
             sb.AppendLine($"{pad}{parentVar}.Child({QuoteStr(child.Name)}, {lambdaParam} =>");
             sb.AppendLine($"{pad}{{");
 
+            // Capture this child's builder so Pass 2 can attach its outgoing transitions.
+            if (hasCaptureVar)
+                sb.AppendLine($"{innerPad}{captureVar} = {lambdaParam};");
+
             if (config.Count > 0)
             {
                 sb.Append($"{innerPad}{lambdaParam}");
@@ -427,13 +452,16 @@ public static class HsmEmitCore
             }
 
             foreach (var grandchild in children)
-                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap);
+                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames);
 
-            foreach (var t in outgoing)
-                EmitTransitionCall(sb, stableIdToState, lambdaParam, t, innerPad, eventIdMap);
+            // Transitions are deferred to Pass 2 (referenced via captureVar) — no inline GoTo here.
 
             sb.AppendLine($"{pad}}}, stableId: new Guid({stableGuid}));");
         }
+
+        // Collect this child's outgoing transitions for Pass 2 (captureVar is non-null when outgoing exists).
+        foreach (var t in outgoing)
+            pendingTransitions.Add((captureVar!, t));
     }
 
     private static void EmitTransitionCall(
@@ -556,6 +584,22 @@ public static class HsmEmitCore
 
     private static string FormatFloat(float f) =>
         f.ToString("R", CultureInfo.InvariantCulture) + "f";
+
+    /// <summary>
+    /// Returns a unique camelCase builder-variable name for <paramref name="stateName"/>,
+    /// suffixing with a counter on collision. Returns <see cref="MakeVarName"/> verbatim when
+    /// the name is unused, so non-colliding output is byte-identical to the prior emitter.
+    /// </summary>
+    private static string AllocVarName(string stateName, HashSet<string> used)
+    {
+        string baseName = MakeVarName(stateName);
+        string name = baseName;
+        int n = 2;
+        while (used.Contains(name))
+            name = baseName + n++.ToString(CultureInfo.InvariantCulture);
+        used.Add(name);
+        return name;
+    }
 
     private static string MakeVarName(string stateName)
     {
