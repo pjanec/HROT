@@ -587,6 +587,21 @@ namespace Hrot.Editor
         /// </summary>
         public Func<MuscleModuleContext, IReadOnlyList<IEcsModule>>? MuscleModuleFactory { get; set; }
 
+        /// <summary>
+        /// Optional hook invoked immediately before the kernel tick inside <see cref="Update"/>.
+        /// Intended for a host (e.g. the Stride app) to run a physics bracket around the sim —
+        /// e.g. reverse-sync Bullet→ECS before the kernel advances. Receives the same
+        /// <c>deltaTime</c> value passed to <see cref="Update"/>. <c>null</c> by default (no-op).
+        /// </summary>
+        public Action<float>? PreKernelUpdateHook { get; set; }
+
+        /// <summary>
+        /// Optional hook invoked immediately after the kernel tick inside <see cref="Update"/>.
+        /// Intended for a host (e.g. the Stride app) to run a physics bracket around the sim —
+        /// e.g. forward-sync ECS→Bullet after the kernel advances. <c>null</c> by default (no-op).
+        /// </summary>
+        public Action? PostKernelUpdateHook { get; set; }
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
@@ -1629,7 +1644,9 @@ namespace Hrot.Editor
             _gizmoBuffer?.EndFrame(deltaTime);
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
+            PreKernelUpdateHook?.Invoke(deltaTime);
             _kernel?.Update();
+            PostKernelUpdateHook?.Invoke();
 
             // Drain AI hot-reload callbacks safely on the main thread.
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker
