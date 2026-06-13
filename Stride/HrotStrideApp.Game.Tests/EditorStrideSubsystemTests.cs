@@ -222,3 +222,91 @@ public sealed class EditorStrideSubsystemTests : IDisposable
             _sut.Tick(1f / 60f);
     }
 }
+
+/// <summary>
+/// Headless boot test for <see cref="EditorStrideSubsystem"/> in <b>hosted-editor mode</b>
+/// (<c>hostRealEditor=true</c>, the <c>STRIDE_HOST_REAL_EDITOR=1</c> path).
+///
+/// <para>
+/// Verifies that:
+/// <list type="bullet">
+///   <item>Construction and a few Ticks complete without exception (no GPU required —
+///     physics body service defaults to <see cref="Hrot.Stride.Core.NoOpPhysicsBodyService"/>).</item>
+///   <item><see cref="EditorStrideSubsystem.HostRealEditor"/> returns <c>true</c>.</item>
+///   <item><see cref="EditorStrideSubsystem.World"/>, <c>Kernel</c>, <c>TimeController</c>,
+///     and <c>ScenarioSource</c> are non-null (repointed to the real editor's objects).</item>
+///   <item>Spawning via <see cref="EditorStrideSubsystem.ScenarioSource"/> materialises an
+///     entity in the editor's World after a few Ticks.</item>
+/// </list>
+/// </para>
+///
+/// <para>
+/// The OFF path (<c>hostRealEditor=false</c>) is covered by <see cref="EditorStrideSubsystemTests"/>;
+/// this fixture covers only the ON path delta.
+/// </para>
+/// </summary>
+public sealed class EditorStrideSubsystemHostedModeTests : IDisposable
+{
+    private readonly EditorStrideSubsystem _sut;
+
+    public EditorStrideSubsystemHostedModeTests()
+    {
+        _sut = new EditorStrideSubsystem();
+        // No visualFactory / physicsBodyService — headless, no GPU.
+        _sut.Initialize(hostRealEditor: true);
+    }
+
+    public void Dispose() => _sut.Dispose();
+
+    // ── SI-HM-1: Hosted mode boots headlessly ────────────────────────────
+
+    /// <summary>
+    /// The hosted-mode path (<c>hostRealEditor=true</c>) initialises and ticks 3 frames
+    /// without throwing, in headless/CI mode (no GPU, no Bullet, no Raylib).
+    /// </summary>
+    [Fact]
+    public void HostedMode_Initialize_AndTickThreeFrames_DoesNotThrow()
+    {
+        Assert.True(_sut.HostRealEditor, "HostRealEditor must be true when hostRealEditor=true was passed.");
+        Assert.NotNull(_sut.World);
+        Assert.NotNull(_sut.Kernel);
+        Assert.NotNull(_sut.TimeController);
+        Assert.NotNull(_sut.ScenarioSource);
+
+        // Three ticks must complete without exception.
+        _sut.Tick(1f / 60f);
+        _sut.Tick(1f / 60f);
+        _sut.Tick(1f / 60f);
+    }
+
+    // ── SI-HM-2: Spawn via ScenarioSource in hosted mode ─────────────────
+
+    /// <summary>
+    /// Spawning an entity via <see cref="EditorStrideSubsystem.ScenarioSource"/> in hosted mode
+    /// routes through the real <c>EditorSubsystem</c>'s spawn pipeline and materialises the
+    /// entity in the shared <see cref="EditorStrideSubsystem.World"/> after a few ticks.
+    /// </summary>
+    [Fact]
+    public void HostedMode_BrainPathSpawn_MaterialisesEntity_InSharedWorld()
+    {
+        // Enqueue a spawn via the (repointed) ScenarioSource.
+        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            OwnerAppInstanceId = 0,
+            TkbType            = 2002L,  // InfantrySoldier (UrbanCombat templates)
+            InitialComponents  = new System.Collections.Generic.List<object>
+            {
+                new SimTransform { Position = System.Numerics.Vector3.Zero },
+            },
+        });
+
+        // Drive 5 frames to let the spawn pipeline materialise the entity.
+        for (int i = 0; i < 5; i++)
+            _sut.Tick(1f / 60f);
+
+        // The entity must appear in World (= the real editor's World).
+        Assert.True(_sut.World.EntityCount > 0,
+            "Hosted mode: entity spawned via ScenarioSource must appear in World after 5 ticks.");
+    }
+}

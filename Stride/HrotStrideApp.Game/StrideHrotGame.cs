@@ -519,6 +519,18 @@ public sealed class StrideHrotGame : Game
         //   SceneSystem.SceneInstance.GetProcessor<PhysicsProcessor>() returns the live
         //   PhysicsProcessor. From it, .Simulation is the Bullet Simulation instance.
         //   The MainScene's 144 static colliders guarantee PhysicsProcessor is present in BeginRun.
+        // ── 4a. Flag-gated hosted-editor mode (STRIDE_HOST_REAL_EDITOR=1) ─────────
+        // When the env var is set, EditorStrideSubsystem boots the real EditorSubsystem
+        // headlessly and reuses its World/Kernel/TimeController. Default = OFF (today's path).
+        bool hostRealEditor = string.Equals(
+            System.Environment.GetEnvironmentVariable("STRIDE_HOST_REAL_EDITOR"),
+            "1",
+            StringComparison.Ordinal);
+        if (hostRealEditor)
+            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR=1 — hosted-editor mode ENABLED.");
+        else
+            Log.Info("[StrideHrotGame] STRIDE_HOST_REAL_EDITOR not set — self-contained kernel mode (default).");
+
         var visualFactory      = new StrideVisualFactory(this, scene);
         var blendTreeInstaller = new StrideMannequinBlendTreeInstaller(Content);
         _editorSubsystem       = new EditorStrideSubsystem();
@@ -559,7 +571,10 @@ public sealed class StrideHrotGame : Game
         Log.Info("[StrideHrotGame] PooledEntityDebugDrawSink3D created (STR-D16 resolved).");
 
         // Initialize subsystem with the real physics service + concrete GPU draw sink.
-        _editorSubsystem.Initialize(visualFactory, blendTreeInstaller, bulletService, debugDrawSink);
+        // Pass hostRealEditor so the subsystem knows whether to boot its own kernel or
+        // delegate to the real EditorSubsystem (STRIDE_HOST_REAL_EDITOR=1 path).
+        _editorSubsystem.Initialize(visualFactory, blendTreeInstaller, bulletService, debugDrawSink,
+            hostRealEditor: hostRealEditor);
 
         // ── 4b. Bake navmesh from arena static colliders (BATCH-18, STR-D19) ─────────
         // Runs after Initialize so the scene+physics are ready. The baked provider
