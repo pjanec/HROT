@@ -10,7 +10,6 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Navigation;
-using Fdp.Toolkit.Navigation.Systems;
 using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
 using Hrot.CGF.Systems;
@@ -33,7 +32,6 @@ using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Systems;
-using Hrot.SimHost.Systems.Routing;
 using Hrot.Stride.Animation;
 using Hrot.Stride.Core;
 using Hrot.MuscleCharacter.Animation.Descriptors;
@@ -202,9 +200,9 @@ public sealed class EditorStrideSubsystem : IDisposable
 
     /// <summary>
     /// The physics body lifecycle system (creates/destroys bodies on authority change).
-    /// Exposed for test inspection.
+    /// Exposed for test inspection. Delegates to <see cref="StridePhysicsBracket"/>.
     /// </summary>
-    public PhysicsBodyLifecycleSystem? PhysicsBodyLifecycle { get; private set; }
+    public PhysicsBodyLifecycleSystem? PhysicsBodyLifecycle => _physicsBracket?.PhysicsBodyLifecycle;
 
     // ── Reverse-sync (P1, STR-P1-T5) ─────────────────────────────────────
 
@@ -218,14 +216,15 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// </para>
     ///
     /// <para>
-    /// The group is driven <b>manually</b> in <see cref="Tick"/> — it is NOT registered
+    /// The group is driven <b>manually</b> in <see cref="Tick"/> via
+    /// <see cref="StridePhysicsBracket.RunPreKernelStep"/> — it is NOT registered
     /// as a kernel system. This ensures it executes <b>before</b>
     /// <see cref="ModuleHostKernel.Update()"/> so FDP Simulation-phase consumers
     /// (SpatialHashSystem, vision broadphase, EQS) read the post-physics
     /// <see cref="SimTransform"/> the same frame (no one-frame lag). See design §8.3.
     /// </para>
     /// </summary>
-    public Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup? ReverseSyncGroup { get; private set; }
+    public Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup? ReverseSyncGroup => _physicsBracket?.ReverseSyncGroup;
 
     // ── Record / replay (P5, STR-P5-T4, STR-D5) ──────────────────────────
 
@@ -308,9 +307,9 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// <summary>
     /// The split-authority sync script (Pass A: visual existence; Pass B: non-owned
     /// forward-sync). Replaces the P0 flat forward-sync.
-    /// Exposed for test inspection.
+    /// Exposed for test inspection. Delegates to <see cref="StridePhysicsBracket"/>.
     /// </summary>
-    public SplitAuthorityStrideSyncScript? SplitSync { get; private set; }
+    public SplitAuthorityStrideSyncScript? SplitSync => _physicsBracket?.SplitSync;
 
     // ── Animation backend + bridge (P4, STR-P4-T3/T4) ────────────────────
 
@@ -351,13 +350,9 @@ public sealed class EditorStrideSubsystem : IDisposable
     // Stored so it can be disposed with the subsystem.
     private IDisposable? _debugDrawSinkDisposable;
 
-    // True only when a REAL (non-NoOp) physics service was injected via Initialize().
-    // When false, PhysicsBodyLifecycle.Execute is not called so phantom NoOp bodies
-    // are never created and BulletReverseSyncSystem cannot clobber SimVelocity.
-    private bool _physicsIsActive;
+    // Reusable physics bracket (encapsulates host-driven pre/post-kernel muscle steps).
+    private StridePhysicsBracket _physicsBracket = null!;
 
-    private BulletCharacterMotor?   _characterMotor;
-    private KinematicVehicleMotor?  _vehicleMotor;
     private VehicleNavigationIntentSystem? _vehicleNavIntentSystem;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -496,21 +491,11 @@ public sealed class EditorStrideSubsystem : IDisposable
         // Brain (CGF) — direct system registration mirroring EditorHarness pattern.
         var cgfPack = new CgfLogicPack(behaviorRegistry, EntityMap, ScenarioSource, mapperRegistry);
 
-        // ── P1 (STR-P1-T1): StrideKinematicsModule replaces SimHostCoreLogicPack's GroundKinematicsModule role.
-        //   StrideKinematicsModule registers SpatialHash/FormationTarget/VehicleCommand/
-        //   NavigationExecution/CrowdAgentUpdate (Simulation phase) and DeadReckoningSyncSystem
-        //   with DriveFromNetwork=false (PostSimulation phase).
-        //   CarKinematicsSystem and LinearKinematicsSystem are intentionally absent — Bullet
-        //   physics (wired in T2–T5) drives movement.  Combat/damage/nav-bridge systems are
-        //   registered individually below to preserve their behaviour.
-        //
-        // Recomposition rationale (vs reusing SimHostCoreLogicPack):
-        //   SimHostCoreLogicPack bundles GroundKinematicsModule which includes the two FDP
-        //   integrators.  We cannot suppress just those systems without forking the class.
-        //   The cleanest approach is to register combat/nav-bridge systems individually and
-        //   substitute StrideKinematicsModule for GroundKinematicsModule.  This mirrors the
-        //   SimHostCoreLogicPack composition exactly (same phase ordering) minus the two
-        //   integrators.  See design §5.1–§5.2.
+        // ── P1 (STR-P1-T1) + BATCH refactor: build the reusable kernel-resident muscle module
+        //   set via StrideMuscleModules.Build().  This creates the same instances as before
+        //   (StrideKinematicsModule, CombatModule, DamageAssessmentModule, nav-bridge systems,
+        //   VehicleNavigationIntentSystem, PersonalRouteAuthoringSystem) without inlining
+        //   their construction here.
         //
         // BATCH-19 (STR-D19 discharge): use a deferred DotRecastDtCrowdProvider instead of
         // FakeDtCrowdProvider.  The provider starts in "no-op" mode and is initialized with
@@ -518,16 +503,12 @@ public sealed class EditorStrideSubsystem : IDisposable
         // geometry is available).  Until TryInitializeNavMesh is called, RegisterAgent / Update
         // return silently — no crash, same behaviour as the old fake.
         // Infantry max-agent-radius: 0.4 m (slightly > 0.3 m agent radius for grid margin).
-        var deferredCrowd    = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
+        var deferredCrowd = new DotRecastDtCrowdProvider(maxAgentRadius: 0.4f);
         InfantryCrowdProvider = deferredCrowd;
-        var strideKinematics = new StrideKinematicsModule(dtCrowd: deferredCrowd);
-        KinematicsModule = strideKinematics;
-        var combatModule     = new CombatModule();
-        var damageModule     = new DamageAssessmentModule();
-        // Pass the crowd provider to the bridge so it registers infantry entities on MoveTo.
-        var navIntentBridge  = new NavigationIntentBridgeSystem(strideKinematics.TrajectoryPool, deferredCrowd);
-        var routeTrajSync    = new RouteTrajectorySyncSystem(strideKinematics.TrajectoryPool);
-        var personalRoute    = new PersonalRouteAuthoringSystem();
+
+        var muscleSet = StrideMuscleModules.Build(deferredCrowd);
+        KinematicsModule        = muscleSet.StrideKinematics;
+        _vehicleNavIntentSystem = muscleSet.VehicleNavIntent;
 
         // Register modules and systems on the kernel.
         // Simulation-phase systems MUST go through an IEcsModule (kernel restriction).
@@ -542,25 +523,14 @@ public sealed class EditorStrideSubsystem : IDisposable
 
         // Build the combined Simulation-phase system list:
         //   DamageAssessmentModule + nav-bridge + StrideKinematicsModule (no integrators)
-        //   + UnitHierarchySystem + EqsResultUpdateSystem.
-        // This mirrors SimHostCoreLogicPack.SimulationSystems with GroundKinematicsModule
-        // replaced by StrideKinematicsModule.
+        //   + VehicleNavigationIntentSystem + UnitHierarchySystem + EqsResultUpdateSystem.
+        // This mirrors the original composition exactly (same system instances, same order).
         var simSystems = new System.Collections.Generic.List<IEcsModuleSystem>();
-        foreach (var s in damageModule.SimulationSystems) simSystems.Add(s);
-        simSystems.Add(navIntentBridge);
-        simSystems.Add(routeTrajSync);
-        foreach (var s in strideKinematics.SimulationSystems) simSystems.Add(s);
-
-        // VehicleNavigationIntentSystem (BATCH-20, STR-D19): production navmesh navigation for
-        // VEHICLE entities driven by NavigationIntent (the crowd bridge excludes vehicles).
-        // Registered AFTER strideKinematics.SimulationSystems (which contains NavigationExecutionSystem
-        // + CrowdAgentUpdateSystem) and BEFORE the physics step / KinematicVehicleMotor (which runs
-        // pre-physics in Tick), so the VehicleState it writes is consumed the same frame. Reads the
-        // INavmeshProvider singleton each tick (registered by StrideHrotGame.BakeNavmesh); no-op when
-        // absent. Exposed for the F7 harness case.
-        _vehicleNavIntentSystem = new VehicleNavigationIntentSystem();
-        simSystems.Add(_vehicleNavIntentSystem);
-
+        foreach (var s in muscleSet.Damage.SimulationSystems) simSystems.Add(s);
+        simSystems.Add(muscleSet.NavIntentBridge);
+        simSystems.Add(muscleSet.RouteTrajSync);
+        foreach (var s in muscleSet.StrideKinematics.SimulationSystems) simSystems.Add(s);
+        simSystems.Add(muscleSet.VehicleNavIntent);
         simSystems.Add(new UnitHierarchySystem());
         simSystems.Add(new EqsResultUpdateSystem());
 
@@ -569,13 +539,13 @@ public sealed class EditorStrideSubsystem : IDisposable
             simSystems));
 
         // Muscle input systems (combat input)
-        foreach (var sys in combatModule.InputSystems)  Kernel.RegisterGlobalSystem(sys);
-        Kernel.RegisterGlobalSystem(personalRoute);
+        foreach (var sys in muscleSet.Combat.InputSystems)  Kernel.RegisterGlobalSystem(sys);
+        Kernel.RegisterGlobalSystem(muscleSet.PersonalRoute);
 
         // Muscle post-sim systems: combat post-sim + StrideKinematicsModule post-sim
         // (DeadReckoningSyncSystem with DriveFromNetwork=false).
-        foreach (var sys in combatModule.PostSimulationSystems)       Kernel.RegisterGlobalSystem(sys);
-        foreach (var sys in strideKinematics.PostSimulationSystems)   Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in muscleSet.Combat.PostSimulationSystems)                  Kernel.RegisterGlobalSystem(sys);
+        foreach (var sys in muscleSet.StrideKinematics.PostSimulationSystems)        Kernel.RegisterGlobalSystem(sys);
 
         Kernel.Initialize();
 
@@ -601,68 +571,73 @@ public sealed class EditorStrideSubsystem : IDisposable
         // The real service is passed from StrideHrotGame.BootEditorSubsystem after BeginRun
         // where PhysicsProcessor is guaranteed to be initialised (STR-D11).
         PhysicsBodyService = physicsBodyService ?? new NoOpPhysicsBodyService();
-        // _physicsIsActive is true ONLY when a real (non-NoOp) service was supplied.
-        // When false, Tick will not call PhysicsBodyLifecycle.Execute — no phantom
-        // NoOp bodies are created and BulletReverseSyncSystem cannot clobber SimVelocity.
-        _physicsIsActive = physicsBodyService != null;
+        // physicsIsActive is true ONLY when a real (non-NoOp) service was supplied.
+        // When false, StridePhysicsBracket.RunPreKernelStep skips PhysicsBodyLifecycle.Execute —
+        // no phantom NoOp bodies are created and BulletReverseSyncSystem cannot clobber SimVelocity.
+        bool physicsIsActive = physicsBodyService != null;
+        PhysicsBodyLifecycleSystem? physicsBodyLifecycle = null;
         if (VisualBindingSystem != null)
         {
-            PhysicsBodyLifecycle = new PhysicsBodyLifecycleSystem(PhysicsBodyService, VisualBindingSystem);
+            physicsBodyLifecycle = new PhysicsBodyLifecycleSystem(PhysicsBodyService, VisualBindingSystem);
         }
 
         // ── 11. Motors (STR-P1-T3, STR-P1-T4) ───────────────────────────────
         // Wired only when a lifecycle system is available (requires visual binding).
-        // BulletCharacterMotor + KinematicVehicleMotor run in the Simulation phase
-        // (pre-physics) to push intents/commands into the (no-op) physics service.
+        // BulletCharacterMotor + KinematicVehicleMotor run pre-physics (inside the bracket)
+        // to push intents/commands into the physics service.
         // NOTE: The no-op service accepts calls without errors, so motors execute
-        // harmlessly in headless mode. They are registered via a SimulationPhaseAdapter
-        // so the kernel can schedule them correctly.
-        if (PhysicsBodyLifecycle != null)
+        // harmlessly in headless mode.
+        BulletCharacterMotor?  characterMotor = null;
+        KinematicVehicleMotor? vehicleMotor   = null;
+        if (physicsBodyLifecycle != null)
         {
-            var characterMotor = new BulletCharacterMotor(PhysicsBodyService, PhysicsBodyLifecycle);
-            var vehicleMotor   = new KinematicVehicleMotor(PhysicsBodyService, PhysicsBodyLifecycle);
-
-            // Register motors as global simulation-phase systems.
-            // They need access to the kernel but must be registered before Kernel.Initialize().
-            // Since Kernel.Initialize() was already called above, we use a post-init workaround:
-            // The motors are stored and called manually in Tick() in the simulation slot.
-            // They cannot be added post-Initialize, so they are not wired here.
-            // TODO STR-D11: Move motor registration before Kernel.Initialize() once the
-            // physics service is concrete. For now, store references for manual invocation.
-            _characterMotor = characterMotor;
-            _vehicleMotor   = vehicleMotor;
+            characterMotor = new BulletCharacterMotor(PhysicsBodyService, physicsBodyLifecycle);
+            vehicleMotor   = new KinematicVehicleMotor(PhysicsBodyService, physicsBodyLifecycle);
         }
 
         // ── 12. Reverse-sync group (STR-P1-T5, STR-D5) ───────────────────────
         // BulletReverseSyncSystem wrapped in a TogglablePostSimulationGroup.
-        // Driven manually in Tick() BEFORE Kernel.Update() so FDP Simulation-phase
-        // consumers read post-physics SimTransform the same frame (design §8.3).
+        // Driven inside StridePhysicsBracket.RunPreKernelStep BEFORE Kernel.Update() so FDP
+        // Simulation-phase consumers read post-physics SimTransform the same frame (design §8.3).
         // NOT registered with the kernel (would run inside Update, causing one-frame lag).
         //
         // The group is ALWAYS created so the P5 replay handler (STR-P5-T4) has a togglable
         // post-sim group to sever during replay even in headless mode (no visual factory).
-        // When there is a PhysicsBodyLifecycle (visual factory present) it wraps the real
-        // BulletReverseSyncSystem; headless it is an empty group whose Enabled flag is still the
-        // replay sever/restore switch (an empty enabled group is a harmless no-op each Tick).
-        if (PhysicsBodyLifecycle != null)
+        Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup reverseSyncGroup;
+        if (physicsBodyLifecycle != null)
         {
-            var reverseSync = new BulletReverseSyncSystem(PhysicsBodyService, PhysicsBodyLifecycle);
-            ReverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
+            var reverseSync = new BulletReverseSyncSystem(PhysicsBodyService, physicsBodyLifecycle);
+            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
                 "BulletReverseSync", reverseSync);
         }
         else
         {
-            ReverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
+            reverseSyncGroup = new Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup(
                 "BulletReverseSync");
         }
 
         // ── 13. Split-authority sync (STR-P1-T6) ─────────────────────────────
         // Replaces the P0 flat forward-sync (VisualBindingSystem.Sync).
-        // Driven manually in Tick() AFTER Kernel.Update().
+        // Driven inside StridePhysicsBracket.RunPostKernelStep AFTER Kernel.Update().
+        SplitAuthorityStrideSyncScript? splitSync = null;
         if (VisualBindingSystem != null && visualFactory != null)
         {
-            SplitSync = new SplitAuthorityStrideSyncScript(VisualBindingSystem, visualFactory);
+            splitSync = new SplitAuthorityStrideSyncScript(VisualBindingSystem, visualFactory);
         }
+
+        // ── 13b. Physics bracket (BATCH refactor) ────────────────────────────
+        // Assemble StridePhysicsBracket from the parts constructed above (steps 10–13).
+        // Wire VehicleNavIntentSystem from the muscle set (STR-D21: pre-kernel extra execute).
+        _physicsBracket = new StridePhysicsBracket(
+            physicsIsActive:      physicsIsActive,
+            physicsBodyLifecycle: physicsBodyLifecycle,
+            characterMotor:       characterMotor,
+            vehicleMotor:         vehicleMotor,
+            reverseSyncGroup:     reverseSyncGroup,
+            splitSync:            splitSync)
+        {
+            VehicleNavIntentSystem = _vehicleNavIntentSystem,
+        };
 
         // ── 14. Animation backend + locomotion/montage bridge (STR-P4-T3/T4) ──
         // The real StrideAnimationBackend is the IAnimationBackend for editor_stride
@@ -798,43 +773,12 @@ public sealed class EditorStrideSubsystem : IDisposable
         OrchestrationBus.SwapBuffers();
         ClusterMaster.Tick();
 
-        // ── Step 2: Physics body lifecycle (STR-P1-T2, design §5.6) ─────
-        // Create/destroy Bullet bodies keyed on the authority bit.
-        // Must run BEFORE the motors so newly authoritative entities have a body
-        // by the time the motors try to act on them.
-        // Guard: only execute when a real (non-NoOp) physics service is active.
-        // Without this guard, NoOp phantom bodies would be created and
-        // BulletReverseSyncSystem would clobber SimVelocity (animation harness regression).
-        if (_physicsIsActive)
-            PhysicsBodyLifecycle?.Execute(World, dt);
-
-        // ── Step 2b: Pre-physics motors (STR-P1-T3/T4) ──────────────────
-        // Push motor intents into physics service before the physics step.
-        // In P1 with NoOpPhysicsBodyService these are no-ops.
-        //
-        // STR-D21 F7 fix: run VehicleNavigationIntentSystem HERE (before the motor)
-        // instead of relying solely on its kernel-phase execution (Step 4).
-        // Problem: the kernel runs at Step 4 (AFTER the motor at Step 2b), so the motor
-        // always reads VehicleState that is 1 tick stale — on the very first tick after a new
-        // NavigationIntent, VehicleState is still zero, the motor drives zero velocity, and
-        // Bullet's deferred-body activation window is wasted.  Running the system here means
-        // the motor sees the freshly-computed VehicleState on the same frame it was written,
-        // eliminating the 1-tick lag that prevented the APC from ever moving.
-        // The kernel-phase execution is retained so the system still participates in the normal
-        // ECS scheduling (e.g. for correct ordering with NavigationExecutionSystem and correct
-        // diagnostics from the kernel health monitor).  The double-execution per frame is
-        // idempotent: on the second run the same IntentId is already in _routes so PlanRoute
-        // is skipped; only the steering output (VehicleState) is rewritten — same values.
-        _vehicleNavIntentSystem?.Execute(World, dt);
-        _characterMotor?.Execute(World, dt);
-        _vehicleMotor?.Execute(World, dt);
-
-        // ── Step 3: Reverse-sync BEFORE kernel tick (STR-P1-T5/T7) ───────
-        // Writes Bullet-resolved pose+velocity into SimTransform/SimVelocity for
-        // owned entities. Must run before Kernel.Update() so FDP Simulation-phase
-        // consumers read the post-physics SimTransform the same frame (design §8.3).
-        // The TogglablePostSimulationGroup's Enabled flag allows replay severability (§9).
-        ReverseSyncGroup?.Execute(World, dt);
+        // ── Steps 2, 2b, 3: Physics bracket pre-kernel step ─────────────
+        // Delegates to StridePhysicsBracket.RunPreKernelStep in the identical order:
+        //   2.  PhysicsBodyLifecycle.Execute  (if physicsIsActive)
+        //   2b. VehicleNavIntentSystem.Execute → CharacterMotor.Execute → VehicleMotor.Execute
+        //   3.  ReverseSyncGroup.Execute  (BEFORE Kernel.Update — design §8.3)
+        _physicsBracket.RunPreKernelStep(World, dt);
 
         // ── Step 4: FDP kernel tick ───────────────────────────────────────
         // Step() puts dt into the time controller; Kernel.Update() reads from it.
@@ -851,20 +795,11 @@ public sealed class EditorStrideSubsystem : IDisposable
         AnimationBridge.DispatchTraversals(traversals);
         AnimationBridge.Execute(World, dt);
 
-        // ── Step 5: Split-authority forward-sync (STR-P1-T6) ─────────────
-        // Pass A: reconcile Stride visual entity set (appear/disappear).
-        // Pass B: forward-sync non-owned entities from SimTransform.
-        // Replaces the P0 flat forward-sync.
-        if (SplitSync != null)
-        {
-            SplitSync.Sync(World);
-        }
-        else
-        {
-            // Fallback: P0 flat forward-sync (headless without visual factory).
-            // This branch is taken when VisualBindingSystem is null (no factory provided).
-            // With a factory, SplitSync is always set (see Initialize step 13).
-        }
+        // ── Step 5: Physics bracket post-kernel step ─────────────────────
+        // Delegates to StridePhysicsBracket.RunPostKernelStep:
+        //   5.  SplitSync.Sync  (Pass A: visual existence; Pass B: non-owned forward-sync)
+        //       Fallback is a no-op in headless mode (same as the original else-branch).
+        _physicsBracket.RunPostKernelStep(World);
 
         // ── Step 5b: Live animation glue reconcile (STR-P4, BATCH-16 Fix A) ──
         // After the bridge has registered mannequins with the backend (Step 4b) and the visual
