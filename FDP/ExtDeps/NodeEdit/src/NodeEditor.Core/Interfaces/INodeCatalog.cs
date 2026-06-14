@@ -24,6 +24,20 @@ public interface INodeCatalog
     IReadOnlyList<NodeCatalogEntry> QueryForPinContext(PinContextQuery q);
 }
 
+/// <summary>
+/// Determines how the node picker handles picking this catalog entry.
+/// </summary>
+public enum NodePaletteAction
+{
+    /// <summary>Default: emit <c>AddNode</c> as a free node (existing behaviour).</summary>
+    CreateNode,
+    /// <summary>
+    /// Emit <c>AddAttachment</c> on the single currently-selected node.
+    /// If zero or more than one node is selected the pick is silently ignored.
+    /// </summary>
+    AttachToSelected,
+}
+
 /// <summary>One entry in the catalog (corresponds to a node kind).</summary>
 public sealed record NodeCatalogEntry(
     NodeKindKey Kind,
@@ -36,7 +50,25 @@ public sealed record NodeCatalogEntry(
     bool IsLatent,
     bool IsDeprecated,
     IReadOnlyList<PinSignature> Inputs,
-    IReadOnlyList<PinSignature> Outputs);
+    IReadOnlyList<PinSignature> Outputs,
+    NodePaletteAction PaletteAction = NodePaletteAction.CreateNode,
+    AttachmentCategory? AttachmentCategory = null);
+
+/// <summary>
+/// Well-known keys used in <c>HostProperties</c> dictionaries passed to
+/// <c>GraphCommand.AddAttachment</c> by the node picker.
+/// Defined here so both NodeEditor core and all host projects can reference
+/// them without a dependency on any specific host assembly.
+/// </summary>
+public static class AttachmentHostPropertyKeys
+{
+    /// <summary>
+    /// The <c>NodeKindKey.Value</c> string of the catalog entry that
+    /// triggered the attachment creation.  The host sink uses this to decide
+    /// which concrete attachment type to create.
+    /// </summary>
+    public const string Kind = "paletteKind";
+}
 
 /// <summary>Signature of a single pin used at catalog lookup time.</summary>
 public sealed record PinSignature(

@@ -25,6 +25,9 @@ public static class IdGenerator
     /// <summary>Generates a new random CommentId.</summary>
     public static CommentId NewCommentId() => CommentId.NewId();
 
+    /// <summary>Generates a new random AttachmentId.</summary>
+    public static AttachmentId NewAttachmentId() => AttachmentId.NewId();
+
     /// <summary>
     /// Generates a deterministic Guid from an input string by SHA-256
     /// hashing. Same string ⇒ same Guid. Useful when an ID must be

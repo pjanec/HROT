@@ -64,6 +64,24 @@ public sealed class CommandBuilder
                 new GraphCommand.RemoveLinks(new[] { newId }));
     }
 
+    /// <summary>
+    /// Build a forward <see cref="GraphCommand.AddAttachment"/> (with a new random id)
+    /// and its inverse <see cref="GraphCommand.RemoveAttachments"/>.
+    /// </summary>
+    public (GraphCommand Forward, GraphCommand Inverse) AddAttachment(
+        NodeId host,
+        AttachmentCategory category,
+        string? glyph,
+        string? label,
+        string? tooltip,
+        int stackIndex,
+        IReadOnlyDictionary<string, object?>? hostProps)
+    {
+        var newId = IdGenerator.NewAttachmentId();
+        return (new GraphCommand.AddAttachment(newId, host, category, glyph, label, tooltip, stackIndex, hostProps),
+                new GraphCommand.RemoveAttachments(new[] { newId }));
+    }
+
     /// <summary>Build a Batch from a sequence of (forward, inverse) pairs.</summary>
     public (GraphCommand Forward, GraphCommand Inverse) Batch(
         string label,
