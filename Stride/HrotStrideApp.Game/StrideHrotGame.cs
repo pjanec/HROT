@@ -8,6 +8,7 @@ using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Core.Network;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Stride.Core;
 using Hrot.Stride.Core.TestHarness;
 using Hrot.StrideMock;
@@ -672,35 +673,52 @@ public sealed class StrideHrotGame : Game
     // ── BATCH-S2-O: move-order routing ───────────────────────────────────
 
     /// <summary>
-    /// Issues a move order to the given entity: vehicle path (NavigationIntent DirectPoint) or
-    /// character path (FdpNavigationOrders.IssueMoveTo) depending on component presence.
+    /// Issues a move order to the given entity: character path (FdpNavigationOrders.IssueMoveTo)
+    /// or vehicle path (NavigationIntent DirectPoint), discriminated by physics body shape.
+    /// Shape-based discrimination is reliable; VehicleState is NOT (it is wrongly injected on
+    /// infantry by the TKB translator — BATCH-S2-T).
     /// </summary>
-    private static void IssueMoveOrder(EntityRepository world, Fdp.Core.Entity entity, System.Numerics.Vector3 targetFdp)
+    private void IssueMoveOrder(EntityRepository world, Fdp.Core.Entity entity, System.Numerics.Vector3 targetFdp)
     {
         const float Speed = 5f;
         const float ArrivalRadius = 2f;
-        bool isVehicle = world.IsComponentTypeRegistered<VehicleState>() && world.HasComponent<VehicleState>(entity);
-        if (isVehicle)
+
+        // Discriminate by physics body shape — VehicleState is wrongly injected on infantry by the
+        // TKB translator, so it is NOT a reliable vehicle/character discriminator (BATCH-S2-T).
+        bool isCharacter = false;
+        var lifecycle = _editorSubsystem?.PhysicsBodyLifecycle;
+        if (lifecycle != null && lifecycle.Bodies.TryGetValue(entity, out var bodyRef))
+            isCharacter = bodyRef.ShapeKind == CollisionShapeKind.Capsule;
+
+        if (isCharacter)
         {
-            if (!world.IsComponentTypeRegistered<NavigationIntent>()) return;
-            var intent = world.HasComponent<NavigationIntent>(entity)
-                ? world.GetComponent<NavigationIntent>(entity) : default;
-            intent.Mode             = NavigationMode.DirectPoint;
-            intent.FinalDestination = targetFdp;
-            intent.TargetSpeed      = Speed;
-            intent.ArrivalRadius    = ArrivalRadius;
-            intent.IntentId         = intent.IntentId + 1;
-            intent.ReverseAllowed   = 0;
-            if (world.HasComponent<NavigationIntent>(entity)) world.SetComponent(entity, intent);
-            else world.AddComponent(entity, intent);
-            // ensure a NavigationStatus exists so the muscle can report progress
-            if (world.IsComponentTypeRegistered<NavigationStatus>() && !world.HasComponent<NavigationStatus>(entity))
-                world.AddComponent(entity, new NavigationStatus { Result = NavigationResult.InProgress });
-        }
-        else
-        {
+            // F6 workaround: strip the bogus VehicleState so NavigationIntentBridgeSystem enrolls the
+            // infantry in the DotRecast crowd (it skips entities that carry VehicleState).
+            if (world.IsComponentTypeRegistered<VehicleState>() && world.HasComponent<VehicleState>(entity))
+                world.RemoveComponent<VehicleState>(entity);
+
             FdpNavigationOrders.IssueMoveTo(world, entity, targetFdp, Speed, ArrivalRadius, NavLayerMask.Infantry);
+            Log.Info("[StrideHrotGame] Move order (CHARACTER) entity #{0} → FDP ({1:F2},{2:F2},{3:F2}) via IssueMoveTo.",
+                entity.Index, targetFdp.X, targetFdp.Y, targetFdp.Z);
+            return;
         }
+
+        // Vehicle path: NavigationIntent DirectPoint (existing logic — keep exactly as before).
+        if (!world.IsComponentTypeRegistered<NavigationIntent>()) return;
+        var intent = world.HasComponent<NavigationIntent>(entity)
+            ? world.GetComponent<NavigationIntent>(entity) : default;
+        intent.Mode             = NavigationMode.DirectPoint;
+        intent.FinalDestination = targetFdp;
+        intent.TargetSpeed      = Speed;
+        intent.ArrivalRadius    = ArrivalRadius;
+        intent.IntentId         = intent.IntentId + 1;
+        intent.ReverseAllowed   = 0;
+        if (world.HasComponent<NavigationIntent>(entity)) world.SetComponent(entity, intent);
+        else world.AddComponent(entity, intent);
+        if (world.IsComponentTypeRegistered<NavigationStatus>() && !world.HasComponent<NavigationStatus>(entity))
+            world.AddComponent(entity, new NavigationStatus { Result = NavigationResult.InProgress });
+        Log.Info("[StrideHrotGame] Move order (VEHICLE) entity #{0} → FDP ({1:F2},{2:F2},{3:F2}) via NavigationIntent.",
+            entity.Index, targetFdp.X, targetFdp.Y, targetFdp.Z);
     }
 
     // ── BATCH-S2-Q: FDP entity resolver (reverse visuals-map lookup) ─────
