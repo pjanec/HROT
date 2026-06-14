@@ -382,6 +382,10 @@ public sealed class EditorStrideSubsystem : IDisposable
     private int    _tickHostedFrameCount;
     private const int TickHostedLogIntervalFrames = 60;
 
+    // BATCH-S2-STEP: last sim frame number seen by the physics gate, to detect a deterministic step advance.
+    private long _lastSimFrameNumber = -1;
+    private const float StepFixedDeltaSeconds = 1f / 60f; // matches EditorTimeTransport Step(1/60) + TimeConfig default
+
     // ── [Authority] vehicle ownership oscillation probe (DIAG-AUTH) ──────────
     // Tracks per-entity: whether HasAuthority<SimTransform> was true last tick,
     // and how many times it flipped within the current ~1-second window.
@@ -1021,12 +1025,22 @@ public sealed class EditorStrideSubsystem : IDisposable
             // A: (BATCH-S2-L) time is no longer force-stepped here. The TimeController
             // self-advances via Kernel.Update()->controller.Update() — Continuous (preview)
             // runs, Deterministic (edit) stays frozen — exactly like the standalone editor.
-            bool simRunning = _editor.TimeController.GetMode() == TimeMode.Continuous;
+            var timeMode  = _editor.TimeController.GetMode();
+            long curFrame = _editor.TimeController.GetCurrentState().FrameNumber; // current controller frame number
+            // BATCH-S2-STEP: In Deterministic (Stepping) mode, a granted Step() bumps the frame number — treat
+            // that frame as "advancing" so physics runs exactly one step. Continuous is unchanged (always running).
+            bool steppedThisFrame = timeMode != TimeMode.Continuous && curFrame != _lastSimFrameNumber;
+            _lastSimFrameNumber = curFrame;
+            bool simRunning = timeMode == TimeMode.Continuous || steppedThisFrame;
+
+            // On a deterministic step, advance physics by the fixed step delta (not the wall dt) so the step is
+            // deterministic and not over-integrated when the editor was idle.
+            float physicsDt = steppedThisFrame ? StepFixedDeltaSeconds : dt;
 
             // B: physics bracket pre-kernel (lifecycle + reposition + reverse-sync ALWAYS run;
             // the sim-advancing motors run only when simRunning).
             _bracketPreSw.Restart();
-            _physicsBracket.RunPreKernelStep(World, dt, simRunning);
+            _physicsBracket.RunPreKernelStep(World, physicsDt, simRunning);
             _bracketPreSw.Stop();
 
             // C-start: kernel.Update() begins immediately after this hook returns.
