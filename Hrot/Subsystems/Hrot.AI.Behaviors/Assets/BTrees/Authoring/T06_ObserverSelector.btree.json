@@ -1,0 +1,95 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000007-0000-0000-0000-000000000000",
+	"Name": "T06_ObserverSelector",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b7010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b7020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "ObserverSelector",
+			"VisualId": "b7020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b7030000-0000-0000-0000-000000000001",
+				"b7040000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "ObserverSelector",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "b7030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wander",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+				"ExpressionTargetField": null,
+				"DelegateShape": "FourParamFull"
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "b7040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

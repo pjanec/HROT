@@ -1,0 +1,97 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000006-0000-0000-0000-000000000000",
+	"Name": "T05_DecoratorStack",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b6010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b6020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "b6020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b6030000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "b6030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wander",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+				"ExpressionTargetField": null,
+				"DelegateShape": "FourParamFull"
+			}
+		}
+	],
+	"Pills": [
+		{
+			"VisualId": "b6110000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "b6030000-0000-0000-0000-000000000001",
+			"DecoratorType": "Inverter",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "Invert action result",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "b6120000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "b6030000-0000-0000-0000-000000000001",
+			"DecoratorType": "Cooldown",
+			"IntParam": null,
+			"FloatParam": 2.0,
+			"Comment": "2 second cooldown",
+			"StackIndex": 1
+		}
+	],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

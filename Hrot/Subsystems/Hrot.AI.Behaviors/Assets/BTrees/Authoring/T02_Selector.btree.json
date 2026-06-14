@@ -1,0 +1,93 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000003-0000-0000-0000-000000000000",
+	"Name": "T02_Selector",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b3010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b3020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Selector",
+			"VisualId": "b3020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b3030000-0000-0000-0000-000000000001",
+				"b3040000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Selector",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "b3030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "b3040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

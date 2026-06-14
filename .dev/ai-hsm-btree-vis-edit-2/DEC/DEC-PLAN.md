@@ -1,0 +1,33 @@
+# DEC — BTree decorator authoring + demo assets
+
+> **Origin:** user (2026-06-14). "I can add nodes that seem like decorators — they should be pills, not standalone nodes. No way to add decorators. Want demo btree assets: one rich render showcase + a set of trivial focused assets for developing authoring + testing compile/run."
+> **Companions:** [../DEBT-TRACKER.md](../DEBT-TRACKER.md) · design [../../docs/blueprints/NodeEditor_Extension_NodeAttachments.md](../../../docs/blueprints/NodeEditor_Extension_NodeAttachments.md), [../../docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md](../../../docs/blueprints/BTree_Editor_NodeEditor_Host_Design.md) §6, forward-plan EB-A/EB-B/EB-C.
+> **Execution:** lead (opus) writes specs + hard-verifies; coding via sonnet agents. Token-constrained — lead stays lead-only.
+
+## Diagnosis (confirmed in code)
+
+Decorators are designed to render as **pills** (NodeAttachments extension), never free nodes (forward-plan EB-C: "decorators stay attach-to-node, never free nodes"). The render/projection/round-trip/sink substrate is **REAL and works** (`BTreeGraphModel` attachment projection, `AttachmentRenderer`, `BTreeCommandSink.ApplyAddPill`, `DecoratorPillCollapseTests`). **The gap is purely authoring UX:**
+
+1. `NodeCatalogEntry` (NodeEditor core) has **no palette-action field** → picking a decorator entry emits `CreateNode` → standalone pinless decorator node (the user's bug). `BTreeNodeCatalog.MakeDecorator` lists them as plain entries.
+2. No "Add Decorator →" node context menu. So **no UI path emits `AddAttachment`**; pills only appear from hand-authored JSON `Pills[]`.
+3. Pill `Label` = bare enum, `Glyph` = null (no `↺×3`/`⏲2s`) — forward-plan EB-B.
+
+## VE-DEBT-002 constraint (gates runnable leaves)
+
+`BrainBlackboard` stores params as an untyped `fixed byte` blob — no typed `.Params` field. So the fluent expression-target binding `.Condition(bb => bb.Params, m)` can't be written, and the bare 4-param form needs a whole-blackboard delegate. ⇒ in a `BrainBlackboard` tree you can bind **whole-blackboard (FourParamFull) actions** (`Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander`) but **NOT** any real `[BTreeCondition]` or DTO-param action. Demo Condition leaves stay unbound/deferred until the VE-DEBT-002 blackboard-DTO machinery lands (BB1-adjacent, out of DEC scope).
+
+## Batches
+
+| ID | Layer | Title | Status |
+|---|---|---|---|
+| DEC-01 | content | Demo assets: rich render-showcase + 8 trivial focused assets (compile + round-trip) | ✅ DONE — `BTreeRenderShowcase` (all 7 pill types, Selector/Parallel/ObserverSelector/Subtree, bound `Action_Wander`) + `Authoring/T01..T08`. Surfaced + fixed a real emitter bug (see DEC-01b). Conditions deferred (VE-DEBT-002). Compile gate 0 errors; Persistence 129/0 (byte-identity green); BTree.Editor 524/0; Generators 52/54 (2 known pretty-print only). |
+| DEC-01b | emitter | **Parallel codegen fix** — `BTreeEmitCore.EmitComposite` omitted the required `int policy` first arg of `BTreeBuilder.Parallel(int, Action<>, ...)` → any tree with a Parallel emitted non-compiling code (CS7036). | ✅ DONE — emit `0` (RequireAll) as leading arg for `methodName == "Parallel"`. Surgical (lead-inline, ~3 lines). SampleScout/CombatShowcase have no Parallel → byte-identity unaffected. (Agent had silently downgraded Parallel→Sequence to pass build; lead reverted + fixed root cause.) Authorable per-node policy = VE-DEBT-009 follow-up. |
+| DEC-02 | NodeEditor core | Palette-action `AttachToSelected` on `NodeCatalogEntry` + palette/canvas emits `AddAttachment` on selected node | ⬜ |
+| DEC-03 | BTree host | Decorator entries `AttachToSelected`; "Add Decorator →" node context menu; kind→HostProperties; block free decorator nodes | ⬜ |
+| DEC-04 | BTree host | EB-B pill appearance: glyph + param label (`↺×3`, `⏲2s`) | ⬜ |
+| DEC-05 | blackboard | (deferred) real condition binding — needs VE-DEBT-002 DTO-field machinery; separate/larger | ⬜ deferred |
+
+## Verification discipline (per batch)
+- Lead re-reads diffs, independently re-runs builds + the relevant test projects. Never trust agent reports.
+- Keep CombatShowcase.btree.json + SampleScout.btree.json untouched (byte-identity gate `ByteIdenticalGateTests`).
+- Pre-existing failures (do not chase): 2 pretty-print round-trip + 7 Blueprints DEBT-006/perf.

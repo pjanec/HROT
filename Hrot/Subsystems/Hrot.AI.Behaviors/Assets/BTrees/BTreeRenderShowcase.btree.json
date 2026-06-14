@@ -1,0 +1,259 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000001-0000-0000-0000-000000000000",
+	"Name": "BTreeRenderShowcase",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "bb010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 550,
+				"Y": 0,
+				"Comment": "Condition leaves deferred — VE-DEBT-002.",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Selector",
+			"VisualId": "bb020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb030000-0000-0000-0000-000000000001",
+				"bb040000-0000-0000-0000-000000000001",
+				"bb050000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Selector",
+			"EditorMetadata": {
+				"X": 550,
+				"Y": 130,
+				"Comment": "Top-level selector: tries Sequence, then Parallel, then ObserverSelector",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "bb030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb060000-0000-0000-0000-000000000001",
+				"bb070000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 260,
+				"Comment": "Wander then wait",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Parallel",
+			"VisualId": "bb040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb080000-0000-0000-0000-000000000001",
+				"bb090000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Parallel",
+			"EditorMetadata": {
+				"X": 550,
+				"Y": 260,
+				"Comment": "Runs Wander + Wait concurrently (policy=RequireAll)",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "ObserverSelector",
+			"VisualId": "bb050000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb0a0000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "ObserverSelector",
+			"EditorMetadata": {
+				"X": 900,
+				"Y": 260,
+				"Comment": "Observer selector with subtree fallback",
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "bb060000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wander",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 390,
+				"Comment": "Wander action — Inverter + Repeater(3) pill stack",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+				"ExpressionTargetField": null,
+				"DelegateShape": "FourParamFull"
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "bb070000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 390,
+				"Comment": "Wait 1 second — Cooldown(5s) pill",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "bb080000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wander",
+			"EditorMetadata": {
+				"X": 450,
+				"Y": 390,
+				"Comment": "Wander inside Parallel — ForceSuccess pill",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+				"ExpressionTargetField": null,
+				"DelegateShape": "FourParamFull"
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "bb090000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(2s)",
+			"EditorMetadata": {
+				"X": 650,
+				"Y": 390,
+				"Comment": "Wait 2 seconds inside Parallel — ForceFailure pill",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 2.0
+			}
+		},
+		{
+			"kind": "Subtree",
+			"VisualId": "bb0a0000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "SampleScout",
+			"EditorMetadata": {
+				"X": 900,
+				"Y": 390,
+				"Comment": "SampleScout subtree — UntilSuccess + UntilFailure pill stack",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Subtree": {
+				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
+				"SubtreeName": "SampleScout",
+				"IsResolved": true
+			}
+		}
+	],
+	"Pills": [
+		{
+			"VisualId": "bb110000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb060000-0000-0000-0000-000000000001",
+			"DecoratorType": "Inverter",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "Invert wander result",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "bb120000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb060000-0000-0000-0000-000000000001",
+			"DecoratorType": "Repeater",
+			"IntParam": 3,
+			"FloatParam": null,
+			"Comment": "Repeat wander 3 times",
+			"StackIndex": 1
+		},
+		{
+			"VisualId": "bb130000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb070000-0000-0000-0000-000000000001",
+			"DecoratorType": "Cooldown",
+			"FloatParam": 5.0,
+			"IntParam": null,
+			"Comment": "5 second cooldown on wait",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "bb140000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb080000-0000-0000-0000-000000000001",
+			"DecoratorType": "ForceSuccess",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "Force wander to always succeed in parallel",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "bb150000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb090000-0000-0000-0000-000000000001",
+			"DecoratorType": "ForceFailure",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "Force wait to always fail in parallel",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "bb160000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb0a0000-0000-0000-0000-000000000001",
+			"DecoratorType": "UntilSuccess",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "Keep trying subtree until it succeeds",
+			"StackIndex": 0
+		},
+		{
+			"VisualId": "bb170000-0000-0000-0000-000000000001",
+			"HostNodeVisualId": "bb0a0000-0000-0000-0000-000000000001",
+			"DecoratorType": "UntilFailure",
+			"IntParam": null,
+			"FloatParam": null,
+			"Comment": "UntilFailure stacked above UntilSuccess",
+			"StackIndex": 1
+		}
+	],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}

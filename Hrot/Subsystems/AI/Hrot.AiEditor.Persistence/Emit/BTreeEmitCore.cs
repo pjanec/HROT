@@ -320,15 +320,21 @@ public static class BTreeEmitCore
         string compositeMethodPrefix = pills.Count > 0 ? "." : methodPrefix;
         string childPrefix = $"{lambdaArg}.";
 
+        // Parallel's builder signature is Parallel(int policy, Action<...> children, ...);
+        // every other composite (Sequence/Selector/ObserverSelector) takes only the children
+        // lambda. Without this leading arg the emitted code fails to compile (CS7036).
+        // Policy 0 = RequireAll (kernel default); authoring a per-node policy is DEC follow-up.
+        string leadingArgs = methodName == "Parallel" ? "0, " : "";
+
         int childCount = node.ChildVisualIds.Count;
         if (childCount == 0)
         {
-            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({lambdaArg} => {{ }},");
+            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({leadingArgs}{lambdaArg} => {{ }},");
             sb.AppendLine($"{innerPad}{Indent}{visualIdArg}){(isLast ? ";" : ",")}");
         }
         else
         {
-            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({lambdaArg} =>");
+            sb.AppendLine($"{innerPad}{compositeMethodPrefix}{methodName}({leadingArgs}{lambdaArg} =>");
             sb.AppendLine($"{innerPad}{{");
             for (int i = 0; i < childCount; i++)
             {

@@ -1,0 +1,78 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000008-0000-0000-0000-000000000000",
+	"Name": "T07_Subtree",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b8010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b8020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "b8020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b8030000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Subtree",
+			"VisualId": "b8030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "SampleScout",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Subtree": {
+				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
+				"SubtreeName": "SampleScout",
+				"IsResolved": true
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": false,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": []
+	}
+}
