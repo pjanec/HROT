@@ -1445,9 +1445,11 @@ public sealed class EditorStrideSubsystem : IDisposable
         var c = t.Position; // centre in FDP space (X=East, Y=North, Z=Up)
 
         float h = SelectionBoxHalfExtent;
-        // Emit 1-frame-lifetime lines (lifetime ≤ 0 means 1 tick in GizmoPrimitiveBuffer convention;
-        // we use a tiny positive value so EndFrame(dt) expires them correctly).
-        const float oneFrame = 0.05f; // > any fixed dt (1/60 ≈ 0.0167); expires after 1 tick
+        // BATCH-S2-AI: emit TRANSIENT lines (lifetime 0 → NOT copied into the persistent buffer).
+        // The previous 0.05f lifetime survived ~3 sim ticks (0.05 / (1/60) ≈ 3), so 3 boxes at 3 past
+        // positions were active at once → a visible TRAIL when dragging fast. The highlight is
+        // re-emitted every tick, so a transient (this-frame-only) lifetime is correct: exactly one box.
+        const float oneFrame = 0f; // transient — re-emitted each tick; no persistence → no trail
 
         // 8 corners of the AABB:
         var p000 = new System.Numerics.Vector3(c.X - h, c.Y - h, c.Z - h);
