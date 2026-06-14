@@ -127,6 +127,46 @@ namespace Hrot.Editor.DebugApi
                 if (string.IsNullOrWhiteSpace(name)) return Task.FromResult(Fail(400, "name is required."));
                 return RunMain(s => s.SaveScenario(name!));
             }));
+
+            // Group F — commands + discovery + spawn
+            _routes.Add(new("GET", "/commands", _ =>
+                // Registry is safe off-thread (read-only after boot), but marshalling to
+                // main thread avoids any race on late-registering event types.
+                RunMain(s => s.ListCommands())));
+
+            _routes.Add(new("GET", "/components", _ =>
+                RunMain(s => s.ListComponents())));
+
+            _routes.Add(new("POST", "/entities/command", async ctx =>
+            {
+                var eventType = ctx.Body?["eventType"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(eventType))
+                    return Fail(400, "eventType is required.");
+                var payload = ctx.Body?["payload"];
+                bool wait   = ctx.Body?["wait"]?.GetValue<bool>() ?? false;
+
+                var (result, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().SendCommand(eventType!, payload, wait)).ConfigureAwait(false);
+
+                if (error != null)
+                    return Fail(400, error);
+                return Ok(result);
+            }));
+
+            _routes.Add(new("POST", "/entities/spawn", async ctx =>
+            {
+                if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))
+                    return Fail(400, "tkbType (long) is required.");
+
+                var transform      = ctx.Body?["transform"];
+                var components     = ctx.Body?["components"];
+                var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
+
+                var node = await _jobQueue.RunOnMainThread(() =>
+                    Service().SpawnEntity(tkbType, transform, components, attributesJson))
+                    .ConfigureAwait(false);
+                return Ok(node);
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

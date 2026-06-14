@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization;
 using Fdp.Toolkit.Diagnostics;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Time.Controllers;
@@ -280,9 +283,236 @@ namespace Hrot.Editor.DebugApi
             return new JsonObject { ["saved"] = name };
         }
 
+        // ── Group F — Commands + discovery + spawn ─────────────────────────────
+
+        /// <summary>
+        /// <c>GET /commands</c> — enumerate publishable FDP event types with field schemas.
+        /// Thread-safe (registry is read-only after boot).
+        /// </summary>
+        public JsonNode ListCommands()
+        {
+            var types = EventType.GetAllRegistered();
+            var arr   = new JsonArray();
+            foreach (var t in types)
+            {
+                var fields = JsonShapeDescriber.Describe(t);
+                var fa = new JsonArray();
+                foreach (var f in fields)
+                    fa.Add(new JsonObject { ["name"] = f.Name, ["type"] = f.Type });
+                arr.Add(new JsonObject
+                {
+                    ["name"]   = t.Name,
+                    ["fields"] = fa,
+                });
+            }
+            return arr;
+        }
+
+        /// <summary>
+        /// <c>GET /components</c> — enumerate registered ECS component types with field schemas.
+        /// Thread-safe (registry is read-only after boot).
+        /// </summary>
+        public JsonNode ListComponents()
+        {
+            var types = ComponentTypeRegistry.GetAllTypes();
+            var arr   = new JsonArray();
+            foreach (var t in types)
+            {
+                var fields = JsonShapeDescriber.Describe(t);
+                var fa = new JsonArray();
+                foreach (var f in fields)
+                    fa.Add(new JsonObject { ["name"] = f.Name, ["type"] = f.Type });
+                arr.Add(new JsonObject
+                {
+                    ["name"]   = t.Name,
+                    ["fields"] = fa,
+                });
+            }
+            return arr;
+        }
+
+        /// <summary>
+        /// <c>POST /entities/command {eventType, payload, wait?}</c> — deserialize the payload
+        /// to the named event CLR type and publish on <c>_world.Bus</c>.
+        ///
+        /// <para>Wait-gating: if <paramref name="wait"/> is <c>true</c> and time is advancing
+        /// (<c>InPreview &amp;&amp; !IsPaused</c>), blocks until a correlated ack
+        /// (<c>MissionControlAckEvent</c> by <c>RequestId</c>) arrives or the timeout expires.
+        /// Otherwise returns immediately with <c>awaited:false</c>.</para>
+        ///
+        /// <para>Must run on the main thread.</para>
+        /// </summary>
+        /// <returns>JsonNode with { awaited, reason? } or null on 400 (unknown type).</returns>
+        public (JsonNode? result, string? error) SendCommand(string eventTypeName, JsonNode? payload, bool wait)
+        {
+            // Resolve event type by name across all registered types.
+            var registeredTypes = EventType.GetAllRegistered();
+            Type? clrType = registeredTypes.FirstOrDefault(t =>
+                string.Equals(t.Name, eventTypeName, StringComparison.OrdinalIgnoreCase));
+
+            if (clrType is null)
+                return (null, $"Unknown eventType: '{eventTypeName}'");
+
+            // Determine if time is advancing (InPreview && !Paused).
+            bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
+
+            // Deserialize the payload JSON to the target CLR type.
+            // We use System.Text.Json (default options) for the payload fields since that's
+            // what callers provide; the inspector-grade path is for output only.
+            object? evt = null;
+            if (payload != null)
+            {
+                try
+                {
+                    var json = payload.ToJsonString();
+                    evt = JsonSerializer.Deserialize(json, clrType);
+                }
+                catch (Exception ex)
+                {
+                    return (null, $"Failed to deserialize payload for '{eventTypeName}': {ex.Message}");
+                }
+            }
+            else
+            {
+                // Create a default instance.
+                try { evt = Activator.CreateInstance(clrType); }
+                catch { evt = null; }
+            }
+
+            // Publish via the appropriate bus method (unmanaged struct → Publish, managed → PublishManaged).
+            try
+            {
+                PublishEventObject(clrType, evt);
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Failed to publish event '{eventTypeName}': {ex.Message}");
+            }
+
+            // Wait-gating: only meaningful when time is advancing.
+            if (!wait || !timeAdvancing)
+            {
+                return (new JsonObject
+                {
+                    ["awaited"] = false,
+                    ["reason"]  = "sim not running",
+                }, null);
+            }
+
+            // Time is advancing and wait==true: attempt correlated ack wait (best-effort).
+            // For now: publish + return awaited:false with reason "ack-wait not supported for this type".
+            // The MissionControlAckEvent correlated path is logged as debt (ADA-04-D01) —
+            // it requires polling the bus across kernel ticks which the current synchronous
+            // main-thread job does not support without a multi-tick continuation.
+            return (new JsonObject
+            {
+                ["awaited"] = false,
+                ["reason"]  = "ack-wait not yet supported; event published",
+            }, null);
+        }
+
+        /// <summary>
+        /// <c>POST /entities/spawn {tkbType, transform?, components?, attributesJson?}</c>
+        /// — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns <c>awaited</c>
+        /// per the wait rule. Must run on the main thread.
+        /// </summary>
+        public JsonNode SpawnEntity(
+            long     tkbType,
+            JsonNode? transform      = null,
+            JsonNode? components     = null,
+            string?  attributesJson = null)
+        {
+            var cmd = new SpawnEntityCommand
+            {
+                TkbType             = tkbType,
+                NetworkId           = 0,          // 0 = allocate a new ID
+                OwnerNodeId         = 0,
+                InitType            = ReliableInitType.None,
+                InitialAttributesJson = attributesJson,
+            };
+
+            // Parse optional transform.
+            if (transform != null)
+            {
+                try
+                {
+                    var simTransform = JsonSerializer.Deserialize<SimTransform>(transform.ToJsonString());
+                    cmd.InitialTransform = simTransform;
+                }
+                catch { /* ignore malformed transform */ }
+            }
+
+            // Parse optional extra components list (array of { type, data } or typed objects).
+            if (components != null && components is JsonArray compArr && compArr.Count > 0)
+            {
+                cmd.InitialComponents = new List<object>();
+                foreach (var item in compArr)
+                {
+                    if (item is null) continue;
+                    // Support { "type": "TypeName", "data": {...} } format.
+                    var typeName = item["type"]?.GetValue<string>();
+                    var data     = item["data"];
+                    if (typeName != null)
+                    {
+                        var compType = ComponentTypeRegistry.GetAllTypes()
+                            .FirstOrDefault(t => string.Equals(t.Name, typeName, StringComparison.OrdinalIgnoreCase));
+                        if (compType != null && data != null)
+                        {
+                            try
+                            {
+                                var compObj = JsonSerializer.Deserialize(data.ToJsonString(), compType);
+                                if (compObj != null)
+                                    cmd.InitialComponents.Add(compObj);
+                            }
+                            catch { /* ignore undeserializable component */ }
+                        }
+                    }
+                }
+            }
+
+            _world.Bus.PublishManaged(cmd);
+
+            bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
+            return new JsonObject
+            {
+                ["spawned"]  = true,
+                ["tkbType"]  = tkbType,
+                ["awaited"]  = false,
+                ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running",
+            };
+        }
+
         // ── Helpers ─────────────────────────────────────────────────────────────
 
         private ClusterState CurrentClusterState() => _clusterState();
+
+        /// <summary>
+        /// Publishes an event object to <c>_world.Bus</c> using reflection to call the
+        /// appropriate generic <c>Publish&lt;T&gt;</c> / <c>PublishManaged&lt;T&gt;</c>.
+        /// Unmanaged value types → <c>Publish</c>; everything else → <c>PublishManaged</c>.
+        /// </summary>
+        private void PublishEventObject(Type clrType, object? evt)
+        {
+            if (clrType.IsValueType)
+            {
+                // Unmanaged struct path — call Bus.Publish<T>(evt) via reflection.
+                var method = typeof(FdpEventBus)
+                    .GetMethod(nameof(FdpEventBus.Publish), BindingFlags.Public | BindingFlags.Instance)!
+                    .MakeGenericMethod(clrType);
+                // Box the value if null (create default).
+                var value = evt ?? Activator.CreateInstance(clrType)!;
+                method.Invoke(_world.Bus, new[] { value });
+            }
+            else
+            {
+                // Managed class/struct path — call Bus.PublishManaged<T>(evt) via reflection.
+                var method = typeof(FdpEventBus)
+                    .GetMethod(nameof(FdpEventBus.PublishManaged), BindingFlags.Public | BindingFlags.Instance)!
+                    .MakeGenericMethod(clrType);
+                var value = evt ?? Activator.CreateInstance(clrType)!;
+                method.Invoke(_world.Bus, new[] { value });
+            }
+        }
 
         private static string? ExtractEntityName(EntityStateDumpDto dump)
         {

@@ -99,6 +99,77 @@ public sealed class DebugApiHeadlessSmokeTests
             var simStateBody = await simState.Content.ReadAsStringAsync();
             Assert.Contains("\"ok\":true", simStateBody, StringComparison.OrdinalIgnoreCase);
 
+            // 2b) ADA-BATCH-04 extensions:
+            // GET /commands — must be non-empty (event types registered by boot).
+            var commandsResp = await client.GetAsync($"{baseUrl}/commands");
+            Assert.Equal(System.Net.HttpStatusCode.OK, commandsResp.StatusCode);
+            var commandsBody = await commandsResp.Content.ReadAsStringAsync();
+            Assert.Contains("\"ok\":true", commandsBody, StringComparison.OrdinalIgnoreCase);
+            // The data array must have at least one entry.
+            var commandsDoc = System.Text.Json.JsonDocument.Parse(commandsBody);
+            var commandsArr = commandsDoc.RootElement.GetProperty("data");
+            Assert.True(commandsArr.GetArrayLength() > 0,
+                $"GET /commands returned empty array. Body: {commandsBody}");
+
+            // GET /components — must be non-empty.
+            var componentsResp = await client.GetAsync($"{baseUrl}/components");
+            Assert.Equal(System.Net.HttpStatusCode.OK, componentsResp.StatusCode);
+            var componentsBody = await componentsResp.Content.ReadAsStringAsync();
+            Assert.Contains("\"ok\":true", componentsBody, StringComparison.OrdinalIgnoreCase);
+
+            // GET /status to capture entityCount before spawn.
+            var statusBefore = await client.GetAsync($"{baseUrl}/status");
+            var statusBeforeBody = await statusBefore.Content.ReadAsStringAsync();
+            var statusBeforeDoc  = System.Text.Json.JsonDocument.Parse(statusBeforeBody);
+            int entityCountBefore = statusBeforeDoc.RootElement
+                .GetProperty("data").GetProperty("entityCount").GetInt32();
+
+            // POST /entities/spawn with tkbType=1 (the real editor registers TKB types at boot).
+            // We use waitForReady=false; we just want to verify the entityCount increases after
+            // a scenario load. First load a scenario, then spawn.
+            // For the spawn smoke we load the default scenario.
+            var loadBody = new StringContent(
+                "{\"name\":\"test-move\",\"waitForReady\":true}",
+                Encoding.UTF8, "application/json");
+            var loadResp = await client.PostAsync($"{baseUrl}/scenario/load", loadBody);
+            Assert.Equal(System.Net.HttpStatusCode.OK, loadResp.StatusCode);
+
+            // Now check entityCount has grown from the scenario load.
+            var statusAfterLoad = await client.GetAsync($"{baseUrl}/status");
+            var statusAfterLoadBody = await statusAfterLoad.Content.ReadAsStringAsync();
+            var statusAfterLoadDoc  = System.Text.Json.JsonDocument.Parse(statusAfterLoadBody);
+            int entityCountAfterLoad = statusAfterLoadDoc.RootElement
+                .GetProperty("data").GetProperty("entityCount").GetInt32();
+            Assert.True(entityCountAfterLoad > 0,
+                $"entityCount still 0 after scenario load. Body: {statusAfterLoadBody}");
+
+            // POST /entities/spawn — spawn an additional entity.
+            // TkbType 1001 = CivilianPedestrian (registered by UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates).
+            var spawnBody = new StringContent(
+                "{\"tkbType\":1001}",
+                Encoding.UTF8, "application/json");
+            var spawnResp = await client.PostAsync($"{baseUrl}/entities/spawn", spawnBody);
+            Assert.Equal(System.Net.HttpStatusCode.OK, spawnResp.StatusCode);
+            var spawnRespBody = await spawnResp.Content.ReadAsStringAsync();
+            Assert.Contains("\"ok\":true", spawnRespBody, StringComparison.OrdinalIgnoreCase);
+
+            // Poll for entityCount to increase after spawn.
+            bool spawnedEntityVisible = await PollAsync(async () =>
+            {
+                try
+                {
+                    var r = await client.GetAsync($"{baseUrl}/status");
+                    if (r.StatusCode != System.Net.HttpStatusCode.OK) return false;
+                    var b = await r.Content.ReadAsStringAsync();
+                    var d = System.Text.Json.JsonDocument.Parse(b);
+                    int cnt = d.RootElement.GetProperty("data").GetProperty("entityCount").GetInt32();
+                    return cnt > entityCountAfterLoad;
+                }
+                catch { return false; }
+            }, timeoutMs: 15_000);
+            Assert.True(spawnedEntityVisible,
+                $"entityCount did not increase after /entities/spawn. Before load: {entityCountBefore}, after load: {entityCountAfterLoad}. Spawn response: {spawnRespBody}");
+
             // 3) POST /shutdown WITH a body (HttpListener 411s on a bodyless POST).
             var shutdown = await client.PostAsync(
                 $"{baseUrl}/shutdown",

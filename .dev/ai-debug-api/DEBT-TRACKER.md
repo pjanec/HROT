@@ -10,6 +10,9 @@
 | ADA-02-D03 | ADA-BATCH-02 | C2 headless process smoke (`DebugApiHeadlessSmokeTests`) is gated behind `ADA_RUN_HEADLESS_SMOKE=1` (editor boot is heavy/env-sensitive). Runnable on demand; the dev lead re-runs it manually. | P3 | ADA-PM | OPEN |
 | ADA-02-D04 | ADA-BATCH-02 | `DebugApiService.Step(count)` delegates to the time facade's `Step()`, which sets the controller delta; the actual tick is applied on the next main-loop `Update()` drain. Exact N-tick advance is therefore loop-coupled (the Tier-1 test asserts non-regressing `totalTime`, not exact +N). | P3 | ADA-P3+ | OPEN |
 
+| ADA-04-D01 | ADA-BATCH-04 | `/entities/command` wait-gating: `awaited:true` correlated-ack path (poll bus across ticks for `MissionControlAckEvent` by `RequestId`) not implemented. Returns `awaited:false, reason:"ack-wait not yet supported"` when sim is advancing. Requires multi-tick continuation mechanism. | P3 | ADA-BATCH-05+ | OPEN |
+| ADA-04-D02 | ADA-BATCH-04 | `/commands` enumerates only unmanaged `[EventId]` events (`EventType.GetAllRegistered()` is `where T : unmanaged`). Managed events (SpawnEntityCommand, MissionControlIntent) are not discoverable via `/commands`. A managed event registry or reflection scan would be needed to cover them. | P3 | ADA-BATCH-05+ | OPEN |
+
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)
 - P2 = Should fix (tracked here, assigned target batch)
