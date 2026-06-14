@@ -234,6 +234,15 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         /// <summary>False until RecordReverseSyncedPose has run at least once for this body.</summary>
         public bool HasReverseSyncBaseline { get; set; }
 
+        /// <summary>
+        /// Operator/brain-set manual facing to HOLD each frame for a kinematic character (BATCH-S2-AH),
+        /// in Stride world space. Set when SyncBodyToExternalPose detects an external rotation on a
+        /// CharacterComponent; re-applied every frame so it sticks (a one-shot does not, the controller's
+        /// rotation is not self-preserving). Cleared by SetCharacterFacing (locomotion facing supersedes it).
+        /// null = no manual hold active.
+        /// </summary>
+        public SMath.Quaternion? ManualFacingHoldStride { get; set; }
+
         public BodyEntry(
             global::Stride.Engine.Entity strideEntity,
             PhysicsComponent physicsComponent,
@@ -684,6 +693,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
         if (entry.PhysicsComponent is CharacterComponent ch)
         {
+            entry.ManualFacingHoldStride = null; // BATCH-S2-AH: locomotion facing supersedes a manual hold
             entry.StrideEntity.Transform.Rotation = strideRotation;
             entry.StrideEntity.Transform.UpdateWorldMatrix();
             try { ch.UpdatePhysicsTransformation(true); } // push rotation into the native ghost
@@ -1123,7 +1133,16 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         float rotDot = System.Numerics.Quaternion.Dot(simTf.Rotation, entry.LastReverseSyncedFdpRot);
         bool rotChanged = MathF.Abs(rotDot) < RepositionRotDotEpsilon;
 
-        if (!posMoved && !rotChanged) return; // neither position nor orientation externally changed
+        bool isCharacter = entry.PhysicsComponent is CharacterComponent;
+
+        // BATCH-S2-AH: an external rotation on a character becomes a manual facing HOLD.
+        if (rotChanged && isCharacter)
+            entry.ManualFacingHoldStride = targetStrideRot;
+
+        bool holdFacing = isCharacter && entry.ManualFacingHoldStride.HasValue;
+
+        // Nothing external changed AND no manual hold to maintain → done.
+        if (!posMoved && !rotChanged && !holdFacing) return;
 
         // External reposition detected. (Below: keep the existing teleport — read the live body pos
         // for Y-preservation and teleport in Stride XZ.)
@@ -1143,13 +1162,27 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
             // Readiness guard: only act once the component is in the simulation.
             if (ch.Simulation == null) return;
 
+            // BATCH-S2-AH: rotation-only hold path — re-apply held facing each frame so it persists
+            // against reverse-sync. Position has NOT moved, so we must NOT teleport.
+            if (!posMoved && !rotChanged && holdFacing)
+            {
+                entry.StrideEntity.Transform.Rotation = entry.ManualFacingHoldStride!.Value;
+                entry.StrideEntity.Transform.UpdateWorldMatrix();
+                try { ch.UpdatePhysicsTransformation(true); } catch (Exception) { }
+                return;
+            }
+
+            // Divergence path (position or rotation externally changed this frame): teleport + set rotation.
+            // Set rotation AFTER ch.Teleport — Teleport can reset orientation.
             entry.StrideEntity.Transform.Position = newPos;
-            entry.StrideEntity.Transform.Rotation = targetStrideRot;
             entry.StrideEntity.Transform.UpdateWorldMatrix();
             try
             {
-                ch.UpdatePhysicsTransformation(true); // push transform into the native ghost/controller
+                ch.UpdatePhysicsTransformation(true); // push position into the native ghost/controller
                 ch.Teleport(newPos);                  // belt-and-suspenders (warp the controller too)
+                entry.StrideEntity.Transform.Rotation = targetStrideRot; // set AFTER Teleport
+                entry.StrideEntity.Transform.UpdateWorldMatrix();
+                ch.UpdatePhysicsTransformation(true); // re-push with correct rotation
             }
             catch (Exception ex)
             {
