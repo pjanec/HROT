@@ -9,8 +9,8 @@ External Node.js MCP server that proxies the Hrot ClusterRunner AI Debug HTTP AP
 
 ## Tool Set
 
-Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N, BATCHes 02–05).
-Tools for not-yet-built endpoints (breakpoints, checkpoint, recording, logs, traces, mutation)
+Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N + G, BATCHes 02–07).
+Tools for not-yet-built endpoints (checkpoint, recording, logs, traces, mutation)
 are intentionally absent and will be added in their own batches as those API endpoints land.
 
 | Tool | HTTP | Group |
@@ -40,8 +40,12 @@ are intentionally absent and will be added in their own batches as those API end
 | `get_world_info` | `GET /world/info` | N |
 | `geo_to_local` | `POST /world/geo-to-local` | N |
 | `local_to_geo` | `POST /world/local-to-geo` | N |
+| `set_breakpoint` | `POST /breakpoints` | G |
+| `list_breakpoints` | `GET /breakpoints` | G |
+| `remove_breakpoint` | `DELETE /breakpoints/{id}` | G |
+| `get_breakpoint_status` | `GET /breakpoints/hits` | G |
 
-**25 tools total.** Tools for Groups G (breakpoints), H (checkpoint), I (recording/replay),
+**29 tools total.** G now present; tools for Groups H (checkpoint), I (recording/replay),
 J (logs), K (traces), L (mutation) are not yet implemented — see DEBT entries ADA-06-D01.
 
 ---
@@ -138,7 +142,7 @@ Environment overrides:
 
 End-to-end flow over MCP using the real runner:
 
-1. **Tool registration** — all 25 expected tool names present
+1. **Tool registration** — all 29 expected tool names present
 2. **`start_simulation`** — spawns runner, polls until ready
 3. **`get_status`** — liveness, ok:true
 4. **`load_scenario("test-move", waitForReady:true)`** — blocks until OperatingEdit

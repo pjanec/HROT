@@ -16,8 +16,10 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.Editor.DebugApi
@@ -57,6 +59,18 @@ namespace Hrot.Editor.DebugApi
         private readonly int                   _spatialGridWidth;
         private readonly int                   _spatialGridHeight;
 
+        // Group G — Breakpoints
+        private readonly IDataBreakpointManager? _bpManager;
+        private BreakpointId _lastHitBreakpointId;
+        private long         _lastHitNetworkId;
+
+        internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
+        {
+            WriteIndented = false,
+            IncludeFields = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+        };
+
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
@@ -76,7 +90,8 @@ namespace Hrot.Editor.DebugApi
             float                           spatialGridOriginX  = 0f,
             float                           spatialGridOriginY  = 0f,
             int                             spatialGridWidth    = 200,
-            int                             spatialGridHeight   = 200)
+            int                             spatialGridHeight   = 200,
+            IDataBreakpointManager?         bpManager          = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -94,6 +109,15 @@ namespace Hrot.Editor.DebugApi
             _spatialGridOriginY  = spatialGridOriginY;
             _spatialGridWidth    = spatialGridWidth;
             _spatialGridHeight   = spatialGridHeight;
+            _bpManager         = bpManager;
+            if (_bpManager != null)
+            {
+                _bpManager.OnBreakpointHit += (bp, entity) =>
+                {
+                    _lastHitBreakpointId = bp.Id;
+                    _entityMap.TryGetNetworkId(entity, out _lastHitNetworkId);
+                };
+            }
         }
 
         // ── Group A — Status ──────────────────────────────────────────────────
@@ -723,6 +747,131 @@ namespace Hrot.Editor.DebugApi
                 obj["headingDeg"] = hdg;
             }
             return obj;
+        }
+
+        // ── Group G — Breakpoints ──────────────────────────────────────────────
+
+        /// <summary>
+        /// POST /breakpoints — register a breakpoint from a polymorphic SearchPredicateDto.
+        /// Returns { breakpointId } or throws on invalid input (400 via host).
+        /// Must run on the main thread.
+        /// </summary>
+        public JsonNode AddBreakpoint(JsonNode? body)
+        {
+            if (_bpManager is null)
+                throw new InvalidOperationException("Breakpoint manager not available.");
+
+            var conditionNode = body?["condition"];
+            if (conditionNode is null)
+                throw new ArgumentException("condition is required.");
+
+            SearchPredicateDto condition;
+            try
+            {
+                var json = conditionNode.ToJsonString();
+                condition = JsonSerializer.Deserialize<SearchPredicateDto>(json, SearchPredicateJsonOptions)
+                    ?? throw new ArgumentException("condition deserialized to null.");
+            }
+            catch (ArgumentException) { throw; }
+            catch (Exception ex)
+            {
+                throw new ArgumentException($"Invalid condition: {ex.Message}");
+            }
+
+            // Resolve optional filterNetworkId
+            Entity? filterEntity = null;
+            var filterNode = body?["filterNetworkId"];
+            if (filterNode is not null)
+            {
+                long filterNetworkId = filterNode.GetValue<long>();
+                if (!_entityMap.TryGetEntity(filterNetworkId, out var fe))
+                    throw new ArgumentException($"filterNetworkId {filterNetworkId} not found.");
+                filterEntity = fe;
+            }
+
+            int occurrenceThreshold = body?["occurrenceThreshold"]?.GetValue<int>() ?? 1;
+            string name = body?["name"]?.GetValue<string>() ?? "";
+
+            var id = _bpManager.AddBreakpoint(condition, filterEntity, occurrenceThreshold, name);
+
+            return new JsonObject { ["breakpointId"] = id.ToString() };
+        }
+
+        /// <summary>GET /breakpoints — list all registered breakpoints.</summary>
+        public JsonNode ListBreakpoints()
+        {
+            if (_bpManager is null)
+                throw new InvalidOperationException("Breakpoint manager not available.");
+
+            var arr = new JsonArray();
+            foreach (var bp in _bpManager.AllBreakpoints)
+            {
+                arr.Add(new JsonObject
+                {
+                    ["id"]                  = bp.Id.ToString(),
+                    ["conditionSummary"]    = BreakpointConditionSummarizer.Summarize(bp.Condition),
+                    ["enabled"]             = bp.Enabled,
+                    ["occurrenceThreshold"] = bp.OccurrenceThreshold,
+                    ["hitCount"]            = bp.HitCount,
+                    ["name"]                = bp.DisplayName,
+                });
+            }
+            return arr;
+        }
+
+        /// <summary>DELETE /breakpoints/{id} — remove a breakpoint by its string id (e.g. "BP#3").</summary>
+        public void RemoveBreakpoint(string idStr)
+        {
+            if (_bpManager is null)
+                throw new InvalidOperationException("Breakpoint manager not available.");
+
+            BreakpointId id = ParseBreakpointId(idStr);
+            _bpManager.Remove(id);
+        }
+
+        /// <summary>GET /breakpoints/hits — current pause state + last hit info.</summary>
+        public JsonNode GetBreakpointStatus()
+        {
+            if (_bpManager is null)
+                throw new InvalidOperationException("Breakpoint manager not available.");
+
+            JsonNode? lastHit = null;
+            if (_lastHitBreakpointId.IsValid)
+            {
+                lastHit = new JsonObject
+                {
+                    ["breakpointId"] = _lastHitBreakpointId.ToString(),
+                    ["networkId"]    = _lastHitNetworkId,
+                };
+            }
+
+            return new JsonObject
+            {
+                ["isPaused"]   = _bpManager.IsPaused,
+                ["pausedTick"] = _bpManager.PausedTick,
+                ["lastHit"]    = lastHit,
+            };
+        }
+
+        private BreakpointId ParseBreakpointId(string idStr)
+        {
+            if (_bpManager is null) throw new InvalidOperationException("No bp manager.");
+            foreach (var bp in _bpManager.AllBreakpoints)
+            {
+                if (string.Equals(bp.Id.ToString(), idStr, StringComparison.OrdinalIgnoreCase))
+                    return bp.Id;
+            }
+            // Also try "N" as shorthand for "BP#N"
+            if (!idStr.StartsWith("BP#", StringComparison.OrdinalIgnoreCase))
+            {
+                string withPrefix = $"BP#{idStr}";
+                foreach (var bp in _bpManager.AllBreakpoints)
+                {
+                    if (string.Equals(bp.Id.ToString(), withPrefix, StringComparison.OrdinalIgnoreCase))
+                        return bp.Id;
+                }
+            }
+            throw new ArgumentException($"Breakpoint '{idStr}' not found.");
         }
     }
 }

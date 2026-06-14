@@ -112,6 +112,7 @@ async function main() {
     'list_commands', 'send_entity_command', 'spawn_entity',
     'list_entity_types', 'get_entity_type',
     'get_world_info', 'geo_to_local', 'local_to_geo',
+    'set_breakpoint', 'list_breakpoints', 'remove_breakpoint', 'get_breakpoint_status',
   ];
   for (const name of requiredTools) {
     assert(toolNames.includes(name), `Tool '${name}' registered`);
@@ -228,6 +229,111 @@ async function main() {
   assert(entityCountAfterSpawn > spawnEntityCount,
     `entityCount grew after spawn (${spawnEntityCount} → ${entityCountAfterSpawn})`);
   console.log(`  Status: ${JSON.stringify(statusAfter.parsed?.data)}`);
+  console.log('');
+
+  // ── Step 10b: Breakpoint round-trip (Group G) ─────────────────────────────
+  console.log('--- Step 10b: Breakpoint round-trip (Group G) ---');
+  // set_breakpoint with a LifecyclePredicateDto
+  const bpResult = await callTool(client, 'set_breakpoint', {
+    condition: {
+      '$type': 'Lifecycle',
+      IdentifierType: 'NameSubstring',
+      TargetValue: 'Alpha',
+      NamePropertyPath: 'Name',
+    },
+    name: 'verify-bp',
+  });
+  assert(!bpResult.isError, 'set_breakpoint succeeded');
+  assert(bpResult.parsed?.ok === true, 'set_breakpoint ok:true');
+  const bpId = bpResult.parsed?.data?.breakpointId;
+  assert(typeof bpId === 'string' && bpId.length > 0, `set_breakpoint returned breakpointId (got ${bpId})`);
+  console.log(`  Breakpoint ID: ${bpId}`);
+
+  // list_breakpoints
+  const listBpResult = await callTool(client, 'list_breakpoints');
+  assert(!listBpResult.isError, 'list_breakpoints succeeded');
+  const bps = listBpResult.parsed?.data;
+  const bpFound = Array.isArray(bps) && bps.some((b) => b.id === bpId);
+  assert(bpFound, `list_breakpoints contains breakpoint ${bpId}`);
+
+  // get_breakpoint_status (not yet paused)
+  const bpStatus = await callTool(client, 'get_breakpoint_status');
+  assert(!bpStatus.isError, 'get_breakpoint_status succeeded');
+  assert(bpStatus.parsed?.ok === true, 'get_breakpoint_status ok:true');
+  const bpStatusData = bpStatus.parsed?.data;
+  assert(bpStatusData != null, 'get_breakpoint_status has data');
+  assert(typeof bpStatusData?.isPaused === 'boolean', 'get_breakpoint_status has isPaused field');
+  console.log(`  Breakpoint status: isPaused=${bpStatusData?.isPaused}, pausedTick=${bpStatusData?.pausedTick}`);
+
+  // remove_breakpoint
+  const removeBpResult = await callTool(client, 'remove_breakpoint', { id: bpId });
+  assert(!removeBpResult.isError, 'remove_breakpoint succeeded');
+
+  // verify removed
+  const listAfterRemove = await callTool(client, 'list_breakpoints');
+  const bpsAfter = listAfterRemove.parsed?.data;
+  const stillFound = Array.isArray(bpsAfter) && bpsAfter.some((b) => b.id === bpId);
+  assert(!stillFound, `remove_breakpoint: breakpoint ${bpId} no longer in list`);
+
+  console.log('');
+
+  // ── Step 10c: E2E breakpoint hit (ADA-BATCH-07 FIX 2) ────────────────────
+  // Prove that a real PropertyMatch condition fires end-to-end:
+  //   play → set always-true breakpoint on Position.X > -1e9 → poll until isPaused:true
+  console.log('--- Step 10c: E2E breakpoint hit (PropertyMatch always-true) ---');
+
+  // Enter unpaused preview by calling play
+  const playResult = await callTool(client, 'play');
+  assert(!playResult.isError, 'play succeeded');
+  assert(playResult.parsed?.ok === true, 'play ok:true');
+  console.log(`  play result: ${JSON.stringify(playResult.parsed?.data)}`);
+
+  // Set an always-true PropertyMatch breakpoint: SimTransform.Position.X > -1e9
+  const e2eBpResult = await callTool(client, 'set_breakpoint', {
+    condition: {
+      '$type': 'PropertyMatch',
+      ComponentType: 'SimTransform',
+      PropertyPath: 'Position.X',
+      Operator: 'GreaterThan',
+      Predicate: { '$type': 'Numeric', MinValue: -1000000000.0, MaxValue: 1000000000.0 },
+    },
+    name: 'e2e-hit',
+  });
+  assert(!e2eBpResult.isError, 'set_breakpoint (e2e) succeeded');
+  assert(e2eBpResult.parsed?.ok === true, 'set_breakpoint (e2e) ok:true');
+  const e2eBpId = e2eBpResult.parsed?.data?.breakpointId;
+  assert(typeof e2eBpId === 'string' && e2eBpId.length > 0, `set_breakpoint (e2e) returned breakpointId (got ${e2eBpId})`);
+  console.log(`  E2E breakpoint ID: ${e2eBpId}`);
+
+  // Poll GET /breakpoints/hits until isPaused:true (up to 12 s)
+  let e2eHitData = null;
+  const e2eDeadline = Date.now() + 12_000;
+  while (Date.now() < e2eDeadline) {
+    const hitPoll = await callTool(client, 'get_breakpoint_status');
+    if (!hitPoll.isError && hitPoll.parsed?.data?.isPaused === true) {
+      e2eHitData = hitPoll.parsed?.data;
+      break;
+    }
+    await sleep(400);
+  }
+
+  assert(e2eHitData != null, 'get_breakpoint_status: isPaused:true within 12 s');
+  assert(e2eHitData?.isPaused === true, 'get_breakpoint_status: isPaused is true');
+  assert((e2eHitData?.pausedTick ?? 0) > 0, `get_breakpoint_status: pausedTick > 0 (got ${e2eHitData?.pausedTick})`);
+  assert(e2eHitData?.lastHit?.networkId === 1000,
+    `get_breakpoint_status: lastHit.networkId === 1000 (got ${e2eHitData?.lastHit?.networkId})`);
+  console.log(`  E2E hit: isPaused=${e2eHitData?.isPaused}, pausedTick=${e2eHitData?.pausedTick}, lastHit=${JSON.stringify(e2eHitData?.lastHit)}`);
+
+  // Verify hitCount >= 1 in list_breakpoints
+  const e2eListResult = await callTool(client, 'list_breakpoints');
+  const e2eBps = e2eListResult.parsed?.data;
+  const e2eBpEntry = Array.isArray(e2eBps) ? e2eBps.find((b) => b.id === e2eBpId) : null;
+  assert((e2eBpEntry?.hitCount ?? 0) >= 1, `list_breakpoints: hitCount >= 1 for ${e2eBpId} (got ${e2eBpEntry?.hitCount})`);
+  console.log(`  hitCount: ${e2eBpEntry?.hitCount}`);
+
+  // Clean up: remove the e2e breakpoint
+  await callTool(client, 'remove_breakpoint', { id: e2eBpId });
+  console.log('  (e2e breakpoint removed)');
   console.log('');
 
   // ── Step 11: Envelope passthrough — awaited:false case ───────────────────

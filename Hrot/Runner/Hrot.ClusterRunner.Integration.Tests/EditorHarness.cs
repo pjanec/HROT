@@ -21,8 +21,11 @@ using CarKinem.Tkb;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Perception.Translators;
+using Fdp.Toolkit.ReplayBrowser.Search;
+using Hrot.Blueprints.Editor.Debug;
 using Hrot.CGF;
 using Hrot.Core.Network;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor;
 using Hrot.Editor.Modules;
 using Hrot.Map.Common;
@@ -36,6 +39,7 @@ using Hrot.SimHost.Modules;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.NetworkSpawning;
+using StructEdit.Reflection;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -60,6 +64,9 @@ public sealed class EditorHarness : IDisposable
     private PreviewClusterOpHandler? _previewHandler;
     private TkbDatabase _tkbDb = null!;
     private WGS84Transform _geoTransform = null!;
+    private DataBreakpointManager? _bpManager;
+    private DataBreakpointSystem? _bpSystem;
+    private EntityRepository? _bpPreTickSnapshot;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
@@ -83,6 +90,9 @@ public sealed class EditorHarness : IDisposable
 
     /// <summary>Scenario serializer used by this harness (for building extraction services). Test accessor.</summary>
     public ScenarioSerializer Serializer => _serializer!;
+
+    /// <summary>Data breakpoint manager wired by this harness (ADA-BATCH-07). Test accessor.</summary>
+    public IDataBreakpointManager? BpManager => _bpManager;
 
     /// <summary>
     /// Event-history service populated by a World-bus capture system registered in the
@@ -118,7 +128,8 @@ public sealed class EditorHarness : IDisposable
             spatialGridOriginX: 0f,
             spatialGridOriginY: 0f,
             spatialGridWidth: PerceptionConstants.LocalGridWidth,
-            spatialGridHeight: PerceptionConstants.LocalGridHeight);
+            spatialGridHeight: PerceptionConstants.LocalGridHeight,
+            bpManager: _bpManager);
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────
@@ -282,6 +293,25 @@ public sealed class EditorHarness : IDisposable
         // Register editor-specific ECS systems (cargo, perception, zone authoring).
         Kernel.RegisterModule(new EditorSystemsModule(zoneService));
 
+        // ── DataBreakpointManager + DataBreakpointSystem (ADA-BATCH-07) ──────────
+        _bpPreTickSnapshot = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+        CognitiveComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+        CombatComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+        CgfComponentRegistry.RegisterAll(_bpPreTickSnapshot);
+        _bpPreTickSnapshot.RegisterManagedComponent<ZoneMembership>();
+
+        var bpTimeAdapter          = new MasterSyncTimeControllerAdapter(_timeController!);
+        var bpEditSvc              = new ComponentEditServiceBuilder().Build();
+        var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, behaviorRegistry);
+        var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
+        var bpSnapshotProvider     = new DebugSnapshotProvider(_bpPreTickSnapshot);
+        _bpManager                 = new DataBreakpointManager(Repo, _bpPreTickSnapshot, bpSnapshotProvider, bpTimeAdapter, bpPredicateCompiler, bpEventScannerCompiler);
+        _bpSystem                  = new DataBreakpointSystem(_bpManager, Bus);
+
+        Kernel.RegisterGlobalSystem(bpSnapshotProvider);
+        Kernel.RegisterGlobalSystem(_bpSystem);
+
         // Register caller-injected global systems (e.g. mock physics solvers in unit tests).
         // Must happen BEFORE Kernel.Initialize().
         if (extraGlobalSystems != null)
@@ -347,6 +377,8 @@ public sealed class EditorHarness : IDisposable
         Kernel.Dispose();
         _physicsModule?.Dispose();
         _physicsModule = null;
+        _bpPreTickSnapshot?.Dispose();
+        _bpPreTickSnapshot = null;
         Repo.Dispose();
         _idAllocator.Dispose();
     }

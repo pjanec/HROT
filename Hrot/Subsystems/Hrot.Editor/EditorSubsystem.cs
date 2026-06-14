@@ -1442,7 +1442,8 @@ namespace Hrot.Editor
                     spatialGridOriginX: 0f,
                     spatialGridOriginY: 0f,
                     spatialGridWidth: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridWidth,
-                    spatialGridHeight: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight);
+                    spatialGridHeight: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight,
+                    bpManager: _bpManager);
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

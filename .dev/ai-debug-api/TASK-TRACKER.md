@@ -75,7 +75,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Data/event breakpoints that auto-pause the sim; the autonomous-testing leverage feature.
 
-- [ ] **ADA-P2-T01** [sonnet] Breakpoint endpoints + `SearchPredicateDto` JSON + hit observation (Group G) [details](./TASK-DETAIL.md#ada-p2-t01--breakpoints)
+- [x] **ADA-P2-T01** [sonnet] Breakpoint endpoints + `SearchPredicateDto` JSON + hit observation (Group G) — BATCH-07 (+1 fix round), lead-verified: 59/59 tests, full build clean, REAL e2e hit proven manually AND automated (verify.mjs Step 10c, 75/75): always-true PropertyMatch → isPaused:true, lastHit.networkId 1000, hitCount 1. 4 MCP tools (Group G closes part of ADA-06-D01). ADA-07-D01 RESOLVED [details](./TASK-DETAIL.md#ada-p2-t01--breakpoints)
 
 ---
 

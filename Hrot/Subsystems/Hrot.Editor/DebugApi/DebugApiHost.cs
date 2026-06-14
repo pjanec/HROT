@@ -214,6 +214,36 @@ namespace Hrot.Editor.DebugApi
                 }
                 return Task.FromResult(Ok(Service().LocalToGeo(x, y, z, rotation)));
             }));
+
+            // Group G — Breakpoints (ADA-BATCH-07)
+            // NOTE: GET /breakpoints/hits must be registered BEFORE DELETE /breakpoints/{id}
+            // to avoid ambiguity. The GET /breakpoints/hits route has two literal segments
+            // so it matches before the parameterized DELETE route.
+            _routes.Add(new("GET", "/breakpoints/hits", _ => RunMain(s => s.GetBreakpointStatus())));
+
+            _routes.Add(new("POST", "/breakpoints", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().AddBreakpoint(ctx.Body), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/breakpoints", _ => RunMain(s => s.ListBreakpoints())));
+
+            _routes.Add(new("DELETE", "/breakpoints/{id}", async ctx =>
+            {
+                var idStr = ctx.RouteValue("id");
+                if (string.IsNullOrWhiteSpace(idStr)) return Fail(400, "breakpoint id is required.");
+                var error = await _jobQueue.RunOnMainThread<string?>(() =>
+                {
+                    try { Service().RemoveBreakpoint(idStr!); return null; }
+                    catch (ArgumentException ex) { return ex.Message; }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(404, error) : Ok(new JsonObject { ["removed"] = idStr });
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

@@ -708,6 +708,86 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+  // ── Group G — Breakpoints (ADA-BATCH-07) ─────────────────────────────────
+
+  {
+    name: 'set_breakpoint',
+    description:
+      'POST /breakpoints — register a run-until-condition breakpoint. ' +
+      'condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: ' +
+      'Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.). ' +
+      'Returns { breakpointId }.',
+    inputSchema: {
+      type: 'object',
+      required: ['condition'],
+      properties: {
+        condition: {
+          type: 'object',
+          description: 'SearchPredicateDto with $type discriminator (e.g. {"$type":"Lifecycle","IdentifierType":"NameSubstring","TargetValue":"Alpha","NamePropertyPath":"Name"})',
+        },
+        filterNetworkId: {
+          type: 'number',
+          description: 'Optional: only trigger for this entity (network ID)',
+        },
+        occurrenceThreshold: {
+          type: 'number',
+          description: 'Number of hits before pausing (default 1)',
+        },
+        name: {
+          type: 'string',
+          description: 'Human-readable label for the breakpoint',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        const body = { condition: toolArgs.condition };
+        if (toolArgs.filterNetworkId != null) body.filterNetworkId = toolArgs.filterNetworkId;
+        if (toolArgs.occurrenceThreshold != null) body.occurrenceThreshold = toolArgs.occurrenceThreshold;
+        if (toolArgs.name != null) body.name = toolArgs.name;
+        return toolSuccess(await callApi('POST', '/breakpoints', body));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'list_breakpoints',
+    description: 'GET /breakpoints — list all registered breakpoints with id, conditionSummary, enabled, occurrenceThreshold, hitCount, name.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/breakpoints')); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'remove_breakpoint',
+    description: 'DELETE /breakpoints/{id} — remove a breakpoint by its ID string (e.g. "BP#1").',
+    inputSchema: {
+      type: 'object',
+      required: ['id'],
+      properties: {
+        id: { type: 'string', description: 'Breakpoint ID string (e.g. "BP#1" from set_breakpoint or list_breakpoints)' },
+      },
+    },
+    async handler(toolArgs) {
+      try { return toolSuccess(await callApi('DELETE', `/breakpoints/${encodeURIComponent(toolArgs.id)}`)); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'get_breakpoint_status',
+    description:
+      'GET /breakpoints/hits — current pause state and last breakpoint hit. ' +
+      'Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/breakpoints/hits')); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────
