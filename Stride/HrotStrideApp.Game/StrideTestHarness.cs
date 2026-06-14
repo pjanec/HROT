@@ -191,12 +191,22 @@ public sealed class StrideTestHarness
         if (input == null)
             return;
 
+        // BATCH-S2-AC fix: Alt/Ctrl + digit are reserved for camera bookmarks (handled in
+        // StrideHrotGame). Without this guard a digit case (e.g. D1 spawn) would ALSO fire on
+        // Alt+1, masking the bookmark recall.
+        bool modifierHeld = input.IsKeyDown(Keys.LeftAlt)  || input.IsKeyDown(Keys.RightAlt)
+                         || input.IsKeyDown(Keys.LeftCtrl) || input.IsKeyDown(Keys.RightCtrl);
+
         // Every registered case has a key assigned by TryGetCaseKey.
         // Both this and the button click call TriggerCase.
         for (int i = 0; i < _registry.Count; i++)
         {
             if (TryGetCaseKey(i, out var key, out _) && input.IsKeyPressed(key))
+            {
+                // Skip digit-key cases while a modifier is held (Alt/Ctrl+digit = camera bookmarks).
+                if (modifierHeld && key >= Keys.D0 && key <= Keys.D9) continue;
                 TriggerCase(i, "key");
+            }
         }
     }
 

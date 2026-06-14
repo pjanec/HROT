@@ -596,12 +596,18 @@ public sealed class StrideHrotGame : Game
                     if (ctrl)
                     {
                         _cameraBookmarks.Save(slot, _cameraEntity.Transform.Position, _cameraEntity.Transform.Rotation);
+                        _editorSubsystem?.ShowToast($"Saved camera bookmark {slot}");
                     }
                     else if (_cameraBookmarks.TryGet(slot, out var pos, out var rot))
                     {
                         _cameraEntity.Transform.Position = pos;
                         _cameraEntity.Transform.Rotation = rot;
                         Log.Info("[StrideHrotGame] Recalled camera bookmark slot {0}.", slot);
+                        _editorSubsystem?.ShowToast($"Recalled camera bookmark {slot}");
+                    }
+                    else
+                    {
+                        _editorSubsystem?.ShowToast($"Camera bookmark {slot} is empty");
                     }
                 }
             }
