@@ -180,6 +180,12 @@ public sealed class StrideHrotGame : Game
     private float _rmbDragAccum;
     private const float RmbDragDeadzone = 0.01f; // accumulated normalized delta above which it's a drag
 
+    // BATCH-S2-W: 3D drag-and-drop (LMB press selects + arms; LMB drag repositions along the ground).
+    private Fdp.Core.Entity? _dragEntity;
+    private bool  _dragging;
+    private float _lmbDragAccum;
+    private const float DragStartDeadzone = 0.01f; // accumulated normalized delta before a drag starts
+
     /// <summary>
     /// Frame counter used to throttle the spawn-diagnostics log in <see cref="Update"/>
     /// to roughly once per second (every <see cref="DiagnosticsLogIntervalFrames"/> frames).
@@ -440,6 +446,8 @@ public sealed class StrideHrotGame : Game
                 if (cam != null && world != null)
                 {
                     bool lmb     = Input.IsMouseButtonPressed(MouseButton.Left);
+                    bool lmbHeld = Input.IsMouseButtonDown(MouseButton.Left);
+                    bool lmbUp   = Input.IsMouseButtonReleased(MouseButton.Left);
                     bool rmbDown = Input.IsMouseButtonPressed(MouseButton.Right);
                     bool rmbUp   = Input.IsMouseButtonReleased(MouseButton.Right);
 
@@ -447,7 +455,7 @@ public sealed class StrideHrotGame : Game
                     if (rmbDown) { _rmbHeld = true; _rmbDragAccum = 0f; }
                     if (_rmbHeld) _rmbDragAccum += Input.MouseDelta.Length();
 
-                    // LMB select (on press) — unchanged.
+                    // LMB-press: select the hit entity and arm a potential drag. (BATCH-S2-W)
                     if (lmb)
                     {
                         var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
@@ -459,9 +467,49 @@ public sealed class StrideHrotGame : Game
                         if (hit.HasHit && hit.HitEntity != Fdp.Core.Entity.Null && world.IsAlive(hit.HitEntity))
                         {
                             _editorSubsystem.SelectionState.Select(hit.HitEntity);
+                            _dragEntity = hit.HitEntity;   // arm a possible drag of this entity
+                            _lmbDragAccum = 0f;
+                            _dragging = false;
                             Log.Info("[ClickDiag] LMB selected entity #{0}", hit.HitEntity.Index);
                         }
-                        else Log.Info("[ClickDiag] LMB no live entity hit — selection unchanged.");
+                        else { _dragEntity = null; _dragging = false; }
+                    }
+
+                    // LMB-held: once movement exceeds the deadzone, drag the entity along the FDP ground plane (Z=0). (BATCH-S2-W)
+                    if (_dragEntity is { } dragE && lmbHeld)
+                    {
+                        _lmbDragAccum += Input.MouseDelta.Length();
+                        if (_lmbDragAccum > DragStartDeadzone) _dragging = true;
+                        if (_dragging && world.IsAlive(dragE) && world.HasComponent<SimTransform>(dragE))
+                        {
+                            var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
+                            // Intersect the FDP ground plane Z=0 (FDP Z is up). Avoids self-hit of the dragged body
+                            // and is stable for the flat arena floor.
+                            if (MathF.Abs(ray.Direction.Z) > 1e-4f)
+                            {
+                                float t = -ray.Origin.Z / ray.Direction.Z;
+                                if (t > 0f)
+                                {
+                                    var p = ray.Origin + ray.Direction * t;
+                                    var cur = world.GetComponent<SimTransform>(dragE);
+                                    world.SetComponent(dragE, new SimTransform
+                                    {
+                                        Position = new System.Numerics.Vector3(p.X, p.Y, cur.Position.Z), // keep authored height
+                                        Rotation = cur.Rotation,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // LMB-release: finalize. (BATCH-S2-W)
+                    if (lmbUp)
+                    {
+                        if (_dragging && _dragEntity is { } droppedE)
+                            Log.Info("[StrideHrotGame] Drag-drop entity #{0} released.", droppedE.Index);
+                        _dragEntity = null;
+                        _dragging = false;
+                        _lmbDragAccum = 0f;
                     }
 
                     // RMB move — only on release, only if it was a click (small accumulated movement), not a camera orbit.
@@ -698,6 +746,12 @@ public sealed class StrideHrotGame : Game
             // infantry in the DotRecast crowd (it skips entities that carry VehicleState).
             if (world.IsComponentTypeRegistered<VehicleState>() && world.HasComponent<VehicleState>(entity))
                 world.RemoveComponent<VehicleState>(entity);
+
+            // The crowd pipeline (CrowdAgentUpdateSystem) and BulletCharacterMotor both query With<CrowdMotorIntent>;
+            // NavigationIntentBridgeSystem registers the agent but does NOT add this component, so add it here
+            // (mirrors the working F5 'Navmesh Walk' / F6 'FDP Move Order char' harness cases). (BATCH-S2-W)
+            if (world.IsComponentTypeRegistered<CrowdMotorIntent>() && !world.HasComponent<CrowdMotorIntent>(entity))
+                world.AddComponent(entity, new CrowdMotorIntent());
 
             FdpNavigationOrders.IssueMoveTo(world, entity, targetFdp, Speed, ArrivalRadius, NavLayerMask.Infantry);
             Log.Info("[StrideHrotGame] Move order (CHARACTER) entity #{0} → FDP ({1:F2},{2:F2},{3:F2}) via IssueMoveTo.",
