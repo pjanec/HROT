@@ -670,6 +670,20 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
     }
 
     /// <inheritdoc/>
+    public void SetCharacterFacing(object bodyHandle, SMath.Quaternion strideRotation)
+    {
+        if (bodyHandle is SkippedBodyHandle) return;
+        if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
+        if (entry.PhysicsComponent is CharacterComponent ch)
+        {
+            entry.StrideEntity.Transform.Rotation = strideRotation;
+            entry.StrideEntity.Transform.UpdateWorldMatrix();
+            try { ch.UpdatePhysicsTransformation(true); } // push rotation into the native ghost
+            catch (Exception) { /* controller not yet initialised — entity transform is set */ }
+        }
+    }
+
+    /// <inheritdoc/>
     public void Jump(object bodyHandle)
     {
         if (bodyHandle is SkippedBodyHandle) return;
@@ -1562,6 +1576,10 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBod
     /// <inheritdoc/>
     public void SetCharacterVelocity(object bodyHandle, SMath.Vector3 velocity)
         => Inner.SetCharacterVelocity(bodyHandle, velocity);
+
+    /// <inheritdoc/>
+    public void SetCharacterFacing(object bodyHandle, SMath.Quaternion strideRotation)
+        => Inner.SetCharacterFacing(bodyHandle, strideRotation);
 
     /// <inheritdoc/>
     public void Jump(object bodyHandle)

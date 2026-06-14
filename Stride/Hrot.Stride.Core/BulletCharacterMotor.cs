@@ -106,6 +106,18 @@ public sealed class BulletCharacterMotor
     /// </summary>
     public float ProneMultiplier { get; set; } = 0.25f;
 
+    /// <summary>Min horizontal FDP speed (m/s) before the character turns to face travel.
+    /// Below this it keeps its current facing (so a stopped mannequin doesn't snap to a default).</summary>
+    public float FacingMinSpeed { get; set; } = 0.10f;
+
+    /// <summary>Model-forward yaw correction (degrees), added to the travel heading. The mannequin
+    /// model's local forward is not FDP +East at yaw 0; this aligns it. Matches the known mannequin
+    /// correction (StrideVisualFactory.MannequinYawCorrectionDeg = −90). Tune if facing is off.</summary>
+    public float FacingYawOffsetDeg { get; set; } = -90f;
+
+    /// <summary>Per-frame slerp factor toward the target facing (0..1). ~0.20 gives a smooth turn.</summary>
+    public float FacingTurnLerp { get; set; } = 0.20f;
+
     /// <summary>
     /// Constructs the motor.
     /// </summary>
@@ -188,6 +200,26 @@ public sealed class BulletCharacterMotor
 
             // ── Drive the character body ──────────────────────────────────────
             _bodyService.SetCharacterVelocity(bodyRef.BodyHandle, strideVelocity);
+
+            // ── Face the direction of travel (BATCH-S2-Y) ─────────────────────────────
+            // Owned mannequin visual rotation = the body entity transform; the kinematic controller
+            // never turns on its own. Turn it to face horizontal velocity, smoothed, when moving.
+            // FDP horizontal plane is X=East, Y=North (Z=up). Heading yaw is about FDP up (Z).
+            float hx = scaledFdpVelocity.X, hy = scaledFdpVelocity.Y;
+            float horizSpeed = MathF.Sqrt(hx * hx + hy * hy);
+            if (horizSpeed >= FacingMinSpeed)
+            {
+                float headingRad = MathF.Atan2(hy, hx);                  // FDP yaw about Z (up)
+                float yawRad     = headingRad + FacingYawOffsetDeg * (MathF.PI / 180f);
+                var fdpFacing    = System.Numerics.Quaternion.CreateFromAxisAngle(
+                                       new Vector3(0f, 0f, 1f), yawRad); // FDP Z = up
+                var targetStride = FdpStrideTransform.ToStrideRotation(fdpFacing);
+
+                // Slerp from the current body orientation for a smooth turn.
+                var curStride  = _bodyService.GetBodyState(bodyRef.BodyHandle).Rotation;
+                var nextStride = SMath.Quaternion.Slerp(curStride, targetStride, FacingTurnLerp);
+                _bodyService.SetCharacterFacing(bodyRef.BodyHandle, nextStride);
+            }
 
             // ── Write post-collision velocity channel (velocity invariant, §6.1) ──
             // BulletReverseSyncSystem reads PostCollisionLinearVelocityFdp for kinematic

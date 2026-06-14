@@ -95,6 +95,18 @@ public interface IPhysicsBodyService
     void SetCharacterVelocity(object bodyHandle, SMath.Vector3 velocity);
 
     /// <summary>
+    /// Sets the world-space ORIENTATION of a Bullet <c>CharacterComponent</c> body so the
+    /// rendered mannequin faces a chosen direction (BATCH-S2-Y). The kinematic character
+    /// controller owns POSITION only; its yaw is free, so the motor turns it to face travel.
+    /// In the concrete service this sets <c>entry.StrideEntity.Transform.Rotation</c> — which
+    /// <c>GetBodyState</c> reads back and <c>BulletReverseSyncSystem</c> writes to SimTransform.
+    /// Default no-op so headless fakes are unaffected.
+    /// </summary>
+    /// <param name="bodyHandle">Handle of a body created with <c>CollisionShapeKind.Capsule</c>.</param>
+    /// <param name="strideRotation">Desired orientation in Stride world space (Y-up, left-handed).</param>
+    void SetCharacterFacing(object bodyHandle, SMath.Quaternion strideRotation) { }
+
+    /// <summary>
     /// Triggers a jump on a Bullet <c>CharacterComponent</c> body.
     ///
     /// <para>
