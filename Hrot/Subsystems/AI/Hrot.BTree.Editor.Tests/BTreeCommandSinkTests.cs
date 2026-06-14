@@ -6,6 +6,7 @@ using FluentAssertions;
 using Fbt;
 using Hrot.BTree.Editor.Host;
 using Hrot.BTree.Editor.Model;
+using Hrot.BTree.Editor.Persistence;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
 using NodeEditor.Primitives;
@@ -751,5 +752,120 @@ public sealed class BTreeCommandSinkTests
         // Assert: success, model unchanged.
         result.Success.Should().BeTrue();
         asset.FindNode(nodeId.Value).Should().NotBeNull();
+    }
+
+    // ---- DEC-03: picker path (paletteKind) -------------------------------------
+
+    /// <summary>
+    /// AddAttachment with paletteKind="bt.decorator.repeater" (no decoratorType)
+    /// must create a Repeater pill with default IntParam=1.
+    /// </summary>
+    [Fact]
+    public void AddAttachment_PaletteKind_Repeater_CreatesPillWithDefaultIntParam()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var attId  = AttachmentId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        var props = new Dictionary<string, object?> { [AttachmentHostPropertyKeys.Kind] = BTreeKinds.Repeater };
+        sink.Apply(new GraphCommand.AddAttachment(attId, nodeId, AttachmentCategory.Decorator, "R", null, null, 0, props));
+
+        var pill = asset.FindPill(attId.Value);
+        pill.Should().NotBeNull();
+        pill!.DecoratorType.Should().Be(NodeType.Repeater);
+        pill.HostNodeVisualId.Should().Be(nodeId.Value);
+        pill.StackIndex.Should().Be(0);
+        pill.IntParam.Should().NotBeNull("default IntParam must be set for Repeater");
+        pill.IntParam.Should().Be(1);
+    }
+
+    /// <summary>
+    /// AddAttachment with paletteKind="bt.decorator.cooldown" (no decoratorType)
+    /// must create a Cooldown pill with default FloatParam=1f.
+    /// </summary>
+    [Fact]
+    public void AddAttachment_PaletteKind_Cooldown_CreatesPillWithDefaultFloatParam()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var attId  = AttachmentId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        var props = new Dictionary<string, object?> { [AttachmentHostPropertyKeys.Kind] = BTreeKinds.Cooldown };
+        sink.Apply(new GraphCommand.AddAttachment(attId, nodeId, AttachmentCategory.Decorator, "C", null, null, 1, props));
+
+        var pill = asset.FindPill(attId.Value);
+        pill.Should().NotBeNull();
+        pill!.DecoratorType.Should().Be(NodeType.Cooldown);
+        pill.HostNodeVisualId.Should().Be(nodeId.Value);
+        pill.StackIndex.Should().Be(1);
+        pill.FloatParam.Should().NotBeNull("default FloatParam must be set for Cooldown");
+        pill.FloatParam.Should().Be(1f);
+    }
+
+    /// <summary>
+    /// AddAttachment with a paletteKind that is NOT a decorator (e.g. Sequence)
+    /// must be a safe no-op — no pill added.
+    /// </summary>
+    [Fact]
+    public void AddAttachment_PaletteKind_NonDecorator_IsNoOp()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var attId  = AttachmentId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        var props = new Dictionary<string, object?> { [AttachmentHostPropertyKeys.Kind] = BTreeKinds.Sequence };
+        sink.Apply(new GraphCommand.AddAttachment(attId, nodeId, AttachmentCategory.Decorator, "?", null, null, 0, props));
+
+        asset.FindPill(attId.Value).Should().BeNull("non-decorator paletteKind must not add a pill");
+    }
+
+    /// <summary>
+    /// Regression guard: the existing decoratorType-based path must still add a pill.
+    /// </summary>
+    [Fact]
+    public void AddAttachment_DecoratorType_ExistingPath_StillWorks()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var attId  = AttachmentId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        var props = new Dictionary<string, object?> { ["decoratorType"] = NodeType.Inverter };
+        sink.Apply(new GraphCommand.AddAttachment(attId, nodeId, AttachmentCategory.Decorator, "I", null, null, 0, props));
+
+        var pill = asset.FindPill(attId.Value);
+        pill.Should().NotBeNull("decoratorType path must still add a pill");
+        pill!.DecoratorType.Should().Be(NodeType.Inverter);
+    }
+
+    /// <summary>
+    /// Round-trip: a pill added via the picker path must survive model→DTO→model.
+    /// </summary>
+    [Fact]
+    public void AddAttachment_PaletteKind_Repeater_RoundTripsViaMapper()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+        var attId  = AttachmentId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+        var props = new Dictionary<string, object?> { [AttachmentHostPropertyKeys.Kind] = BTreeKinds.Repeater };
+        sink.Apply(new GraphCommand.AddAttachment(attId, nodeId, AttachmentCategory.Decorator, "R", null, null, 0, props));
+
+        // Verify the pill exists before round-trip.
+        asset.FindPill(attId.Value).Should().NotBeNull();
+
+        // Round-trip via mapper.
+        var dto      = BehaviorTreeAssetMapper.ToDto(asset);
+        var restored = BehaviorTreeAssetMapper.FromDto(dto);
+
+        var restoredPill = restored.FindPill(attId.Value);
+        restoredPill.Should().NotBeNull("pill must survive model→DTO→model round-trip");
+        restoredPill!.DecoratorType.Should().Be(NodeType.Repeater);
+        restoredPill.IntParam.Should().Be(1);
+        restoredPill.HostNodeVisualId.Should().Be(nodeId.Value);
     }
 }

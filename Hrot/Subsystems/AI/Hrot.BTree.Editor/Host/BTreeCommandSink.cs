@@ -330,10 +330,25 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     {
         if (att.HostProperties == null)
             return;
-        if (!att.HostProperties.TryGetValue("decoratorType", out var dtObj))
+
+        NodeType dt;
+        if (att.HostProperties.TryGetValue("decoratorType", out var dtObj) && dtObj is NodeType existingDt)
+        {
+            // Existing programmatic/test path — keep working.
+            dt = existingDt;
+        }
+        else if (att.HostProperties.TryGetValue(AttachmentHostPropertyKeys.Kind, out var kindObj)
+                 && kindObj is string kindStr
+                 && BTreeKinds.IsDecorator(new NodeKindKey(kindStr)))
+        {
+            // Picker path: resolve from paletteKind.
+            dt = BTreeKinds.KindIdToNodeType(kindStr);
+        }
+        else
+        {
+            // Non-decorator kind or missing props — safe no-op.
             return;
-        if (dtObj is not NodeType dt)
-            return;
+        }
 
         var pill = new BTreeEditorPill
         {
@@ -345,8 +360,14 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
 
         if (att.HostProperties.TryGetValue("intParam", out var ip) && ip is int intVal)
             pill.IntParam = intVal;
+        else if (dt == NodeType.Repeater)
+            pill.IntParam = 1;
+
         if (att.HostProperties.TryGetValue("floatParam", out var fp) && fp is float floatVal)
             pill.FloatParam = floatVal;
+        else if (dt == NodeType.Cooldown)
+            pill.FloatParam = 1f;
+
         if (att.HostProperties.TryGetValue("comment", out var cp) && cp is string comment)
             pill.Comment = comment;
 

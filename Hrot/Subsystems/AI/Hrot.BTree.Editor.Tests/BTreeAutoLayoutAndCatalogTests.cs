@@ -181,4 +181,35 @@ public sealed class BTreeNodeCatalogTests
         foreach (var entry in leafEntries)
             BTreeKinds.IsLeaf(entry.Kind).Should().BeTrue($"{entry.Kind.Id} should be a leaf");
     }
+
+    // ---- DEC-03: decorator entries use AttachToSelected / Decorator -----------
+
+    [Fact]
+    public void Decorator_entries_have_AttachToSelected_and_Decorator_category()
+    {
+        var decoratorIds = new[]
+        {
+            BTreeKinds.Inverter, BTreeKinds.Repeater, BTreeKinds.Cooldown,
+            BTreeKinds.ForceSuccess, BTreeKinds.ForceFailure,
+            BTreeKinds.UntilSuccess, BTreeKinds.UntilFailure,
+        };
+        foreach (var id in decoratorIds)
+        {
+            var entry = _catalog.All.Single(e => e.Kind.Id == id);
+            entry.PaletteAction.Should().Be(NodePaletteAction.AttachToSelected,
+                $"{id} must use AttachToSelected");
+            entry.AttachmentCategory.Should().Be(NodeEditor.Core.Interfaces.AttachmentCategory.Decorator,
+                $"{id} must have AttachmentCategory.Decorator");
+        }
+    }
+
+    [Fact]
+    public void NonDecorator_entries_have_CreateNode_palette_action()
+    {
+        var nonDecorators = _catalog.All.Where(e => e.CategoryPath != "Decorator").ToList();
+        nonDecorators.Should().NotBeEmpty();
+        foreach (var entry in nonDecorators)
+            entry.PaletteAction.Should().Be(NodePaletteAction.CreateNode,
+                $"{entry.Kind.Id} must use CreateNode");
+    }
 }

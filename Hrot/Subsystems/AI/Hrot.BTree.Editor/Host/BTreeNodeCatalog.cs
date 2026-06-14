@@ -195,7 +195,9 @@ public sealed class BTreeNodeCatalog : INodeCatalog
             "bt/decorator",
             false, false, false,
             Array.Empty<PinSignature>(),
-            Array.Empty<PinSignature>());
+            Array.Empty<PinSignature>(),
+            PaletteAction: NodePaletteAction.AttachToSelected,
+            AttachmentCategory: AttachmentCategory.Decorator);
 
     // ---- INodeCatalog ----
 
