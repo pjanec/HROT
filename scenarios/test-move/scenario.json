@@ -17,7 +17,7 @@
               "taskId": "57e4221b-65d0-46ce-861f-093fe49cb439",
               "executingEngine": "",
               "behaviorName": "MoveToLocation",
-              "behaviorParams": "{\u0022targetLat\u0022:52.52265980372888,\u0022targetLon\u0022:13.412204386639633,\u0022speed\u0022:5,\u0022arrivalRadius\u0022:5}",
+              "behaviorParams": "{\u0022targetLat\u0022:52.52008985823410,\u0022targetLon\u0022:13.40508839738200,\u0022speed\u0022:5,\u0022arrivalRadius\u0022:5}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -32,15 +32,15 @@
         "Entries": []
       },
       "BrainBlackboard": {
-        "X": 489,
-        "Y": 296,
+        "X": 6,
+        "Y": 10,
         "Speed": 5,
         "ArrivalRadius": 5
       },
       "SimTransform": {
         "Position": [
-          368,
-          296,
+          -6,
+          5,
           0
         ],
         "Rotation": [
