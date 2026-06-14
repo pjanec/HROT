@@ -64,7 +64,7 @@ public sealed class StrideSelfTest
     private const float PausedFreezeTolerance = 1.0f; // metres: movement <= this while paused => frozen
 
     // ── Test parameters ──────────────────────────────────────────────────────
-    private const long  SpawnTkbType   = 100L;  // Tank_M1Abrams → OrientedBox Bullet body
+    private const long  SpawnTkbType   = 101L;  // IFV (TkbType 101) — the exact type the test-move scenario uses
     private const long  SpawnNetId     = 9001L;
     private const float HoldTolerance  = 5.0f;  // metres (FDP X,Y)
 

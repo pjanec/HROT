@@ -483,12 +483,23 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
                     useHalfZ     = Math.Max(dims.HalfY, 0.05f); // FDP Y=North → Stride Z
                     boxLocalOffset = SMath.Vector3.Zero; // ShapeDims assumes center-origin
 
+                    // BATCH-S2-N: the bbox branch above places the entity at its resting Stride Y so the box
+                    // BOTTOM sits on the floor (Y=0); the fallback branch previously skipped this, leaving the
+                    // entity at its authored Y (= FDP.Z, typically 0) → box CENTER at floor → half-buried, and a
+                    // body embedded in the floor cannot move horizontally. Apply the same resting-Y here.
+                    // Center-origin box (LocalOffset=Zero): bottom = entity.Y - useHalfY = 0  ⇒  entity.Y = useHalfY.
+                    float fallbackRestingStrideY = useHalfY;
+                    strideEntity.Transform.Position = new SMath.Vector3(
+                        strideEntity.Transform.Position.X,
+                        fallbackRestingStrideY,
+                        strideEntity.Transform.Position.Z);
+
                     Log.Info(
                         "[BulletPhysicsBodyService] CreateBody: entity #{0} → DYNAMIC RigidbodyComponent " +
                         "(box {1:F3}×{2:F3}×{3:F3} from ShapeDims FALLBACK) LocalOffset=Zero " +
-                        "attached to visual '{4}' @ Stride {5}.",
+                        "restingY={6:F3} attached to visual '{4}' @ Stride {5}.",
                         entity.Index, useHalfX * 2f, useHalfY * 2f, useHalfZ * 2f,
-                        strideEntity.Name, strideEntity.Transform.Position);
+                        strideEntity.Name, strideEntity.Transform.Position, fallbackRestingStrideY);
                 }
 
                 var boxShape = new BoxColliderShape(
