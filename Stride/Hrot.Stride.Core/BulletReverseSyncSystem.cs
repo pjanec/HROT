@@ -102,8 +102,9 @@ public sealed class BulletReverseSyncSystem : IEcsModuleSystem
     /// </summary>
     private const float EmaAlpha = 0.25f;
 
-    private readonly IPhysicsBodyService       _bodyService;
+    private readonly IPhysicsBodyService        _bodyService;
     private readonly PhysicsBodyLifecycleSystem _lifecycle;
+    private readonly IBodyRepositionService?    _repositionService;
 
     /// <summary>
     /// Constructs the reverse-sync system.
@@ -121,8 +122,9 @@ public sealed class BulletReverseSyncSystem : IEcsModuleSystem
         IPhysicsBodyService        bodyService,
         PhysicsBodyLifecycleSystem lifecycle)
     {
-        _bodyService = bodyService ?? throw new ArgumentNullException(nameof(bodyService));
-        _lifecycle   = lifecycle   ?? throw new ArgumentNullException(nameof(lifecycle));
+        _bodyService        = bodyService ?? throw new ArgumentNullException(nameof(bodyService));
+        _lifecycle          = lifecycle   ?? throw new ArgumentNullException(nameof(lifecycle));
+        _repositionService  = bodyService as IBodyRepositionService;
     }
 
     /// <summary>
@@ -159,6 +161,10 @@ public sealed class BulletReverseSyncSystem : IEcsModuleSystem
                 Rotation = FdpStrideTransform.ToFdpRotation(state.Rotation),
             };
             repo.SetComponent(entity, newTransform);
+            // Record the muscle-authored pose as the reposition baseline (BATCH-S2-K).
+            // SyncBodyToExternalPose compares SimTransform against THIS, not the live body pose,
+            // so physics-step motion is never mistaken for an external drag.
+            _repositionService?.RecordReverseSyncedPose(bodyRef.BodyHandle, in newTransform);
             ulong dkey = entity.PackedValue;
             if (!_diagEarlyWriteCount.TryGetValue(dkey, out var dn)) dn = 0;
             if (dn < 5)

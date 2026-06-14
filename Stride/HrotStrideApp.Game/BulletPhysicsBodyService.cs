@@ -215,6 +215,17 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         /// </summary>
         public bool InitialPoseApplied { get; set; }
 
+        /// <summary>
+        /// The FDP-space position the reverse-sync last wrote into SimTransform for this body
+        /// (BATCH-S2-K). This is the baseline SyncBodyToExternalPose compares the incoming
+        /// SimTransform against — divergence means an EXTERNAL writer (operator drag) changed
+        /// SimTransform, not the muscle's own physics motion.
+        /// </summary>
+        public System.Numerics.Vector3 LastReverseSyncedFdpPos { get; set; }
+
+        /// <summary>False until RecordReverseSyncedPose has run at least once for this body.</summary>
+        public bool HasReverseSyncBaseline { get; set; }
+
         public BodyEntry(
             global::Stride.Engine.Entity strideEntity,
             PhysicsComponent physicsComponent,
@@ -1012,6 +1023,17 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         return new BodyState(pos, rot, linearVel, angularVel, IsKinematic: entry.IsKinematic);
     }
 
+    // ── BATCH-S2-K: record muscle-authored baseline ───────────────────────────
+
+    /// <inheritdoc cref="IBodyRepositionService.RecordReverseSyncedPose"/>
+    public void RecordReverseSyncedPose(object bodyHandle, in SimTransform simTf)
+    {
+        if (bodyHandle is SkippedBodyHandle) return;
+        if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
+        entry.LastReverseSyncedFdpPos = simTf.Position;
+        entry.HasReverseSyncBaseline  = true;
+    }
+
     // ── BATCH-S2-G Task 2: external-reposition detection + teleport ───────────
 
     /// <summary>
@@ -1045,20 +1067,27 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         var targetStridePos = FdpStrideTransform.ToStridePosition(simTf.Position);
         var targetStrideRot = FdpStrideTransform.ToStrideRotation(simTf.Rotation);
 
-        // HORIZONTAL (XZ) ONLY: the operator drags on the 2D map (FDP X,Y → Stride X,Z).
-        // The vertical axis (Stride Y) is owned by physics — the body rests on the floor at
-        // its half-height, while the externally-authored SimTransform.Z is typically 0 (ground).
-        // Comparing/teleporting Y would set the body into the floor; gravity then nudges it up,
-        // re-triggering the reposition every frame. So we detect and teleport in XZ and PRESERVE
-        // the body's current Y, letting it rest naturally.
+        // BATCH-S2-K: detect an EXTERNAL write by comparing the incoming SimTransform against the
+        // muscle's own last reverse-synced pose (NOT the live body pose). The live body leads
+        // SimTransform by one physics step (reverse-sync runs pre-step), so comparing against the
+        // live body produced a false divergence every frame and froze the vehicle.
+        //
+        // No baseline yet (reverse-sync hasn't run for this body): the initial-pose slam owns
+        // placement — skip external-reposition until we have a baseline.
+        if (!entry.HasReverseSyncBaseline) return;
+
+        // Horizontal (FDP X,Y) divergence between the externally-visible SimTransform and what the
+        // muscle last authored. <= epsilon => muscle-authored motion (or no change) => skip.
+        float dXf = simTf.Position.X - entry.LastReverseSyncedFdpPos.X;
+        float dYf = simTf.Position.Y - entry.LastReverseSyncedFdpPos.Y;
+        float distSqFdpXY = dXf * dXf + dYf * dYf;
+        if (distSqFdpXY <= RepositionEpsilonM * RepositionEpsilonM) return; // not externally moved
+
+        // External reposition detected. (Below: keep the existing teleport — read the live body pos
+        // for Y-preservation and teleport in Stride XZ.)
         var currentBodyPos = entry.StrideEntity.Transform.Position;
-        float dx = targetStridePos.X - currentBodyPos.X;
-        float dz = targetStridePos.Z - currentBodyPos.Z;
-        float distSqXZ = dx * dx + dz * dz;
 
-        if (distSqXZ <= RepositionEpsilonM * RepositionEpsilonM) return; // normal physics motion
-
-        // External reposition detected: teleport (XZ from request, Y kept).
+        // Teleport (XZ from request, Y kept).
         var newPos = new SMath.Vector3(targetStridePos.X, currentBodyPos.Y, targetStridePos.Z);
 
         if (entry.PhysicsComponent is CharacterComponent ch)
@@ -1088,7 +1117,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
             }
 
             Log.Info("[BulletPhysicsBodyService] ExternalReposition(character) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}).",
-                entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
+                entry.StrideEntity.Name, MathF.Sqrt(distSqFdpXY),
                 newPos.X, newPos.Y, newPos.Z);
         }
         else if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
@@ -1119,7 +1148,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
             }
 
             Log.Info("[BulletPhysicsBodyService] ExternalReposition(vehicle) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity.",
-                entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
+                entry.StrideEntity.Name, MathF.Sqrt(distSqFdpXY),
                 newPos.X, newPos.Y, newPos.Z);
         }
         // Other kinds (kinematic RigidbodyComponent, unknown) are skipped — they are moved
@@ -1544,6 +1573,13 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBod
     {
         if (_inner != null)
             _inner.SyncBodyToExternalPose(bodyHandle, in simTf);
+    }
+
+    /// <inheritdoc/>
+    public void RecordReverseSyncedPose(object bodyHandle, in SimTransform simTf)
+    {
+        if (_inner != null)
+            _inner.RecordReverseSyncedPose(bodyHandle, in simTf);
     }
 
     /// <inheritdoc/>

@@ -14,29 +14,23 @@ using SMath = Stride.Core.Mathematics;
 namespace HrotStrideApp.Tests;
 
 /// <summary>
-/// CPU-only tests for BATCH-S2-G: dynamic Bullet body must honor initial position and
-/// external reposition (operator drag → SimTransform changed).
+/// CPU-only tests for BATCH-S2-G / BATCH-S2-K: dynamic Bullet body must honor initial position
+/// and external reposition (operator drag → SimTransform changed).
 ///
 /// <para>
-/// All three tests use a <see cref="RecordingFakePhysicsBodyService"/> (headless — no GPU)
-/// that records <c>CreateBody</c> calls including the <c>initialPose</c> argument, and a
-/// <see cref="RecordingBodyRepositionService"/> that records <c>SyncBodyToExternalPose</c>
-/// calls to let us assert teleport targets and no-teleport scenarios.
+/// BATCH-S2-K changes the divergence DETECTION baseline from "live body pose" to "last
+/// reverse-synced pose" so that normal physics motion (live body leads SimTransform by one
+/// step) is NOT mistaken for an external drag.  Tests 2 and 3 are updated to the new contract:
+/// <list type="bullet">
+///   <item>A baseline must be established via <c>RecordReverseSyncedPose</c> before
+///     <c>SyncBodyToExternalPose</c> can fire.</item>
+///   <item>SimTransform == baseline → NO teleport (muscle-authored motion).</item>
+///   <item>SimTransform differs from baseline by &gt; epsilon → teleport (external drag).</item>
+/// </list>
 /// </para>
 ///
 /// <para>
-/// GPU-path assertions (actual native btRigidBody position after UpdateWorldMatrix) are
-/// not possible in CPU-only tests.  We assert the CPU-observable invariants:
-/// <list type="bullet">
-///   <item><b>Task 1</b>: <c>CreateBody</c> receives the non-origin initial pose; the
-///     <c>InitialStridePos</c> captured in the body entry matches the spawn SimTransform
-///     converted to Stride space.</item>
-///   <item><b>Task 2</b>: <c>SyncBodyToExternalPose</c> fires with the repositioned
-///     SimTransform as target when the position diverges beyond epsilon; does NOT fire when
-///     the position is within epsilon of the baseline.</item>
-///   <item><b>Task 3</b>: no false fire on normal physics motion (SimTransform stays within
-///     epsilon of the body's current Stride position).</item>
-/// </list>
+/// All tests use a <see cref="RecordingFakePhysicsBodyService"/> (headless — no GPU).
 /// </para>
 /// </summary>
 public sealed class DynamicBodyInitialPoseTests : IDisposable
@@ -47,6 +41,11 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
     /// Recording fake that captures <c>CreateBody</c> calls with the exact
     /// <c>initialPose</c> argument, and records <c>SyncBodyToExternalPose</c>
     /// calls for the reposition detection assertions.
+    ///
+    /// BATCH-S2-K: baseline is the last FDP position recorded via
+    /// <c>RecordReverseSyncedPose</c>, NOT the live body Stride position.
+    /// No baseline → SyncBodyToExternalPose is always a no-op (matching the
+    /// <c>HasReverseSyncBaseline</c> guard in the real service).
     /// </summary>
     private sealed class RecordingFakePhysicsBodyService : IPhysicsBodyService, IBodyRepositionService
     {
@@ -61,16 +60,20 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
             object Handle,
             SimTransform SimTf);
 
-        public List<CreateCall>    Creates      { get; } = new();
-        public List<RepositionCall> Repositions { get; } = new();
+        public List<CreateCall>     Creates      { get; } = new();
+        public List<RepositionCall> Repositions  { get; } = new();
 
         /// <summary>
-        /// Current simulated body position (Stride space) — updated by SyncBodyToExternalPose
-        /// to model the reverse-sync: after a reposition the body is now at the new pose,
-        /// so subsequent frames won't false-fire.
-        /// Set by tests to simulate what the body's entity transform is at.
+        /// Whether a reverse-sync baseline has been established for the last created body.
+        /// Mirrors <c>BodyEntry.HasReverseSyncBaseline</c> (BATCH-S2-K).
         /// </summary>
-        public SMath.Vector3 SimulatedBodyStridePos { get; set; } = SMath.Vector3.Zero;
+        public bool HasReverseSyncBaseline { get; private set; }
+
+        /// <summary>
+        /// The last FDP position recorded by <c>RecordReverseSyncedPose</c>.
+        /// This is the baseline that <c>SyncBodyToExternalPose</c> compares against.
+        /// </summary>
+        public Vector3 LastReverseSyncedFdpPos { get; private set; }
 
         private int _counter;
 
@@ -79,8 +82,9 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
         {
             var handle = $"FakeBody_{++_counter}";
             Creates.Add(new CreateCall(entity, shapeKind, dims, initialPose, handle));
-            // Seed the simulated body position at the Stride-space projection of initialPose.
-            SimulatedBodyStridePos = FdpStrideTransform.ToStridePosition(initialPose.Position);
+            // Reset baseline on new body — matches real service semantics.
+            HasReverseSyncBaseline = false;
+            LastReverseSyncedFdpPos = Vector3.Zero;
             return handle;
         }
 
@@ -93,24 +97,44 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
         public KinematicMoveResult MoveKinematic(object bodyHandle, SMath.Vector3 desiredDelta, SMath.Quaternion desiredRotDelta)
             => new(desiredDelta, desiredRotDelta);
         public BodyState GetBodyState(object bodyHandle)
-            => new(SimulatedBodyStridePos, SMath.Quaternion.Identity,
+            => new(SMath.Vector3.Zero, SMath.Quaternion.Identity,
                    SMath.Vector3.Zero, SMath.Vector3.Zero, IsKinematic: false);
 
-        // IBodyRepositionService
+        // IBodyRepositionService — BATCH-S2-K baseline-driven contract.
+
+        /// <summary>
+        /// Records the muscle-authored FDP pose as the reposition baseline.
+        /// Mirrors <c>BulletPhysicsBodyService.RecordReverseSyncedPose</c>.
+        /// </summary>
+        public void RecordReverseSyncedPose(object bodyHandle, in SimTransform simTf)
+        {
+            LastReverseSyncedFdpPos = simTf.Position;
+            HasReverseSyncBaseline  = true;
+        }
+
+        /// <summary>
+        /// Detects an external write by comparing <paramref name="simTf"/> against the
+        /// last reverse-synced baseline (BATCH-S2-K contract).
+        /// No baseline → always skip (matching the <c>HasReverseSyncBaseline</c> guard).
+        /// </summary>
         public void SyncBodyToExternalPose(object bodyHandle, in SimTransform simTf)
         {
-            // Compute target Stride position from SimTransform.
-            var targetStridePos = FdpStrideTransform.ToStridePosition(simTf.Position);
-            float distSq = SMath.Vector3.DistanceSquared(targetStridePos, SimulatedBodyStridePos);
+            // BATCH-S2-K: no baseline yet → skip (initial-pose slam owns placement).
+            if (!HasReverseSyncBaseline) return;
 
-            if (distSq > RepositionEpsilonSq)
+            // Horizontal FDP (X,Y) divergence vs baseline.
+            float dXf = simTf.Position.X - LastReverseSyncedFdpPos.X;
+            float dYf = simTf.Position.Y - LastReverseSyncedFdpPos.Y;
+            float distSqFdpXY = dXf * dXf + dYf * dYf;
+
+            if (distSqFdpXY > RepositionEpsilonSq)
             {
-                // Record the reposition call.
+                // External write detected — record the reposition and update the baseline
+                // so subsequent frames don't false-fire.
                 Repositions.Add(new RepositionCall(bodyHandle, simTf));
-                // Update simulated body position so subsequent frames don't false-fire.
-                SimulatedBodyStridePos = targetStridePos;
+                LastReverseSyncedFdpPos = simTf.Position;
             }
-            // Within epsilon → normal physics motion → no record.
+            // Within epsilon → muscle-authored motion → no record.
         }
 
         // Mirror the real service's epsilon.
@@ -235,20 +259,20 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
     // ── Test 2: Reposition teleports the body (Task 2) ───────────────────────
 
     /// <summary>
-    /// <b>Task 2 — External reposition detected and teleported:</b>
-    /// After a body is created and the simulated reverse-sync keeps SimTransform in sync
-    /// with the body position (no reposition expected), an external write to SimTransform
-    /// (operator drag to a far position) must trigger exactly one <c>SyncBodyToExternalPose</c>
-    /// call, with the repositioned pose as target.
+    /// <b>Task 2 — External reposition detected and teleported (BATCH-S2-K baseline contract):</b>
+    /// After a body is created and a reverse-sync baseline is established via
+    /// <c>RecordReverseSyncedPose</c>, a subsequent <c>SyncBodyToExternalPose</c> call with a
+    /// SimTransform EQUAL to the baseline must NOT teleport. A call with a SimTransform that
+    /// differs by more than epsilon (simulating an operator drag) MUST teleport exactly once.
     ///
     /// <para>
     /// Sequence:
     /// <list type="number">
     ///   <item>Create body at FDP (100, 0, 50).</item>
-    ///   <item>Run one frame — body created, no reposition (SimTransform == body pos).</item>
-    ///   <item>Externally change SimTransform.Position to FDP (200, 0, 100) (far repositioned).</item>
-    ///   <item>Run one frame — reposition must be detected; exactly one <c>Repositions</c> entry
-    ///     with target = FDP (200, 0, 100).</item>
+    ///   <item>Establish baseline: call <c>RecordReverseSyncedPose</c> with the same pose.</item>
+    ///   <item>Run a frame — SyncBodyToExternalPose sees SimTransform == baseline → no teleport.</item>
+    ///   <item>Externally change SimTransform to FDP (200, 0, 100).</item>
+    ///   <item>Run a frame — divergence > epsilon → exactly one reposition recorded.</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -259,13 +283,17 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
         var entity = SpawnOwned(BoxTkbType, initialFdpPos);
         SyncVisuals();
 
-        // Frame 1: body created; SimTransform == body pos (no reposition expected).
+        // Frame 1: body created; no baseline yet → SyncBodyToExternalPose is a no-op.
         RunSystem();
         Assert.Single(_fakeService.Creates);
 
-        // At this point SimulatedBodyStridePos is seeded from CreateBody's initialPose.
-        // Normal physics motion: the body position and SimTransform are in sync.
-        // Run another frame to confirm no false reposition fires.
+        // Establish the reverse-sync baseline (as BulletReverseSyncSystem would do
+        // after writing SimTransform from the physics body state).
+        var handle = _fakeService.Creates[0].Handle;
+        var baselineTf = new SimTransform { Position = initialFdpPos };
+        _fakeService.RecordReverseSyncedPose(handle, in baselineTf);
+
+        // SimTransform still equals the baseline. Run a frame — must NOT teleport.
         RunSystem();
         Assert.Empty(_fakeService.Repositions);
 
@@ -293,15 +321,18 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
     // ── Test 3: No false reposition on normal physics motion (Task 2 invariant) ─
 
     /// <summary>
-    /// <b>Task 3 — No false reposition on normal physics motion:</b>
-    /// When <c>SimTransform</c> stays within epsilon of the body's Stride position
-    /// (simulating the reverse-sync writing SimTransform = body pos each frame),
-    /// the reposition path must NOT fire across multiple frames.
+    /// <b>Task 3 — No false reposition on normal physics motion (BATCH-S2-K baseline contract):</b>
+    /// When the reverse-sync keeps recording the body's current pose as the baseline each frame
+    /// (simulating BulletReverseSyncSystem writing SimTransform = body pose, then calling
+    /// <c>RecordReverseSyncedPose</c>), and SimTransform equals the baseline, the reposition
+    /// path must NOT fire across multiple frames.
     ///
     /// <para>
-    /// Simulates 10 physics frames where the body "moves" (SimulatedBodyStridePos and
-    /// SimTransform.Position advance by small amounts well within the epsilon threshold),
+    /// Simulates 10 physics frames where the body "moves" (SimTransform.Position advances each
+    /// frame) and the reverse-sync baseline is updated to match each frame's SimTransform,
     /// and asserts that zero <c>SyncBodyToExternalPose</c> reposition calls are recorded.
+    /// This directly replicates the BATCH-S2-K fix: the baseline tracks the muscle's output,
+    /// so SimTransform == baseline → no divergence → no teleport.
     /// </para>
     /// </summary>
     [Fact]
@@ -316,26 +347,31 @@ public sealed class DynamicBodyInitialPoseTests : IDisposable
         Assert.Single(_fakeService.Creates);
         Assert.Empty(_fakeService.Repositions);
 
+        var handle = _fakeService.Creates[0].Handle;
+
         // Simulate 10 physics frames of normal motion:
-        // Each frame the body moves a tiny step (well within 0.01 m epsilon) and the
-        // reverse-sync updates SimTransform.Position to exactly match the body.
-        // This replicates BulletReverseSyncSystem writing SimTransform = body pos.
+        // Each frame the body moves a small step and the reverse-sync writes SimTransform
+        // = new body pose, then records it as the new baseline via RecordReverseSyncedPose.
+        // SimTransform == baseline every frame → no divergence → no teleport.
+        var currentFdpPos = initialFdpPos;
         for (int i = 1; i <= 10; i++)
         {
-            // Body advances by 0.001 m per frame (normal physics step, ~0.01 m/s at 60fps).
-            var deltaStride = new SMath.Vector3(0.001f * i, 0f, 0f);
-            _fakeService.SimulatedBodyStridePos += deltaStride;
+            // Body advances by a small FDP step (well above the 0.01 m epsilon per frame).
+            currentFdpPos = new Vector3(currentFdpPos.X + 0.5f, currentFdpPos.Y, currentFdpPos.Z);
 
-            // Reverse-sync: write SimTransform = body Stride pos converted to FDP.
-            // FdpStrideTransform.ToFdpPosition: Stride (x, y, z) → FDP (x, z, y).
-            var newFdpPos = FdpStrideTransform.ToFdpPosition(_fakeService.SimulatedBodyStridePos);
+            // Reverse-sync: write SimTransform = new body pose.
             ref var simTf = ref _world.GetComponentRW<SimTransform>(entity);
-            simTf.Position = newFdpPos;
+            simTf.Position = currentFdpPos;
 
+            // Reverse-sync records the new pose as the baseline (BATCH-S2-K).
+            var newTf = new SimTransform { Position = currentFdpPos };
+            _fakeService.RecordReverseSyncedPose(handle, in newTf);
+
+            // Lifecycle system sees SimTransform == baseline → must not teleport.
             RunSystem();
         }
 
-        // No reposition should have fired — SimTransform was always in sync with body pos.
+        // No reposition should have fired — SimTransform was always equal to the baseline.
         Assert.Empty(_fakeService.Repositions);
     }
 }

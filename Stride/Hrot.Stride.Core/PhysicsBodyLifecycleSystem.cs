@@ -288,4 +288,12 @@ public interface IBodyRepositionService
     /// <param name="bodyHandle">Opaque handle returned by <see cref="IPhysicsBodyService.CreateBody"/>.</param>
     /// <param name="simTf">The entity's current <see cref="SimTransform"/> from the ECS.</param>
     void SyncBodyToExternalPose(object bodyHandle, in SimTransform simTf);
+
+    /// <summary>
+    /// Records the FDP pose that the reverse-sync just wrote into <see cref="SimTransform"/> for
+    /// this body. This becomes the baseline that <see cref="SyncBodyToExternalPose"/> compares
+    /// against to distinguish muscle-authored motion (skip) from an external write / operator
+    /// drag (teleport). Must be called by the reverse-sync each frame after it writes SimTransform.
+    /// </summary>
+    void RecordReverseSyncedPose(object bodyHandle, in SimTransform simTf);
 }
