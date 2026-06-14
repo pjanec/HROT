@@ -242,15 +242,6 @@ public sealed class StrideHrotGame : Game
         // (VERIFIED: Stride.Games.GameBase.WindowMinimumUpdateRate, Stride 4.2.1.2487)
         WindowMinimumUpdateRate.MinimumElapsedTime = TimeSpan.Zero;
 
-        // BATCH-S2-AI: even frame pacing for the editor. With IsFixedTimeStep=true (Stride default),
-        // the internal loop calls Update() in catch-up BURSTS (0,1,2 per render frame), so PumpFrame()
-        // (which renders the raylib/ImGui editor window) fires at an irregular cadence → ImGui sees
-        // erratic DeltaTime → choppy panel dragging even at high FPS. Variable timestep makes Update()
-        // and Draw() fire exactly once per wall-clock frame (steady cadence, like the standalone editor).
-        // The FDP sim is NOT affected: it advances at a fixed 60Hz via _loopDriver.AdvanceFrame()'s own
-        // accumulator (Stride's own physics sub-steps internally per PhysicsSettings.FixedTimeStep).
-        IsFixedTimeStep = false;
-
         // BATCH-S2-AE: the raylib editor window's GLFW present already vsync-blocks ~16ms/frame;
         // if Stride's D3D present ALSO vsync-blocks we get two waits per frame (~32ms => ~20-31Hz).
         // When the editor window is active, disable Stride's vsync so the single GLFW present paces
