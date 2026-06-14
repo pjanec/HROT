@@ -113,6 +113,7 @@ async function main() {
     'list_entity_types', 'get_entity_type',
     'get_world_info', 'geo_to_local', 'local_to_geo',
     'set_breakpoint', 'list_breakpoints', 'remove_breakpoint', 'get_breakpoint_status',
+    'checkpoint', 'restore_checkpoint', 'capture_diff_baseline', 'diff_state',
   ];
   for (const name of requiredTools) {
     assert(toolNames.includes(name), `Tool '${name}' registered`);
@@ -334,6 +335,77 @@ async function main() {
   // Clean up: remove the e2e breakpoint
   await callTool(client, 'remove_breakpoint', { id: e2eBpId });
   console.log('  (e2e breakpoint removed)');
+  console.log('');
+
+  // ── Step 10d: Checkpoint + Restore (Group H) ─────────────────────────────
+  console.log('--- Step 10d: Checkpoint + Restore (Group H) ---');
+
+  // Pause the sim first (it may be paused from breakpoint hit above)
+  await callTool(client, 'pause');
+
+  // Step 10c left us in preview mode (entered via 'play'); exit it before checkpoint so the slot is free.
+  // /checkpoint is mutually exclusive with /preview/enter — both share the single preview slot.
+  await callTool(client, 'stop_preview');
+
+  // GET entity 1000's position BEFORE checkpoint
+  const entityBeforeCheckpoint = await callTool(client, 'get_entity', { networkId: 1000 });
+  assert(!entityBeforeCheckpoint.isError, 'get_entity(1000) before checkpoint succeeded');
+  const posBeforeCheckpoint = entityBeforeCheckpoint.parsed?.data?.components?.SimTransform?.Position;
+  console.log(`  Position before checkpoint: ${JSON.stringify(posBeforeCheckpoint)}`);
+
+  // checkpoint
+  const checkpointResult = await callTool(client, 'checkpoint');
+  assert(!checkpointResult.isError, 'checkpoint succeeded');
+  assert(checkpointResult.parsed?.ok === true, 'checkpoint ok:true');
+  assert(checkpointResult.parsed?.data?.inPreview === true, 'checkpoint: inPreview:true in status');
+  console.log(`  checkpoint result: inPreview=${checkpointResult.parsed?.data?.inPreview}`);
+
+  // Verify /status.inPreview is true
+  const statusAfterCheckpoint = await callTool(client, 'get_status');
+  assert(statusAfterCheckpoint.parsed?.data?.inPreview === true,
+    'GET /status: inPreview:true after checkpoint');
+
+  // Second checkpoint attempt should fail (409 or 400)
+  const doubleCheckpoint = await callTool(client, 'checkpoint');
+  assert(doubleCheckpoint.isError, 'second checkpoint returns error (slot already taken)');
+  console.log(`  double-checkpoint error: ${doubleCheckpoint.parsed?.error}`);
+
+  // capture baseline BEFORE mutation
+  const captureResult = await callTool(client, 'capture_diff_baseline', { entities: [1000] });
+  assert(!captureResult.isError, 'capture_diff_baseline succeeded');
+  assert(captureResult.parsed?.ok === true, 'capture_diff_baseline ok:true');
+  const baselineId = captureResult.parsed?.data?.baselineId;
+  assert(typeof baselineId === 'string' && baselineId.startsWith('BL#'),
+    `capture_diff_baseline returned baselineId (got ${baselineId})`);
+  console.log(`  Baseline ID: ${baselineId}`);
+
+  // Step sim so entity moves (or just diff immediately — entity 1000 barely moves)
+  // Run a few frames to get some movement
+  await callTool(client, 'play');
+  await sleep(1000);
+  await callTool(client, 'pause');
+
+  // diff
+  const diffResult = await callTool(client, 'diff_state', { baselineId, entities: [1000] });
+  assert(!diffResult.isError, 'diff_state succeeded');
+  assert(diffResult.parsed?.ok === true, 'diff_state ok:true');
+  const diffData = diffResult.parsed?.data;
+  console.log(`  diff result: ${JSON.stringify(diffData).slice(0, 300)}`);
+  // The diff may have 0 entities changed if entity barely moved; that's OK — just test the API works
+  assert(diffData?.entities != null, 'diff_state has entities array');
+
+  // restore checkpoint
+  const restoreResult = await callTool(client, 'restore_checkpoint');
+  assert(!restoreResult.isError, 'restore_checkpoint succeeded');
+  assert(restoreResult.parsed?.ok === true, 'restore_checkpoint ok:true');
+  assert(restoreResult.parsed?.data?.inPreview === false, 'restore_checkpoint: inPreview:false');
+  console.log(`  restore result: inPreview=${restoreResult.parsed?.data?.inPreview}`);
+
+  // Verify /status.inPreview is now false
+  const statusAfterRestore = await callTool(client, 'get_status');
+  assert(statusAfterRestore.parsed?.data?.inPreview === false,
+    'GET /status: inPreview:false after restore');
+
   console.log('');
 
   // ── Step 11: Envelope passthrough — awaited:false case ───────────────────

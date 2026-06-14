@@ -83,8 +83,8 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Single-slot revertible snapshot (preview) + state diff.
 
-- [ ] **ADA-P3-T01** [sonnet] Checkpoint/restore via `IPreviewController` + run-mode guards (Group H) [details](./TASK-DETAIL.md#ada-p3-t01--checkpointrestore)
-- [ ] **ADA-P3-T02** [sonnet] Diff endpoint via `ComponentDiffService` (Group H) [details](./TASK-DETAIL.md#ada-p3-t02--state-diff)
+- [x] **ADA-P3-T01** [sonnet] Checkpoint/restore via `IPreviewController` + run-mode guards (Group H) — BATCH-08, lead-verified: REAL headless revert (checkpoint→spawn→step→restore reverts entityCount 2→1). 71/71 tests, full build clean, 95/95 verify, orphan-clean. Single-slot coordinated with /preview/* [details](./TASK-DETAIL.md#ada-p3-t01--checkpointrestore)
+- [x] **ADA-P3-T02** [sonnet] Diff endpoint via `ComponentDiffService` (Group H) — BATCH-08 (/diff/capture + /diff/compare, DiffNode tree, births in union). Works for clean entities; NaN-entity serialization crash is pre-existing ADA-08-D02 → BATCH-09 corrective T0 [details](./TASK-DETAIL.md#ada-p3-t02--state-diff)
 
 ---
 

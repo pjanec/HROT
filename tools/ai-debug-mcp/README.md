@@ -9,8 +9,8 @@ External Node.js MCP server that proxies the Hrot ClusterRunner AI Debug HTTP AP
 
 ## Tool Set
 
-Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N + G, BATCHes 02–07).
-Tools for not-yet-built endpoints (checkpoint, recording, logs, traces, mutation)
+Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N + G + H, BATCHes 02–08).
+Tools for not-yet-built endpoints (recording, logs, traces, mutation)
 are intentionally absent and will be added in their own batches as those API endpoints land.
 
 | Tool | HTTP | Group |
@@ -44,8 +44,12 @@ are intentionally absent and will be added in their own batches as those API end
 | `list_breakpoints` | `GET /breakpoints` | G |
 | `remove_breakpoint` | `DELETE /breakpoints/{id}` | G |
 | `get_breakpoint_status` | `GET /breakpoints/hits` | G |
+| `checkpoint` | `POST /checkpoint` | H |
+| `restore_checkpoint` | `POST /checkpoint/restore` | H |
+| `capture_diff_baseline` | `POST /diff/capture` | H |
+| `diff_state` | `POST /diff/compare` | H |
 
-**29 tools total.** G now present; tools for Groups H (checkpoint), I (recording/replay),
+**33 tools total.** G and H now present; tools for Groups I (recording/replay),
 J (logs), K (traces), L (mutation) are not yet implemented — see DEBT entries ADA-06-D01.
 
 ---

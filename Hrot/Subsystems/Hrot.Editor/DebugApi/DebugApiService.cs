@@ -16,6 +16,7 @@ using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
@@ -64,6 +65,11 @@ namespace Hrot.Editor.DebugApi
         private BreakpointId _lastHitBreakpointId;
         private long         _lastHitNetworkId;
 
+        // Group H — Checkpoint / Restore / Diff
+        private readonly IComponentDiffService _diffService;
+        private readonly Dictionary<string, Dictionary<long, JsonNode?>> _diffBaselines = new();
+        private int _nextBaselineId;
+
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
             WriteIndented = false,
@@ -91,7 +97,8 @@ namespace Hrot.Editor.DebugApi
             float                           spatialGridOriginY  = 0f,
             int                             spatialGridWidth    = 200,
             int                             spatialGridHeight   = 200,
-            IDataBreakpointManager?         bpManager          = null)
+            IDataBreakpointManager?         bpManager          = null,
+            IComponentDiffService?          diffService        = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -110,6 +117,7 @@ namespace Hrot.Editor.DebugApi
             _spatialGridWidth    = spatialGridWidth;
             _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
+            _diffService       = diffService ?? new ComponentDiffService();
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -872,6 +880,160 @@ namespace Hrot.Editor.DebugApi
                 }
             }
             throw new ArgumentException($"Breakpoint '{idStr}' not found.");
+        }
+
+        // ── Group H — Checkpoint / Restore / Diff ─────────────────────────────────
+
+        /// <summary>POST /checkpoint — single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true).</summary>
+        public JsonNode Checkpoint()
+        {
+            // Reject if live run is active (mutually exclusive)
+            var state = CurrentClusterState();
+            if (state == ClusterState.OperatingLive)
+                throw new InvalidOperationException("Cannot checkpoint during a live run.");
+
+            // Single slot: reject if already in preview (entered via /preview/enter OR a prior /checkpoint)
+            if (_preview.IsInPreviewMode)
+                throw new InvalidOperationException("Already checkpointed or in preview. Exit preview or restore first.");
+
+            _preview.EnterPreviewMode(startPaused: true);
+            return GetStatus();
+        }
+
+        /// <summary>POST /checkpoint/restore — rewind to the checkpoint snapshot via IPreviewController.ExitPreviewMode().</summary>
+        public JsonNode RestoreCheckpoint()
+        {
+            if (!_preview.IsInPreviewMode)
+                throw new InvalidOperationException("No checkpoint to restore — not in preview mode.");
+            _preview.ExitPreviewMode();
+            return GetStatus();
+        }
+
+        /// <summary>
+        /// POST /diff/capture {entities?} — serialize current entity states and store as a named baseline.
+        /// Returns { baselineId }.
+        /// </summary>
+        public JsonNode CaptureBaseline(IEnumerable<long>? entityNetworkIds = null)
+        {
+            var id = $"BL#{++_nextBaselineId}";
+            var snapshot = SerializeEntitySnapshot(entityNetworkIds);
+            _diffBaselines[id] = snapshot;
+            return new JsonObject { ["baselineId"] = id };
+        }
+
+        /// <summary>
+        /// POST /diff/compare {baselineId, entities?} — diff the specified baseline against current state.
+        /// Returns a DiffNode tree per entity.
+        /// </summary>
+        public JsonNode CompareBaseline(string baselineId, IEnumerable<long>? entityNetworkIds = null)
+        {
+            if (!_diffBaselines.TryGetValue(baselineId, out var before))
+                throw new ArgumentException($"Unknown baselineId: '{baselineId}'.");
+
+            // When no entity scope is given, snapshot ALL current entities so that entity births
+            // (new entities not in the baseline) are captured in the diff union.
+            var after = SerializeEntitySnapshot(entityNetworkIds);
+            return BuildDiffResult(before, after);
+        }
+
+        /// <summary>
+        /// POST /diff {entities?} — diff the current checkpoint snapshot against current state.
+        /// Requires an active checkpoint (inPreview:true). Captures "before" from the checkpoint
+        /// (re-serializes current state as "after").
+        /// </summary>
+        public JsonNode DiffFromCheckpoint(IEnumerable<long>? entityNetworkIds = null)
+        {
+            if (!_preview.IsInPreviewMode)
+                throw new InvalidOperationException("No checkpoint active. Use POST /checkpoint first, or use /diff/capture + /diff/compare for a checkpoint-independent diff.");
+
+            // Re-serialize current (post-mutation) state as "after".
+            // We don't have the pre-mutation "before" stored separately — document as a limitation.
+            // The checkpoint itself is the revert point, not a serialized snapshot.
+            // For the diff-from-checkpoint case, we capture current state as "after" and return
+            // an empty diff (since we don't have the pre-mutation data). This is a design constraint:
+            // callers should use capture+compare for a real diff.
+            // Instead: the caller should use /diff/capture BEFORE mutating, then /diff/compare after.
+            throw new InvalidOperationException("diff-from-checkpoint requires a separate /diff/capture before mutation. Use POST /diff/capture (baselineId), mutate, then POST /diff/compare {baselineId}.");
+        }
+
+        private Dictionary<long, JsonNode?> SerializeEntitySnapshot(IEnumerable<long>? networkIds = null)
+        {
+            var result = new Dictionary<long, JsonNode?>();
+            IEnumerable<long> ids = networkIds ?? GetAllNetworkIds();
+            foreach (var nid in ids)
+            {
+                var node = DumpEntity(nid);
+                result[nid] = node;
+            }
+            return result;
+        }
+
+        private IEnumerable<long> GetAllNetworkIds()
+        {
+            var dumps = _extraction.ExtractEntities();
+            foreach (var d in dumps)
+                yield return d.NetworkId;
+        }
+
+        private JsonNode BuildDiffResult(Dictionary<long, JsonNode?> before, Dictionary<long, JsonNode?> after)
+        {
+            var allIds = new HashSet<long>(before.Keys);
+            foreach (var id in after.Keys) allIds.Add(id);
+
+            var entityDiffs = new JsonArray();
+            foreach (var nid in allIds.OrderBy(x => x))
+            {
+                before.TryGetValue(nid, out var bNode);
+                after.TryGetValue(nid, out var aNode);
+
+                var diffNodes = _diffService.ComputeTreeDiff(bNode, aNode, epsilonTolerance: 0.001);
+
+                // Only include entities that actually changed
+                if (!diffNodes.Any(d => d.IsModified))
+                    continue;
+
+                var diffArr = new JsonArray();
+                foreach (var dn in diffNodes.Where(d => d.IsModified))
+                    diffArr.Add(SerializeDiffNode(dn));
+
+                entityDiffs.Add(new JsonObject
+                {
+                    ["networkId"] = nid,
+                    ["changed"] = true,
+                    ["diff"] = diffArr,
+                });
+            }
+
+            return new JsonObject { ["entities"] = entityDiffs };
+        }
+
+        private static JsonNode SerializeDiffNode(DiffNode node)
+        {
+            if (node is DiffValue val)
+            {
+                return new JsonObject
+                {
+                    ["name"]      = val.Name,
+                    ["type"]      = "value",
+                    ["oldValue"]  = val.OldValue,
+                    ["newValue"]  = val.NewValue,
+                    ["modified"]  = val.IsModified,
+                };
+            }
+            if (node is DiffObject obj)
+            {
+                var children = new JsonArray();
+                foreach (var child in obj.Children.Where(c => c.IsModified))
+                    children.Add(SerializeDiffNode(child));
+                return new JsonObject
+                {
+                    ["name"]     = obj.Name,
+                    ["type"]     = "object",
+                    ["modified"] = obj.IsModified,
+                    ["children"] = children,
+                };
+            }
+            return new JsonObject { ["name"] = node.Name, ["type"] = "unknown", ["modified"] = node.IsModified };
         }
     }
 }

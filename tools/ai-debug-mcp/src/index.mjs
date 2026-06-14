@@ -788,6 +788,89 @@ const TOOLS = [
       catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+  // ── Group H — Checkpoint / Restore / Diff (ADA-BATCH-08) ─────────────────
+
+  {
+    name: 'checkpoint',
+    description:
+      'POST /checkpoint — take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true). ' +
+      'Returns 409 if a live run is active. Returns 400 if already in preview/checkpointed. ' +
+      'Single slot: mutually exclusive with /preview/enter.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('POST', '/checkpoint', null)); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'restore_checkpoint',
+    description:
+      'POST /checkpoint/restore — rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode(). ' +
+      'Returns 400 if no checkpoint is active.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('POST', '/checkpoint/restore', null)); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'capture_diff_baseline',
+    description:
+      'POST /diff/capture — serialize current entity states server-side and return a baselineId. ' +
+      'Use before mutating the world, then call diff_state with the baselineId to see what changed. ' +
+      'Optional entities array (networkId list) scopes which entities to capture (default: all).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        entities: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Optional list of networkIds to capture (default: all entities)',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        const body = {};
+        if (toolArgs.entities != null) body.entities = toolArgs.entities;
+        return toolSuccess(await callApi('POST', '/diff/capture', body));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'diff_state',
+    description:
+      'POST /diff/compare — compare a previously captured baseline against current entity state. ' +
+      'Returns a per-entity diff tree showing only what changed (token-efficient). ' +
+      'baselineId comes from capture_diff_baseline. ' +
+      'Optional entities array scopes which entities to diff.',
+    inputSchema: {
+      type: 'object',
+      required: ['baselineId'],
+      properties: {
+        baselineId: {
+          type: 'string',
+          description: 'Baseline ID from capture_diff_baseline (e.g. "BL#1")',
+        },
+        entities: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Optional list of networkIds to diff (default: all entities in baseline)',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        const body = { baselineId: toolArgs.baselineId };
+        if (toolArgs.entities != null) body.entities = toolArgs.entities;
+        return toolSuccess(await callApi('POST', '/diff/compare', body));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────

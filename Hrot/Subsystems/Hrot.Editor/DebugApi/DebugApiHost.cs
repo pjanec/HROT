@@ -244,6 +244,71 @@ namespace Hrot.Editor.DebugApi
                 }).ConfigureAwait(false);
                 return error != null ? Fail(404, error) : Ok(new JsonObject { ["removed"] = idStr });
             }));
+
+            // Group H — Checkpoint / Restore / Diff (ADA-BATCH-08)
+            _routes.Add(new("POST", "/checkpoint", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().Checkpoint(), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                if (error != null)
+                {
+                    // 409 for live-run conflict, 400 for already-in-preview
+                    int status = error.Contains("live run") ? 409 : 400;
+                    return Fail(status, error);
+                }
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/checkpoint/restore", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().RestoreCheckpoint(), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/diff/capture", async ctx =>
+            {
+                List<long>? ids = null;
+                if (ctx.Body?["entities"] is JsonArray eArr)
+                {
+                    ids = new List<long>();
+                    foreach (var item in eArr)
+                        ids.Add(item!.GetValue<long>());
+                }
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().CaptureBaseline(ids), null); }
+                    catch (Exception ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/diff/compare", async ctx =>
+            {
+                var baselineId = ctx.Body?["baselineId"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(baselineId))
+                    return Fail(400, "baselineId is required.");
+                List<long>? ids = null;
+                if (ctx.Body?["entities"] is JsonArray eArr2)
+                {
+                    ids = new List<long>();
+                    foreach (var item in eArr2)
+                        ids.Add(item!.GetValue<long>());
+                }
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().CompareBaseline(baselineId!, ids), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                    catch (Exception ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)
