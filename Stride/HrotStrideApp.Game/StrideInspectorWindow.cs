@@ -542,18 +542,12 @@ public sealed class StrideInspectorWindow : IDisposable
         // ── 1. Create the GLFW/OpenGL window ─────────────────────────────────
         // Raylib/GLFW multi-window: each InitWindow call creates an independent OS window
         // and OpenGL context — separate from Stride's Direct3D context.
-        // BATCH-S2-AF: enable GLFW vsync as the SINGLE 60Hz frame pacer for the shared loop.
-        // Measurement (editor_stride.log) disproved the old "double-vsync" assumption: GLFW's
-        // EndDrawing was always ~0.2ms (never vsync-blocked); the ~50ms/frame stall was Stride's
-        // D3D present waiting on MULTIPLE vblanks (~20Hz). BATCH-S2-AE disables Stride's D3D vsync
-        // whenever this editor window exists, so there is no longer any DirectX present to contend
-        // with. Without ANY vsync the loop ran ~130fps UNSYNCED → judder on a 60Hz display (felt
-        // like 20Hz when dragging ImGui windows). VSyncHint makes raylib call glfwSwapInterval(1),
-        // so EndDrawing blocks at the vblank → clean, evenly-paced 60Hz. (The editor window only
-        // exists when StrideInspectorWindowConfig.IsEnabled, which is exactly when Stride vsync is
-        // off — so the two are coupled and there is no double-block.)
+        // SetTargetFPS(0): unlimited — Stride's throttler governs the overall frame rate.
+        // NOTE: VSyncHint is intentionally NOT included in ConfigFlags — we do not want
+        // the GL swap interval locked to the monitor refresh (would block ~16ms per
+        // EndDrawing and contend with Stride's DirectX present).
         Raylib_cs.Raylib.SetConfigFlags(
-            ConfigFlags.ResizableWindow | ConfigFlags.UnfocusedWindow | ConfigFlags.VSyncHint);
+            ConfigFlags.ResizableWindow | ConfigFlags.UnfocusedWindow);
         Raylib_cs.Raylib.InitWindow(_width, _height, "Hrot Editor — Stride editor_stride");
         // P0-FIX (ESC crash): disable the default ESC exit key so pressing ESC in the
         // editor (close popups, etc.) does NOT flip WindowShouldClose() → true mid-session,
