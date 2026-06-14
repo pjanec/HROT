@@ -479,7 +479,12 @@ public sealed class StrideHrotGame : Game
                     if (_dragEntity is { } dragE && lmbHeld)
                     {
                         _lmbDragAccum += Input.MouseDelta.Length();
-                        if (_lmbDragAccum > DragStartDeadzone) _dragging = true;
+                        if (!_dragging && _lmbDragAccum > DragStartDeadzone)
+                        {
+                            _dragging = true;
+                            _editorSubsystem.CancelMove(dragE); // BATCH-S2-X: drop the old nav target so it doesn't resume on release
+                            Log.Info("[StrideHrotGame] Drag started — cancelled nav for entity #{0}.", dragE.Index);
+                        }
                         if (_dragging && world.IsAlive(dragE) && world.HasComponent<SimTransform>(dragE))
                         {
                             var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);

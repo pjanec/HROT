@@ -1476,6 +1476,36 @@ public sealed class EditorStrideSubsystem : IDisposable
         _moveMarkerSecondsRemaining = MoveMarkerTotalSeconds;
     }
 
+    /// <summary>
+    /// Cancels any active navigation/move order on <paramref name="entity"/> so it stops where it is
+    /// (used when the operator drags the entity in 3D — BATCH-S2-X). Handles both vehicle
+    /// (NavigationIntent + VehicleState) and character (DotRecast crowd + CrowdMotorIntent) drives.
+    /// </summary>
+    public void CancelMove(Fdp.Core.Entity entity)
+    {
+        if (World == null || !World.IsAlive(entity)) return;
+
+        // Vehicle: stop DirectPoint steering and zero the commanded VehicleState.
+        if (World.IsComponentTypeRegistered<NavigationIntent>() && World.HasComponent<NavigationIntent>(entity))
+        {
+            var intent = World.GetComponent<NavigationIntent>(entity);
+            intent.Mode     = NavigationMode.None;       // VehicleNavigationIntentSystem drops the route
+            intent.IntentId = intent.IntentId + 1;       // mark as a new (idle) command
+            World.SetComponent(entity, intent);
+        }
+        if (World.IsComponentTypeRegistered<VehicleState>() && World.HasComponent<VehicleState>(entity))
+        {
+            var vs = World.GetComponent<VehicleState>(entity);
+            vs.Speed = 0f; vs.SteerAngle = 0f;           // route-drop does NOT zero this — do it here
+            World.SetComponent(entity, vs);
+        }
+
+        // Character: pull the agent out of the crowd and zero its motor intent.
+        InfantryCrowdProvider?.UnregisterAgent(entity);
+        if (World.IsComponentTypeRegistered<CrowdMotorIntent>() && World.HasComponent<CrowdMotorIntent>(entity))
+            World.SetComponent(entity, new CrowdMotorIntent { Velocity = System.Numerics.Vector3.Zero });
+    }
+
     private void EmitMoveMarker(float dt)
     {
         if (_moveMarkerFdp is not { } c) return;
