@@ -1,5 +1,5 @@
 /**
- * ADA-BATCH-06 verification script
+ * ADA-BATCH-09 verification script (extends ADA-BATCH-06 through ADA-BATCH-08)
  *
  * Drives a real end-to-end flow over MCP (stdio) using the actual Hrot ClusterRunner:
  *   start_simulation → get_status → load_scenario(test-move) → list_entities →
@@ -405,6 +405,91 @@ async function main() {
   const statusAfterRestore = await callTool(client, 'get_status');
   assert(statusAfterRestore.parsed?.data?.inPreview === false,
     'GET /status: inPreview:false after restore');
+
+  console.log('');
+
+  // ── Step 10e: NaN-entity safety (ADA-BATCH-09) ────────────────────────────
+  // Spawn tkbType 1001 (CivilianPedestrian) — before it settles its SimTransform/
+  // SimVelocity carry NaN floats.  After spawning + stepping, list_entities,
+  // get_entity, and diff_state must all return ok:true with string sentinels
+  // ("NaN"/"Infinity") rather than throwing ('N' is an invalid start of a value).
+  console.log('--- Step 10e: NaN-entity safety (ADA-BATCH-09) ---');
+
+  // Capture a diff baseline BEFORE spawning the NaN entity.
+  const nanBaselineResult = await callTool(client, 'capture_diff_baseline');
+  assert(!nanBaselineResult.isError, 'capture_diff_baseline (pre-NaN-spawn) succeeded');
+  assert(nanBaselineResult.parsed?.ok === true, 'capture_diff_baseline ok:true');
+  const nanBaselineId = nanBaselineResult.parsed?.data?.baselineId;
+  assert(typeof nanBaselineId === 'string', `nanBaselineId is string (got ${nanBaselineId})`);
+
+  // Spawn tkbType 1001 — the CivilianPedestrian entity; may carry NaN floats initially.
+  const nanSpawnResult = await callTool(client, 'spawn_entity', { tkbType: 1001 });
+  assert(!nanSpawnResult.isError, 'spawn_entity (tkbType 1001) succeeded');
+  assert(nanSpawnResult.parsed?.ok === true, 'spawn_entity (tkbType 1001) ok:true');
+  console.log(`  spawn_entity(1001) result: ${JSON.stringify(nanSpawnResult.parsed?.data)}`);
+
+  // Step sim once to process the spawn event (entity enters world with initial NaN state).
+  await callTool(client, 'step', { count: 1 });
+
+  // list_entities must succeed and return ok:true (NaN entity must not blow up the list).
+  const nanListResult = await callTool(client, 'list_entities');
+  assert(!nanListResult.isError, 'list_entities (NaN entity present) succeeded');
+  assert(nanListResult.parsed?.ok === true, 'list_entities (NaN entity present) ok:true');
+  const nanEntities = nanListResult.parsed?.data;
+  assert(Array.isArray(nanEntities), 'list_entities returned array');
+  const nanEntityCount = nanEntities?.length ?? 0;
+  console.log(`  list_entities count: ${nanEntityCount}`);
+
+  // Find the newly spawned entity (networkId != 1000).
+  const nanEntityEntry = Array.isArray(nanEntities)
+    ? nanEntities.find((e) => e?.networkId !== 1000)
+    : null;
+  const nanNetworkId = nanEntityEntry?.networkId ?? null;
+  console.log(`  NaN entity networkId: ${nanNetworkId}`);
+
+  if (nanNetworkId != null) {
+    // get_entity must succeed and produce valid JSON (string sentinels instead of NaN literals).
+    const nanDumpResult = await callTool(client, 'get_entity', { networkId: nanNetworkId });
+    assert(!nanDumpResult.isError, `get_entity(${nanNetworkId}) (NaN entity) succeeded`);
+    assert(nanDumpResult.parsed?.ok === true, `get_entity(${nanNetworkId}) ok:true`);
+
+    // Validate that the response text is parseable as standard JSON by Node's JSON.parse.
+    // callTool already called JSON.parse internally — if it succeeded, the JSON is valid.
+    console.log(`  get_entity(${nanNetworkId}) ok — Node JSON.parse succeeded (no NaN literal)`);
+    const entityData = nanDumpResult.parsed?.data;
+    const entityJson = JSON.stringify(entityData);
+
+    // ADA-BATCH-09 regression guard: the NaN-entity fallback must preserve components.
+    // Before the fix, SerializeEntity threw JsonException and the entity was returned with
+    // an empty Components dict (0 components), making the entity permanently un-inspectable.
+    // After the fix the reflection-based fallback runs, so component count must be > 0.
+    const componentCount = entityData?.Components
+      ? Object.keys(entityData.Components).length
+      : 0;
+    console.log(`  get_entity(${nanNetworkId}) component count: ${componentCount}`);
+    assert(componentCount > 0,
+      `NaN entity must have non-zero component count (got ${componentCount}) — fallback path must preserve components`);
+
+    // Check for "NaN" string sentinels (if NaN fields were present).
+    const hasSentinels = entityJson.includes('"NaN"') || entityJson.includes('"Infinity"') || entityJson.includes('"-Infinity"');
+    if (hasSentinels) {
+      console.log(`  NaN-sentinel check: sentinels found in entity JSON (as expected)`);
+    } else {
+      console.log(`  NaN-sentinel check: no non-finite values in this entity (fields may have settled)`);
+    }
+  } else {
+    // Spawn may not have settled yet; that's acceptable — the important check is that
+    // list_entities itself didn't throw.
+    console.log('  NaN entity not yet in entity map — list_entities still returned ok:true');
+  }
+
+  // diff_state (capture → compare spanning the NaN spawn) must return ok:true.
+  const nanDiffResult = await callTool(client, 'diff_state', { baselineId: nanBaselineId });
+  assert(!nanDiffResult.isError, 'diff_state (NaN-entity present) succeeded');
+  assert(nanDiffResult.parsed?.ok === true, 'diff_state (NaN-entity present) ok:true');
+  const nanDiffData = nanDiffResult.parsed?.data;
+  assert(nanDiffData?.entities != null, 'diff_state (NaN-entity present) has entities array');
+  console.log(`  diff_state ok — entities changed: ${nanDiffData?.entities?.length ?? 0}`);
 
   console.log('');
 

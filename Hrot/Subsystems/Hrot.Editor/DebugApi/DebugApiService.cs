@@ -77,6 +77,62 @@ namespace Hrot.Editor.DebugApi
             Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
         };
 
+        /// <summary>
+        /// Scoped <see cref="JsonSerializerOptions"/> for the DebugApi entity dump / diff surface.
+        ///
+        /// <para>
+        /// Cloned from <see cref="FdpJsonOptionsRegistry.DefaultRelaxed"/> (field-aware, case-insensitive,
+        /// null-omitting, enum-as-string) with the vector array converters replaced by NaN-safe
+        /// equivalents and scalar <c>float</c>/<c>double</c> non-finite sentinel converters added.
+        /// This ensures that any entity carrying a <c>NaN</c> or <c>Infinity</c> float (e.g. a
+        /// freshly-spawned CivilianPedestrian whose SimTransform/SimVelocity have not settled) is
+        /// serialized as valid standard JSON (<c>"NaN"</c>/<c>"Infinity"</c>/<c>"-Infinity"</c>
+        /// string sentinels) rather than the named literals rejected by <c>JSON.parse</c> and
+        /// <c>JsonNode.Parse</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// Blast-radius control: this instance is used ONLY by the DebugApi read surface
+        /// (<see cref="DumpToJsonNode"/>). The shared registry singletons
+        /// (<see cref="FdpJsonOptionsRegistry.DefaultRelaxed"/> / <c>Indented</c>) are unchanged
+        /// so UI panels, MetadataSerializer, and golden snapshots are unaffected.
+        /// </para>
+        /// </summary>
+        internal static readonly JsonSerializerOptions DebugApiDumpOptions = BuildDebugApiDumpOptions();
+
+        private static JsonSerializerOptions BuildDebugApiDumpOptions()
+        {
+            // Start from a mutable copy of DefaultRelaxed settings (can't clone frozen opts directly).
+            var opts = new JsonSerializerOptions
+            {
+                IncludeFields               = true,
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas         = true,
+                ReadCommentHandling         = JsonCommentHandling.Skip,
+                DefaultIgnoreCondition      = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                TypeInfoResolver            = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
+            };
+
+            // Add scalar non-finite converters FIRST so they take priority over the default
+            // float/double serialization (converters are checked in registration order).
+            opts.Converters.Add(new NonFiniteFloatSentinelConverter());
+            opts.Converters.Add(new NonFiniteDoubleSentinelConverter());
+
+            // NaN-safe vector converters (replace the shared WriteRawValue-based ones).
+            opts.Converters.Add(new DebugApiVector2SafeConverter());
+            opts.Converters.Add(new DebugApiVector3SafeConverter());
+            opts.Converters.Add(new DebugApiVector4SafeConverter());
+            opts.Converters.Add(new DebugApiQuaternionSafeConverter());
+
+            // Keep FixedString and strict-enum converters from DefaultRelaxed.
+            opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString32Converter());
+            opts.Converters.Add(new Fdp.Core.Serialization.Converters.FixedString64Converter());
+            opts.Converters.Add(new Fdp.Core.Serialization.Converters.StrictStringEnumConverter());
+
+            opts.MakeReadOnly();
+            return opts;
+        }
+
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
@@ -587,11 +643,12 @@ namespace Hrot.Editor.DebugApi
 
         private static JsonNode DumpToJsonNode(EntityStateDumpDto dump)
         {
-            // Re-serialize the DTO through the relaxed (non-camel) options and parse into a
-            // JsonNode so it embeds verbatim. The Components values are already JsonElements
-            // produced by the serializer-injected extraction path.
-            var json = JsonSerializer.Serialize(dump, FdpJsonOptionsRegistry.DefaultRelaxed);
-            return JsonNode.Parse(json)!;
+            // Serialize through the DebugApi-scoped NaN-safe options directly to a JsonNode
+            // (avoids the string round-trip and the fragile JsonNode.Parse step that rejects
+            // NaN/Infinity named literals).  Non-finite floats are emitted as string sentinels
+            // ("NaN"/"Infinity"/"-Infinity") so the output is valid standard JSON accepted by
+            // Node's JSON.parse and any RFC-8259 parser.
+            return JsonSerializer.SerializeToNode(dump, DebugApiDumpOptions)!;
         }
 
         // ── Group M — TKB catalog ──────────────────────────────────────────────
