@@ -1514,7 +1514,10 @@ namespace Hrot.Editor
             // ?? 7. Map canvas + camera (skipped in headless) ??????????????????
             if (!_headless)
             {
-                _camera = new MapCamera();
+                _camera = new MapCamera
+                {
+                    MaxZoom = 30f, // BATCH-S2-AB: ~3x deeper zoom-in than the default 10 for precise placement
+                };
                 _canvas = new MapCanvas(new RaylibInputProvider());
                 _canvas.Camera = _camera;
             }
