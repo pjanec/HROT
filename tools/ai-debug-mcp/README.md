@@ -57,9 +57,14 @@ and will be added in their own batches as those API endpoints land.
 | `list_replay_entities` | `GET /replay/entities` | I |
 | `unload_replay` | `POST /replay/unload` | I |
 | `get_logs` | `GET /logs[?level=&logger=&since=&max=]` | J |
+| `observe_trace` | `POST /entities/{networkId}/trace/arm` | K |
+| `get_entity_trace` | `GET /entities/{networkId}/trace` | K |
+| `get_attributes_schema` | `GET /attributes/schema` | L |
+| `patch_attribute` | `POST /entities/{networkId}/attribute` | L |
+| `edit_component` | `POST /entities/{networkId}/component` | L |
 
-**42 tools total.** Groups G, H, I, and J now present; tools for Groups K (traces) and L (mutation)
-are not yet implemented — see DEBT entries ADA-06-D01.
+**47 tools total.** Groups A–N fully implemented including Group K (behavior traces) and Group L (live mutation / fault injection).
+ADA-06-D01 is **RESOLVED** — all groups A–N now have MCP tools.
 
 ---
 

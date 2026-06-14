@@ -466,6 +466,48 @@ namespace Hrot.Editor.DebugApi
                 var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityTrace(id)).ConfigureAwait(false);
                 return Ok(node);
             }));
+
+            // Group L — Live Mutation / Fault Injection (ADA-BATCH-13)
+            _routes.Add(new("GET", "/attributes/schema", _ =>
+                Task.FromResult(Ok(Service().GetAttributesSchema()))));
+
+            _routes.Add(new("POST", "/entities/{networkId}/attribute", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+
+                // Accept patchJson as EITHER a JSON string OR a nested JSON object.
+                string? patchJson = null;
+                var patchJsonNode = ctx.Body?["patchJson"];
+                if (patchJsonNode is System.Text.Json.Nodes.JsonValue jv)
+                {
+                    try { patchJson = jv.GetValue<string>(); }
+                    catch { return Fail(400, "patchJson must be a JSON string or a JSON object."); }
+                }
+                else if (patchJsonNode is System.Text.Json.Nodes.JsonObject || patchJsonNode is System.Text.Json.Nodes.JsonArray)
+                {
+                    patchJson = patchJsonNode.ToJsonString();
+                }
+
+                if (string.IsNullOrWhiteSpace(patchJson))
+                    return Fail(400, "patchJson is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().PatchEntityAttribute(id, patchJson!)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/entities/{networkId}/component", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var componentType = ctx.Body?["componentType"]?.GetValue<string>();
+                var patch         = ctx.Body?["patch"];
+                if (string.IsNullOrWhiteSpace(componentType))
+                    return Fail(400, "componentType is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().EditEntityComponent(id, componentType!, patch)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

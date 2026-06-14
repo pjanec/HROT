@@ -148,7 +148,9 @@ public sealed class EditorHarness : IDisposable
             rrController:  _rrController,
             editorTracer:  EditorTracer,
             btreeSession:  BTreeSession,
-            hsmSession:    HsmSession);
+            hsmSession:    HsmSession,
+            attributeCompiler: Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform),
+            componentEditSvc:  new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────

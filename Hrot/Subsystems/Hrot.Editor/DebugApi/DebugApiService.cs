@@ -16,6 +16,7 @@ using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Search;
@@ -23,6 +24,8 @@ using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.UI.Common.Facades;
+using StructEdit.Core;
+using StructEdit.Reflection;
 
 namespace Hrot.Editor.DebugApi
 {
@@ -87,6 +90,10 @@ namespace Hrot.Editor.DebugApi
         private readonly Hrot.BTree.Editor.Debug.BTreeDebugSession?    _btreeSession;
         private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession?        _hsmSession;
         private readonly Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSession;
+
+        // Group L — Attribute patch + StructEdit component edit
+        private readonly JsonAttributeCompiler _attributeCompiler;
+        private readonly IComponentEditService _componentEditSvc;
 
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
@@ -178,7 +185,9 @@ namespace Hrot.Editor.DebugApi
             EditorAiTracerCoordinator?                    editorTracer      = null,
             Hrot.BTree.Editor.Debug.BTreeDebugSession?    btreeSession      = null,
             Hrot.Hsm.Editor.Debug.HsmDebugSession?        hsmSession        = null,
-            Hrot.Blueprints.Core.Debug.BlueprintDebugSession? blueprintSession = null)
+            Hrot.Blueprints.Core.Debug.BlueprintDebugSession? blueprintSession = null,
+            JsonAttributeCompiler?                        attributeCompiler = null,
+            IComponentEditService?                        componentEditSvc  = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -204,6 +213,8 @@ namespace Hrot.Editor.DebugApi
             _btreeSession     = btreeSession;
             _hsmSession       = hsmSession;
             _blueprintSession = blueprintSession;
+            _attributeCompiler = attributeCompiler ?? Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
+            _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -1666,6 +1677,297 @@ namespace Hrot.Editor.DebugApi
             }
 
             return new JsonObject { ["networkId"] = networkId, ["tier"] = "unknown" };
+        }
+
+        // ── Group L — Live Mutation / Fault Injection ─────────────────────────────
+
+        /// <summary>GET /attributes/schema — registered patchable paths + JSON Schema.</summary>
+        public JsonNode GetAttributesSchema()
+        {
+            var paths = new JsonArray();
+            foreach (var p in _attributeCompiler.RegisteredPaths)
+                paths.Add(p);
+            return new JsonObject
+            {
+                ["registeredPaths"] = paths,
+                ["schema"]          = JsonNode.Parse(_attributeCompiler.ExportSchema()),
+            };
+        }
+
+        /// <summary>
+        /// POST /entities/{networkId}/attribute {patchJson} — compile JSON attribute patch
+        /// onto the entity via <see cref="JsonAttributeCompiler"/>.
+        /// Authority-aware; unregistered keys silently ignored.
+        /// Must run on the main thread.
+        /// </summary>
+        public (JsonNode? result, string? error) PatchEntityAttribute(long networkId, string? patchJson)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return (null, $"Entity {networkId} not found.");
+
+            if (string.IsNullOrWhiteSpace(patchJson))
+                return (null, "patchJson is required.");
+
+            try
+            {
+                var ctx = _attributeCompiler.CreatePatchContext(_world, entity);
+                _attributeCompiler.Compile(patchJson, ctx);
+                ctx.FlushDirtyMarks();
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Attribute patch failed: {ex.Message}");
+            }
+
+            // Return the updated entity dump.
+            var node = DumpEntity(networkId);
+            return (node, null);
+        }
+
+        /// <summary>
+        /// POST /entities/{networkId}/component {componentType, patch} — StructEdit escape hatch.
+        /// Opens a StructEdit session for the named component, applies the JSON patch fields,
+        /// validates via IComponentValidator, and writes the result back to ECS.
+        /// Returns 400 if validation fails; the component is unchanged.
+        /// Must run on the main thread.
+        /// </summary>
+        public (JsonNode? result, string? error) EditEntityComponent(long networkId, string componentType, JsonNode? patch)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return (null, $"Entity {networkId} not found.");
+
+            if (string.IsNullOrWhiteSpace(componentType))
+                return (null, "componentType is required.");
+
+            if (patch is null)
+                return (null, "patch is required.");
+
+            // Resolve the CLR type by name.
+            var allTypes = ComponentTypeRegistry.GetAllTypes();
+            var clrType  = allTypes.FirstOrDefault(t =>
+                string.Equals(t.Name, componentType, StringComparison.OrdinalIgnoreCase));
+            if (clrType is null)
+                return (null, $"Unknown component type: '{componentType}'");
+
+            // Get the boxed component from ECS via reflection.
+            object? boxedComponent;
+            try
+            {
+                boxedComponent = GetBoxedComponent(_world, entity, clrType);
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Could not read component '{componentType}': {ex.Message}");
+            }
+
+            if (boxedComponent is null)
+                return (null, $"Entity {networkId} does not have component '{componentType}'.");
+
+            // Open a StructEdit session.
+            using var session = _componentEditSvc.Open(boxedComponent, clrType);
+
+            // Apply patch fields to the EditDocument tree.
+            // ApplyJsonPatchToDocument throws ArgumentException on type-mismatch/parse failure.
+            try
+            {
+                ApplyJsonPatchToDocument(session.Document.Root, patch);
+            }
+            catch (ArgumentException ex)
+            {
+                return (null, $"Invalid patch value: {ex.Message}");
+            }
+
+            // Commit (runs IComponentValidator).
+            object committed;
+            try
+            {
+                committed = session.Commit();
+            }
+            catch (EditValidationException ex)
+            {
+                return (null, $"Validation failed: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Commit failed: {ex.Message}");
+            }
+
+            // Write the committed value back to ECS via reflection.
+            try
+            {
+                SetBoxedComponent(_world, entity, clrType, committed);
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Could not write component '{componentType}' back to ECS: {ex.Message}");
+            }
+
+            // Return the updated entity dump.
+            var node = DumpEntity(networkId);
+            return (node, null);
+        }
+
+        // ── Group L helpers ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Gets a boxed copy of an ECS component by CLR type via reflection.
+        /// Works for both managed class components and unmanaged struct components.
+        /// </summary>
+        private static object? GetBoxedComponent(EntityRepository repo, Entity entity, Type clrType)
+        {
+            int typeId = ComponentTypeRegistry.GetId(clrType);
+            if (typeId < 0)
+                throw new InvalidOperationException($"Type '{clrType.Name}' is not registered in ComponentTypeRegistry.");
+
+            if (!repo.HasComponentByTypeId(entity, typeId))
+                return null;
+
+            // For managed class components: GetManagedComponentByTypeId returns the object directly.
+            if (clrType.IsClass)
+                return repo.GetManagedComponentByTypeId(entity, typeId);
+
+            // For unmanaged struct components: serialize round-trip to box the value.
+            return GetBoxedUnmanagedViaSerialize(repo, entity, clrType);
+        }
+
+        /// <summary>
+        /// Gets a boxed unmanaged component by calling a generic helper via reflection.
+        /// </summary>
+        private static object GetBoxedUnmanagedViaSerialize(EntityRepository repo, Entity entity, Type clrType)
+        {
+            var method = typeof(DebugApiService)
+                .GetMethod(nameof(GetBoxedUnmanagedGeneric),
+                    BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(clrType);
+            return method.Invoke(null, new object[] { repo, entity })!;
+        }
+
+        private static object GetBoxedUnmanagedGeneric<T>(EntityRepository repo, Entity entity) where T : struct
+        {
+            // GetComponentRO<T> returns ref readonly T — copy to a value then box.
+            T value = repo.GetComponentRO<T>(entity);
+            return value;
+        }
+
+        /// <summary>
+        /// Writes a boxed component value back to ECS via reflection.
+        /// Handles both managed class and unmanaged struct components.
+        /// </summary>
+        private static void SetBoxedComponent(EntityRepository repo, Entity entity, Type clrType, object value)
+        {
+            if (clrType.IsClass)
+            {
+                // Managed class components: call AddComponent<T> generically.
+                var method = typeof(EntityRepository)
+                    .GetMethod(nameof(EntityRepository.AddComponent),
+                        BindingFlags.Public | BindingFlags.Instance)!
+                    .MakeGenericMethod(clrType);
+                method.Invoke(repo, new object[] { entity, value });
+            }
+            else
+            {
+                // Unmanaged struct components: use typed helper.
+                var method = typeof(DebugApiService)
+                    .GetMethod(nameof(SetBoxedComponentGeneric),
+                        BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(clrType);
+                method.Invoke(null, new object[] { repo, entity, value });
+            }
+        }
+
+        private static void SetBoxedComponentGeneric<T>(EntityRepository repo, Entity entity, object value) where T : struct
+        {
+            repo.SetComponent(entity, (T)value);
+        }
+
+        /// <summary>
+        /// Walks the StructEdit <see cref="EditNode"/> tree and applies JSON patch values
+        /// to leaf nodes whose <see cref="EditNode.JsonPath"/> matches keys in <paramref name="patch"/>.
+        /// Non-matching keys are silently ignored (safe; no error).
+        /// Throws <see cref="ArgumentException"/> if a matched field value cannot be parsed/deserialized
+        /// (surfaced as 400 by the caller).
+        /// </summary>
+        private static void ApplyJsonPatchToDocument(EditNode root, JsonNode patch)
+        {
+            // Build a flat map: bare path → EditNode for all leaf nodes with bindings.
+            // "$.Current" → key "Current"; "$.Position.X" → key "Position.X"
+            var leafMap = new Dictionary<string, EditNode>(StringComparer.OrdinalIgnoreCase);
+            CollectLeafNodes(root, leafMap);
+
+            // Walk the JSON patch object and apply matching values.
+            if (patch is JsonObject patchObj)
+            {
+                foreach (var (key, valueNode) in patchObj)
+                {
+                    if (valueNode is null) continue;
+                    ApplyJsonValue(key, valueNode, leafMap, string.Empty);
+                }
+            }
+        }
+
+        private static void CollectLeafNodes(EditNode node, Dictionary<string, EditNode> map)
+        {
+            if (node.Binding != null && !node.IsReadOnly)
+            {
+                // JsonPath is rooted at "$" (e.g. "$.Current") — strip the leading "$." so that
+                // callers can match using bare field names like "Current" or nested "Position.X".
+                var key = node.JsonPath.StartsWith("$.") ? node.JsonPath.Substring(2) : node.JsonPath;
+                map[key] = node;
+            }
+            foreach (var child in node.Children)
+                CollectLeafNodes(child, map);
+        }
+
+        private static void ApplyJsonValue(
+            string key,
+            JsonNode valueNode,
+            Dictionary<string, EditNode> leafMap,
+            string parentPath)
+        {
+            string fullPath = string.IsNullOrEmpty(parentPath) ? key : $"{parentPath}.{key}";
+
+            // Try exact path match first.
+            if (leafMap.TryGetValue(fullPath, out var node))
+            {
+                var targetType = node.Binding!.ValueType;
+                object? deserialized;
+                try
+                {
+                    deserialized = JsonSerializer.Deserialize(
+                        valueNode.ToJsonString(), targetType,
+                        new JsonSerializerOptions
+                        {
+                            IncludeFields = true,
+                            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+                        });
+                }
+                catch (Exception ex)
+                {
+                    throw new ArgumentException(
+                        $"Cannot parse value for field '{fullPath}' (expected {targetType.Name}): {ex.Message}");
+                }
+                try
+                {
+                    node.Binding!.SetBoxed(deserialized);
+                }
+                catch (Exception ex)
+                {
+                    throw new ArgumentException(
+                        $"Cannot set field '{fullPath}': {ex.Message}");
+                }
+                // Matched a leaf — don't recurse into its value as nested object keys
+                return;
+            }
+
+            // If it's an object, recurse for nested keys (handles nested struct paths).
+            if (valueNode is JsonObject nestedObj)
+            {
+                foreach (var (childKey, childValue) in nestedObj)
+                {
+                    if (childValue is null) continue;
+                    ApplyJsonValue(childKey, childValue, leafMap, fullPath);
+                }
+            }
         }
     }
 }

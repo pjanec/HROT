@@ -1100,6 +1100,79 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+
+  // ── Group L — Live Mutation / Fault Injection (ADA-BATCH-13) ────────────────
+
+  {
+    name: 'get_attributes_schema',
+    description:
+      'GET /attributes/schema — return all patchable attribute paths and their JSON Schema. ' +
+      'Use patch_attribute to apply a patch using these paths.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/attributes/schema')); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'patch_attribute',
+    description:
+      'POST /entities/{networkId}/attribute — apply a JSON attribute patch to an entity. ' +
+      'Authority-aware; unregistered keys are silently ignored (no error). ' +
+      'patchJson may be a nested JSON object like {"Name":"Alpha"} or a JSON string. ' +
+      'Returns the updated entity dump on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['networkId', 'patchJson'],
+      properties: {
+        networkId: { type: 'number', description: 'Network entity ID (long)' },
+        patchJson: {
+          description: 'Patch as a JSON object {"Name":"Alpha"} or as a JSON string',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        // Accept patchJson as either a nested object or a string.
+        // Pass it directly — the server handles both forms.
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/attribute`, {
+          patchJson: toolArgs.patchJson,
+        }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'edit_component',
+    description:
+      'POST /entities/{networkId}/component — StructEdit escape hatch for arbitrary component fields. ' +
+      'Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, ' +
+      'and writes the result back to ECS. ' +
+      'Invalid values → 400, component unchanged. ' +
+      'For fields registered in the attribute schema, prefer patch_attribute.',
+    inputSchema: {
+      type: 'object',
+      required: ['networkId', 'componentType', 'patch'],
+      properties: {
+        networkId: { type: 'number', description: 'Network entity ID (long)' },
+        componentType: { type: 'string', description: 'ECS component type name (e.g. "EntityInfo", "SimTransform")' },
+        patch: {
+          type: 'object',
+          description: 'JSON object with field names and new values to apply to the component',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/component`, {
+          componentType: toolArgs.componentType,
+          patch: toolArgs.patch,
+        }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────

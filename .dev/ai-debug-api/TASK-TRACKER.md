@@ -126,8 +126,8 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Discoverable attribute patching + arbitrary component edit.
 
-- [ ] **ADA-P8-T01** [sonnet] Attribute patch via `JsonAttributeCompiler` + local `UpdateEntityAttributeRequestSystem` + `/attributes/schema` (Group L) [details](./TASK-DETAIL.md#ada-p8-t01--attribute-patch)
-- [ ] **ADA-P8-T02** [sonnet] StructEdit component-edit escape hatch (Group L) [details](./TASK-DETAIL.md#ada-p8-t02--structedit-component-edit)
+- [x] **ADA-P8-T01** [sonnet] Attribute patch via `JsonAttributeCompiler` + local `UpdateEntityAttributeRequestSystem` + `/attributes/schema` (Group L) [details](./TASK-DETAIL.md#ada-p8-t01--attribute-patch)
+- [x] **ADA-P8-T02** [sonnet] StructEdit component-edit escape hatch (Group L) [details](./TASK-DETAIL.md#ada-p8-t02--structedit-component-edit)
 
 ---
 
