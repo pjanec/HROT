@@ -415,6 +415,19 @@ public sealed class StrideHrotGame : Game
         // orbiting-ghost demo advances smoothly regardless of the fixed sim cadence.
         _testHarness?.Update(wallDt);
 
+        // BATCH-S2-AG: mirror the paused-nav toast (BATCH-S2-AD) into the 3D Stride viewport (where the
+        // operator is clicking). DebugTextSystem uses Stride's built-in font; auto-expiry already handled by
+        // EditorStrideSubsystem.ToastSecondsRemaining (decremented in EmitMoveMarker).
+        if (_editorSubsystem != null && _editorSubsystem.ToastSecondsRemaining > 0f && DebugTextSystem != null)
+        {
+            string msg = _editorSubsystem.ToastMessage;
+            // Center-top of the back buffer (virtual pixels). ~8px per char is a fine estimate for centering.
+            int bw = GraphicsDevice?.Presenter?.BackBuffer?.Width ?? 1280;
+            int x = Math.Max(10, (bw / 2) - (msg.Length * 4));
+            DebugTextSystem.Print(msg, new Int2(x, 30),
+                new Color4(1f, 0.85f, 0.2f, 1f)); // amber
+        }
+
         // BATCH-22 (STR-P5-T2): pump the optional second raylib/ImGui inspector window.
         // BeginDrawing/EndDrawing/PollInputEvents are non-blocking per-frame calls that
         // operate on the GLFW/OpenGL context — independent of Stride's DirectX context.

@@ -1181,7 +1181,14 @@ public sealed class EditorStrideSubsystem : IDisposable
         // disappeared. Only runs in the live GPU app (binder is null otherwise).
         AnimationBinder?.Reconcile();
 
-        // ── Step 6: 3D gizmo render (STR-P5-T1 / STR-D16, BATCH-21) ────────
+        // ── Step 7 (MOVED EARLIER, BATCH-S2-AG): emit selection/marker into THIS frame's buffer ──
+        // (was after Step 6, which rendered them one tick late → trail when dragging fast)
+        // ClearIfDead removes the selection if the entity was destroyed this tick.
+        SelectionState.ClearIfDead(World);
+        EmitSelectionHighlight();
+        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
+
+        // ── Step 6: 3D gizmo render (STR-P5-T1 / STR-D16, BATCH-21) — now renders the selection/marker emitted just above (same tick) ──
         // BeginFrame hides last frame's pool entities; Render resolves+swizzles primitives and
         // activates the needed pool entries; EndFrame is a no-op for the pooled sink (cleanup
         // already done in BeginFrame). Then advance the buffer's persistence clock.
@@ -1189,14 +1196,6 @@ public sealed class EditorStrideSubsystem : IDisposable
         GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
         GizmoRenderer3D.Sink.EndFrame();
         ProducerBuffer.EndFrame(dt);
-
-        // ── Step 7: Selection alive-guard + highlight gizmo (STR-P5-T3, BATCH-23) ──
-        // Must run AFTER the gizmo render step so the selection highlight is written to the
-        // NEXT frame's buffer (which the renderer will sweep on the following Tick call).
-        // ClearIfDead removes the selection if the entity was destroyed this tick.
-        SelectionState.ClearIfDead(World);
-        EmitSelectionHighlight();
-        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
     }
 
     /// <summary>
@@ -1219,8 +1218,8 @@ public sealed class EditorStrideSubsystem : IDisposable
     ///   <item>Animation bridge (Step 4b)</item>
     ///   <item>Physics bracket post-kernel step (Step 5 = forward-sync)</item>
     ///   <item>Animation binder reconcile (Step 5b)</item>
-    ///   <item>Gizmo render (Step 6)</item>
-    ///   <item>Selection alive-guard + highlight (Step 7)</item>
+    ///   <item>Selection alive-guard + highlight (Step 7, MOVED EARLIER, BATCH-S2-AG)</item>
+    ///   <item>Gizmo render (Step 6, now renders same-tick selection)</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -1257,21 +1256,21 @@ public sealed class EditorStrideSubsystem : IDisposable
         AnimationBinder?.Reconcile();
         _postSyncSw.Stop();
 
-        // ── Step 6: 3D gizmo render (E3) ──────────────────────────────────
-        _gizmoSw.Restart();
-        GizmoRenderer3D.Sink.BeginFrame();
-        GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
-        GizmoRenderer3D.Sink.EndFrame();
-        ProducerBuffer.EndFrame(dt);
-        _gizmoSw.Stop();
-
-        // ── Step 7: Selection alive-guard + highlight gizmo (E4) ──────────
+        // ── Step 7 (MOVED EARLIER): selection sync + alive-guard + emit ──
         _selectionSw.Restart();
         SyncSelection2D3D(); // BATCH-S2-R: two-way 2D↔3D selection mirror (before ClearIfDead so sync sees live state)
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
         EmitMoveMarker(dt); // BATCH-S2-O: destination marker
         _selectionSw.Stop();
+
+        // ── Step 6: gizmo render (E3) — renders what Step 7 just emitted ──
+        _gizmoSw.Restart();
+        GizmoRenderer3D.Sink.BeginFrame();
+        GizmoRenderer3D.Render(ProducerBuffer.GetFrame());
+        GizmoRenderer3D.Sink.EndFrame();
+        ProducerBuffer.EndFrame(dt);
+        _gizmoSw.Stop();
 
         // ── Throttled breakdown log (~once per second at 60 fps) ──────────
         _tickHostedSw.Stop();
