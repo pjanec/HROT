@@ -38,3 +38,4 @@ The BTree source generator is **incremental** (VE-DEBT-003): editing only `.btre
 - Lead re-reads diffs, independently re-runs builds + the relevant test projects. Never trust agent reports.
 - Keep CombatShowcase.btree.json + SampleScout.btree.json untouched (byte-identity gate `ByteIdenticalGateTests`).
 - Pre-existing failures (do not chase): 2 pretty-print round-trip + 7 Blueprints DEBT-006/perf.
+- DEC-09 — Blueprint node picker categories/icons/descriptions: `BlueprintNodePickerSource` (uses `Wide` layout, same as BTree) implemented `GetCategory`/`GetIconKey`/`GetDescription` returning the catalog entry's `CategoryPath`/`IconKey`/`Description`. `BlueprintNodeCatalog` already populated these and `SilkIconProvider` registers `bp/*` icons, so the picker now shows grouped categories + icons + description lines (same as BTree). Build clean.
