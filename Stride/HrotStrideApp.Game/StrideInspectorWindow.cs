@@ -762,7 +762,10 @@ public sealed class StrideInspectorWindow : IDisposable
 
         if (_atlasTexture.Id != 0)
             Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
-        Raylib_cs.Raylib.CloseWindow();
+        // BATCH-S2-P: do NOT call Raylib.CloseWindow() here — tearing down the raylib/GLFW context while
+        // Stride's D3D context is live crashes natively. "Close 2D = close all" exits the process, and the
+        // OS reclaims the GL context on exit. (rlImGui.Shutdown + UnloadTexture above are harmless.)
+        // Raylib_cs.Raylib.CloseWindow();
 
         Log.Info("[StrideInspectorWindow] Closed.");
     }

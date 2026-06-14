@@ -397,10 +397,13 @@ public sealed class StrideHrotGame : Game
                 _inspectorWindow.PumpFrame();
             else
             {
-                // User closed the second window — dispose it and null out so subsequent frames skip.
-                _inspectorWindow.Dispose();
+                // BATCH-S2-P: closing the 2D editor window quits the whole app (user choice "close 2D = close all").
+                // Do NOT Dispose() the inspector here — its raylib CloseWindow() teardown mid-process crashes
+                // natively while Stride's D3D context is live. Null the ref (shutdown disposal is guarded by a
+                // null-check, so it won't call CloseWindow either) and let process exit reclaim the GL context.
                 _inspectorWindow = null;
-                Log.Info("[StrideHrotGame] Inspector window closed by user.");
+                Log.Info("[StrideHrotGame] 2D editor window closed by user — exiting application (close 2D = close all).");
+                Exit(); // Stride Game.Exit — clean shutdown
             }
         }
 
@@ -435,11 +438,28 @@ public sealed class StrideHrotGame : Game
                     {
                         var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition); // MousePosition is [0,1]
                         var hit = _raycastService.Raycast(ray.Origin, ray.Origin + ray.Direction * 1000f);
+                        // BATCH-S2-P [ClickDiag]: log every click with mouse pos, ray, hit info.
+                        Log.Info("[ClickDiag] {0} mouse=({1:F3},{2:F3}) rayO=({3:F1},{4:F1},{5:F1}) rayD=({6:F2},{7:F2},{8:F2}) hasHit={9} hitEntity=#{10} point=({11:F2},{12:F2},{13:F2})",
+                            lmb ? "LMB" : "RMB",
+                            Input.MousePosition.X, Input.MousePosition.Y,
+                            ray.Origin.X, ray.Origin.Y, ray.Origin.Z,
+                            ray.Direction.X, ray.Direction.Y, ray.Direction.Z,
+                            hit.HasHit,
+                            (hit.HitEntity == Fdp.Core.Entity.Null ? -1 : hit.HitEntity.Index),
+                            hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
+
                         if (lmb)
                         {
                             // Select the hit entity (ignore static-geometry/no-entity hits).
                             if (hit.HasHit && hit.HitEntity != Fdp.Core.Entity.Null && world.IsAlive(hit.HitEntity))
+                            {
                                 _editorSubsystem.SelectionState.Select(hit.HitEntity);
+                                Log.Info("[ClickDiag] LMB selected entity #{0}", hit.HitEntity.Index);
+                            }
+                            else
+                            {
+                                Log.Info("[ClickDiag] LMB no live entity hit — selection unchanged.");
+                            }
                         }
                         else if (rmb && hit.HasHit) // RMB: move the SELECTED entity to the hit point
                         {

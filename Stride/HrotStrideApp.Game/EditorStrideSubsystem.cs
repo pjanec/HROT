@@ -1342,6 +1342,9 @@ public sealed class EditorStrideSubsystem : IDisposable
     // Highlight color: bright cyan (0,255,255) for high contrast against scene geometry.
     private static readonly Rgba32 SelectionColor = new Rgba32(0, 230, 255, 255);
 
+    // BATCH-S2-P: frame counter for throttled [SelDiag] log (~1/sec at 60 fps).
+    private int _selDiagFrame;
+
     // Half-extents of the selection box in metres (world-space; constant for v1).
     // 1.0 m on each side → 2 m total; tall enough to encircle a standing infantry soldier.
     private const float SelectionBoxHalfExtent = 1.0f;
@@ -1370,6 +1373,17 @@ public sealed class EditorStrideSubsystem : IDisposable
     /// </summary>
     private void EmitSelectionHighlight()
     {
+        // BATCH-S2-P diagnostic (throttled ~1/s): is a selection present and is the box being emitted?
+        if (++_selDiagFrame >= 60)
+        {
+            _selDiagFrame = 0;
+            bool has = SelectionState.HasSelection;
+            int idx = has ? SelectionState.SelectedEntity.Index : -1;
+            bool alive = has && World != null && World.IsAlive(SelectionState.SelectedEntity);
+            Log.Info("[SelDiag] HasSelection={0} entity=#{1} alive={2} (if true, 12 box lines emitted to ProducerBuffer)",
+                has, idx, alive);
+        }
+
         if (!SelectionState.HasSelection) return;
 
         var entity = SelectionState.SelectedEntity;
