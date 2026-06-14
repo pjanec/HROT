@@ -90,6 +90,70 @@ public sealed class BTreePickerSourceTests
         key.Should().Be("bt.composite.sequence");
     }
 
+    // ── DEC-08: GetCategory / GetIconKey ─────────────────────────────────────
+
+    [Fact]
+    public void PickerSource_GetCategory_ReturnsCategoryPath()
+    {
+        var source  = new BTreeNodeCatalog();
+        var picker  = new BTreeNodePickerSourceInvoker(source);
+
+        var sequence = source.Query(new NodeSearchQuery("Sequence"))
+            .Single(e => e.Kind.Id == "bt.composite.sequence");
+
+        var category = picker.GetCategory(sequence);
+
+        category.Should().Be(sequence.CategoryPath,
+            "GetCategory must return the entry's CategoryPath");
+        category.Should().NotBeNullOrEmpty(
+            "bt.composite.sequence is a Composite and must have a non-empty CategoryPath");
+    }
+
+    [Fact]
+    public void PickerSource_GetIconKey_ReturnsIconKey()
+    {
+        var source  = new BTreeNodeCatalog();
+        var picker  = new BTreeNodePickerSourceInvoker(source);
+
+        var sequence = source.Query(new NodeSearchQuery("Sequence"))
+            .Single(e => e.Kind.Id == "bt.composite.sequence");
+
+        var iconKey = picker.GetIconKey(sequence);
+
+        iconKey.Should().Be(sequence.IconKey,
+            "GetIconKey must return the entry's IconKey");
+    }
+
+    [Fact]
+    public void PickerSource_GetCategory_AllEntries_MatchCatalog()
+    {
+        var source  = new BTreeNodeCatalog();
+        var picker  = new BTreeNodePickerSourceInvoker(source);
+
+        var all = picker.Query("", null);
+
+        foreach (var entry in all)
+        {
+            picker.GetCategory(entry).Should().Be(entry.CategoryPath,
+                $"GetCategory for '{entry.Kind.Id}' must equal its CategoryPath");
+        }
+    }
+
+    [Fact]
+    public void PickerSource_GetIconKey_AllEntries_MatchCatalog()
+    {
+        var source  = new BTreeNodeCatalog();
+        var picker  = new BTreeNodePickerSourceInvoker(source);
+
+        var all = picker.Query("", null);
+
+        foreach (var entry in all)
+        {
+            picker.GetIconKey(entry).Should().Be(entry.IconKey,
+                $"GetIconKey for '{entry.Kind.Id}' must equal its IconKey");
+        }
+    }
+
     // ── Helper: exposes internal BTreeNodePickerSource members for testing ──
 
     /// <summary>
@@ -116,5 +180,11 @@ public sealed class BTreePickerSourceTests
 
         public string GetItemKey(NodeCatalogEntry item)
             => _source.GetItemKey(item);
+
+        public string? GetCategory(NodeCatalogEntry item)
+            => _source.GetCategory(item);
+
+        public string? GetIconKey(NodeCatalogEntry item)
+            => _source.GetIconKey(item);
     }
 }

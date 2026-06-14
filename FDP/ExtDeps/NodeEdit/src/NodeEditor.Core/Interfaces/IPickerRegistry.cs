@@ -60,6 +60,18 @@ public interface IPickerSource<TItem>
     string GetSearchableText(TItem item);
     string GetItemKey(TItem item);
     bool CanAcceptDrop(object payload);
+
+    /// <summary>
+    /// Returns the category path for the item (e.g. "Composites"). Used for
+    /// grouped display in the flat picker list. Default: null (no grouping).
+    /// </summary>
+    string? GetCategory(TItem item) => null;
+
+    /// <summary>
+    /// Returns an <see cref="IIconProvider"/> key for the item's inline row icon.
+    /// Default: null (no icon).
+    /// </summary>
+    string? GetIconKey(TItem item) => null;
 }
 
 public enum PickerLayout { Standard, Compact, Wide, Grid, Tree }

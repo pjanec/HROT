@@ -22,7 +22,15 @@ internal static class PickerItemListHelper
             return;
         }
 
-        bool useClipper = state.Filtered.Count > 2000;
+        // Category grouping is only meaningful on an empty/whitespace query (browse mode).
+        // When a search query is active, score ranking dominates and grouping is suppressed.
+        bool groupByCategory = string.IsNullOrWhiteSpace(state.SearchText);
+
+        // Use the clipper only when grouping is inactive (grouping requires sequential header
+        // injection that the offset-based clipper can't handle). BTree has ~15 entries so
+        // the fallback to a full pass is negligible. For large flat lists without grouping
+        // the clipper still kicks in at 2000+ entries.
+        bool useClipper = !groupByCategory && state.Filtered.Count > 2000;
         int firstRow = 0;
         int lastRow = state.Filtered.Count - 1;
         float cursorY = ImGui.GetCursorPosY();
@@ -36,16 +44,26 @@ internal static class PickerItemListHelper
             ImGui.SetCursorPosY(cursorY + firstRow * RowHeight);
         }
 
+        // When grouping, compute the display order: fav/recent entries stay first (in their
+        // existing order), then normal entries are stable-sorted by Category so headers can
+        // be emitted sequentially. The original FilteredIndex must be preserved for selection/
+        // focus logic \u2014 we carry it alongside.
+        var displayOrder = groupByCategory
+            ? ComputeGroupedDisplayOrder(state.Filtered)
+            : null; // null = use direct index
+
         bool favHeaderDrawn = firstRow > 0;
         bool recHeaderDrawn = firstRow > 0;
-        bool normHeaderDrawn = firstRow > 0;
+        string? lastNormCategory = firstRow > 0 ? "" : null; // null = not yet entered normal section
 
         // Architecturally critical: Iterate exactly once to prevent ID collisions.
         // Refilter() already sorts the collection strictly by Favorite > Recent > Score.
-        for (int i = firstRow; i <= lastRow; i++)
+        int count = displayOrder?.Count ?? (lastRow - firstRow + 1);
+        for (int di = 0; di < count; di++)
         {
-            var re = state.Filtered[i];
-            
+            int i = displayOrder != null ? displayOrder[di].FilteredIndex : firstRow + di;
+            var re = displayOrder != null ? displayOrder[di].Entry : state.Filtered[i];
+
             if (re.IsFavorite && !favHeaderDrawn)
             {
                 ImGui.TextColored(ctx.Theme.TextMuted, "\u2605 Favorites");
@@ -53,14 +71,31 @@ internal static class PickerItemListHelper
             }
             else if (re.IsRecent && !re.IsFavorite && !recHeaderDrawn)
             {
-                if (i > 0) ImGui.Separator();
+                if (di > 0) ImGui.Separator();
                 ImGui.TextColored(ctx.Theme.TextMuted, "\u21BB Recent");
                 recHeaderDrawn = true;
             }
-            else if (!re.IsFavorite && !re.IsRecent && !normHeaderDrawn)
+            else if (!re.IsFavorite && !re.IsRecent)
             {
-                if (i > 0) ImGui.Separator();
-                normHeaderDrawn = true;
+                if (lastNormCategory is null)
+                {
+                    // First normal entry: emit separator.
+                    if (di > 0) ImGui.Separator();
+                    lastNormCategory = "";
+                }
+
+                // Category header whenever category changes (only in browse/grouping mode).
+                if (groupByCategory)
+                {
+                    string cat = re.Entry.Category ?? "";
+                    if (cat != lastNormCategory)
+                    {
+                        if (lastNormCategory!.Length > 0) ImGui.Spacing();
+                        if (cat.Length > 0)
+                            ImGui.TextColored(ctx.Theme.TextMuted, cat);
+                        lastNormCategory = cat;
+                    }
+                }
             }
 
             DrawRow(state, ctx, i, re);
@@ -72,6 +107,54 @@ internal static class PickerItemListHelper
             if (remaining > 0f)
                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + remaining);
         }
+    }
+
+    /// <summary>
+    /// Computes the display order for grouped rendering: fav/recent entries keep
+    /// their original filtered indices, then normal entries are stable-sorted by
+    /// <see cref="PickerEntry.Category"/> (preserving score order within each category).
+    /// Returns a list of (FilteredIndex, RankedEntry) pairs in draw order.
+    /// </summary>
+    /// <remarks>
+    /// This is a pure, side-effect-free helper \u2014 factored out so it can be unit-tested
+    /// independently of ImGui rendering.
+    /// </remarks>
+    internal static List<(int FilteredIndex, RankedEntry Entry)> ComputeGroupedDisplayOrder(
+        List<RankedEntry> filtered)
+    {
+        var result = new List<(int, RankedEntry)>(filtered.Count);
+
+        // Pass 1: fav and recent entries keep their relative order.
+        for (int i = 0; i < filtered.Count; i++)
+        {
+            var re = filtered[i];
+            if (re.IsFavorite || re.IsRecent)
+                result.Add((i, re));
+        }
+
+        // Pass 2: normal entries, stable-sorted by Category then original index
+        // (which already reflects score desc / name asc from Refilter).
+        var normals = new List<(int OrigIdx, RankedEntry Re)>();
+        for (int i = 0; i < filtered.Count; i++)
+        {
+            var re = filtered[i];
+            if (!re.IsFavorite && !re.IsRecent)
+                normals.Add((i, re));
+        }
+
+        // Stable sort by category string (null/empty last so named categories group first).
+        normals.Sort((a, b) =>
+        {
+            string ca = a.Re.Entry.Category ?? "";
+            string cb = b.Re.Entry.Category ?? "";
+            int cmp = string.Compare(ca, cb, StringComparison.OrdinalIgnoreCase);
+            return cmp != 0 ? cmp : a.OrigIdx.CompareTo(b.OrigIdx); // preserve score order within category
+        });
+
+        foreach (var (oi, re) in normals)
+            result.Add((oi, re));
+
+        return result;
     }
 
     private static void DrawRow(PickerState state, IPickerRenderContext ctx, int filteredIdx, RankedEntry re)
@@ -107,6 +190,20 @@ internal static class PickerItemListHelper
             dl.AddRect(pos, pos + size, ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.5f }), 2f);
 
         float textX = pos.X + 4f;
+
+        // Draw inline row icon (16 px) when IconKey resolves via the provider.
+        // Mirrors how TreeLayout draws leaf icons (same provider, same AddImage call).
+        const float IconSize = 16f;
+        if (re.Entry.IconKey is { Length: > 0 } iconKey &&
+            ctx.Icons.TryGet(iconKey, out var rowIcon))
+        {
+            float iconY = pos.Y + (size.Y - IconSize) * 0.5f;
+            dl.AddImage(rowIcon.TextureId,
+                new Vector2(textX, iconY),
+                new Vector2(textX + IconSize, iconY + IconSize),
+                rowIcon.Uv0, rowIcon.Uv1);
+            textX += IconSize + 4f;
+        }
 
         // Render multi-select checkbox [ ] / [x]
         bool checkboxClicked = false;
