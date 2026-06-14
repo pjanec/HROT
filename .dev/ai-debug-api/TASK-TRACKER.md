@@ -143,6 +143,6 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** External stdio MCP server proxying the API, with runner process lifecycle.
 
-- [ ] **ADA-PM-T01** [sonnet] MCP server scaffold (stdio, tool registry, fetch proxy, envelope passthrough) [details](./TASK-DETAIL.md#ada-pm-t01--mcp-scaffold)
-- [ ] **ADA-PM-T02** [sonnet] Process lifecycle: launch + attach + graceful→hard kill [details](./TASK-DETAIL.md#ada-pm-t02--process-lifecycle)
-- [ ] **ADA-PM-T03** [zoo] Tool definitions mirroring all endpoints 1:1 [details](./TASK-DETAIL.md#ada-pm-t03--tool-definitions)
+- [x] **ADA-PM-T01** [sonnet] MCP server scaffold (stdio, tool registry, fetch proxy, envelope passthrough) — BATCH-06, lead-verified (re-ran verify 50/50; thin callApi, localhost, envelope verbatim) [details](./TASK-DETAIL.md#ada-pm-t01--mcp-scaffold)
+- [x] **ADA-PM-T02** [sonnet] Process lifecycle: launch + attach + graceful→hard kill — BATCH-06, lead-verified (launch→drive→stop end-to-end; independent Get-Process orphan check: 0 before/after, runner exit 0) [details](./TASK-DETAIL.md#ada-pm-t02--process-lifecycle)
+- [x] **ADA-PM-T03** [zoo→sonnet] Tool definitions mirroring all endpoints 1:1 — BATCH-06, lead-verified (25 tools, full by-hand tool↔route audit vs DebugApiHost.cs — all paths match). G/H/I/J/K/L tools deferred until their endpoints exist (ADA-06-D01) [details](./TASK-DETAIL.md#ada-pm-t03--tool-definitions)
