@@ -135,7 +135,12 @@ public sealed class BulletCharacterMotor
     /// Executes the motor: translates <see cref="CrowdMotorIntent"/> → Bullet character drive
     /// for every entity that has both a body reference and an intent component.
     /// </summary>
-    public void Execute(ISimulationView view, float deltaTime)
+    /// <param name="simRunning">
+    /// When <see langword="false"/> (paused/edit mode), commands zero character velocity to each
+    /// body and skips the normal drive path — keeping the character frozen.
+    /// Defaults to <see langword="true"/> so existing callers compile unchanged.
+    /// </param>
+    public void Execute(ISimulationView view, float deltaTime, bool simRunning = true)
     {
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
@@ -155,6 +160,13 @@ public sealed class BulletCharacterMotor
             // Only drive entities that have a Bullet body.
             if (!_lifecycle.Bodies.TryGetValue(entity, out var bodyRef))
                 continue;
+
+            // BATCH-S2-L: paused (edit mode) — freeze the character, don't advance it.
+            if (!simRunning)
+            {
+                _bodyService.SetCharacterVelocity(bodyRef.BodyHandle, SMath.Vector3.Zero);
+                continue;
+            }
 
             var intent = repo.GetComponent<CrowdMotorIntent>(entity);
 

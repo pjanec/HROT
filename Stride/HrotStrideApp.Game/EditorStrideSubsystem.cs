@@ -7,6 +7,7 @@ using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Interfaces;
 using Fdp.ModuleHost;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.ModuleHost.Time;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Navigation;
@@ -1017,14 +1018,15 @@ public sealed class EditorStrideSubsystem : IDisposable
         // DIAG: wrap each sub-step with its own Stopwatch (no allocation — fields reused).
         _editor.PreKernelUpdateHook = dt =>
         {
-            // A: TimeController.Step
-            _stepSw.Restart();
-            _editor.TimeController.Step(dt);
-            _stepSw.Stop();
+            // A: (BATCH-S2-L) time is no longer force-stepped here. The TimeController
+            // self-advances via Kernel.Update()->controller.Update() — Continuous (preview)
+            // runs, Deterministic (edit) stays frozen — exactly like the standalone editor.
+            bool simRunning = _editor.TimeController.GetMode() == TimeMode.Continuous;
 
-            // B: physics bracket pre-kernel
+            // B: physics bracket pre-kernel (lifecycle + reposition + reverse-sync ALWAYS run;
+            // the sim-advancing motors run only when simRunning).
             _bracketPreSw.Restart();
-            _physicsBracket.RunPreKernelStep(World, dt);
+            _physicsBracket.RunPreKernelStep(World, dt, simRunning);
             _bracketPreSw.Stop();
 
             // C-start: kernel.Update() begins immediately after this hook returns.
@@ -1149,7 +1151,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         //   2.  PhysicsBodyLifecycle.Execute  (if physicsIsActive)
         //   2b. VehicleNavIntentSystem.Execute → CharacterMotor.Execute → VehicleMotor.Execute
         //   3.  ReverseSyncGroup.Execute  (BEFORE Kernel.Update — design §8.3)
-        _physicsBracket.RunPreKernelStep(World, dt);
+        _physicsBracket.RunPreKernelStep(World, dt, simRunning: true);
 
         // ── Step 4: FDP kernel tick ───────────────────────────────────────
         // Step() puts dt into the time controller; Kernel.Update() reads from it.

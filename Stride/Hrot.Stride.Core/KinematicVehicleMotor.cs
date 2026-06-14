@@ -117,7 +117,13 @@ public sealed class KinematicVehicleMotor
     /// Executes the motor: translates <c>VehicleState</c> commanded motion into a
     /// desired velocity and yaw rate, then commands those to the DYNAMIC Bullet body.
     /// </summary>
-    public void Execute(ISimulationView view, float deltaTime)
+    /// <param name="simRunning">
+    /// When <see langword="false"/> (paused/edit mode), commands zero velocity to each body
+    /// and skips the normal drive path — keeping the body frozen. The deferred dynamic-config /
+    /// initial-pose-slam path (driven by SetLinearVelocityXZ) keeps executing while paused.
+    /// Defaults to <see langword="true"/> so existing callers compile unchanged.
+    /// </param>
+    public void Execute(ISimulationView view, float deltaTime, bool simRunning = true)
     {
         if (view is not EntityRepository repo)
             throw new InvalidOperationException(
@@ -157,6 +163,17 @@ public sealed class KinematicVehicleMotor
             if (repo.IsComponentTypeRegistered<CrowdMotorIntent>() &&
                 repo.HasComponent<CrowdMotorIntent>(entity))
                 continue;
+
+            // BATCH-S2-L: when the sim is paused (edit mode, not Continuous), do NOT drive the vehicle.
+            // Command zero velocity + zero yaw so a mid-drive body stops and stays put. We still CALL the
+            // body service (not skip it) so the deferred dynamic-config / initial-pose-slam path keeps
+            // running while paused (it is driven by SetLinearVelocityXZ -> ApplyDynamicConfigIfReady).
+            if (!simRunning)
+            {
+                _bodyService.SetLinearVelocityXZ(bodyRef.BodyHandle, SMath.Vector3.Zero);
+                _bodyService.SetYawRate(bodyRef.BodyHandle, 0f);
+                continue;
+            }
 
             var vehicleState = repo.GetComponent<VehicleState>(entity);
             var simTf        = repo.GetComponent<SimTransform>(entity);

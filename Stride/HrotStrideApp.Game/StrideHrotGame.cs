@@ -774,7 +774,7 @@ public sealed class StrideHrotGame : Game
             var emap = _editorSubsystem.World?.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>();
             if (emap != null)
             {
-                StrideSelfTest.RegisterIfEnabled(harnessCtx, emap, this);
+                StrideSelfTest.RegisterIfEnabled(harnessCtx, emap, this, _editorSubsystem.TimeController);
             }
             else
             {

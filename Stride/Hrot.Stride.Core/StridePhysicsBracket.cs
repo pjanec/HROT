@@ -155,26 +155,34 @@ public sealed class StridePhysicsBracket
     /// </summary>
     /// <param name="world">The ECS world / entity repository.</param>
     /// <param name="dt">Simulation delta-time in seconds.</param>
-    public void RunPreKernelStep(EntityRepository world, float dt)
+    /// <param name="simRunning">
+    /// When <see langword="true"/> (default), the sim is in Continuous (preview/running) mode and
+    /// the motors advance normally. When <see langword="false"/> (edit/paused mode), the
+    /// VehicleNavIntent and motors are gated so bodies are frozen; lifecycle and reverse-sync
+    /// ALWAYS run regardless of this flag (drag/reposition must keep working while paused).
+    /// </param>
+    public void RunPreKernelStep(EntityRepository world, float dt, bool simRunning = true)
     {
         // Step 2: Physics body lifecycle — create/destroy bodies before motors.
         // Guard matches the original: only when a real physics service is active.
+        // ALWAYS runs regardless of simRunning (drag/reposition must work while paused).
         _lifecycleSw.Restart();
         if (PhysicsIsActive)
             PhysicsBodyLifecycle?.Execute(world, dt);
         _lifecycleSw.Stop();
 
         // Step 2b: Pre-physics motors (VehicleNavIntent first — STR-D21 F7 fix, then motors).
+        // VehicleNavIntent is gated on simRunning: when paused, don't advance navigation/steering.
         _vehicleNavIntentSw.Restart();
-        VehicleNavIntentSystem?.Execute(world, dt);
+        if (simRunning) VehicleNavIntentSystem?.Execute(world, dt);
         _vehicleNavIntentSw.Stop();
 
         _charMotorSw.Restart();
-        CharacterMotor?.Execute(world, dt);
+        CharacterMotor?.Execute(world, dt, simRunning);
         _charMotorSw.Stop();
 
         _vehicleMotorSw.Restart();
-        VehicleMotor?.Execute(world, dt);
+        VehicleMotor?.Execute(world, dt, simRunning);
         _vehicleMotorSw.Stop();
 
         // Step 3: Reverse-sync BEFORE kernel tick — writes Bullet pose+velocity into

@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Time.Controllers;
 using Hrot.Core.Network;
 using Hrot.Stride.Core.TestHarness;
 using Stride.Engine;
@@ -54,10 +55,13 @@ public sealed class StrideSelfTest
     private const int WarmupFrames         = 30;
     private const int SettleAFrames        = 150;
     private const int SettleBFrames        = 120;
+    private const int PausedSettleFrames   = 120;   // frames to confirm no motion while paused
     private const int DriveSettleFrames    = 240;   // drive phase: frames to wait for movement
     private const int TrackLogInterval     = 30;
     private const int ResolveTimeoutFrames = 120;   // after SPAWN: give up if not found
     private const int TotalTimeoutFrames   = 1800;  // whole-run hard limit (extended for drive phase)
+
+    private const float PausedFreezeTolerance = 1.0f; // metres: movement <= this while paused => frozen
 
     // ── Test parameters ──────────────────────────────────────────────────────
     private const long  SpawnTkbType   = 100L;  // Tank_M1Abrams → OrientedBox Bullet body
@@ -75,9 +79,10 @@ public sealed class StrideSelfTest
     private const float DrivePassDistMoved = 3.0f;   // >= this movement from B → PASS
 
     // ── Dependencies ─────────────────────────────────────────────────────────
-    private readonly TestHarnessContext _ctx;
-    private readonly NetworkEntityMap   _entityMap;
-    private readonly Game  _game;
+    private readonly TestHarnessContext  _ctx;
+    private readonly NetworkEntityMap    _entityMap;
+    private readonly Game                _game;
+    private readonly MasterSyncController _timeController;
 
     // ── State machine ────────────────────────────────────────────────────────
     private enum Phase
@@ -90,6 +95,9 @@ public sealed class StrideSelfTest
         SettleB,
         CheckB,
         DriveIssue,
+        PausedSettle,
+        CheckPaused,
+        Resume,
         DrivingSettle,
         CheckDrive,
         Done,
@@ -109,6 +117,10 @@ public sealed class StrideSelfTest
     private float _errB;
     private System.Numerics.Vector3 _endB;
 
+    // Paused-freeze state.
+    private bool  _pausedFreeze;
+    private float _pausedDistMoved;
+
     // Drive-phase state.
     private bool  _drive;
     private float _driveErrToDest;
@@ -124,14 +136,19 @@ public sealed class StrideSelfTest
     /// <param name="ctx">The test harness context (World, ScenarioSource, log sink).</param>
     /// <param name="entityMap">The live <see cref="NetworkEntityMap"/> for netId→entity lookup.</param>
     /// <param name="game">The live Stride <see cref="Game"/> used for <c>Exit()</c>.</param>
+    /// <param name="timeController">
+    /// The <see cref="MasterSyncController"/> used to resume the sim after the paused-freeze check.
+    /// </param>
     public StrideSelfTest(
-        TestHarnessContext ctx,
-        NetworkEntityMap   entityMap,
-        Game  game)
+        TestHarnessContext   ctx,
+        NetworkEntityMap     entityMap,
+        Game                 game,
+        MasterSyncController timeController)
     {
-        _ctx       = ctx       ?? throw new ArgumentNullException(nameof(ctx));
-        _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-        _game      = game      ?? throw new ArgumentNullException(nameof(game));
+        _ctx            = ctx            ?? throw new ArgumentNullException(nameof(ctx));
+        _entityMap      = entityMap      ?? throw new ArgumentNullException(nameof(entityMap));
+        _game           = game           ?? throw new ArgumentNullException(nameof(game));
+        _timeController = timeController ?? throw new ArgumentNullException(nameof(timeController));
     }
 
     // ── Public factory ───────────────────────────────────────────────────────
@@ -147,11 +164,12 @@ public sealed class StrideSelfTest
     /// </para>
     /// </summary>
     public static void RegisterIfEnabled(
-        TestHarnessContext ctx,
-        NetworkEntityMap   entityMap,
-        Game  game)
+        TestHarnessContext   ctx,
+        NetworkEntityMap     entityMap,
+        Game                 game,
+        MasterSyncController timeController)
     {
-        var selfTest = new StrideSelfTest(ctx, entityMap, game);
+        var selfTest = new StrideSelfTest(ctx, entityMap, game, timeController);
         ctx.RegisterUpdate(selfTest.Tick);
         Log.Info("[SELFTEST] Self-test registered (STRIDE_SELFTEST=1). Entering WARMUP.");
     }
@@ -171,7 +189,7 @@ public sealed class StrideSelfTest
         // ── Total-run timeout guard ────────────────────────────────────────
         if (_totalFrames >= TotalTimeoutFrames && _phase != Phase.Done)
         {
-            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL drive=FAIL reason=timeout");
+            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL pausedFreeze=FAIL drive=FAIL reason=timeout");
             ExitProcess();
             return false;
         }
@@ -186,6 +204,9 @@ public sealed class StrideSelfTest
             Phase.SettleB       => TickSettleB(),
             Phase.CheckB        => TickCheckB(),
             Phase.DriveIssue    => TickDriveIssue(),
+            Phase.PausedSettle  => TickPausedSettle(),
+            Phase.CheckPaused   => TickCheckPaused(),
+            Phase.Resume        => TickResume(),
             Phase.DrivingSettle => TickDrivingSettle(),
             Phase.CheckDrive    => TickCheckDrive(),
             Phase.Done          => false,
@@ -391,6 +412,50 @@ public sealed class StrideSelfTest
         // will still run but the vehicle will not move — FAIL captures the diagnostic.
 
         Log.Info($"[SELFTEST] DRIVE_ISSUE intent → D=({PosD.X},{PosD.Y}) IntentId=1");
+        TransitionTo(Phase.PausedSettle);
+        return true;
+    }
+
+    private bool TickPausedSettle()
+    {
+        _trackFrame++;
+
+        if (_trackFrame % TrackLogInterval == 0 && TryGetPosition(out var tp))
+            Log.Info($"[SELFTEST] paused frame={_totalFrames} pos=({tp.X:F2},{tp.Y:F2})");
+
+        if (_frameInPhase >= PausedSettleFrames)
+            TransitionTo(Phase.CheckPaused);
+
+        return true;
+    }
+
+    private bool TickCheckPaused()
+    {
+        if (!TryGetPosition(out var pos))
+        {
+            Log.Info("[SELFTEST] CHECK_PAUSED: entity not found — FAIL");
+            _pausedDistMoved = float.MaxValue;
+            _pausedFreeze    = false;
+        }
+        else
+        {
+            float dx = pos.X - PosB.X;
+            float dy = pos.Y - PosB.Y;
+            _pausedDistMoved = MathF.Sqrt(dx * dx + dy * dy);
+            _pausedFreeze    = _pausedDistMoved <= PausedFreezeTolerance;
+            Log.Info(
+                $"[SELFTEST] CHECK_PAUSED end=({pos.X:F2},{pos.Y:F2}) " +
+                $"distMovedWhilePaused={_pausedDistMoved:F2} -> {(_pausedFreeze ? "PASS" : "FAIL")}");
+        }
+
+        TransitionTo(Phase.Resume);
+        return true;
+    }
+
+    private bool TickResume()
+    {
+        _timeController.SwitchToContinuous();
+        Log.Info("[SELFTEST] RESUME → SwitchToContinuous (sim time now running)");
         TransitionTo(Phase.DrivingSettle);
         return true;
     }
@@ -502,8 +567,9 @@ public sealed class StrideSelfTest
             $"[SELFTEST] RESULT " +
             $"initialHold={(_initialHold ? "PASS" : "FAIL")} " +
             $"repos={(_repos ? "PASS" : "FAIL")} " +
+            $"pausedFreeze={(_pausedFreeze ? "PASS" : "FAIL")} " +
             $"drive={(_drive ? "PASS" : "FAIL")} " +
-            $"errA={_errA:F2} errB={_errB:F2} driveDistMoved={_driveDistMoved:F2} driveErrToDest={_driveErrToDest:F2} " +
+            $"errA={_errA:F2} errB={_errB:F2} pausedDistMoved={_pausedDistMoved:F2} driveDistMoved={_driveDistMoved:F2} driveErrToDest={_driveErrToDest:F2} " +
             $"(A=({PosA.X},{PosA.Y}) endA=({_endA.X:F2},{_endA.Y:F2}) " +
             $"B=({PosB.X},{PosB.Y}) endB=({_endB.X:F2},{_endB.Y:F2}) " +
             $"D=({PosD.X},{PosD.Y}) endDrive=({_endDrive.X:F2},{_endDrive.Y:F2}))");
