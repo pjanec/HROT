@@ -44,11 +44,7 @@ internal sealed class LocalWindowController
         var wm = new Fdp.Presentation.WindowManager.WindowManager(atlas);
 
         // Message log
-        var messageLogRegistry = new MessageLogRegistry();
-        messageLogRegistry.RegisterSource(NLogMessageLogTarget.SharedInstance);
-        var msgLogWindow = new MessageLogWindow(messageLogRegistry);
-        wm.RegisterWindow(msgLogWindow);
-        wm.MessageLogRegistry = messageLogRegistry;
+        var msgLogWindow = MessageLogHostWiring.CreateAndRegister(wm);
 
         // Register subsystem windows
         foreach (var sub in _subsystems)
@@ -68,8 +64,7 @@ internal sealed class LocalWindowController
         {
             ImGuiNET.ImGui.Text("System OK");
         });
-        var msgLogSection = new MessageLogStatusBarSection(msgLogWindow, wm);
-        wm.StatusBar.RegisterSection("msg_log_notify", sortOrder: 90, msgLogSection.Render);
+        MessageLogHostWiring.AddStatusBarNotifier(wm, msgLogWindow);
 
         string? persisted = wm.LoadSettings();
         var first = _subsystems.Skip(1).FirstOrDefault();
