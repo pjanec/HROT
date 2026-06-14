@@ -18,6 +18,7 @@ using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Fdp.Toolkit.Spatial;
 using CarKinem.Tkb;
+using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Translators;
 using Fdp.Toolkit.Combat.Translators;
 using Fdp.Toolkit.Perception.Translators;
@@ -27,6 +28,7 @@ using Hrot.CGF;
 using Hrot.Core.Network;
 using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor;
+using Hrot.Editor.DebugApi;
 using Hrot.Editor.Modules;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
@@ -98,6 +100,15 @@ public sealed class EditorHarness : IDisposable
     /// <summary>Record/Replay controller wired by this harness (ADA-BATCH-10). Test accessor.</summary>
     public Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? RrController => _rrController;
 
+    /// <summary>AI tracer coordinator (ADA-BATCH-12). Test accessor.</summary>
+    public EditorAiTracerCoordinator? EditorTracer { get; private set; }
+
+    /// <summary>BTree debug session (ADA-BATCH-12). Test accessor.</summary>
+    public Hrot.BTree.Editor.Debug.BTreeDebugSession BTreeSession { get; private set; } = null!;
+
+    /// <summary>HSM debug session (ADA-BATCH-12). Test accessor.</summary>
+    public Hrot.Hsm.Editor.Debug.HsmDebugSession HsmSession { get; private set; } = null!;
+
     /// <summary>
     /// Event-history service populated by a World-bus capture system registered in the
     /// PostSimulation phase. Used by the AI Debug API event-history tests.
@@ -134,7 +145,10 @@ public sealed class EditorHarness : IDisposable
             spatialGridWidth: PerceptionConstants.LocalGridWidth,
             spatialGridHeight: PerceptionConstants.LocalGridHeight,
             bpManager: _bpManager,
-            rrController: _rrController);
+            rrController:  _rrController,
+            editorTracer:  EditorTracer,
+            btreeSession:  BTreeSession,
+            hsmSession:    HsmSession);
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────
@@ -317,6 +331,9 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterGlobalSystem(bpSnapshotProvider);
         Kernel.RegisterGlobalSystem(_bpSystem);
 
+        // ── BehaviorDiagnosticsModule (ADA-BATCH-12): DebugStatePatchSystem + TraceBufferLifecycleSystem ──
+        Kernel.RegisterModule(new BehaviorDiagnosticsModule());
+
         // Register caller-injected global systems (e.g. mock physics solvers in unit tests).
         // Must happen BEFORE Kernel.Initialize().
         if (extraGlobalSystems != null)
@@ -327,6 +344,12 @@ public sealed class EditorHarness : IDisposable
 
         // ── Record/Replay controller (ADA-BATCH-10) ───────────────────────────
         _rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(Kernel, 0, Repo);
+
+        // ── Trace sessions (ADA-BATCH-12) ─────────────────────────────────────
+        var tracerCoordinator = new EditorAiTracerCoordinator(Repo);
+        EditorTracer = tracerCoordinator;
+        BTreeSession = new Hrot.BTree.Editor.Debug.BTreeDebugSession(tracerCoordinator);
+        HsmSession   = new Hrot.Hsm.Editor.Debug.HsmDebugSession(tracerCoordinator);
 
         // ── Editor application facade ─────────────────────────────────────────
         var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };

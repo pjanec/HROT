@@ -442,6 +442,30 @@ namespace Hrot.Editor.DebugApi
             ));
 
             _routes.Add(new("POST", "/replay/unload", _ => RunMain(s => s.UnloadReplay())));
+
+            // Group K — AI Behavior Traces (ADA-BATCH-12)
+            _routes.Add(new("POST", "/trace/observe", async ctx =>
+            {
+                long networkId = ctx.Body?["networkId"]?.GetValue<long>() ?? 0;
+                bool on        = ctx.Body?["on"]?.GetValue<bool>() ?? false;
+                if (networkId == 0) return Fail(400, "networkId is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    var result = Service().ObserveTrace(networkId, on);
+                    if (result is JsonObject obj && obj["error"] is not null)
+                        return (null, obj["error"]!.GetValue<string>());
+                    return (result, null);
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/entities/{networkId}/trace", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().GetEntityTrace(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

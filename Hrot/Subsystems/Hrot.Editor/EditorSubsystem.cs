@@ -687,7 +687,7 @@ namespace Hrot.Editor
             _aiCoordinator.TriggerInitialLoad();
 
             // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
-            _aiTracerCoordinator = new AiTracerCoordinator();
+            _aiTracerCoordinator = new Hrot.Editor.DebugApi.EditorAiTracerCoordinator(_world!);
             _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
             _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
             // ────────────────────────────────────────────────────────────────────────────────────
@@ -1453,7 +1453,10 @@ namespace Hrot.Editor
                     {
                         Fdp.Core.Logging.NLogMessageLogTarget.SharedInstance,
                         Fdp.Core.Logging.AiBehaviorLogTarget.SharedInstance,
-                    });
+                    },
+                    editorTracer:     _aiTracerCoordinator as Hrot.Editor.DebugApi.EditorAiTracerCoordinator,
+                    btreeSession:     _btreeDebugSession,
+                    hsmSession:       _hsmDebugSession);
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

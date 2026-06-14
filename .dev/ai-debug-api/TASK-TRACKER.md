@@ -109,8 +109,8 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Per-entity behavior-tree/HSM/blueprint trace extraction. Contains the one new engine seam.
 
-- [ ] **ADA-P6-T01** [sonnet] Live trace arming seam (`AiTracerCoordinator` override + `TraceBufferLifecycleSystem` + `DebugMap`) [details](./TASK-DETAIL.md#ada-p6-t01--trace-arming-seam)
-- [ ] **ADA-P6-T02** [sonnet] Trace extraction endpoints + JSON (Group K) [details](./TASK-DETAIL.md#ada-p6-t02--trace-extraction)
+- [x] **ADA-P6-T01** [sonnet] Live trace arming seam (`AiTracerCoordinator` override + `TraceBufferLifecycleSystem` + `DebugMap`) [details](./TASK-DETAIL.md#ada-p6-t01--trace-arming-seam)
+- [x] **ADA-P6-T02** [sonnet] Trace extraction endpoints + JSON (Group K) [details](./TASK-DETAIL.md#ada-p6-t02--trace-extraction)
 
 ---
 

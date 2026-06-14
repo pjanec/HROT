@@ -117,6 +117,7 @@ async function main() {
     'start_recording', 'stop_recording', 'load_replay', 'seek_replay',
     'step_replay', 'get_replay_status', 'list_replay_entities', 'unload_replay',
     'get_logs',
+    'observe_trace', 'get_entity_trace',
   ];
   for (const name of requiredTools) {
     assert(toolNames.includes(name), `Tool '${name}' registered`);
@@ -699,8 +700,40 @@ async function main() {
   console.log(`  Error envelope: ${JSON.stringify(badEntityResult.parsed)}`);
   console.log('');
 
-  // ── Step 13: stop_simulation ──────────────────────────────────────────────
-  console.log('--- Step 13: stop_simulation ---');
+  // ── Step 13: observe_trace + get_entity_trace (Group K) ─────────────────
+
+  console.log('--- Step 13: observe_trace + get_entity_trace ---');
+
+  console.log('13a: observe_trace arms entity 1000');
+  const armResult = await callTool(client, 'observe_trace', { networkId: 1000, on: true });
+  assert(!armResult.isError, `observe_trace failed: ${JSON.stringify(armResult)}`);
+  const armData = armResult.parsed?.data ?? armResult.parsed;
+  assert(armData.armed === true, `Expected armed=true, got: ${JSON.stringify(armData)}`);
+  assert(armData.networkId === 1000, `Expected networkId=1000, got: ${JSON.stringify(armData)}`);
+  console.log('');
+
+  console.log('13b: step simulation to let trace buffers populate');
+  await callTool(client, 'step', { count: 5 });
+  console.log('');
+
+  console.log('13c: get_entity_trace returns trace for entity 1000');
+  const traceResult = await callTool(client, 'get_entity_trace', { networkId: 1000 });
+  assert(!traceResult.isError, `get_entity_trace failed: ${JSON.stringify(traceResult)}`);
+  const traceData = traceResult.parsed?.data ?? traceResult.parsed;
+  assert(traceData.networkId === 1000, `Expected networkId=1000`);
+  assert(traceData.tier !== undefined, `Expected tier field, got: ${JSON.stringify(traceData)}`);
+  console.log(`  Trace tier: ${traceData.tier}, traceArmed: ${traceData.traceArmed}`);
+  console.log('');
+
+  console.log('13d: disarm entity 1000');
+  const disarmResult = await callTool(client, 'observe_trace', { networkId: 1000, on: false });
+  assert(!disarmResult.isError, `observe_trace disarm failed: ${JSON.stringify(disarmResult)}`);
+  const disarmData = disarmResult.parsed?.data ?? disarmResult.parsed;
+  assert(disarmData.armed === false, `Expected armed=false`);
+  console.log('');
+
+  // ── Step 14: stop_simulation ──────────────────────────────────────────────
+  console.log('--- Step 14: stop_simulation ---');
   const stopResult = await callTool(client, 'stop_simulation');
   // stop_simulation either succeeds (ok:true from /shutdown) or the process already exited
   assert(
@@ -710,8 +743,8 @@ async function main() {
   console.log(`  Stop result: ${JSON.stringify(stopResult.parsed)}`);
   console.log('');
 
-  // ── Step 14: Orphan check ─────────────────────────────────────────────────
-  console.log('--- Step 14: orphan process check ---');
+  // ── Step 15: Orphan check ─────────────────────────────────────────────────
+  console.log('--- Step 15: orphan process check ---');
   // Give the process a moment to exit
   await sleep(2000);
 

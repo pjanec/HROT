@@ -82,6 +82,12 @@ namespace Hrot.Editor.DebugApi
         // Group J — Log sinks (off-thread safe, lock-guarded)
         private readonly IReadOnlyList<IMessageLogSource> _logSinks;
 
+        // Group K — AI Behavior Traces
+        private readonly EditorAiTracerCoordinator?                    _editorTracer;
+        private readonly Hrot.BTree.Editor.Debug.BTreeDebugSession?    _btreeSession;
+        private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession?        _hsmSession;
+        private readonly Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSession;
+
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
             WriteIndented = false,
@@ -168,7 +174,11 @@ namespace Hrot.Editor.DebugApi
             IDataBreakpointManager?         bpManager          = null,
             IComponentDiffService?          diffService        = null,
             Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null,
-            IReadOnlyList<IMessageLogSource>? logSinks          = null)
+            IReadOnlyList<IMessageLogSource>? logSinks          = null,
+            EditorAiTracerCoordinator?                    editorTracer      = null,
+            Hrot.BTree.Editor.Debug.BTreeDebugSession?    btreeSession      = null,
+            Hrot.Hsm.Editor.Debug.HsmDebugSession?        hsmSession        = null,
+            Hrot.Blueprints.Core.Debug.BlueprintDebugSession? blueprintSession = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -190,6 +200,10 @@ namespace Hrot.Editor.DebugApi
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
             _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
+            _editorTracer     = editorTracer;
+            _btreeSession     = btreeSession;
+            _hsmSession       = hsmSession;
+            _blueprintSession = blueprintSession;
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -1546,6 +1560,112 @@ namespace Hrot.Editor.DebugApi
                     sandboxMap.Register(netId, e);
             }
             return new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(sandboxRepo, sandboxMap);
+        }
+
+        // ── Group K — AI Behavior Traces ──────────────────────────────────────────
+
+        /// <summary>
+        /// <c>POST /trace/observe {networkId, on}</c> — arm or disarm trace buffer for an entity.
+        /// </summary>
+        public JsonNode ObserveTrace(long networkId, bool on)
+        {
+            if (_editorTracer is null)
+                return new JsonObject { ["armed"] = false, ["note"] = "Trace coordinator not available." };
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return new JsonObject { ["error"] = $"Entity {networkId} not found." };
+
+            if (on)
+                _editorTracer.ArmEntity(entity);
+            else
+                _editorTracer.DisarmEntity(entity);
+
+            return new JsonObject { ["networkId"] = networkId, ["armed"] = on };
+        }
+
+        /// <summary>
+        /// <c>GET /entities/{networkId}/trace</c> — extract AI behavior trace for an entity.
+        /// </summary>
+        public JsonNode GetEntityTrace(long networkId)
+        {
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return new JsonObject { ["error"] = $"Entity {networkId} not found." };
+
+            if (!_world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+                return new JsonObject { ["networkId"] = networkId, ["tier"] = "none", ["note"] = "Entity has no BehaviorState." };
+
+            byte tier = _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity).BrainTier;
+
+            if (tier == Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree && _btreeSession != null)
+            {
+                _btreeSession.Update(_world, entity);
+                var snap    = _btreeSession.GetCurrentStateSnapshot();
+                var history = _btreeSession.GetRecentNodeHistory(50);
+
+                var histArr = new JsonArray();
+                foreach (var h in history)
+                {
+                    histArr.Add(new JsonObject
+                    {
+                        ["nodeVisualId"] = h.NodeVisualId.ToString("D"),
+                        ["status"]       = h.Status.ToString(),
+                        ["timestamp"]    = h.SimulationTime,
+                    });
+                }
+
+                return new JsonObject
+                {
+                    ["networkId"]    = networkId,
+                    ["tier"]         = "BTree",
+                    ["traceArmed"]   = _world.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.BTreeTraceWorkingMemory1024>(entity),
+                    ["activeNode"]   = snap?.RunningElementId?.ToString("D"),
+                    ["stackPointer"] = snap?.StackPointer ?? 0,
+                    ["nodeHistory"]  = histArr,
+                };
+            }
+
+            if (tier == Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm && _hsmSession != null)
+            {
+                _hsmSession.Update(_world, entity);
+                var snap    = _hsmSession.GetCurrentStateSnapshot();
+                var history = _hsmSession.GetRecentTraceHistory(50);
+
+                var histArr = new JsonArray();
+                foreach (var h in history)
+                {
+                    histArr.Add(new JsonObject
+                    {
+                        ["type"]           = h.GetType().Name,
+                        ["simulationTime"] = h.SimulationTime,
+                    });
+                }
+
+                var leavesArr = new JsonArray();
+                if (snap != null)
+                    foreach (var leaf in snap.ActiveLeafStableIds)
+                        leavesArr.Add(leaf.ToString("D"));
+
+                return new JsonObject
+                {
+                    ["networkId"]    = networkId,
+                    ["tier"]         = "Hsm",
+                    ["traceArmed"]   = _world.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.HsmTraceWorkingMemory1024>(entity),
+                    ["activeLeafs"]  = leavesArr,
+                    ["traceHistory"] = histArr,
+                };
+            }
+
+            if (_blueprintSession != null)
+            {
+                return new JsonObject
+                {
+                    ["networkId"] = networkId,
+                    ["tier"]      = "Blueprint",
+                    ["note"]      = "Blueprint trace: assetId resolution not available via Debug API.",
+                };
+            }
+
+            return new JsonObject { ["networkId"] = networkId, ["tier"] = "unknown" };
         }
     }
 }

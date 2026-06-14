@@ -1056,6 +1056,50 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+  // ── Group K — AI Behavior Traces (ADA-BATCH-12) ──────────────────────────
+
+  {
+    name: 'observe_trace',
+    description:
+      'POST /trace/observe — arm or disarm AI behavior trace buffer allocation for an entity. ' +
+      'Must arm before get_entity_trace will return populated trace data.',
+    inputSchema: {
+      type: 'object',
+      required: ['networkId', 'on'],
+      properties: {
+        networkId: { type: 'number', description: 'Network entity ID (long)' },
+        on: { type: 'boolean', description: 'true to arm tracing, false to disarm' },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/trace/observe', {
+          networkId: toolArgs.networkId,
+          on: toolArgs.on,
+        }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'get_entity_trace',
+    description:
+      'GET /entities/{networkId}/trace — extract AI behavior trace for an entity. ' +
+      'Returns BTree active node path + history, HSM active leaves, or blueprint live state. ' +
+      'Arm the entity with observe_trace first to populate trace data.',
+    inputSchema: {
+      type: 'object',
+      required: ['networkId'],
+      properties: {
+        networkId: { type: 'number', description: 'Network entity ID (long)' },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/trace`));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────
