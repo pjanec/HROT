@@ -171,6 +171,8 @@ public sealed class StrideHrotGame : Game
     /// <summary>The overview camera entity created in <see cref="AddFixedCamera"/>.</summary>
     private global::Stride.Engine.Entity? _cameraEntity;
 
+    private readonly CameraBookmarkStore _cameraBookmarks = new(); // BATCH-S2-AC
+
     /// <summary>Physics raycast service for 3D click-to-select / click-to-move (BATCH-S2-O).</summary>
     private IStrideRaycastService? _raycastService;
 
@@ -548,6 +550,33 @@ public sealed class StrideHrotGame : Game
             }
         }
 
+        // BATCH-S2-AC: camera bookmarks. Ctrl+Alt+N saves slot N; Alt+N recalls slot N (N = 0..9).
+        if (_cameraEntity != null)
+        {
+            bool ctrl = Input.IsKeyDown(Keys.LeftCtrl) || Input.IsKeyDown(Keys.RightCtrl);
+            bool alt  = Input.IsKeyDown(Keys.LeftAlt)  || Input.IsKeyDown(Keys.RightAlt);
+            if (alt)
+            {
+                // Digit keys D0..D9 map to slots 0..9.
+                // Keys.D0..D9 mirror Windows VK_0..VK_9 (0x30..0x39) — contiguous and ordered.
+                for (int slot = 0; slot <= 9; slot++)
+                {
+                    var key = (Keys)((int)Keys.D0 + slot);
+                    if (!Input.IsKeyPressed(key)) continue;
+                    if (ctrl)
+                    {
+                        _cameraBookmarks.Save(slot, _cameraEntity.Transform.Position, _cameraEntity.Transform.Rotation);
+                    }
+                    else if (_cameraBookmarks.TryGet(slot, out var pos, out var rot))
+                    {
+                        _cameraEntity.Transform.Position = pos;
+                        _cameraEntity.Transform.Rotation = rot;
+                        Log.Info("[StrideHrotGame] Recalled camera bookmark slot {0}.", slot);
+                    }
+                }
+            }
+        }
+
         // ── Accumulate frame-timing stats (DIAG) ──────────────────────────
         _totalUpdateSw.Stop();
         double totalUpdateMs = _totalUpdateSw.Elapsed.TotalMilliseconds;
@@ -827,6 +856,14 @@ public sealed class StrideHrotGame : Game
         // Looking toward the spawn area around Stride (0, 0, 5).
         // This gives a roughly 45° downward angle from the north/rear side.
         AddFixedCamera(scene);
+
+        // BATCH-S2-AC: restore the default camera bookmark (slot 0) on load, if present.
+        if (_cameraEntity != null && _cameraBookmarks.TryGet(0, out var camPos0, out var camRot0))
+        {
+            _cameraEntity.Transform.Position = camPos0;
+            _cameraEntity.Transform.Rotation = camRot0;
+            Log.Info("[StrideHrotGame] Restored default camera bookmark (slot 0) on load.");
+        }
 
         // ── 4. Boot the visual factory and subsystem ──────────────────────
         // The blend-tree installer (BATCH-16 Fix A) is what makes mannequins ANIMATE: it loads the
