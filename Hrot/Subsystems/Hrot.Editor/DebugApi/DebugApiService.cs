@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
+using Fdp.Core.Logging;
 using Fdp.Core.Serialization;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;
@@ -77,6 +78,9 @@ namespace Hrot.Editor.DebugApi
         private string? _lastFdpPath;
         private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? _replayContext;
         private Fdp.Toolkit.Diagnostics.EntityStateExtractionService? _replayExtraction;
+
+        // Group J — Log sinks (off-thread safe, lock-guarded)
+        private readonly IReadOnlyList<IMessageLogSource> _logSinks;
 
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
@@ -163,7 +167,8 @@ namespace Hrot.Editor.DebugApi
             int                             spatialGridHeight   = 200,
             IDataBreakpointManager?         bpManager          = null,
             IComponentDiffService?          diffService        = null,
-            Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null)
+            Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null,
+            IReadOnlyList<IMessageLogSource>? logSinks          = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -184,6 +189,7 @@ namespace Hrot.Editor.DebugApi
             _bpManager         = bpManager;
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
+            _logSinks          = logSinks ?? Array.Empty<IMessageLogSource>();
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -214,13 +220,108 @@ namespace Hrot.Editor.DebugApi
 
         // ── Group B — Entity queries ───────────────────────────────────────────
 
-        /// <summary><c>GET /entities</c> — list (networkId, name, component type names) (main thread).</summary>
-        public JsonNode ListEntities()
+        /// <summary>
+        /// <c>GET /entities</c> — list (networkId, name, component type names) (main thread).
+        /// Optional filters:
+        /// <list type="bullet">
+        ///   <item><paramref name="component"/> — only entities that have a component with this type name.</item>
+        ///   <item><paramref name="near"/> — only entities within radius <c>r</c> of <c>(x,y)</c> using
+        ///   the entity's <c>SimTransform.Position</c> (XZ-plane distance).
+        ///   Format: "x,y,r" (comma-separated floats).</item>
+        /// </list>
+        /// Both filters are composable. When absent, all entities are returned (existing behavior).
+        /// </summary>
+        public JsonNode ListEntities(string? component = null, string? near = null)
         {
             var dumps = _extraction.ExtractEntities();
-            var arr   = new JsonArray();
+
+            // Parse ?near=x,y,r once before iterating.
+            float nearX = 0f, nearY = 0f, nearRadius = 0f;
+            bool filterNear = false;
+            if (!string.IsNullOrWhiteSpace(near))
+            {
+                var parts = near.Split(',');
+                if (parts.Length == 3
+                    && float.TryParse(parts[0].Trim(), System.Globalization.NumberStyles.Float,
+                                      System.Globalization.CultureInfo.InvariantCulture, out nearX)
+                    && float.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Float,
+                                      System.Globalization.CultureInfo.InvariantCulture, out nearY)
+                    && float.TryParse(parts[2].Trim(), System.Globalization.NumberStyles.Float,
+                                      System.Globalization.CultureInfo.InvariantCulture, out nearRadius))
+                {
+                    filterNear = true;
+                }
+            }
+
+            bool filterComponent = !string.IsNullOrWhiteSpace(component);
+
+            var arr = new JsonArray();
             foreach (var d in dumps)
             {
+                // ── ?component= filter ─────────────────────────────────────────
+                if (filterComponent)
+                {
+                    bool hasComp = d.Components.Keys.Any(k =>
+                        string.Equals(k, component, StringComparison.OrdinalIgnoreCase));
+                    if (!hasComp) continue;
+                }
+
+                // ── ?near= filter ──────────────────────────────────────────────
+                if (filterNear)
+                {
+                    // Extract position from SimTransform component in the dump.
+                    Vector3 pos = Vector3.Zero;
+                    bool posFound = false;
+                    if (d.Components.TryGetValue("SimTransform", out var stObj))
+                    {
+                        // The component may be a JsonElement (serializer path) or a raw struct (fallback).
+                        if (stObj is System.Text.Json.JsonElement je)
+                        {
+                            if (je.TryGetProperty("Position", out var posEl))
+                            {
+                                // Vector3 is serialized as [x,y,z] array by both DefaultRelaxed
+                                // (Vector3ArrayConverter) and DebugApiDumpOptions (DebugApiVector3SafeConverter).
+                                if (posEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    int idx = 0;
+                                    float px = 0f, py = 0f, pz = 0f;
+                                    foreach (var el in posEl.EnumerateArray())
+                                    {
+                                        if (idx == 0 && el.TryGetSingle(out var xv)) px = xv;
+                                        else if (idx == 1 && el.TryGetSingle(out var yv)) py = yv;
+                                        else if (idx == 2 && el.TryGetSingle(out var zv)) pz = zv;
+                                        idx++;
+                                    }
+                                    pos = new Vector3(px, py, pz);
+                                    posFound = true;
+                                }
+                                else if (posEl.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    // Fallback: old object-style {"X":x,"Y":y,"Z":z} if any
+                                    float px = posEl.TryGetProperty("X", out var xEl) && xEl.TryGetSingle(out var xv) ? xv : 0f;
+                                    float py = posEl.TryGetProperty("Y", out var yEl) && yEl.TryGetSingle(out var yv) ? yv : 0f;
+                                    float pz = posEl.TryGetProperty("Z", out var zEl) && zEl.TryGetSingle(out var zv) ? zv : 0f;
+                                    pos = new Vector3(px, py, pz);
+                                    posFound = true;
+                                }
+                            }
+                        }
+                        else if (stObj is SimTransform st)
+                        {
+                            pos = st.Position;
+                            posFound = true;
+                        }
+                    }
+                    if (!posFound) continue;
+
+                    // XZ-plane radius test (ignore Y elevation) — matches the 2D spatial grid.
+                    float dx = pos.X - nearX;
+                    float dz = pos.Z - nearY;   // spatial Y in the near param maps to world Z
+                    float distSq = dx * dx + dz * dz;
+                    if (distSq > nearRadius * nearRadius) continue;
+                }
+
+                // ── Include entity ─────────────────────────────────────────────
                 var comps = new JsonArray();
                 foreach (var name in d.Components.Keys)
                     comps.Add(name);
@@ -300,6 +401,90 @@ namespace Hrot.Editor.DebugApi
                     ["isManaged"] = e.IsManaged,
                     ["summary"]   = e.Summary,
                     ["payload"]   = payload,
+                });
+            }
+            return arr;
+        }
+
+        // ── Group J — Logs ────────────────────────────────────────────────────
+
+        /// <summary>Default maximum log entries to return.</summary>
+        public const int DefaultMaxLogs = 200;
+
+        /// <summary>
+        /// <c>GET /logs</c> — query the in-memory log sinks off-thread (lock-guarded).
+        ///
+        /// <para><b>Filter semantics:</b></para>
+        /// <list type="bullet">
+        ///   <item><paramref name="level"/> — <b>minimum level</b> (inclusive). E.g. <c>"Info"</c>
+        ///     includes Info, Warning, Error, Critical. Case-insensitive. When absent, all levels.</item>
+        ///   <item><paramref name="logger"/> — exact or prefix match on <c>MessageLogEntry.LoggerName</c>.
+        ///     Case-insensitive substring match. When absent, all loggers.</item>
+        ///   <item><paramref name="since"/> — ISO-8601 or round-trip DateTime string; only entries
+        ///     with <c>Timestamp &gt;= since</c> are included. When absent, all entries.</item>
+        ///   <item><paramref name="max"/> — upper bound on the returned count (default 200).
+        ///     Most-recent entries are returned first.</item>
+        /// </list>
+        /// </summary>
+        public JsonNode GetLogs(
+            string? level  = null,
+            string? logger = null,
+            string? since  = null,
+            int     max    = DefaultMaxLogs)
+        {
+            // Parse minimum level filter.
+            LogSeverity? minLevel = null;
+            if (!string.IsNullOrWhiteSpace(level))
+            {
+                if (Enum.TryParse<LogSeverity>(level, ignoreCase: true, out var parsed))
+                    minLevel = parsed;
+                // Unknown level string → ignore the filter (return everything).
+            }
+
+            // Parse since-timestamp filter.
+            DateTime? sinceTime = null;
+            if (!string.IsNullOrWhiteSpace(since))
+            {
+                if (DateTime.TryParse(since,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind,
+                        out var parsedDt))
+                    sinceTime = parsedDt;
+                // Unparseable since → ignore the filter.
+            }
+
+            if (max <= 0) max = DefaultMaxLogs;
+
+            // Collect from all registered sinks (off-thread: each sink uses lock-guarded GetMessages()).
+            var allEntries = new List<MessageLogEntry>();
+            foreach (var sink in _logSinks)
+                allEntries.AddRange(sink.GetMessages());
+
+            // Apply filters.
+            IEnumerable<MessageLogEntry> filtered = allEntries;
+
+            if (minLevel.HasValue)
+                filtered = filtered.Where(e => e.Severity >= minLevel.Value);
+
+            if (!string.IsNullOrWhiteSpace(logger))
+                filtered = filtered.Where(e =>
+                    e.LoggerName?.IndexOf(logger, StringComparison.OrdinalIgnoreCase) >= 0);
+
+            if (sinceTime.HasValue)
+                filtered = filtered.Where(e => e.Timestamp >= sinceTime.Value);
+
+            // Most-recent first, bounded by max.
+            var page = filtered.OrderByDescending(e => e.Timestamp).Take(max).ToList();
+
+            var arr = new JsonArray();
+            foreach (var e in page)
+            {
+                arr.Add(new JsonObject
+                {
+                    ["timestamp"] = e.Timestamp.ToString("O"),  // ISO-8601 round-trip format
+                    ["level"]     = e.Severity.ToString(),
+                    ["logger"]    = e.LoggerName,
+                    ["message"]   = e.Message,
                 });
             }
             return arr;

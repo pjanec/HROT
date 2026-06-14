@@ -1008,6 +1008,54 @@ const TOOLS = [
       catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+  // ── Group J — Logs (ADA-BATCH-11) ────────────────────────────────────────
+
+  {
+    name: 'get_logs',
+    description:
+      'GET /logs — query the in-process log sinks (NLogMessageLogTarget + AiBehaviorLogTarget). ' +
+      'Returns [{timestamp, level, logger, message}] sorted newest-first. ' +
+      'All parameters optional. ' +
+      'level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical. ' +
+      'logger = case-insensitive substring match on logger name. ' +
+      'since = ISO-8601 timestamp; entries with timestamp >= since are included. ' +
+      'max = upper bound on results (default 200). ' +
+      'Read off-thread — no main-thread marshal required.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        level: {
+          type: 'string',
+          enum: ['Trace', 'Debug', 'Info', 'Warning', 'Error', 'Critical'],
+          description: 'Minimum severity level (inclusive). Omit to return all levels.',
+        },
+        logger: {
+          type: 'string',
+          description: 'Filter by logger name substring (case-insensitive). Omit to return all loggers.',
+        },
+        since: {
+          type: 'string',
+          description: 'ISO-8601 timestamp. Only entries with timestamp >= since are returned.',
+        },
+        max: {
+          type: 'number',
+          description: 'Maximum number of entries to return (default 200).',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        const params = new URLSearchParams();
+        if (toolArgs.level) params.set('level', toolArgs.level);
+        if (toolArgs.logger) params.set('logger', toolArgs.logger);
+        if (toolArgs.since) params.set('since', toolArgs.since);
+        if (toolArgs.max != null) params.set('max', String(toolArgs.max));
+        const qs = params.toString() ? `?${params}` : '';
+        return toolSuccess(await callApi('GET', `/logs${qs}`));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────

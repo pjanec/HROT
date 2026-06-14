@@ -77,8 +77,13 @@ namespace Hrot.Editor.DebugApi
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
 
-            // Group B — entities
-            _routes.Add(new("GET", "/entities", _ => RunMain(s => s.ListEntities())));
+            // Group B — entities (with optional ?component= and ?near= filters)
+            _routes.Add(new("GET", "/entities", ctx =>
+            {
+                var comp = ctx.Query("component");
+                var near = ctx.Query("near");
+                return RunMain(s => s.ListEntities(comp, near));
+            }));
             _routes.Add(new("GET", "/entities/{networkId}", async ctx =>
             {
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
@@ -95,6 +100,16 @@ namespace Hrot.Editor.DebugApi
                 uint.TryParse(ctx.Query("since"), out var since);
                 int max   = int.TryParse(ctx.Query("max"), out var m) ? m : DebugApiService.DefaultMaxEvents;
                 return Task.FromResult(Ok(Service().GetEvents(bus, type, since, max)));
+            }));
+
+            // Group J — Logs (off-thread: sinks are lock-guarded, no RunMain needed)
+            _routes.Add(new("GET", "/logs", ctx =>
+            {
+                var level  = ctx.Query("level");
+                var logger = ctx.Query("logger");
+                var since  = ctx.Query("since");
+                int max    = int.TryParse(ctx.Query("max"), out var m) ? m : DebugApiService.DefaultMaxLogs;
+                return Task.FromResult(Ok(Service().GetLogs(level, logger, since, max)));
             }));
 
             // Group D — sim / preview / time

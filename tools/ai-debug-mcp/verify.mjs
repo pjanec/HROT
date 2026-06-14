@@ -1,5 +1,5 @@
 /**
- * ADA-BATCH-09 verification script (extends ADA-BATCH-06 through ADA-BATCH-08)
+ * ADA-BATCH-11 verification script (extends ADA-BATCH-06 through ADA-BATCH-10)
  *
  * Drives a real end-to-end flow over MCP (stdio) using the actual Hrot ClusterRunner:
  *   start_simulation → get_status → load_scenario(test-move) → list_entities →
@@ -74,7 +74,7 @@ async function callTool(client, name, args) {
 // ── Main verification ─────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('=== ADA-BATCH-06 Verification ===');
+  console.log('=== ADA-BATCH-11 Verification ===');
   console.log(`Runner DLL: ${runnerDll}`);
   console.log(`Port: ${port}`);
   console.log('');
@@ -116,6 +116,7 @@ async function main() {
     'checkpoint', 'restore_checkpoint', 'capture_diff_baseline', 'diff_state',
     'start_recording', 'stop_recording', 'load_replay', 'seek_replay',
     'step_replay', 'get_replay_status', 'list_replay_entities', 'unload_replay',
+    'get_logs',
   ];
   for (const name of requiredTools) {
     assert(toolNames.includes(name), `Tool '${name}' registered`);
@@ -591,6 +592,80 @@ async function main() {
   assert(!replayStatusResult.isError, 'get_replay_status succeeded after unload');
   assert(replayStatusResult.parsed?.data?.replayActive === false,
     'get_replay_status: replayActive:false after unload');
+
+  console.log('');
+
+  // ── Step 10h: Group J — get_logs + Group B+ — list_entities component filter ──
+  console.log('--- Step 10h: get_logs (Group J) + list_entities component filter (Group B+) ---');
+
+  // get_logs — no filter — must return ok:true with an array (may be empty in headless mode,
+  // but the endpoint must be responsive).
+  const logsResult = await callTool(client, 'get_logs');
+  assert(!logsResult.isError, 'get_logs succeeded');
+  assert(logsResult.parsed?.ok === true, 'get_logs ok:true');
+  const logsData = logsResult.parsed?.data;
+  assert(Array.isArray(logsData), 'get_logs returned array');
+  console.log(`  get_logs entry count: ${logsData?.length ?? 0}`);
+
+  // If any entries came back, validate the required fields.
+  if (Array.isArray(logsData) && logsData.length > 0) {
+    const entry = logsData[0];
+    assert(typeof entry.timestamp === 'string', 'log entry has timestamp string');
+    assert(typeof entry.level === 'string', 'log entry has level string');
+    assert(typeof entry.logger === 'string', 'log entry has logger string');
+    assert(typeof entry.message === 'string', 'log entry has message string');
+    console.log(`  first log entry: level=${entry.level}, logger=${entry.logger}`);
+  } else {
+    console.log('  (no log entries in this headless run — field-shape check skipped)');
+  }
+
+  // get_logs with ?level=Warning — must return ok:true (may be empty) and all entries
+  // must have level Warning or higher if any are present.
+  const warnLogsResult = await callTool(client, 'get_logs', { level: 'Warning' });
+  assert(!warnLogsResult.isError, 'get_logs(level=Warning) succeeded');
+  assert(warnLogsResult.parsed?.ok === true, 'get_logs(level=Warning) ok:true');
+  const warnLogs = warnLogsResult.parsed?.data ?? [];
+  const validLevels = new Set(['Warning', 'Error', 'Critical']);
+  const allHighSeverity = warnLogs.every((e) => validLevels.has(e.level));
+  assert(allHighSeverity,
+    `get_logs(level=Warning): all returned entries have level >= Warning (got ${warnLogs.length} entries)`);
+  console.log(`  get_logs(level=Warning) entries: ${warnLogs.length}`);
+
+  // list_entities with ?component=SimTransform — must return only entities that have SimTransform.
+  // The test-move scenario includes at least one entity with a SimTransform.
+  const filteredEntitiesResult = await callTool(client, 'list_entities', { component: 'SimTransform' });
+  assert(!filteredEntitiesResult.isError, 'list_entities(component=SimTransform) succeeded');
+  assert(filteredEntitiesResult.parsed?.ok === true, 'list_entities(component=SimTransform) ok:true');
+  const filteredEntities = filteredEntitiesResult.parsed?.data ?? [];
+  assert(Array.isArray(filteredEntities), 'list_entities(component=SimTransform) returned array');
+
+  // Every entity in the filtered list must have SimTransform in its components array.
+  const allHaveSimTransform = filteredEntities.every(
+    (e) => Array.isArray(e.components) &&
+           e.components.some((c) => c.toLowerCase() === 'simtransform'),
+  );
+  assert(allHaveSimTransform,
+    `list_entities(component=SimTransform): all returned entities have SimTransform (got ${filteredEntities.length} entities)`);
+  console.log(`  list_entities(component=SimTransform) count: ${filteredEntities.length}`);
+
+  // Re-capture unfiltered entity count fresh here (Step 5 entityCount is stale —
+  // prior steps spawned additional entities, so filtered > stale-unfiltered is expected).
+  const freshUnfilteredResult = await callTool(client, 'list_entities');
+  const freshUnfilteredEntities = freshUnfilteredResult.parsed?.data ?? [];
+  const freshUnfilteredCount = Array.isArray(freshUnfilteredEntities) ? freshUnfilteredEntities.length : 0;
+  console.log(`  list_entities (fresh unfiltered) count: ${freshUnfilteredCount}`);
+  assert(filteredEntities.length <= freshUnfilteredCount,
+    `list_entities(component=SimTransform) count ${filteredEntities.length} <= fresh-unfiltered ${freshUnfilteredCount}`);
+  assert(filteredEntities.length >= 1,
+    `list_entities(component=SimTransform) count >= 1 (scenario has SimTransform entities, got ${filteredEntities.length})`);
+
+  // Non-existent component → empty array.
+  const noMatchResult = await callTool(client, 'list_entities', { component: 'NonExistentComponent9999' });
+  assert(!noMatchResult.isError, 'list_entities(component=NonExistent) succeeded');
+  const noMatchEntities = noMatchResult.parsed?.data ?? [];
+  assert(Array.isArray(noMatchEntities) && noMatchEntities.length === 0,
+    `list_entities(NonExistent) returns empty array (got ${noMatchEntities.length})`);
+  console.log('  list_entities(component=NonExistent) returned empty — correct');
 
   console.log('');
 

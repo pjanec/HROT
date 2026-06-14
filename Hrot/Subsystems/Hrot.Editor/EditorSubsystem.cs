@@ -1448,7 +1448,12 @@ namespace Hrot.Editor
                     spatialGridWidth: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridWidth,
                     spatialGridHeight: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight,
                     bpManager: _bpManager,
-                    rrController: _rrController);
+                    rrController: _rrController,
+                    logSinks: new Fdp.Core.Logging.IMessageLogSource[]
+                    {
+                        Fdp.Core.Logging.NLogMessageLogTarget.SharedInstance,
+                        Fdp.Core.Logging.AiBehaviorLogTarget.SharedInstance,
+                    });
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

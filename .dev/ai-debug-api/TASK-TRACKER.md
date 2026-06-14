@@ -101,7 +101,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Filtered access to the in-memory log sinks.
 
-- [ ] **ADA-P5-T01** [zoo] Logs query endpoint + filtering (Group J) [details](./TASK-DETAIL.md#ada-p5-t01--logs-query)
+- [x] **ADA-P5-T01** [zoo→sonnet] Logs query endpoint + filtering (Group J) — BATCH-11, lead-verified live (/logs well-formed, level/logger/since/max filters). get_logs MCP tool. 91/91, verify 168/0 [details](./TASK-DETAIL.md#ada-p5-t01--logs-query)
 
 ---
 
@@ -118,7 +118,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Server-side entity filtering so the AI doesn't pull everything.
 
-- [ ] **ADA-P7-T01** [zoo] Entity filter (`?component=`, `?near=x,y,r`) on list endpoint (Group B) [details](./TASK-DETAIL.md#ada-p7-t01--entity-filter--spatial)
+- [x] **ADA-P7-T01** [zoo→sonnet] Entity filter (`?component=`, `?near=x,y,r`) on list endpoint (Group B) — BATCH-11, lead-verified live (component→1/0, near radius incl/excl; XZ-plane). list_entities MCP params wired [details](./TASK-DETAIL.md#ada-p7-t01--entity-filter--spatial)
 
 ---
 

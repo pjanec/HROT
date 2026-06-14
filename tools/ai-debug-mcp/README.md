@@ -9,16 +9,16 @@ External Node.js MCP server that proxies the Hrot ClusterRunner AI Debug HTTP AP
 
 ## Tool Set
 
-Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N + G + H, BATCHes 02–08).
-Tools for not-yet-built endpoints (recording, logs, traces, mutation)
-are intentionally absent and will be added in their own batches as those API endpoints land.
+Tools are **strictly 1:1 with currently-implemented HTTP endpoints** (Groups A–N + G + H + I + J, BATCHes 02–11).
+Tools for not-yet-built endpoints (traces, mutation) are intentionally absent
+and will be added in their own batches as those API endpoints land.
 
 | Tool | HTTP | Group |
 |------|------|-------|
 | `start_simulation` | MCP-only (spawns runner) | A |
 | `stop_simulation` | `POST /shutdown` | A |
 | `get_status` | `GET /status` | A |
-| `list_entities` | `GET /entities` | B |
+| `list_entities` | `GET /entities[?component=&near=]` | B / B+ |
 | `get_entity` | `GET /entities/{networkId}` | B |
 | `list_component_types` | `GET /components` | B |
 | `list_scenarios` | `GET /scenarios` | B/E |
@@ -48,9 +48,18 @@ are intentionally absent and will be added in their own batches as those API end
 | `restore_checkpoint` | `POST /checkpoint/restore` | H |
 | `capture_diff_baseline` | `POST /diff/capture` | H |
 | `diff_state` | `POST /diff/compare` | H |
+| `start_recording` | `POST /recording/start` | I |
+| `stop_recording` | `POST /recording/stop` | I |
+| `load_replay` | `POST /replay/load` | I |
+| `seek_replay` | `POST /replay/seek` | I |
+| `step_replay` | `POST /replay/step` | I |
+| `get_replay_status` | `GET /replay/status` | I |
+| `list_replay_entities` | `GET /replay/entities` | I |
+| `unload_replay` | `POST /replay/unload` | I |
+| `get_logs` | `GET /logs[?level=&logger=&since=&max=]` | J |
 
-**33 tools total.** G and H now present; tools for Groups I (recording/replay),
-J (logs), K (traces), L (mutation) are not yet implemented — see DEBT entries ADA-06-D01.
+**42 tools total.** Groups G, H, I, and J now present; tools for Groups K (traces) and L (mutation)
+are not yet implemented — see DEBT entries ADA-06-D01.
 
 ---
 
@@ -146,16 +155,23 @@ Environment overrides:
 
 End-to-end flow over MCP using the real runner:
 
-1. **Tool registration** — all 29 expected tool names present
+1. **Tool registration** — all 42 expected tool names present (including `get_logs`)
 2. **`start_simulation`** — spawns runner, polls until ready
 3. **`get_status`** — liveness, ok:true
 4. **`load_scenario("test-move", waitForReady:true)`** — blocks until OperatingEdit
 5. **`list_entities`** — entityCount > 0 after scenario load
 6. **`get_entity`** — full dump for first entity
 7. **`get_world_info`** — Berlin origin + spatial grid
-8. **`list_entity_types`** — 15 TKB types
+8. **`list_entity_types`** — TKB types
 9. **`spawn_entity`** — spawns additional entity
-10. **`get_status (post-spawn)`** — entityCount grew (1 → 2)
+10. **`get_status (post-spawn)`** — entityCount grew
+10b. **Breakpoint round-trip** (Group G) — set/list/remove
+10c. **E2E breakpoint hit** — PropertyMatch always-true fires, isPaused:true
+10d. **Checkpoint + Restore** (Group H) — diff baseline/compare
+10e. **NaN-entity safety** (BATCH-09) — list_entities + get_entity + diff_state with NaN components
+10f. **Group I tool registration** — recording tools present
+10g. **Record → Load → Seek round-trip** (Group I)
+10h. **`get_logs`** (Group J) — non-empty after load, field shape, `?level=Warning` filter; **`list_entities?component=`** (Group B+) — narrowing, case-insensitive, empty for unknown
 11. **`awaited:false` envelope passthrough** — `send_entity_command(wait:true)` while paused
 12. **Deliberate error** — `get_entity(-999999)` surfaces as structured MCP tool error
 13. **`stop_simulation`** — graceful shutdown, runner exits 0
