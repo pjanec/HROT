@@ -64,8 +64,7 @@ public sealed class StrideSelfTest
     private const long  SpawnNetId     = 9001L;
     private const float HoldTolerance  = 5.0f;  // metres (FDP X,Y)
 
-    // IN-ARENA coords (arena ≈ FDP X∈[-10,10], Y∈[0,15]) so the infinite-plane walls do
-    // not eject the body — isolates position/reposition-honoring from the small-arena ejection.
+    // IN-ARENA coords (arena ≈ FDP X∈[-10,10], Y∈[0,15]) so entities are on the floor.
     private static readonly System.Numerics.Vector3 PosA = new(6f, 8f, 0f);
     private static readonly System.Numerics.Vector3 PosB = new(-7f, 5f, 0f);
     // Drive destination D: in-arena point used by the DRIVE phase to test the Stride muscle.
