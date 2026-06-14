@@ -117,6 +117,32 @@ public sealed class DebugApiHeadlessSmokeTests
             var componentsBody = await componentsResp.Content.ReadAsStringAsync();
             Assert.Contains("\"ok\":true", componentsBody, StringComparison.OrdinalIgnoreCase);
 
+            // ADA-BATCH-05 Group M: GET /tkb/types — must return 200 with non-empty array.
+            var tkbTypesResp = await client.GetAsync($"{baseUrl}/tkb/types");
+            Assert.Equal(System.Net.HttpStatusCode.OK, tkbTypesResp.StatusCode);
+            var tkbTypesBody = await tkbTypesResp.Content.ReadAsStringAsync();
+            Assert.Contains("\"ok\":true", tkbTypesBody, StringComparison.OrdinalIgnoreCase);
+            var tkbTypesDoc = System.Text.Json.JsonDocument.Parse(tkbTypesBody);
+            var tkbTypesArr = tkbTypesDoc.RootElement.GetProperty("data");
+            Assert.True(tkbTypesArr.GetArrayLength() > 0,
+                $"GET /tkb/types returned empty array. Body: {tkbTypesBody}");
+
+            // ADA-BATCH-05 Group N: GET /world/info — must return geo.origin.lat and geo.origin.lon.
+            var worldInfoResp = await client.GetAsync($"{baseUrl}/world/info");
+            Assert.Equal(System.Net.HttpStatusCode.OK, worldInfoResp.StatusCode);
+            var worldInfoBody = await worldInfoResp.Content.ReadAsStringAsync();
+            Assert.Contains("\"ok\":true", worldInfoBody, StringComparison.OrdinalIgnoreCase);
+            var worldInfoDoc = System.Text.Json.JsonDocument.Parse(worldInfoBody);
+            var worldData = worldInfoDoc.RootElement.GetProperty("data");
+            Assert.True(worldData.TryGetProperty("geo", out var geoEl),
+                $"GET /world/info missing 'geo' key. Body: {worldInfoBody}");
+            Assert.True(geoEl.TryGetProperty("origin", out var originEl),
+                $"GET /world/info missing 'geo.origin' key. Body: {worldInfoBody}");
+            Assert.True(originEl.TryGetProperty("lat", out _),
+                $"GET /world/info missing 'geo.origin.lat'. Body: {worldInfoBody}");
+            Assert.True(originEl.TryGetProperty("lon", out _),
+                $"GET /world/info missing 'geo.origin.lon'. Body: {worldInfoBody}");
+
             // GET /status to capture entityCount before spawn.
             var statusBefore = await client.GetAsync($"{baseUrl}/status");
             var statusBeforeBody = await statusBefore.Content.ReadAsStringAsync();

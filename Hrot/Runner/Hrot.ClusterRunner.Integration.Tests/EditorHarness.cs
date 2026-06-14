@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using Fdp.Interfaces;
 using Fdp.Core;
+using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Orchestration.Handlers;
@@ -56,6 +58,8 @@ public sealed class EditorHarness : IDisposable
     private IReadOnlyList<IEcsModule> _logicPacks = null!;
     private PhysicsToolkitModule? _physicsModule;
     private PreviewClusterOpHandler? _previewHandler;
+    private TkbDatabase _tkbDb = null!;
+    private WGS84Transform _geoTransform = null!;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
@@ -107,7 +111,14 @@ public sealed class EditorHarness : IDisposable
             History,
             _timeController!,
             clusterState: () => (Editor as EditorApplication)?.CurrentClusterState
-                                ?? Fdp.Toolkit.Orchestration.ClusterState.Idle);
+                                ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            tkbDb: _tkbDb,
+            geoTransform: _geoTransform,
+            spatialGridCellSize: PerceptionConstants.LocalGridCellSize,
+            spatialGridOriginX: 0f,
+            spatialGridOriginY: 0f,
+            spatialGridWidth: PerceptionConstants.LocalGridWidth,
+            spatialGridHeight: PerceptionConstants.LocalGridHeight);
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────
@@ -201,6 +212,11 @@ public sealed class EditorHarness : IDisposable
         // ── TKB + ELM + spawn system ─────────────────────────────────────────
         var tkbDb = new TkbDatabase();
         tkbDb.Register(new TkbTemplate("TestUnit", tkbType: 1L));
+        _tkbDb = tkbDb;
+
+        // ── Geo transform (Berlin origin, matches HrotEnvironment.CreateGeoTransform) ─────────
+        _geoTransform = new WGS84Transform();
+        _geoTransform.SetOrigin(52.52, 13.405, 0.0);
 
         var translators = new List<ITkbEntityTranslator>
         {

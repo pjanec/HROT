@@ -29,6 +29,7 @@ public class EntityStatesIngressPackTests
     private sealed class NullGeoTransform : IGeographicTransform
     {
         public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+        public (double lat, double lon, double alt) Origin => (0, 0, 0);
 
         public System.Numerics.Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters)
             => System.Numerics.Vector3.Zero;

@@ -1435,7 +1435,14 @@ namespace Hrot.Editor
                     _editorLogic!,
                     _fdpEventHistory,
                     _timeController!,
-                    clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle);
+                    clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                    tkbDb: tkbDb,
+                    geoTransform: _geoTransform,
+                    spatialGridCellSize: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridCellSize,
+                    spatialGridOriginX: 0f,
+                    spatialGridOriginY: 0f,
+                    spatialGridWidth: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridWidth,
+                    spatialGridHeight: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight);
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

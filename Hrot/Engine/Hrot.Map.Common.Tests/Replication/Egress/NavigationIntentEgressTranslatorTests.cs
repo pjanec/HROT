@@ -40,6 +40,7 @@ public sealed class NavigationIntentEgressTranslatorTests
     private sealed class IdentityGeoTransform : IGeographicTransform
     {
         public void SetOrigin(double lat, double lon, double alt) { }
+        public (double lat, double lon, double alt) Origin => (0, 0, 0);
         public Vector3 ToCartesian(double lat, double lon, double alt) => new Vector3((float)lat, (float)lon, (float)alt);
         public (double lat, double lon, double alt) ToGeodetic(Vector3 pos) => (pos.X, pos.Y, pos.Z);
     }

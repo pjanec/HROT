@@ -20,6 +20,9 @@ namespace Fdp.Modules.Geographic.Transforms
         private Matrix4x4 _ecefToLocal;
         private Matrix4x4 _localToEcef;
         
+        public (double lat, double lon, double alt) Origin =>
+            (_originLat * 180.0 / Math.PI, _originLon * 180.0 / Math.PI, _originAlt);
+
         public void SetOrigin(double latDeg, double lonDeg, double altMeters)
         {
             if (latDeg < -90.0 || latDeg > 90.0)

@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Core.Diagnostics;
 using Fdp.Core.Serialization;
+using Fdp.Modules.Geographic;
+using Fdp.Modules.Geographic.Systems;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Orchestration;
@@ -14,6 +17,7 @@ using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Tkb;
 using Hrot.UI.Common.Facades;
 
 namespace Hrot.Editor.DebugApi
@@ -44,6 +48,15 @@ namespace Hrot.Editor.DebugApi
         private readonly MasterSyncController             _timeController;
         private readonly Func<ClusterState>              _clusterState;
 
+        // Group M / N dependencies
+        private readonly TkbDatabase           _tkbDb;
+        private readonly IGeographicTransform  _geoTransform;
+        private readonly float                 _spatialGridCellSize;
+        private readonly float                 _spatialGridOriginX;
+        private readonly float                 _spatialGridOriginY;
+        private readonly int                   _spatialGridWidth;
+        private readonly int                   _spatialGridHeight;
+
         /// <summary>Default upper bound for event-history queries.</summary>
         public const int DefaultMaxEvents = 200;
 
@@ -56,7 +69,14 @@ namespace Hrot.Editor.DebugApi
             IEditorLogic                    editor,
             IDiagnosticEventHistoryService  eventHistory,
             MasterSyncController            timeController,
-            Func<ClusterState>              clusterState)
+            Func<ClusterState>              clusterState,
+            TkbDatabase?                    tkbDb              = null,
+            IGeographicTransform?           geoTransform       = null,
+            float                           spatialGridCellSize = 5.0f,
+            float                           spatialGridOriginX  = 0f,
+            float                           spatialGridOriginY  = 0f,
+            int                             spatialGridWidth    = 200,
+            int                             spatialGridHeight   = 200)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -67,6 +87,13 @@ namespace Hrot.Editor.DebugApi
             _eventHistory     = eventHistory     ?? throw new ArgumentNullException(nameof(eventHistory));
             _timeController   = timeController   ?? throw new ArgumentNullException(nameof(timeController));
             _clusterState     = clusterState     ?? throw new ArgumentNullException(nameof(clusterState));
+            _tkbDb             = tkbDb            ?? new TkbDatabase();
+            _geoTransform      = geoTransform     ?? new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            _spatialGridCellSize = spatialGridCellSize;
+            _spatialGridOriginX  = spatialGridOriginX;
+            _spatialGridOriginY  = spatialGridOriginY;
+            _spatialGridWidth    = spatialGridWidth;
+            _spatialGridHeight   = spatialGridHeight;
         }
 
         // ── Group A — Status ──────────────────────────────────────────────────
@@ -533,6 +560,169 @@ namespace Hrot.Editor.DebugApi
             // produced by the serializer-injected extraction path.
             var json = JsonSerializer.Serialize(dump, FdpJsonOptionsRegistry.DefaultRelaxed);
             return JsonNode.Parse(json)!;
+        }
+
+        // ── Group M — TKB catalog ──────────────────────────────────────────────
+
+        /// <summary>GET /tkb/types — list all TKB templates, optionally filtered by category.</summary>
+        public JsonNode ListTkbTypes(string? category = null)
+        {
+            var templates = string.IsNullOrEmpty(category)
+                ? _tkbDb.GetAll()
+                : _tkbDb.GetEntitiesByCategory(category);
+            var arr = new JsonArray();
+            foreach (var t in templates)
+            {
+                arr.Add(new JsonObject
+                {
+                    ["tkbType"]      = t.TkbType,
+                    ["name"]         = t.Name,
+                    ["categoryPath"] = t.CategoryPath,
+                    ["disType"]      = t.DisType.ToString(),
+                });
+            }
+            return arr;
+        }
+
+        /// <summary>GET /tkb/types/{tkbType} — full descriptor for one TKB type.</summary>
+        public JsonNode? GetTkbType(long tkbType)
+        {
+            if (!_tkbDb.TryGetByType(tkbType, out var t))
+                return null;
+
+            // Mandatory components
+            var mandatoryArr = new JsonArray();
+            foreach (var mc in t.MandatoryComponents)
+                mandatoryArr.Add(new JsonObject
+                {
+                    ["componentTypeId"]   = mc.ComponentTypeId,
+                    ["isHard"]            = mc.IsHard,
+                    ["softTimeoutFrames"] = (long)mc.SoftTimeoutFrames,
+                });
+
+            // Child blueprints
+            var childArr = new JsonArray();
+            foreach (var cb in t.ChildBlueprints)
+            {
+                try
+                {
+                    var json = EventSerializationHelper.SerializeToJson(cb);
+                    childArr.Add(JsonNode.Parse(json));
+                }
+                catch { /* skip unserializable */ }
+            }
+
+            // Descriptor bag
+            var descrArr = new JsonArray();
+            foreach (var (type, partId, data) in t.GetAllDescriptors())
+            {
+                try
+                {
+                    var dJson = EventSerializationHelper.SerializeToJson(data);
+                    descrArr.Add(new JsonObject
+                    {
+                        ["type"]   = type.Name,
+                        ["partId"] = partId,
+                        ["data"]   = JsonNode.Parse(dJson),
+                    });
+                }
+                catch { /* skip unserializable descriptor */ }
+            }
+
+            return new JsonObject
+            {
+                ["tkbType"]             = t.TkbType,
+                ["name"]                = t.Name,
+                ["categoryPath"]        = t.CategoryPath,
+                ["disType"]             = t.DisType.ToString(),
+                ["mandatoryComponents"] = mandatoryArr,
+                ["childBlueprints"]     = childArr,
+                ["descriptors"]         = descrArr,
+            };
+        }
+
+        // ── Group N — world/coordinate info ───────────────────────────────────
+
+        /// <summary>GET /world/info — geo origin, spatial grid extent, terrain/navmesh null.</summary>
+        public JsonNode GetWorldInfo()
+        {
+            var origin = _geoTransform.Origin;
+            float extentMinX = _spatialGridOriginX;
+            float extentMaxX = _spatialGridOriginX + _spatialGridWidth * _spatialGridCellSize;
+            float extentMinY = _spatialGridOriginY;
+            float extentMaxY = _spatialGridOriginY + _spatialGridHeight * _spatialGridCellSize;
+
+            return new JsonObject
+            {
+                ["geo"] = new JsonObject
+                {
+                    ["origin"] = new JsonObject
+                    {
+                        ["lat"] = origin.lat,
+                        ["lon"] = origin.lon,
+                        ["alt"] = origin.alt,
+                    },
+                },
+                ["spatialGrid"] = new JsonObject
+                {
+                    ["cellSize"] = _spatialGridCellSize,
+                    ["originX"]  = _spatialGridOriginX,
+                    ["originY"]  = _spatialGridOriginY,
+                    ["width"]    = _spatialGridWidth,
+                    ["height"]   = _spatialGridHeight,
+                    ["extent"]   = new JsonObject
+                    {
+                        ["minX"] = extentMinX,
+                        ["maxX"] = extentMaxX,
+                        ["minY"] = extentMinY,
+                        ["maxY"] = extentMaxY,
+                    },
+                },
+                ["terrain"]  = JsonValue.Create<object?>(null),
+                ["navmesh"]  = JsonValue.Create<object?>(null),
+            };
+        }
+
+        /// <summary>POST /world/geo-to-local — convert geodetic to local ENU coordinates.</summary>
+        public JsonNode GeoToLocal(double lat, double lon, double alt, float? headingDeg)
+        {
+            var pos = _geoTransform.ToCartesian(lat, lon, alt);
+            var obj = new JsonObject
+            {
+                ["x"] = pos.X,
+                ["y"] = pos.Y,
+                ["z"] = pos.Z,
+            };
+            if (headingDeg.HasValue)
+            {
+                var rot = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg.Value);
+                obj["rotation"] = new JsonObject
+                {
+                    ["x"] = rot.X,
+                    ["y"] = rot.Y,
+                    ["z"] = rot.Z,
+                    ["w"] = rot.W,
+                };
+            }
+            return obj;
+        }
+
+        /// <summary>POST /world/local-to-geo — convert local ENU to geodetic coordinates.</summary>
+        public JsonNode LocalToGeo(float x, float y, float z, Quaternion? rotation)
+        {
+            var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(x, y, z));
+            var obj = new JsonObject
+            {
+                ["lat"] = lat,
+                ["lon"] = lon,
+                ["alt"] = alt,
+            };
+            if (rotation.HasValue)
+            {
+                float hdg = SimTransformBridgeSystem.RotationToHeadingDeg(rotation.Value);
+                obj["headingDeg"] = hdg;
+            }
+            return obj;
         }
     }
 }

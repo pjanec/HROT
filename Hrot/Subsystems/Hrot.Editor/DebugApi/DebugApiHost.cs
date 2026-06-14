@@ -167,6 +167,53 @@ namespace Hrot.Editor.DebugApi
                     .ConfigureAwait(false);
                 return Ok(node);
             }));
+
+            // Group M — TKB catalog
+            _routes.Add(new("GET", "/tkb/types", ctx =>
+            {
+                var category = ctx.Query("category");
+                return Task.FromResult(Ok(Service().ListTkbTypes(category)));
+            }));
+
+            _routes.Add(new("GET", "/tkb/types/{tkbType}", ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("tkbType"), out var tkbType))
+                    return Task.FromResult(Fail(400, "Invalid tkbType."));
+                var node = Service().GetTkbType(tkbType);
+                return Task.FromResult(node is null ? Fail(404, $"TKB type {tkbType} not found.") : Ok(node));
+            }));
+
+            // Group N — world/coordinate info
+            _routes.Add(new("GET", "/world/info", _ =>
+                Task.FromResult(Ok(Service().GetWorldInfo()))));
+
+            _routes.Add(new("POST", "/world/geo-to-local", ctx =>
+            {
+                double lat = ctx.Body?["lat"]?.GetValue<double>() ?? 0;
+                double lon = ctx.Body?["lon"]?.GetValue<double>() ?? 0;
+                double alt = ctx.Body?["alt"]?.GetValue<double>() ?? 0;
+                float? headingDeg = ctx.Body?["headingDeg"] is JsonNode hNode
+                    ? hNode.GetValue<float>()
+                    : (float?)null;
+                return Task.FromResult(Ok(Service().GeoToLocal(lat, lon, alt, headingDeg)));
+            }));
+
+            _routes.Add(new("POST", "/world/local-to-geo", ctx =>
+            {
+                float x = ctx.Body?["x"]?.GetValue<float>() ?? 0;
+                float y = ctx.Body?["y"]?.GetValue<float>() ?? 0;
+                float z = ctx.Body?["z"]?.GetValue<float>() ?? 0;
+                System.Numerics.Quaternion? rotation = null;
+                if (ctx.Body?["rotation"] is JsonObject rotObj)
+                {
+                    rotation = new System.Numerics.Quaternion(
+                        rotObj["x"]?.GetValue<float>() ?? 0,
+                        rotObj["y"]?.GetValue<float>() ?? 0,
+                        rotObj["z"]?.GetValue<float>() ?? 0,
+                        rotObj["w"]?.GetValue<float>() ?? 1);
+                }
+                return Task.FromResult(Ok(Service().LocalToGeo(x, y, z, rotation)));
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

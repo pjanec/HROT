@@ -438,6 +438,7 @@ public class MapRouteTranslatorTests
     private sealed class StubGeoTransform : IGeographicTransform
     {
         public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+        public (double lat, double lon, double alt) Origin => (0, 0, 0);
 
         public Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters)
             => new Vector3((float)lonDeg, (float)latDeg, (float)altMeters);

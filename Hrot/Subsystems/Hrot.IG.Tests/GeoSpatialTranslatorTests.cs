@@ -167,6 +167,7 @@ namespace Hrot.IG.Tests
             public StubGeoTransform(Vector3 result) => _result = result;
 
             public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+            public (double lat, double lon, double alt) Origin => (0, 0, 0);
 
             public Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters) => _result;
 

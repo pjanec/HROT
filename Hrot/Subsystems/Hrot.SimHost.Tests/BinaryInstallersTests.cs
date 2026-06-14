@@ -359,6 +359,7 @@ namespace Hrot.SimHost.Tests
             public int ToCartesianCallCount { get; private set; }
 
             public void SetOrigin(double lat, double lon, double alt) { }
+            public (double lat, double lon, double alt) Origin => (0, 0, 0);
 
             public Vector3 ToCartesian(double lat, double lon, double alt)
             {

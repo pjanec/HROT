@@ -39,6 +39,7 @@ namespace Hrot.SimHost.Tests
         private sealed class StubGeoTransform : IGeographicTransform
         {
             public void SetOrigin(double lat, double lon, double alt) { }
+            public (double lat, double lon, double alt) Origin => (0, 0, 0);
             public Vector3 ToCartesian(double lat, double lon, double alt)
                 => new Vector3((float)lon, (float)lat, (float)alt);
             public (double lat, double lon, double alt) ToGeodetic(Vector3 p)

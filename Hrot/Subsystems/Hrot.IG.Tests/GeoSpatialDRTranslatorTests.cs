@@ -97,6 +97,7 @@ namespace Hrot.IG.Tests
         private sealed class StubGeoTransform : IGeographicTransform
         {
             public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+            public (double lat, double lon, double alt) Origin => (0, 0, 0);
             public Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters) => Vector3.Zero;
             public (double lat, double lon, double alt) ToGeodetic(Vector3 localPos) => (0, 0, 0);
         }
