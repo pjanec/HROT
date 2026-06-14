@@ -70,6 +70,14 @@ namespace Hrot.Editor.DebugApi
         private readonly Dictionary<string, Dictionary<long, JsonNode?>> _diffBaselines = new();
         private int _nextBaselineId;
 
+        // Group I — Recording + Replay
+        private readonly Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _rrController;
+        private bool _isRecording;
+        private Guid _activeRecordingExerciseId;
+        private string? _lastFdpPath;
+        private Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext? _replayContext;
+        private Fdp.Toolkit.Diagnostics.EntityStateExtractionService? _replayExtraction;
+
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
             WriteIndented = false,
@@ -154,7 +162,8 @@ namespace Hrot.Editor.DebugApi
             int                             spatialGridWidth    = 200,
             int                             spatialGridHeight   = 200,
             IDataBreakpointManager?         bpManager          = null,
-            IComponentDiffService?          diffService        = null)
+            IComponentDiffService?          diffService        = null,
+            Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? rrController = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -174,6 +183,7 @@ namespace Hrot.Editor.DebugApi
             _spatialGridHeight   = spatialGridHeight;
             _bpManager         = bpManager;
             _diffService       = diffService ?? new ComponentDiffService();
+            _rrController      = rrController;
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -198,7 +208,7 @@ namespace Hrot.Editor.DebugApi
                 ["isPaused"]     = _time.IsPaused,
                 ["inPreview"]    = _preview.IsInPreviewMode,
                 ["entityCount"]  = _world.EntityCount,
-                ["recording"]    = false,
+                ["recording"]    = _isRecording,
             };
         }
 
@@ -1091,6 +1101,266 @@ namespace Hrot.Editor.DebugApi
                 };
             }
             return new JsonObject { ["name"] = node.Name, ["type"] = "unknown", ["modified"] = node.IsModified };
+        }
+
+        // ── Group I — Recording ──────────────────────────────────────────────────
+
+        /// <summary>Whether recording is currently active.</summary>
+        public bool IsRecording => _isRecording;
+
+        /// <summary>
+        /// Phase-1 (main-thread sync): validate, enter preview, set flags, return fdpPath.
+        /// Called via RunOnMainThread. Phase-2 is <see cref="CompleteRecordingStartAsync"/>.
+        /// </summary>
+        public string BeginRecordingStart(string mode)
+        {
+            if (_rrController is null)
+                throw new InvalidOperationException("EcsRecordReplayController not available.");
+            if (_isRecording)
+                throw new InvalidOperationException("Recording already active. Stop it first.");
+
+            if (string.Equals(mode, "preview", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_preview.IsInPreviewMode)
+                    throw new InvalidOperationException("Already in preview mode (checkpoint slot occupied). Cannot start preview recording.");
+
+                _activeRecordingExerciseId = Guid.NewGuid();
+                _lastFdpPath = System.IO.Path.Combine(
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory,
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.ExercisesDirectoryName,
+                    _activeRecordingExerciseId.ToString(),
+                    Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeRecordingFileName(0));
+
+                _preview.EnterPreviewMode(startPaused: true);
+                // _isRecording is set by CompleteRecordingStartAsync after PrepareRecordingAsync succeeds.
+                return _lastFdpPath;
+            }
+            else if (string.Equals(mode, "live", StringComparison.OrdinalIgnoreCase))
+            {
+                // DEBT: ADA-I-D01 — live mode requires full cluster setup.
+                throw new InvalidOperationException("Live mode recording is not supported in editor mode. Use mode:preview.");
+            }
+            else
+            {
+                throw new ArgumentException($"Unknown mode '{mode}'. Use 'preview' or 'live'.");
+            }
+        }
+
+        /// <summary>
+        /// Phase-2 (background-thread async): install the recording module.
+        /// Must NOT be called from inside RunOnMainThread — InstallModuleAsync awaits the main
+        /// thread's BeforeSync boundary (swapTcs) which would deadlock if the main thread is blocked.
+        /// </summary>
+        public async System.Threading.Tasks.Task CompleteRecordingStartAsync()
+        {
+            if (_rrController is null)
+                throw new InvalidOperationException("EcsRecordReplayController not available.");
+            await _rrController.PrepareRecordingAsync(_activeRecordingExerciseId,
+                Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory)
+                .ConfigureAwait(false);
+            _isRecording = true;
+        }
+
+        /// <summary>
+        /// Phase-1 (background-thread async): finalize the recording module.
+        /// Must NOT be called from inside RunOnMainThread — UninstallModuleAsync awaits the main
+        /// thread's BeforeSync boundary which would deadlock if the main thread is blocked.
+        /// </summary>
+        public async System.Threading.Tasks.Task<string?> CompleteRecordingStopAsync()
+        {
+            if (_rrController is null)
+                throw new InvalidOperationException("EcsRecordReplayController not available.");
+            if (!_isRecording)
+                throw new InvalidOperationException("No active recording.");
+
+            _isRecording = false;
+
+            // Finalize BEFORE the exit rewind (hard ordering rule).
+            await _rrController.FinalizeRecordingAsync(maxNetworkId: 0).ConfigureAwait(false);
+            return _lastFdpPath;
+        }
+
+        /// <summary>
+        /// Phase-2 (main-thread sync): exit preview (triggers rewind). Returns status JsonNode.
+        /// Called via RunOnMainThread AFTER CompleteRecordingStopAsync.
+        /// </summary>
+        public JsonNode FinishRecordingStop()
+        {
+            // For preview mode: now safe to exit (rewind happens here).
+            if (_preview.IsInPreviewMode)
+                _preview.ExitPreviewMode();
+
+            return new JsonObject
+            {
+                ["recording"] = false,
+                ["fdpPath"]   = _lastFdpPath,
+            };
+        }
+
+        /// <summary>
+        /// Convenience async method for tests that can await across kernel ticks.
+        /// DO NOT call this from inside RunOnMainThread — it deadlocks.
+        /// For tests: call directly from the test thread, then pump frames during the await.
+        /// </summary>
+        public async System.Threading.Tasks.Task<JsonNode> StartRecordingAsync(string mode)
+        {
+            // Phase 1: sync setup (validates + enters preview) — safe to call on any thread
+            // when the main loop is not blocked (tests call this directly).
+            var fdpPath = BeginRecordingStart(mode);
+
+            // Phase 2: async module install — must NOT block the main thread.
+            await CompleteRecordingStartAsync().ConfigureAwait(false);
+
+            return new JsonObject
+            {
+                ["recording"] = true,
+                ["mode"]      = mode,
+                ["fdpPath"]   = fdpPath,
+            };
+        }
+
+        /// <summary>
+        /// Convenience async method for tests that can await across kernel ticks.
+        /// DO NOT call this from inside RunOnMainThread — it deadlocks.
+        /// </summary>
+        public async System.Threading.Tasks.Task<JsonNode> StopRecordingAsync()
+        {
+            var fdpPath = await CompleteRecordingStopAsync().ConfigureAwait(false);
+            return FinishRecordingStop();
+        }
+
+        // ── Group I — Replay (isolated) ───────────────────────────────────────────
+
+        /// <summary>Whether replay is currently active (queries route to sandbox).</summary>
+        public bool IsReplayActive => _replayContext != null;
+
+        /// <summary>Current frame in the replay sandbox (-1 if not active).</summary>
+        public int ReplayCurrentFrame => _replayContext?.CurrentFrame ?? -1;
+
+        /// <summary>Total frames in the loaded replay (0 if not active).</summary>
+        public int ReplayTotalFrames => _replayContext?.Playback?.TotalFrames ?? 0;
+
+        /// <summary>POST /replay/load {fdpPath} — stand up isolated ReplayBrowserContext (main thread).</summary>
+        public JsonNode LoadReplay(string fdpPath)
+        {
+            if (string.IsNullOrWhiteSpace(fdpPath))
+                throw new ArgumentException("fdpPath is required.", nameof(fdpPath));
+            if (!System.IO.File.Exists(fdpPath))
+                throw new ArgumentException($"File not found: {fdpPath}");
+
+            // Dispose any existing replay context.
+            _replayContext?.Dispose();
+            _replayContext = null;
+            _replayExtraction = null;
+
+            var ctx = new Fdp.Toolkit.ReplayBrowser.ReplayBrowserContext();
+            ctx.LoadRecording(fdpPath);
+
+            if (ctx.Playback == null)
+                throw new InvalidOperationException($"Failed to load recording from '{fdpPath}'.");
+
+            _replayContext = ctx;
+            _replayExtraction = BuildReplayExtractionService(ctx.SandboxRepo);
+
+            return new JsonObject
+            {
+                ["loaded"]       = true,
+                ["fdpPath"]      = fdpPath,
+                ["totalFrames"]  = ctx.Playback.TotalFrames,
+                ["currentFrame"] = ctx.CurrentFrame,
+            };
+        }
+
+        /// <summary>POST /replay/seek {frame} — seek to frame in sandbox (main thread).</summary>
+        public JsonNode SeekReplay(int frame)
+        {
+            if (_replayContext is null)
+                throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
+            _replayContext.SeekToFrame(frame);
+            _replayExtraction = BuildReplayExtractionService(_replayContext.SandboxRepo);
+            return new JsonObject
+            {
+                ["frame"]       = _replayContext.CurrentFrame,
+                ["totalFrames"] = _replayContext.Playback?.TotalFrames ?? 0,
+            };
+        }
+
+        /// <summary>POST /replay/step {dir:"forward"|"back"} — step one frame in sandbox (main thread).</summary>
+        public JsonNode StepReplay(string dir)
+        {
+            if (_replayContext is null)
+                throw new InvalidOperationException("No replay loaded. Call /replay/load first.");
+
+            bool stepped;
+            if (!string.Equals(dir, "back", StringComparison.OrdinalIgnoreCase))
+                stepped = _replayContext.StepForward();
+            else
+                stepped = _replayContext.StepBackward();
+
+            if (stepped)
+                _replayExtraction = BuildReplayExtractionService(_replayContext.SandboxRepo);
+
+            return new JsonObject
+            {
+                ["stepped"]     = stepped,
+                ["frame"]       = _replayContext.CurrentFrame,
+                ["totalFrames"] = _replayContext.Playback?.TotalFrames ?? 0,
+            };
+        }
+
+        /// <summary>POST /replay/unload — dispose the replay context (main thread).</summary>
+        public JsonNode UnloadReplay()
+        {
+            _replayContext?.Dispose();
+            _replayContext = null;
+            _replayExtraction = null;
+            return new JsonObject { ["unloaded"] = true };
+        }
+
+        /// <summary>
+        /// In replay mode, list entities from the SandboxRepo instead of _world.
+        /// </summary>
+        public JsonNode ListReplayEntities()
+        {
+            if (_replayContext is null)
+                throw new InvalidOperationException("No replay loaded.");
+
+            var arr = new JsonArray();
+            if (_replayExtraction != null)
+            {
+                var dumps = _replayExtraction.ExtractEntities();
+                foreach (var d in dumps)
+                {
+                    var comps = new JsonArray();
+                    foreach (var name in d.Components.Keys)
+                        comps.Add(name);
+                    arr.Add(new JsonObject
+                    {
+                        ["networkId"]  = d.NetworkId,
+                        ["name"]       = ExtractEntityName(d),
+                        ["components"] = comps,
+                    });
+                }
+            }
+            return arr;
+        }
+
+        private static Fdp.Toolkit.Diagnostics.EntityStateExtractionService BuildReplayExtractionService(
+            EntityRepository sandboxRepo)
+        {
+            // Build a NetworkEntityMap populated from the current sandbox state.
+            var sandboxMap = new NetworkEntityMap();
+            var q = sandboxRepo.Query()
+                .With<NetworkIdentity>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+            foreach (var e in q)
+            {
+                long netId = sandboxRepo.GetComponentRO<NetworkIdentity>(e).Value;
+                if (!sandboxMap.TryGetEntity(netId, out _))
+                    sandboxMap.Register(netId, e);
+            }
+            return new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(sandboxRepo, sandboxMap);
         }
     }
 }

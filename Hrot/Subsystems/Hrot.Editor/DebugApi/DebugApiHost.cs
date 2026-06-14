@@ -309,6 +309,124 @@ namespace Hrot.Editor.DebugApi
                 }).ConfigureAwait(false);
                 return error != null ? Fail(400, error) : Ok(node);
             }));
+
+            // Group I — Recording + Replay (ADA-BATCH-10)
+            //
+            // IMPORTANT: PrepareRecordingAsync / FinalizeRecordingAsync internally call
+            // InstallModuleAsync / UninstallModuleAsync which await swapTcs.Task — a
+            // TaskCompletionSource that is only fulfilled when the main thread reaches its
+            // next BeforeSync boundary. Therefore these async calls MUST run from the
+            // background HTTP thread (i.e. from this async lambda) and MUST NOT be called
+            // from inside RunOnMainThread (which would block the main thread, preventing
+            // swapTcs from ever completing → permanent deadlock).
+            //
+            // Pattern: phase-1 sync (via RunOnMainThread) → phase-2 async (background thread).
+            _routes.Add(new("POST", "/recording/start", async ctx =>
+            {
+                var mode = ctx.Body?["mode"]?.GetValue<string>() ?? "preview";
+
+                // Phase 1 (main thread): validate state, enter preview, set exercise ID + fdpPath.
+                var (fdpPath, phase1Error) = await _jobQueue.RunOnMainThread<(string?, string?)>(() =>
+                {
+                    try   { return (Service().BeginRecordingStart(mode), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                    catch (ArgumentException ex)          { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+
+                if (phase1Error != null)
+                    return Fail(409, phase1Error);
+
+                // Phase 2 (background thread): install recording kernel module — must NOT be
+                // inside RunOnMainThread to avoid deadlock with swapTcs.
+                try
+                {
+                    await Service().CompleteRecordingStartAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    return Fail(500, $"Recording module install failed: {ex.Message}");
+                }
+
+                return Ok(new JsonObject
+                {
+                    ["recording"] = true,
+                    ["mode"]      = mode,
+                    ["fdpPath"]   = fdpPath,
+                });
+            }));
+
+            _routes.Add(new("POST", "/recording/stop", async ctx =>
+            {
+                // Phase 1 (background thread): finalize recording kernel module — must NOT be
+                // inside RunOnMainThread for same swapTcs deadlock reason as /recording/start.
+                string? fdpPath;
+                try
+                {
+                    fdpPath = await Service().CompleteRecordingStopAsync().ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex) { return Fail(400, ex.Message); }
+                catch (Exception ex) { return Fail(500, ex.Message); }
+
+                // Phase 2 (main thread): exit preview (triggers rewind), return status.
+                var node = await _jobQueue.RunOnMainThread(() => Service().FinishRecordingStop())
+                    .ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/load", async ctx =>
+            {
+                var fdpPath = ctx.Body?["fdpPath"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(fdpPath)) return Fail(400, "fdpPath is required.");
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().LoadReplay(fdpPath!), null); }
+                    catch (ArgumentException ex) { return (null, ex.Message); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/seek", async ctx =>
+            {
+                int frame = ctx.Body?["frame"]?.GetValue<int>() ?? 0;
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().SeekReplay(frame), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/replay/step", async ctx =>
+            {
+                var dir = ctx.Body?["dir"]?.GetValue<string>() ?? "forward";
+                var (node, error) = await _jobQueue.RunOnMainThread<(JsonNode?, string?)>(() =>
+                {
+                    try { return (Service().StepReplay(dir), null); }
+                    catch (InvalidOperationException ex) { return (null, ex.Message); }
+                }).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
+
+            _routes.Add(new("GET", "/replay/status", _ =>
+                RunMain(s => new JsonObject
+                {
+                    ["replayActive"] = s.IsReplayActive,
+                    ["currentFrame"] = s.ReplayCurrentFrame,
+                    ["totalFrames"]  = s.ReplayTotalFrames,
+                })
+            ));
+
+            _routes.Add(new("GET", "/replay/entities", _ =>
+                RunMain(s =>
+                {
+                    if (!s.IsReplayActive)
+                        return (JsonNode)new JsonObject { ["error"] = "No replay loaded" };
+                    return s.ListReplayEntities();
+                })
+            ));
+
+            _routes.Add(new("POST", "/replay/unload", _ => RunMain(s => s.UnloadReplay())));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

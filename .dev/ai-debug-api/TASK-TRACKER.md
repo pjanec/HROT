@@ -92,8 +92,8 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Preview/live recording (finalize-before-rewind) + isolated headless replay.
 
-- [ ] **ADA-P4-T01** [sonnet] Recording start/stop (preview + live) + run-mode exclusivity (Group I) [details](./TASK-DETAIL.md#ada-p4-t01--recording)
-- [ ] **ADA-P4-T02** [sonnet] Isolated replay sandbox + seek/step + query-target swap (Group I) [details](./TASK-DETAIL.md#ada-p4-t02--isolated-replay)
+- [x] **ADA-P4-T01** [sonnet] Recording start/stop (preview + live) + run-mode exclusivity (Group I) — BATCH-10, lead-verified: real headless preview recording → 3.2 MB .fdp on disk, finalize-before-rewind, recording↔checkpoint exclusion. Two-phase split avoids a main-thread/TCS deadlock. Live mode deferred (ADA-10-D01) [details](./TASK-DETAIL.md#ada-p4-t01--recording)
+- [x] **ADA-P4-T02** [sonnet] Isolated replay sandbox + seek/step + query-target swap (Group I) — BATCH-10, lead-verified: /replay/load (271 frames) + seek + /replay/entities; ISOLATION proven (live entity unchanged during seeks). 79/79 tests, npm verify 149/149 [details](./TASK-DETAIL.md#ada-p4-t02--isolated-replay)
 
 ---
 

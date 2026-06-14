@@ -207,6 +207,9 @@ namespace Hrot.Editor
         private DebugSnapshotProvider?  _bpSnapshotProvider;
         private DataBreakpointManager?  _bpManager;
         private DataBreakpointSystem?   _bpSystem;
+
+        // ── ADA-BATCH-10: Record/Replay controller ────────────────────────────────
+        private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _rrController;
         private Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintDebugSession;
 
         // ── CF-8: Debug session persistence ──────────────────────────────────────
@@ -849,8 +852,9 @@ namespace Hrot.Editor
 
             // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
             // Pass null (no downstream callbacks for offline Editor); the controller will rebuild the map.
-            var rrController    = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
+            _rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
                 _kernel, EditorNodeId, _world!);
+            var rrController = _rrController;
             clusterSlave.RegisterHandler(new Hrot.ScenarioEditor.Handlers.HrotEditLoadHandler(
                 scenarioSerializer, scenarioLoader, zoneService, extractor, scenarioLoadSource, idAllocator, _world));
             clusterSlave.RegisterHandler(new Hrot.SimHost.Orchestration.Handlers.HrotScenarioLoadHandler(
@@ -1443,7 +1447,8 @@ namespace Hrot.Editor
                     spatialGridOriginY: 0f,
                     spatialGridWidth: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridWidth,
                     spatialGridHeight: Fdp.Toolkit.Perception.PerceptionConstants.LocalGridHeight,
-                    bpManager: _bpManager);
+                    bpManager: _bpManager,
+                    rrController: _rrController);
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

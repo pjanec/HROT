@@ -67,6 +67,7 @@ public sealed class EditorHarness : IDisposable
     private DataBreakpointManager? _bpManager;
     private DataBreakpointSystem? _bpSystem;
     private EntityRepository? _bpPreTickSnapshot;
+    private Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? _rrController;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
@@ -93,6 +94,9 @@ public sealed class EditorHarness : IDisposable
 
     /// <summary>Data breakpoint manager wired by this harness (ADA-BATCH-07). Test accessor.</summary>
     public IDataBreakpointManager? BpManager => _bpManager;
+
+    /// <summary>Record/Replay controller wired by this harness (ADA-BATCH-10). Test accessor.</summary>
+    public Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? RrController => _rrController;
 
     /// <summary>
     /// Event-history service populated by a World-bus capture system registered in the
@@ -129,7 +133,8 @@ public sealed class EditorHarness : IDisposable
             spatialGridOriginY: 0f,
             spatialGridWidth: PerceptionConstants.LocalGridWidth,
             spatialGridHeight: PerceptionConstants.LocalGridHeight,
-            bpManager: _bpManager);
+            bpManager: _bpManager,
+            rrController: _rrController);
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────
@@ -319,6 +324,9 @@ public sealed class EditorHarness : IDisposable
                 Kernel.RegisterGlobalSystem(sys);
 
         Kernel.Initialize();
+
+        // ── Record/Replay controller (ADA-BATCH-10) ───────────────────────────
+        _rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(Kernel, 0, Repo);
 
         // ── Editor application facade ─────────────────────────────────────────
         var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };

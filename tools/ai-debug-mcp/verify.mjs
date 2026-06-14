@@ -114,6 +114,8 @@ async function main() {
     'get_world_info', 'geo_to_local', 'local_to_geo',
     'set_breakpoint', 'list_breakpoints', 'remove_breakpoint', 'get_breakpoint_status',
     'checkpoint', 'restore_checkpoint', 'capture_diff_baseline', 'diff_state',
+    'start_recording', 'stop_recording', 'load_replay', 'seek_replay',
+    'step_replay', 'get_replay_status', 'list_replay_entities', 'unload_replay',
   ];
   for (const name of requiredTools) {
     assert(toolNames.includes(name), `Tool '${name}' registered`);
@@ -490,6 +492,105 @@ async function main() {
   const nanDiffData = nanDiffResult.parsed?.data;
   assert(nanDiffData?.entities != null, 'diff_state (NaN-entity present) has entities array');
   console.log(`  diff_state ok — entities changed: ${nanDiffData?.entities?.length ?? 0}`);
+
+  console.log('');
+
+  // ── Step 10f: Group I — recording tools present ───────────────────────────
+  console.log('--- Step 10f: Group I tool registration check ---');
+  const groupITools = [
+    'start_recording', 'stop_recording', 'load_replay', 'seek_replay',
+    'step_replay', 'get_replay_status', 'list_replay_entities', 'unload_replay',
+  ];
+  const toolList2 = await client.listTools();
+  const toolNames2 = toolList2.tools.map((t) => t.name);
+  for (const name of groupITools) {
+    assert(toolNames2.includes(name), `Tool '${name}' registered (Group I)`);
+  }
+  console.log('');
+
+  // ── Step 10g: Record → Load → Seek → Inspect round-trip ─────────────────
+  console.log('--- Step 10g: Record→Load→Seek round-trip ---');
+
+  // Ensure we are NOT in preview mode before starting recording.
+  // Earlier steps (e.g. step { count:1 } via EditorTimeTransportFacade) may have entered
+  // preview mode automatically. stop_preview is a no-op if not in preview mode, so this is
+  // safe to call unconditionally.
+  await callTool(client, 'stop_preview');
+
+  // start_recording in preview mode
+  const recStartResult = await callTool(client, 'start_recording', { mode: 'preview' });
+  assert(!recStartResult.isError, 'start_recording succeeded');
+  assert(recStartResult.parsed?.ok === true, 'start_recording ok:true');
+  const recFdpPath = recStartResult.parsed?.data?.fdpPath;
+  assert(typeof recFdpPath === 'string' && recFdpPath.length > 0,
+    `start_recording returned fdpPath (got ${recFdpPath})`);
+  console.log(`  fdpPath: ${recFdpPath}`);
+
+  // Step a few frames to record some data
+  await callTool(client, 'step', { count: 3 });
+
+  // stop_recording — .fdp must be produced
+  const recStopResult = await callTool(client, 'stop_recording');
+  assert(!recStopResult.isError, 'stop_recording succeeded');
+  assert(recStopResult.parsed?.ok === true, 'stop_recording ok:true');
+  const stoppedFdpPath = recStopResult.parsed?.data?.fdpPath;
+  assert(typeof stoppedFdpPath === 'string' && stoppedFdpPath.length > 0,
+    `stop_recording returned fdpPath (got ${stoppedFdpPath})`);
+  console.log(`  stop fdpPath: ${stoppedFdpPath}`);
+
+  // load_replay
+  const replayLoadResult = await callTool(client, 'load_replay', { fdpPath: stoppedFdpPath });
+  assert(!replayLoadResult.isError, 'load_replay succeeded');
+  assert(replayLoadResult.parsed?.ok === true, 'load_replay ok:true');
+  const totalFrames = replayLoadResult.parsed?.data?.totalFrames ?? 0;
+  assert(totalFrames > 0, `load_replay totalFrames > 0 (got ${totalFrames})`);
+  console.log(`  totalFrames: ${totalFrames}, currentFrame: ${replayLoadResult.parsed?.data?.currentFrame}`);
+
+  // list_replay_entities — must be non-empty (the recorded entities)
+  const replayEntitiesResult = await callTool(client, 'list_replay_entities');
+  assert(!replayEntitiesResult.isError, 'list_replay_entities succeeded');
+  assert(replayEntitiesResult.parsed?.ok === true, 'list_replay_entities ok:true');
+  const replayEntities = replayEntitiesResult.parsed?.data;
+  const replayEntityCount = Array.isArray(replayEntities) ? replayEntities.length : 0;
+  assert(replayEntityCount > 0, `list_replay_entities returned >0 entities (got ${replayEntityCount})`);
+  console.log(`  replay entity count: ${replayEntityCount}`);
+
+  // seek_replay to frame 0
+  const seekResult = await callTool(client, 'seek_replay', { frame: 0 });
+  assert(!seekResult.isError, 'seek_replay succeeded');
+  assert(seekResult.parsed?.ok === true, 'seek_replay ok:true');
+  console.log(`  seek to frame 0: currentFrame=${seekResult.parsed?.data?.frame}`);
+
+  // get_status — live world should be intact (entity 1000 still present)
+  const liveStatusResult = await callTool(client, 'get_status');
+  assert(!liveStatusResult.isError, 'get_status (during replay) succeeded');
+  const liveEntityCount = liveStatusResult.parsed?.data?.entityCount ?? 0;
+  assert(liveEntityCount > 0, `get_status: live entityCount > 0 during replay (got ${liveEntityCount})`);
+  console.log(`  live entityCount during replay: ${liveEntityCount}`);
+
+  // get_entity for live entity 1000 — must succeed (live world unaffected)
+  const liveEntityResult = await callTool(client, 'get_entity', { networkId: 1000 });
+  assert(!liveEntityResult.isError, 'get_entity(1000) (live world) during replay succeeded');
+  assert(liveEntityResult.parsed?.ok === true, 'get_entity(1000) ok:true during replay');
+  console.log(`  live entity 1000 data ok during replay`);
+
+  // get_replay_status — should show active
+  const replayStatusActiveResult = await callTool(client, 'get_replay_status');
+  assert(!replayStatusActiveResult.isError, 'get_replay_status (active) succeeded');
+  assert(replayStatusActiveResult.parsed?.data?.replayActive === true,
+    'get_replay_status: replayActive:true while replay loaded');
+
+  // unload_replay
+  const replayUnloadResult = await callTool(client, 'unload_replay');
+  assert(!replayUnloadResult.isError, 'unload_replay succeeded');
+  assert(replayUnloadResult.parsed?.ok === true, 'unload_replay ok:true');
+  console.log('  replay unloaded');
+
+  // verify get_replay_status shows inactive after unload
+  const replayStatusResult = await callTool(client, 'get_replay_status');
+  assert(!replayStatusResult.isError, 'get_replay_status succeeded after unload');
+  assert(replayStatusResult.parsed?.data?.replayActive === false,
+    'get_replay_status: replayActive:false after unload');
 
   console.log('');
 

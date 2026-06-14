@@ -871,6 +871,143 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+  // ── Group I — Recording + Replay (ADA-BATCH-10) ──────────────────────────
+
+  {
+    name: 'start_recording',
+    description:
+      'POST /recording/start — start recording. mode="preview" (revertible, EnterPreviewMode→PrepareRecordingAsync) ' +
+      'or mode="live" (not supported in editor mode). ' +
+      'Returns { recording:true, mode, fdpPath }. ' +
+      'Mutually exclusive with checkpoint (both use the preview slot).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          enum: ['preview', 'live'],
+          description: 'Recording mode: "preview" (revertible) or "live" (not supported in editor mode). Default: "preview"',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/recording/start', { mode: toolArgs.mode ?? 'preview' }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'stop_recording',
+    description:
+      'POST /recording/stop — stop the active recording. ' +
+      'For preview mode: finalizes BEFORE the exit rewind (hard ordering rule). ' +
+      'Returns { recording:false, fdpPath }.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('POST', '/recording/stop', null)); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'load_replay',
+    description:
+      'POST /replay/load {fdpPath} — load a .fdp recording into an ISOLATED ReplayBrowserContext. ' +
+      'Returns { loaded:true, fdpPath, totalFrames, currentFrame }. ' +
+      'While replay is active, /replay/entities returns entities from the sandbox (not the live world).',
+    inputSchema: {
+      type: 'object',
+      required: ['fdpPath'],
+      properties: {
+        fdpPath: { type: 'string', description: 'Absolute path to the .fdp recording file' },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/replay/load', { fdpPath: toolArgs.fdpPath }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'seek_replay',
+    description:
+      'POST /replay/seek {frame} — seek to a specific frame in the ISOLATED sandbox. ' +
+      'Does NOT touch the live _world (isolation guarantee). ' +
+      'Returns { frame, totalFrames }.',
+    inputSchema: {
+      type: 'object',
+      required: ['frame'],
+      properties: {
+        frame: { type: 'number', description: 'Frame index to seek to (0-based)' },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/replay/seek', { frame: toolArgs.frame }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'step_replay',
+    description:
+      'POST /replay/step {dir} — step one frame forward or backward in the ISOLATED sandbox. ' +
+      'Does NOT touch the live _world. ' +
+      'Returns { stepped:bool, frame, totalFrames }.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dir: {
+          type: 'string',
+          enum: ['forward', 'back'],
+          description: 'Step direction: "forward" or "back". Default: "forward"',
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/replay/step', { dir: toolArgs.dir ?? 'forward' }));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'get_replay_status',
+    description:
+      'GET /replay/status — replay sandbox status: replayActive, currentFrame, totalFrames.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/replay/status')); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'list_replay_entities',
+    description:
+      'GET /replay/entities — list entities from the ISOLATED replay sandbox. ' +
+      'Requires an active replay (call load_replay first). ' +
+      'Returns same schema as list_entities but from the sandbox repo, NOT the live world.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('GET', '/replay/entities')); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'unload_replay',
+    description:
+      'POST /replay/unload — dispose the replay sandbox and return to live world queries.',
+    inputSchema: { type: 'object', properties: {} },
+    async handler() {
+      try { return toolSuccess(await callApi('POST', '/replay/unload', null)); }
+      catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────
