@@ -63,6 +63,16 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
     private readonly Game   _game;
     private readonly Scene  _scene;
 
+    // BATCH-S2-M: the mannequin model asset's authored forward axis is ~90° off from the
+    // primitive box's, so it renders yawed in 3D. Apply a per-model local yaw correction to the
+    // mannequin VISUAL only (not the physics body, not vehicles).
+    // TUNE: if the mannequin faces the wrong way after this, flip the sign (e.g. +90) or adjust.
+    private const float MannequinYawCorrectionDeg = -90f;
+
+    // Per-visual-entity local rotation offset (model-forward correction), applied on top of the
+    // swizzled world rotation. Empty for entities with no correction (e.g. vehicles).
+    private readonly System.Collections.Generic.Dictionary<global::Stride.Engine.Entity, Stride.Core.Mathematics.Quaternion> _rotationOffsets = new();
+
     /// <summary>
     /// Constructs the factory bound to the running game and the target scene.
     /// </summary>
@@ -131,6 +141,13 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
             entity.Add(new AnimationComponent());
         }
 
+        // Per-model visual yaw correction (BATCH-S2-M). Mannequin mesh forward is ~90° off.
+        if (modelRef.IndexOf("mannequin", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            _rotationOffsets[entity] = Stride.Core.Mathematics.Quaternion.RotationY(
+                Stride.Core.Mathematics.MathUtil.DegreesToRadians(MannequinYawCorrectionDeg));
+        }
+
         // Place at the swizzled initial pose.
         ApplyPose(entity, scale, offsetFdp, in initialPose);
 
@@ -186,7 +203,7 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
         // Apply the swizzled transform.
         // Scale and offset are baked into the entity from creation; only position/rotation change.
         entity.Transform.Position = FdpStrideTransform.ToStridePosition(pose.Position);
-        entity.Transform.Rotation = FdpStrideTransform.ToStrideRotation(pose.Rotation);
+        entity.Transform.Rotation = ComposeWithOffset(entity, FdpStrideTransform.ToStrideRotation(pose.Rotation));
     }
 
     /// <inheritdoc/>
@@ -194,6 +211,9 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
     {
         if (visualHandle is not global::Stride.Engine.Entity entity)
             return;
+
+        // Remove the per-model rotation offset to avoid leaking dictionary entries (BATCH-S2-M).
+        _rotationOffsets.Remove(entity);
 
         // Remove from scene (prevents further rendering) then unload the entity.
         // [VERIFY] Scene.Entities.Remove — confirmed in Stride.Engine.Scene API.
@@ -210,7 +230,7 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
     /// <paramref name="offsetFdp"/> is an FDP-space local render offset from the body origin;
     /// it is added to the swizzled world position.
     /// </summary>
-    private static void ApplyPose(
+    private void ApplyPose(
         global::Stride.Engine.Entity entity,
         float scale,
         System.Numerics.Vector3 offsetFdp,
@@ -221,6 +241,18 @@ public sealed class StrideVisualFactory : IStrideVisualFactory
         var strideRot  = FdpStrideTransform.ToStrideRotation(pose.Rotation);
 
         entity.Transform.Position = stridePos + strideOff;
-        entity.Transform.Rotation = strideRot;
+        entity.Transform.Rotation = ComposeWithOffset(entity, strideRot);
+    }
+
+    /// <summary>
+    /// Composes the swizzled world rotation with this entity's per-model local yaw correction
+    /// (BATCH-S2-M). Returns <paramref name="worldRot"/> unchanged when no offset is registered.
+    /// </summary>
+    private Stride.Core.Mathematics.Quaternion ComposeWithOffset(
+        global::Stride.Engine.Entity entity, Stride.Core.Mathematics.Quaternion worldRot)
+    {
+        if (_rotationOffsets.TryGetValue(entity, out var offset))
+            return worldRot * offset;   // apply local model-forward correction, then world orientation
+        return worldRot;
     }
 }
