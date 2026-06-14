@@ -20,6 +20,7 @@ using Stride.Input;
 using Stride.Physics;
 using Stride.Rendering;
 using Stride.Rendering.Lights;
+using Fdp.ModuleHost.Time; // BATCH-S2-AD
 
 namespace HrotStrideApp;
 
@@ -538,6 +539,9 @@ public sealed class StrideHrotGame : Game
                                 {
                                     IssueMoveOrder(world, sel.SelectedEntity, hit.PointFdp);
                                     _editorSubsystem.ShowMoveMarker(hit.PointFdp);
+                                    // BATCH-S2-AD: if sim time is paused, the unit won't move yet — tell the operator (they kept hitting this).
+                                    if (_editorSubsystem.TimeController.GetMode() == TimeMode.Deterministic)
+                                        _editorSubsystem.ShowToast("Sim is PAUSED — move queued; the unit will move when you start time.");
                                 }
                             }
                         }

@@ -1361,6 +1361,23 @@ public sealed class EditorStrideSubsystem : IDisposable
     private static readonly Rgba32 MoveMarkerColor = new Rgba32(255, 215, 0, 255); // amber
     private const float MoveMarkerHalfSizeM = 0.6f;
 
+    // BATCH-S2-AD: transient on-screen toast (auto-expiring), driven by the same dt countdown as the move marker.
+    private string _toastMessage = string.Empty;
+    private float  _toastSecondsRemaining;
+    private const float ToastTotalSeconds = 4.0f;
+
+    /// <summary>Currently-visible toast text (empty when none). Read by the editor-window overlay.</summary>
+    public string ToastMessage => _toastMessage;
+    /// <summary>Seconds the toast remains visible; &gt; 0 means draw it. Read by the editor-window overlay.</summary>
+    public float ToastSecondsRemaining => _toastSecondsRemaining;
+
+    /// <summary>Show a short auto-expiring toast (BATCH-S2-AD).</summary>
+    public void ShowToast(string message, float seconds = ToastTotalSeconds)
+    {
+        _toastMessage = message ?? string.Empty;
+        _toastSecondsRemaining = seconds;
+    }
+
     /// <summary>
     /// Keeps the 2D editor selection (<see cref="EditorSubsystem.Selected2DEntity"/>) and the 3D
     /// <see cref="SelectionState"/> in sync, one direction per frame (whichever changed), using
@@ -1508,6 +1525,7 @@ public sealed class EditorStrideSubsystem : IDisposable
 
     private void EmitMoveMarker(float dt)
     {
+        if (_toastSecondsRemaining > 0f) _toastSecondsRemaining -= dt; // BATCH-S2-AD
         if (_moveMarkerFdp is not { } c) return;
         _moveMarkerSecondsRemaining -= dt;
         if (_moveMarkerSecondsRemaining <= 0f) { _moveMarkerFdp = null; return; }

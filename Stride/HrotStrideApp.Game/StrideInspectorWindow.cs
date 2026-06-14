@@ -695,6 +695,23 @@ public sealed class StrideInspectorWindow : IDisposable
         // ── editor.DrawUI(): menus, popups, hotkey dispatch ───────────────────
         editor?.DrawUI();
 
+        // BATCH-S2-AD: transient paused-nav toast overlay.
+        if (_subsystem != null && _subsystem.ToastSecondsRemaining > 0f)
+        {
+            var vp = ImGuiNET.ImGui.GetMainViewport();
+            ImGuiNET.ImGui.SetNextWindowPos(
+                new System.Numerics.Vector2(vp.WorkPos.X + vp.WorkSize.X * 0.5f, vp.WorkPos.Y + 48f),
+                ImGuiNET.ImGuiCond.Always, new System.Numerics.Vector2(0.5f, 0f));
+            ImGuiNET.ImGui.SetNextWindowBgAlpha(0.85f);
+            ImGuiNET.ImGui.Begin("##PausedNavToast",
+                ImGuiNET.ImGuiWindowFlags.NoDecoration | ImGuiNET.ImGuiWindowFlags.NoNav | ImGuiNET.ImGuiWindowFlags.NoMove |
+                ImGuiNET.ImGuiWindowFlags.NoSavedSettings | ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize | ImGuiNET.ImGuiWindowFlags.NoFocusOnAppearing);
+            ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.85f, 0.2f, 1f)); // amber
+            ImGuiNET.ImGui.TextUnformatted(_subsystem.ToastMessage);
+            ImGuiNET.ImGui.PopStyleColor();
+            ImGuiNET.ImGui.End();
+        }
+
         _timingUi.Stop();
 
         rlImGui.End();
