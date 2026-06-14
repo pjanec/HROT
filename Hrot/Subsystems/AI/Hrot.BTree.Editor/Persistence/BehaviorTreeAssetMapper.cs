@@ -163,6 +163,10 @@ public static class BehaviorTreeAssetMapper
             asset.SetUnusedWarningSuppressed(varName, true);
 
         // Blackboard variables
+        // Restore the editor-managed flag from the persisted block. Without this the
+        // round-trip is lossy: BlackboardToDto writes Managed out, but loading never
+        // set it back, so a Managed asset always opened as "not managed".
+        asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);

@@ -390,6 +390,10 @@ public static class HsmAssetMapper
             asset.SetUnusedWarningSuppressed(varName, true);
 
         // Blackboard variables
+        // Restore the editor-managed flag from the persisted block (mirrors the BTree
+        // mapper). Without this the round-trip is lossy: the flag is written on save but
+        // never read back, so a Managed asset always opened as "not managed".
+        asset.IsBlackboardEditorManaged = dto.Blackboard.Managed;
         var vars = BlackboardFromDto(dto.Blackboard);
         if (vars.Count > 0)
             asset.SetBlackboardVariables(vars);

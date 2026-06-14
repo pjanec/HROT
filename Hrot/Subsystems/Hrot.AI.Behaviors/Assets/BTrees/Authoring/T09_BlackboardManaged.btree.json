@@ -1,0 +1,122 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000009-0000-0000-0000-000000000000",
+	"Name": "T09_BlackboardManaged",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "b9010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b9020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "b9020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"b9030000-0000-0000-0000-000000000001",
+				"b9040000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "b9030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "b9040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(2s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 2.0
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": [
+			{
+				"Name": "AttackRange",
+				"Type": { "TypeId": "float", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Max distance to engage the target",
+				"IsAutoManaged": false
+			},
+			{
+				"Name": "HomePosition",
+				"Type": { "TypeId": "Vector3", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Patrol anchor the agent returns to",
+				"IsAutoManaged": false
+			},
+			{
+				"Name": "PatrolLoops",
+				"Type": { "TypeId": "int", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Number of patrol cycles before idling",
+				"IsAutoManaged": false
+			},
+			{
+				"Name": "IsAlerted",
+				"Type": { "TypeId": "bool", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Set true when an enemy is spotted",
+				"IsAutoManaged": false
+			}
+		]
+	}
+}
