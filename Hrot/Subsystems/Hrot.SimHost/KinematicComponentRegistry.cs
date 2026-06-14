@@ -40,6 +40,10 @@ namespace Hrot.SimHost
             // Per-entity stuck-detection counter (replaces static dictionary).
             world.RegisterComponent<FrustrationTicks>();
 
+            // 2D map footprint (BATCH-S2-G2): neutral length/width/shape written by the TKB translator,
+            // read by the 2D gizmo renderer.  Registered here alongside VehicleParams / NavState.
+            world.RegisterComponent<Map2DFootprint>();
+
             world.RegisterEvent<MoveStartedEvent>();
             world.RegisterEvent<OffMeshTraversalStartedEvent>();
             world.RegisterEvent<MoveCompletedEvent>();
