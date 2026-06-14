@@ -219,6 +219,15 @@ internal sealed class CanvasInput
                     view.Selection.ReplaceWith(SelectionEntry.OfReroute(hover.Reroute));
                     break;
 
+                case HoverKind.Attachment:
+                    if (!ctrl && !shift)
+                        view.Selection.ReplaceWith(SelectionEntry.OfAttachment(hover.Attachment));
+                    else if (ctrl)
+                        view.Selection.Toggle(SelectionEntry.OfAttachment(hover.Attachment));
+                    else if (shift)
+                        view.Selection.Add(SelectionEntry.OfAttachment(hover.Attachment));
+                    break;
+
                 case HoverKind.Container:
                     if (hover.ContainerZone == ContainerHoverZone.CollapseArrow)
                     {
@@ -1243,6 +1252,9 @@ internal sealed class CanvasInput
 
         var reroutes = sel.Reroutes.ToList();
         foreach (var r in reroutes) cmds.Add(new GraphCommand.RemoveReroute(r.LinkId, r.WaypointIndex));
+
+        var attachments = sel.Attachments.ToList();
+        if (attachments.Count > 0) cmds.Add(new GraphCommand.RemoveAttachments(attachments));
 
         if (cmds.Count > 0)
         {

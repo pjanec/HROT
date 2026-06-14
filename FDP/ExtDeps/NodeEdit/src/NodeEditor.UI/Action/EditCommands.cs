@@ -132,6 +132,24 @@ public static class EditCommands
             }
         }
 
+        // 5. Attachments
+        var attachments = sel.Attachments.ToList();
+        if (attachments.Count > 0)
+        {
+            fwds.Add(new GraphCommand.RemoveAttachments(attachments));
+            var addAttachments = new List<GraphCommand>();
+            foreach (var aid in attachments)
+            {
+                var m = view.Model.FindAttachment(aid);
+                if (m != null)
+                    addAttachments.Add(new GraphCommand.AddAttachment(
+                        m.Id, m.HostNodeId, m.Category, m.Glyph, m.Label,
+                        m.Tooltip, m.StackIndex, m.HostProperties));
+            }
+            if (addAttachments.Count > 0)
+                invs.Add(new GraphCommand.Batch("Restore Attachments", addAttachments));
+        }
+
         if (fwds.Count > 0)
         {
             // Architecturally critical: Inverses must be executed in reverse order.

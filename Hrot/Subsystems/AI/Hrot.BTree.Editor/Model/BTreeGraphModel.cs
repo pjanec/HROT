@@ -185,6 +185,15 @@ internal sealed class BTreePillAttachmentModel : IAttachmentModel
     public string?           Tooltip   => _pill.Comment;
     public AttachmentState   State     => AttachmentState.Normal;
     public int               StackIndex => _pill.StackIndex;
+
+    public IReadOnlyDictionary<string, object?>? HostProperties =>
+        new Dictionary<string, object?>
+        {
+            ["decoratorType"] = (object?)_pill.DecoratorType,
+            ["intParam"]      = (object?)_pill.IntParam,
+            ["floatParam"]    = (object?)_pill.FloatParam,
+            ["comment"]       = (object?)_pill.Comment,
+        };
 }
 
 // ── BTreeGraphModel ───────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NodeEditor.Primitives;
 
 namespace NodeEditor.Core.Interfaces;
@@ -45,6 +46,13 @@ public interface IAttachmentModel
     /// Lower values render to the left; equal values are stable-sorted by Id.
     /// </summary>
     int StackIndex { get; }
+
+    /// <summary>
+    /// Optional host-defined restore data carried by this attachment.
+    /// Used by the generic delete-undo path to rebuild the attachment from the inverse command.
+    /// Default null — additive; existing implementations are unaffected.
+    /// </summary>
+    IReadOnlyDictionary<string, object?>? HostProperties => null;
 }
 
 /// <summary>Stable categorization for an attachment.</summary>

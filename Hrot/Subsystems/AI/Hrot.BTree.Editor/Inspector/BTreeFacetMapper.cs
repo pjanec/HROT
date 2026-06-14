@@ -38,6 +38,9 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <inheritdoc/>
     public object? GetFacet(IAssetSubSelection subSelection)
     {
+        if (subSelection is BTreePillSelection ps)
+            return BuildPillFacet(ps);
+
         if (subSelection is not BTreeNodeSelection sel) return null;
 
         var node = _asset.FindNode(sel.VisualId);
@@ -72,6 +75,12 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <inheritdoc/>
     public void ApplyFacet(IAssetSubSelection subSelection, object facet)
     {
+        if (subSelection is BTreePillSelection ps)
+        {
+            ApplyPillFacet(ps, facet);
+            return;
+        }
+
         if (subSelection is not BTreeNodeSelection sel) return;
         var node = _asset.FindNode(sel.VisualId);
         if (node is null) return;
@@ -242,4 +251,63 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             IsBreakpoint   = node.IsBreakpoint,
             VisualId       = node.VisualId.ToString(),
         };
+
+    // ── Pill facet helpers ────────────────────────────────────────────────────
+
+    private object? BuildPillFacet(BTreePillSelection ps)
+    {
+        var pill = _asset.FindPill(ps.PillVisualId);
+        if (pill is null) return null;
+        return pill.DecoratorType switch
+        {
+            NodeType.Repeater     => new BTreeRepeaterFacet
+                { Count = pill.IntParam ?? 1, Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.Cooldown     => new BTreeCooldownFacet
+                { Duration = pill.FloatParam ?? 1f, Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.Inverter     => new BTreeInverterFacet
+                { Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.ForceSuccess => new BTreeForceSuccessFacet
+                { Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.ForceFailure => new BTreeForceFailureFacet
+                { Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.UntilSuccess => new BTreeUntilSuccessFacet
+                { Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            NodeType.UntilFailure => new BTreeUntilFailureFacet
+                { Comment = pill.Comment, VisualId = pill.VisualId.ToString() },
+            _                     => null,
+        };
+    }
+
+    private void ApplyPillFacet(BTreePillSelection ps, object facet)
+    {
+        var pill = _asset.FindPill(ps.PillVisualId);
+        if (pill is null) return;
+        switch (facet)
+        {
+            case BTreeRepeaterFacet rf:
+                pill.IntParam = rf.Count;
+                pill.Comment  = rf.Comment;
+                break;
+            case BTreeCooldownFacet cf:
+                pill.FloatParam = cf.Duration;
+                pill.Comment    = cf.Comment;
+                break;
+            case BTreeInverterFacet inf:
+                pill.Comment = inf.Comment;
+                break;
+            case BTreeForceSuccessFacet fsf:
+                pill.Comment = fsf.Comment;
+                break;
+            case BTreeForceFailureFacet fff:
+                pill.Comment = fff.Comment;
+                break;
+            case BTreeUntilSuccessFacet usf:
+                pill.Comment = usf.Comment;
+                break;
+            case BTreeUntilFailureFacet uff:
+                pill.Comment = uff.Comment;
+                break;
+        }
+        _asset.MarkDirty();
+    }
 }

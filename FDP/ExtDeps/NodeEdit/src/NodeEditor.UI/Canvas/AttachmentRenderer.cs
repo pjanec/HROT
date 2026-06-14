@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using NodeEditor.Core.Interfaces;
@@ -120,7 +121,9 @@ internal sealed class AttachmentRenderer
             dl.AddRectFilled(pillMin, pillMax, ImGui.GetColorU32(bgColor), cornerRadius);
 
             // State outlines drawn on top of fill.
-            if ((model.State & AttachmentState.Selected) != 0)
+            bool isSelected = (model.State & AttachmentState.Selected) != 0
+                || view.Selection.Attachments.Any(aid => aid == model.Id);
+            if (isSelected)
                 dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.SelectionAccent), cornerRadius, ImDrawFlags.None, 2f * zoom);
             else if ((model.State & AttachmentState.Error) != 0)
                 dl.AddRect(pillMin, pillMax, ImGui.GetColorU32(theme.ErrorColor), cornerRadius, ImDrawFlags.None, 1f * zoom);

@@ -53,12 +53,19 @@ public static class BTreeSelectionBridgeHelper
     ///   or <see langword="null"/> when the selection is empty, multi-select, or the
     ///   selected element is not a node.
     /// </returns>
-    public static BTreeNodeSelection? MapSelection(
+    public static IAssetSubSelection? MapSelection(
         SelectionState      selection,
         BehaviorTreeAsset?  btreeAsset)
     {
         if (btreeAsset == null) return null;
         if (selection.Count != 1) return null;
+
+        // Check attachments first: exactly one attachment selected → BTreePillSelection.
+        using (var attachEnum = selection.Attachments.GetEnumerator())
+        {
+            if (attachEnum.MoveNext())
+                return new BTreePillSelection(attachEnum.Current.Value);
+        }
 
         using var enumerator = selection.Nodes.GetEnumerator();
         if (!enumerator.MoveNext()) return null;

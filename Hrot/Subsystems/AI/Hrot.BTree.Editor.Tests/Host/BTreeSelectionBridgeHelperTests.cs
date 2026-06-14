@@ -118,7 +118,8 @@ public sealed class BTreeSelectionBridgeHelperTests
         var result = BTreeSelectionBridgeHelper.MapSelection(sel, asset);
 
         result.Should().NotBeNull();
-        result!.VisualId.Should().Be(actionNode.VisualId,
+        result.Should().BeOfType<BTreeNodeSelection>();
+        ((BTreeNodeSelection)result!).VisualId.Should().Be(actionNode.VisualId,
             "canvas NodeId.Value must equal BTreeEditorNode.VisualId");
     }
 
@@ -133,7 +134,8 @@ public sealed class BTreeSelectionBridgeHelperTests
         var result = BTreeSelectionBridgeHelper.MapSelection(sel, asset);
 
         result.Should().NotBeNull();
-        result!.VisualId.Should().Be(rootNode.VisualId);
+        result.Should().BeOfType<BTreeNodeSelection>();
+        ((BTreeNodeSelection)result!).VisualId.Should().Be(rootNode.VisualId);
     }
 
     // ── GetCurrentFacet integration ───────────────────────────────────────────
