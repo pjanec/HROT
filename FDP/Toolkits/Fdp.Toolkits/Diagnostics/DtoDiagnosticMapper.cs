@@ -33,6 +33,14 @@ namespace Fdp.Toolkit.Diagnostics
             if (type.IsEnum)
                 return obj.ToString();
 
+            // Fixed-size string structs store their characters in a fixed byte buffer.
+            // Rendering that buffer as a raw byte list (the generic FixedBuffer path
+            // below) is unreadable, so emit the decoded string value instead. This is
+            // what makes EntityInfo.Name (a FixedString64) readable in event/component
+            // payloads. (ADA-BATCH-02 corrective C1.)
+            if (type == typeof(Fdp.Core.FixedString32) || type == typeof(Fdp.Core.FixedString64))
+                return obj.ToString();
+
             if (!type.IsValueType && !visited.Add(obj))
             {
                 return "<<circular reference>>";

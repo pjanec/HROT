@@ -5,6 +5,10 @@
 | ADA-01-D01 | ADA-BATCH-01 | `EventSerializationHelper` entity-ref resolution deferred — `IGuidResolver` parameter accepted but not used until `NetworkEntityMap` is wired in. | P3 | ADA-BATCH-02+ | OPEN |
 | ADA-01-D02 | ADA-BATCH-01 review | POST endpoints require `Content-Length` (HttpListener returns 411 on bodyless POST). MCP/clients must send it (fetch does automatically); document for manual `curl`. | P3 | ADA-PM | OPEN |
 | ADA-01-D03 | ADA-BATCH-01 review | `/shutdown` breaks only the headless `Run()` loop, not the windowed Raylib loop. Acceptable (API headless-primary). | P3 | — | OPEN |
+| ADA-02-D01 | ADA-BATCH-02 | `/scenario/load?waitForReady` polls cluster state once per job-queue drain in a host-side loop (`ScenarioReadyMaxPolls=600`). Robust but coarse; a one-shot completion TCS keyed off `ClusterStateUpdateEvent` would be cleaner. | P3 | ADA-P2+ | OPEN |
+| ADA-02-D02 | ADA-BATCH-02 | `/scenario/save` uses `IEditorLogic.SaveScenarioAs(name)` which writes under the editor's `ScenariosRoot` (environment-dependent). Tier-1 save round-trip is verified via the explicit-path `SaveScenario(file)` instead; a hermetic name-based save round-trip is not yet covered. | P3 | ADA-P1+ | OPEN |
+| ADA-02-D03 | ADA-BATCH-02 | C2 headless process smoke (`DebugApiHeadlessSmokeTests`) is gated behind `ADA_RUN_HEADLESS_SMOKE=1` (editor boot is heavy/env-sensitive). Runnable on demand; the dev lead re-runs it manually. | P3 | ADA-PM | OPEN |
+| ADA-02-D04 | ADA-BATCH-02 | `DebugApiService.Step(count)` delegates to the time facade's `Step()`, which sets the controller delta; the actual tick is applied on the next main-loop `Update()` drain. Exact N-tick advance is therefore loop-coupled (the Tier-1 test asserts non-regressing `totalTime`, not exact +N). | P3 | ADA-P3+ | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

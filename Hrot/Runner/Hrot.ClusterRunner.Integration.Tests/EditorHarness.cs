@@ -74,6 +74,42 @@ public sealed class EditorHarness : IDisposable
     public ZoneManagerService  ZoneService  => _zoneService;
     public IPreviewController  Preview   { get; private set; } = null!;
 
+    /// <summary>The harness's master sync time controller (deterministic mode). Test accessor.</summary>
+    public MasterSyncController TimeController => _timeController!;
+
+    /// <summary>Scenario serializer used by this harness (for building extraction services). Test accessor.</summary>
+    public ScenarioSerializer Serializer => _serializer!;
+
+    /// <summary>
+    /// Event-history service populated by a World-bus capture system registered in the
+    /// PostSimulation phase. Used by the AI Debug API event-history tests.
+    /// </summary>
+    public Fdp.Core.Diagnostics.DiagnosticEventHistoryService History { get; } = new();
+
+    private ScenarioSerializer? _serializer;
+
+    /// <summary>
+    /// Builds a <see cref="Hrot.Editor.DebugApi.DebugApiService"/> wired to this harness's world,
+    /// entity map, serializer-injected extraction service, time facade, preview, editor logic, and
+    /// event history. Mirrors the production wiring in <c>EditorSubsystem</c> for Tier-1 tests.
+    /// </summary>
+    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService()
+    {
+        var extraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap, _serializer);
+        var timeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(Preview, _timeController!, Repo);
+        return new Hrot.Editor.DebugApi.DebugApiService(
+            Repo,
+            EntityMap,
+            extraction,
+            timeFacade,
+            Preview,
+            Editor,
+            History,
+            _timeController!,
+            clusterState: () => (Editor as EditorApplication)?.CurrentClusterState
+                                ?? Fdp.Toolkit.Orchestration.ClusterState.Idle);
+    }
+
     // ── Nested test stub ─────────────────────────────────────────────────────
 
     private sealed class SequentialIdAllocator : INetworkIdAllocator
@@ -156,6 +192,7 @@ public sealed class EditorHarness : IDisposable
         var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
         var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        _serializer = serializer;
         var zoneService      = new ZoneManagerService();
         _zoneService = zoneService;
         var fileService      = new ScenarioFileService(serializer, Bus, zoneService);
@@ -195,6 +232,11 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
+
+        // Capture World-bus events into the history service (PostSimulation phase) so the
+        // AI Debug API event-history endpoint has data to serve in Tier-1 tests.
+        Kernel.RegisterGlobalSystem(
+            new Fdp.ModuleHost.Diagnostics.EventHistoryCaptureSystem("World", History, Bus));
 
         // ── Multi-phase system registration for SimHostCorePack and CgfLogicPack ──
         // CGF Brain systems -- register directly (no toggling needed in the editor harness)

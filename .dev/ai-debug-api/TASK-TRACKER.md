@@ -49,7 +49,7 @@ every later group depends on. Prereq for everything.
 
 - [x] **ADA-P0-T01** [sonnet] DebugApiHost: HttpListener, routing, JSON envelope, config flag, `/shutdown` — BATCH-01, lead-verified headless smoke (status+shutdown clean exit 0) [details](./TASK-DETAIL.md#ada-p0-t01--debugapihost-skeleton)
 - [x] **ADA-P0-T02** [sonnet] MainThreadJobQueue + `EditorSubsystem.Update` drain + background-thread guards — BATCH-01 [details](./TASK-DETAIL.md#ada-p0-t02--main-thread-job-queue)
-- [~] **ADA-P0-T03** [sonnet] `EventSerializationHelper` — BATCH-01 (code done; **tests pending → BATCH-02 corrective C1**) [details](./TASK-DETAIL.md#ada-p0-t03--eventserializationhelper)
+- [x] **ADA-P0-T03** [sonnet] `EventSerializationHelper` — BATCH-01 + BATCH-02 C1 (tests added; caught+fixed a real FixedString→raw-bytes bug) [details](./TASK-DETAIL.md#ada-p0-t03--eventserializationhelper)
 - [x] **ADA-P0-T04** [zoo] CLR→JSON-schema helper for discovery — BATCH-01 [details](./TASK-DETAIL.md#ada-p0-t04--clrjson-schema-helper)
 
 ---
@@ -59,10 +59,10 @@ every later group depends on. Prereq for everything.
 **Goal:** Queries, event history, sim/preview/time control, scenario load/list/save, generic command +
 discovery, TKB catalog, world/coordinate info. The first end-to-end usable surface.
 
-- [ ] **ADA-P1-T01** [zoo] Status + entity list/dump (Groups A/B) [details](./TASK-DETAIL.md#ada-p1-t01--status--entity-querydump)
-- [ ] **ADA-P1-T02** [zoo] Event history endpoint (Group C) [details](./TASK-DETAIL.md#ada-p1-t02--event-history)
-- [ ] **ADA-P1-T03** [zoo] Sim/preview/time control (Group D) [details](./TASK-DETAIL.md#ada-p1-t03--simpreviewtime-control)
-- [ ] **ADA-P1-T04** [zoo] Scenario load/list/save (Group E) [details](./TASK-DETAIL.md#ada-p1-t04--scenario-loadlistsave)
+- [x] **ADA-P1-T01** [zoo] Status + entity list/dump (Groups A/B) — BATCH-02, lead-verified [details](./TASK-DETAIL.md#ada-p1-t01--status--entity-querydump)
+- [x] **ADA-P1-T02** [zoo] Event history endpoint (Group C) — BATCH-02 [details](./TASK-DETAIL.md#ada-p1-t02--event-history)
+- [x] **ADA-P1-T03** [zoo] Sim/preview/time control (Group D) — BATCH-02 (Step exact-N is debt ADA-02-D04) [details](./TASK-DETAIL.md#ada-p1-t03--simpreviewtime-control)
+- [~] **ADA-P1-T04** [zoo] Scenario load/list/save (Group E) — BATCH-02: list/save endpoints done; **load broken in headless (504, entityCount 0) → BATCH-03 P1 corrective** [details](./TASK-DETAIL.md#ada-p1-t04--scenario-loadlistsave)
 - [ ] **ADA-P1-T05** [sonnet] Entity commands + `/commands` discovery + wait-gating (Group F) [details](./TASK-DETAIL.md#ada-p1-t05--entity-commands--discovery)
 - [ ] **ADA-P1-T06** [zoo] `/components` + `/scenarios` discovery [details](./TASK-DETAIL.md#ada-p1-t06--componentsscenarios-discovery)
 - [ ] **ADA-P1-T07** [zoo] TKB entity-type catalog (Group M) [details](./TASK-DETAIL.md#ada-p1-t07--tkb-entity-type-catalog)

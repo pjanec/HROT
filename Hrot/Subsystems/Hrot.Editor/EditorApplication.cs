@@ -60,6 +60,13 @@ public sealed class EditorApplication : IEditorLogic
     public IDerRepo View => _view;
     public SimHostMode CurrentMode => _currentMode;
 
+    /// <summary>
+    /// The latest cluster state observed on the orchestration bus (updated in <see cref="Update"/>).
+    /// Exposed for the AI Debug API's scenario-load completion poll, which must use
+    /// <c>OperatingEdit</c> rather than <see cref="LoadedScenarioName"/> as the ready signal.
+    /// </summary>
+    public Fdp.Toolkit.Orchestration.ClusterState CurrentClusterState => _currentClusterState;
+
     /// <inheritdoc/>
     public string? LoadedScenarioName => _loadedScenarioName;
 

@@ -193,9 +193,14 @@ namespace Hrot.Editor
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
-        // ── AI Debug API (ADA-BATCH-01) ───────────────────────────────────────
+        // ── AI Debug API (ADA-BATCH-01 / -02) ─────────────────────────────────
         private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
         private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
+        private bool                                     _debugApiEnabled;
+        private int                                      _debugApiPort;
+        private Action?                                  _debugApiShutdownCallback;
+        // Serializer-injected extraction service reused by the debug API (set during Initialize).
+        private Fdp.Toolkit.Diagnostics.EntityStateExtractionService? _debugApiExtractionService;
 
         // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
         private EntityRepository?       _bpPreTickSnapshot;
@@ -578,10 +583,11 @@ namespace Hrot.Editor
         /// </param>
         public void ConfigureDebugApi(int port, Action? shutdownCallback = null)
         {
-            _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
-            _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
-                port, _debugApiJobQueue, shutdownCallback ?? (() => { }));
-            _debugApiHost.Start();
+            // Record the request; the host + service are constructed at the end of Initialize()
+            // once the editor's services (extraction, time facade, preview, editor logic) exist.
+            _debugApiEnabled          = true;
+            _debugApiPort             = port;
+            _debugApiShutdownCallback = shutdownCallback;
         }
 
         /// <inheritdoc/>
@@ -801,7 +807,8 @@ namespace Hrot.Editor
             // Wire the unified serialization path so the entity inspector Copy JSON
             // buttons produce readable DTO output for BrainBlackboard and Blackboard1024.
             _fdpEntityInspector.Serializer = scenarioSerializer;
-            _fdpEntityInspector.ExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer);
+            _debugApiExtractionService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap, scenarioSerializer);
+            _fdpEntityInspector.ExtractionService = _debugApiExtractionService;
 
             // Inject bus and zoneService so file ops trigger WorldResetEvent and persist zone data.
             var fileService = new ScenarioFileService(scenarioSerializer, _world.Bus, zoneService);
@@ -1381,6 +1388,33 @@ namespace Hrot.Editor
 
             // ?? 8. Preview controller (works headless too ? no canvas dep) ????
             _previewController = new EditorPreviewController(_world, _timeController!);
+
+            // ?? 8b. AI Debug API host + service (ADA-BATCH-02) ????????????????????
+            // Constructed here so all dependencies exist; works headless. Started only when
+            // ConfigureDebugApi() requested it (off by default).
+            if (_debugApiEnabled)
+            {
+                _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
+                    _debugApiPort, _debugApiJobQueue, _debugApiShutdownCallback ?? (() => { }));
+
+                var timeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(
+                    _previewController!, _timeController!, _world);
+
+                var debugService = new Hrot.Editor.DebugApi.DebugApiService(
+                    _world,
+                    _entityMap!,
+                    _debugApiExtractionService!,
+                    timeFacade,
+                    _previewController!,
+                    _editorLogic!,
+                    _fdpEventHistory,
+                    _timeController!,
+                    clusterState: () => _editorApp?.CurrentClusterState ?? Fdp.Toolkit.Orchestration.ClusterState.Idle);
+
+                _debugApiHost.AttachService(debugService);
+                _debugApiHost.Start();
+            }
 
             // ?? 9. Mission service (no canvas dependency) ?????????????????????
             _missionService = new EditorMissionService(_world.Bus, _world, behaviorRegistry);
