@@ -45,6 +45,7 @@ file sealed class StubBlackboardAsset : IEditableAsset, IBlackboardManagedAsset
     public bool   IsEditorOwned  => true;
 
     public bool IsBlackboardEditorManaged { get; set; }
+    public void SetBlackboardEditorManaged(bool managed) => IsBlackboardEditorManaged = managed;
     public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; set; }
         = Array.Empty<BlackboardVariableEntry>();
 

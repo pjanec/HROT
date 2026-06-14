@@ -34,6 +34,7 @@ public sealed class Batch14AggregatorBinPackTests
         public bool   IsEditorOwned  => true;
 
         public bool IsBlackboardEditorManaged { get; set; } = true;
+        public void SetBlackboardEditorManaged(bool managed) => IsBlackboardEditorManaged = managed;
         public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; set; }
             = Array.Empty<BlackboardVariableEntry>();
 

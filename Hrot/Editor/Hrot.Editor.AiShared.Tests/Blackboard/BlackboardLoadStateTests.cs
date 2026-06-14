@@ -17,6 +17,7 @@ public sealed class BlackboardLoadStateTests
         public BlackboardLoadState LoadState      { get; set; } = BlackboardLoadState.Clean;
         public string?             LoadDiagnosticMessage { get; set; }
         public bool                IsBlackboardEditorManaged { get; set; } = true;
+        public void SetBlackboardEditorManaged(bool managed) => IsBlackboardEditorManaged = managed;
         public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables =>
             Array.Empty<BlackboardVariableEntry>();
         public void AddVariable(BlackboardVariableEntry entry) { }

@@ -57,6 +57,18 @@ public sealed class BlackboardVariableAssetWiringTests
     }
 
     [Fact]
+    public void SetBlackboardEditorManaged_sets_flag_and_marks_dirty()
+    {
+        var asset = MakeAsset();
+        asset.IsBlackboardEditorManaged.Should().BeFalse();
+
+        asset.SetBlackboardEditorManaged(true);
+
+        asset.IsBlackboardEditorManaged.Should().BeTrue();
+        asset.IsDirty.Should().BeTrue();
+    }
+
+    [Fact]
     public void BlackboardVariables_is_empty_initially()
     {
         var asset = MakeAsset();

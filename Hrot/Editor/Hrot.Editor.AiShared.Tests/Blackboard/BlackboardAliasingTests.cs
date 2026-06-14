@@ -21,6 +21,7 @@ internal sealed class AliasMutableAsset : IEditableAsset, IBlackboardManagedAsse
     public bool      IsDirty        => false;
     public bool      IsEditorOwned  => true;
     public bool      IsBlackboardEditorManaged { get; set; } = true;
+    public void SetBlackboardEditorManaged(bool managed) => IsBlackboardEditorManaged = managed;
 
     public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => _vars;
 

@@ -71,6 +71,7 @@ public sealed class BlackboardVariableWiringTests
     private sealed class StubManagedAsset : IBlackboardManagedAsset
     {
         public bool IsBlackboardEditorManaged { get; set; }
+        public void SetBlackboardEditorManaged(bool managed) => IsBlackboardEditorManaged = managed;
         public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; set; }
             = Array.Empty<BlackboardVariableEntry>();
 

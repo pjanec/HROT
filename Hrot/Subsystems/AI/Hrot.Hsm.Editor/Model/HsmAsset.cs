@@ -63,6 +63,13 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public bool IsBlackboardEditorManaged { get; set; }
     public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => _blackboardVariables;
 
+    /// <summary>Enables or disables editor-managed blackboard mode and marks the asset dirty.</summary>
+    public void SetBlackboardEditorManaged(bool managed)
+    {
+        IsBlackboardEditorManaged = managed;
+        MarkDirty();
+    }
+
     /// <summary>Load-time health of the companion blackboard file. Defaults to Clean.</summary>
     public BlackboardLoadState LoadState { get; private set; }
 

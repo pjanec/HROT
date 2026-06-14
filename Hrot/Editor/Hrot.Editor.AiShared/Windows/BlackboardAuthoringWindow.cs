@@ -320,6 +320,13 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         if (!vm.IsBlackboardEditorManaged)
         {
             ImGuiNET.ImGui.TextDisabled("This asset does not use an editor-managed blackboard.");
+            if (_store.ActiveAsset is IBlackboardManagedAsset bbToEnable)
+            {
+                ImGuiNET.ImGui.Spacing();
+                ImGuiNET.ImGui.TextWrapped("Enable an editor-managed blackboard to declare typed variables for this asset.");
+                if (ImGuiNET.ImGui.Button("Use editor-managed blackboard"))
+                    bbToEnable.SetBlackboardEditorManaged(true);
+            }
             return;
         }
 

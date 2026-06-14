@@ -56,6 +56,7 @@ file sealed class _BbManagedAsset : IEditableAsset, IBlackboardManagedAsset
     public bool IsDirty => false;
     public bool IsEditorOwned => true;
     public bool IsBlackboardEditorManaged => true;
+    public void SetBlackboardEditorManaged(bool managed) { }
     public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; set; }
         = Array.Empty<BlackboardVariableEntry>();
 

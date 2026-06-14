@@ -41,6 +41,7 @@ public sealed class BlackboardAliasDropValidatorTests
 
         // ---- Required interface members (unused in these tests) ----------------
         public bool IsBlackboardEditorManaged => false;
+        public void SetBlackboardEditorManaged(bool managed) { }
         public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => Array.Empty<BlackboardVariableEntry>();
         public void AddVariable(BlackboardVariableEntry entry) { }
         public void RemoveVariable(string name) { }

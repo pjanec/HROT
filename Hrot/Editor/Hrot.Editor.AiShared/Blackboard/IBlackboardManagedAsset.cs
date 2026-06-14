@@ -13,6 +13,9 @@ public interface IBlackboardManagedAsset
     /// <summary>True when this asset's blackboard companion file is editor-owned.</summary>
     bool IsBlackboardEditorManaged { get; }
 
+    /// <summary>Enables or disables editor-managed blackboard mode and marks the asset dirty.</summary>
+    void SetBlackboardEditorManaged(bool managed);
+
     /// <summary>All editor-managed variables in canonical declaration order.</summary>
     IReadOnlyList<BlackboardVariableEntry> BlackboardVariables { get; }
 
