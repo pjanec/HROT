@@ -30,8 +30,8 @@ namespace Hrot.Editor.DebugApi
         private DebugApiService? _service;
         private bool _disposed;
 
-        /// <summary>Maximum kernel ticks to wait for a scenario load to reach OperatingEdit.</summary>
-        private const int ScenarioReadyMaxPolls = 600;
+        /// <summary>Maximum wall-clock seconds to wait for a scenario load to reach OperatingEdit.</summary>
+        private const double ScenarioReadyTimeoutSeconds = 30.0;
 
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
@@ -143,15 +143,20 @@ namespace Hrot.Editor.DebugApi
             if (!waitForReady)
                 return Ok(new JsonObject { ["loading"] = name, ["awaited"] = false });
 
-            // Poll across kernel ticks: each drain runs exactly one poll on the main thread.
-            for (int i = 0; i < ScenarioReadyMaxPolls; i++)
+            // Poll across kernel ticks until OperatingEdit or wall-clock timeout.
+            // Each RunOnMainThread call yields to the main thread for one drain cycle,
+            // so the kernel ticks naturally between polls.
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            int pollCount = 0;
+            while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
                 bool ready = await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIsOperatingEdit())
                                             .ConfigureAwait(false);
+                pollCount++;
                 if (ready)
                     return Ok(new JsonObject { ["loaded"] = name, ["awaited"] = true });
             }
-            return Fail(504, $"Scenario '{name}' did not reach OperatingEdit within {ScenarioReadyMaxPolls} ticks.");
+            return Fail(504, $"Scenario '{name}' did not reach OperatingEdit within {ScenarioReadyTimeoutSeconds}s ({pollCount} polls).");
         }
 
         private DebugApiService Service()

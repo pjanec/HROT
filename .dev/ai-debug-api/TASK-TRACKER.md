@@ -62,7 +62,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 - [x] **ADA-P1-T01** [zoo] Status + entity list/dump (Groups A/B) — BATCH-02, lead-verified [details](./TASK-DETAIL.md#ada-p1-t01--status--entity-querydump)
 - [x] **ADA-P1-T02** [zoo] Event history endpoint (Group C) — BATCH-02 [details](./TASK-DETAIL.md#ada-p1-t02--event-history)
 - [x] **ADA-P1-T03** [zoo] Sim/preview/time control (Group D) — BATCH-02 (Step exact-N is debt ADA-02-D04) [details](./TASK-DETAIL.md#ada-p1-t03--simpreviewtime-control)
-- [~] **ADA-P1-T04** [zoo] Scenario load/list/save (Group E) — BATCH-02: list/save endpoints done; **load broken in headless (504, entityCount 0) → BATCH-03 P1 corrective** [details](./TASK-DETAIL.md#ada-p1-t04--scenario-loadlistsave)
+- [x] **ADA-P1-T04** [zoo] Scenario load/list/save (Group E) — BATCH-02 + BATCH-03 P1 corrective. Load now lead-verified in real headless (test-move → OperatingEdit, entityCount 1). Fixes: NAS storage provider + ClusterMaster roster seed + wall-clock poll [details](./TASK-DETAIL.md#ada-p1-t04--scenario-loadlistsave)
 - [ ] **ADA-P1-T05** [sonnet] Entity commands + `/commands` discovery + wait-gating (Group F) [details](./TASK-DETAIL.md#ada-p1-t05--entity-commands--discovery)
 - [ ] **ADA-P1-T06** [zoo] `/components` + `/scenarios` discovery [details](./TASK-DETAIL.md#ada-p1-t06--componentsscenarios-discovery)
 - [ ] **ADA-P1-T07** [zoo] TKB entity-type catalog (Group M) [details](./TASK-DETAIL.md#ada-p1-t07--tkb-entity-type-catalog)

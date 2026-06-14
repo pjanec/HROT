@@ -835,8 +835,16 @@ namespace Hrot.Editor
             string isolatedTempRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(EditorNodeId);
 
             // ?? 3c. Offline scenario load handler ?????????????????????????????
-            var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
-            var scenarioLoader  = new HrotScenarioLoader(storageProvider, "Hrot.Scenario");
+            // ADA-BATCH-03 FIX: HrotEditLoadHandler must read scenario JSON from the NAS/shared
+            // scenarios root (C:\FDP_Temp\shared\scenarios\...), NOT from the node staging root
+            // (C:\FDP_Temp\nodes\node-0\scenarios\...).  In headless mode the async prefetch copy
+            // from NAS→staging is a race condition; the slave's PrepareAsync runs before the copy
+            // completes, finds an empty staging dir and throws — entities never load.
+            // ReferencePrefetchHandler still uses isolatedTempRoot because its job is to ensure the
+            // staging directory exists for the prefetch copy destination.
+            var nasStorageProvider  = new LocalDiskStorageProvider(ClusterConfiguration.Default.NasBasePath);
+            var scenarioLoader      = new HrotScenarioLoader(nasStorageProvider, "Hrot.Scenario");
+            var storageProvider     = new LocalDiskStorageProvider(isolatedTempRoot);
             clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(storageProvider));
 
             // FIX: EcsRecordReplayController now handles NetworkEntityMap resync internally for all subsystems.
@@ -1339,6 +1347,23 @@ namespace Hrot.Editor
             // ?? 6b. Offline orchestrator ? scenario listing via ClusterMaster + UICache ??
             var offlineConfig = new ClusterConfiguration { Mandatory = Array.Empty<string>() };
             _clusterMaster  = new ClusterMaster(_orchestrationBus!, offlineConfig);
+
+            // ADA-BATCH-03 FIX-B: seed the editor's own node (node 0) in the ClusterMaster
+            // roster immediately at startup.  Without this the roster is empty until the
+            // ClusterSlave heartbeat fires (~1 s), so ClusterMaster skips the fan-out when a
+            // scenario load is triggered (activeNodeIds.Count == 0) and never calls
+            // PublishClusterState — EditorApplication never sees OperatingEdit → 504.
+            // We publish one synthetic heartbeat now and tick the master once so the roster
+            // is populated before any scenario load request can arrive.
+            _orchestrationBus!.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId        = EditorNodeId,
+                LocalStateId  = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+                SubsystemName = "Editor",
+            });
+            _orchestrationBus!.SwapBuffers();   // make the heartbeat readable
+            _clusterMaster.Tick();              // IngestHeartbeats → roster populated
 
             // Register the seek aggregator and process manager so the clock snaps on seek
             _seekProcessManager = new ReplaySeekProcessManager(_orchestrationBus!, _timeController);
