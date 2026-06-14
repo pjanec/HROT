@@ -132,6 +132,9 @@ public static class BTreeDocumentFactory
         if (breakpointManager != null)
             hostServices.SetBreakpointManager(breakpointManager);
 
+        // Wire node context menu provider (DEC-03b: "Add Decorator →" submenu).
+        hostServices.SetNodeContextMenuProvider(commandSink, graphModel);
+
         // ── 5. GraphView ──────────────────────────────────────────────────────
         var view = new GraphView(
             graphModel,

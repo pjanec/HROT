@@ -7,7 +7,7 @@ namespace NodeEditor.Core.Interfaces;
 /// One item in an attachment context menu.
 /// Label is the display text; Execute is the action to invoke on click.
 /// </summary>
-public sealed record ContextMenuItem(string Label, System.Action Execute, bool Enabled = true);
+public sealed record ContextMenuItem(string Label, System.Action Execute, bool Enabled = true, IReadOnlyList<ContextMenuItem>? Children = null);
 
 /// <summary>
 /// Host-supplied provider that returns context menu items for a given attachment.

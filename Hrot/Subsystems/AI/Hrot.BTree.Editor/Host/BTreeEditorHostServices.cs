@@ -90,6 +90,21 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
 
     ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
 
+    // ---- Node context menu (DEC-03b) ─────────────────────────────────────────
+
+    private BTreeNodeContextMenuProvider? _nodeContextMenuProvider;
+
+    /// <summary>
+    /// Wires the node context menu provider. Must be called after construction
+    /// when the graph model is available (mirrors SetBreakpointManager pattern).
+    /// </summary>
+    public void SetNodeContextMenuProvider(IGraphCommandSink sink, IGraphModel model)
+    {
+        _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model);
+    }
+
+    INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenuProvider;
+
     // ---- Breakpoint toggle (AIE-033) ─────────────────────────────────────────
 
     /// <summary>

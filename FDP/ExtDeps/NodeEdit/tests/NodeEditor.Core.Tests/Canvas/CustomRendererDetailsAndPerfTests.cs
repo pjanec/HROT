@@ -91,6 +91,24 @@ public sealed class CustomElementContextMenuProviderTests
         var item = new ContextMenuItem("Test", () => { });
         item.Enabled.Should().BeTrue();
     }
+
+    [Fact]
+    public void ContextMenuItem_children_is_null_by_default()
+    {
+        var item = new ContextMenuItem("Test", () => { });
+        item.Children.Should().BeNull();
+    }
+
+    [Fact]
+    public void ContextMenuItem_children_can_be_set()
+    {
+        var child1 = new ContextMenuItem("Child1", () => { });
+        var child2 = new ContextMenuItem("Child2", () => { });
+        var parent = new ContextMenuItem("Parent", () => { }, true, new[] { child1, child2 });
+        parent.Children.Should().HaveCount(2);
+        parent.Children![0].Label.Should().Be("Child1");
+        parent.Children![1].Label.Should().Be("Child2");
+    }
 }
 
 /// <summary>

@@ -56,6 +56,13 @@ public interface IEditorHostServices
     ICustomElementContextMenuProvider? CustomElementContextMenu => null;
 
     /// <summary>
+    /// Optional provider for node right-click context menus.
+    /// When non-null, items are appended after the built-in node menu items.
+    /// Returns null when no provider is registered.
+    /// </summary>
+    INodeContextMenuProvider? NodeContextMenu => null;
+
+    /// <summary>
     /// Custom canvas renderers registered by this host.
     /// Renderers are invoked at their declared render pass
     /// in registration order. Empty by default.

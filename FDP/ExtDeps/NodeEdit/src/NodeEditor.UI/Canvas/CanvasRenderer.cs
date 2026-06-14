@@ -501,11 +501,7 @@ public sealed class CanvasRenderer
                         pick =>
                         {
                             if (pick is NodeCatalogEntry entry)
-                            {
-                                var cb = new CommandBuilder(view.Model);
-                                var (fwd, inv) = cb.AddNode(entry.Kind, graphPos, null);
-                                view.Execute(fwd, inv, "Add Node");
-                            }
+                                PaletteEntryExecutor.Execute(view, entry, graphPos);
                             view.Interaction.ResetToIdle();
                         },
                         () => view.Interaction.ResetToIdle());
@@ -735,6 +731,17 @@ public sealed class CanvasRenderer
                         view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
                     _editorCommands?.Invoke(CommandCatalog.ToggleBreakpoint);
                 }
+
+                var nodeMenuProvider = view.Host.NodeContextMenu;
+                if (nodeMenuProvider != null)
+                {
+                    var nodeItems = nodeMenuProvider.GetItemsFor(target.Node, targetNodes);
+                    if (nodeItems.Count > 0)
+                    {
+                        ImGui.Separator();
+                        RenderItems(nodeItems);
+                    }
+                }
                 break;
             }
 
@@ -802,14 +809,35 @@ public sealed class CanvasRenderer
                 {
                     var hit   = new CustomElementHit(ceRef.ElementKey, CustomElementKind.Standalone, default);
                     var items = provider.GetItemsFor(ceRef.ElementKey, hit);
-                    foreach (var item in items)
-                    {
-                        if (ImGui.MenuItem(item.Label, "", false, item.Enabled))
-                            item.Execute();
-                    }
+                    RenderItems(items);
                 }
                 // If no matching provider, context menu popup is empty -- intended fallback.
                 break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Recursively renders a list of <see cref="ContextMenuItem"/>s using ImGui.
+    /// Items with non-empty <c>Children</c> are rendered as submenus;
+    /// leaf items are rendered as plain menu entries.
+    /// </summary>
+    private static void RenderItems(IReadOnlyList<ContextMenuItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.Children is { Count: > 0 })
+            {
+                if (ImGui.BeginMenu(item.Label, item.Enabled))
+                {
+                    RenderItems(item.Children);
+                    ImGui.EndMenu();
+                }
+            }
+            else
+            {
+                if (ImGui.MenuItem(item.Label, "", false, item.Enabled))
+                    item.Execute();
             }
         }
     }
