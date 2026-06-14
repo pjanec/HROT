@@ -1196,6 +1196,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         // ClearIfDead removes the selection if the entity was destroyed this tick.
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
+        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
     }
 
     /// <summary>
@@ -1268,6 +1269,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         _selectionSw.Restart();
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
+        EmitMoveMarker(dt); // BATCH-S2-O: destination marker
         _selectionSw.Stop();
 
         // ── Throttled breakdown log (~once per second at 60 fps) ──────────
@@ -1344,6 +1346,13 @@ public sealed class EditorStrideSubsystem : IDisposable
     // 1.0 m on each side → 2 m total; tall enough to encircle a standing infantry soldier.
     private const float SelectionBoxHalfExtent = 1.0f;
 
+    // BATCH-S2-O: click-to-move destination marker (FDP world position + remaining lifetime).
+    private System.Numerics.Vector3? _moveMarkerFdp;
+    private float _moveMarkerSecondsRemaining;
+    private const float MoveMarkerTotalSeconds = 3.0f;
+    private static readonly Rgba32 MoveMarkerColor = new Rgba32(255, 215, 0, 255); // amber
+    private const float MoveMarkerHalfSizeM = 0.6f;
+
     /// <summary>
     /// Emits a bright cyan bounding-box gizmo into the <see cref="ProducerBuffer"/> for the
     /// currently-selected entity (if any and alive).  Called once per tick after the main gizmo
@@ -1410,6 +1419,34 @@ public sealed class EditorStrideSubsystem : IDisposable
         line.Space           = Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace.World;
         line.LifetimeSeconds = lifetime;
         ProducerBuffer.EmitRaw(line);
+    }
+
+    /// <summary>Show a destination marker at the given FDP world position for a few seconds (BATCH-S2-O).</summary>
+    public void ShowMoveMarker(System.Numerics.Vector3 fdpPos)
+    {
+        _moveMarkerFdp = fdpPos;
+        _moveMarkerSecondsRemaining = MoveMarkerTotalSeconds;
+    }
+
+    private void EmitMoveMarker(float dt)
+    {
+        if (_moveMarkerFdp is not { } c) return;
+        _moveMarkerSecondsRemaining -= dt;
+        if (_moveMarkerSecondsRemaining <= 0f) { _moveMarkerFdp = null; return; }
+        float h = MoveMarkerHalfSizeM;
+        void Seg(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
+        {
+            var line = Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive.MakeLine(
+                a, b, MoveMarkerColor,
+                sizeMode: Fdp.Toolkit.Diagnostics.Gizmos.SizeMode.WorldMeters,
+                target: Fdp.Toolkit.Diagnostics.Gizmos.PipelineTarget.All);
+            line.Space           = Fdp.Toolkit.Diagnostics.Gizmos.CoordinateSpace.World;
+            line.LifetimeSeconds = 0.05f;
+            ProducerBuffer.EmitRaw(line);
+        }
+        Seg(new(c.X - h, c.Y, c.Z), new(c.X + h, c.Y, c.Z));
+        Seg(new(c.X, c.Y - h, c.Z), new(c.X, c.Y + h, c.Z));
+        Seg(new(c.X, c.Y, c.Z - h), new(c.X, c.Y, c.Z + h));
     }
 
     // ── DIAG-AUTH: vehicle authority oscillation probe ────────────────────────

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Replication.Components;
@@ -168,6 +169,9 @@ public sealed class StrideHrotGame : Game
 
     /// <summary>The overview camera entity created in <see cref="AddFixedCamera"/>.</summary>
     private global::Stride.Engine.Entity? _cameraEntity;
+
+    /// <summary>Physics raycast service for 3D click-to-select / click-to-move (BATCH-S2-O).</summary>
+    private IStrideRaycastService? _raycastService;
 
     /// <summary>
     /// Frame counter used to throttle the spawn-diagnostics log in <see cref="Update"/>
@@ -417,6 +421,40 @@ public sealed class StrideHrotGame : Game
             {
                 ExecuteCenterOnEntity(selection.SelectedEntity);
             }
+
+            // BATCH-S2-O: 3D click-to-select (LMB) and click-to-move (RMB).
+            if (_raycastService != null)
+            {
+                var cam = _cameraEntity.Get<CameraComponent>();
+                var world = _editorSubsystem.World;
+                if (cam != null && world != null)
+                {
+                    bool lmb = Input.IsMouseButtonPressed(MouseButton.Left);
+                    bool rmb = Input.IsMouseButtonPressed(MouseButton.Right);
+                    if (lmb || rmb)
+                    {
+                        var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition); // MousePosition is [0,1]
+                        var hit = _raycastService.Raycast(ray.Origin, ray.Origin + ray.Direction * 1000f);
+                        if (lmb)
+                        {
+                            // Select the hit entity (ignore static-geometry/no-entity hits).
+                            if (hit.HasHit && hit.HitEntity != Fdp.Core.Entity.Null && world.IsAlive(hit.HitEntity))
+                                _editorSubsystem.SelectionState.Select(hit.HitEntity);
+                        }
+                        else if (rmb && hit.HasHit) // RMB: move the SELECTED entity to the hit point
+                        {
+                            var sel = _editorSubsystem.SelectionState;
+                            if (sel.HasSelection && world.IsAlive(sel.SelectedEntity))
+                            {
+                                IssueMoveOrder(world, sel.SelectedEntity, hit.PointFdp);
+                                _editorSubsystem.ShowMoveMarker(hit.PointFdp);
+                                Log.Info("[StrideHrotGame] Move order: entity #{0} → FDP ({1:F2},{2:F2},{3:F2}).",
+                                    sel.SelectedEntity.Index, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ── Accumulate frame-timing stats (DIAG) ──────────────────────────
@@ -596,6 +634,40 @@ public sealed class StrideHrotGame : Game
             t.Position.X, t.Position.Y, t.Position.Z);
     }
 
+    // ── BATCH-S2-O: move-order routing ───────────────────────────────────
+
+    /// <summary>
+    /// Issues a move order to the given entity: vehicle path (NavigationIntent DirectPoint) or
+    /// character path (FdpNavigationOrders.IssueMoveTo) depending on component presence.
+    /// </summary>
+    private static void IssueMoveOrder(EntityRepository world, Fdp.Core.Entity entity, System.Numerics.Vector3 targetFdp)
+    {
+        const float Speed = 5f;
+        const float ArrivalRadius = 2f;
+        bool isVehicle = world.IsComponentTypeRegistered<VehicleState>() && world.HasComponent<VehicleState>(entity);
+        if (isVehicle)
+        {
+            if (!world.IsComponentTypeRegistered<NavigationIntent>()) return;
+            var intent = world.HasComponent<NavigationIntent>(entity)
+                ? world.GetComponent<NavigationIntent>(entity) : default;
+            intent.Mode             = NavigationMode.DirectPoint;
+            intent.FinalDestination = targetFdp;
+            intent.TargetSpeed      = Speed;
+            intent.ArrivalRadius    = ArrivalRadius;
+            intent.IntentId         = intent.IntentId + 1;
+            intent.ReverseAllowed   = 0;
+            if (world.HasComponent<NavigationIntent>(entity)) world.SetComponent(entity, intent);
+            else world.AddComponent(entity, intent);
+            // ensure a NavigationStatus exists so the muscle can report progress
+            if (world.IsComponentTypeRegistered<NavigationStatus>() && !world.HasComponent<NavigationStatus>(entity))
+                world.AddComponent(entity, new NavigationStatus { Result = NavigationResult.InProgress });
+        }
+        else
+        {
+            FdpNavigationOrders.IssueMoveTo(world, entity, targetFdp, Speed, ArrivalRadius, NavLayerMask.Infantry);
+        }
+    }
+
     // ── Boot helper ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -688,6 +760,10 @@ public sealed class StrideHrotGame : Game
                 physicsProcessor.Simulation,
                 () => _editorSubsystem?.VisualBindingSystem?.Visuals
                     ?? new System.Collections.Generic.Dictionary<Fdp.Core.Entity, Hrot.Stride.Core.StrideVisualReference>());
+
+            // BATCH-S2-O: construct raycast service for 3D click-to-select / click-to-move.
+            _raycastService = new StrideRaycastService(physicsProcessor.Simulation);
+            Log.Info("[StrideHrotGame] StrideRaycastService created (BATCH-S2-O).");
         }
         else
         {
