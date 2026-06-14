@@ -1040,29 +1040,17 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
     {
         if (bodyHandle is SkippedBodyHandle) return;
         if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
-        // Only dynamic bodies — kinematic bodies are moved by the motor every frame.
-        if (entry.IsKinematic) return;
-        // Don't act until the initial-pose slam has happened (body must be physics-ready).
-        if (!entry.InitialPoseApplied) return;
-        if (entry.PhysicsComponent is not RigidbodyComponent rb) return;
-        if (rb.Simulation == null) return;
-        if (entry.NativeBodyNotReady) return;
 
         // Convert the FDP SimTransform position to Stride space.
         var targetStridePos = FdpStrideTransform.ToStridePosition(simTf.Position);
         var targetStrideRot = FdpStrideTransform.ToStrideRotation(simTf.Rotation);
 
-        // Compare to the body's CURRENT Stride position (what the body actually is at).
-        // The reverse-sync keeps SimTransform == body pos during normal physics motion,
-        // so a distance > epsilon means an external write repositioned SimTransform.
-        //
         // HORIZONTAL (XZ) ONLY: the operator drags on the 2D map (FDP X,Y → Stride X,Z).
         // The vertical axis (Stride Y) is owned by physics — the body rests on the floor at
         // its half-height, while the externally-authored SimTransform.Z is typically 0 (ground).
         // Comparing/teleporting Y would set the body into the floor; gravity then nudges it up,
-        // re-triggering the reposition every frame (a limit cycle that pins the body and
-        // re-zeros its velocity forever). So we detect and teleport in XZ and PRESERVE the
-        // body's current Y, letting it rest naturally.
+        // re-triggering the reposition every frame. So we detect and teleport in XZ and PRESERVE
+        // the body's current Y, letting it rest naturally.
         var currentBodyPos = entry.StrideEntity.Transform.Position;
         float dx = targetStridePos.X - currentBodyPos.X;
         float dz = targetStridePos.Z - currentBodyPos.Z;
@@ -1070,31 +1058,72 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
 
         if (distSqXZ <= RepositionEpsilonM * RepositionEpsilonM) return; // normal physics motion
 
-        // External reposition detected: teleport the native body (XZ from the request, Y kept) and
-        // zero velocity.
+        // External reposition detected: teleport (XZ from request, Y kept).
         var newPos = new SMath.Vector3(targetStridePos.X, currentBodyPos.Y, targetStridePos.Z);
-        entry.StrideEntity.Transform.Position = newPos;
-        entry.StrideEntity.Transform.Rotation = targetStrideRot;
-        entry.StrideEntity.Transform.UpdateWorldMatrix();
-        try
-        {
-            // Push the entity transform INTO the native btRigidBody (dynamic bodies are
-            // physics-driven; setting Transform alone does not move them). Stride API:
-            // "Forces an update from the TransformComponent to the Collider.PhysicsWorldTransform."
-            rb.UpdatePhysicsTransformation(true);
-            rb.LinearVelocity  = SMath.Vector3.Zero;
-            rb.AngularVelocity = SMath.Vector3.Zero;
-        }
-        catch (Exception ex)
-        {
-            // Body not yet ready for velocity calls — safe to ignore; position is set.
-            Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose: velocity zero/teleport failed for '{0}' ({1}); position set.",
-                entry.StrideEntity.Name, ex.GetType().Name);
-        }
 
-        Log.Info("[BulletPhysicsBodyService] ExternalReposition '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity.",
-            entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
-            newPos.X, newPos.Y, newPos.Z);
+        if (entry.PhysicsComponent is CharacterComponent ch)
+        {
+            // ── CharacterComponent (capsule / mannequin) path ─────────────────
+            // CharacterComponent bodies are kinematic (CharacterController), so
+            // we cannot use UpdatePhysicsTransformation or zero LinearVelocity.
+            // Instead: set the entity transform and call CharacterComponent.Teleport
+            // (Stride 4.2.1.2487 API — takes a world Vector3 position).
+            // No InitialPoseApplied gate here — capsule bodies never go through
+            // ApplyDynamicConfigIfReady, so that flag is always false for them.
+            // Readiness guard: only teleport if the component is in the simulation.
+            if (ch.Simulation == null) return;
+
+            entry.StrideEntity.Transform.Position = newPos;
+            entry.StrideEntity.Transform.Rotation = targetStrideRot;
+            entry.StrideEntity.Transform.UpdateWorldMatrix();
+            try
+            {
+                ch.Teleport(newPos);
+            }
+            catch (Exception ex)
+            {
+                // CharacterController not yet fully initialised — safe to skip; position set.
+                Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose(character): Teleport failed for '{0}' ({1}); entity transform set.",
+                    entry.StrideEntity.Name, ex.GetType().Name);
+            }
+
+            Log.Info("[BulletPhysicsBodyService] ExternalReposition(character) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}).",
+                entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
+                newPos.X, newPos.Y, newPos.Z);
+        }
+        else if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
+        {
+            // ── Dynamic RigidbodyComponent (vehicle) path ─────────────────────
+            // Don't act until the initial-pose slam has happened (body must be physics-ready).
+            if (!entry.InitialPoseApplied) return;
+            if (rb.Simulation == null) return;
+            if (entry.NativeBodyNotReady) return;
+
+            entry.StrideEntity.Transform.Position = newPos;
+            entry.StrideEntity.Transform.Rotation = targetStrideRot;
+            entry.StrideEntity.Transform.UpdateWorldMatrix();
+            try
+            {
+                // Push the entity transform INTO the native btRigidBody (dynamic bodies are
+                // physics-driven; setting Transform alone does not move them). Stride API:
+                // "Forces an update from the TransformComponent to the Collider.PhysicsWorldTransform."
+                rb.UpdatePhysicsTransformation(true);
+                rb.LinearVelocity  = SMath.Vector3.Zero;
+                rb.AngularVelocity = SMath.Vector3.Zero;
+            }
+            catch (Exception ex)
+            {
+                // Body not yet ready for velocity calls — safe to ignore; position is set.
+                Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose(vehicle): velocity zero/teleport failed for '{0}' ({1}); position set.",
+                    entry.StrideEntity.Name, ex.GetType().Name);
+            }
+
+            Log.Info("[BulletPhysicsBodyService] ExternalReposition(vehicle) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity.",
+                entry.StrideEntity.Name, MathF.Sqrt(distSqXZ),
+                newPos.X, newPos.Y, newPos.Z);
+        }
+        // Other kinds (kinematic RigidbodyComponent, unknown) are skipped — they are moved
+        // by their own motor each frame and do not need operator-drag teleport.
     }
 
     /// <summary>

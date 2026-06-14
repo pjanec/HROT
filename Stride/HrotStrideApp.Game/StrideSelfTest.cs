@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Core;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.Core.Network;
@@ -53,9 +54,10 @@ public sealed class StrideSelfTest
     private const int WarmupFrames         = 30;
     private const int SettleAFrames        = 150;
     private const int SettleBFrames        = 120;
+    private const int DriveSettleFrames    = 240;   // drive phase: frames to wait for movement
     private const int TrackLogInterval     = 30;
     private const int ResolveTimeoutFrames = 120;   // after SPAWN: give up if not found
-    private const int TotalTimeoutFrames   = 1200;  // whole-run hard limit
+    private const int TotalTimeoutFrames   = 1800;  // whole-run hard limit (extended for drive phase)
 
     // ── Test parameters ──────────────────────────────────────────────────────
     private const long  SpawnTkbType   = 100L;  // Tank_M1Abrams → OrientedBox Bullet body
@@ -66,6 +68,12 @@ public sealed class StrideSelfTest
     // not eject the body — isolates position/reposition-honoring from the small-arena ejection.
     private static readonly System.Numerics.Vector3 PosA = new(6f, 8f, 0f);
     private static readonly System.Numerics.Vector3 PosB = new(-7f, 5f, 0f);
+    // Drive destination D: in-arena point used by the DRIVE phase to test the Stride muscle.
+    private static readonly System.Numerics.Vector3 PosD = new(4f, 11f, 0f);
+    private const float DriveArrivalRadius = 2.0f;   // arrival check radius (metres)
+    private const float DriveTargetSpeed   = 5.0f;   // commanded target speed (m/s)
+    private const float DrivePassErrToDest = 3.0f;   // <= this distance to D → PASS
+    private const float DrivePassDistMoved = 3.0f;   // >= this movement from B → PASS
 
     // ── Dependencies ─────────────────────────────────────────────────────────
     private readonly TestHarnessContext _ctx;
@@ -82,6 +90,9 @@ public sealed class StrideSelfTest
         Reposition,
         SettleB,
         CheckB,
+        DriveIssue,
+        DrivingSettle,
+        CheckDrive,
         Done,
     }
 
@@ -98,6 +109,13 @@ public sealed class StrideSelfTest
     private bool  _repos;
     private float _errB;
     private System.Numerics.Vector3 _endB;
+
+    // Drive-phase state.
+    private bool  _drive;
+    private float _driveErrToDest;
+    private float _driveDistMoved;
+    private System.Numerics.Vector3 _endDrive;
+    private string _driveNavResult = "N/A";
 
     // ── Construction ─────────────────────────────────────────────────────────
 
@@ -154,22 +172,25 @@ public sealed class StrideSelfTest
         // ── Total-run timeout guard ────────────────────────────────────────
         if (_totalFrames >= TotalTimeoutFrames && _phase != Phase.Done)
         {
-            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL reason=timeout");
+            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL drive=FAIL reason=timeout");
             ExitProcess();
             return false;
         }
 
         return _phase switch
         {
-            Phase.Warmup     => TickWarmup(),
-            Phase.Spawn      => TickSpawn(),
-            Phase.SettleA    => TickSettleA(),
-            Phase.CheckA     => TickCheckA(),
-            Phase.Reposition => TickReposition(),
-            Phase.SettleB    => TickSettleB(),
-            Phase.CheckB     => TickCheckB(),
-            Phase.Done       => false,
-            _                => false,
+            Phase.Warmup        => TickWarmup(),
+            Phase.Spawn         => TickSpawn(),
+            Phase.SettleA       => TickSettleA(),
+            Phase.CheckA        => TickCheckA(),
+            Phase.Reposition    => TickReposition(),
+            Phase.SettleB       => TickSettleB(),
+            Phase.CheckB        => TickCheckB(),
+            Phase.DriveIssue    => TickDriveIssue(),
+            Phase.DrivingSettle => TickDrivingSettle(),
+            Phase.CheckDrive    => TickCheckDrive(),
+            Phase.Done          => false,
+            _                   => false,
         };
     }
 
@@ -221,7 +242,7 @@ public sealed class StrideSelfTest
         // Resolve-timeout: entity must appear within ResolveTimeoutFrames after spawn.
         if (_frameInPhase >= ResolveTimeoutFrames && !EntityExists())
         {
-            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL reason=entity-not-found");
+            Log.Info("[SELFTEST] RESULT initialHold=FAIL repos=FAIL drive=FAIL reason=entity-not-found");
             ExitProcess();
             return false;
         }
@@ -324,8 +345,124 @@ public sealed class StrideSelfTest
                 $"errB={_errB:F2} driftToOrigin={drift:F2} -> {(_repos ? "PASS" : "FAIL")}");
         }
 
+        TransitionTo(Phase.DriveIssue);
+        return true;
+    }
+
+    private bool TickDriveIssue()
+    {
+        if (!TryGetEntityHandle(out var entity))
+        {
+            // Entity gone after reposition — record drive=FAIL and exit.
+            Log.Info("[SELFTEST] DRIVE_ISSUE: entity not found — skipping drive, drive=FAIL");
+            _drive        = false;
+            _driveNavResult = "EntityNotFound";
+            WriteSummaryAndExit();
+            return false;
+        }
+
+        var world = _ctx.World;
+
+        // Ensure NavigationStatus is present so the muscle can write feedback.
+        if (world.IsComponentTypeRegistered<NavigationStatus>()
+            && !world.HasComponent<NavigationStatus>(entity))
+        {
+            world.AddComponent(entity, new NavigationStatus { Result = NavigationResult.InProgress });
+        }
+
+        // Issue a single direct NavigationIntent to the entity, bypassing the brain.
+        // This tests whether the Stride vehicle muscle actually moves the entity
+        // when given an explicit NavigationMode.DirectPoint command.
+        var intent = world.HasComponent<NavigationIntent>(entity)
+            ? world.GetComponent<NavigationIntent>(entity)
+            : default;
+
+        intent.Mode             = NavigationMode.DirectPoint;
+        intent.FinalDestination = PosD;
+        intent.TargetSpeed      = DriveTargetSpeed;
+        intent.ArrivalRadius    = DriveArrivalRadius;
+        intent.IntentId         = 1;
+        intent.ReverseAllowed   = 0;
+
+        if (world.HasComponent<NavigationIntent>(entity))
+            world.SetComponent(entity, intent);
+        else if (world.IsComponentTypeRegistered<NavigationIntent>())
+            world.AddComponent(entity, intent);
+        // If NavigationIntent is not registered in this composition, the drive phase
+        // will still run but the vehicle will not move — FAIL captures the diagnostic.
+
+        Log.Info($"[SELFTEST] DRIVE_ISSUE intent → D=({PosD.X},{PosD.Y}) IntentId=1");
+        TransitionTo(Phase.DrivingSettle);
+        return true;
+    }
+
+    private bool TickDrivingSettle()
+    {
+        _trackFrame++;
+
+        if (_trackFrame % TrackLogInterval == 0)
+        {
+            TryGetPosition(out var tp);
+            var navResult = ReadNavResult(out uint navIntentId);
+            Log.Info($"[SELFTEST] drive frame={_totalFrames} pos=({tp.X:F2},{tp.Y:F2}) navResult={navResult} navIntentId={navIntentId}");
+        }
+
+        if (_frameInPhase >= DriveSettleFrames)
+            TransitionTo(Phase.CheckDrive);
+
+        return true;
+    }
+
+    private bool TickCheckDrive()
+    {
+        if (!TryGetPosition(out var pos))
+        {
+            Log.Info("[SELFTEST] CHECK_DRIVE: entity not found — FAIL");
+            _driveNavResult  = "EntityNotFound";
+            _driveErrToDest  = float.MaxValue;
+            _driveDistMoved  = 0f;
+            _endDrive        = System.Numerics.Vector3.Zero;
+            _drive           = false;
+        }
+        else
+        {
+            _endDrive = pos;
+            // Measure from the post-reposition start point B (XY in FDP space).
+            float movedDx = pos.X - PosB.X;
+            float movedDy = pos.Y - PosB.Y;
+            _driveDistMoved = MathF.Sqrt(movedDx * movedDx + movedDy * movedDy);
+
+            float destDx = pos.X - PosD.X;
+            float destDy = pos.Y - PosD.Y;
+            _driveErrToDest = MathF.Sqrt(destDx * destDx + destDy * destDy);
+
+            _driveNavResult = ReadNavResult(out _).ToString();
+
+            // PASS if arrived near D OR made real progress from B.
+            _drive = _driveErrToDest <= DrivePassErrToDest || _driveDistMoved >= DrivePassDistMoved;
+
+            Log.Info(
+                $"[SELFTEST] CHECK_DRIVE end=({pos.X:F2},{pos.Y:F2}) " +
+                $"distMoved={_driveDistMoved:F2} errToDest={_driveErrToDest:F2} " +
+                $"navResult={_driveNavResult} -> {(_drive ? "PASS" : "FAIL")}");
+        }
+
         WriteSummaryAndExit();
         return false;
+    }
+
+    /// <summary>
+    /// Reads the <see cref="NavigationStatus.Result"/> for the test entity.
+    /// Returns <see cref="NavigationResult.InProgress"/> (0) when the component is absent.
+    /// </summary>
+    private NavigationResult ReadNavResult(out uint intentId)
+    {
+        intentId = 0;
+        if (!TryGetEntityHandle(out var entity)) return NavigationResult.InProgress;
+        if (!_ctx.World.HasComponent<NavigationStatus>(entity)) return NavigationResult.InProgress;
+        var status = _ctx.World.GetComponentRO<NavigationStatus>(entity);
+        intentId = status.IntentId;
+        return status.Result;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -366,9 +503,11 @@ public sealed class StrideSelfTest
             $"[SELFTEST] RESULT " +
             $"initialHold={(_initialHold ? "PASS" : "FAIL")} " +
             $"repos={(_repos ? "PASS" : "FAIL")} " +
-            $"errA={_errA:F2} errB={_errB:F2} " +
+            $"drive={(_drive ? "PASS" : "FAIL")} " +
+            $"errA={_errA:F2} errB={_errB:F2} driveDistMoved={_driveDistMoved:F2} driveErrToDest={_driveErrToDest:F2} " +
             $"(A=({PosA.X},{PosA.Y}) endA=({_endA.X:F2},{_endA.Y:F2}) " +
-            $"B=({PosB.X},{PosB.Y}) endB=({_endB.X:F2},{_endB.Y:F2}))");
+            $"B=({PosB.X},{PosB.Y}) endB=({_endB.X:F2},{_endB.Y:F2}) " +
+            $"D=({PosD.X},{PosD.Y}) endDrive=({_endDrive.X:F2},{_endDrive.Y:F2}))");
         ExitProcess();
     }
 
