@@ -342,6 +342,17 @@ namespace GizmoMap.Presentation
                     float len = prim.LengthMeters > 0f ? prim.LengthMeters : 5f;
                     float wid = prim.WidthMeters > 0f ? prim.WidthMeters : len * 0.5f;
 
+                    // BATCH-S2-G3 Part 2: apply a minimum pixel floor so markers stay readable
+                    // when zoomed out. Uniform scale preserves aspect ratio; above the floor
+                    // (scale == 1) the shape is drawn true-to-scale.
+                    const float MinPixelFloor = 12f;
+                    float lenPx = len * zoom;
+                    float widPx = wid * zoom;
+                    float maxPx = MathF.Max(lenPx, widPx);
+                    float scale = (maxPx > 0f && maxPx < MinPixelFloor) ? MinPixelFloor / maxPx : 1f;
+                    float drawLen = len * scale;
+                    float drawWid = wid * scale;
+
                     var profile = _shapeLibrary.GetShape(null, prim.ProfileId);
                     if (profile != null && profile.Name != "_fallback")
                     {
@@ -351,8 +362,8 @@ namespace GizmoMap.Presentation
                             profile,
                             new Vector2(worldX, worldY),
                             rotation,
-                            len,
-                            wid,
+                            drawLen,
+                            drawWid,
                             color,
                             exaggerationCoefficient: 0.05f,
                             visualScaleMultiplier: 1.0f,
@@ -362,10 +373,10 @@ namespace GizmoMap.Presentation
                     else
                     {
                         var rect = new Rectangle(
-                            worldX - len * geomScale * 0.5f,
-                            worldY - wid * geomScale * 0.5f,
-                            len * geomScale,
-                            wid * geomScale);
+                            worldX - drawLen * geomScale * 0.5f,
+                            worldY - drawWid * geomScale * 0.5f,
+                            drawLen * geomScale,
+                            drawWid * geomScale);
                         Raylib.DrawRectangleLinesEx(rect, 1f, new Color((byte)255, (byte)0, (byte)255, color.A));
                     }
                     break;

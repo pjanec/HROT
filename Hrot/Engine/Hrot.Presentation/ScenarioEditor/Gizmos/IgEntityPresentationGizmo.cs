@@ -43,6 +43,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             EntityPresentationGizmoShared.DrawSemanticShape(
                 draw,
+                view,
                 entity,
                 networkId,
                 profileId,
