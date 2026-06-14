@@ -744,7 +744,18 @@ public sealed class StrideHrotGame : Game
         // All entities at FDP Z=0 (ground level, Stride Y=0).
         // The camera at Stride (0, 10, -5) looks roughly toward Stride Z+ (North in FDP),
         // so all spawns at Z=5 and Z=7 are directly in front of the camera.
-        EnqueueDemoSpawns();
+        //
+        // ── BATCH-S2-J: ONLY in the standalone (non-hosted) demo mode ─────────────
+        // In hosted real-editor mode (STRIDE_HOST_REAL_EDITOR / STRIDE_SELFTEST) the editor
+        // loads REAL scenarios; the 6 demo entities (4 mannequins along FDP Y=5, 2 APCs at Y=7)
+        // would otherwise sit in the tiny arena as static OBSTACLES that a loaded scenario
+        // vehicle drives straight into and wedges against (root cause of "test-move vehicle
+        // won't move": the IFV path along Y=5 collides with the demo mannequin at (-3,5)).
+        if (!hostRealEditor)
+            EnqueueDemoSpawns();
+        else
+            Log.Info("[StrideHrotGame] Hosted real-editor mode — skipping demo UrbanCombat spawns " +
+                     "(real scenarios are loaded via the editor; demo entities would clutter/obstruct the arena).");
 
         // ── 6. Build the in-app test harness (BATCH-12, STR-TEST-1) ───────
         BuildTestHarness(scene);
