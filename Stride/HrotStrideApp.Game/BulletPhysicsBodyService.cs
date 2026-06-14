@@ -1104,13 +1104,12 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         if (entry.PhysicsComponent is CharacterComponent ch)
         {
             // ── CharacterComponent (capsule / mannequin) path ─────────────────
-            // CharacterComponent bodies are kinematic (CharacterController), so
-            // we cannot use UpdatePhysicsTransformation or zero LinearVelocity.
-            // Instead: set the entity transform and call CharacterComponent.Teleport
-            // (Stride 4.2.1.2487 API — takes a world Vector3 position).
-            // No InitialPoseApplied gate here — capsule bodies never go through
-            // ApplyDynamicConfigIfReady, so that flag is always false for them.
-            // Readiness guard: only teleport if the component is in the simulation.
+            // Reposition a kinematic character so it STICKS (BATCH-S2-V). Setting entity.Transform +
+            // CharacterComponent.Teleport alone does NOT move the controller's internal position in
+            // Stride.Physics 4.2.1.2487 (it snaps back). UpdatePhysicsTransformation(true) — the same
+            // base-PhysicsComponent call the vehicle uses — pushes the entity transform into the native
+            // collider/ghost world transform, which the kinematic controller uses as its position.
+            // Readiness guard: only act once the component is in the simulation.
             if (ch.Simulation == null) return;
 
             entry.StrideEntity.Transform.Position = newPos;
@@ -1118,12 +1117,13 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
             entry.StrideEntity.Transform.UpdateWorldMatrix();
             try
             {
-                ch.Teleport(newPos);
+                ch.UpdatePhysicsTransformation(true); // push transform into the native ghost/controller
+                ch.Teleport(newPos);                  // belt-and-suspenders (warp the controller too)
             }
             catch (Exception ex)
             {
-                // CharacterController not yet fully initialised — safe to skip; position set.
-                Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose(character): Teleport failed for '{0}' ({1}); entity transform set.",
+                // CharacterController not yet fully initialised — safe to skip; entity transform is set.
+                Log.Debug("[BulletPhysicsBodyService] SyncBodyToExternalPose(character): reposition call failed for '{0}' ({1}); entity transform set.",
                     entry.StrideEntity.Name, ex.GetType().Name);
             }
 
