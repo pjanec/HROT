@@ -2,7 +2,9 @@
 
 | ID | Source | Description | Priority | Target Batch | Status |
 |----|--------|-------------|----------|--------------|--------|
-| _(none yet)_ | | | | | |
+| ADA-01-D01 | ADA-BATCH-01 | `EventSerializationHelper` entity-ref resolution deferred — `IGuidResolver` parameter accepted but not used until `NetworkEntityMap` is wired in. | P3 | ADA-BATCH-02+ | OPEN |
+| ADA-01-D02 | ADA-BATCH-01 review | POST endpoints require `Content-Length` (HttpListener returns 411 on bodyless POST). MCP/clients must send it (fetch does automatically); document for manual `curl`. | P3 | ADA-PM | OPEN |
+| ADA-01-D03 | ADA-BATCH-01 review | `/shutdown` breaks only the headless `Run()` loop, not the windowed Raylib loop. Acceptable (API headless-primary). | P3 | — | OPEN |
 
 Legend:
 - P1 = Critical (never enters tracker; always becomes Corrective Task 0 in next batch)

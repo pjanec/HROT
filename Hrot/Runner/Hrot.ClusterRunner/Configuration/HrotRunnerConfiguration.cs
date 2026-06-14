@@ -54,6 +54,14 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
         public bool DryRun { get; set; }
 
+        /// <summary>Enable the in-process HTTP debug API (opt-in, disabled by default).</summary>
+        [Option("debug-api", Required = false, Default = false, HelpText = "Enable in-process HTTP debug API")]
+        public bool DebugApiEnabled { get; set; }
+
+        /// <summary>Port for the debug API HTTP listener. Default 8080.</summary>
+        [Option("debug-api-port", Required = false, Default = 8080, HelpText = "Port for the debug API (default 8080)")]
+        public int DebugApiPort { get; set; } = 8080;
+
         // -- Parsed values ---------------------------------------------------
 
         /// <summary>Parsed set of requested subsystem names. Set by <see cref="Validate"/>.</summary>

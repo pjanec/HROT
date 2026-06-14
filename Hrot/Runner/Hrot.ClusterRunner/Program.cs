@@ -234,6 +234,14 @@ class Program
 
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
+
+        // ADA-BATCH-01: wire up the in-process HTTP debug API when requested.
+        if (config.DebugApiEnabled)
+        {
+            foreach (var sub in subsystems.OfType<Hrot.Editor.EditorSubsystem>())
+                sub.ConfigureDebugApi(config.DebugApiPort, shutdownCallback: orchestrator.Stop);
+        }
+
         Hrot.ClusterRunner.Presentation.LocalWindowController? windowCtrl = null;
         try
         {

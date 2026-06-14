@@ -47,10 +47,10 @@ agent's report).
 **Goal:** The opt-in `DebugApiHost`, main-thread marshalling, and the shared serialization/schema helpers
 every later group depends on. Prereq for everything.
 
-- [ ] **ADA-P0-T01** [sonnet] DebugApiHost: HttpListener, routing, JSON envelope, config flag, `/shutdown` [details](./TASK-DETAIL.md#ada-p0-t01--debugapihost-skeleton)
-- [ ] **ADA-P0-T02** [sonnet] MainThreadJobQueue + `EditorSubsystem.Update` drain + background-thread guards [details](./TASK-DETAIL.md#ada-p0-t02--main-thread-job-queue)
-- [ ] **ADA-P0-T03** [sonnet] `EventSerializationHelper` (promote `DtoDiagnosticMapper` public + Entity→networkId) [details](./TASK-DETAIL.md#ada-p0-t03--eventserializationhelper)
-- [ ] **ADA-P0-T04** [zoo] CLR→JSON-schema helper for discovery [details](./TASK-DETAIL.md#ada-p0-t04--clrjson-schema-helper)
+- [x] **ADA-P0-T01** [sonnet] DebugApiHost: HttpListener, routing, JSON envelope, config flag, `/shutdown` — BATCH-01, lead-verified headless smoke (status+shutdown clean exit 0) [details](./TASK-DETAIL.md#ada-p0-t01--debugapihost-skeleton)
+- [x] **ADA-P0-T02** [sonnet] MainThreadJobQueue + `EditorSubsystem.Update` drain + background-thread guards — BATCH-01 [details](./TASK-DETAIL.md#ada-p0-t02--main-thread-job-queue)
+- [~] **ADA-P0-T03** [sonnet] `EventSerializationHelper` — BATCH-01 (code done; **tests pending → BATCH-02 corrective C1**) [details](./TASK-DETAIL.md#ada-p0-t03--eventserializationhelper)
+- [x] **ADA-P0-T04** [zoo] CLR→JSON-schema helper for discovery — BATCH-01 [details](./TASK-DETAIL.md#ada-p0-t04--clrjson-schema-helper)
 
 ---
 

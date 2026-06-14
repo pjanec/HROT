@@ -193,6 +193,10 @@ namespace Hrot.Editor
         // GZH-016: gate — false when another subsystem owns the map view.
         private Func<bool>              _isActiveMapOwner = () => true;
 
+        // ── AI Debug API (ADA-BATCH-01) ───────────────────────────────────────
+        private Hrot.Editor.DebugApi.MainThreadJobQueue? _debugApiJobQueue;
+        private Hrot.Editor.DebugApi.DebugApiHost?       _debugApiHost;
+
         // ── Universal breakpoints (UBP-P10T1) ────────────────────────────────────
         private EntityRepository?       _bpPreTickSnapshot;
         private DebugSnapshotProvider?  _bpSnapshotProvider;
@@ -562,6 +566,23 @@ namespace Hrot.Editor
         public string[] AiBehaviorsProjectPath { get; set; } =
             new[] { "Subsystems", "Hrot.AI.Behaviors", "Hrot.AI.Behaviors.csproj" };
 
+        /// <summary>
+        /// Enables the in-process HTTP debug API on <paramref name="port"/>.
+        /// Call before <see cref="Initialize"/> or immediately after — the host is
+        /// started lazily on the first <see cref="Update"/> drain cycle.
+        /// </summary>
+        /// <param name="port">TCP port the listener will bind to.</param>
+        /// <param name="shutdownCallback">
+        ///   Action to invoke when a <c>POST /shutdown</c> request is received.
+        ///   Pass <c>null</c> to disable graceful remote shutdown.
+        /// </param>
+        public void ConfigureDebugApi(int port, Action? shutdownCallback = null)
+        {
+            _debugApiJobQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+            _debugApiHost     = new Hrot.Editor.DebugApi.DebugApiHost(
+                port, _debugApiJobQueue, shutdownCallback ?? (() => { }));
+            _debugApiHost.Start();
+        }
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
@@ -1577,6 +1598,9 @@ namespace Hrot.Editor
 
             // Kernel.Update() internally calls bus.SwapBuffers() then ticks registered modules.
             _kernel?.Update();
+
+            // ADA-BATCH-01: drain debug API jobs queued by background HTTP handler threads.
+            _debugApiJobQueue?.DrainAll();
 
             // Drain AI hot-reload callbacks safely on the main thread.
             // Any BTreeInterpreter pointer swaps queued by the background ALC worker
@@ -3523,6 +3547,11 @@ namespace Hrot.Editor
                 }
             }
             // ─────────────────────────────────────────────────────────────────────────────────────
+            // ADA-BATCH-01: stop the debug API listener before tearing down the kernel.
+            _debugApiHost?.Dispose();
+            _debugApiHost     = null;
+            _debugApiJobQueue = null;
+
             _aiCoordinator?.Dispose();
             _aiCoordinator = null;
             _kernel?.Dispose();

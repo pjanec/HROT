@@ -1605,7 +1605,7 @@ namespace Fdp.Core.FlightRecorder
             throw new NotSupportedException($"No read method for type {t.Name}");
         }
         
-        internal static List<MemberInfo> GetSortedMembers(Type t)
+        public static List<MemberInfo> GetSortedMembers(Type t)
         {
             var members = t.GetFields(BindingFlags.Public | BindingFlags.Instance)
                 .Cast<MemberInfo>()
