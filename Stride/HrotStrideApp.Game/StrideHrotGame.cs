@@ -174,9 +174,11 @@ public sealed class StrideHrotGame : Game
     /// <summary>Physics raycast service for 3D click-to-select / click-to-move (BATCH-S2-O).</summary>
     private IStrideRaycastService? _raycastService;
 
-    // BATCH-S2-S: RMB click-vs-drag discrimination (RMB is also camera-orbit).
-    private Stride.Core.Mathematics.Vector2? _rmbDownPos;
-    private const float RmbClickMaxTravel = 0.02f; // normalized screen units; >this = camera drag, ignore
+    // BATCH-S2-U: RMB click-vs-drag via accumulated mouse delta (camera orbit locks the cursor, so
+    // down-vs-up position is unreliable; MouseDelta reports movement even when the cursor is locked).
+    private bool  _rmbHeld;
+    private float _rmbDragAccum;
+    private const float RmbDragDeadzone = 0.01f; // accumulated normalized delta above which it's a drag
 
     /// <summary>
     /// Frame counter used to throttle the spawn-diagnostics log in <see cref="Update"/>
@@ -437,14 +439,15 @@ public sealed class StrideHrotGame : Game
                 var world = _editorSubsystem.World;
                 if (cam != null && world != null)
                 {
-                    bool lmb = Input.IsMouseButtonPressed(MouseButton.Left);
+                    bool lmb     = Input.IsMouseButtonPressed(MouseButton.Left);
                     bool rmbDown = Input.IsMouseButtonPressed(MouseButton.Right);
-                    bool rmbUp = Input.IsMouseButtonReleased(MouseButton.Right);
+                    bool rmbUp   = Input.IsMouseButtonReleased(MouseButton.Right);
 
-                    // Record RMB-down position to later tell a click from a camera-orbit drag.
-                    if (rmbDown) _rmbDownPos = Input.MousePosition;
+                    // Track RMB hold + accumulate movement (camera orbit → large accum; click → ~0).
+                    if (rmbDown) { _rmbHeld = true; _rmbDragAccum = 0f; }
+                    if (_rmbHeld) _rmbDragAccum += Input.MouseDelta.Length();
 
-                    // LMB select (on press) — unchanged behavior.
+                    // LMB select (on press) — unchanged.
                     if (lmb)
                     {
                         var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
@@ -461,17 +464,18 @@ public sealed class StrideHrotGame : Game
                         else Log.Info("[ClickDiag] LMB no live entity hit — selection unchanged.");
                     }
 
-                    // RMB move — only on RELEASE and only if it was a click (not a camera-orbit drag).
-                    if (rmbUp && _rmbDownPos is { } downPos)
+                    // RMB move — only on release, only if it was a click (small accumulated movement), not a camera orbit.
+                    if (rmbUp)
                     {
-                        float travel = (Input.MousePosition - downPos).Length();
-                        _rmbDownPos = null;
-                        if (travel <= RmbClickMaxTravel)
+                        float accum = _rmbDragAccum;
+                        _rmbHeld = false;
+                        _rmbDragAccum = 0f;
+                        if (accum <= RmbDragDeadzone)
                         {
                             var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
                             var hit = _raycastService.Raycast(ray.Origin, ray.Origin + ray.Direction * 1000f);
-                            Log.Info("[ClickDiag] RMB-click travel={0:F3} hasHit={1} point=({2:F2},{3:F2},{4:F2})",
-                                travel, hit.HasHit, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
+                            Log.Info("[ClickDiag] RMB-click accum={0:F4} hasHit={1} point=({2:F2},{3:F2},{4:F2})",
+                                accum, hit.HasHit, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
                             if (hit.HasHit)
                             {
                                 var sel = _editorSubsystem.SelectionState;
@@ -479,14 +483,12 @@ public sealed class StrideHrotGame : Game
                                 {
                                     IssueMoveOrder(world, sel.SelectedEntity, hit.PointFdp);
                                     _editorSubsystem.ShowMoveMarker(hit.PointFdp);
-                                    Log.Info("[StrideHrotGame] Move order: entity #{0} → FDP ({1:F2},{2:F2},{3:F2}).",
-                                        sel.SelectedEntity.Index, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
                                 }
                             }
                         }
                         else
                         {
-                            Log.Info("[ClickDiag] RMB drag (travel={0:F3}) — treated as camera orbit, no move order.", travel);
+                            Log.Info("[ClickDiag] RMB drag (accum={0:F4}) — camera orbit, no move order.", accum);
                         }
                     }
                 }
