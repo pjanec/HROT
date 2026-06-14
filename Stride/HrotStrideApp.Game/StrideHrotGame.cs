@@ -241,6 +241,19 @@ public sealed class StrideHrotGame : Game
         // minimum interval between ticks.  Setting it to zero disables any sleep.
         // (VERIFIED: Stride.Games.GameBase.WindowMinimumUpdateRate, Stride 4.2.1.2487)
         WindowMinimumUpdateRate.MinimumElapsedTime = TimeSpan.Zero;
+
+        // BATCH-S2-AE: the raylib editor window's GLFW present already vsync-blocks ~16ms/frame;
+        // if Stride's D3D present ALSO vsync-blocks we get two waits per frame (~32ms => ~20-31Hz).
+        // When the editor window is active, disable Stride's vsync so the single GLFW present paces
+        // the shared loop at ~60Hz.  When the editor window is OFF, keep Stride vsync ON (otherwise
+        // the lone 3D window renders uncapped).
+        // Set here in the constructor (device not yet created) — no ApplyChanges needed.
+        // Uses the IDENTICAL condition as the _inspectorWindow creation gate in BootEditorSubsystem.
+        if (StrideInspectorWindowConfig.IsEnabled)
+        {
+            GraphicsDeviceManager.SynchronizeWithVerticalRetrace = false;
+            Log.Info("[StrideHrotGame] Editor window active — disabling Stride D3D vsync (single GLFW pacer, BATCH-S2-AE).");
+        }
     }
 
     // ── Bootstrapper injection ────────────────────────────────────────────
