@@ -688,6 +688,25 @@ public sealed class StrideHrotGame : Game
         }
     }
 
+    // ── BATCH-S2-Q: FDP entity resolver (reverse visuals-map lookup) ─────
+
+    /// <summary>
+    /// Resolves the FDP <see cref="Fdp.Core.Entity"/> that owns a hit Stride visual/physics entity,
+    /// by reverse-looking-up the visual-binding map (FDP Entity → StrideVisualReference.VisualHandle).
+    /// Returns <see cref="Fdp.Core.Entity.Null"/> for static scene geometry (floor/walls). (BATCH-S2-Q)
+    /// </summary>
+    private Fdp.Core.Entity ResolveFdpEntityFromStride(global::Stride.Engine.Entity strideEntity)
+    {
+        var visuals = _editorSubsystem?.VisualBindingSystem?.Visuals;
+        if (visuals != null)
+        {
+            foreach (var kv in visuals)
+                if (ReferenceEquals(kv.Value.VisualHandle, strideEntity))
+                    return kv.Key;
+        }
+        return Fdp.Core.Entity.Null;
+    }
+
     // ── Boot helper ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -782,7 +801,9 @@ public sealed class StrideHrotGame : Game
                     ?? new System.Collections.Generic.Dictionary<Fdp.Core.Entity, Hrot.Stride.Core.StrideVisualReference>());
 
             // BATCH-S2-O: construct raycast service for 3D click-to-select / click-to-move.
-            _raycastService = new StrideRaycastService(physicsProcessor.Simulation);
+            // BATCH-S2-Q: pass the resolver so hit Stride entities are mapped to FDP entities
+            // via the live visuals map (reverse lookup) rather than the legacy name-parse.
+            _raycastService = new StrideRaycastService(physicsProcessor.Simulation, ResolveFdpEntityFromStride);
             Log.Info("[StrideHrotGame] StrideRaycastService created (BATCH-S2-O).");
         }
         else

@@ -41,6 +41,7 @@ namespace HrotStrideApp;
 public sealed class StrideRaycastService : IStrideRaycastService
 {
     private readonly Simulation _simulation;
+    private readonly Func<global::Stride.Engine.Entity, Fdp.Core.Entity>? _entityResolver;
 
     /// <summary>
     /// Creates a <see cref="StrideRaycastService"/> wrapping an active <paramref name="simulation"/>.
@@ -50,10 +51,18 @@ public sealed class StrideRaycastService : IStrideRaycastService
     /// (e.g. via <c>ScriptComponent.GetSimulation()</c> or
     /// <c>Entity.GetSimulation()</c> inside a Stride script / game system).
     /// </param>
+    /// <param name="entityResolver">
+    /// Optional delegate that maps a hit Stride <see cref="global::Stride.Engine.Entity"/> back to
+    /// the owning FDP <see cref="Fdp.Core.Entity"/> via the live visuals map.
+    /// When null, falls back to the legacy name-parse path. (BATCH-S2-Q)
+    /// </param>
     /// <exception cref="ArgumentNullException">When <paramref name="simulation"/> is null.</exception>
-    public StrideRaycastService(Simulation simulation)
+    public StrideRaycastService(
+        Simulation simulation,
+        Func<global::Stride.Engine.Entity, Fdp.Core.Entity>? entityResolver = null)
     {
-        _simulation = simulation ?? throw new ArgumentNullException(nameof(simulation));
+        _simulation     = simulation ?? throw new ArgumentNullException(nameof(simulation));
+        _entityResolver = entityResolver;
     }
 
     /// <inheritdoc/>
@@ -129,7 +138,7 @@ public sealed class StrideRaycastService : IStrideRaycastService
     /// any future translation offset being added to the position path.
     /// </para>
     /// </summary>
-    private static StrideRaycastHit ToFdpHit(in HitResult hit)
+    private StrideRaycastHit ToFdpHit(in HitResult hit)
     {
         if (!hit.Succeeded)
             return StrideRaycastHit.Miss;
@@ -140,18 +149,23 @@ public sealed class StrideRaycastService : IStrideRaycastService
         // Direction (velocity) swizzle for the surface normal — NOT the position swizzle.
         Vector3 normalFdp = FdpStrideTransform.ToFdpVelocity(hit.Normal);
 
-        // The Stride collider may carry an FDP entity handle in its user-object slot.
-        // PhysicsBodyLifecycleSystem tags the Stride entity name with the FDP entity
-        // Index packed as a decimal string.  Static scene geometry has no such tag
-        // and resolves to Entity.Null.
+        // Resolve the FDP entity that owns this collider.
         Entity hitEntity = Entity.Null;
-        if (hit.Collider?.Entity?.Name is string name &&
-            int.TryParse(name, out int idx))
+        var collEntity = hit.Collider?.Entity;
+        if (collEntity != null)
         {
-            // Reconstruct entity with index only (generation 1 = first allocation).
-            // The generation field is best-effort here; callers must verify liveness
-            // via EntityRepository.IsAlive before using the handle.
-            hitEntity = new Entity(idx, 1);
+            // Primary: resolve via the live visuals map (Stride entity → FDP entity). (BATCH-S2-Q)
+            if (_entityResolver != null)
+                hitEntity = _entityResolver(collEntity);
+
+            // Fallback (legacy / tests): entity named with its FDP index as a decimal string.
+            if (hitEntity == Entity.Null && collEntity.Name is string nm && int.TryParse(nm, out int idx))
+            {
+                // Reconstruct entity with index only (generation 1 = first allocation).
+                // The generation field is best-effort here; callers must verify liveness
+                // via EntityRepository.IsAlive before using the handle.
+                hitEntity = new Entity(idx, 1);
+            }
         }
 
         return new StrideRaycastHit(
