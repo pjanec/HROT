@@ -508,6 +508,22 @@ namespace Hrot.Editor.DebugApi
                     Service().EditEntityComponent(id, componentType!, patch)).ConfigureAwait(false);
                 return error != null ? Fail(400, error) : Ok(node);
             }));
+
+            // Group M — Focus + Annotations (ADA-BATCH-14)
+            _routes.Add(new("POST", "/entities/{networkId}/focus", async ctx =>
+            {
+                if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
+                    return Fail(400, "Invalid networkId.");
+                var node = await _jobQueue.RunOnMainThread(() => Service().FocusEntity(id)).ConfigureAwait(false);
+                return Ok(node);
+            }));
+
+            _routes.Add(new("POST", "/annotations", async ctx =>
+            {
+                var (node, error) = await _jobQueue.RunOnMainThread(() =>
+                    Service().AddAnnotation(ctx.Body)).ConfigureAwait(false);
+                return error != null ? Fail(400, error) : Ok(node);
+            }));
         }
 
         private async Task<RouteResult> HandleScenarioLoad(RequestContext ctx)

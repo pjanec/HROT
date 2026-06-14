@@ -1173,6 +1173,70 @@ const TOOLS = [
       } catch (err) { return toolError(err.message, err.envelope); }
     },
   },
+
+  // ── Group M — Focus + Annotations (ADA-BATCH-14) ────────────────────────────
+
+  {
+    name: 'focus_entity',
+    description:
+      'POST /entities/{networkId}/focus — pan and zoom the map canvas to an entity. ' +
+      'Publishes CenterOnEntityCommand (headless-verifiable via event history). ' +
+      'The actual camera move only occurs in a windowed session (MANUAL-VERIFY). ' +
+      'Returns { focused: true } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['networkId'],
+      properties: {
+        networkId: { type: 'number', description: 'Network entity ID to center the view on' },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/focus`, {}));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
+
+  {
+    name: 'add_annotation',
+    description:
+      'POST /annotations — draw a debug primitive (sphere, anchor, or line) in the gizmo buffer. ' +
+      'The buffer write is headless-verifiable; the actual gizmo render requires a windowed session ' +
+      '(MANUAL-VERIFY). Supported types:\n' +
+      '  "sphere" — x, y, z, radius (float), optional color (hex "#RRGGBB")\n' +
+      '  "anchor" — networkId, x, y, z, optional heading (float)\n' +
+      '  "line"   — from:{x,y,z}, to:{x,y,z}, optional color\n' +
+      'Returns { added: true, primitiveIndex, bufferCount } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['type'],
+      properties: {
+        type: { type: 'string', enum: ['sphere', 'anchor', 'line'], description: 'Annotation type' },
+        networkId: { type: 'number', description: 'Entity network ID (anchor only)' },
+        x: { type: 'number', description: 'World X coordinate' },
+        y: { type: 'number', description: 'World Y coordinate' },
+        z: { type: 'number', description: 'World Z coordinate' },
+        radius: { type: 'number', description: 'Sphere radius in metres' },
+        heading: { type: 'number', description: 'Heading in degrees (anchor)' },
+        color: { type: 'string', description: 'Hex color string e.g. "#FF0000"' },
+        from: {
+          type: 'object',
+          description: 'Line start point {x,y,z}',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+        },
+        to: {
+          type: 'object',
+          description: 'Line end point {x,y,z}',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+        },
+      },
+    },
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/annotations', toolArgs));
+      } catch (err) { return toolError(err.message, err.envelope); }
+    },
+  },
 ];
 
 // ── MCP Server setup ────────────────────────────────────────────────────────

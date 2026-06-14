@@ -65,7 +65,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 - [x] **ADA-P1-T04** [zoo] Scenario load/list/save (Group E) — BATCH-02 + BATCH-03 P1 corrective. Load now lead-verified in real headless (test-move → OperatingEdit, entityCount 1). Fixes: NAS storage provider + ClusterMaster roster seed + wall-clock poll [details](./TASK-DETAIL.md#ada-p1-t04--scenario-loadlistsave)
 - [x] **ADA-P1-T05** [sonnet] Entity commands + `/commands` discovery + wait-gating (Group F) — BATCH-04, lead-verified (32/32 + real headless smoke: commands non-empty, spawn raises entityCount). Debt: ADA-04-D01 (ack-wait happy path, sanctioned), ADA-04-D02 (managed-event discovery → T06b) [details](./TASK-DETAIL.md#ada-p1-t05--entity-commands--discovery)
 - [x] **ADA-P1-T06** [zoo] `/components` + `/scenarios` discovery — BATCH-04 (`/components` done; `/scenarios` already shipped as `/scenario/list` in BATCH-02) [details](./TASK-DETAIL.md#ada-p1-t06--componentsscenarios-discovery)
-- [ ] **ADA-P1-T06b** [sonnet] Managed-event discovery for `/commands` (ADA-04-D02): surface managed events (`SpawnEntityCommand`, `MissionControlIntent`, …) — bus-level `GetRegisteredManagedEventTypes()` seam or assembly scan for a marker. Fold into next discovery-adjacent batch.
+- [x] **ADA-P1-T06b** [sonnet] Managed-event discovery for `/commands` (ADA-04-D02): surface managed events (`SpawnEntityCommand`, `MissionControlIntent`, …) — bus-level `GetRegisteredManagedEventTypes()` seam or assembly scan for a marker. Fold into next discovery-adjacent batch.
 - [x] **ADA-P1-T07** [zoo→sonnet] TKB entity-type catalog (Group M) — BATCH-05, lead-verified (real headless: 15 types, M1 Abrams; descriptors via EventSerializationHelper). Minor debt ADA-05-D01 (disType cosmetic) [details](./TASK-DETAIL.md#ada-p1-t07--tkb-entity-type-catalog)
 - [x] **ADA-P1-T08** [zoo→sonnet] World/coordinate info + geo origin getter + geo↔local convert w/ orientation (Group N) — BATCH-05, lead-verified (real headless: Berlin origin 52.52/13.405, 1000×1000 grid, origin→(0,0,0), round-trip OK; full-solution build clean — IGeographicTransform member addition safe across all implementers) [details](./TASK-DETAIL.md#ada-p1-t08--worldcoordinate-info)
 
@@ -135,7 +135,7 @@ discovery, TKB catalog, world/coordinate info. The first end-to-end usable surfa
 
 **Goal:** Focus-on-entity + debug annotations for the human-in-the-loop.
 
-- [ ] **ADA-P9-T01** [zoo] Focus-on-entity + gizmo annotations (Group F/manual-assist) [details](./TASK-DETAIL.md#ada-p9-t01--focus--annotations)
+- [x] **ADA-P9-T01** [zoo] Focus-on-entity + gizmo annotations (Group F/manual-assist) [details](./TASK-DETAIL.md#ada-p9-t01--focus--annotations)
 
 ---
 

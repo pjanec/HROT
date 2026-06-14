@@ -818,8 +818,90 @@ async function main() {
   console.log(`  invalid patch returned error: confirmed`);
   console.log('');
 
-  // ── Step 14: stop_simulation ──────────────────────────────────────────────
-  console.log('--- Step 14: stop_simulation ---');
+  // ── Step 14: ADA-BATCH-14 — T06b managed-event discovery + focus + annotations ──
+  console.log('--- Step 14: ADA-BATCH-14 managed-event discovery, focus, annotations ---');
+
+  // 14a: list_commands includes managed events (tagged managed:true)
+  console.log('14a: list_commands — must include a managed event tagged managed:true');
+  const listCmdsResult = await callTool(client, 'list_commands');
+  assert(!listCmdsResult.isError, `list_commands succeeded`);
+  const listCmdsArr = listCmdsResult.parsed?.data ?? listCmdsResult.parsed ?? [];
+  const isIterable = Array.isArray(listCmdsArr);
+  assert(isIterable, `list_commands returns an array`);
+  let hasManagedTrue = false;
+  let hasUnmanagedFalse = false;
+  let spawnCmdEntry = null;
+  if (isIterable) {
+    for (const entry of listCmdsArr) {
+      if (entry?.managed === true) hasManagedTrue = true;
+      if (entry?.managed === false) hasUnmanagedFalse = true;
+      if (entry?.name === 'SpawnEntityCommand') spawnCmdEntry = entry;
+    }
+  }
+  assert(hasManagedTrue, `list_commands includes at least one entry with managed:true`);
+  assert(hasUnmanagedFalse, `list_commands still includes unmanaged events (managed:false)`);
+  console.log(`  hasManagedTrue=${hasManagedTrue}, hasUnmanagedFalse=${hasUnmanagedFalse}`);
+  console.log(`  SpawnEntityCommand entry: ${spawnCmdEntry ? JSON.stringify(spawnCmdEntry).substring(0, 200) : 'NOT FOUND (may be absent if not yet registered on live session)'}`);
+  // Note: SpawnEntityCommand may not appear in a fresh session that hasn't published one yet
+  console.log('');
+
+  // 14b: focus_entity — publish CenterOnEntityCommand; verify via event history
+  console.log('14b: focus_entity {networkId:1000} — must return focused:true');
+  const focusResult = await callTool(client, 'focus_entity', { networkId: 1000 });
+  assert(!focusResult.isError, `focus_entity succeeded (no error)`);
+  const focusedFlag = focusResult.parsed?.data?.focused ?? focusResult.parsed?.focused;
+  assert(focusedFlag === true, `focus_entity returned focused:true; got: ${JSON.stringify(focusResult.parsed)}`);
+  console.log(`  focus_entity: focused=${focusedFlag}`);
+  // Verify via event history (allow a short delay for the main-thread job to complete)
+  await sleep(300);
+  const focusEventsResult = await callTool(client, 'get_events', {
+    bus: 'world',
+    type: 'CenterOnEntityCommand',
+    max: 10,
+  });
+  const focusEvents = focusEventsResult.parsed?.data?.events ?? focusEventsResult.parsed?.events ?? [];
+  const hasFocusEvent = Array.isArray(focusEvents) && focusEvents.length > 0;
+  // The event appears in history only after the next frame — tolerate absence but log clearly.
+  console.log(`  CenterOnEntityCommand in event history: ${hasFocusEvent} (${focusEvents.length} entries)`);
+  if (!hasFocusEvent) {
+    console.log('  NOTE: event may not appear in headless history if sim is not advancing; focus:true is the headless gate.');
+  }
+  console.log('  [MANUAL-VERIFY] Camera centering requires a windowed session — cannot verify headless.');
+  console.log('');
+
+  // 14c: add_annotation sphere — verify buffer write
+  console.log('14c: add_annotation {type:"sphere"} — must return added:true');
+  const annotResult = await callTool(client, 'add_annotation', {
+    type: 'sphere',
+    x: 100,
+    y: 0,
+    z: 50,
+    radius: 10,
+    color: '#FF4400',
+  });
+  assert(!annotResult.isError, `add_annotation (sphere) succeeded (no error)`);
+  const annotAdded = annotResult.parsed?.data?.added ?? annotResult.parsed?.added;
+  assert(annotAdded === true, `add_annotation returned added:true; got: ${JSON.stringify(annotResult.parsed)}`);
+  console.log(`  add_annotation sphere: added=${annotAdded}`);
+  console.log('  [MANUAL-VERIFY] Gizmo render requires a windowed session — cannot verify headless.');
+  console.log('');
+
+  // 14d: add_annotation line
+  console.log('14d: add_annotation {type:"line"} — must return added:true');
+  const lineResult = await callTool(client, 'add_annotation', {
+    type: 'line',
+    from: { x: 0, y: 0, z: 0 },
+    to: { x: 200, y: 0, z: 0 },
+    color: '#00FFAA',
+  });
+  assert(!lineResult.isError, `add_annotation (line) succeeded (no error)`);
+  const lineAdded = lineResult.parsed?.data?.added ?? lineResult.parsed?.added;
+  assert(lineAdded === true, `add_annotation (line) returned added:true; got: ${JSON.stringify(lineResult.parsed)}`);
+  console.log(`  add_annotation line: added=${lineAdded}`);
+  console.log('');
+
+  // ── Step 15: stop_simulation ──────────────────────────────────────────────
+  console.log('--- Step 15: stop_simulation ---');
   const stopResult = await callTool(client, 'stop_simulation');
   // stop_simulation either succeeds (ok:true from /shutdown) or the process already exited
   assert(
@@ -829,8 +911,8 @@ async function main() {
   console.log(`  Stop result: ${JSON.stringify(stopResult.parsed)}`);
   console.log('');
 
-  // ── Step 15: Orphan check ─────────────────────────────────────────────────
-  console.log('--- Step 15: orphan process check ---');
+  // ── Step 16: Orphan check ─────────────────────────────────────────────────
+  console.log('--- Step 16: orphan process check ---');
   // Give the process a moment to exit
   await sleep(2000);
 

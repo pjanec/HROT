@@ -122,7 +122,8 @@ public sealed class EditorHarness : IDisposable
     /// entity map, serializer-injected extraction service, time facade, preview, editor logic, and
     /// event history. Mirrors the production wiring in <c>EditorSubsystem</c> for Tier-1 tests.
     /// </summary>
-    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService()
+    public Hrot.Editor.DebugApi.DebugApiService BuildDebugApiService(
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer? primitiveBuffer = null)
     {
         var extraction = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(Repo, EntityMap, _serializer);
         var timeFacade = new Hrot.Editor.UI.EditorTimeTransportFacade(Preview, _timeController!, Repo);
@@ -150,7 +151,8 @@ public sealed class EditorHarness : IDisposable
             btreeSession:  BTreeSession,
             hsmSession:    HsmSession,
             attributeCompiler: Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform),
-            componentEditSvc:  new StructEdit.Reflection.ComponentEditServiceBuilder().Build());
+            componentEditSvc:  new StructEdit.Reflection.ComponentEditServiceBuilder().Build(),
+            primitiveBuffer:   primitiveBuffer);
     }
 
     // ── Nested test stub ─────────────────────────────────────────────────────

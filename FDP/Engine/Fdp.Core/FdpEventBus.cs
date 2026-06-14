@@ -665,6 +665,27 @@ namespace Fdp.Core
             }
         }
 
+        /// <summary>
+        /// Returns the CLR types of all currently registered managed event streams.
+        /// A managed event stream is registered when <see cref="RegisterManaged{T}"/> is called
+        /// or the first time <see cref="PublishManaged{T}"/> is called for that type.
+        ///
+        /// <b>Completeness caveat:</b> this list only includes managed event types that have been
+        /// registered or published at least once. Types that exist in the codebase but have never
+        /// been published (i.e. lazily-registered types not yet triggered) will be absent.
+        /// Thread-safe (ConcurrentDictionary snapshot).
+        /// </summary>
+        public IReadOnlyList<Type> GetRegisteredManagedEventTypes()
+        {
+            var types = new List<Type>();
+            foreach (var streamObj in _managedStreams.Values)
+            {
+                if (streamObj is IManagedEventStreamInfo info)
+                    types.Add(info.EventType);
+            }
+            return types;
+        }
+
         public void Dispose()
         {
             if (_disposed) return;

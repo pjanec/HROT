@@ -62,9 +62,25 @@ and will be added in their own batches as those API endpoints land.
 | `get_attributes_schema` | `GET /attributes/schema` | L |
 | `patch_attribute` | `POST /entities/{networkId}/attribute` | L |
 | `edit_component` | `POST /entities/{networkId}/component` | L |
+| `focus_entity` | `POST /entities/{networkId}/focus` | M |
+| `add_annotation` | `POST /annotations` | M |
 
-**47 tools total.** Groups A–N fully implemented including Group K (behavior traces) and Group L (live mutation / fault injection).
+**49 tools total.** Groups A–N fully implemented including Group K (behavior traces), Group L (live mutation / fault injection), and Group M (focus + annotations, ADA-BATCH-14).
+ADA-04-D02 is **RESOLVED** — `list_commands` now includes managed events tagged `managed:true`.
 ADA-06-D01 is **RESOLVED** — all groups A–N now have MCP tools.
+
+### `list_commands` — managed events
+`GET /commands` now returns both unmanaged `[EventId]` events and managed events registered on the bus.
+Each entry includes a `managed: boolean` field. The completeness caveat: managed events only appear after
+their first `RegisterManaged<T>()` / `PublishManaged<T>()` call (lazy registration).
+
+### `focus_entity` — camera centering
+Publishes `CenterOnEntityCommand` to the world bus. The actual camera pan/zoom only occurs in a windowed
+session. In headless mode, the publish is verifiable via event history (`get_events` with type `CenterOnEntityCommand`).
+
+### `add_annotation` — debug primitives
+Writes a debug primitive to the `DebugPrimitiveBuffer`. Types: `sphere`, `anchor`, `line`.
+The gizmo render only occurs in a windowed session (MANUAL-VERIFY). The buffer write is headless-verifiable.
 
 ---
 

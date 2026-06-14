@@ -1456,7 +1456,8 @@ namespace Hrot.Editor
                     },
                     editorTracer:     _aiTracerCoordinator as Hrot.Editor.DebugApi.EditorAiTracerCoordinator,
                     btreeSession:     _btreeDebugSession,
-                    hsmSession:       _hsmDebugSession);
+                    hsmSession:       _hsmDebugSession,
+                    primitiveBuffer:  _gizmoBuffer);
 
                 _debugApiHost.AttachService(debugService);
                 _debugApiHost.Start();

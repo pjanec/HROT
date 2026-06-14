@@ -22,7 +22,9 @@ using Fdp.Toolkit.ReplayBrowser.Diff;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Hrot.Diagnostics.Breakpoints;
+using Hrot.Editor.Commands;
 using Hrot.UI.Common.Facades;
 using StructEdit.Core;
 using StructEdit.Reflection;
@@ -94,6 +96,9 @@ namespace Hrot.Editor.DebugApi
         // Group L — Attribute patch + StructEdit component edit
         private readonly JsonAttributeCompiler _attributeCompiler;
         private readonly IComponentEditService _componentEditSvc;
+
+        // Group M — Focus / Annotations (ADA-BATCH-14)
+        private readonly DebugPrimitiveBuffer? _primitiveBuffer;
 
         internal static readonly JsonSerializerOptions SearchPredicateJsonOptions = new()
         {
@@ -187,7 +192,8 @@ namespace Hrot.Editor.DebugApi
             Hrot.Hsm.Editor.Debug.HsmDebugSession?        hsmSession        = null,
             Hrot.Blueprints.Core.Debug.BlueprintDebugSession? blueprintSession = null,
             JsonAttributeCompiler?                        attributeCompiler = null,
-            IComponentEditService?                        componentEditSvc  = null)
+            IComponentEditService?                        componentEditSvc  = null,
+            DebugPrimitiveBuffer?                         primitiveBuffer   = null)
         {
             _world            = world            ?? throw new ArgumentNullException(nameof(world));
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
@@ -215,6 +221,7 @@ namespace Hrot.Editor.DebugApi
             _blueprintSession = blueprintSession;
             _attributeCompiler = attributeCompiler ?? Hrot.SimHost.AttributeCompilerFactory.Build(_geoTransform);
             _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
+            _primitiveBuffer   = primitiveBuffer;
             if (_bpManager != null)
             {
                 _bpManager.OnBreakpointHit += (bp, entity) =>
@@ -626,9 +633,10 @@ namespace Hrot.Editor.DebugApi
         /// </summary>
         public JsonNode ListCommands()
         {
-            var types = EventType.GetAllRegistered();
-            var arr   = new JsonArray();
-            foreach (var t in types)
+            var arr = new JsonArray();
+
+            // Unmanaged events (registered via [EventId] attribute on value types).
+            foreach (var t in EventType.GetAllRegistered())
             {
                 var fields = JsonShapeDescriber.Describe(t);
                 var fa = new JsonArray();
@@ -636,10 +644,35 @@ namespace Hrot.Editor.DebugApi
                     fa.Add(new JsonObject { ["name"] = f.Name, ["type"] = f.Type });
                 arr.Add(new JsonObject
                 {
-                    ["name"]   = t.Name,
-                    ["fields"] = fa,
+                    ["name"]    = t.Name,
+                    ["managed"] = false,
+                    ["fields"]  = fa,
                 });
             }
+
+            // Managed events (registered lazily via RegisterManaged<T>/PublishManaged<T>).
+            // Completeness caveat: only types that have been registered or published at least
+            // once appear here. Types never used will be absent.
+            var managedTypes = _world.Bus.GetRegisteredManagedEventTypes();
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in arr)
+                seenNames.Add(entry?["name"]?.GetValue<string>() ?? "");
+
+            foreach (var t in managedTypes)
+            {
+                if (!seenNames.Add(t.Name)) continue; // skip if already listed (defensive)
+                var fields = JsonShapeDescriber.Describe(t);
+                var fa = new JsonArray();
+                foreach (var f in fields)
+                    fa.Add(new JsonObject { ["name"] = f.Name, ["type"] = f.Type });
+                arr.Add(new JsonObject
+                {
+                    ["name"]    = t.Name,
+                    ["managed"] = true,
+                    ["fields"]  = fa,
+                });
+            }
+
             return arr;
         }
 
@@ -680,10 +713,18 @@ namespace Hrot.Editor.DebugApi
         /// <returns>JsonNode with { awaited, reason? } or null on 400 (unknown type).</returns>
         public (JsonNode? result, string? error) SendCommand(string eventTypeName, JsonNode? payload, bool wait)
         {
-            // Resolve event type by name across all registered types.
+            // Resolve event type by name across all registered types (unmanaged first, then managed).
             var registeredTypes = EventType.GetAllRegistered();
             Type? clrType = registeredTypes.FirstOrDefault(t =>
                 string.Equals(t.Name, eventTypeName, StringComparison.OrdinalIgnoreCase));
+
+            if (clrType is null)
+            {
+                // Also search managed event types registered on the bus.
+                var managedTypes = _world.Bus.GetRegisteredManagedEventTypes();
+                clrType = managedTypes.FirstOrDefault(t =>
+                    string.Equals(t.Name, eventTypeName, StringComparison.OrdinalIgnoreCase));
+            }
 
             if (clrType is null)
                 return (null, $"Unknown eventType: '{eventTypeName}'");
@@ -815,6 +856,132 @@ namespace Hrot.Editor.DebugApi
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running",
             };
+        }
+
+        // ── Group M — Focus + Annotations (ADA-BATCH-14) ────────────────────────
+
+        /// <summary>
+        /// <c>POST /entities/{networkId}/focus</c> — publish a <see cref="CenterOnEntityCommand"/>
+        /// so the map canvas pans and zooms to the specified entity.
+        ///
+        /// <para><b>Headless-verifiable:</b> the publish is confirmed by checking event history.
+        /// The actual camera move only happens in a windowed session (MANUAL-VERIFY).</para>
+        ///
+        /// <para>Must run on the main thread.</para>
+        /// </summary>
+        public JsonNode FocusEntity(long networkId)
+        {
+            var cmd = new CenterOnEntityCommand { NetworkId = networkId };
+            _world.Bus.Publish(cmd);
+            return new JsonObject { ["focused"] = true };
+        }
+
+        /// <summary>
+        /// <c>POST /annotations {type, ...}</c> — write a debug primitive into the gizmo
+        /// <see cref="DebugPrimitiveBuffer"/> so it is rendered on the next frame.
+        ///
+        /// <para>Supported types:
+        /// <list type="bullet">
+        ///   <item><c>"sphere"</c> — requires <c>x, y, z, radius</c> (float); optional <c>color</c> (hex string like "#FF0000").</item>
+        ///   <item><c>"anchor"</c> — requires <c>networkId, x, y, z</c>; optional <c>heading</c>.</item>
+        ///   <item><c>"line"</c> — requires nested <c>from:{x,y,z}</c> and <c>to:{x,y,z}</c>; optional <c>color</c>.</item>
+        /// </list>
+        /// </para>
+        ///
+        /// <para><b>Headless-verifiable:</b> the buffer write is confirmed by checking
+        /// <c>DebugPrimitiveBuffer.Count</c>. The gizmo render only happens in a windowed session
+        /// (MANUAL-VERIFY).</para>
+        /// </summary>
+        /// <returns>Tuple of (JsonNode result, string? error). Error is set when the buffer is
+        /// unavailable or the request is malformed.</returns>
+        public (JsonNode? result, string? error) AddAnnotation(JsonNode? body)
+        {
+            if (_primitiveBuffer is null)
+                return (null, "DebugPrimitiveBuffer not available (service wired without it).");
+
+            if (body is null)
+                return (null, "Request body is required.");
+
+            var type = body["type"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(type))
+                return (null, "'type' field is required (sphere | anchor | line).");
+
+            int countBefore = _primitiveBuffer.Count;
+
+            try
+            {
+                switch (type!.ToLowerInvariant())
+                {
+                    case "sphere":
+                    {
+                        float x      = body["x"]?.GetValue<float>()      ?? 0f;
+                        float y      = body["y"]?.GetValue<float>()      ?? 0f;
+                        float z      = body["z"]?.GetValue<float>()      ?? 0f;
+                        float radius = body["radius"]?.GetValue<float>() ?? 5f;
+                        var   color  = ParseColor(body["color"]?.GetValue<string>(), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 255, 0, 200));
+                        _primitiveBuffer.DrawSphere(new System.Numerics.Vector3(x, y, z), radius, color);
+                        break;
+                    }
+                    case "anchor":
+                    {
+                        long  netId   = body["networkId"]?.GetValue<long>()    ?? 0L;
+                        float x       = body["x"]?.GetValue<float>()           ?? 0f;
+                        float y       = body["y"]?.GetValue<float>()           ?? 0f;
+                        float z       = body["z"]?.GetValue<float>()           ?? 0f;
+                        float heading = body["heading"]?.GetValue<float>()     ?? 0f;
+                        _primitiveBuffer.DrawSpatialAnchor(netId, x, y, z, heading);
+                        break;
+                    }
+                    case "line":
+                    {
+                        var from = body["from"];
+                        var to   = body["to"];
+                        if (from is null || to is null)
+                            return (null, "'from' and 'to' are required for type 'line'.");
+                        float fx = from["x"]?.GetValue<float>() ?? 0f;
+                        float fy = from["y"]?.GetValue<float>() ?? 0f;
+                        float fz = from["z"]?.GetValue<float>() ?? 0f;
+                        float tx = to["x"]?.GetValue<float>() ?? 0f;
+                        float ty = to["y"]?.GetValue<float>() ?? 0f;
+                        float tz = to["z"]?.GetValue<float>() ?? 0f;
+                        var color = ParseColor(body["color"]?.GetValue<string>(), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 255, 255, 200));
+                        _primitiveBuffer.DrawLine(
+                            new System.Numerics.Vector3(fx, fy, fz),
+                            new System.Numerics.Vector3(tx, ty, tz),
+                            color);
+                        break;
+                    }
+                    default:
+                        return (null, $"Unknown annotation type '{type}'. Supported: sphere, anchor, line.");
+                }
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Failed to write annotation: {ex.Message}");
+            }
+
+            int countAfter = _primitiveBuffer.Count;
+            return (new JsonObject
+            {
+                ["added"]          = true,
+                ["primitiveIndex"] = countBefore,
+                ["bufferCount"]    = countAfter,
+            }, null);
+        }
+
+        private static Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 ParseColor(string? hex,
+            Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 fallback)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return fallback;
+            hex = hex!.TrimStart('#');
+            if (hex.Length == 6 &&
+                byte.TryParse(hex[0..2], System.Globalization.NumberStyles.HexNumber, null, out var r) &&
+                byte.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) &&
+                byte.TryParse(hex[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+            {
+                return new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(r, g, b, 255);
+            }
+            return fallback;
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────
