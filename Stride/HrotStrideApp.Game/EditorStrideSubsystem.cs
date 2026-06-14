@@ -1267,6 +1267,7 @@ public sealed class EditorStrideSubsystem : IDisposable
 
         // ── Step 7: Selection alive-guard + highlight gizmo (E4) ──────────
         _selectionSw.Restart();
+        SyncSelection2D3D(); // BATCH-S2-R: two-way 2D↔3D selection mirror (before ClearIfDead so sync sees live state)
         SelectionState.ClearIfDead(World);
         EmitSelectionHighlight();
         EmitMoveMarker(dt); // BATCH-S2-O: destination marker
@@ -1345,6 +1346,10 @@ public sealed class EditorStrideSubsystem : IDisposable
     // BATCH-S2-P: frame counter for throttled [SelDiag] log (~1/sec at 60 fps).
     private int _selDiagFrame;
 
+    // BATCH-S2-R: 2D↔3D selection sync version trackers.
+    private int _last2dSelVersion = -1;
+    private int _last3dSelVersion = -1;
+
     // Half-extents of the selection box in metres (world-space; constant for v1).
     // 1.0 m on each side → 2 m total; tall enough to encircle a standing infantry soldier.
     private const float SelectionBoxHalfExtent = 1.0f;
@@ -1355,6 +1360,37 @@ public sealed class EditorStrideSubsystem : IDisposable
     private const float MoveMarkerTotalSeconds = 3.0f;
     private static readonly Rgba32 MoveMarkerColor = new Rgba32(255, 215, 0, 255); // amber
     private const float MoveMarkerHalfSizeM = 0.6f;
+
+    /// <summary>
+    /// Keeps the 2D editor selection (<see cref="EditorSubsystem.Selected2DEntity"/>) and the 3D
+    /// <see cref="SelectionState"/> in sync, one direction per frame (whichever changed), using
+    /// version counters to prevent feedback bounce. (BATCH-S2-R)
+    /// </summary>
+    private void SyncSelection2D3D()
+    {
+        if (_editor == null) return;
+        int v2d = _editor.Selection2DVersion;
+        if (v2d != _last2dSelVersion)
+        {
+            // 2D changed this frame → push to 3D.
+            _last2dSelVersion = v2d;
+            var e = _editor.Selected2DEntity;
+            if (e.HasValue && e.Value != Fdp.Core.Entity.Null && World != null && World.IsAlive(e.Value))
+                SelectionState.Select(e.Value);
+            else
+                SelectionState.Clear();
+            _last3dSelVersion = SelectionState.Version; // sync tracker so we don't bounce back
+        }
+        else if (SelectionState.Version != _last3dSelVersion)
+        {
+            // 3D changed this frame (e.g. click-to-select) → push to 2D.
+            _last3dSelVersion = SelectionState.Version;
+            _editor.Selected2DEntity = SelectionState.HasSelection
+                ? SelectionState.SelectedEntity
+                : (Fdp.Core.Entity?)null;
+            _last2dSelVersion = _editor.Selection2DVersion; // sync tracker
+        }
+    }
 
     /// <summary>
     /// Emits a bright cyan bounding-box gizmo into the <see cref="ProducerBuffer"/> for the

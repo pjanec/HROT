@@ -585,6 +585,19 @@ namespace Hrot.Editor
         /// </summary>
         public bool IsHeadless => _headless;
 
+        /// <summary>
+        /// The primary selected entity in the 2D editor map (BATCH-S2-R, 2D↔3D selection sync).
+        /// Null when nothing is selected or in headless mode. Setting it updates the 2D selection.
+        /// </summary>
+        public Fdp.Core.Entity? Selected2DEntity
+        {
+            get => _selectionState?.PrimarySelected;
+            set { if (_selectionState != null) _selectionState.PrimarySelected = value; }
+        }
+
+        /// <summary>Monotonic version of the 2D selection (changes on each select/clear). 0 in headless. (BATCH-S2-R)</summary>
+        public int Selection2DVersion => _selectionState?.Version ?? 0;
+
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests
