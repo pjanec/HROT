@@ -580,6 +580,15 @@ public sealed class StrideInspectorWindow : IDisposable
         // ── 4. Build the WindowManager ────────────────────────────────────────
         _windowManager = new Fdp.Presentation.WindowManager.WindowManager(atlas);
 
+        // BATCH-S2-ML: message-log host wiring (mirrors LocalWindowController). The editor registers log
+        // SOURCES into wm.MessageLogRegistry and looks up a MessageLogWindow it assumes the host created —
+        // so the host (this window) must create the registry + window, exactly like the ClusterRunner host.
+        var messageLogRegistry = new Fdp.Core.Logging.MessageLogRegistry();
+        messageLogRegistry.RegisterSource(Fdp.Core.Logging.NLogMessageLogTarget.SharedInstance);
+        var msgLogWindow = new Fdp.Presentation.Windows.MessageLogWindow(messageLogRegistry);
+        _windowManager.RegisterWindow(msgLogWindow);
+        _windowManager.MessageLogRegistry = messageLogRegistry;
+
         // ── 5. Register all editor windows ───────────────────────────────────
         // HostedEditor is non-null when STRIDE_HOST_REAL_EDITOR=1.
         // RegisterWindows is a no-op when the editor is headless (Headless=true).
@@ -596,6 +605,10 @@ public sealed class StrideInspectorWindow : IDisposable
             Log.Info("[StrideInspectorWindow] No hosted editor (STRIDE_HOST_REAL_EDITOR not set) — " +
                      "WindowManager is empty; window shows black canvas only.");
         }
+
+        // BATCH-S2-ML: status-bar message-log notifier (click to open the log).
+        var msgLogSection = new Fdp.Presentation.WindowManager.MessageLogStatusBarSection(msgLogWindow, _windowManager);
+        _windowManager.StatusBar.RegisterSection("msg_log_notify", sortOrder: 90, msgLogSection.Render);
 
         _opened = true;
         Log.Info("[StrideInspectorWindow] Window opened ({0}x{1}).", _width, _height);
