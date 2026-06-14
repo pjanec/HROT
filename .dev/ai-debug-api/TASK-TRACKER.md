@@ -20,6 +20,28 @@ scratch `.bp.json` (see Constraints in detail doc).
 
 ---
 
+## Verification strategy (autonomous loop)
+
+Every batch ships tests; the loop self-verifies via `dotnet test`, so red can't be hidden.
+
+- **Tier 1 — in-process integration tests (the gate).** Use the existing `EditorHarness`
+  (`Hrot.ClusterRunner.Integration.Tests`), which builds a full offline editor world (`Repo`, `Bus`,
+  `OrchBus`, `Kernel`, `EntityMap`, `Editor`/`IEditorLogic`, `Preview`/`IPreviewController`, time
+  controller) with no DDS/window. Each task's **Success Conditions** become xUnit tests driving the API's
+  service layer against the harness — no HTTP/MCP needed. This covers groups B/C/D/E/F/G/H/I/K/L/M/N.
+- **Tier 2 — HTTP/MCP end-to-end smoke.** Launch `ClusterRunner -m editor --debug-api --headless`, hit
+  endpoints (and via the Node MCP server), assert. Validates transport + lifecycle (P0, P-MCP). The
+  offline editor has no DDS participant and headless skips the window, so process start is expected to work
+  — proven in ADA-P0-T01.
+- **Manual-verify only:** ADA-P9-T01 (focus-camera / gizmo annotations are visual).
+- **Test hygiene:** frozen `TestAssets` fixtures + direct deserialize (never the production scan path or
+  scratch `.bp.json`); never regenerate snapshots to make a test pass.
+
+Each batch is **gated by these tests run by the lead** before commit (trust the diff + green/red, not the
+agent's report).
+
+---
+
 ## Phase 0 — Web Host Foundation (T0 + shared helpers)
 
 **Goal:** The opt-in `DebugApiHost`, main-thread marshalling, and the shared serialization/schema helpers
