@@ -90,6 +90,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
 
     private readonly INavmeshProvider? _navmeshFallback;
     private readonly VehicleWaypointController _controller;
+    private readonly bool _useNavmesh;
 
     /// <summary>Per-entity navigation route state, keyed by the full generation-safe handle.</summary>
     private sealed class RouteState
@@ -141,6 +142,9 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
         float wheelBase        = DefaultWheelBase)
     {
         _navmeshFallback = navmeshFallback;
+        _useNavmesh = string.Equals(
+            Environment.GetEnvironmentVariable("STRIDE_VEHICLE_NAVMESH"), "1",
+            StringComparison.Ordinal);
         _controller = new VehicleWaypointController(
             cruiseSpeed:      cruiseSpeed,
             maxSteerAngleRad: maxSteerAngleRad,
@@ -255,6 +259,7 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
                 displacement              = 0f;
             }
             bool isStuck = !output.Arrived
+                           && route.Corners.Length > 1          // never fake-advance a single-corner direct route
                            && route.StuckWindowElapsed >= StuckWindowSec
                            && displacement < StuckDisplacementThresholdM;
 
@@ -308,9 +313,27 @@ public sealed class VehicleNavigationIntentSystem : IEcsModuleSystem
     /// Plans a route from <paramref name="curPos"/> to <c>intent.FinalDestination</c> over the
     /// Vehicle navmesh layer and returns a fresh <see cref="RouteState"/>.
     /// </summary>
-    private static RouteState PlanRoute(
+    private RouteState PlanRoute(
         INavmeshProvider navmesh, Entity entity, Vector3 curPos, in NavigationIntent intent)
     {
+        if (!_useNavmesh)
+        {
+            // Direct straight-line steer: single virtual corner at the destination (FDP X/Y).
+            // Bypasses the navmesh entirely (see BATCH-S2-J).
+            var dest = intent.FinalDestination;
+            Log.Info("[VehicleNav] entity #{0} DIRECT steer to FDP ({1:F1},{2:F1}) for IntentId={3} " +
+                     "(navmesh bypassed; set STRIDE_VEHICLE_NAVMESH=1 to re-enable navmesh).",
+                entity.Index, dest.X, dest.Y, intent.IntentId);
+            return new RouteState
+            {
+                PlannedIntentId     = intent.IntentId,
+                Corners             = new[] { new Vector2(dest.X, dest.Y) },
+                CurrentCorner       = 0,
+                StuckWindowStartPos = curPos,
+                StuckWindowElapsed  = 0f,
+            };
+        }
+
         // PlanPath operates in navmesh-query (= Stride) space. Convert FDP→Stride; the provider's
         // Vector3 contract is (X=East, Y=Up, Z=North) which equals FdpStrideTransform.ToStridePosition.
         var startStride = FdpStrideTransform.ToStridePosition(curPos);
