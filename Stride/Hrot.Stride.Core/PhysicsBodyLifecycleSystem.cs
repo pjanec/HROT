@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using CarKinem.Core;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -220,6 +221,19 @@ public sealed class PhysicsBodyLifecycleSystem : IEcsModuleSystem
                 entity, visualRef.ShapeKind, visualRef.Dims, in simTf);
 
             _bodies[entity] = new PhysicsBodyReference(handle, visualRef.ShapeKind, visualRef.Dims);
+
+            // BATCH-S2-G4: if the muscle resolved a model-derived footprint (OrientedBox), write it into
+            // Map2DFootprint so the 2D gizmo matches the visible body (not the kinematic VehicleParams length).
+            if (_bodyService.TryGetResolvedFootprintMeters(handle, out float fpLen, out float fpWid)
+                && view is EntityRepository wrepo
+                && wrepo.IsComponentTypeRegistered<Map2DFootprint>())
+            {
+                var shape = wrepo.HasComponent<Map2DFootprint>(entity)
+                    ? wrepo.GetComponentRO<Map2DFootprint>(entity).Shape
+                    : GizmoShapeCategory.GroundVehicle; // OrientedBox ⇒ vehicle
+                wrepo.SetComponent(entity, new Map2DFootprint { LengthM = fpLen, WidthM = fpWid, Shape = shape });
+            }
+
             LogCreate(entity);
         }
 
