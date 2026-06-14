@@ -144,6 +144,10 @@ public static class BTreeDocumentFactory
             hostServices.NodeCatalog,
             hostServices);
 
+        // DEC-06 Part 1: wire undo recorder into the context menu provider now
+        // that the GraphView (and its undo stack) exists.
+        hostServices.SetNodeContextMenuRecorder(view);
+
         // ── BCP-F: FindBar + IEditorCommands ─────────────────────────────────
         var commands = new EditorCommandsImpl();
         var findBar  = new FindBar(view, new FindEngine(graphModel, null));

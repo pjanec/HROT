@@ -1234,34 +1234,11 @@ internal sealed class CanvasInput
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// DEC-06 Part 2: delegate to the shared undoable routine in
+    /// <see cref="EditCommands"/> so Del-key deletes are recorded on the undo
+    /// stack (same path as the registered Delete command).
+    /// </summary>
     private static void DeleteSelected(GraphView view)
-    {
-        var sel = view.Selection;
-        if (sel.IsEmpty) return;
-
-        var cmds = new List<GraphCommand>();
-
-        var links = sel.Links.ToList();
-        if (links.Count > 0) cmds.Add(new GraphCommand.RemoveLinks(links));
-
-        var nodes = sel.Nodes.ToList();
-        if (nodes.Count > 0) cmds.Add(new GraphCommand.RemoveNodes(nodes));
-
-        var comments = sel.Comments.ToList();
-        foreach (var c in comments) cmds.Add(new GraphCommand.RemoveComment(c));
-
-        var reroutes = sel.Reroutes.ToList();
-        foreach (var r in reroutes) cmds.Add(new GraphCommand.RemoveReroute(r.LinkId, r.WaypointIndex));
-
-        var attachments = sel.Attachments.ToList();
-        if (attachments.Count > 0) cmds.Add(new GraphCommand.RemoveAttachments(attachments));
-
-        if (cmds.Count > 0)
-        {
-            var batch = new GraphCommand.Batch("Delete", cmds);
-            view.Commands.Apply(batch);
-        }
-
-        sel.Clear();
-    }
+        => EditCommands.DeleteSelectedUndoable(view);
 }

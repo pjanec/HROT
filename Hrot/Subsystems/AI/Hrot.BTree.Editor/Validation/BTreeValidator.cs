@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fbt;
 using Hrot.BTree.Editor.Model;
 
@@ -25,6 +26,7 @@ public sealed class BTreeValidator
         CheckDepth(asset, diagnostics);
         CheckCycles(asset, diagnostics);
         CheckOrphanedNodes(asset, diagnostics);
+        CheckNestedDecorators(asset, diagnostics);
 
         return diagnostics;
     }
@@ -238,6 +240,83 @@ public sealed class BTreeValidator
             var child = asset.FindNode(childId);
             if (child != null)
                 CollectReachable(asset, child, visited);
+        }
+    }
+
+    // Rule NestedRepeater / NestedParallel (kernel-illegal nesting, DEC-06 Part 3):
+    // Walk the tree from root.  A Repeater pill on a node makes that node and its
+    // entire subtree "inside Repeater"; two Repeater pills on one node count as
+    // nested by themselves.  A Parallel node sets insideParallel for its subtree.
+    private static void CheckNestedDecorators(BehaviorTreeAsset asset, List<BTreeDiagnostic> out_)
+    {
+        var root = FindRoot(asset);
+        if (root == null) return;
+
+        var visited = new HashSet<Guid>();
+        WalkNestedDecorators(asset, root, insideRepeater: false, insideParallel: false, out_, visited);
+    }
+
+    private static void WalkNestedDecorators(
+        BehaviorTreeAsset asset,
+        BTreeEditorNode   node,
+        bool              insideRepeater,
+        bool              insideParallel,
+        List<BTreeDiagnostic> out_,
+        HashSet<Guid>     visited)
+    {
+        if (!visited.Add(node.VisualId)) return; // cycle guard (CheckCycles will report it separately)
+
+        // Count Repeater pills on this node.
+        var nodePills = asset.Pills
+            .Where(p => p.HostNodeVisualId == node.VisualId)
+            .OrderBy(p => p.StackIndex)
+            .ToList();
+
+        bool nodeBecomesInsideRepeater = insideRepeater;
+        bool nodeBecomesInsideParallel = insideParallel;
+
+        foreach (var pill in nodePills)
+        {
+            if (pill.DecoratorType == NodeType.Repeater)
+            {
+                if (nodeBecomesInsideRepeater)
+                {
+                    // Already inside Repeater — this pill is a nested Repeater.
+                    out_.Add(new BTreeDiagnostic(
+                        pill.VisualId,
+                        BTreeDiagnosticSeverity.Error,
+                        BTreeDiagnosticCode.NestedRepeater,
+                        "Nested Repeater decorator is not allowed (kernel-illegal)."));
+                }
+                else
+                {
+                    nodeBecomesInsideRepeater = true;
+                }
+            }
+        }
+
+        // A Parallel node sets insideParallel for its children.
+        if (node.KernelType == NodeType.Parallel)
+        {
+            if (nodeBecomesInsideParallel)
+            {
+                out_.Add(new BTreeDiagnostic(
+                    node.VisualId,
+                    BTreeDiagnosticSeverity.Error,
+                    BTreeDiagnosticCode.NestedParallel,
+                    "Nested Parallel node is not allowed (kernel-illegal)."));
+            }
+            else
+            {
+                nodeBecomesInsideParallel = true;
+            }
+        }
+
+        foreach (var childId in node.ChildVisualIds)
+        {
+            var child = asset.FindNode(childId);
+            if (child != null)
+                WalkNestedDecorators(asset, child, nodeBecomesInsideRepeater, nodeBecomesInsideParallel, out_, visited);
         }
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
+using NodeEditor.Core.View;
 using NodeEditor.Primitives;
 using Hrot.BTree.Editor.Debug;
 using Hrot.BTree.Editor.Renderers;
@@ -90,7 +91,7 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
 
     ICustomElementContextMenuProvider? IEditorHostServices.CustomElementContextMenu => _bpContextMenuProvider;
 
-    // ---- Node context menu (DEC-03b) ─────────────────────────────────────────
+    // ---- Node context menu (DEC-03b / DEC-06) ───────────────────────────────
 
     private BTreeNodeContextMenuProvider? _nodeContextMenuProvider;
 
@@ -101,6 +102,18 @@ internal sealed class BTreeEditorHostServices : IEditorHostServices
     public void SetNodeContextMenuProvider(IGraphCommandSink sink, IGraphModel model)
     {
         _nodeContextMenuProvider = new BTreeNodeContextMenuProvider(sink, model);
+    }
+
+    /// <summary>
+    /// Wires the undo recorder from the <see cref="GraphView"/> so that
+    /// "Add Decorator" context-menu actions are recorded on the undo stack (DEC-06 Part 1).
+    /// Must be called <em>after</em> <see cref="SetNodeContextMenuProvider"/> and after
+    /// the <see cref="GraphView"/> has been created.
+    /// </summary>
+    public void SetNodeContextMenuRecorder(GraphView view)
+    {
+        if (_nodeContextMenuProvider != null)
+            _nodeContextMenuProvider.Recorder = (fwd, inv, label) => view.Execute(fwd, inv, label);
     }
 
     INodeContextMenuProvider? IEditorHostServices.NodeContextMenu => _nodeContextMenuProvider;

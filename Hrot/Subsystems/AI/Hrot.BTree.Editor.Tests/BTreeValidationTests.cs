@@ -275,4 +275,129 @@ public sealed class BTreeValidationTests
             d.Code == BTreeDiagnosticCode.StackDepthExceeded &&
             d.Severity == BTreeDiagnosticSeverity.Warning);
     }
+
+    // ---- DEC-06 Part 3: NestedRepeater / NestedParallel ----------------------
+
+    [Fact]
+    public void Validate_two_repeater_pills_on_one_node_returns_nested_repeater_error()
+    {
+        // Arrange: Root → Sequence with TWO Repeater pills (same-node stacking).
+        var asset = MakeAsset();
+        var root  = MakeNode(NodeType.Root);
+        var seq   = MakeNode(NodeType.Sequence);
+        root.ChildVisualIds.Add(seq.VisualId);
+        asset.AddNode(root);
+        asset.AddNode(seq);
+
+        var pill1 = new BTreeEditorPill
+        {
+            VisualId         = Guid.NewGuid(),
+            HostNodeVisualId = seq.VisualId,
+            DecoratorType    = NodeType.Repeater,
+            IntParam         = 2,
+            StackIndex       = 0,
+        };
+        var pill2 = new BTreeEditorPill
+        {
+            VisualId         = Guid.NewGuid(),
+            HostNodeVisualId = seq.VisualId,
+            DecoratorType    = NodeType.Repeater,
+            IntParam         = 3,
+            StackIndex       = 1,
+        };
+        asset.AddPill(pill1);
+        asset.AddPill(pill2);
+
+        var diagnostics = Validate(asset);
+
+        diagnostics.Should().Contain(d =>
+            d.Code == BTreeDiagnosticCode.NestedRepeater &&
+            d.Severity == BTreeDiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Validate_repeater_pill_under_repeater_pilled_ancestor_returns_nested_repeater_error()
+    {
+        // Arrange: Root → SeqA (Repeater pill) → SeqB (Repeater pill)
+        var asset = MakeAsset();
+        var root  = MakeNode(NodeType.Root);
+        var seqA  = MakeNode(NodeType.Sequence);
+        var seqB  = MakeNode(NodeType.Sequence);
+        root.ChildVisualIds.Add(seqA.VisualId);
+        seqA.ChildVisualIds.Add(seqB.VisualId);
+        asset.AddNode(root);
+        asset.AddNode(seqA);
+        asset.AddNode(seqB);
+
+        var pillA = new BTreeEditorPill
+        {
+            VisualId         = Guid.NewGuid(),
+            HostNodeVisualId = seqA.VisualId,
+            DecoratorType    = NodeType.Repeater,
+            IntParam         = 2,
+            StackIndex       = 0,
+        };
+        var pillB = new BTreeEditorPill
+        {
+            VisualId         = Guid.NewGuid(),
+            HostNodeVisualId = seqB.VisualId,
+            DecoratorType    = NodeType.Repeater,
+            IntParam         = 2,
+            StackIndex       = 0,
+        };
+        asset.AddPill(pillA);
+        asset.AddPill(pillB);
+
+        var diagnostics = Validate(asset);
+
+        diagnostics.Should().Contain(d =>
+            d.Code == BTreeDiagnosticCode.NestedRepeater &&
+            d.Severity == BTreeDiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Validate_single_repeater_pill_returns_no_nested_repeater_error()
+    {
+        // Arrange: Root → Sequence with exactly one Repeater pill — valid.
+        var asset = MakeAsset();
+        var root  = MakeNode(NodeType.Root);
+        var seq   = MakeNode(NodeType.Sequence);
+        root.ChildVisualIds.Add(seq.VisualId);
+        asset.AddNode(root);
+        asset.AddNode(seq);
+
+        var pill = new BTreeEditorPill
+        {
+            VisualId         = Guid.NewGuid(),
+            HostNodeVisualId = seq.VisualId,
+            DecoratorType    = NodeType.Repeater,
+            IntParam         = 2,
+            StackIndex       = 0,
+        };
+        asset.AddPill(pill);
+
+        Validate(asset).Should().NotContain(d => d.Code == BTreeDiagnosticCode.NestedRepeater);
+    }
+
+    [Fact]
+    public void Validate_parallel_inside_parallel_returns_nested_parallel_error()
+    {
+        // Arrange: Root → Parallel → Parallel (nested, kernel-illegal).
+        var asset    = MakeAsset();
+        var root     = MakeNode(NodeType.Root);
+        var outerPar = MakeNode(NodeType.Parallel);
+        var innerPar = MakeNode(NodeType.Parallel);
+        root.ChildVisualIds.Add(outerPar.VisualId);
+        outerPar.ChildVisualIds.Add(innerPar.VisualId);
+        asset.AddNode(root);
+        asset.AddNode(outerPar);
+        asset.AddNode(innerPar);
+
+        var diagnostics = Validate(asset);
+
+        diagnostics.Should().Contain(d =>
+            d.Code == BTreeDiagnosticCode.NestedParallel &&
+            d.Severity == BTreeDiagnosticSeverity.Error &&
+            d.VisualId == innerPar.VisualId);
+    }
 }

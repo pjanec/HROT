@@ -350,6 +350,18 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             return;
         }
 
+        // DEC-06 Part 4 (L3 defense-in-depth): refuse to stack a second Repeater pill
+        // on the same host node.  The context-menu already disables the item, but this
+        // guard catches any programmatic path (redo, paste, etc.).
+        if (dt == NodeType.Repeater)
+        {
+            bool alreadyHasRepeater = _asset.Pills.Any(
+                p => p.HostNodeVisualId == att.HostNodeId.Value &&
+                     p.DecoratorType   == NodeType.Repeater);
+            if (alreadyHasRepeater)
+                return;
+        }
+
         var pill = new BTreeEditorPill
         {
             VisualId         = att.NewId.Value,

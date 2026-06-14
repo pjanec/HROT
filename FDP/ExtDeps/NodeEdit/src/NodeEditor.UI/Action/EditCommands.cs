@@ -35,7 +35,7 @@ public static class EditCommands
 
         reg.Add(
             CommandCatalog.DeleteSelection, "Delete", "Edit",
-            _ => DeleteSelected(view),
+            _ => DeleteSelectedUndoable(view),
             isEnabled: () => !view.Selection.IsEmpty,
             description: "Delete the current selection.",
             defaultKey: new KeyBinding(EditorKey.Delete, KeyModifiers.None));
@@ -55,7 +55,12 @@ public static class EditCommands
             defaultKey: new KeyBinding(EditorKey.Escape, KeyModifiers.None));
     }
 
-    private static void DeleteSelected(GraphView view)
+    /// <summary>
+    /// Undoable delete of the current selection.  Used by both the registered
+    /// keyboard command and by <see cref="NodeEditor.UI.Canvas.CanvasInput"/> so
+    /// that the Del-key path records an inverse on the undo stack (DEC-06 Part 2).
+    /// </summary>
+    internal static void DeleteSelectedUndoable(GraphView view)
     {
         var sel = view.Selection;
         if (sel.IsEmpty) return;

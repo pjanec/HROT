@@ -131,4 +131,62 @@ public sealed class BTreeNodeContextMenuProviderTests
         pills[0].StackIndex.Should().Be(0);
         pills[1].StackIndex.Should().Be(1);
     }
+
+    // ── DEC-06 Part 4 (L3 prevention) tests ──────────────────────────────────
+
+    [Fact]
+    public void GetItemsFor_repeater_item_disabled_when_node_already_has_repeater()
+    {
+        // Arrange: add a Repeater pill directly via the sink, then ask the menu.
+        var (asset, model, sink, provider) = Build();
+        var nodeId = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+
+        // Add a Repeater pill via the sink.
+        var props = new Dictionary<string, object?> { ["decoratorType"] = NodeType.Repeater };
+        sink.Apply(new GraphCommand.AddAttachment(
+            IdGenerator.NewAttachmentId(), nodeId, AttachmentCategory.Decorator,
+            Glyph: null, Label: "Repeater", Tooltip: null, StackIndex: 0, props));
+
+        // Act
+        var items    = provider.GetItemsFor(nodeId, new[] { nodeId });
+        var children = items[0].Children!;
+        var repeater = children.First(c => c.Label == "Repeater");
+
+        // Assert: Repeater item must be disabled.
+        repeater.Enabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetItemsFor_repeater_item_enabled_when_node_has_no_repeater()
+    {
+        var (_, _, sink, provider) = Build();
+        var nodeId = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+
+        var children = provider.GetItemsFor(nodeId, new[] { nodeId })[0].Children!;
+        children.First(c => c.Label == "Repeater").Enabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ApplyAddPill_rejects_second_repeater_on_same_node()
+    {
+        // Arrange: add first Repeater, then attempt a second via direct sink path.
+        var (asset, _, sink, _) = Build();
+        var nodeId = NodeId.NewId();
+        sink.Apply(new GraphCommand.AddNode(nodeId, new NodeKindKey(BTreeKinds.Sequence), Vector2.Zero, null));
+
+        var props = new Dictionary<string, object?> { ["decoratorType"] = NodeType.Repeater };
+        sink.Apply(new GraphCommand.AddAttachment(
+            IdGenerator.NewAttachmentId(), nodeId, AttachmentCategory.Decorator,
+            Glyph: null, Label: "Repeater", Tooltip: null, StackIndex: 0, props));
+        sink.Apply(new GraphCommand.AddAttachment(
+            IdGenerator.NewAttachmentId(), nodeId, AttachmentCategory.Decorator,
+            Glyph: null, Label: "Repeater", Tooltip: null, StackIndex: 1, props));
+
+        // Only the first Repeater pill should have been applied.
+        asset.Pills.Count(p => p.HostNodeVisualId == nodeId.Value &&
+                               p.DecoratorType    == NodeType.Repeater)
+                   .Should().Be(1);
+    }
 }

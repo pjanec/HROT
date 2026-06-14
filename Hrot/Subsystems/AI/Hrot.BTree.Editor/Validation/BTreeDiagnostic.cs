@@ -26,6 +26,10 @@ public enum BTreeDiagnosticCode
     DanglingReferenceAfterReload,
     CycleDetected,
     OrphanedNode,
+    /// <summary>A Repeater decorator is nested inside another Repeater (kernel-illegal).</summary>
+    NestedRepeater,
+    /// <summary>A Parallel node is nested inside another Parallel (kernel-illegal).</summary>
+    NestedParallel,
 }
 
 /// <summary>
