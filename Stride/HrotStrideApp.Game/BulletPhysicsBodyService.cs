@@ -223,6 +223,14 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         /// </summary>
         public System.Numerics.Vector3 LastReverseSyncedFdpPos { get; set; }
 
+        /// <summary>
+        /// The last FDP rotation recorded by RecordReverseSyncedPose (BATCH-S2-Z). SyncBodyToExternalPose
+        /// compares the incoming SimTransform.Rotation against THIS (not the live body) to detect an
+        /// external orientation write (operator rotate gizmo / inspector) without false-triggering on the
+        /// muscle's own reverse-synced rotation.
+        /// </summary>
+        public System.Numerics.Quaternion LastReverseSyncedFdpRot { get; set; } = System.Numerics.Quaternion.Identity;
+
         /// <summary>False until RecordReverseSyncedPose has run at least once for this body.</summary>
         public bool HasReverseSyncBaseline { get; set; }
 
@@ -1056,6 +1064,7 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         if (bodyHandle is SkippedBodyHandle) return;
         if (!_bodies.TryGetValue(bodyHandle, out var entry)) return;
         entry.LastReverseSyncedFdpPos = simTf.Position;
+        entry.LastReverseSyncedFdpRot = simTf.Rotation;   // BATCH-S2-Z: baseline rotation for external-rotation detect
         entry.HasReverseSyncBaseline  = true;
     }
 
@@ -1106,7 +1115,15 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         float dXf = simTf.Position.X - entry.LastReverseSyncedFdpPos.X;
         float dYf = simTf.Position.Y - entry.LastReverseSyncedFdpPos.Y;
         float distSqFdpXY = dXf * dXf + dYf * dYf;
-        if (distSqFdpXY <= RepositionEpsilonM * RepositionEpsilonM) return; // not externally moved
+        bool posMoved = distSqFdpXY > RepositionEpsilonM * RepositionEpsilonM;
+
+        // BATCH-S2-Z: also detect an external ROTATION-only write. The reverse-sync records the baseline
+        // rotation each frame, so the muscle's own pose never diverges from it; only a brain/operator write
+        // to SimTransform.Rotation does. Quaternion closeness via |dot| (1 = identical).
+        float rotDot = System.Numerics.Quaternion.Dot(simTf.Rotation, entry.LastReverseSyncedFdpRot);
+        bool rotChanged = MathF.Abs(rotDot) < RepositionRotDotEpsilon;
+
+        if (!posMoved && !rotChanged) return; // neither position nor orientation externally changed
 
         // External reposition detected. (Below: keep the existing teleport — read the live body pos
         // for Y-preservation and teleport in Stride XZ.)
@@ -1141,9 +1158,9 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
                     entry.StrideEntity.Name, ex.GetType().Name);
             }
 
-            Log.Info("[BulletPhysicsBodyService] ExternalReposition(character) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}).",
+            Log.Info("[BulletPhysicsBodyService] ExternalReposition(character) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}) rotChanged={5}.",
                 entry.StrideEntity.Name, MathF.Sqrt(distSqFdpXY),
-                newPos.X, newPos.Y, newPos.Z);
+                newPos.X, newPos.Y, newPos.Z, rotChanged);
         }
         else if (entry.PhysicsComponent is RigidbodyComponent rb && !rb.IsKinematic)
         {
@@ -1172,9 +1189,9 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
                     entry.StrideEntity.Name, ex.GetType().Name);
             }
 
-            Log.Info("[BulletPhysicsBodyService] ExternalReposition(vehicle) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity.",
+            Log.Info("[BulletPhysicsBodyService] ExternalReposition(vehicle) '{0}': distXZ={1:F3} → Stride ({2:F2},{3:F2},{4:F2}), zeroed velocity, rotChanged={5}.",
                 entry.StrideEntity.Name, MathF.Sqrt(distSqFdpXY),
-                newPos.X, newPos.Y, newPos.Z);
+                newPos.X, newPos.Y, newPos.Z, rotChanged);
         }
         // Other kinds (kinematic RigidbodyComponent, unknown) are skipped — they are moved
         // by their own motor each frame and do not need operator-drag teleport.
@@ -1187,6 +1204,15 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
     /// than per-frame Bullet jitter but smaller than any intentional reposition.
     /// </summary>
     public const float RepositionEpsilonM = 0.01f;
+
+    /// <summary>
+    /// Rotation closeness threshold for SyncBodyToExternalPose (BATCH-S2-Z): treat an incoming
+    /// SimTransform.Rotation as an external orientation write when |dot| with the baseline rotation
+    /// is below this. 0.99985 ≈ a ~2° difference — well above float round-trip noise (the baseline
+    /// stores the exact reverse-synced FDP quaternion, so there is no conversion drift), below any
+    /// intentional operator rotation.
+    /// </summary>
+    public const float RepositionRotDotEpsilon = 0.99985f;
 
     // ── IPhysicsBodyService: kinematic vehicle motor ──────────────────────────
 
