@@ -130,6 +130,23 @@ public sealed class BTreeCommandSinkTests
         var node = asset.FindNode(nodeId.Value);
         node.Should().NotBeNull();
         node!.KernelType.Should().Be(NodeType.Sequence);
+        node.DisplayLabel.Should().Be("Sequence", "a created node must get a friendly title, not the raw kind id");
+    }
+
+    [Fact]
+    public void AddNode_wait_initializes_payload_and_friendly_label()
+    {
+        var (asset, _, sink) = Build();
+        var nodeId = NodeId.NewId();
+
+        sink.Apply(new GraphCommand.AddNode(
+            nodeId, new NodeKindKey(BTreeKinds.Wait), Vector2.Zero, null));
+
+        var node = asset.FindNode(nodeId.Value);
+        node.Should().NotBeNull();
+        node!.KernelType.Should().Be(NodeType.Wait);
+        node.DisplayLabel.Should().Be("Wait");
+        node.Wait.Should().NotBeNull("a created Wait must have an editable Duration payload, not null");
     }
 
     [Fact]

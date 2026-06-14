@@ -138,6 +138,23 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             else
                 node.Action = new BTreeActionPayload { MethodFqn = fqn };
         }
+        else
+        {
+            // Give the node a human-readable title (not the raw kind id like
+            // "bt.leaf.wait") and initialize the kind-specific payload so the node
+            // is valid + editable on creation. A Wait created without a payload has
+            // a null Wait -> uneditable Duration and an error (red) frame.
+            node.DisplayLabel = FriendlyLabel(nodeType);
+            switch (nodeType)
+            {
+                case NodeType.Wait:
+                    node.Wait = new BTreeWaitPayload { Duration = 1f };
+                    break;
+                case NodeType.Subtree:
+                    node.Subtree = new BTreeSubtreePayload();
+                    break;
+            }
+        }
 
         // Canvas drag-to-create pre-generates pin IDs and bakes them into the
         // auto-wire link. Adopt them so the link's pins resolve to this node;
@@ -147,6 +164,21 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
         _asset.AddNode(node);
         _asset.MarkDirty();
     }
+
+    /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>
+    private static string FriendlyLabel(NodeType type) => type switch
+    {
+        NodeType.Root             => "Root",
+        NodeType.Sequence         => "Sequence",
+        NodeType.Selector         => "Selector",
+        NodeType.Parallel         => "Parallel",
+        NodeType.ObserverSelector => "Observer Selector",
+        NodeType.Wait             => "Wait",
+        NodeType.Subtree          => "Subtree",
+        NodeType.Action           => "Action",
+        NodeType.Condition        => "Condition",
+        _                         => type.ToString(),
+    };
 
     /// <summary>
     /// Maps the canvas-supplied <c>PinIds</c> list onto the node's input/output pins,
