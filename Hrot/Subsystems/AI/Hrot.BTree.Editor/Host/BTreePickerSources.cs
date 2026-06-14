@@ -103,5 +103,6 @@ public static class BTreePickerSources
         public bool CanAcceptDrop(object payload)              => false;
         public string? GetCategory(NodeCatalogEntry item)      => item.CategoryPath;
         public string? GetIconKey(NodeCatalogEntry item)       => item.IconKey;
+        public string? GetDescription(NodeCatalogEntry item)   => item.Description;
     }
 }

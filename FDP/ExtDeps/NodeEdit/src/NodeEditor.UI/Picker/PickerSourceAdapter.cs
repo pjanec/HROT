@@ -44,7 +44,8 @@ internal interface IPickerSourceAdapter
 /// <param name="Raw">The original (unboxed) item.</param>
 /// <param name="Category">Category path from <see cref="IPickerSource{TItem}.GetCategory"/>; null if not provided.</param>
 /// <param name="IconKey"><see cref="IIconProvider"/> key from <see cref="IPickerSource{TItem}.GetIconKey"/>; null if not provided.</param>
-internal sealed record AdaptedItem(string Key, string SearchText, object Raw, string? Category = null, string? IconKey = null);
+/// <param name="Description">One-line description from <see cref="IPickerSource{TItem}.GetDescription"/>; null if not provided.</param>
+internal sealed record AdaptedItem(string Key, string SearchText, object Raw, string? Category = null, string? IconKey = null, string? Description = null);
 
 /// <summary>
 /// Generic implementation of <see cref="IPickerSourceAdapter"/> that wraps
@@ -75,7 +76,8 @@ internal sealed class PickerSourceAdapter<TItem> : IPickerSourceAdapter
             _source.GetSearchableText(i),
             i!,
             _source.GetCategory(i),
-            _source.GetIconKey(i))).ToList();
+            _source.GetIconKey(i),
+            _source.GetDescription(i))).ToList();
     }
 
     public async Task<IReadOnlyList<AdaptedItem>> QueryAsync(
@@ -89,7 +91,8 @@ internal sealed class PickerSourceAdapter<TItem> : IPickerSourceAdapter
             _source.GetSearchableText(i),
             i!,
             _source.GetCategory(i),
-            _source.GetIconKey(i))).ToList();
+            _source.GetIconKey(i),
+            _source.GetDescription(i))).ToList();
     }
 
     public void RenderItem(AdaptedItem item, bool selected, bool keyboardFocused, IPickerRenderContext ctx)

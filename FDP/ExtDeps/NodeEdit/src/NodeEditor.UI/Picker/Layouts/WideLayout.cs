@@ -136,6 +136,20 @@ internal static class WideLayout
             float textX = startScreenPos.X + 4f;
             float textY = startScreenPos.Y + 2f;
 
+            // Inline row icon (24px, vertically centered in the 36px row) when the
+            // entry's IconKey resolves via the provider. Mirrors PickerItemListHelper.
+            const float IconSize = 24f;
+            if (re.Entry.IconKey is { Length: > 0 } iconKey &&
+                ctx.Icons.TryGet(iconKey, out var rowIcon))
+            {
+                float iconY = startScreenPos.Y + (36f - IconSize) * 0.5f;
+                dl.AddImage(rowIcon.TextureId,
+                    new Vector2(textX, iconY),
+                    new Vector2(textX + IconSize, iconY + IconSize),
+                    rowIcon.Uv0, rowIcon.Uv1);
+                textX += IconSize + 6f;
+            }
+
             uint defaultCol = ImGui.GetColorU32(ctx.Theme.TextDefault);
             uint mutedCol   = ImGui.GetColorU32(ctx.Theme.TextMuted);
 

@@ -72,6 +72,12 @@ public interface IPickerSource<TItem>
     /// Default: null (no icon).
     /// </summary>
     string? GetIconKey(TItem item) => null;
+
+    /// <summary>
+    /// Optional one-line description shown as the muted second line in the Wide
+    /// layout. Default: null (blank second line).
+    /// </summary>
+    string? GetDescription(TItem item) => null;
 }
 
 public enum PickerLayout { Standard, Compact, Wide, Grid, Tree }

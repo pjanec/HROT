@@ -115,7 +115,7 @@ public sealed class PickerWindow
         {
             var items = adapter.Query("", context);
             _state.AllEntries = items.Select(it => new PickerEntry(
-                it.Key, it.SearchText, null, it.Category, null, null, it.Raw, it.IconKey)).ToArray();
+                it.Key, it.SearchText, it.Description, it.Category, null, null, it.Raw, it.IconKey)).ToArray();
             _state.Refilter();
         }
 
