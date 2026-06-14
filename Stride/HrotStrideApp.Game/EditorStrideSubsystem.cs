@@ -1385,9 +1385,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         {
             // 3D changed this frame (e.g. click-to-select) → push to 2D.
             _last3dSelVersion = SelectionState.Version;
-            _editor.Selected2DEntity = SelectionState.HasSelection
-                ? SelectionState.SelectedEntity
-                : (Fdp.Core.Entity?)null;
+            _editor.SetSelection2D(SelectionState.HasSelection ? SelectionState.SelectedEntity : (Fdp.Core.Entity?)null);
             _last2dSelVersion = _editor.Selection2DVersion; // sync tracker
         }
     }

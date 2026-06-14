@@ -173,6 +173,10 @@ public sealed class StrideHrotGame : Game
     /// <summary>Physics raycast service for 3D click-to-select / click-to-move (BATCH-S2-O).</summary>
     private IStrideRaycastService? _raycastService;
 
+    // BATCH-S2-S: RMB click-vs-drag discrimination (RMB is also camera-orbit).
+    private Stride.Core.Mathematics.Vector2? _rmbDownPos;
+    private const float RmbClickMaxTravel = 0.02f; // normalized screen units; >this = camera drag, ignore
+
     /// <summary>
     /// Frame counter used to throttle the spawn-diagnostics log in <see cref="Update"/>
     /// to roughly once per second (every <see cref="DiagnosticsLogIntervalFrames"/> frames).
@@ -433,44 +437,55 @@ public sealed class StrideHrotGame : Game
                 if (cam != null && world != null)
                 {
                     bool lmb = Input.IsMouseButtonPressed(MouseButton.Left);
-                    bool rmb = Input.IsMouseButtonPressed(MouseButton.Right);
-                    if (lmb || rmb)
+                    bool rmbDown = Input.IsMouseButtonPressed(MouseButton.Right);
+                    bool rmbUp = Input.IsMouseButtonReleased(MouseButton.Right);
+
+                    // Record RMB-down position to later tell a click from a camera-orbit drag.
+                    if (rmbDown) _rmbDownPos = Input.MousePosition;
+
+                    // LMB select (on press) — unchanged behavior.
+                    if (lmb)
                     {
-                        var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition); // MousePosition is [0,1]
+                        var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
                         var hit = _raycastService.Raycast(ray.Origin, ray.Origin + ray.Direction * 1000f);
-                        // BATCH-S2-P [ClickDiag]: log every click with mouse pos, ray, hit info.
-                        Log.Info("[ClickDiag] {0} mouse=({1:F3},{2:F3}) rayO=({3:F1},{4:F1},{5:F1}) rayD=({6:F2},{7:F2},{8:F2}) hasHit={9} hitEntity=#{10} point=({11:F2},{12:F2},{13:F2})",
-                            lmb ? "LMB" : "RMB",
-                            Input.MousePosition.X, Input.MousePosition.Y,
-                            ray.Origin.X, ray.Origin.Y, ray.Origin.Z,
-                            ray.Direction.X, ray.Direction.Y, ray.Direction.Z,
-                            hit.HasHit,
+                        Log.Info("[ClickDiag] LMB mouse=({0:F3},{1:F3}) hasHit={2} hitEntity=#{3} point=({4:F2},{5:F2},{6:F2})",
+                            Input.MousePosition.X, Input.MousePosition.Y, hit.HasHit,
                             (hit.HitEntity == Fdp.Core.Entity.Null ? -1 : hit.HitEntity.Index),
                             hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
-
-                        if (lmb)
+                        if (hit.HasHit && hit.HitEntity != Fdp.Core.Entity.Null && world.IsAlive(hit.HitEntity))
                         {
-                            // Select the hit entity (ignore static-geometry/no-entity hits).
-                            if (hit.HasHit && hit.HitEntity != Fdp.Core.Entity.Null && world.IsAlive(hit.HitEntity))
+                            _editorSubsystem.SelectionState.Select(hit.HitEntity);
+                            Log.Info("[ClickDiag] LMB selected entity #{0}", hit.HitEntity.Index);
+                        }
+                        else Log.Info("[ClickDiag] LMB no live entity hit — selection unchanged.");
+                    }
+
+                    // RMB move — only on RELEASE and only if it was a click (not a camera-orbit drag).
+                    if (rmbUp && _rmbDownPos is { } downPos)
+                    {
+                        float travel = (Input.MousePosition - downPos).Length();
+                        _rmbDownPos = null;
+                        if (travel <= RmbClickMaxTravel)
+                        {
+                            var ray = FdpStrideTransform.ScreenRayToFdp(cam, Input.MousePosition);
+                            var hit = _raycastService.Raycast(ray.Origin, ray.Origin + ray.Direction * 1000f);
+                            Log.Info("[ClickDiag] RMB-click travel={0:F3} hasHit={1} point=({2:F2},{3:F2},{4:F2})",
+                                travel, hit.HasHit, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
+                            if (hit.HasHit)
                             {
-                                _editorSubsystem.SelectionState.Select(hit.HitEntity);
-                                Log.Info("[ClickDiag] LMB selected entity #{0}", hit.HitEntity.Index);
-                            }
-                            else
-                            {
-                                Log.Info("[ClickDiag] LMB no live entity hit — selection unchanged.");
+                                var sel = _editorSubsystem.SelectionState;
+                                if (sel.HasSelection && world.IsAlive(sel.SelectedEntity))
+                                {
+                                    IssueMoveOrder(world, sel.SelectedEntity, hit.PointFdp);
+                                    _editorSubsystem.ShowMoveMarker(hit.PointFdp);
+                                    Log.Info("[StrideHrotGame] Move order: entity #{0} → FDP ({1:F2},{2:F2},{3:F2}).",
+                                        sel.SelectedEntity.Index, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
+                                }
                             }
                         }
-                        else if (rmb && hit.HasHit) // RMB: move the SELECTED entity to the hit point
+                        else
                         {
-                            var sel = _editorSubsystem.SelectionState;
-                            if (sel.HasSelection && world.IsAlive(sel.SelectedEntity))
-                            {
-                                IssueMoveOrder(world, sel.SelectedEntity, hit.PointFdp);
-                                _editorSubsystem.ShowMoveMarker(hit.PointFdp);
-                                Log.Info("[StrideHrotGame] Move order: entity #{0} → FDP ({1:F2},{2:F2},{3:F2}).",
-                                    sel.SelectedEntity.Index, hit.PointFdp.X, hit.PointFdp.Y, hit.PointFdp.Z);
-                            }
+                            Log.Info("[ClickDiag] RMB drag (travel={0:F3}) — treated as camera orbit, no move order.", travel);
                         }
                     }
                 }

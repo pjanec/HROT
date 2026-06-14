@@ -598,6 +598,38 @@ namespace Hrot.Editor
         /// <summary>Monotonic version of the 2D selection (changes on each select/clear). 0 in headless. (BATCH-S2-R)</summary>
         public int Selection2DVersion => _selectionState?.Version ?? 0;
 
+        /// <summary>
+        /// Programmatically sets the 2D editor selection to <paramref name="entity"/> (or clears it when
+        /// null), updating BOTH the UI-level PrimarySelected AND the ECS SelectionState components that the
+        /// 2D map overlay renders — mirroring what an in-map click does. Used by 3D→2D sync (BATCH-S2-S).
+        /// </summary>
+        public void SetSelection2D(Fdp.Core.Entity? entity)
+        {
+            if (_world == null) return;
+
+            // Clear existing ECS selection flags.
+            var q = _world.Query().With<Hrot.IG.Components.SelectionState>()
+                .WithLifecycle(Fdp.Core.EntityLifecycle.All).Build();
+            foreach (var e in q)
+            {
+                var s = _world.GetComponent<Hrot.IG.Components.SelectionState>(e);
+                if (s.IsSelected || s.IsPrimarySelection)
+                    _world.SetComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = false, IsPrimarySelection = false });
+            }
+
+            // Set the new primary selection (ECS component) when a live entity is given.
+            if (entity.HasValue && entity.Value != Fdp.Core.Entity.Null && _world.IsAlive(entity.Value))
+            {
+                if (!_world.HasComponent<Hrot.IG.Components.SelectionState>(entity.Value))
+                    _world.AddComponent(entity.Value, new Hrot.IG.Components.SelectionState());
+                _world.SetComponent(entity.Value, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
+            }
+
+            // Keep the UI-level primary in sync (drives inspector/tools).
+            if (_selectionState != null)
+                _selectionState.PrimarySelected = entity;
+        }
+
         // ?? ISubsystem lifecycle ??????????????????????????????????????????????
 
         // ctor for unit tests
