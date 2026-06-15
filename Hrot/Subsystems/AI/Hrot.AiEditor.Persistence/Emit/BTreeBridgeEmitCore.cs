@@ -51,6 +51,13 @@ public static class BTreeBridgeEmitCore
         // Header (same marker so the file is recognized as editor-generated)
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
 
+        // Explicit nullable enable: required for auto-generated source files so that
+        // nullable annotations (e.g. ParseParamsDelegate?) are legal. The project-level
+        // <Nullable>enable</Nullable> does NOT propagate to Roslyn IncrementalGenerator output
+        // without an in-file pragma (CS8669).
+        sb.AppendLine("#nullable enable");
+        sb.AppendLine();
+
         // Usings
         var usings = CollectBridgeUsings(dto);
         foreach (var ns in usings)
@@ -76,6 +83,20 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"[BlueprintRegistrar]");
         sb.AppendLine($"public static class {bridgeClass}");
         sb.AppendLine("{");
+
+        // DEBT-AIB-013 fix: blittable struct-DTO default values require IncludeFields=true.
+        // System.Text.Json ignores public fields by default (only serializes public properties).
+        // The options object is emitted as a private static readonly field so it is allocated once
+        // per bridge class (not per ParseParams invocation) and can be captured by the static lambda.
+        bool needsJsonOpts = dto.Blackboard.Managed
+                             && dto.Blackboard.Variables.Any(v => v.DefaultValueJson != null);
+        if (needsJsonOpts)
+        {
+            sb.AppendLine($"{Indent}// JSON options for ParseParams — IncludeFields required for blittable struct DTOs.");
+            sb.AppendLine($"{Indent}private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =");
+            sb.AppendLine($"{Indent}{Indent}new global::System.Text.Json.JsonSerializerOptions {{ IncludeFields = true }};");
+            sb.AppendLine();
+        }
 
         EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver);
 
@@ -179,8 +200,15 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}var interpreter = new Interpreter<{bbShort}, {ctxShort}>(blob, actionRegistry);");
         sb.AppendLine();
 
-        // 4. Register definition
-        sb.AppendLine($"{pad2}// 4. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
+        // 4a. Emit ParseParams into a local variable (must be declared in an unsafe context so
+        //     the byte* parameter in the lambda is legal). The local is then passed into the
+        //     BehaviorDefinition initializer below. Only emitted when ≥1 variable has a default.
+        bool hasParseParams = false;
+        if (isManaged && packedFields != null)
+            hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
+
+        // 4b. Register definition
+        sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
         sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
@@ -188,6 +216,8 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
         if (isManaged && packedFields != null && packedFields.Count > 0)
             EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
+        if (hasParseParams)
+            sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
         sb.AppendLine($"{pad2}}});");
 
         sb.AppendLine($"{pad}}}");
@@ -334,6 +364,97 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
+    /// Emits a local variable <c>__parseParams</c> of type <c>ParseParamsDelegate?</c>
+    /// capturing the baked-default writes for all variables that carry a non-null <c>DefaultValueJson</c>.
+    ///
+    /// The local is emitted inside an <c>unsafe { ... }</c> block so the <c>byte*</c>
+    /// parameter in the lambda is legal even in projects that don't set
+    /// <c>&lt;AllowUnsafeBlocks&gt;true&lt;/AllowUnsafeBlocks&gt;</c> globally — the existing
+    /// action thunks use <c>unsafe { ... }</c> scopes for the same reason.
+    ///
+    /// Returns <c>true</c> when the local was emitted (≥1 variable had a default); the caller
+    /// then adds <c>ParseParams = __parseParams,</c> to the <c>BehaviorDefinition</c> initializer.
+    ///
+    /// Guard: only emits when <paramref name="dto"/>.Blackboard.Managed AND ≥1 variable
+    /// has a non-null DefaultValueJson, so non-managed or all-null-default assets are unchanged.
+    /// </summary>
+    private static bool EmitParseParamsLocal(
+        StringBuilder sb,
+        BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
+        string pad2)
+    {
+        // Build offset map by variable name for quick lookup.
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        // Collect variables that have a non-null DefaultValueJson AND appear in the packed fields.
+        var defaults = new List<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)>();
+        foreach (var v in dto.Blackboard.Variables)
+        {
+            if (v.DefaultValueJson == null) continue;
+            if (!offsetMap.TryGetValue(v.Name, out var field)) continue;
+            defaults.Add((field, v.DefaultValueJson));
+        }
+
+        if (defaults.Count == 0) return false;
+
+        // Emit the ParseParams lambda in an unsafe block so the byte* parameter is legal.
+        // The lambda body ignores the incoming json arg (runtime override is DEBT-AIB-021).
+        // Each default DTO is deserialized and written at its packed byte offset via Unsafe.Write.
+        string pad3 = pad2 + Indent;       // inside the unsafe { }
+        string pad4 = pad3 + Indent;       // inside the lambda body
+        string pad5 = pad4 + Indent;       // inside each { } block per variable
+
+        sb.AppendLine($"{pad2}// 4a. Baked parameter defaults for managed blackboard variables (DEBT-AIB-013 fix).");
+        sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
+        sb.AppendLine($"{pad2}unsafe");
+        sb.AppendLine($"{pad2}{{");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory) =>");
+        sb.AppendLine($"{pad3}{{");
+        sb.AppendLine($"{pad4}// NOTE: runtime per-assignment JSON override of individual managed variables");
+        sb.AppendLine($"{pad4}// is not yet supported — only baked defaults are written. DEBT-AIB-021.");
+        foreach (var (field, defaultJson) in defaults)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(field.TypeId);
+            string escaped    = EscapeCSharpStringLiteral(defaultJson);
+            sb.AppendLine($"{pad4}{{");
+            sb.AppendLine($"{pad5}var __v = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(\"{escaped}\", __paramJsonOpts);");
+            sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
+            sb.AppendLine($"{pad4}}}");
+        }
+        sb.AppendLine($"{pad3}}};");
+        sb.AppendLine($"{pad2}}}");
+        sb.AppendLine();
+
+        return true;
+    }
+
+    /// <summary>
+    /// Escapes a string for use inside a C# double-quoted string literal.
+    /// Escapes backslash, double-quote, newline, carriage-return, and tab.
+    /// </summary>
+    private static string EscapeCSharpStringLiteral(string s)
+    {
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (char c in s)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append(@"\\"); break;
+                case '"':  sb.Append("\\\""); break;
+                case '\n': sb.Append(@"\n");  break;
+                case '\r': sb.Append(@"\r");  break;
+                case '\t': sb.Append(@"\t");  break;
+                default:   sb.Append(c);      break;
+            }
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Converts a CLR type FQN to a global:: qualified C# type name for use in thunks.
     /// For struct-DTO types, converts nested-type separator <c>+</c> → <c>.</c> so the
     /// emitted C# is valid (e.g. <c>global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams</c>).
@@ -396,6 +517,13 @@ public static class BTreeBridgeEmitCore
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
             set.Add("System.Runtime.CompilerServices");
+        }
+
+        // DEBT-AIB-013 fix: ParseParams deserialization requires System.Text.Json for managed
+        // assets that carry at least one DefaultValueJson.
+        if (dto.Blackboard.Managed && dto.Blackboard.Variables.Any(v => v.DefaultValueJson != null))
+        {
+            set.Add("System.Text.Json");
         }
 
         return AiEmitCoreBase.SortUsings(set);

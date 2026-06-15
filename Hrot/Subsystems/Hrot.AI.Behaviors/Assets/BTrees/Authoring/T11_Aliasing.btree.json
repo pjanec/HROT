@@ -96,7 +96,7 @@
 			{
 				"Name": "counter",
 				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
+				"DefaultValueJson": "{\"Counter\":0,\"Threshold\":10}",
 				"Comment": "Shared counter DTO — both nodes alias the same bytes at offset 0",
 				"IsAutoManaged": false
 			}

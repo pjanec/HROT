@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;

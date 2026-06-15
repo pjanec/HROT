@@ -129,6 +129,7 @@
           "IsArray": false,
           "FixedLength": null
         },
+        "DefaultValueJson": "{\"Counter\":0,\"Threshold\":5}",
         "Comment": "Counter+Threshold DTO for Condition_CounterBelowThreshold / Action_IncrementCounter"
       },
       {
@@ -138,6 +139,7 @@
           "IsArray": false,
           "FixedLength": null
         },
+        "DefaultValueJson": "{\"Sum\":0,\"Step\":7}",
         "Comment": "Sum+Step DTO for Action_AddStepToSum"
       }
     ]
