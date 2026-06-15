@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using System.Reflection;
+using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints.Attributes;
 using Fhsm.Kernel;
 
@@ -89,6 +92,10 @@ public static class BlueprintRegistrarScanner
             types = ex.Types.Where(t => t != null).ToArray()!;
         }
 
+        // Lazily built (once per scan) the first time a registrar requests the BTree
+        // action registry. Built from THIS assembly only — see BTreeActionRegistryFactory.
+        ActionRegistry<BrainBlackboard, BTreeContext>? btreeActionRegistry = null;
+
         foreach (var type in types)
         {
             if (type.GetCustomAttribute<BlueprintRegistrarAttribute>() == null)
@@ -113,6 +120,11 @@ public static class BlueprintRegistrarScanner
                     args[i] = blueprintStaging;
                 else if (paramType == typeof(BehaviorRegistry))
                     args[i] = behaviorStaging;
+                // BTree action delegates: inject a registry populated from this assembly's
+                // [FbtRegistrar]. Lazily built once so JSON BTree bridges resolve real
+                // action/condition logic instead of the interpreter's Failure fallback.
+                else if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                    args[i] = btreeActionRegistry ??= BTreeActionRegistryFactory.BuildFromAssembly(assembly);
                 // BlueprintRegistry direct — violates the RCU contract.
                 else if (paramType == typeof(BlueprintRegistry))
                 {

@@ -92,13 +92,14 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad}/// Registers the JSON-owned BTree definition and action/condition thunks.");
         sb.AppendLine($"{pad}/// Called by <see cref=\"AiHotReloadCoordinator\"/> during hot reload.");
         sb.AppendLine($"{pad}/// </summary>");
-        sb.AppendLine($"{pad}public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging)");
+        sb.AppendLine($"{pad}public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<{bbShort}, {ctxShort}> actionRegistry)");
         sb.AppendLine($"{pad}{{");
 
-        // Build blob + interpreter
+        // Build blob + interpreter. The action registry is injected by the coordinator/
+        // scanner, pre-populated from this assembly's [FbtRegistrar] (FbtActionRegistrar),
+        // so bound actions/conditions resolve to real logic instead of the Failure fallback.
         sb.AppendLine($"{pad2}// Build the blob from the topology-core thunk.");
         sb.AppendLine($"{pad2}var blob = {coreClass}.Build();");
-        sb.AppendLine($"{pad2}var actionRegistry = new ActionRegistry<{bbShort}, {ctxShort}>();");
         sb.AppendLine($"{pad2}var interpreter = new Interpreter<{bbShort}, {ctxShort}>(blob, actionRegistry);");
         sb.AppendLine();
 

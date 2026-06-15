@@ -7,6 +7,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Threading;
+using Fbt.Runtime;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Attributes;
 using Fhsm.Kernel;
@@ -299,8 +301,11 @@ public sealed class AiHotReloadCoordinator : IDisposable
         // directly so unit tests can exercise ApplyReload without loading a physical DLL.
         if (pending.Registrars.Count > 0)
         {
+            // Test-seam path bypasses the scanner, so build the BTree action registry here
+            // (the scanner self-builds on the production path below).
+            var btreeActionRegistry = BTreeActionRegistryFactory.BuildFromAssembly(pending.NewAssembly);
             foreach (var registrar in pending.Registrars)
-                InvokeRegistrar(registrar, blueprintStaging, behaviorStaging);
+                InvokeRegistrar(registrar, blueprintStaging, behaviorStaging, btreeActionRegistry);
         }
         else
         {
@@ -368,11 +373,11 @@ public sealed class AiHotReloadCoordinator : IDisposable
             .ToList();
     }
 
-    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
+    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
     {
         var args = registrar.Parameters
             .OrderBy(p => p.OrdinalIndex)
-            .Select(p => ResolveRegistrarArgument(p.ParameterType, blueprintStaging, behaviorStaging))
+            .Select(p => ResolveRegistrarArgument(p.ParameterType, blueprintStaging, behaviorStaging, btreeActionRegistry))
             .ToArray();
         registrar.RegisterMethod.Invoke(null, args);
     }
@@ -383,11 +388,13 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// throwing registrar cannot partially corrupt the live registry.
     /// Throws <see cref="HotReloadRegistrarException"/> for forbidden or unknown types (Patch 2, Patch 4).
     /// </summary>
-    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging)
+    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
     {
         if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
         // BPF-042: inject the staging registry, not the live one.
         if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
+        // BTree action delegates populated from the reloaded assembly's [FbtRegistrar].
+        if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
 
         // Patch 4: explicitly forbidden — would bypass the atomic RCU contract.
         if (paramType == typeof(BlueprintRegistry))

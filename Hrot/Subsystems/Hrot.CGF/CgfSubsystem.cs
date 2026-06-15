@@ -302,12 +302,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // skipOnUnknownParam=true: silently skips AiBehaviorFactory.RegisterAll (which expects
         // IGeographicTransform / NetworkEntityMap); those behaviors are already wired by
         // CgfBehaviorSetup.LoadFromAiAssembly with proper geo/entity context above.
+        //
+        // Pass the LIVE behaviorRegistry (not a throwaway) so the JSON-defined BTree/HSM
+        // bridges register their BehaviorDefinitions into the running registry — giving the
+        // game the same set of JSON-authored behaviors the editor sees. The scanner injects
+        // an ActionRegistry populated from the assembly's [FbtRegistrar], so those trees'
+        // bound actions/conditions execute real logic at runtime.
         {
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(
                 typeof(Hrot.AI.Behaviors.AiBehaviorFactory).Assembly,
                 bpStaging,
-                new BehaviorRegistry(),
+                behaviorRegistry,
                 skipOnUnknownParam: true);
             _blueprintRegistry.CommitStaging(bpStaging);
         }
