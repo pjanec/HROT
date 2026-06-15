@@ -1022,7 +1022,7 @@ Blackboard1024.Memory layout when hosting an AiPrimitive working state:
 
 The first 8 bytes are reserved for the StructureHash header. The working-state struct projects starting at offset 8. Each thunk checks and resets the header inline (see §4.4 for the generated thunk pattern).
 
-**Implicit Slice 1 constraint:** Only one AiPrimitive working-state Blueprint can occupy an entity's `Blackboard1024` at a time, because the StructureHash header is at a fixed location. If two AiPrimitives with working state are attached to the same entity, the second one's first invocation will overwrite the first's hash and zero the working memory. Slice 2 lifts this via the `Blackboard1024` partition allocator.
+**Implicit Slice 1 constraint:** Only one AiPrimitive working-state Blueprint can occupy an entity's `Blackboard1024` at a time, because the StructureHash header is at a fixed location. If two AiPrimitives with working state are attached to the same entity, the second one's first invocation will overwrite the first's hash and zero the working memory. **⚠ Lifted in Slice 2 via Option β** — AiPrimitive working state is partitioned into the existing `BlueprintBlackboard*` tiers (keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`), **not** a `Blackboard1024` allocator. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4.
 
 **Detection:** The compiler can detect static conflicts (one BTree references two AiPrimitives with `WorkingState != null` and both can target the same entity) and emit a warning diagnostic. Runtime detection is not free; documenting it as authoring discipline for Slice 1.
 
@@ -1831,7 +1831,7 @@ public interface IEntityCommandBuffer
 
 ### 13.6 New: Slice-2-anticipated `Blackboard1024` partition allocator
 
-The Slice 1 constraint "one AiPrimitive working-state Blueprint per entity" exists because `Blackboard1024` is currently a single-typed projection slot. Slice 2 adds the same header+slot-table+free-list pattern to `Blackboard1024` (or to a new `BlueprintAiWorking1024` component) to lift this restriction.
+The Slice 1 constraint "one AiPrimitive working-state Blueprint per entity" exists because `Blackboard1024` is currently a single-typed projection slot. **Slice 2 lifts this via Option β** — partitioning AiPrimitive working state into the existing `BlueprintBlackboard*` tiers (reusing the proven `BlueprintBlackboardPartitions` allocator), keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`. Retrofitting an allocator onto the engine `Blackboard1024` (or adding a new `BlueprintAiWorking1024`) was **rejected** — it would ripple through the FastHSM/BTree kernels. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4 (incl. the three mandated fixes).
 
 Not blocking Slice 1.
 

@@ -1,6 +1,6 @@
 # Slice 2 — Design: multiple stateful AI primitives per entity
 
-> **Status:** FUTURE / design-capture only. Do **after** Slice 1 demos. Written 2026-06-15 from the architect's design talk + code verification, so we can resume without re-analysis.
+> **Status:** **architect-approved** (2026-06-15, incl. the three §10 mandated fixes). FUTURE / design-capture — implement **after** Slice 1 demos. Canonical version: `docs/blueprints/BTree_AiActionParameterBinding_Detailed_Design.md` §4.
 > **One-line:** lift the Slice 1 constraint of "one stateful AiPrimitive working-state per entity" by moving working state into a **Blueprint-owned, partition-allocated** component, keyed by `BlueprintId` — without touching the engine's BTree/HSM kernels.
 
 ## 1. The constraint and why it exists (verified)

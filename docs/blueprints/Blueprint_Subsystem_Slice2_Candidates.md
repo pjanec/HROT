@@ -187,8 +187,10 @@ The right Slice 2 move is **not** to retrofit a partition allocator onto the eng
 
 Instead: **move AiPrimitive working state into a Blueprint-owned component**, parallel to `BlueprintBlackboard*` but used by the BTree/HSM-hosted thunk path. Either:
 
-- **Option α** — new component `BlueprintAiWorking1024` (size mirroring engine's `Blackboard1024`), with the partition allocator already designed in Slice 1.
-- **Option β** — merge into existing `BlueprintBlackboard*` tiers, making the AiPrimitive thunks lookup their slot the same way Instance dispatch does.
+- **Option α** — new component `BlueprintAiWorking1024` (size mirroring engine's `Blackboard1024`), with the partition allocator already designed in Slice 1. *(rejected)*
+- **Option β** — merge into existing `BlueprintBlackboard*` tiers, making the AiPrimitive thunks lookup their slot the same way Instance dispatch does. *(chosen)*
+
+> ✅ **RESOLVED (architect + user, 2026-06-15): Option β, approved & designed.** Per-node working-slot key = `FNV-1a(BehaviorAssetId, NodeVisualId)`, baked into the per-node adapter thunk. Three mandated fixes: tier-upgrade race → synchronous `Input`-phase provisioning; hot-reload ghost slot → re-publish `AssignBehaviorEvent` (not inline `ResetSlot`); concurrent stateful Subtree → cross-region validator hard-error. Full design: **`BTree_AiActionParameterBinding_Detailed_Design.md` §4**.
 
 Either way, the engine's `Blackboard1024` is **not modified**. The change is entirely Blueprint-side:
 

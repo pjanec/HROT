@@ -174,6 +174,8 @@ The generated thunk's inline hash check (per Compiler DD §10.4) handles this: o
 
 Both cases are handled by code that already exists in the Compiler DD and Runtime DD. The Hot Reload coordinator just needs to ensure the swap happens atomically; the downstream reconciliation is each subsystem's responsibility.
 
+> **Slice 2 addendum — BTree-hosted stateful AiPrimitive slots.** When AiPrimitive working state moves into the partitioned `BlueprintBlackboard*` tiers (Option β), a BTree node's slot is keyed by a *synthetic* `FNV-1a(BehaviorAssetId, NodeVisualId)` that is **not** a registered Instance blueprint — so `BlueprintTickSystem`'s per-slot reconcile sweep **skips it**, and a Hard Reload that *grows* the working-state struct would overflow the old (smaller) slot and corrupt its neighbor (`ResetSlot` zeroes but cannot resize). Fix: on Hard Reload of a BTree asset, `AiHotReloadCoordinator` re-publishes `AssignBehaviorEvent` for affected entities, forcing `BehaviorIngressSystem` to `TryDetach` + re-provision correctly-sized slots. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4.3 (Fix 2).
+
 ### 2.6 Authoring story for "I edited a .bp.json"
 
 From the author's perspective:

@@ -196,7 +196,7 @@ When editor-owned blackboards generate a param/heavy **struct** (Slice 1.5), the
 
 ### 6.5 In-process quick reload (dual-path; D12)
 To meet the documented ≤100 ms target (host §1.3) rather than regress to MSBuild-only edit latency, add an in-process quick-reload path for BTree/HSM mirroring Blueprint's `QuickReloadService`: deserialize the in-memory editor model → emit C# via the **shared emit core** → in-memory Roslyn compile → collectible ALC → register → commit. This reuses the exact emit core the MSBuild generator uses (one emission implementation, two hosts), exactly as `Hrot.Blueprints.Compiler` is shared today.
-- **Registration:** uses the **`[BlueprintRegistrar]` masquerade (D14)** — no HR-001 change. The same isolated bridge class the generator emits is discovered by `AiHotReloadCoordinator` on quick reload exactly as on full rebuild, and injected with `BehaviorRegistry` to wire the BTree/HSM definitions + thunks.
+- **Registration:** uses the **`[BlueprintRegistrar]` masquerade (D14)** — no HR-001 change. The same isolated bridge class the generator emits is discovered by `AiHotReloadCoordinator` on quick reload exactly as on full rebuild, and injected with `BehaviorRegistry` to wire the BTree/HSM definitions + thunks. *(The same per-asset masquerade registrar is reused to register baked-offset action/condition thunks for authored multi-action binding — see `BTree_AiActionParameterBinding_Detailed_Design.md` §3.2.)*
 - **Scope/sequencing:** because JSON+MSBuild-generator is already latency-neutral vs today, PU-09 (this path) may be a **follow-on** if we want to keep the keystone lean — but it is required to *meet* the target, so it's tracked, not dropped.
 
 ### 6.6 Post-reload stitching (D13)
