@@ -8,6 +8,7 @@ using System.Runtime.Loader;
 using System.Threading;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
+using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
@@ -249,6 +250,10 @@ namespace Hrot.Editor
                 // Step 2: invoke all discovered registrars with resolved staging params.
                 var behaviorStaging  = new BehaviorRegistry();
                 var blueprintStaging = _blueprintRegistry.BeginStaging();
+                // BTree bridges construct `new Interpreter(blob, registry)` and require a NON-null,
+                // populated ActionRegistry (the baked-offset thunks live here). Build it from the
+                // same loaded assembly the registrars came from (mirrors Fdp.Toolkit coordinator).
+                var btreeActionRegistry = BuildBTreeActionRegistry(pending.Registrars);
 
                 foreach (var registrar in pending.Registrars)
                 {
@@ -260,7 +265,7 @@ namespace Hrot.Editor
                     {
                         var args = registrar.Parameters
                             .OrderBy(p => p.OrdinalIndex)
-                            .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging))
+                            .Select(p => ResolveRegistrarParam(p.ParameterType, behaviorStaging, blueprintStaging, btreeActionRegistry))
                             .ToArray();
                         registrar.RegisterMethod.Invoke(null, args);
                     }
@@ -538,13 +543,30 @@ namespace Hrot.Editor
 
         // ---- Private: parameter resolution ----
 
+        /// <summary>
+        /// Builds a populated BTree <see cref="ActionRegistry{TBB,TCtx}"/> from the assembly the
+        /// discovered registrars belong to. BTree bridge <c>Register(...)</c> methods construct
+        /// <c>new Interpreter(blob, registry)</c> and require a non-null registry; without this the
+        /// editor crashes at startup with ArgumentNullException ('registry').
+        /// </summary>
+        private static ActionRegistry<BrainBlackboard, BTreeContext> BuildBTreeActionRegistry(
+            IReadOnlyList<ResolvedRegistrar> registrars)
+        {
+            var asm = registrars.Count > 0 ? registrars[0].DeclaringType.Assembly : null;
+            return asm != null
+                ? BTreeActionRegistryFactory.BuildFromAssembly(asm)
+                : new ActionRegistry<BrainBlackboard, BTreeContext>();
+        }
+
         private object? ResolveRegistrarParam(
             Type paramType,
             BehaviorRegistry behaviorStaging,
-            BlueprintRegistryStaging blueprintStaging)
+            BlueprintRegistryStaging blueprintStaging,
+            ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
         {
             if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
             if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
+            if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
             if (paramType == typeof(IGeographicTransform))     return _geoTransform;
             if (typeof(IGeographicTransform).IsAssignableFrom(paramType)) return _geoTransform;
             if (paramType == typeof(NetworkEntityMap))         return _entityMap;

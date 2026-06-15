@@ -4,8 +4,10 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Threading;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Fhsm.Kernel;
 using Hrot.Editor;
@@ -415,9 +417,65 @@ namespace Hrot.Editor.Tests
             coordinator.DrainPendingCallbacks();
             Assert.Equal(1, drainCount);
         }
+
+        /// <summary>
+        /// Regression (startup crash): a BTree bridge registrar declares an
+        /// <see cref="ActionRegistry{TBB,TCtx}"/> parameter. DrainPendingCallbacks must resolve it
+        /// to a NON-null populated registry — previously it resolved to null, so the bridge's
+        /// <c>new Interpreter(blob, registry)</c> threw ArgumentNullException and crashed the editor
+        /// at startup.
+        /// </summary>
+        [Fact]
+        public void Drain_InjectsNonNullBTreeActionRegistry_ForBridgeRegistrar()
+        {
+            using var coordinator = CreateCoordinator();
+
+            string? failureMsg = null;
+            coordinator.OnReloadFailed += (_, ex) => failureMsg = ex.ToString();
+
+            var registrars = coordinator
+                .ScanForRegistrars(typeof(StubBTreeActionRegistryRegistrar).Assembly)
+                .Where(r => r.DeclaringType == typeof(StubBTreeActionRegistryRegistrar))
+                .ToArray();
+            Assert.Single(registrars);
+            // Sanity: the registrar really does declare the ActionRegistry parameter.
+            Assert.Contains(registrars[0].Parameters,
+                p => p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>));
+
+            StubBTreeActionRegistryRegistrar.LastRegistry = null;
+            var alc = new AssemblyLoadContext("test-btree-actionreg", isCollectible: true);
+            coordinator.EnqueueReloadForTest(registrars, alc);
+
+            coordinator.DrainPendingCallbacks();
+
+            Assert.Null(failureMsg); // no ArgumentNullException surfaced via OnReloadFailed
+            Assert.NotNull(StubBTreeActionRegistryRegistrar.LastRegistry); // non-null registry injected
+        }
     }
 
     // ---- Stub registrar classes used by ScanForRegistrars tests ----
+
+    /// <summary>
+    /// Mirrors a real generated BTree bridge: its Register takes the injected
+    /// <see cref="ActionRegistry{TBB,TCtx}"/> and (like the real bridge) would throw if it were
+    /// null (the real bridge does <c>new Interpreter(blob, registry)</c>). Used by the regression
+    /// test that the drain path injects a NON-null BTree action registry.
+    /// </summary>
+    [Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
+    internal static class StubBTreeActionRegistryRegistrar
+    {
+        public static ActionRegistry<BrainBlackboard, BTreeContext>? LastRegistry;
+
+        public static void Register(
+            BehaviorRegistry beh,
+            BlueprintRegistryStaging staging,
+            ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+        {
+            // Real bridges crash here with ArgumentNullException if the registry is null.
+            if (actionRegistry == null) throw new ArgumentNullException(nameof(actionRegistry));
+            LastRegistry = actionRegistry;
+        }
+    }
 
     [Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
     internal static class StubHsmRegistrar
