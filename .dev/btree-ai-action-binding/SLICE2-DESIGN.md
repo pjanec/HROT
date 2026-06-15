@@ -73,7 +73,7 @@ Distinctions to settle:
 1. Read `docs/blueprints/Blueprint_Subsystem_Slice2_Candidates.md` Theme C/C1 + Roadmap v1.1.
 2. Confirm the **β** decision (§2) and resolve the **slot-identity** proposal (§6.2: per-stateful-node-instance slot id baked into the BTree adapter thunk, calling the blueprint's `TickCore`) with the architect.
 3. Spec the thunk change: BTree composition emits a per-node adapter (param offset + working-slot id) calling `TickCore`; provisioning adds/sizes the `BlueprintBlackboard*` tier and allocates one slot per stateful node instance. Kernels untouched.
-4. Wire provisioning + tier selection (aggregate over stateful node instances).
+4. **Apply the three §10 mandated fixes** before/with provisioning: synchronous `Input`-phase tier upgrade (Flaw 1); hot-reload via re-published `AssignBehaviorEvent` rather than inline `ResetSlot` (Flaw 2); cross-region validator hard-errors concurrent execution of the same stateful Subtree (Flaw 3). Then wire provisioning + tier selection (aggregate over **reachable** stateful node instances).
 5. Build demos S2-1..S2-3 + proof tests.
 6. (Separate) open the **shared-blackboard** design pass (§7) when a behavior needs shared mutable state.
 
@@ -87,3 +87,20 @@ Reviewed by architect; reconciled against code (✓ = verified this session).
 - **Latent/await (Q5) — CONFIRMED.** A 16-byte `BlueprintLatentCursor` is emitted at **offset 0** of `WorkingState`; lives in the partition payload → survives ticks + soft reloads.
 - **Mixing stateless + stateful (Q6) — CONFIRMED: no hazard.** Disjoint memory — `Params` over `BrainBlackboard` inline; `WorkingState` over the `BlueprintBlackboard*` partition slot. The adapter does both projections sequentially before `TickCore`.
 - **Shared blackboard (Q4) — see §7 (resolved):** first iteration = single-behavior single-entity scratch in the `BlueprintBlackboard*` tier; squad-scope via the **virtual-leader entity's blackboard** (read by members).
+
+> **Note:** the provisioning (Q1) and hot-reload (Q2) answers above are **refined/corrected by §10** (a later architect review found three hazards). §10 is authoritative where it conflicts.
+
+## 10. Slice 2 hazards & mandated fixes (architect review, 2026-06-15) — MUST address before implementing
+The architect greenlit Slice 1 but flagged three severe ECS-lifecycle/hot-reload hazards in the Slice 2 plan. These corrections are mandatory. (Referenced systems verified to exist: `BlueprintTickSystem`, the cross-region conflict validator `WouldCreateCrossRegionConflict`/`GetParallelRegionMap`, `BlueprintMaintenanceSystem`/`BeforeSync` — re-confirm exact phase wiring at kickoff.)
+
+### Flaw 1 — Tier-upgrade race (provisioning latency). *Supersedes §6.5/§9 "provisioning".*
+If the entity already has a smaller tier (e.g. `BlueprintBlackboard1024` from an existing Instance blueprint) and the new BTree's stateful nodes exceed it, the tier must upgrade. A **deferred ECB** upgrade runs in `BlueprintMaintenanceSystem` (`BeforeSync`), but `BehaviorIngressSystem` runs in `Input` and the BTree kernel ticks in the **same frame's** `Simulation` phase — so deferred upgrade ⇒ thunks run before the tier exists ⇒ missing slots ⇒ fatal crash.
+**Fix:** `BehaviorIngressSystem` performs the tier upgrade **synchronously in the `Input` phase** — direct `repo.AddComponent` + `CopyToLargerTier` + `repo.RemoveComponent`. The `Input` phase is outside the parallel `Simulation` lock, so synchronous structural mutation is safe and guarantees the tier exists before the BTree ticks.
+
+### Flaw 2 — Hot-reload ghost slot (memory corruption). *Supersedes §6.6/§9 "hot-reload".*
+BTree synthetic slot keys (`FNV-1a(BehaviorAssetId, NodeVisualId)`) are **not** registered as standalone Instance blueprints, so `BlueprintTickSystem`'s reconcile (walk slot table → look up `BlueprintId` in `BlueprintRegistry` → compare `StructureHash`) **ignores them**. On a **Hard Reload** that *grows* a stateful `WorkingState`, the old slot keeps its smaller `PayloadSize`; the new thunk projects a larger struct over it → silently overwrites the adjacent slot. `ResetSlot` can't help (it zeroes, doesn't resize).
+**Fix:** do **not** rely on inline `ResetSlot` for BTree working states. When `AiHotReloadCoordinator` detects a Hard Reload of a BTree asset, it must **re-publish `AssignBehaviorEvent`** for every entity running that behavior, forcing `BehaviorIngressSystem` to `TryDetach` the old ghost slots (dense-compact the tier) and re-provision correctly-sized slots from scratch.
+
+### Flaw 3 — Synthetic-key concurrency collision (subtree hazard). *Refines §6.2.*
+`FNV-1a(BehaviorAssetId, NodeVisualId)` is unique within one asset's execution — but if an HSM runs the **same Subtree** concurrently in two orthogonal parallel regions, the stateful nodes inside compute the **same** synthetic key for both → both project `WorkingState`/`BlueprintLatentCursor` over the same slot → race-write corruption.
+**Fix:** extend the visual editor's **Cross-Region Conflict Validator** (the existing `WouldCreateCrossRegionConflict` path) to treat a stateful Subtree as a mutating writer of its synthetic keys, and **hard-error** on concurrent execution of the same stateful Subtree across parallel regions.

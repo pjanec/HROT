@@ -2,7 +2,7 @@
 
 > **Origin:** user (2026-06-15). Continuation of DEC-05 (`.dev/ai-hsm-btree-vis-edit-2/DEC/`). Goal: make JSON-authored behavior trees bind **multiple** actions/conditions — each with its **own** parameter DTO at its **own** blackboard offset — via the visual editor, with runnable demos. Then plan the future (Slice 2: multiple *stateful* primitives per entity).
 > **Execution model:** lead (opus) writes specs + hard-verifies; coding delegated to sonnet/zoo; commit per batch; token-constrained. Build-verify with `dotnet build-server shutdown` before codegen checks.
-> **Status:** DESIGN ONLY — no implementation started for this workstream's binding codegen. (Foundations already landed under DEC-05; see SLICE1-DESIGN §6.)
+> **Status:** Slice 1 **architect-greenlit, ready to implement** (no further design changes needed). Slice 2 design has three architect-mandated fixes to apply before implementing (SLICE2-DESIGN §10). No implementation started for this workstream's binding codegen yet (awaiting user go). Foundations already landed under DEC-05; see SLICE1-DESIGN §6.
 
 ## Documents
 - **[SLICE1-DESIGN.md](SLICE1-DESIGN.md)** — the approach we build first: bind multiple stateless actions/conditions (distinct DTOs, distinct offsets) to authored blackboard variables; editor authoring; Slice 1 demo specs. This is the actionable spec.
