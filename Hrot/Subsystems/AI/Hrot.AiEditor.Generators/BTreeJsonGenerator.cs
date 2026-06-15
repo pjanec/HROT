@@ -99,6 +99,36 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // S1-2: 100-byte inline-budget guard for managed blackboards.
+        // A managed asset whose packed variables exceed the 100-byte inline budget would
+        // emit an oversized struct (and a topology that assumes it). Detect overflow BEFORE
+        // emitting anything and skip the whole asset with a BTREE0002 Warning (never a hard
+        // build break, matching the other BTREE0002 skips). Guarded by dto.Blackboard.Managed
+        // so Managed==false assets stay byte-identical.
+        if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            bool wouldOverflow;
+            try
+            {
+                wouldOverflow = BTreeBlackboardPackHelper.WouldOverflow(
+                    dto.Blackboard.Variables, out _);
+            }
+            catch (Exception ex)
+            {
+                spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                    "Exception during blackboard overflow check: " + ex.Message));
+                return;
+            }
+
+            if (wouldOverflow)
+            {
+                spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                    $"managed blackboard exceeds the {BTreeBlackboardPackHelper.MaxInlineBytes}-byte " +
+                    "inline budget — asset skipped (reduce the number/size of blackboard variables)"));
+                return;
+            }
+        }
+
         // Emit topology core (CreateBuilder + [BTreeDefinition] thunk, NO [BTreeLayout]).
         string source;
         try
@@ -117,6 +147,26 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
 
         // Topology core: {Name}.g.cs
         spc.AddSource(baseName + ".g.cs", source);
+
+        // S1-2: Managed blackboard struct: {Name}.Blackboard.g.cs
+        // Guard: only when dto.Blackboard.Managed == true; non-managed assets are byte-identical.
+        if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            string? structSource;
+            try
+            {
+                structSource = BTreeEmitCore.EmitBlackboardStructSource(dto, out _);
+            }
+            catch (Exception ex)
+            {
+                spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                    "Exception during blackboard struct generation: " + ex.Message));
+                return;
+            }
+
+            if (structSource != null)
+                spc.AddSource(baseName + ".Blackboard.g.cs", structSource);
+        }
 
         // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
         string bridge;

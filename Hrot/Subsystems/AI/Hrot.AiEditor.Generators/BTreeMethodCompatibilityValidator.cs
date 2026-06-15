@@ -101,6 +101,7 @@ internal static class BTreeMethodCompatibilityValidator
                 {
                     string? reason = CheckPayload(
                         p.MethodFqn, p.DelegateShape,
+                        p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,
                         bbTypeName, ctxTypeName);
@@ -115,6 +116,7 @@ internal static class BTreeMethodCompatibilityValidator
                 {
                     string? reason = CheckPayload(
                         p.MethodFqn, p.DelegateShape,
+                        p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,
                         bbTypeName, ctxTypeName);
@@ -137,6 +139,8 @@ internal static class BTreeMethodCompatibilityValidator
     private static string? CheckPayload(
         string methodFqn,
         BTreeDelegateShapeDto delegateShape,
+        string? expressionTargetField,
+        BlackboardBlockDto blackboard,
         Compilation compilation,
         INamedTypeSymbol? bbSymbol,
         INamedTypeSymbol? ctxSymbol,
@@ -145,9 +149,21 @@ internal static class BTreeMethodCompatibilityValidator
         string bbTypeName,
         string ctxTypeName)
     {
-        // TODO VE-DEBT-002: support reusable/expression-target binding validation.
+        // S1-4: ThreeParamReusable is now validated via the 3-param shape check.
+        // A ThreeParamReusable binding is valid when:
+        //   1. The method resolves to a public static method.
+        //   2. The method has exactly 3 parameters: (ref TDto, ref BehaviorTreeState, ref TCtx)
+        //      and returns NodeStatus.
+        //   3. ExpressionTargetField names a variable in the managed blackboard block
+        //      whose TypeId matches param-0's type FQN.
+        // If any of those conditions fail the binding is skipped (BTREE0002), not hard-errored.
         if (delegateShape == BTreeDelegateShapeDto.ThreeParamReusable)
-            return "ThreeParamReusable delegate shape is not supported by the generator (VE-DEBT-002); bind a FourParamFull method instead";
+        {
+            return CheckThreeParamReusable(
+                methodFqn, expressionTargetField, blackboard,
+                compilation, behaviorTreeStateSymbol, nodeStatusSymbol, ctxSymbol,
+                ctxTypeName);
+        }
 
         // Resolve the method symbol.
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
@@ -194,6 +210,99 @@ internal static class BTreeMethodCompatibilityValidator
             return $"method '{methodFqn}' param 3 (paramIndex) must not be ref/out/in; got '{p3.RefKind}'";
         if (p3.Type.SpecialType != SpecialType.System_Int32)
             return $"method '{methodFqn}' param 3 must be System.Int32; got '{p3.Type.ToDisplayString()}'";
+
+        return null; // valid
+    }
+
+    /// <summary>
+    /// S1-4: Validates a ThreeParamReusable binding.
+    /// Accepts when:
+    ///   - method resolves, is public static, returns NodeStatus
+    ///   - method has exactly 3 ref parameters: (ref TDto, ref BehaviorTreeState, ref TCtx)
+    ///   - ExpressionTargetField names a variable in the blackboard block
+    ///   - that variable's TypeId matches param-0's type FQN (type-safe binding)
+    /// Returns null on success, reason string on failure.
+    /// </summary>
+    private static string? CheckThreeParamReusable(
+        string methodFqn,
+        string? expressionTargetField,
+        BlackboardBlockDto blackboard,
+        Compilation compilation,
+        INamedTypeSymbol? behaviorTreeStateSymbol,
+        INamedTypeSymbol? nodeStatusSymbol,
+        INamedTypeSymbol? ctxSymbol,
+        string ctxTypeName)
+    {
+        // ExpressionTargetField must be set.
+        if (string.IsNullOrEmpty(expressionTargetField))
+            return $"ThreeParamReusable binding has no ExpressionTargetField — set the target variable in the editor";
+
+        // The blackboard block must be managed and contain the variable.
+        if (!blackboard.Managed)
+            return $"ThreeParamReusable binding requires a managed blackboard (Managed=true); got Managed=false";
+
+        BlackboardVariableDto? targetVar = null;
+        foreach (var v in blackboard.Variables)
+        {
+            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
+            {
+                targetVar = v;
+                break;
+            }
+        }
+        if (targetVar == null)
+            return $"ThreeParamReusable: variable '{expressionTargetField}' not found in the managed blackboard block";
+
+        // Resolve the method.
+        IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
+        if (method == null)
+            return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
+
+        if (!method.IsStatic)
+            return $"method '{methodFqn}' is not static";
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            return $"method '{methodFqn}' is not public";
+
+        // Return type must be NodeStatus.
+        if (nodeStatusSymbol == null)
+            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
+            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but 3-param reusable requires Fbt.NodeStatus";
+
+        // Must have exactly 3 parameters.
+        if (method.Parameters.Length != 3)
+            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but ThreeParamReusable requires exactly 3 (ref TDto, ref BehaviorTreeState, ref TCtx)";
+
+        // Param 0: ref TDto — must be a ref struct matching the variable's TypeId.
+        var param0 = method.Parameters[0];
+        if (param0.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 0 must be 'ref'; got '{param0.RefKind}'";
+
+        // Get the FQN of param0's type and compare with the variable's TypeId.
+        string param0TypeFqn = param0.Type.ToDisplayString(
+            new SymbolDisplayFormat(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
+
+        string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
+        if (!string.Equals(param0TypeFqn, varTypeId, StringComparison.Ordinal))
+            return $"method '{methodFqn}' param 0 type '{param0TypeFqn}' does not match variable '{expressionTargetField}' type '{varTypeId}'; ensure the DTO type and the blackboard variable type are the same";
+
+        // Param 1: ref BehaviorTreeState.
+        var param1 = method.Parameters[1];
+        if (param1.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 1 must be 'ref BehaviorTreeState'; got refkind '{param1.RefKind}'";
+        if (behaviorTreeStateSymbol != null &&
+            !SymbolEqualityComparer.Default.Equals(param1.Type, behaviorTreeStateSymbol))
+            return $"method '{methodFqn}' param 1 must be 'ref Fbt.BehaviorTreeState'; got '{param1.Type.ToDisplayString()}'";
+
+        // Param 2: ref TCtx.
+        var param2 = method.Parameters[2];
+        if (param2.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 2 must be 'ref TCtx'; got refkind '{param2.RefKind}'";
+        if (ctxSymbol != null &&
+            !SymbolEqualityComparer.Default.Equals(param2.Type, ctxSymbol))
+            return $"method '{methodFqn}' param 2 type '{param2.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
 
         return null; // valid
     }

@@ -13,9 +13,9 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 
 - [x] **S1-0** `bool` `[MarshalAs(UnmanagedType.I1)]` fix in `BlackboardDtoEmitter` (prerequisite) [details](./TASK-DETAIL.md#s1-0--bool-marshalas-fix) — *done BATCH-01 (P2: DEBT-AIB-008)*
 - [x] **S1-1** Variables panel read-only reflection of hardcoded Category-1 DTOs (via `ActionSchemaExporter`) [details](./TASK-DETAIL.md#s1-1--category-1-dto-reflection-in-variables-panel) — *done BATCH-01 (VM-level; live wiring DEBT-AIB-009 → S1-5/S1-G)*
-- [ ] **S1-2** Per-asset blackboard struct + topology-over-struct codegen [details](./TASK-DETAIL.md#s1-2--per-asset-struct--topology-over-struct) — *deps S1-0*
-- [ ] **S1-3** Per-asset baked-offset registrar + adapter-calls-`TickCore` [details](./TASK-DETAIL.md#s1-3--baked-offset-registrar--adapter) — *deps S1-2*
-- [ ] **S1-4** Validator: unblock `ThreeParamReusable` (type-matched binding) [details](./TASK-DETAIL.md#s1-4--validator-unblock-threeparamreusable) — *MUST land with S1-2/S1-3 (else build break)*
+- [x] **S1-2** Per-asset blackboard struct + topology-over-struct codegen [details](./TASK-DETAIL.md#s1-2--per-asset-struct--topology-over-struct) — *done BATCH-02 (build-time `BTreeBlackboardPackHelper`; DEBT-AIB-011)*
+- [x] **S1-3** Per-asset baked-offset registrar + adapter-calls-`TickCore` [details](./TASK-DETAIL.md#s1-3--baked-offset-registrar--adapter) — *done BATCH-02*
+- [x] **S1-4** Validator: unblock `ThreeParamReusable` (type-matched binding) [details](./TASK-DETAIL.md#s1-4--validator-unblock-threeparamreusable) — *done BATCH-02*
 - [ ] **S1-5** Node-inspector field-picker + "promote to new variable" [details](./TASK-DETAIL.md#s1-5--field-picker--promote-to-variable) — *deps S1-1, S1-4*
 - [ ] **S1-G** **DEMO GATE** — multi-action / distinct-DTO / decorator / aliasing + proof tests [details](./TASK-DETAIL.md#s1-g--slice-1-demo-gate) — *deps S1-2…S1-5*
 

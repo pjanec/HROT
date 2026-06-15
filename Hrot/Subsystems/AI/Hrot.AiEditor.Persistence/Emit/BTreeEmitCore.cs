@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
 using Hrot.AiEditor.Persistence.BTree;
@@ -33,6 +32,92 @@ public static class BTreeEmitCore
         return EmitInternal(dto, includeLayout: true);
     }
 
+    // ---- Blackboard struct emit (S1-2) ----
+
+    /// <summary>
+    /// Emits a <c>[StructLayout(LayoutKind.Sequential)]</c> struct for a managed blackboard block.
+    /// Returns the C# source string and fills <paramref name="packedFields"/> with the
+    /// packing result (name → byte offset, packed order = declaration order for master vars).
+    /// Returns <c>null</c> when <paramref name="dto"/> is not managed or has no variables.
+    /// </summary>
+    public static string? EmitBlackboardStructSource(
+        BehaviorTreeAssetDto dto,
+        out IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
+    {
+        packedFields = Array.Empty<BTreeBlackboardPackHelper.PackedField>();
+
+        if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
+            return null;
+
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> fields;
+        try
+        {
+            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+        }
+        catch (NotSupportedException)
+        {
+            // Unknown type — skip struct emit; caller decides how to handle.
+            return null;
+        }
+
+        packedFields = fields;
+
+        var targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
+            ? "Hrot.AI.Behaviors.Trees"
+            : dto.TargetNamespace;
+
+        string structName = SanitizeIdentifier(dto.Blackboard.TypeName);
+        if (string.IsNullOrEmpty(structName))
+            structName = SanitizeIdentifier(dto.Name) + "Blackboard";
+
+        var sb = new StringBuilder();
+        sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
+        sb.AppendLine("using System.Runtime.InteropServices;");
+        sb.AppendLine();
+        sb.AppendLine($"namespace {targetNs};");
+        sb.AppendLine();
+        sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+        sb.AppendLine($"public struct {structName}");
+        sb.AppendLine("{");
+
+        foreach (var f in fields)
+        {
+            string csTypeName = ToCsTypeName(f.TypeId);
+            if (f.TypeId == "System.Boolean")
+            {
+                sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
+            }
+            sb.AppendLine($"{Indent}public {csTypeName} {f.Name};");
+        }
+
+        sb.AppendLine("}");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Maps a CLR type FQN to the C# keyword or short name used in generated source.
+    /// </summary>
+    private static string ToCsTypeName(string typeId) => typeId switch
+    {
+        "System.Boolean"  => "bool",
+        "System.Byte"     => "byte",
+        "System.SByte"    => "sbyte",
+        "System.Char"     => "char",
+        "System.Int16"    => "short",
+        "System.UInt16"   => "ushort",
+        "System.Int32"    => "int",
+        "System.UInt32"   => "uint",
+        "System.Single"   => "float",
+        "System.Int64"    => "long",
+        "System.UInt64"   => "ulong",
+        "System.Double"   => "double",
+        "System.Numerics.Vector2"    => "global::System.Numerics.Vector2",
+        "System.Numerics.Vector3"    => "global::System.Numerics.Vector3",
+        "System.Numerics.Vector4"    => "global::System.Numerics.Vector4",
+        "System.Numerics.Quaternion" => "global::System.Numerics.Quaternion",
+        _ => typeId, // fall back to FQN
+    };
+
     /// <summary>
     /// Emits the topology core (.cs file content) for the given BTree asset DTO,
     /// EXCLUDING the <c>[BTreeLayout]</c> method.
@@ -49,6 +134,11 @@ public static class BTreeEmitCore
     {
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
+
+        // Pre-compute variable offsets for managed blackboard assets (S1-2).
+        // For unmanaged assets this is empty — EmitAction/EmitCondition fall back to the
+        // legacy field-selector form which is byte-identical to the pre-BATCH-02 output.
+        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -76,7 +166,7 @@ public static class BTreeEmitCore
         sb.AppendLine("{");
 
         // Method 1: CreateBuilder
-        EmitCreateBuilder(sb, dto);
+        EmitCreateBuilder(sb, dto, variableOffsets);
 
         sb.AppendLine();
 
@@ -94,6 +184,30 @@ public static class BTreeEmitCore
         sb.AppendLine("}");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Pre-computes variable name → byte offset for a managed blackboard block.
+    /// Returns an empty dictionary for non-managed assets (guard: §S1-2).
+    /// </summary>
+    private static IReadOnlyDictionary<string, int> BuildVariableOffsets(BehaviorTreeAssetDto dto)
+    {
+        if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
+            return new Dictionary<string, int>();
+
+        try
+        {
+            var fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+            var map = new Dictionary<string, int>(fields.Count, StringComparer.Ordinal);
+            foreach (var f in fields)
+                map[f.Name] = f.ByteOffset;
+            return map;
+        }
+        catch
+        {
+            // Unknown type — fall back to empty (unmanaged path)
+            return new Dictionary<string, int>();
+        }
     }
 
     // ---- Using collection ----
@@ -211,7 +325,9 @@ public static class BTreeEmitCore
 
     // ---- CreateBuilder ----
 
-    private static void EmitCreateBuilder(StringBuilder sb, BehaviorTreeAssetDto dto)
+    private static void EmitCreateBuilder(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        IReadOnlyDictionary<string, int> variableOffsets)
     {
         var bbShort  = ShortTypeName(dto.BlackboardTypeName);
         var ctxShort = ShortTypeName(dto.ContextTypeName);
@@ -233,7 +349,7 @@ public static class BTreeEmitCore
             if (root.ChildVisualIds.Count > 0 && nodeById.TryGetValue(root.ChildVisualIds[0], out var entryChild))
             {
                 CheckNoCycles(dto, nodeById, entryChild);
-                EmitNode(sb, dto, nodeById, entryChild, depth: 3, isLast: true);
+                EmitNode(sb, dto, nodeById, entryChild, depth: 3, isLast: true, variableOffsets);
             }
             else
                 sb.AppendLine($"{Indent}{Indent};");
@@ -243,7 +359,7 @@ public static class BTreeEmitCore
             // No explicit root — emit the first node directly (reflection-loaded blob pattern).
             // The generated CreateBuilder() chains: new BTreeBuilder<>().FirstNode(...)
             CheckNoCycles(dto, nodeById, dto.Nodes[0]);
-            EmitNode(sb, dto, nodeById, dto.Nodes[0], depth: 3, isLast: true);
+            EmitNode(sb, dto, nodeById, dto.Nodes[0], depth: 3, isLast: true, variableOffsets);
         }
         else
         {
@@ -254,38 +370,40 @@ public static class BTreeEmitCore
     private static void EmitNode(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         Dictionary<Guid, BTreeNodeDto> nodeById,
-        BTreeNodeDto node, int depth, bool isLast)
+        BTreeNodeDto node, int depth, bool isLast,
+        IReadOnlyDictionary<string, int> variableOffsets)
     {
-        BuildNodeContent(sb, dto, nodeById, node, depth, isLast);
+        BuildNodeContent(sb, dto, nodeById, node, depth, isLast, variableOffsets: variableOffsets);
     }
 
     private static void BuildNodeContent(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         Dictionary<Guid, BTreeNodeDto> nodeById,
         BTreeNodeDto node, int depth, bool isLast,
-        string methodPrefix = ".")
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
 
         switch (node)
         {
             case BTreeSequenceNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Sequence", "seq", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Sequence", "seq", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeSelectorNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Selector", "sel", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Selector", "sel", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeParallelNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Parallel", "par", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Parallel", "par", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeObserverSelectorNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeActionNodeDto:
             case BTreeConditionNodeDto:
             case BTreeWaitNodeDto:
             case BTreeSubtreeNodeDto:
-                EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix);
+                EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unsupported node type: {node.GetType().Name}");
@@ -298,7 +416,8 @@ public static class BTreeEmitCore
         Dictionary<Guid, BTreeNodeDto> nodeById,
         BTreeNodeDto node, string methodName, string lambdaArg,
         string pad, int depth, bool isLast,
-        string methodPrefix = ".")
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         var pills = dto.Pills
             .Where(p => p.HostNodeVisualId == node.VisualId)
@@ -340,7 +459,7 @@ public static class BTreeEmitCore
             {
                 var childId = node.ChildVisualIds[i];
                 if (nodeById.TryGetValue(childId, out var child))
-                    EmitChildNode(sb, dto, nodeById, child, pillDepth + 1, isLast: true, methodPrefix: childPrefix);
+                    EmitChildNode(sb, dto, nodeById, child, pillDepth + 1, isLast: true, methodPrefix: childPrefix, variableOffsets: variableOffsets);
             }
             bool hasPills = pills.Count > 0;
             string closeSuffix = (hasPills || !isLast) ? "," : ";";
@@ -362,29 +481,30 @@ public static class BTreeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         Dictionary<Guid, BTreeNodeDto> nodeById,
         BTreeNodeDto node, int depth, bool isLast,
-        string methodPrefix = ".")
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         string pad = string.Concat(Enumerable.Repeat(Indent, depth));
 
         switch (node)
         {
             case BTreeSequenceNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Sequence", "seq", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Sequence", "seq", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeSelectorNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Selector", "sel", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Selector", "sel", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeParallelNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "Parallel", "par", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "Parallel", "par", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeObserverSelectorNodeDto:
-                EmitComposite(sb, dto, nodeById, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix);
+                EmitComposite(sb, dto, nodeById, node, "ObserverSelector", "obs", pad, depth, isLast, methodPrefix, variableOffsets);
                 break;
             case BTreeActionNodeDto:
             case BTreeConditionNodeDto:
             case BTreeWaitNodeDto:
             case BTreeSubtreeNodeDto:
-                EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix);
+                EmitLeafWithPills(sb, dto, node, depth, isLast, methodPrefix, variableOffsets);
                 break;
             default:
                 sb.AppendLine($"{pad}// Unknown node type: {node.GetType().Name}");
@@ -419,7 +539,8 @@ public static class BTreeEmitCore
     private static void EmitLeafWithPills(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         BTreeNodeDto node, int depth, bool isLast,
-        string methodPrefix = ".")
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         var pills = dto.Pills
             .Where(p => p.HostNodeVisualId == node.VisualId)
@@ -444,10 +565,10 @@ public static class BTreeEmitCore
         switch (node)
         {
             case BTreeActionNodeDto actNode:
-                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix);
+                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
                 break;
             case BTreeConditionNodeDto condNode:
-                EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix);
+                EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
                 break;
             case BTreeWaitNodeDto waitNode:
                 EmitWait(sb, waitNode, pad, innerIsLast, leafMethodPrefix);
@@ -473,7 +594,10 @@ public static class BTreeEmitCore
     private static string FloatLiteral(float f) =>
         f.ToString("R", CultureInfo.InvariantCulture) + "f";
 
-    private static void EmitAction(StringBuilder sb, BTreeActionNodeDto node, string pad, bool isLast, string methodPrefix = ".")
+    private static void EmitAction(
+        StringBuilder sb, BTreeActionNodeDto node, string pad, bool isLast,
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         var p = node.Action;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -486,11 +610,27 @@ public static class BTreeEmitCore
         }
 
         string methodRef = ShortMethodRef(p.MethodFqn);
+        string? actionTargetField = p.ExpressionTargetField;
         if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
-            !string.IsNullOrEmpty(p.ExpressionTargetField))
+            !string.IsNullOrEmpty(actionTargetField))
         {
-            sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{p.ExpressionTargetField}, {methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // S1-2: when variableOffsets is populated (managed blackboard), use the
+            // offset-keyed string form: .Action("{MethodFqn}@{offset}", visualId: ...).
+            // This keeps the blob key identical to the registry key (single source of truth).
+            // When variableOffsets is empty (unmanaged/legacy), fall through to the field-selector form.
+            if (variableOffsets != null && variableOffsets.Count > 0 &&
+                variableOffsets.TryGetValue(actionTargetField!, out int offset))
+            {
+                string blobKey = $"{p.MethodFqn}@{offset}";
+                sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
+                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            }
+            else
+            {
+                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
+                sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{actionTargetField}, {methodRef},");
+                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            }
         }
         else
         {
@@ -499,7 +639,10 @@ public static class BTreeEmitCore
         }
     }
 
-    private static void EmitCondition(StringBuilder sb, BTreeConditionNodeDto node, string pad, bool isLast, string methodPrefix = ".")
+    private static void EmitCondition(
+        StringBuilder sb, BTreeConditionNodeDto node, string pad, bool isLast,
+        string methodPrefix = ".",
+        IReadOnlyDictionary<string, int>? variableOffsets = null)
     {
         var p = node.Condition;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -512,11 +655,24 @@ public static class BTreeEmitCore
         }
 
         string methodRef = ShortMethodRef(p.MethodFqn);
+        string? condTargetField = p.ExpressionTargetField;
         if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
-            !string.IsNullOrEmpty(p.ExpressionTargetField))
+            !string.IsNullOrEmpty(condTargetField))
         {
-            sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{p.ExpressionTargetField}, {methodRef},");
-            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            // S1-2: same offset-key logic as EmitAction.
+            if (variableOffsets != null && variableOffsets.Count > 0 &&
+                variableOffsets.TryGetValue(condTargetField!, out int offset))
+            {
+                string blobKey = $"{p.MethodFqn}@{offset}";
+                sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
+                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            }
+            else
+            {
+                // Legacy unmanaged path — field-selector form (byte-identical to pre-BATCH-02).
+                sb.AppendLine($"{pad}{methodPrefix}Condition(dto => dto.{condTargetField}, {methodRef},");
+                sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+            }
         }
         else
         {

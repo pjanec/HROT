@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Hrot.AiEditor.Persistence.BTree;
+using Hrot.AiEditor.Persistence.Emit;
 
 namespace Hrot.AiEditor.Persistence.Emit;
 
@@ -112,40 +113,211 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
         sb.AppendLine($"{pad2}}});");
 
-        // Action thunks
-        var actions = CollectActions(dto);
-        if (actions.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine($"{pad2}// BTree action thunks — coordinator-injectable via BehaviorRegistry.RegisterAction.");
-            int i = 0;
-            foreach (var fqn in actions)
-            {
-                string thunkName = ShortMethodRef(fqn).Replace(".", "_") + "_Action";
-                sb.AppendLine($"{pad2}beh.RegisterAction({behaviorId + i + 1}, \"{fqn}\",");
-                sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                sb.AppendLine($"{pad2}{Indent}{Indent}Fbt.NodeStatus.Success);");
-                i++;
-            }
-        }
+        // S1-3: For managed assets, emit real baked-offset thunks for each
+        // (MethodFqn, ExpressionTargetField) → offset binding.
+        // For non-managed assets, fall back to stub thunks (pre-BATCH-02 behaviour).
+        bool isManaged = dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0;
 
-        // Condition thunks
-        var conditions = CollectConditions(dto);
-        if (conditions.Count > 0)
+        if (isManaged)
         {
-            sb.AppendLine();
-            sb.AppendLine($"{pad2}// BTree condition thunks — coordinator-injectable via BehaviorRegistry.RegisterCondition.");
-            int i = 0;
-            foreach (var fqn in conditions)
+            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort);
+            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort);
+        }
+        else
+        {
+            // Legacy stub thunks — byte-identical to pre-BATCH-02 output.
+            var actions = CollectActions(dto);
+            if (actions.Count > 0)
             {
-                sb.AppendLine($"{pad2}beh.RegisterCondition({behaviorId + actions.Count + i + 1}, \"{fqn}\",");
-                sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
-                sb.AppendLine($"{pad2}{Indent}{Indent}true);");
-                i++;
+                sb.AppendLine();
+                sb.AppendLine($"{pad2}// BTree action thunks — coordinator-injectable via BehaviorRegistry.RegisterAction.");
+                int i = 0;
+                foreach (var fqn in actions)
+                {
+                    sb.AppendLine($"{pad2}beh.RegisterAction({behaviorId + i + 1}, \"{fqn}\",");
+                    sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+                    sb.AppendLine($"{pad2}{Indent}{Indent}Fbt.NodeStatus.Success);");
+                    i++;
+                }
+            }
+
+            var conditions = CollectConditions(dto);
+            if (conditions.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"{pad2}// BTree condition thunks — coordinator-injectable via BehaviorRegistry.RegisterCondition.");
+                int i = 0;
+                foreach (var fqn in conditions)
+                {
+                    sb.AppendLine($"{pad2}beh.RegisterCondition({behaviorId + actions.Count + i + 1}, \"{fqn}\",");
+                    sb.AppendLine($"{pad2}{Indent}(ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+                    sb.AppendLine($"{pad2}{Indent}{Indent}true);");
+                    i++;
+                }
             }
         }
 
         sb.AppendLine($"{pad}}}");
+    }
+
+    /// <summary>
+    /// S1-3: emits baked-offset Action registry entries for a managed blackboard asset.
+    /// Key format: <c>{MethodFqn}@{offset}</c> — matches the blob key produced by BTreeEmitCore.
+    /// Thunk: <c>Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}))</c>
+    /// </summary>
+    private static void EmitManagedActionThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        string pad2, string bbShort, string ctxShort)
+    {
+        // Build offset map once.
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
+        try
+        {
+            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+        }
+        catch
+        {
+            return; // unknown type — skip (validator should have caught this)
+        }
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        // Collect unique (key, MethodFqn, dtoTypeFqn, offset) tuples for actions.
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset)>();
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto actNode) continue;
+            var p = actNode.Action;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            if (!seen.Add(key)) continue;
+
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset));
+        }
+
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// S1-3: baked-offset action thunks for managed blackboard.");
+        sb.AppendLine($"{pad2}// Key = {{MethodFqn}}@{{offset}} — matches blob key from topology emit.");
+        foreach (var (key, methodFqn, dtoTypeId, offset) in entries)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
+            string methodRef  = GlobalMethodRef(methodFqn);
+            sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}}});");
+        }
+    }
+
+    /// <summary>
+    /// S1-3: emits baked-offset Condition registry entries for a managed blackboard asset.
+    /// Mirrors <see cref="EmitManagedActionThunks"/>.
+    /// </summary>
+    private static void EmitManagedConditionThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        string pad2, string bbShort, string ctxShort)
+    {
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
+        try
+        {
+            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+        }
+        catch
+        {
+            return;
+        }
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset)>();
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeConditionNodeDto condNode) continue;
+            var p = condNode.Condition;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            string key = $"{p.MethodFqn}@{field.ByteOffset}";
+            if (!seen.Add(key)) continue;
+
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset));
+        }
+
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// S1-3: baked-offset condition thunks for managed blackboard.");
+        foreach (var (key, methodFqn, dtoTypeId, offset) in entries)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
+            string methodRef  = GlobalMethodRef(methodFqn);
+            sb.AppendLine($"{pad2}actionRegistry.RegisterCondition(\"{key}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}}});");
+        }
+    }
+
+    /// <summary>Converts a CLR type FQN to a global:: qualified C# type name for use in thunks.</summary>
+    private static string DtoTypeToGlobal(string typeId)
+    {
+        // For well-known primitives, use keywords. For all others, qualify with global::.
+        return typeId switch
+        {
+            "System.Int32"   => "int",
+            "System.UInt32"  => "uint",
+            "System.Single"  => "float",
+            "System.Int64"   => "long",
+            "System.UInt64"  => "ulong",
+            "System.Double"  => "double",
+            "System.Boolean" => "bool",
+            "System.Byte"    => "byte",
+            "System.SByte"   => "sbyte",
+            "System.Int16"   => "short",
+            "System.UInt16"  => "ushort",
+            "System.Char"    => "char",
+            _ => $"global::{typeId}",
+        };
+    }
+
+    /// <summary>
+    /// Converts a method FQN to a global:: qualified static method reference.
+    /// E.g. "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter"
+    /// → "global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter"
+    /// </summary>
+    private static string GlobalMethodRef(string methodFqn)
+    {
+        return $"global::{methodFqn}";
     }
 
     // ── Usings ─────────────────────────────────────────────────────────────────
@@ -164,6 +336,12 @@ public static class BTreeBridgeEmitCore
         // Namespaces from blackboard / context type names
         AddNamespaceFromTypeName(set, dto.BlackboardTypeName);
         AddNamespaceFromTypeName(set, dto.ContextTypeName);
+
+        // S1-3: managed assets need Unsafe for baked-offset thunks.
+        if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            set.Add("System.Runtime.CompilerServices");
+        }
 
         return AiEmitCoreBase.SortUsings(set);
     }

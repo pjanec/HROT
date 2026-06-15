@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using FluentAssertions;
 using Hrot.AiEditor.Generators;
 using Hrot.AiEditor.Persistence.BTree;
@@ -9,6 +10,7 @@ using Hrot.AiEditor.Persistence.Emit;
 using Hrot.BTree.Editor.Catalog;
 using Hrot.BTree.Editor.Model;
 using Hrot.BTree.Editor.Persistence;
+using Hrot.Editor.AiShared.Blackboard;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Xunit;
@@ -818,5 +820,674 @@ namespace Stub
             Suppressions = new SuppressionsDto(),
         };
         return BTreeJsonServices.Serialize(dto);
+    }
+
+    // ── BATCH-02 S1-2: per-asset blackboard struct + topology-over-struct ────────
+
+    /// <summary>
+    /// S1-2: Packing {int A; Vector3 B; bool C} must produce offsets that match
+    /// both <see cref="BTreeBlackboardPackHelper"/> (string-based) and
+    /// <see cref="BlackboardBinPacker"/> (runtime Type-based).
+    /// Vector3 alignment = min(12, 8) = 8 → A at 0 (int, size 4), B at 8 (align to 8), C at 20.
+    /// </summary>
+    [Fact]
+    public void ManagedAsset_GeneratesStruct_OffsetsMatchBinPacker()
+    {
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto { Name = "A", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+            new BlackboardVariableDto { Name = "B", Type = new BlackboardTypeRefDto { TypeId = "System.Numerics.Vector3" } },
+            new BlackboardVariableDto { Name = "C", Type = new BlackboardTypeRefDto { TypeId = "System.Boolean" } },
+        };
+
+        var dto = BuildManagedDto("TestStruct", vars);
+        var structSource = BTreeEmitCore.EmitBlackboardStructSource(dto, out var packedFields);
+
+        // Struct source must be emitted.
+        structSource.Should().NotBeNull("managed asset must emit a blackboard struct");
+        packedFields.Should().HaveCount(3, "three variables");
+
+        // Expected offsets:  A=0 (int,4), B=8 (Vector3, align=8 → pad 4 bytes), C=20 (bool, align=1)
+        packedFields[0].Name.Should().Be("A"); packedFields[0].ByteOffset.Should().Be(0);
+        packedFields[1].Name.Should().Be("B"); packedFields[1].ByteOffset.Should().Be(8);
+        packedFields[2].Name.Should().Be("C"); packedFields[2].ByteOffset.Should().Be(20);
+
+        // Cross-check with runtime BlackboardBinPacker.
+        var runtimeDescriptors = new List<BlackboardVariableDescriptor>
+        {
+            new("A", typeof(int)),
+            new("B", typeof(System.Numerics.Vector3)),
+            new("C", typeof(bool)),
+        };
+        var packResult = BlackboardBinPacker.Pack(runtimeDescriptors);
+        packResult.Variables[0].ByteOffset.Should().Be(packedFields[0].ByteOffset, "A runtime offset must match helper");
+        packResult.Variables[1].ByteOffset.Should().Be(packedFields[1].ByteOffset, "B runtime offset must match helper");
+        packResult.Variables[2].ByteOffset.Should().Be(packedFields[2].ByteOffset, "C runtime offset must match helper");
+
+        // bool field must have [MarshalAs(UnmanagedType.I1)] in the struct source.
+        structSource!.Should().Contain("[MarshalAs(UnmanagedType.I1)]",
+            "bool fields require [MarshalAs(UnmanagedType.I1)] for sequential layout correctness");
+
+        // Total must be within 100-byte inline budget.
+        packResult.TotalInlineBytes.Should().BeLessOrEqualTo(BlackboardBinPacker.MaxInlineBytes,
+            "test fixture must fit in the inline budget");
+    }
+
+    /// <summary>
+    /// S1-2: Topology emitted for a managed asset must use <c>"{MethodFqn}@{offset}"</c> as the
+    /// Action blob key, not the field-selector lambda form.
+    /// Builds a Sequence [Condition, Action] with both nodes bound to managed-blackboard variables.
+    /// </summary>
+    [Fact]
+    public void ManagedAsset_TopologyBuiltOverGeneratedStruct_BlobKeysCarryOffsets()
+    {
+        // Two variables: Counter at offset 0 (int, 4), Threshold at offset 4 (int, 4).
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto { Name = "Counter",   Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+            new BlackboardVariableDto { Name = "Threshold", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+        };
+
+        var rootId      = new Guid("B2000000-0000-0000-0000-000000000000");
+        var seqId       = new Guid("B2000000-0000-0000-0000-000000000001");
+        var actionId    = new Guid("B2000000-0000-0000-0000-000000000002");
+        var conditionId = new Guid("B2000000-0000-0000-0000-000000000003");
+        const string actionFqn    = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter";
+        const string conditionFqn = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold";
+
+        // Root → Sequence [Condition(Counter@0), Action(Threshold@4)]
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("B0000000-0000-0000-0000-000000000001"),
+            Name = "CounterTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = rootId,
+                    ChildVisualIds = new List<Guid> { seqId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeSequenceNodeDto
+                {
+                    VisualId = seqId,
+                    ChildVisualIds = new List<Guid> { conditionId, actionId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeConditionNodeDto
+                {
+                    VisualId = conditionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Condition = new BTreeConditionPayloadDto
+                    {
+                        MethodFqn = conditionFqn,
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = "Counter",   // offset 0
+                    },
+                },
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = actionFqn,
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = "Threshold",  // offset 4
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "CounterTreeBlackboard",
+                Variables = vars,
+            },
+        };
+
+        string topology = BTreeEmitCore.EmitTopologyCore(dto);
+
+        // Condition bound to Counter (offset 0) → key must contain "@0"
+        topology.Should().Contain($"\"{conditionFqn}@0\"",
+            "condition bound to Counter at offset 0 must use key {MethodFqn}@0");
+
+        // Action bound to Threshold (offset 4) → key must contain "@4"
+        topology.Should().Contain($"\"{actionFqn}@4\"",
+            "action bound to Threshold at offset 4 must use key {MethodFqn}@4");
+
+        // Must NOT contain the old field-selector form.
+        topology.Should().NotContain("dto => dto.Counter",
+            "managed assets must use offset-key form, not field-selector lambda");
+        topology.Should().NotContain("dto => dto.Threshold",
+            "managed assets must use offset-key form, not field-selector lambda");
+    }
+
+    /// <summary>
+    /// Corrective round (BATCH-02 review): verify the EMITTED registrar source for a managed asset,
+    /// not the hand-rolled mechanism. Runs <see cref="BTreeBridgeEmitCore.EmitBridge"/> on the same
+    /// Counter@0 / Threshold@4 shape as
+    /// <see cref="ManagedAsset_TopologyBuiltOverGeneratedStruct_BlobKeysCarryOffsets"/> and asserts:
+    /// (a) the registrar registers under the SAME keys the topology blob uses
+    ///     ("{conditionFqn}@0", "{actionFqn}@4") — proving blob key == registry key, and
+    /// (b) each thunk projects at the baked offset
+    ///     (Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0) for @0,
+    ///      and (nint)4 for @4) — proving the offset is wired in, not @0 for everything.
+    /// </summary>
+    [Fact]
+    public void ManagedAsset_Registrar_RegistersBakedOffsetThunks()
+    {
+        // Two variables: Counter at offset 0 (int, 4), Threshold at offset 4 (int, 4).
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto { Name = "Counter",   Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+            new BlackboardVariableDto { Name = "Threshold", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+        };
+
+        var rootId      = new Guid("B2000000-0000-0000-0000-000000000000");
+        var seqId       = new Guid("B2000000-0000-0000-0000-000000000001");
+        var actionId    = new Guid("B2000000-0000-0000-0000-000000000002");
+        var conditionId = new Guid("B2000000-0000-0000-0000-000000000003");
+        const string actionFqn    = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter";
+        const string conditionFqn = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold";
+
+        // Root → Sequence [Condition(Counter@0), Action(Threshold@4)]
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("B0000000-0000-0000-0000-000000000001"),
+            Name = "CounterTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto
+                {
+                    VisualId = rootId,
+                    ChildVisualIds = new List<Guid> { seqId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeSequenceNodeDto
+                {
+                    VisualId = seqId,
+                    ChildVisualIds = new List<Guid> { conditionId, actionId },
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                },
+                new BTreeConditionNodeDto
+                {
+                    VisualId = conditionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Condition = new BTreeConditionPayloadDto
+                    {
+                        MethodFqn = conditionFqn,
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = "Counter",   // offset 0
+                    },
+                },
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = actionFqn,
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = "Threshold",  // offset 4
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "CounterTreeBlackboard",
+                Variables = vars,
+            },
+        };
+
+        string registrar = BTreeBridgeEmitCore.EmitBridge(dto);
+
+        // (a) Registration keys must equal the topology blob keys.
+        registrar.Should().Contain($"\"{conditionFqn}@0\"",
+            "condition registry key must be {conditionFqn}@0 (== blob key)");
+        registrar.Should().Contain($"\"{actionFqn}@4\"",
+            "action registry key must be {actionFqn}@4 (== blob key)");
+
+        // (b) Baked offset must be wired into each thunk projection.
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+            "the @0 binding must project at byte offset 0");
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)4)",
+            "the @4 binding must project at byte offset 4 (not @0 for everything)");
+    }
+
+    /// <summary>
+    /// S1-2: A managed asset whose variables exceed 100 bytes must be SKIPPED BY THE GENERATOR
+    /// with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
+    ///
+    /// Corrective round (BATCH-02 review): this test now RUNS THE GENERATOR on the 13×Vector3
+    /// managed asset (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only
+    /// poking WouldOverflow/Pack directly, so it verifies the real generator path (the previous
+    /// version never exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    /// </summary>
+    [Fact]
+    public void ManagedAsset_MasterDtoOver100Bytes_HardErrors()
+    {
+        // Build a managed DTO with 13 × Vector3 (13 × 12 = 156 bytes > 100).
+        var vars = new List<BlackboardVariableDto>();
+        for (int i = 0; i < 13; i++)
+        {
+            vars.Add(new BlackboardVariableDto
+            {
+                Name = $"V{i}",
+                Type = new BlackboardTypeRefDto { TypeId = "System.Numerics.Vector3" },
+            });
+        }
+
+        // Small standalone sanity check on the pack helper (kept from the original test).
+        bool overflow = BTreeBlackboardPackHelper.WouldOverflow(vars, out string? unknownType);
+        overflow.Should().BeTrue("13 Vector3 fields (156 bytes) exceeds 100-byte inline budget");
+        unknownType.Should().BeNull("Vector3 is a known type");
+
+        // Build a managed asset (Wait node — no method binding, avoids validator interference)
+        // carrying the oversized blackboard, then RUN THE GENERATOR on it.
+        var waitId = new Guid("EE000000-0000-0000-0000-000000000001");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("EE000000-0000-0000-0000-000000000001"),
+            Name = "OverflowTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeWaitNodeDto
+                {
+                    VisualId = waitId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Wait = new BTreeWaitPayloadDto { Duration = 1.0f },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "OverflowTreeBlackboard",
+                Variables = vars,
+            },
+        };
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGenerator(MakeAdditionalText("/p/OverflowTree.btree.json", json));
+
+        // (a) A BTREE0002 Warning diagnostic must be reported (asset skipped, build survives).
+        result.Diagnostics.Should().ContainSingle(d =>
+            d.Id == BTreeJsonGenerator.CodegenWarningId &&
+            d.Severity == DiagnosticSeverity.Warning,
+            "an oversized managed blackboard must produce exactly one BTREE0002 Warning");
+        result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Should().BeEmpty("overflow must never be a hard build break (Error)");
+
+        // (b) NO blackboard struct file may be emitted for the skipped asset.
+        result.GeneratedTrees.Should().NotContain(
+            t => t.FilePath.EndsWith("OverflowTree.Blackboard.g.cs"),
+            "an oversized managed asset must not emit a (oversized) blackboard struct");
+        // The whole asset is skipped — no topology/bridge either.
+        result.GeneratedTrees.Should().BeEmpty(
+            "an oversized managed asset is skipped entirely (no topology, struct, or bridge)");
+    }
+
+    /// <summary>
+    /// S1-2: A non-managed asset must NOT generate a blackboard struct.
+    /// </summary>
+    [Fact]
+    public void NonManagedAsset_DoesNotGenerateBlackboardStruct()
+    {
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AA000000-0000-0000-0000-000000000001"),
+            Name = "NonManaged",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = false,  // Category-1: hand-written struct
+                TypeName = "MyHandWrittenStruct",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto { Name = "X", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+                },
+            },
+        };
+
+        var structSource = BTreeEmitCore.EmitBlackboardStructSource(dto, out var packedFields);
+        structSource.Should().BeNull("non-managed assets must not emit a blackboard struct");
+        packedFields.Should().BeEmpty("non-managed assets must return empty packed fields");
+    }
+
+    /// <summary>
+    /// S1-2: Generator must emit 3 files for a managed asset: topology core + blackboard struct + bridge.
+    /// </summary>
+    [Fact]
+    public void ManagedAsset_Generator_EmitsThreeFiles_TopologyCoreBlackboardBridge()
+    {
+        var vars = new List<BlackboardVariableDto>
+        {
+            new BlackboardVariableDto { Name = "Counter", Type = new BlackboardTypeRefDto { TypeId = "System.Int32" } },
+        };
+        // Use a Wait node (no method binding needed — avoids validator issue).
+        var waitId = new Guid("DD000000-0000-0000-0000-000000000001");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("DD000000-0000-0000-0000-000000000001"),
+            Name = "ManagedWaitTree",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeWaitNodeDto
+                {
+                    VisualId = waitId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Wait = new BTreeWaitPayloadDto { Duration = 1.0f },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "ManagedWaitTreeBlackboard",
+                Variables = vars,
+            },
+        };
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGenerator(MakeAdditionalText("/p/ManagedWaitTree.btree.json", json));
+
+        result.GeneratedTrees.Should().HaveCount(3,
+            "managed asset must emit 3 files: topology core + blackboard struct + bridge");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("ManagedWaitTree.g.cs"),
+            "topology-core file must be present");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("ManagedWaitTree.Blackboard.g.cs"),
+            "blackboard struct file must be present");
+        result.GeneratedTrees.Should().Contain(t => t.FilePath.EndsWith("ManagedWaitTree.Registrar.g.cs"),
+            "bridge file must be present");
+
+        // Struct file must contain the struct definition.
+        var structSource = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("ManagedWaitTree.Blackboard.g.cs"))
+            .ToString();
+        structSource.Should().Contain("[StructLayout(LayoutKind.Sequential)]",
+            "struct source must carry [StructLayout(Sequential)]");
+        structSource.Should().Contain("ManagedWaitTreeBlackboard",
+            "struct source must use the TypeName from the DTO");
+        structSource.Should().Contain("public int Counter;",
+            "struct source must contain the Counter field");
+
+        result.Diagnostics.Should().BeEmpty("no diagnostics for a valid managed asset");
+    }
+
+    // ── BATCH-02 S1-4: ThreeParamReusable validator unblock ────────────────────
+
+    // Stubs for S1-4 tests: DemoCounterParams DTO + 3-param action/condition.
+    private const string ThreeParamStubs = @"
+using System.Runtime.InteropServices;
+using Fbt;
+
+namespace Stub
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DemoCounterParams
+    {
+        public int Counter;
+        public int Threshold;
+    }
+
+    public struct StubCtx { }
+
+    public static class DemoCounterNodes
+    {
+        public static NodeStatus Action_IncrementCounter(
+            ref DemoCounterParams p,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx) => NodeStatus.Success;
+
+        public static NodeStatus Condition_CounterBelowThreshold(
+            ref DemoCounterParams p,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx) => p.Counter < p.Threshold ? NodeStatus.Success : NodeStatus.Failure;
+
+        // WRONG: type mismatch — takes StubBb, not DemoCounterParams.
+        public struct StubBb { }
+        public static NodeStatus WrongTypeAction(
+            ref StubBb bb,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx) => NodeStatus.Running;
+
+        // WRONG: 4 params instead of 3.
+        public static NodeStatus FourParamAction(
+            ref DemoCounterParams p,
+            ref BehaviorTreeState state,
+            ref StubCtx ctx,
+            int extra) => NodeStatus.Success;
+    }
+}
+";
+
+    private static BehaviorTreeAssetDto BuildManagedThreeParamDto(
+        string methodFqn,
+        string expressionTargetField,
+        bool isCondition = false)
+    {
+        var actionId = new Guid("E1000000-0000-0000-0000-000000000001");
+        var nodes = new List<BTreeNodeDto>();
+        if (!isCondition)
+        {
+            nodes.Add(new BTreeActionNodeDto
+            {
+                VisualId = actionId,
+                ChildVisualIds = new List<Guid>(),
+                EditorMetadata = new NodeEditorMetadataDto(),
+                Action = new BTreeActionPayloadDto
+                {
+                    MethodFqn = methodFqn,
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    ExpressionTargetField = expressionTargetField,
+                },
+            });
+        }
+        else
+        {
+            nodes.Add(new BTreeConditionNodeDto
+            {
+                VisualId = actionId,
+                ChildVisualIds = new List<Guid>(),
+                EditorMetadata = new NodeEditorMetadataDto(),
+                Condition = new BTreeConditionPayloadDto
+                {
+                    MethodFqn = methodFqn,
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                    ExpressionTargetField = expressionTargetField,
+                },
+            });
+        }
+
+        return new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("E1000000-0000-0000-0000-AABBCCDD0001"),
+            Name = "ThreeParamAsset",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.DemoCounterParams",
+            ContextTypeName = "Stub.StubCtx",
+            Nodes = nodes,
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "DemoCounterParams",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto { Name = "Counter",   Type = new BlackboardTypeRefDto { TypeId = "Stub.DemoCounterParams" } },
+                    new BlackboardVariableDto { Name = "Threshold", Type = new BlackboardTypeRefDto { TypeId = "Stub.DemoCounterParams" } },
+                },
+            },
+        };
+    }
+
+    [Fact]
+    public void ThreeParamReusable_TypeMatched_Validates()
+    {
+        // Action with matching 3-param method: should emit normally (no BTREE0002).
+        var dto = BuildManagedThreeParamDto(
+            "Stub.DemoCounterNodes.Action_IncrementCounter",
+            "Counter");
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(ThreeParamStubs,
+            MakeAdditionalText("/p/ThreeParam.btree.json", json));
+
+        // No BTREE0002 warning — the 3-param binding validates correctly.
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "a type-matched ThreeParamReusable binding must not produce BTREE0002");
+        result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
+            .Should().BeEmpty("zero Error diagnostics");
+    }
+
+    [Fact]
+    public void ThreeParamReusable_TypeMismatch_SkipsWithBtree0002()
+    {
+        // Binds WrongTypeAction whose param-0 is StubBb, not DemoCounterParams.
+        // The blackboard variable "Counter" has TypeId "Stub.DemoCounterParams", so mismatch.
+        var dto = BuildManagedThreeParamDto(
+            "Stub.DemoCounterNodes.WrongTypeAction",
+            "Counter");
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(ThreeParamStubs,
+            MakeAdditionalText("/p/WrongType.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty("type-mismatch ThreeParamReusable must not emit");
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "type-mismatch must produce BTREE0002");
+        result.Diagnostics[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    public void ThreeParamReusable_MissingExpressionTargetField_SkipsWithBtree0002()
+    {
+        // ExpressionTargetField is empty — validator must reject with BTREE0002.
+        var actionId = new Guid("E2000000-0000-0000-0000-000000000001");
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("E2000000-0000-0000-0000-AABBCCDD0001"),
+            Name = "MissingFieldAsset",
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.DemoCounterParams",
+            ContextTypeName = "Stub.StubCtx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = "Stub.DemoCounterNodes.Action_IncrementCounter",
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = null, // MISSING
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = "DemoCounterParams",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto { Name = "Counter", Type = new BlackboardTypeRefDto { TypeId = "Stub.DemoCounterParams" } },
+                },
+            },
+        };
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(ThreeParamStubs,
+            MakeAdditionalText("/p/MissingField.btree.json", json));
+
+        result.GeneratedTrees.Should().BeEmpty("missing ExpressionTargetField must not emit");
+        result.Diagnostics.Should().HaveCount(1);
+        result.Diagnostics[0].Id.Should().Be(BTreeJsonGenerator.CodegenWarningId,
+            "missing ExpressionTargetField must produce BTREE0002");
+    }
+
+    // ── BATCH-02 S1-2 helpers ───────────────────────────────────────────────────
+
+    private static BehaviorTreeAssetDto BuildManagedDto(
+        string name,
+        List<BlackboardVariableDto> vars,
+        params BTreeNodeDto[] extraNodes)
+    {
+        var waitId = new Guid("B1000000-0000-0000-0000-000000000001");
+        var nodes = new List<BTreeNodeDto>
+        {
+            new BTreeWaitNodeDto
+            {
+                VisualId = waitId,
+                ChildVisualIds = new List<Guid>(),
+                EditorMetadata = new NodeEditorMetadataDto(),
+                Wait = new BTreeWaitPayloadDto { Duration = 0f },
+            },
+        };
+        nodes.AddRange(extraNodes);
+
+        return new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("B0000000-0000-0000-0000-000000000001"),
+            Name = name,
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Test.Bb",
+            ContextTypeName = "Test.Ctx",
+            Nodes = nodes,
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed = true,
+                TypeName = name + "Blackboard",
+                Variables = vars,
+            },
+        };
     }
 }
