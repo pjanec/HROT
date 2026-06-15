@@ -72,8 +72,11 @@ public sealed class AssetKindIconsRegistrationTests
         var folderCell = provider.KeyToCellMap["folder"];
         var folderOpenCell = provider.KeyToCellMap["folder_open"];
 
-        // Folder cells must differ from each other.
-        Assert.NotEqual(folderCell, folderOpenCell);
+        // NOTE: folder and folder_open intentionally share a cell — there is no
+        // distinct "open folder" glyph in the atlas that reads well at this size,
+        // so the closed-folder icon is reused for both (user decision, 2026-06-15).
+        // The relevant invariant is that the folder icons don't collide with the
+        // asset-kind icons, asserted below.
 
         // Folder cells must also be distinct from all 6 asset-kind cells
         // (the full 8-element set must be pairwise distinct — DBT-1).
