@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Sockets;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication;
@@ -103,6 +106,57 @@ public sealed class DebugApiServiceTests
         var svc = h.BuildDebugApiService();
 
         Assert.Null(svc.DumpEntity(999_999L));
+    }
+
+    [Fact]
+    public async Task GetEntitiesById_UnknownId_Returns404WithHelpMessage()
+    {
+        // Verifies that the HTTP host surfaces the upgraded 404 message that
+        // includes "GET /entities" so callers know where to look.
+        using var h    = new EditorHarness();
+        var svc        = h.BuildDebugApiService();
+        var queue      = new MainThreadJobQueue();
+        int port       = FindFreePort();
+        using var host = new DebugApiHost(port, queue, () => { });
+        host.AttachService(svc);
+        host.Start();
+
+        // Drain the main-thread job queue on a background thread so that
+        // RunOnMainThread jobs complete while the HTTP request is in flight.
+        using var cts = new System.Threading.CancellationTokenSource();
+        var drainTask = Task.Run(async () =>
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                queue.DrainAll();
+                await Task.Delay(5, cts.Token).ConfigureAwait(false);
+            }
+        });
+
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var response = await client.GetAsync($"http://localhost:{port}/entities/999999");
+
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Contains("not found", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("GET /entities", body, StringComparison.Ordinal);
+        }
+        finally
+        {
+            cts.Cancel();
+            try { await drainTask.ConfigureAwait(false); } catch (OperationCanceledException) { }
+        }
+    }
+
+    private static int FindFreePort()
+    {
+        using var listener = new TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 
     // ── Group C — event history ─────────────────────────────────────────────────

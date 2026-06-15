@@ -727,7 +727,7 @@ namespace Hrot.Editor.DebugApi
             }
 
             if (clrType is null)
-                return (null, $"Unknown eventType: '{eventTypeName}'");
+                return (null, $"Unknown eventType: '{eventTypeName}'. List publishable events with GET /commands.");
 
             // Determine if time is advancing (InPreview && !Paused).
             bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
@@ -771,7 +771,7 @@ namespace Hrot.Editor.DebugApi
                 return (new JsonObject
                 {
                     ["awaited"] = false,
-                    ["reason"]  = "sim not running",
+                    ["reason"]  = "sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
                 }, null);
             }
 
@@ -854,7 +854,7 @@ namespace Hrot.Editor.DebugApi
                 ["spawned"]  = true,
                 ["tkbType"]  = tkbType,
                 ["awaited"]  = false,
-                ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running",
+                ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
             };
         }
 
@@ -1237,7 +1237,7 @@ namespace Hrot.Editor.DebugApi
             {
                 long filterNetworkId = filterNode.GetValue<long>();
                 if (!_entityMap.TryGetEntity(filterNetworkId, out var fe))
-                    throw new ArgumentException($"filterNetworkId {filterNetworkId} not found.");
+                    throw new ArgumentException($"filterNetworkId {filterNetworkId} not found. List entities with GET /entities.");
                 filterEntity = fe;
             }
 
@@ -1323,7 +1323,7 @@ namespace Hrot.Editor.DebugApi
                         return bp.Id;
                 }
             }
-            throw new ArgumentException($"Breakpoint '{idStr}' not found.");
+            throw new ArgumentException($"Breakpoint '{idStr}' not found. List with GET /breakpoints.");
         }
 
         // ── Group H — Checkpoint / Restore / Diff ─────────────────────────────────
@@ -1372,7 +1372,7 @@ namespace Hrot.Editor.DebugApi
         public JsonNode CompareBaseline(string baselineId, IEnumerable<long>? entityNetworkIds = null)
         {
             if (!_diffBaselines.TryGetValue(baselineId, out var before))
-                throw new ArgumentException($"Unknown baselineId: '{baselineId}'.");
+                throw new ArgumentException($"Unknown baselineId: '{baselineId}'. Capture one with POST /diff/capture.");
 
             // When no entity scope is given, snapshot ALL current entities so that entity births
             // (new entities not in the baseline) are captured in the diff union.
@@ -1870,7 +1870,7 @@ namespace Hrot.Editor.DebugApi
         public (JsonNode? result, string? error) PatchEntityAttribute(long networkId, string? patchJson)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
-                return (null, $"Entity {networkId} not found.");
+                return (null, $"Entity {networkId} not found. List entities with GET /entities.");
 
             if (string.IsNullOrWhiteSpace(patchJson))
                 return (null, "patchJson is required.");
@@ -1901,7 +1901,7 @@ namespace Hrot.Editor.DebugApi
         public (JsonNode? result, string? error) EditEntityComponent(long networkId, string componentType, JsonNode? patch)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
-                return (null, $"Entity {networkId} not found.");
+                return (null, $"Entity {networkId} not found. List entities with GET /entities.");
 
             if (string.IsNullOrWhiteSpace(componentType))
                 return (null, "componentType is required.");
@@ -1914,7 +1914,7 @@ namespace Hrot.Editor.DebugApi
             var clrType  = allTypes.FirstOrDefault(t =>
                 string.Equals(t.Name, componentType, StringComparison.OrdinalIgnoreCase));
             if (clrType is null)
-                return (null, $"Unknown component type: '{componentType}'");
+                return (null, $"Unknown component type: '{componentType}'. List registered components with GET /components.");
 
             // Get the boxed component from ECS via reflection.
             object? boxedComponent;

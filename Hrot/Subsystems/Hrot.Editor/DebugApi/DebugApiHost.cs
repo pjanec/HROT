@@ -89,7 +89,7 @@ namespace Hrot.Editor.DebugApi
                 if (!long.TryParse(ctx.RouteValue("networkId"), out var id))
                     return Fail(400, "Invalid networkId.");
                 var node = await _jobQueue.RunOnMainThread(() => Service().DumpEntity(id)).ConfigureAwait(false);
-                return node is null ? Fail(404, $"Entity {id} not found.") : Ok(node);
+                return node is null ? Fail(404, $"Entity {id} not found. List entities with GET /entities.") : Ok(node);
             }));
 
             // Group C — event history (retrieval + DTO mapping are thread-safe → no marshalling)
