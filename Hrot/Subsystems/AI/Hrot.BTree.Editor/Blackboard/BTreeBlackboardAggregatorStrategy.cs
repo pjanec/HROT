@@ -37,20 +37,32 @@ public sealed class BTreeBlackboardAggregatorStrategy : IBlackboardAggregatorStr
             string? fqn = node.Action?.MethodFqn ?? node.Condition?.MethodFqn;
             if (fqn != null)
             {
-                var entry = schema.Lookup(fqn);
-                if (entry != null)
+                // Skip nodes whose parameter DTO is locally bound to a blackboard variable via
+                // ExpressionTargetField. Such nodes reserve their own auto-managed storage slot
+                // and must NOT be emitted as DtoRequirements — doing so would double-count them
+                // in the bin-packer and pollute the unbound-requirements panel. (Architect ruling,
+                // 2026-06-14.)
+                string? etf = node.Action?.ExpressionTargetField
+                           ?? node.Condition?.ExpressionTargetField;
+                bool isLocallyBound = !string.IsNullOrEmpty(etf);
+
+                if (!isLocallyBound)
                 {
-                    string path = $"{btAsset.Name} > {node.DisplayLabel} ({fqn})";
-                    requirements.Add(new DtoRequirement(
-                        entry.DtoType, path,
-                        btAsset.AssetId, node.VisualId));
-                }
-                else
-                {
-                    warnings.Add(new AggregationWarning(
-                        AggregationWarningKind.SchemaEntryNotFound,
-                        $"Schema entry not found for FQN '{fqn}' in asset '{btAsset.Name}'.",
-                        btAsset.AssetId));
+                    var entry = schema.Lookup(fqn);
+                    if (entry != null)
+                    {
+                        string path = $"{btAsset.Name} > {node.DisplayLabel} ({fqn})";
+                        requirements.Add(new DtoRequirement(
+                            entry.DtoType, path,
+                            btAsset.AssetId, node.VisualId));
+                    }
+                    else
+                    {
+                        warnings.Add(new AggregationWarning(
+                            AggregationWarningKind.SchemaEntryNotFound,
+                            $"Schema entry not found for FQN '{fqn}' in asset '{btAsset.Name}'.",
+                            btAsset.AssetId));
+                    }
                 }
             }
 

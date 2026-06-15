@@ -258,6 +258,212 @@ public sealed class BTreeBlackboardAggregatorTests
         result.Warnings.Should().BeEmpty();
     }
 
+    // ---- Fix B: locally-bound nodes must NOT emit requirements ----
+
+    [Fact]
+    public void Aggregate_locally_bound_action_node_emits_no_requirement()
+    {
+        // A node whose ExpressionTargetField is set is locally bound — its DTO is
+        // stored in the auto-managed blackboard variable, NOT as an unbound requirement.
+        const string fqn = "Combat.Actions.AimAndFire";
+        var schema  = new StubSchemaExporter();
+        schema.Add(fqn, typeof(SomeDto));
+        var catalog = new StubCatalog();
+        var (service, _) = MakeServiceAndStrategy(schema, catalog);
+
+        var asset = MakeAsset();
+        AddNodes(asset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Action,
+                DisplayLabel = "AimAndFire",
+                Action       = new BTreeActionPayload
+                {
+                    MethodFqn           = fqn,
+                    ExpressionTargetField = "counter",   // locally bound
+                },
+            },
+        });
+
+        var result = service.Aggregate(asset);
+
+        result.Requirements.Should().BeEmpty("locally-bound node must not appear as an unbound requirement");
+        result.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Aggregate_locally_bound_condition_node_emits_no_requirement()
+    {
+        const string fqn = "Combat.Conditions.IsEnemyVisible";
+        var schema  = new StubSchemaExporter();
+        schema.Add(fqn, typeof(OtherDto));
+        var catalog = new StubCatalog();
+        var (service, _) = MakeServiceAndStrategy(schema, catalog);
+
+        var asset = MakeAsset();
+        AddNodes(asset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Condition,
+                DisplayLabel = "IsEnemyVisible",
+                Condition    = new BTreeConditionPayload
+                {
+                    MethodFqn             = fqn,
+                    ExpressionTargetField = "accum",   // locally bound
+                },
+            },
+        });
+
+        var result = service.Aggregate(asset);
+
+        result.Requirements.Should().BeEmpty("locally-bound condition node must not appear as an unbound requirement");
+        result.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Aggregate_T10_mirror_all_locally_bound_yields_zero_requirements()
+    {
+        // Mirror of the T10 demo scenario:
+        // - DemoCounterParams action (bound to "counter") + condition (bound to "counter")
+        // - DemoAccumParams action (bound to "accum")
+        // Expected: 0 requirements, all nodes are locally bound.
+        const string actionFqn1    = "Demo.Actions.IncrementCounter";
+        const string conditionFqn  = "Demo.Conditions.CheckCounter";
+        const string actionFqn2    = "Demo.Actions.Accumulate";
+
+        var schema = new StubSchemaExporter();
+        schema.Add(actionFqn1,   typeof(SomeDto));
+        schema.Add(conditionFqn, typeof(SomeDto));
+        schema.Add(actionFqn2,   typeof(OtherDto));
+        var catalog = new StubCatalog();
+        var (service, _) = MakeServiceAndStrategy(schema, catalog);
+
+        var asset = MakeAsset("DemoTree");
+        AddNodes(asset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Action,
+                DisplayLabel = "IncrementCounter",
+                Action       = new BTreeActionPayload { MethodFqn = actionFqn1, ExpressionTargetField = "counter" },
+            },
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Condition,
+                DisplayLabel = "CheckCounter",
+                Condition    = new BTreeConditionPayload { MethodFqn = conditionFqn, ExpressionTargetField = "counter" },
+            },
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Action,
+                DisplayLabel = "Accumulate",
+                Action       = new BTreeActionPayload { MethodFqn = actionFqn2, ExpressionTargetField = "accum" },
+            },
+        });
+
+        var result = service.Aggregate(asset);
+
+        result.Requirements.Should().BeEmpty("all nodes are locally bound — zero unbound requirements expected");
+        result.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Aggregate_unbound_action_node_still_emits_requirement()
+    {
+        // Verify that an action node with an EMPTY ExpressionTargetField still surfaces
+        // as an unbound requirement (regression guard for the fix).
+        const string fqn = "Combat.Actions.AimAndFire";
+        var schema  = new StubSchemaExporter();
+        schema.Add(fqn, typeof(SomeDto));
+        var catalog = new StubCatalog();
+        var (service, _) = MakeServiceAndStrategy(schema, catalog);
+
+        var asset = MakeAsset();
+        AddNodes(asset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId     = Guid.NewGuid(),
+                KernelType   = NodeType.Action,
+                DisplayLabel = "AimAndFire",
+                Action       = new BTreeActionPayload
+                {
+                    MethodFqn             = fqn,
+                    ExpressionTargetField = null,   // unbound — must still produce a requirement
+                },
+            },
+        });
+
+        var result = service.Aggregate(asset);
+
+        result.Requirements.Should().HaveCount(1);
+        result.Requirements[0].DtoType.Should().Be(typeof(SomeDto));
+        result.Warnings.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Aggregate_locally_bound_parent_subtree_with_unbound_child_still_surfaces_child_requirements()
+    {
+        // Locally binding the parent node must NOT suppress child subtree requirements.
+        const string parentFqn = "Parent.Actions.Bound";
+        const string childFqn  = "Child.Actions.Unbound";
+
+        var schema = new StubSchemaExporter();
+        schema.Add(parentFqn, typeof(SomeDto));
+        schema.Add(childFqn,  typeof(OtherDto));
+        var catalog = new StubCatalog();
+        var (service, _) = MakeServiceAndStrategy(schema, catalog);
+
+        // Child tree has an unbound action node
+        var childAsset = MakeAsset("ChildTree");
+        catalog.Register(childAsset);
+        AddNodes(childAsset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId   = Guid.NewGuid(),
+                KernelType = NodeType.Action,
+                Action     = new BTreeActionPayload { MethodFqn = childFqn },   // unbound
+            },
+        });
+
+        // Parent tree: one locally-bound action + one subtree node
+        var parentAsset = MakeAsset("ParentTree");
+        AddNodes(parentAsset, new List<BTreeEditorNode>
+        {
+            new BTreeEditorNode
+            {
+                VisualId   = Guid.NewGuid(),
+                KernelType = NodeType.Action,
+                Action     = new BTreeActionPayload { MethodFqn = parentFqn, ExpressionTargetField = "parentVar" },
+            },
+            new BTreeEditorNode
+            {
+                VisualId   = Guid.NewGuid(),
+                KernelType = NodeType.Subtree,
+                Subtree    = new BTreeSubtreePayload
+                {
+                    SubtreeAssetId = childAsset.AssetId,
+                    SubtreeName    = "ChildTree",
+                    IsResolved     = true,
+                },
+            },
+        });
+
+        var result = service.Aggregate(parentAsset);
+
+        result.Requirements.Should().HaveCount(1, "only the unbound child requirement surfaces");
+        result.Requirements[0].DtoType.Should().Be(typeof(OtherDto));
+        result.Warnings.Should().BeEmpty();
+    }
+
     [Fact]
     public void Aggregate_cycle_stops_recursion_and_emits_cycle_warning()
     {

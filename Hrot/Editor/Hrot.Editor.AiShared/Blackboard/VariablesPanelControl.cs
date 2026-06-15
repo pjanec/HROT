@@ -306,14 +306,13 @@ public sealed class VariablesPanelControl
                             System.Text.Encoding.UTF8.GetBytes(row.Name, 0, row.Name.Length, _renameBuf, 0);
                         }
                     }
-
-                    if (row.Comment is not null)
-                    {
-                        ImGui.SameLine();
-                        ImGui.TextDisabled($"  // {row.Comment}");
-                    }
                 }
 
+                // NOTE: the comment TextDisabled is intentionally placed AFTER the drag-drop
+                // source and target blocks. Dear ImGui's BeginDragDropSource/BeginDragDropTarget
+                // must attach to the Selectable (which has an item ID). If TextDisabled were
+                // emitted first it would become the last submitted item, and BeginDragDropSource
+                // would fire an IM_ASSERT("Cannot BeginDragDropSource() for an item with no ID").
                 if (!isRenaming && !schema.IsReadOnly && ImGui.BeginDragDropSource(ImGuiDragDropFlags.None))
                 {
                     unsafe { int src = rowIdx; ImGui.SetDragDropPayload($"DRAG_{section.TableId}", (IntPtr)(&src), sizeof(int)); }
@@ -361,6 +360,14 @@ public sealed class VariablesPanelControl
                         }
                     }
                     ImGui.EndDragDropTarget();
+                }
+
+                // Emit the inline comment AFTER the drag-drop blocks so the Selectable
+                // remains the last ID-bearing item when drag operations are initiated.
+                if (!isRenaming && row.Comment is not null)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($"  // {row.Comment}");
                 }
 
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
