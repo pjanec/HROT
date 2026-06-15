@@ -202,7 +202,10 @@ public sealed class VariablesPanelControl
                 {
                     var req = schema.UnboundRequirements[i];
                     ImGui.PushID(1000 + i);
-                    ImGui.TextUnformatted($"[*] {req.DtoTypeName}  --  Required by: {req.RequiredByPath}");
+                    // Use Selectable (which has an item ID) as the drag handle. A bare Text item
+                    // has no ID, and BeginDragDropSource then fails an ImGui assertion ("Expression: 0"
+                    // — Cannot BeginDragDropSource() for an item with no ID) the moment it is clicked.
+                    ImGui.Selectable($"[*] {req.DtoTypeName}  --  Required by: {req.RequiredByPath}");
 
                     if (ImGui.BeginDragDropSource(ImGuiDragDropFlags.None))
                     {
