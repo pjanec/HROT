@@ -692,6 +692,12 @@ public sealed class StateNode : IContainerNodeModel
     // 0 for states that are not children of a parallel state.
     public int RegionIndex;
 
+    // When non-empty, this state acts as a "Subtree host" that runs an external behavior asset
+    // (BTree or nested HSM) identified by this GUID. Used by the cross-region stateful-Subtree
+    // validator (S2-4) to detect concurrent execution of the same stateful asset in orthogonal
+    // parallel regions. Guid.Empty means no sub-behavior reference.
+    public Guid SubtreeAssetId;
+
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
     public Vector2? SizeOverride { get; set; }

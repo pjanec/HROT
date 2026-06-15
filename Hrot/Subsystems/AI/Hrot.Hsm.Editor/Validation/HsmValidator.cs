@@ -16,9 +16,20 @@ public sealed class HsmValidator
     private const int MaxAllowedDepth = 16;
     private readonly IActionSchemaExporter? _schema;
 
-    public HsmValidator(IActionSchemaExporter? schema = null)
+    /// <summary>
+    /// Returns true when the referenced asset (identified by its asset GUID) is "stateful" —
+    /// i.e. it contains at least one stateful node that maintains per-instance WorkingState.
+    /// Defaults to <c>_ => false</c> (all Subtrees treated as stateless) so existing callers
+    /// compile and run unchanged.  Production should wire this to check the referenced
+    /// BTree/HSM asset for any <c>ThreeParamReusableStateful</c> action (or WorkingState).
+    /// </summary>
+    private readonly Func<Guid, bool> _isStatefulSubtree;
+
+    public HsmValidator(IActionSchemaExporter? schema = null,
+        Func<Guid, bool>? isStatefulSubtree = null)
     {
         _schema = schema;
+        _isStatefulSubtree = isStatefulSubtree ?? (_ => false);
     }
 
     public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,
@@ -33,6 +44,7 @@ public sealed class HsmValidator
         CheckStateDepthExceeded(asset, diagnostics);
         CheckEventReferenceDangling(asset, diagnostics);
         CheckOutputLaneConflicts(asset, diagnostics);
+        CheckConcurrentStatefulSubtrees(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -207,7 +219,54 @@ public sealed class HsmValidator
         }
     }
 
-    // Rule 8: CrossRegionBlackboardConflict.
+    // Rule 8 (S2-4): ConcurrentStatefulSubtree.
+    // For each parallel composite with ≥2 regions, collect every state that has a non-empty
+    // SubtreeAssetId, grouped by (compositeId, referencedAssetId) → set of distinct RegionIndex
+    // values.  If the same SubtreeAssetId appears in ≥2 distinct regions AND
+    // _isStatefulSubtree(id) is true → hard error.
+    // A stateless Subtree (resolver returns false) in multiple regions is harmless.
+    private void CheckConcurrentStatefulSubtrees(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var composite in asset.AllStates)
+        {
+            if (!composite.IsParallel || composite.RegionNodes.Count < 2) continue;
+
+            // Collect (subtreeAssetId → HashSet<regionIndex>) for all states under this
+            // composite that carry a non-empty SubtreeAssetId.
+            // We walk only DIRECT children of the composite so the region index is meaningful.
+            var subtreeRegions = new Dictionary<Guid, HashSet<int>>();
+            foreach (var child in composite.Children)
+            {
+                if (child.SubtreeAssetId == Guid.Empty) continue;
+                if (!subtreeRegions.TryGetValue(child.SubtreeAssetId, out var regionSet))
+                {
+                    regionSet = new HashSet<int>();
+                    subtreeRegions[child.SubtreeAssetId] = regionSet;
+                }
+                regionSet.Add(child.RegionIndex);
+            }
+
+            // Emit a hard error for every stateful subtree that spans ≥2 distinct regions.
+            foreach (var (subtreeId, regions) in subtreeRegions)
+            {
+                if (regions.Count < 2) continue;
+                if (!_isStatefulSubtree(subtreeId)) continue;
+
+                var sortedRegions = regions.OrderBy(r => r).ToList();
+                out_.Add(new HsmDiagnostic(
+                    HsmDiagnosticCode.ConcurrentStatefulSubtree,
+                    HsmDiagnosticSeverity.Error,
+                    $"Parallel composite '{composite.Name}' runs the same stateful Subtree " +
+                    $"({subtreeId:D}) concurrently in regions " +
+                    $"{string.Join(", ", sortedRegions)}. " +
+                    $"Concurrent execution of the same stateful Subtree produces synthetic " +
+                    $"key collisions and race-write corruption.",
+                    new[] { composite.StableId }));
+            }
+        }
+    }
+
+    // Rule 9: CrossRegionBlackboardConflict.
     // For each variable in the blackboard, check whether two alias bindings land in different
     // parallel regions of the same composite state. Only Approach A aliases are scanned here.
     // TODO TASK-BB-1f-01: add Approach B sync-out scan when BTree sync-out metadata is

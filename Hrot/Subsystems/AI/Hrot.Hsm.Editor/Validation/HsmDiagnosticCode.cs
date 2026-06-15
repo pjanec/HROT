@@ -55,4 +55,11 @@ public enum HsmDiagnosticCode
     // After a hot reload, a reference in the asset points to a symbol
     // that no longer exists in the new assembly.
     DanglingReferenceAfterReload,
+
+    // The same stateful Subtree asset is referenced in two or more orthogonal
+    // parallel regions of the same composite. Because stateful subtrees use
+    // FNV-1a(BehaviorAssetId, NodeVisualId) synthetic keys, concurrent execution
+    // in two regions produces the same key for both → race-write corruption.
+    // Hard-error; must be resolved before the asset can be used at runtime.
+    ConcurrentStatefulSubtree,
 }
