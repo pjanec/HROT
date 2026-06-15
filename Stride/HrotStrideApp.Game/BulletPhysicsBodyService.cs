@@ -102,9 +102,6 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
     // Per-entity diagnostics state.
     private readonly Dictionary<object, DiagState> _diagState = new();
 
-    // BATCH-S2-G4: resolved 2D footprint (FDP meters) for OrientedBox bodies, from the model bbox.
-    private readonly Dictionary<object, (float lengthM, float widthM)> _resolvedFootprintMeters = new();
-
     // ── Types ─────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -359,9 +356,6 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         SMath.Vector3 boxHalfExtentsStride = SMath.Vector3.Zero;
         // Deferred runtime config for dynamic rigidbodies (applied once Simulation != null).
         DynamicConfig? pendingDynamicConfig = null;
-        // BATCH-S2-G4: captured model-bbox half-extents for footprint store (null = not model-derived).
-        float? capturedHalfXForFootprint = null;
-        float? capturedHalfZForFootprint = null;
 
         switch (shapeKind)
         {
@@ -496,9 +490,6 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
                         boxLocalOffset,
                         p.RestingStrideY,
                         strideEntity.Name);
-                    // BATCH-S2-G4: capture model-derived half-extents for footprint store after handle creation.
-                    capturedHalfXForFootprint = useHalfX;
-                    capturedHalfZForFootprint = useHalfZ;
                 }
                 else
                 {
@@ -646,14 +637,6 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
         _bodies[handle]   = entry;
         _diagState[handle] = new DiagState();
 
-        // BATCH-S2-G4: footprint = model XZ extents (Stride X→FDP length, Stride Z→FDP width).
-        if (capturedHalfXForFootprint.HasValue && capturedHalfZForFootprint.HasValue)
-        {
-            _resolvedFootprintMeters[handle] = (lengthM: capturedHalfXForFootprint.Value * 2f, widthM: capturedHalfZForFootprint.Value * 2f);
-            Log.Info("[Footprint] entity #{0} model-box footprint L×W = {1:F2}×{2:F2} m (Stride half X={3:F2} Z={4:F2}).",
-                entity.Index, capturedHalfXForFootprint.Value * 2f, capturedHalfZForFootprint.Value * 2f, capturedHalfXForFootprint.Value, capturedHalfZForFootprint.Value);
-        }
-
         return handle;
     }
 
@@ -685,19 +668,9 @@ public sealed class BulletPhysicsBodyService : IPhysicsBodyService, IBodyReposit
 
         _bodies.Remove(bodyHandle);
         _diagState.Remove(bodyHandle);
-        _resolvedFootprintMeters.Remove(bodyHandle);
 
         Log.Info("[BulletPhysicsBodyService] RemoveBody: entity '{0}' ({1}) removed from simulation.",
             entry.StrideEntity.Name, entry.ShapeKind);
-    }
-
-    // ── IPhysicsBodyService: resolved footprint (BATCH-S2-G4) ────────────────
-
-    /// <inheritdoc/>
-    public bool TryGetResolvedFootprintMeters(object bodyHandle, out float lengthM, out float widthM)
-    {
-        if (_resolvedFootprintMeters.TryGetValue(bodyHandle, out var fp)) { lengthM = fp.lengthM; widthM = fp.widthM; return true; }
-        lengthM = 0f; widthM = 0f; return false;
     }
 
     // ── IPhysicsBodyService: character motor ──────────────────────────────────
@@ -1712,8 +1685,4 @@ public sealed class BulletPhysicsBodyServiceDeferred : IPhysicsBodyService, IBod
     /// <inheritdoc/>
     public KinematicMoveResult MoveKinematic(object bodyHandle, SMath.Vector3 desiredDelta, SMath.Quaternion desiredRotDelta)
         => Inner.MoveKinematic(bodyHandle, desiredDelta, desiredRotDelta);
-
-    /// <inheritdoc/>
-    public bool TryGetResolvedFootprintMeters(object bodyHandle, out float lengthM, out float widthM)
-        => Inner.TryGetResolvedFootprintMeters(bodyHandle, out lengthM, out widthM);
 }

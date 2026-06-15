@@ -243,17 +243,6 @@ public interface IPhysicsBodyService
         object            bodyHandle,
         SMath.Vector3     desiredDelta,
         SMath.Quaternion  desiredRotDelta);
-
-    /// <summary>
-    /// Returns the resolved 2D footprint (FDP-space meters) the muscle actually built the body with —
-    /// for OrientedBox bodies this is the MODEL bounding-box extents (BATCH-S2-G4), which match the
-    /// visible mesh, unlike the kinematic VehicleParametersDto length. Returns false when no resolved
-    /// footprint is known (e.g. capsule, headless fallback, or a fake). Default no-op for fakes.
-    /// </summary>
-    bool TryGetResolvedFootprintMeters(object bodyHandle, out float lengthM, out float widthM)
-    {
-        lengthM = 0f; widthM = 0f; return false;
-    }
 }
 
 /// <summary>
