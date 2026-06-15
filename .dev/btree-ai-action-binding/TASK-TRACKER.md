@@ -17,7 +17,7 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 - [x] **S1-3** Per-asset baked-offset registrar + adapter-calls-`TickCore` [details](./TASK-DETAIL.md#s1-3--baked-offset-registrar--adapter) — *done BATCH-02*
 - [x] **S1-2b** Struct-DTO size resolution in the build-time packer (via Roslyn `Compilation`) [details](./TASK-DETAIL.md#s1-2b--struct-dto-size-resolution) — *done BATCH-03 (managed sizing + alias accept; generated struct confirmed nominal; inspector multi-DTO read → DEBT-AIB-012 @ S1-G)*
 - [x] **S1-4** Validator: unblock `ThreeParamReusable` (type-matched binding) [details](./TASK-DETAIL.md#s1-4--validator-unblock-threeparamreusable) — *done BATCH-02*
-- [ ] **S1-5** Node-inspector field-picker + "promote to new variable" [details](./TASK-DETAIL.md#s1-5--field-picker--promote-to-variable) — *deps S1-1, S1-4*
+- [x] **S1-5** Node-inspector field-picker + "promote to new variable" [details](./TASK-DETAIL.md#s1-5--field-picker--promote-to-variable) — *already satisfied by DEC-05 tests (verified BATCH-04): `GetItems_ReturnsOnlyCompatibleVars_ForKnownFqn` (type-filter), `Promote_CreatesVar_AndFacetApply_SetsExpressionTargetField_BTree` + `Promote_CreatesAutoVar_..._IsAutoManaged`; 18/0*
 - [ ] **S1-G** **DEMO GATE** — multi-action / distinct-DTO / decorator / aliasing + proof tests [details](./TASK-DETAIL.md#s1-g--slice-1-demo-gate) — *deps S1-2…S1-5*
 
 ## Slice 2 — Multiple stateful primitives per entity (after S1-G)
