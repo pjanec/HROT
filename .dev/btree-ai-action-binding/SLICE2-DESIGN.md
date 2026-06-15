@@ -17,17 +17,15 @@ Codified in: `docs/blueprints/Blueprint_Subsystem_Architecture_v1.2.md` (Slice 1
 ## 2. The plan
 Move AiPrimitive working state **out of** the shared engine `Blackboard1024` into a **Blueprint-owned component managed by a partition allocator**. The architect explicitly **rejected** retrofitting a partition allocator onto the engine's `Blackboard1024` (it is used internally by the FastHSM/BTree kernels; altering its layout would ripple across the engine).
 
-Two options (decide at Slice 2 start):
-- **Option α — new `BlueprintAiWorking1024` component** (mirrors the 1024-byte blackboard), using the **partition allocator already proven in Slice 1**.
-- **Option β — merge** AiPrimitive working-state allocations into the existing `BlueprintBlackboard{1024,4096,16384}` tiers, so AiPrimitive thunks look up slots exactly like Instance dispatch does today.
+**Decision (user, 2026-06-15): Option β.** Merge AiPrimitive working-state allocations into the existing `BlueprintBlackboard{1024,4096,16384}` tiers — AiPrimitive thunks look up their slots exactly like Instance dispatch does today. **No dedicated `BlueprintAiWorking1024` component** (Option α rejected — avoids a parallel allocator/component and reuses the most proven machinery).
 
-Both contain the change **entirely within the Blueprint subsystem**; the BTree/HSM **kernels stay unchanged** (they still pass a `Blackboard1024*` to the thunk).
+The change is contained **entirely within the Blueprint subsystem**; the BTree/HSM **kernels stay unchanged** (they still pass a `Blackboard1024*` to the thunk, which the thunk ignores for working state).
 
 ## 3. The thunk change (kernels untouched)
 The kernel keeps passing `Blackboard1024*`; the generated thunk **ignores it for working state** and instead:
 1. Uses the entity reference (`ctx.Self`) it already receives.
 2. Fetches the new Blueprint-owned component.
-3. Does a partition lookup `BlueprintBlackboardPartitions.TryGetSlotOffset(memory, BlueprintId, out int payloadOffset)` keyed by its own `BlueprintId`.
+3. Does a partition lookup `BlueprintBlackboardPartitions.TryGetSlotOffset(memory, slotKey, out int payloadOffset)`. **The slot key is NOT plain `BlueprintId`** — the same stateful blueprint used by multiple BTree nodes needs a distinct slot **per node instance**; see §6.2.
 4. Projects its WorkingState over `memory + payloadOffset` (its isolated slice).
 
 Cost: **+1 dictionary/component lookup per AiPrimitive tick** — deemed negligible on the hot path. Result: multiple distinct blueprint functions safely keep their own params, locals, and latent cursors on the same entity, no collisions.
@@ -48,17 +46,31 @@ Goal: prove **multiple stateful** primitives coexist per entity with isolated st
 - **Observation:** runtime proof tests (tick, assert per-slice WorkingState) + live inspector (extend a renderer to show the partitioned working component, or reuse `Blackboard1024Renderer` pattern for the new component).
 - **Migration/tier check:** assert tier upgrade (e.g. 1024→4096) preserves existing slots when a 4th stateful primitive is added (exercise `CopyToLargerTier`).
 
-## 6. Open questions / decisions for Slice 2
-1. **α vs β** — dedicated `BlueprintAiWorking1024` (clean isolation) vs merge into `BlueprintBlackboard*` (fewer components, shared allocator). Architect presented both; pick at kickoff.
-2. **BlueprintId for authored (non-blueprint) stateful BTree nodes** — the partition lookup is keyed by `BlueprintId`. If a stateful action is authored directly in the BTree (not as a separate blueprint), what identity keys its slot? (Per-node id? Synthesised blueprint id?) Resolve before wiring.
-3. **Latent cursors / `await`-style nodes** — confirm latent execution state lives in the same partitioned WorkingState slice and survives across ticks.
-4. **Aliasing × working state** — Slice 1 aliasing is about *params* (shared input slice). Does any sharing apply to *working* state, or is working state always per-node-instance? (Likely always isolated.)
-5. **Provisioning trigger** — when exactly is the working component added/sized (assignment time, aggregate over all stateful primitives the behavior may run)? Mirror `BehaviorIngressSystem` + the blueprint-scenario aggregate pre-provisioning.
+## 6. Decisions & open questions (updated 2026-06-15 from user)
+1. **α vs β — RESOLVED: β.** Merge into `BlueprintBlackboard*` tiers; no dedicated component.
+2. **Slot identity — REFRAMED (the key design problem).** Correction: there is **no "BTree-authored action."** The BTree knows nothing about blueprints; blueprints are edited separately, and a BTree node simply *references* a blueprint action/condition. The real case is **the same stateful blueprint action used by multiple BTree nodes** → two independent instances on one entity. So keying the partition slot by `BlueprintId` alone is **insufficient** (both nodes map to one slot → the collision returns).
+   **Leading proposal (verify with architect):** the BTree *composition layer* assigns a distinct **working-slot id per stateful node instance** and bakes it into that node's generated per-node adapter thunk — generalizing the Slice 1 baked-param-offset approach (the BTree already emits a distinct thunk per node binding, keyed by the param offset; it can bake a working-slot id too). The blueprint provides `TickCore(ref Params, ref WorkingState, self, world, time)`; the BTree-generated adapter projects Params at the bin-packed param offset **and** WorkingState at the node's partition slot, then calls `TickCore`. (The blueprint's own `BTreeTick`/`Memory+8` path stays the *standalone* blueprint-as-behavior hosting.) Slot key ≈ `(behavior/asset, stateful-node-id)`; the allocator is provisioned with one fixed-size slot per stateful node instance.
+3. **Working-state sizing — RESOLVED.** Sizes are **statically known up front** from each blueprint's variable declarations (its `WorkingState` struct). The partition allocator places each instance's fixed-size slot; tier selection by aggregate size (reuse Instance-dispatch logic). Latent/await cursors live in that same per-instance slice.
+4. **Shared working state → §7.** Per-instance working state is always isolated; *shared* mutable state across nodes/actions is a separate "shared blackboard" concept with its own design pass.
+5. **Provisioning trigger** — when the working component is added/sized (assignment time; aggregate over all stateful node instances the behavior can run). Mirror `BehaviorIngressSystem` + blueprint-scenario aggregate pre-provisioning.
 6. **Hot-reload** — slot table must survive / re-derive across ALC swaps (interacts with `BlueprintBlackboardPartitions` + `StructureHash`).
 
-## 7. Resume checklist (when starting Slice 2)
+## 7. Shared working state — the "shared blackboard" concept (its own design pass)
+Per-instance working state (§2–§6) is isolated by construction. But complex behaviors need **shared mutable state** — multiple actions/nodes (and sometimes multiple entities) coordinating through common variables (e.g. an early action computes a target a later action consumes; squad members reading/writing shared tactical state). The user flagged this as crucial; it deserves a dedicated design pass, not a bolt-on.
+
+Distinctions to settle:
+- **Shared params vs shared working state.** Shared *input* params already work via Slice 1 **aliasing** (multiple nodes → same variable → same baked offset → one slice). What's new here is shared *mutable scratch/working* state that is not any single node's private `WorkingState`.
+- **Scope.** behavior-scope (shared across the tree's nodes) / squad-scope / global. Likely modeled as a named, typed shared region that actions bind to (read/write), distinct from private `WorkingState`.
+- **Lifetime & ownership.** Who provisions/zeros it; when it resets; whether it persists across behavior changes.
+- **Cross-entity.** Relates to the known "blueprints can write other entities mid-tick" theme (memory `project-blueprint-cross-entity-sync-mutation`) — a shared blackboard may span entities (squad), which has snapshot/determinism implications.
+- **Mechanism candidates.** A dedicated shared `BlueprintBlackboard*` slot keyed by a *shared id* (not per-node); or a separate shared-state component; or elevating selected variables to "shared/behavior-scope" in the authoring model so the allocator gives them one slice that all bindings alias.
+
+Open question to settle first: at what **scope** is the first shared blackboard needed (single-behavior shared scratch vs squad-level), and is it read/written by multiple **entities** or single-entity-multi-node? That scopes both the mechanism and a Slice 2 demo (e.g. "two actions coordinate via a shared `TargetSlot`"). Captured here as a Slice 2 / Slice 2+ theme to design before implementing.
+
+## 8. Resume checklist (when starting Slice 2)
 1. Read `docs/blueprints/Blueprint_Subsystem_Slice2_Candidates.md` Theme C/C1 + Roadmap v1.1.
-2. Decide α vs β (§6.1) and the authored-node `BlueprintId` question (§6.2).
-3. Spec the thunk emission change in `AiPrimitiveEmitter` (replace `Memory+8` with `TryGetSlotOffset(BlueprintId)` projection) — kernels untouched.
-4. Wire provisioning of the working-state component + tier selection.
+2. Confirm the **β** decision (§2) and resolve the **slot-identity** proposal (§6.2: per-stateful-node-instance slot id baked into the BTree adapter thunk, calling the blueprint's `TickCore`) with the architect.
+3. Spec the thunk change: BTree composition emits a per-node adapter (param offset + working-slot id) calling `TickCore`; provisioning adds/sizes the `BlueprintBlackboard*` tier and allocates one slot per stateful node instance. Kernels untouched.
+4. Wire provisioning + tier selection (aggregate over stateful node instances).
 5. Build demos S2-1..S2-3 + proof tests.
+6. (Separate) open the **shared-blackboard** design pass (§7) when a behavior needs shared mutable state.
