@@ -279,13 +279,22 @@ internal static class BTreeMethodCompatibilityValidator
             return $"method '{methodFqn}' param 0 must be 'ref'; got '{param0.RefKind}'";
 
         // Get the FQN of param0's type and compare with the variable's TypeId.
+        // S1-2b: The symbol display format uses '.' for nested types but the asset
+        // TypeId uses the CLR metadata form with '+' (e.g. "Outer+Inner").
+        // Normalize both sides to use '.' before comparing so a nested-struct DTO
+        // binding validates correctly regardless of which separator was used.
         string param0TypeFqn = param0.Type.ToDisplayString(
             new SymbolDisplayFormat(
                 globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
                 typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
 
         string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
-        if (!string.Equals(param0TypeFqn, varTypeId, StringComparison.Ordinal))
+
+        // Normalize nested-type separators to '.' on both sides for comparison.
+        string param0TypeNormalized = param0TypeFqn.Replace('+', '.');
+        string varTypeNormalized    = varTypeId.Replace('+', '.');
+
+        if (!string.Equals(param0TypeNormalized, varTypeNormalized, StringComparison.Ordinal))
             return $"method '{methodFqn}' param 0 type '{param0TypeFqn}' does not match variable '{expressionTargetField}' type '{varTypeId}'; ensure the DTO type and the blackboard variable type are the same";
 
         // Param 1: ref BehaviorTreeState.

@@ -7,6 +7,9 @@ using Hrot.AiEditor.Persistence.Emit;
 
 namespace Hrot.AiEditor.Persistence.Emit;
 
+// Alias to avoid repeating the long Func<> signature.
+using SizeResolverDelegate = System.Func<string, int?>;
+
 /// <summary>
 /// Emits the <c>[BlueprintRegistrar]</c> self-registration bridge class for a BTree asset.
 /// Design §3 D14, §6.3, §14 (PU-203): emits a per-asset isolated static class decorated
@@ -35,6 +38,13 @@ public static class BTreeBridgeEmitCore
     /// Emits as a separate top-level file (separate hint name from the topology core).
     /// </summary>
     public static string EmitBridge(BehaviorTreeAssetDto dto)
+        => EmitBridge(dto, sizeResolver: null);
+
+    /// <summary>
+    /// Emits the [BlueprintRegistrar] bridge class source for the given BTree DTO,
+    /// using an optional size resolver for struct-DTO types.
+    /// </summary>
+    public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver)
     {
         var sb = new StringBuilder();
 
@@ -67,7 +77,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"public static class {bridgeClass}");
         sb.AppendLine("{");
 
-        EmitBTreeRegisterMethod(sb, dto, coreClass);
+        EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver);
 
         sb.AppendLine("}");
 
@@ -77,7 +87,8 @@ public static class BTreeBridgeEmitCore
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitBTreeRegisterMethod(
-        StringBuilder sb, BehaviorTreeAssetDto dto, string coreClass)
+        StringBuilder sb, BehaviorTreeAssetDto dto, string coreClass,
+        SizeResolverDelegate? sizeResolver = null)
     {
         string pad = Indent;
         string pad2 = Indent + Indent;
@@ -120,8 +131,8 @@ public static class BTreeBridgeEmitCore
 
         if (isManaged)
         {
-            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort);
-            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort);
+            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, sizeResolver);
+            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, sizeResolver);
         }
         else
         {
@@ -167,13 +178,14 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     private static void EmitManagedActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
-        string pad2, string bbShort, string ctxShort)
+        string pad2, string bbShort, string ctxShort,
+        SizeResolverDelegate? sizeResolver = null)
     {
         // Build offset map once.
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
         try
         {
-            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
         }
         catch
         {
@@ -232,12 +244,13 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     private static void EmitManagedConditionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
-        string pad2, string bbShort, string ctxShort)
+        string pad2, string bbShort, string ctxShort,
+        SizeResolverDelegate? sizeResolver = null)
     {
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
         try
         {
-            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
         }
         catch
         {
@@ -288,25 +301,35 @@ public static class BTreeBridgeEmitCore
         }
     }
 
-    /// <summary>Converts a CLR type FQN to a global:: qualified C# type name for use in thunks.</summary>
+    /// <summary>
+    /// Converts a CLR type FQN to a global:: qualified C# type name for use in thunks.
+    /// For struct-DTO types, converts nested-type separator <c>+</c> → <c>.</c> so the
+    /// emitted C# is valid (e.g. <c>global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams</c>).
+    /// </summary>
     private static string DtoTypeToGlobal(string typeId)
     {
         // For well-known primitives, use keywords. For all others, qualify with global::.
+        // S1-2b: nested type separator `+` must be converted to `.` for valid C# syntax.
         return typeId switch
         {
-            "System.Int32"   => "int",
-            "System.UInt32"  => "uint",
-            "System.Single"  => "float",
-            "System.Int64"   => "long",
-            "System.UInt64"  => "ulong",
-            "System.Double"  => "double",
-            "System.Boolean" => "bool",
-            "System.Byte"    => "byte",
-            "System.SByte"   => "sbyte",
-            "System.Int16"   => "short",
-            "System.UInt16"  => "ushort",
-            "System.Char"    => "char",
-            _ => $"global::{typeId}",
+            "System.Int32"   or "int"    => "int",
+            "System.UInt32"  or "uint"   => "uint",
+            "System.Single"  or "float"  => "float",
+            "System.Int64"   or "long"   => "long",
+            "System.UInt64"  or "ulong"  => "ulong",
+            "System.Double"  or "double" => "double",
+            "System.Boolean" or "bool"   => "bool",
+            "System.Byte"    or "byte"   => "byte",
+            "System.SByte"   or "sbyte"  => "sbyte",
+            "System.Int16"   or "short"  => "short",
+            "System.UInt16"  or "ushort" => "ushort",
+            "System.Char"    or "char"   => "char",
+            // C# alias forms — mirror of BlackboardTypeHelper
+            "Vector2"    => "global::System.Numerics.Vector2",
+            "Vector3"    => "global::System.Numerics.Vector3",
+            "Vector4"    => "global::System.Numerics.Vector4",
+            "Quaternion" => "global::System.Numerics.Quaternion",
+            _ => $"global::{typeId.Replace('+', '.')}",
         };
     }
 

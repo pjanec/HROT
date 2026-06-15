@@ -15,6 +15,7 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 - [x] **S1-1** Variables panel read-only reflection of hardcoded Category-1 DTOs (via `ActionSchemaExporter`) [details](./TASK-DETAIL.md#s1-1--category-1-dto-reflection-in-variables-panel) — *done BATCH-01 (VM-level; live wiring DEBT-AIB-009 → S1-5/S1-G)*
 - [x] **S1-2** Per-asset blackboard struct + topology-over-struct codegen [details](./TASK-DETAIL.md#s1-2--per-asset-struct--topology-over-struct) — *done BATCH-02 (build-time `BTreeBlackboardPackHelper`; DEBT-AIB-011)*
 - [x] **S1-3** Per-asset baked-offset registrar + adapter-calls-`TickCore` [details](./TASK-DETAIL.md#s1-3--baked-offset-registrar--adapter) — *done BATCH-02*
+- [x] **S1-2b** Struct-DTO size resolution in the build-time packer (via Roslyn `Compilation`) [details](./TASK-DETAIL.md#s1-2b--struct-dto-size-resolution) — *done BATCH-03 (managed sizing + alias accept; generated struct confirmed nominal; inspector multi-DTO read → DEBT-AIB-012 @ S1-G)*
 - [x] **S1-4** Validator: unblock `ThreeParamReusable` (type-matched binding) [details](./TASK-DETAIL.md#s1-4--validator-unblock-threeparamreusable) — *done BATCH-02*
 - [ ] **S1-5** Node-inspector field-picker + "promote to new variable" [details](./TASK-DETAIL.md#s1-5--field-picker--promote-to-variable) — *deps S1-1, S1-4*
 - [ ] **S1-G** **DEMO GATE** — multi-action / distinct-DTO / decorator / aliasing + proof tests [details](./TASK-DETAIL.md#s1-g--slice-1-demo-gate) — *deps S1-2…S1-5*
@@ -32,7 +33,8 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 ---
 
 ### Implementation order
-S1-0 → S1-1 (parallel) → S1-2 → S1-3 → S1-4 → S1-5 → **S1-G** → S2-1 → S2-2 → S2-3 → S2-4 → **S2-G**.
+S1-0 → S1-1 (parallel) → S1-2 → S1-3 → S1-4 → **S1-2b** → S1-5 → **S1-G** → S2-1 → S2-2 → S2-3 → S2-4 → **S2-G**.
+(S1-2b inserted 2026-06-15 by user decision — struct-DTO sizing; must precede S1-G. See [[project-btree-struct-dto-sizing]].)
 
 Notes:
 - **S1-4 must not ship without S1-2+S1-3** — unblocking `ThreeParamReusable` before the per-asset struct/registrar exist turns clean `BTREE0002` skips into hard build breaks (AIB-DD §3.3).

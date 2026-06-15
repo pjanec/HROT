@@ -54,6 +54,12 @@
 - Test: `ThreeParamReusable_MissingExpressionTargetField_Skips` — no target ⇒ skip.
 **Done when:** all pass; building `Hrot.AI.Behaviors` with a `ThreeParamReusable` demo asset succeeds.
 
+## S1-2b — Struct-DTO size resolution
+**Design:** AIB-DD §2, §3.2; SLICE1-DESIGN §3.1–§3.2. **Decision:** user 2026-06-15 (full solution, see [[project-btree-struct-dto-sizing]]). **Touches:** new `StructSizeResolver` in `Hrot.AiEditor.Generators`; `BTreeBlackboardPackHelper` (`Pack` overload w/ injected size resolver); `BTreeJsonGenerator.GenerateOneAsset` (thread `Compilation`-resolved sizes into all emit helpers); `BTreeEmitCore` (struct field of DTO type at resolved offset); `BTreeBridgeEmitCore`; `BTreeMethodCompatibilityValidator` (nested-type separator normalization).
+**Scope:** resolve **managed** byte size (bool=1, not Marshal's 4) of struct DTO variable types via Roslyn `Compilation` (mirror `BehaviorParameterSizeAnalyzer.ComputeStructSize`); pack/emit struct-typed managed variables at the resolved offset across struct + topology + registrar (single offset source); unresolvable/over-budget ⇒ `BTREE0002` skip (no partial emit); validator validates nested-type DTO bindings.
+**Success conditions:** the named tests in `batches/BATCH-03-INSTRUCTIONS.md` (`StructDtoVariable_ResolvesManagedSize`, `StructDtoVariable_PacksAtResolvedOffsets`, `StructDtoVariable_TopologyAndRegistrar_CarryResolvedOffsets`, `NestedStructDto_TypeMatch_Validates`, `StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002`, `UnresolvableStructDto_SkipsWithBtree0002`).
+**Done when:** all pass; BATCH-02 generator/persistence tests green (byte-identity 129/0); clean rebuild green. Enables S1-G's real multi-field-DTO demo.
+
 ## S1-5 — Field-picker + promote-to-variable
 **Design:** AIB-DD §3.1; SLICE1-DESIGN §3.4; `Blackboard_Authoring_Addendum_v3` §3 (node-owned/auto-managed). **Touches:** BTree node inspector field-picker drawer; mirror existing `PromoteBindTests`/`BlackboardFieldPickerDrawerTests` in `Hrot.BTree.Editor.Tests`.
 **Scope:** node-inspector picker lists only variables whose type matches the action's param-0 DTO type (type-filtered) and sets `ExpressionTargetField`; "+ promote to new variable" creates an `IsAutoManaged` variable of that DTO type and binds it.

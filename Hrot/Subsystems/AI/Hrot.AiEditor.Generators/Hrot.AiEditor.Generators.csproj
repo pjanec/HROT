@@ -26,4 +26,8 @@
                       ExcludeAssets="runtime" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.AiEditor.Generators.Tests" />
+  </ItemGroup>
+
 </Project>

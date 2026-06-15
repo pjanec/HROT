@@ -73,6 +73,23 @@ public static class BTreeBlackboardPackHelper
         { "UnityEngine.Vector3",    12 },
         { "UnityEngine.Vector4",    16 },
         { "UnityEngine.Quaternion", 16 },
+        // C# alias forms — mirror of BlackboardTypeHelper
+        { "bool",       1 },
+        { "byte",       1 },
+        { "sbyte",      1 },
+        { "char",       2 },
+        { "short",      2 },
+        { "ushort",     2 },
+        { "int",        4 },
+        { "uint",       4 },
+        { "float",      4 },
+        { "long",       8 },
+        { "ulong",      8 },
+        { "double",     8 },
+        { "Vector2",    8  },
+        { "Vector3",    12 },
+        { "Vector4",    16 },
+        { "Quaternion", 16 },
     };
 
     /// <summary>
@@ -90,6 +107,23 @@ public static class BTreeBlackboardPackHelper
     public static IReadOnlyList<PackedField> Pack(
         IReadOnlyList<BlackboardVariableDto> variables,
         out int totalBytes)
+        => Pack(variables, extraSizeResolver: null, out totalBytes);
+
+    /// <summary>
+    /// Packs <paramref name="variables"/> using declaration order, with an optional injected
+    /// size resolver for struct-DTO types not in <see cref="KnownSizes"/>.
+    /// Lookup order: <see cref="KnownSizes"/> → <paramref name="extraSizeResolver"/>(<c>TypeId</c>).
+    /// Throws <see cref="NotSupportedException"/> when no resolver returns a size.
+    /// Returns total byte size via <paramref name="totalBytes"/>.
+    ///
+    /// Design (S1-2b): the <paramref name="extraSizeResolver"/> is provided by
+    /// <c>StructSizeResolver</c> in <c>Hrot.AiEditor.Generators</c> (Roslyn-aware assembly)
+    /// so this netstandard2.0 Persistence assembly stays free of Roslyn dependencies.
+    /// </summary>
+    public static IReadOnlyList<PackedField> Pack(
+        IReadOnlyList<BlackboardVariableDto> variables,
+        Func<string, int?>? extraSizeResolver,
+        out int totalBytes)
     {
         if (variables == null) throw new ArgumentNullException(nameof(variables));
 
@@ -100,10 +134,10 @@ public static class BTreeBlackboardPackHelper
         {
             string typeId = v.Type?.TypeId ?? string.Empty;
 
-            if (!KnownSizes.TryGetValue(typeId, out int size))
+            if (!TryResolveSize(typeId, extraSizeResolver, out int size))
                 throw new NotSupportedException(
                     $"BTreeBlackboardPackHelper: unknown type '{typeId}' for variable '{v.Name}'. " +
-                    $"Add it to BTreeBlackboardPackHelper.KnownSizes.");
+                    $"Add it to BTreeBlackboardPackHelper.KnownSizes or provide an extraSizeResolver.");
 
             int alignment = Math.Min(size, AlignmentCap);
 
@@ -126,13 +160,24 @@ public static class BTreeBlackboardPackHelper
     public static bool WouldOverflow(
         IReadOnlyList<BlackboardVariableDto> variables,
         out string? unknownTypeId)
+        => WouldOverflow(variables, extraSizeResolver: null, out unknownTypeId);
+
+    /// <summary>
+    /// Returns whether packing <paramref name="variables"/> would overflow the 100-byte inline budget,
+    /// using an optional injected size resolver for struct-DTO types.
+    /// Does NOT throw for unknown types — returns false + sets <paramref name="unknownTypeId"/>.
+    /// </summary>
+    public static bool WouldOverflow(
+        IReadOnlyList<BlackboardVariableDto> variables,
+        Func<string, int?>? extraSizeResolver,
+        out string? unknownTypeId)
     {
         unknownTypeId = null;
         int offset = 0;
         foreach (var v in variables)
         {
             string typeId = v.Type?.TypeId ?? string.Empty;
-            if (!KnownSizes.TryGetValue(typeId, out int size))
+            if (!TryResolveSize(typeId, extraSizeResolver, out int size))
             {
                 unknownTypeId = typeId;
                 return false; // can't determine — caller must handle
@@ -143,5 +188,28 @@ public static class BTreeBlackboardPackHelper
             offset += size;
         }
         return offset > MaxInlineBytes;
+    }
+
+    /// <summary>
+    /// Resolves the byte size for <paramref name="typeId"/> via <see cref="KnownSizes"/>
+    /// then <paramref name="extraSizeResolver"/>. Returns true when resolved.
+    /// </summary>
+    private static bool TryResolveSize(string typeId, Func<string, int?>? extraSizeResolver, out int size)
+    {
+        if (KnownSizes.TryGetValue(typeId, out size))
+            return true;
+
+        if (extraSizeResolver != null)
+        {
+            int? resolved = extraSizeResolver(typeId);
+            if (resolved.HasValue)
+            {
+                size = resolved.Value;
+                return true;
+            }
+        }
+
+        size = 0;
+        return false;
     }
 }

@@ -7,6 +7,9 @@ using Hrot.AiEditor.Persistence.BTree;
 
 namespace Hrot.AiEditor.Persistence.Emit;
 
+// Alias to avoid repeating the long Func<> signature.
+using SizeResolverDelegate = System.Func<string, int?>;
+
 /// <summary>
 /// Deterministic C# emitter for BTree assets operating on the persisted DTO.
 /// Design §6.1: netstandard2.0 emit core — no editor/net8/ImGui reference.
@@ -43,6 +46,18 @@ public static class BTreeEmitCore
     public static string? EmitBlackboardStructSource(
         BehaviorTreeAssetDto dto,
         out IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
+        => EmitBlackboardStructSource(dto, sizeResolver: null, out packedFields);
+
+    /// <summary>
+    /// Emits a <c>[StructLayout(LayoutKind.Sequential)]</c> struct for a managed blackboard block,
+    /// using an optional injected size resolver for struct-DTO types.
+    /// Returns the C# source string and fills <paramref name="packedFields"/> with the packing result.
+    /// Returns <c>null</c> when <paramref name="dto"/> is not managed or has no variables.
+    /// </summary>
+    public static string? EmitBlackboardStructSource(
+        BehaviorTreeAssetDto dto,
+        SizeResolverDelegate? sizeResolver,
+        out IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
     {
         packedFields = Array.Empty<BTreeBlackboardPackHelper.PackedField>();
 
@@ -52,7 +67,7 @@ public static class BTreeEmitCore
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> fields;
         try
         {
-            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
         }
         catch (NotSupportedException)
         {
@@ -82,11 +97,13 @@ public static class BTreeEmitCore
 
         foreach (var f in fields)
         {
-            string csTypeName = ToCsTypeName(f.TypeId);
-            if (f.TypeId == "System.Boolean")
+            // S1-2b: bool fields require [MarshalAs(I1)] so managed size=1, not BOOL=4.
+            // Struct-DTO fields use global::-qualified name with + → . separator conversion.
+            if (f.TypeId == "System.Boolean" || f.TypeId == "bool")
             {
                 sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
             }
+            string csTypeName = ToCsTypeName(f.TypeId);
             sb.AppendLine($"{Indent}public {csTypeName} {f.Name};");
         }
 
@@ -96,26 +113,36 @@ public static class BTreeEmitCore
 
     /// <summary>
     /// Maps a CLR type FQN to the C# keyword or short name used in generated source.
+    /// For struct-DTO types (not primitives/vectors), converts nested-type separator
+    /// <c>+</c> → <c>.</c> and prefixes with <c>global::</c> so the field declaration
+    /// is valid C# regardless of using-directive scope.
+    /// E.g. "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams"
+    ///     → "global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams"
     /// </summary>
     private static string ToCsTypeName(string typeId) => typeId switch
     {
-        "System.Boolean"  => "bool",
-        "System.Byte"     => "byte",
-        "System.SByte"    => "sbyte",
-        "System.Char"     => "char",
-        "System.Int16"    => "short",
-        "System.UInt16"   => "ushort",
-        "System.Int32"    => "int",
-        "System.UInt32"   => "uint",
-        "System.Single"   => "float",
-        "System.Int64"    => "long",
-        "System.UInt64"   => "ulong",
-        "System.Double"   => "double",
-        "System.Numerics.Vector2"    => "global::System.Numerics.Vector2",
-        "System.Numerics.Vector3"    => "global::System.Numerics.Vector3",
-        "System.Numerics.Vector4"    => "global::System.Numerics.Vector4",
-        "System.Numerics.Quaternion" => "global::System.Numerics.Quaternion",
-        _ => typeId, // fall back to FQN
+        "System.Boolean"  or "bool"   => "bool",
+        "System.Byte"     or "byte"   => "byte",
+        "System.SByte"    or "sbyte"  => "sbyte",
+        "System.Char"     or "char"   => "char",
+        "System.Int16"    or "short"  => "short",
+        "System.UInt16"   or "ushort" => "ushort",
+        "System.Int32"    or "int"    => "int",
+        "System.UInt32"   or "uint"   => "uint",
+        "System.Single"   or "float"  => "float",
+        "System.Int64"    or "long"   => "long",
+        "System.UInt64"   or "ulong"  => "ulong",
+        "System.Double"   or "double" => "double",
+        "System.Numerics.Vector2"    or "Vector2"    => "global::System.Numerics.Vector2",
+        "System.Numerics.Vector3"    or "Vector3"    => "global::System.Numerics.Vector3",
+        "System.Numerics.Vector4"    or "Vector4"    => "global::System.Numerics.Vector4",
+        "System.Numerics.Quaternion" or "Quaternion" => "global::System.Numerics.Quaternion",
+        "UnityEngine.Vector2"    => "global::UnityEngine.Vector2",
+        "UnityEngine.Vector3"    => "global::UnityEngine.Vector3",
+        "UnityEngine.Vector4"    => "global::UnityEngine.Vector4",
+        "UnityEngine.Quaternion" => "global::UnityEngine.Quaternion",
+        // S1-2b: struct-DTO types — convert CLR nested separator + → . and qualify with global::.
+        _ => "global::" + typeId.Replace('+', '.'),
     };
 
     /// <summary>
@@ -125,20 +152,28 @@ public static class BTreeEmitCore
     /// Layout lives in JSON; read by the future JSON loader (PU-301).
     /// </summary>
     public static string EmitTopologyCore(BehaviorTreeAssetDto dto)
+        => EmitTopologyCore(dto, sizeResolver: null);
+
+    /// <summary>
+    /// Emits the topology core (.cs file content) for the given BTree asset DTO,
+    /// EXCLUDING the <c>[BTreeLayout]</c> method, using an optional size resolver for struct-DTO types.
+    /// </summary>
+    public static string EmitTopologyCore(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver)
     {
-        return EmitInternal(dto, includeLayout: false);
+        return EmitInternal(dto, includeLayout: false, sizeResolver: sizeResolver);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
-    private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout)
+    private static string EmitInternal(BehaviorTreeAssetDto dto, bool includeLayout,
+        SizeResolverDelegate? sizeResolver = null)
     {
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
 
-        // Pre-compute variable offsets for managed blackboard assets (S1-2).
+        // Pre-compute variable offsets for managed blackboard assets (S1-2 / S1-2b).
         // For unmanaged assets this is empty — EmitAction/EmitCondition fall back to the
         // legacy field-selector form which is byte-identical to the pre-BATCH-02 output.
-        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto);
+        IReadOnlyDictionary<string, int> variableOffsets = BuildVariableOffsets(dto, sizeResolver);
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -188,16 +223,18 @@ public static class BTreeEmitCore
 
     /// <summary>
     /// Pre-computes variable name → byte offset for a managed blackboard block.
-    /// Returns an empty dictionary for non-managed assets (guard: §S1-2).
+    /// Returns an empty dictionary for non-managed assets (guard: §S1-2 / S1-2b).
     /// </summary>
-    private static IReadOnlyDictionary<string, int> BuildVariableOffsets(BehaviorTreeAssetDto dto)
+    private static IReadOnlyDictionary<string, int> BuildVariableOffsets(
+        BehaviorTreeAssetDto dto,
+        SizeResolverDelegate? sizeResolver = null)
     {
         if (!dto.Blackboard.Managed || dto.Blackboard.Variables.Count == 0)
             return new Dictionary<string, int>();
 
         try
         {
-            var fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, out _);
+            var fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
             var map = new Dictionary<string, int>(fields.Count, StringComparer.Ordinal);
             foreach (var f in fields)
                 map[f.Name] = f.ByteOffset;

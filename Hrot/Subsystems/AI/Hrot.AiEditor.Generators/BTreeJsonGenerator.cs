@@ -99,6 +99,35 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
+        // S1-2b: Build a Roslyn-backed struct-size resolver for this compilation.
+        // The resolver handles struct-DTO types not in BTreeBlackboardPackHelper.KnownSizes.
+        // Guarded by Managed flag — non-managed assets get a null resolver (no change).
+        System.Func<string, int?>? structSizeResolver = null;
+        if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            structSizeResolver = StructSizeResolver.MakeDelegate(compilation);
+
+            // Check for any unresolvable managed variable BEFORE emitting anything.
+            // An unresolvable type means we cannot guarantee the struct layout, so skip
+            // the whole asset with BTREE0002 (never a partial/silent emit).
+            foreach (var v in dto.Blackboard.Variables)
+            {
+                string typeId = v.Type?.TypeId ?? string.Empty;
+                if (!BTreeBlackboardPackHelper.TryGetSize(typeId, out _))
+                {
+                    // Not a known primitive — try the struct resolver.
+                    int? resolved = structSizeResolver(typeId);
+                    if (!resolved.HasValue)
+                    {
+                        spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                            $"managed blackboard variable '{v.Name}' has type '{typeId}' which cannot be resolved " +
+                            "in the compilation — asset skipped (ensure the type is defined and referenced)"));
+                        return;
+                    }
+                }
+            }
+        }
+
         // S1-2: 100-byte inline-budget guard for managed blackboards.
         // A managed asset whose packed variables exceed the 100-byte inline budget would
         // emit an oversized struct (and a topology that assumes it). Detect overflow BEFORE
@@ -111,7 +140,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             try
             {
                 wouldOverflow = BTreeBlackboardPackHelper.WouldOverflow(
-                    dto.Blackboard.Variables, out _);
+                    dto.Blackboard.Variables, structSizeResolver, out _);
             }
             catch (Exception ex)
             {
@@ -133,7 +162,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         string source;
         try
         {
-            source = BTreeEmitCore.EmitTopologyCore(dto);
+            source = BTreeEmitCore.EmitTopologyCore(dto, structSizeResolver);
         }
         catch (Exception ex)
         {
@@ -155,7 +184,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             string? structSource;
             try
             {
-                structSource = BTreeEmitCore.EmitBlackboardStructSource(dto, out _);
+                structSource = BTreeEmitCore.EmitBlackboardStructSource(dto, structSizeResolver, out _);
             }
             catch (Exception ex)
             {
@@ -172,7 +201,7 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         string bridge;
         try
         {
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto);
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver);
         }
         catch (Exception ex)
         {
