@@ -129,7 +129,7 @@
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "{\"Counter\":0,\"Threshold\":5}",
+        "DefaultValueJson": "{\"Counter\":0,\"Threshold\":1000}",
         "Comment": "Counter+Threshold DTO for Condition_CounterBelowThreshold / Action_IncrementCounter"
       },
       {
