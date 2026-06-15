@@ -125,109 +125,173 @@ Repeat 2–4. This gives you reproducible, frame-by-frame control. (`play` runs 
 Conventions: **Req** = required param. Coordinates are local ECS metres unless stated; `networkId` is a long.
 
 ### Group A — Lifecycle & status
-- **`start_simulation`** — launch the runner. `runnerDll?` (string), `port?` (number, def 8099),
-  `headless?` (bool). Returns `{url, pid}`.
-- **`stop_simulation`** — graceful→hard shutdown. Returns the `/shutdown` envelope.
-- **`get_status`** — `{scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording}`.
+- **`start_simulation`** — Launch the Hrot ClusterRunner in editor mode with the AI Debug API enabled. Polls /status until ready. `runnerDll?` (string), `port?` (number, def 8099), `headless?` (boolean, def false). Returns { url, pid }
+  Notes: MCP-side lifecycle tool — no HTTP endpoint.; runnerDll is required unless the server was started with --runner-dll..
+  Example: `start_simulation({"runnerDll":"/path/to/Hrot.ClusterRunner.dll","port":8099,"headless":true})` — launch runner headless on default port.
+- **`stop_simulation`** — Shut down the runner gracefully via POST /shutdown, then hard-kill if needed. No params. Returns The /shutdown envelope, or { note: "runner already gone" }
+  Notes: MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.; Always call when done to avoid orphan runner processes..
+  Example: `stop_simulation({})` — graceful runner shutdown.
+- **`get_status`** — Runner liveness + sim state summary. No params. Returns { scenario, clusterState, simTime, timeScale, isPaused, inPreview, entityCount, recording }
+  Notes: Use this to verify the runner is alive and check current run state before driving the sim..
+  Example: `get_status({})` — check runner liveness and sim state.
 
 ### Group B — Queries
-- **`list_entities`** — all entities (`[{networkId, name, components:[names]}]`). Optional filters:
-  `component` (string — only entities having it), `near` (string `"x,y,r"` — within radius r of (x,y) on the
-  ground plane). Filters compose.
-- **`get_entity`** — Req `networkId`. Full component dump. Non-finite floats render as the strings
-  `"NaN"`/`"Infinity"`/`"-Infinity"` (valid JSON — see Gotchas).
-- **`list_component_types`** — all registered component types + field schemas (for `edit_component`).
-- **`list_scenarios`** — available scenario names (relative paths) for `load_scenario`.
+- **`list_entities`** — List all entities with networkId, name, and component names. `component?` (string), `near?` (string). Returns [{networkId, name, components:[names]}]
+  Notes: Optional filters compose: component (only entities having it), near ("x,y,r" within radius r of (x,y))..
+  Example: `list_entities({"component":"SimTransform"})` — list only entities with SimTransform component.
+- **`get_entity`** — Full component dump for one entity. Req `networkId` (number). Returns Full component dump for the entity. Non-finite floats render as "NaN"/"Infinity"/"-Infinity".
+  Notes: Non-finite floats appear as string sentinels "NaN"/"Infinity"/"-Infinity" — valid JSON, not a bug..
+  Example: `get_entity({"networkId":1000})` — get full component dump for entity 1000.
+- **`list_component_types`** — Enumerate registered ECS component types with field schemas. No params. Returns All registered component types + field schemas (for use with edit_component).
+  Notes: Use this to discover component type names before calling edit_component..
+  Example: `list_component_types({})` — list all ECS component types and their schemas.
+- **`list_scenarios`** — List available scenarios by relative path. No params. Returns Available scenario names (relative paths) for use with load_scenario.
+  Example: `list_scenarios({})` — discover loadable scenario names.
 
 ### Group C — Event history
-- **`get_event_history`** — recent events. `bus?` (`"world"`|`"orchestration"`, def `world`), `type?` (event
-  type name filter), `since?` (frame number), `max?` (def 200). Read-only; safe any time.
+- **`get_event_history`** — Query the diagnostic event history. `bus?` (string, "world"|"orchestration", def "world"), `type?` (string), `since?` (number), `max?` (number, def 200). Returns Recent diagnostic events from the specified bus.
+  Notes: bus: "world" (default) or "orchestration".; Read-only; safe to call any time..
+  Example: `get_event_history({"bus":"world","type":"CenterOnEntityCommand","max":10})` — query world bus for recent CenterOnEntityCommand events.
 
 ### Group D — Sim / preview / time
-- **`get_sim_state`** — `{isPaused, inPreview, totalTime, timeScale}`. Check this before driving.
-- **`play`** — enter preview and/or resume. Time advances after this (until `pause`/breakpoint).
-- **`pause`** — pause. Time freezes; commands queue until you `step`/`play`.
-- **`step`** — advance discrete ticks. `count?` (def 1). Only meaningful in preview.
-- **`set_time_scale`** — Req `scale` (number; 1.0 = real-time). Speeds/slows free-running play.
-- **`enter_preview`** — enter preview. `startPaused?` (bool). Snapshots the world (revertible).
-- **`stop_preview`** — exit preview; **rewinds** to the pre-preview snapshot.
+- **`get_sim_state`** — Current sim state: isPaused, inPreview, totalTime, timeScale. No params. Returns { isPaused, inPreview, totalTime, timeScale }
+  Notes: Check this before driving — most mistakes are run-state mistakes..
+  Example: `get_sim_state({})` — check current paused/preview/time state.
+- **`play`** — Enter preview and/or resume if paused. Time advances after this. No params. Returns ok:true envelope.
+  Notes: Time advances after play (until pause or a breakpoint fires)..
+  Example: `play({})` — start or resume simulation.
+- **`pause`** — Pause the simulation. Time freezes; commands queue until step/play. No params. Returns ok:true envelope.
+  Notes: Commands and spawns while paused are queued and take effect on the next step/play..
+  Example: `pause({})` — pause the running simulation.
+- **`step`** — Advance simulation by N discrete steps. Only meaningful in preview. `count?` (number, def 1). Returns ok:true envelope.
+  Notes: Only advances time when inPreview==true. In Edit state this is a no-op..
+  Example: `step({"count":5})` — advance 5 simulation ticks.
+- **`set_time_scale`** — Set simulation time scale. Req `scale` (number). Returns ok:true envelope.
+  Notes: 1.0 = real-time, >1.0 = faster, <1.0 = slower..
+  Example: `set_time_scale({"scale":2})` — run simulation at 2x real-time.
+- **`enter_preview`** — Enter preview mode. Snapshots the world (revertible via stop_preview). `startPaused?` (boolean). Returns ok:true envelope.
+  Notes: Snapshots the world; stop_preview rewinds to this snapshot.; Single preview slot — mutually exclusive with checkpoint and start_recording{preview}..
+  Example: `enter_preview({"startPaused":true})` — enter preview paused for deterministic step-based control.
+- **`stop_preview`** — Exit preview mode; rewinds to the pre-preview snapshot. No params. Returns ok:true envelope.
+  Notes: Rewinds all changes made during preview back to the snapshot taken at enter_preview..
+  Example: `stop_preview({})` — exit preview and revert all changes since entering preview.
 
 ### Group E — Scenario
-- **`load_scenario`** — Req `name`. `waitForReady?` (bool — block until `OperatingEdit`; use `true`). Loads
-  into Edit state.
-- **`save_scenario`** — Req `name`. Saves the current authored world.
+- **`load_scenario`** — Load a scenario by name. Puts the world into Edit state. Req `name` (string), `waitForReady?` (boolean, def false). Returns ok:true envelope.
+  Notes: Set waitForReady:true to block until the cluster reaches OperatingEdit (recommended).; Loads into Edit state — sim is static until enter_preview or play..
+  Example: `load_scenario({"name":"test-move","waitForReady":true})` — load test-move scenario and wait for ready.
+- **`save_scenario`** — Save the current authored world as a scenario. Req `name` (string). Returns ok:true envelope.
+  Example: `save_scenario({"name":"my-scenario"})` — save current world as my-scenario.
 
 ### Group F — Commands, discovery, spawn
-- **`list_commands`** — publishable FDP event types + field schemas; each tagged `managed:true/false`. Call
-  this to discover what `send_entity_command` accepts.
-- **`send_entity_command`** — publish an FDP event. Req `eventType` (a name from `list_commands`). `payload?`
-  (object — the event fields). `wait?` (bool — wait for a correlated ack; only effective while time advances,
-  else `awaited:false`).
-- **`spawn_entity`** — Req `tkbType` (long, from `list_entity_types`). `transform?` (`{position:{x,y,z},
-  rotation:{x,y,z,w}}`), `components?` (array), `attributesJson?` (string — JsonAttributeCompiler patch).
-  Spawn is processed on the next tick (`step` to realize it).
+- **`list_commands`** — Enumerate publishable FDP event types with field schemas. No params. Returns Publishable FDP event types + field schemas; each tagged managed:true/false.
+  Notes: Call this to discover what send_entity_command accepts.; managed:true events have server-side handling; managed:false are raw FDP events..
+  Example: `list_commands({})` — discover available FDP event types before sending a command.
+- **`send_entity_command`** — Publish an FDP event by type name. Req `eventType` (string), `payload?` (object), `wait?` (boolean). Returns ok:true envelope. awaited:false if sim not running (not an error).
+  Notes: Set wait:true to attempt correlated-ack wait — only effective while time advances, else awaited:false.; awaited:false is NOT an error — it means time was not advancing..
+  Example: `send_entity_command({"eventType":"MissionControlIntent","payload":{"targetId":1000},"wait":false})` — publish MissionControlIntent event.
+- **`spawn_entity`** — Spawn an entity from a TKB type. Req `tkbType` (number), `transform?` (object), `components?` (array), `attributesJson?` (string). Returns ok:true envelope. Spawn is processed on the next tick (step to realize it).
+  Notes: Spawn is queued and processed on the next tick — call step to realize it.; Use list_entity_types to discover valid tkbType values..
+  Example: `spawn_entity({"tkbType":1001,"transform":{"position":{"x":100,"y":0,"z":50},"rotation":{"x":0,"y":0,"z":0,"w":1}}})` — spawn entity type 1001 at position (100,0,50).
 
-### Group M — Entity-type (TKB) catalog
-- **`list_entity_types`** — `[{tkbType, name, categoryPath, disType}]`. `category?` filter.
-- **`get_entity_type`** — Req `tkbType`. Mandatory components, child blueprints, descriptors. No spawn.
-
-### Group N — World / coordinates
-- **`get_world_info`** — `{geo:{origin:{lat,lon,alt}}, spatialGrid:{...extent}, terrain:null, navmesh:null}`.
-- **`geo_to_local`** — Req `lat, lon, alt`. `headingDeg?` → adds `rotation`. Returns `{x,y,z, rotation?}`.
-- **`local_to_geo`** — Req `x, y, z`. `rotation?` (quaternion `{x,y,z,w}`) → adds `headingDeg`. Returns
-  `{lat,lon,alt, headingDeg?}`. (Heading: North=0°, East=90°.)
-
-### Group G — Breakpoints (run-until-condition)
-- **`set_breakpoint`** — Req `condition` (a `SearchPredicateDto`, polymorphic via a `$type` discriminator —
-  e.g. `{"$type":"Lifecycle","IdentifierType":"NameSubstring","TargetValue":"Alpha"}`, or
-  `{"$type":"PropertyMatch","ComponentType":"SimTransform","PropertyPath":"Position.X","Operator":"GreaterThan",
-  "Predicate":{"$type":"Numeric","MinValue":100,"MaxValue":1e9}}`). `filterNetworkId?`, `occurrenceThreshold?`
-  (def 1), `name?`. Returns `breakpointId`.
-- **`list_breakpoints`** — all breakpoints with `id, conditionSummary, enabled, occurrenceThreshold, hitCount,
-  name`.
-- **`remove_breakpoint`** — Req `id` (e.g. `"BP#1"`).
-- **`get_breakpoint_status`** — `{isPaused, pausedTick, lastHit:{breakpointId, networkId}|null}`. Poll after
-  `play`.
+### Group G — Breakpoints
+- **`set_breakpoint`** — Register a run-until-condition breakpoint. Req `condition` (object), `filterNetworkId?` (number), `occurrenceThreshold?` (number, def 1), `name?` (string). Returns { breakpointId } (e.g. "BP#1").
+  Notes: condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.).; Poll get_breakpoint_status after play to detect when the breakpoint fires..
+  Example: `set_breakpoint({"condition":{"$type":"PropertyMatch","ComponentType":"SimTransform","PropertyPath":"Position.X","Operator":"GreaterThan","Predicate":{"$type":"Numeric","MinValue":100,"MaxValue":1000000000}},"name":"moved-east"})` — pause when entity SimTransform.Position.X > 100.
+- **`list_breakpoints`** — List all registered breakpoints. No params. Returns [{ id, conditionSummary, enabled, occurrenceThreshold, hitCount, name }]
+  Example: `list_breakpoints({})` — list all active breakpoints and their hit counts.
+- **`remove_breakpoint`** — Remove a breakpoint by its ID string. Req `id` (string). Returns ok:true envelope.
+  Example: `remove_breakpoint({"id":"BP#1"})` — remove breakpoint BP#1.
+- **`get_breakpoint_status`** — Current pause state and last breakpoint hit. No params. Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }
+  Notes: Poll this after play to detect when a breakpoint fires..
+  Example: `get_breakpoint_status({})` — poll for breakpoint hit after calling play.
 
 ### Group H — Checkpoint / diff
-- **`checkpoint`** — single-slot snapshot (enters preview, paused). Rejected if a live run is active or already
-  in preview.
-- **`restore_checkpoint`** — rewind to the snapshot (exits preview).
-- **`capture_diff_baseline`** — `entities?` (list of networkIds, def all). Returns `baselineId`.
-- **`diff_state`** — Req `baselineId`. `entities?`. Returns a `DiffNode` tree of changes (incl births/deaths).
+- **`checkpoint`** — Take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true). No params. Returns ok:true with inPreview:true. Returns 409 if a live run is active; 400 if already in preview/checkpointed.
+  Notes: Single slot: mutually exclusive with enter_preview and start_recording{preview}.; Restore with restore_checkpoint to rewind all changes..
+  Example: `checkpoint({})` — take a checkpoint before an experiment.
+- **`restore_checkpoint`** — Rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode(). No params. Returns ok:true with inPreview:false. Returns 400 if no checkpoint is active.
+  Notes: Returns 400 if no checkpoint is active..
+  Example: `restore_checkpoint({})` — revert all changes since the last checkpoint.
+- **`capture_diff_baseline`** — Serialize current entity states server-side and return a baselineId. `entities?` (array). Returns { baselineId } (e.g. "BL#1")
+  Notes: Use before mutating the world, then call diff_state with the baselineId to see what changed.; Optional entities array (networkId list) scopes which entities to capture (default: all)..
+  Example: `capture_diff_baseline({"entities":[1000]})` — capture baseline for entity 1000 before mutation.
+- **`diff_state`** — Compare a previously captured baseline against current entity state. Req `baselineId` (string), `entities?` (array). Returns A DiffNode tree showing only what changed (token-efficient). Includes entity births/deaths.
+  Notes: baselineId comes from capture_diff_baseline.; Returns only changed components — token-efficient for AI consumption..
+  Example: `diff_state({"baselineId":"BL#1","entities":[1000]})` — diff entity 1000 against baseline BL#1.
 
 ### Group I — Recording / replay
-- **`start_recording`** — `mode?` (`"preview"` def | `"live"` — live not supported in editor). Returns
-  `fdpPath`. Enters preview.
-- **`stop_recording`** — finalize (before the rewind); returns `fdpPath`.
-- **`load_replay`** — Req `fdpPath`. Stands up an isolated replay sandbox. Returns `{totalFrames, currentFrame}`.
-- **`seek_replay`** — Req `frame`. **`step_replay`** — `dir?` (`"forward"`|`"back"`).
-- **`get_replay_status`** — `{replayActive, currentFrame, totalFrames}`.
-- **`list_replay_entities`** — entities at the current replay frame (does not touch the live world).
-- **`unload_replay`** — dispose the sandbox.
+- **`start_recording`** — Start recording. Enters preview and begins writing a .fdp file. `mode?` (string, "preview"|"live", def "preview"). Returns { recording:true, mode, fdpPath }
+  Notes: mode="preview" (default): revertible, uses EnterPreviewMode→PrepareRecordingAsync.; mode="live": not supported in editor mode.; Mutually exclusive with checkpoint (both use the preview slot)..
+  Example: `start_recording({"mode":"preview"})` — start a revertible preview recording.
+- **`stop_recording`** — Stop the active recording. Finalizes BEFORE the exit rewind. No params. Returns { recording:false, fdpPath }
+  Notes: For preview mode: finalizes BEFORE the exit rewind (hard ordering rule)..
+  Example: `stop_recording({})` — stop recording and get the .fdp file path.
+- **`load_replay`** — Load a .fdp recording into an ISOLATED ReplayBrowserContext. Req `fdpPath` (string). Returns { loaded:true, fdpPath, totalFrames, currentFrame }
+  Notes: While replay is active, /replay/entities returns entities from the sandbox (not the live world).; Use list_replay_entities (not list_entities) while replaying..
+  Example: `load_replay({"fdpPath":"/path/to/recording.fdp"})` — load a .fdp recording for inspection.
+- **`seek_replay`** — Seek to a specific frame in the ISOLATED sandbox. Does NOT touch the live world. Req `frame` (number). Returns { frame, totalFrames }
+  Notes: Isolation guarantee: does NOT touch the live world..
+  Example: `seek_replay({"frame":0})` — seek replay to frame 0 (start).
+- **`step_replay`** — Step one frame forward or backward in the ISOLATED sandbox. Does NOT touch the live world. `dir?` (string, "forward"|"back", def "forward"). Returns { stepped:bool, frame, totalFrames }
+  Notes: Isolation guarantee: does NOT touch the live world..
+  Example: `step_replay({"dir":"forward"})` — step one frame forward in the replay.
+- **`get_replay_status`** — Replay sandbox status. No params. Returns { replayActive, currentFrame, totalFrames }
+  Example: `get_replay_status({})` — check if replay is active and current frame.
+- **`list_replay_entities`** — List entities from the ISOLATED replay sandbox at the current frame. No params. Returns Same schema as list_entities but from the sandbox repo, NOT the live world.
+  Notes: Requires an active replay (call load_replay first).; Does not touch or affect the live world..
+  Example: `list_replay_entities({})` — inspect entities at current replay frame.
+- **`unload_replay`** — Dispose the replay sandbox and return to live world queries. No params. Returns ok:true envelope.
+  Example: `unload_replay({})` — unload replay sandbox when done inspecting.
 
 ### Group J — Logs
-- **`get_logs`** — `level?` (min severity inclusive), `logger?` (name substring), `since?` (ISO-8601
-  timestamp), `max?` (def 200). Returns `[{timestamp, level, logger, message}]`, newest-first.
+- **`get_logs`** — Query the in-process log sinks. Returns [{timestamp, level, logger, message}] sorted newest-first. `level?` (string, "Trace"|"Debug"|"Info"|"Warning"|"Error"|"Critical"), `logger?` (string), `since?` (string), `max?` (number, def 200). Returns [{timestamp, level, logger, message}] sorted newest-first.
+  Notes: level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical.; logger = case-insensitive substring match on logger name.; since = ISO-8601 timestamp; entries with timestamp >= since are included.; Read off-thread — no main-thread marshal required..
+  Example: `get_logs({"level":"Warning","max":50})` — get last 50 Warning-or-higher log entries.
 
 ### Group K — AI behavior traces
-- **`observe_trace`** — Req `networkId` (or `assetId`), `on` (bool). Arms/disarms trace-buffer allocation.
-  **Must arm before extracting**, or the trace is empty.
-- **`get_entity_trace`** — Req `networkId`. BTree: active node + node history; HSM: active state +
-  transitions; blueprint: live state snapshot. `traceArmed` shows whether you armed it.
+- **`observe_trace`** — Arm or disarm AI behavior trace buffer allocation for an entity. Req `networkId` (number), Req `on` (boolean). Returns { armed, networkId }
+  Notes: Must arm before get_entity_trace will return populated trace data.; Without arming, get_entity_trace returns empty trace..
+  Example: `observe_trace({"networkId":1000,"on":true})` — arm AI behavior tracing for entity 1000.
+- **`get_entity_trace`** — Extract AI behavior trace for an entity. Req `networkId` (number). Returns BTree active node path + history, HSM active leaves, or blueprint live state. Includes traceArmed flag.
+  Notes: Arm the entity with observe_trace first to populate trace data.; Returns tier field indicating the AI tier type (BTree/HSM/blueprint)..
+  Example: `get_entity_trace({"networkId":1000})` — read AI behavior trace for entity 1000 after arming.
 
 ### Group L — Mutation / fault injection
-- **`get_attributes_schema`** — `{registeredPaths, schema}` — the discoverable, authority-aware patch paths
-  (Name, Affiliation, GeoPosition.*, Heading, …).
-- **`patch_attribute`** — Req `networkId`, `patchJson` (a JSON **object** `{"Name":"Alpha"}` *or* a JSON
-  string). Unregistered keys are ignored (no error). Authority-aware.
-- **`edit_component`** — Req `networkId`, `componentType` (from `list_component_types`), `patch` (object of
-  field→value). Validated; an invalid value returns 400 and changes nothing.
+- **`get_attributes_schema`** — Return all patchable attribute paths and their JSON Schema. No params. Returns { registeredPaths, schema } — the discoverable, authority-aware patch paths (Name, Affiliation, GeoPosition.*, Heading, …).
+  Notes: Use patch_attribute to apply a patch using these paths.; Paths not in registeredPaths are silently ignored by patch_attribute..
+  Example: `get_attributes_schema({})` — discover patchable attribute paths before calling patch_attribute.
+- **`patch_attribute`** — Apply a JSON attribute patch to an entity. Req `networkId` (number), Req `patchJson`. Returns Updated entity dump on success.
+  Notes: Authority-aware; unregistered keys are silently ignored (no error).; patchJson may be a nested JSON object like {"Name":"Alpha"} or a JSON string..
+  Example: `patch_attribute({"networkId":1000,"patchJson":{"Name":"Alpha"}})` — rename entity 1000 to Alpha.
+- **`edit_component`** — StructEdit escape hatch for arbitrary component fields. Req `networkId` (number), Req `componentType` (string), Req `patch` (object). Returns Updated entity component state. Invalid values → 400, component unchanged.
+  Notes: Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, and writes the result back to ECS.; Invalid values → 400, component unchanged.; For fields registered in the attribute schema, prefer patch_attribute..
+  Example: `edit_component({"networkId":1000,"componentType":"SimTransform","patch":{"Position":{"X":999,"Y":0,"Z":0}}})` — set SimTransform Position.X to 999 for entity 1000.
 
-### Group F (manual-assist) — Focus / annotations
-- **`focus_entity`** — Req `networkId`. Centers the editor camera (visible only in a windowed session).
-- **`add_annotation`** — draw a debug primitive: `type` (`"sphere"`|`"anchor"`|`"line"`), plus
-  `x,y,z`/`radius` or `start`/`end`. Visible only in a windowed session.
+### Group M (TKB) — Entity-type catalog
+- **`list_entity_types`** — List entity types (TKB templates) with id, name, category, disType. `category?` (string). Returns [{tkbType, name, categoryPath, disType}]
+  Example: `list_entity_types({"category":"Vehicle"})` — list all TKB types in the Vehicle category.
+- **`get_entity_type`** — Full TKB descriptor: mandatory components, child blueprints, DIS type, and descriptor DTOs. Req `tkbType` (number). Returns Full TKB descriptor including mandatory components, child blueprints, descriptors. No spawn.
+  Example: `get_entity_type({"tkbType":1001})` — inspect TKB descriptor for type 1001.
+
+### Group O — Manual-assist (focus / annotations)
+- **`focus_entity`** — Pan and zoom the map canvas to an entity. MANUAL-VERIFY: camera move requires windowed session. Req `networkId` (number). Returns { focused: true } on success.
+  Notes: Publishes CenterOnEntityCommand (headless-verifiable via event history).; The actual camera move only occurs in a windowed session (MANUAL-VERIFY)..
+  Example: `focus_entity({"networkId":1000})` — center editor camera on entity 1000.
+- **`add_annotation`** — Draw a debug primitive (sphere, anchor, or line) in the gizmo buffer. MANUAL-VERIFY: gizmo render requires windowed session. Req `type` (string), `networkId?` (number), `x?` (number), `y?` (number), `z?` (number), `radius?` (number), `heading?` (number), `color?` (string), `from?` (object), `to?` (object). Returns { added: true, primitiveIndex, bufferCount } on success.
+  Notes: "sphere" — x, y, z, radius (float), optional color (hex "#RRGGBB").; "anchor" — networkId, x, y, z, optional heading (float).; "line" — from:{x,y,z}, to:{x,y,z}, optional color.; The buffer write is headless-verifiable; the actual gizmo render requires a windowed session (MANUAL-VERIFY)..
+  Example: `add_annotation({"type":"sphere","x":100,"y":0,"z":50,"radius":10,"color":"#FF4400"})` — draw a red sphere at (100,0,50) with radius 10.
+
+### Group N — World / coordinates
+- **`get_world_info`** — World metadata: geo origin, spatial grid extent. terrain and navmesh are null in editor mode. No params. Returns { geo:{origin:{lat,lon,alt}}, spatialGrid:{...extent}, terrain:null, navmesh:null }
+  Notes: terrain and navmesh are null in editor mode..
+  Example: `get_world_info({})` — get world geo origin and spatial grid extent.
+- **`geo_to_local`** — Convert geographic coordinates to local ENU {x,y,z}. Req `lat` (number), Req `lon` (number), Req `alt` (number), `headingDeg?` (number). Returns { x, y, z, rotation? } — optional rotation if headingDeg was provided.
+  Notes: Optional headingDeg → adds rotation quaternion to response..
+  Example: `geo_to_local({"lat":50.0755,"lon":14.4378,"alt":200})` — convert Prague geo coords to local ECS metres.
+- **`local_to_geo`** — Convert local ENU {x,y,z} to geographic coordinates. Req `x` (number), Req `y` (number), Req `z` (number), `rotation?` (object). Returns { lat, lon, alt, headingDeg? } — Heading: North=0°, East=90°.
+  Notes: Optional rotation quaternion {x,y,z,w} → adds headingDeg to response.; Heading convention: North=0°, East=90°..
+  Example: `local_to_geo({"x":100,"y":0,"z":50})` — convert local ECS position (100,0,50) to geographic coords.
 
 ---
 

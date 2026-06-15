@@ -6,7 +6,10 @@
   "main": "src/index.mjs",
   "scripts": {
     "start": "node src/index.mjs",
-    "verify": "node verify.mjs"
+    "verify": "node verify.mjs",
+    "gen:skill": "node generate-skill.mjs",
+    "gen:skill:check": "node generate-skill.mjs --check",
+    "test:catalog": "node test-catalog.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0"

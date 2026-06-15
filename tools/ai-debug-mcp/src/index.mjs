@@ -25,6 +25,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
+import { TOOLS_CATALOG } from '../tool-catalog.mjs';
 
 // ── Config parsing ──────────────────────────────────────────────────────────
 
@@ -212,6 +213,47 @@ function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+// ── Catalog-driven schema/description helpers ────────────────────────────────
+
+/**
+ * Build an MCP inputSchema from a catalog params array.
+ * Mirrors the param shapes exactly from the catalog.
+ */
+function buildInputSchema(params) {
+  const properties = {};
+  const required = [];
+  for (const p of params) {
+    const schema = {};
+    if (p.type) schema.type = p.type;
+    schema.description = p.description;
+    if (p.enum) schema.enum = p.enum;
+    if (p.type === 'array' && p.items) schema.items = p.items;
+    if (p.type === 'object' && p.properties) schema.properties = p.properties;
+    properties[p.name] = schema;
+    if (p.required) required.push(p.name);
+  }
+  const result = { type: 'object', properties };
+  if (required.length > 0) result.required = required;
+  return result;
+}
+
+/**
+ * Build an MCP tool description from a catalog entry.
+ */
+function buildDescription(entry) {
+  const httpLine = entry.http ? `${entry.http.method} ${entry.http.path} — ` : '';
+  return httpLine + entry.summary;
+}
+
+// Build TOOL_DEFS map from catalog
+const TOOL_DEFS = Object.fromEntries(TOOLS_CATALOG.map(t => [t.name, {
+  description: buildDescription(t),
+  inputSchema: buildInputSchema(t.params),
+}]));
+
+// Build HINTS map from catalog
+const HINTS = Object.fromEntries(TOOLS_CATALOG.map(t => [t.name, t.hint]));
+
 // ── MCP tool result helpers ─────────────────────────────────────────────────
 
 function toolSuccess(envelope) {
@@ -220,9 +262,16 @@ function toolSuccess(envelope) {
   };
 }
 
-function toolError(message, envelope) {
+function toolError(message, envelope, toolName) {
+  const hint = toolName ? HINTS[toolName] : undefined;
   return {
-    content: [{ type: 'text', text: JSON.stringify({ ok: false, error: message, ...(envelope || {}) }, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify({
+      ok: false,
+      error: message,
+      ...(envelope || {}),
+      ...(hint ? { hint } : {}),
+      docs: 'ai-debug-sim skill — see the tool reference',
+    }, null, 2) }],
     isError: true,
   };
 }
@@ -233,6 +282,7 @@ function toolError(message, envelope) {
  * Each tool is { name, description, inputSchema, handler(args) }.
  * handler should return a CallToolResult.
  * Tools are 1:1 with currently-implemented HTTP endpoints (Groups A–N, BATCHes 02–05).
+ * Descriptions and inputSchemas are now catalog-driven via TOOL_DEFS.
  */
 const TOOLS = [
 
@@ -240,26 +290,8 @@ const TOOLS = [
 
   {
     name: 'start_simulation',
-    description:
-      'Launch the Hrot ClusterRunner in editor mode with the AI Debug API enabled. ' +
-      'Polls /status until ready. MCP-side lifecycle tool — no HTTP endpoint.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        runnerDll: {
-          type: 'string',
-          description: 'Absolute path to Hrot.ClusterRunner.dll (overrides --runner-dll CLI arg)',
-        },
-        port: {
-          type: 'number',
-          description: 'Debug API port (overrides --port CLI arg). Default: 8099',
-        },
-        headless: {
-          type: 'boolean',
-          description: 'Pass --headless to the runner. Default: false',
-        },
-      },
-    },
+    description: TOOL_DEFS['start_simulation'].description,
+    inputSchema: TOOL_DEFS['start_simulation'].inputSchema,
     async handler(toolArgs) {
       try {
         const dll = toolArgs.runnerDll || args['runner-dll'];
@@ -269,17 +301,15 @@ const TOOLS = [
         await launchRunner(dll, port, headless);
         return toolSuccess({ ok: true, data: { url: baseUrl, pid: runnerChild?.pid } });
       } catch (err) {
-        return toolError(err.message, err.envelope);
+        return toolError(err.message, err.envelope, 'start_simulation');
       }
     },
   },
 
   {
     name: 'stop_simulation',
-    description:
-      'Shut down the runner gracefully via POST /shutdown, then hard-kill if needed. ' +
-      'MCP-side lifecycle tool — also calls the /shutdown HTTP endpoint.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['stop_simulation'].description,
+    inputSchema: TOOL_DEFS['stop_simulation'].inputSchema,
     async handler() {
       try {
         // Call /shutdown first (envelope passthrough), then tear down child
@@ -293,18 +323,18 @@ const TOOLS = [
         await killRunner();
         return toolSuccess(envelope);
       } catch (err) {
-        return toolError(err.message, err.envelope);
+        return toolError(err.message, err.envelope, 'stop_simulation');
       }
     },
   },
 
   {
     name: 'get_status',
-    description: 'GET /status — runner liveness + sim state summary.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_status'].description,
+    inputSchema: TOOL_DEFS['get_status'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/status')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_status'); }
     },
   },
 
@@ -312,16 +342,8 @@ const TOOLS = [
 
   {
     name: 'list_entities',
-    description:
-      'GET /entities — list all entities with networkId, name, and component names. ' +
-      'Optional query parameters: component (filter by component type), near (x,y,r spatial filter).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        component: { type: 'string', description: 'Filter: only entities that have this component type' },
-        near: { type: 'string', description: 'Spatial filter: "x,y,r" (comma-separated floats)' },
-      },
-    },
+    description: TOOL_DEFS['list_entities'].description,
+    inputSchema: TOOL_DEFS['list_entities'].inputSchema,
     async handler(toolArgs) {
       try {
         const params = new URLSearchParams();
@@ -329,43 +351,37 @@ const TOOLS = [
         if (toolArgs.near) params.set('near', toolArgs.near);
         const qs = params.toString() ? `?${params}` : '';
         return toolSuccess(await callApi('GET', `/entities${qs}`));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'list_entities'); }
     },
   },
 
   {
     name: 'get_entity',
-    description: 'GET /entities/{networkId} — full component dump for one entity.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID (long)' },
-      },
-    },
+    description: TOOL_DEFS['get_entity'].description,
+    inputSchema: TOOL_DEFS['get_entity'].inputSchema,
     async handler(toolArgs) {
       try { return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}`)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_entity'); }
     },
   },
 
   {
     name: 'list_component_types',
-    description: 'GET /components — enumerate registered ECS component types with field schemas.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['list_component_types'].description,
+    inputSchema: TOOL_DEFS['list_component_types'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/components')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_component_types'); }
     },
   },
 
   {
     name: 'list_scenarios',
-    description: 'GET /scenarios — list available scenarios by relative path.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['list_scenarios'].description,
+    inputSchema: TOOL_DEFS['list_scenarios'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/scenarios')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_scenarios'); }
     },
   },
 
@@ -373,19 +389,8 @@ const TOOLS = [
 
   {
     name: 'get_event_history',
-    description:
-      'GET /events — query the diagnostic event history. ' +
-      'Parameters: bus (world|orchestration, default world), type (event type filter), ' +
-      'since (frame number), max (result limit, default 200).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        bus: { type: 'string', enum: ['world', 'orchestration'], description: 'Event bus to query' },
-        type: { type: 'string', description: 'Filter by event type name' },
-        since: { type: 'number', description: 'Return events since this frame number' },
-        max: { type: 'number', description: 'Maximum events to return (default 200)' },
-      },
-    },
+    description: TOOL_DEFS['get_event_history'].description,
+    inputSchema: TOOL_DEFS['get_event_history'].inputSchema,
     async handler(toolArgs) {
       try {
         const params = new URLSearchParams();
@@ -395,7 +400,7 @@ const TOOLS = [
         if (toolArgs.max != null) params.set('max', String(toolArgs.max));
         const qs = params.toString() ? `?${params}` : '';
         return toolSuccess(await callApi('GET', `/events${qs}`));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'get_event_history'); }
     },
   },
 
@@ -403,91 +408,75 @@ const TOOLS = [
 
   {
     name: 'get_sim_state',
-    description: 'GET /sim/state — current sim state: isPaused, inPreview, totalTime, timeScale.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_sim_state'].description,
+    inputSchema: TOOL_DEFS['get_sim_state'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/sim/state')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_sim_state'); }
     },
   },
 
   {
     name: 'play',
-    description: 'POST /sim/play — enter preview and/or resume if paused.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['play'].description,
+    inputSchema: TOOL_DEFS['play'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/sim/play', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'play'); }
     },
   },
 
   {
     name: 'pause',
-    description: 'POST /sim/pause — pause the simulation.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['pause'].description,
+    inputSchema: TOOL_DEFS['pause'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/sim/pause', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'pause'); }
     },
   },
 
   {
     name: 'step',
-    description: 'POST /sim/step — advance simulation by N discrete steps (default 1).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        count: { type: 'number', description: 'Number of steps to advance (default 1)' },
-      },
-    },
+    description: TOOL_DEFS['step'].description,
+    inputSchema: TOOL_DEFS['step'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = toolArgs.count != null ? { count: toolArgs.count } : {};
         return toolSuccess(await callApi('POST', '/sim/step', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'step'); }
     },
   },
 
   {
     name: 'set_time_scale',
-    description: 'POST /sim/timescale — set simulation time scale.',
-    inputSchema: {
-      type: 'object',
-      required: ['scale'],
-      properties: {
-        scale: { type: 'number', description: 'Time scale factor (1.0 = real-time)' },
-      },
-    },
+    description: TOOL_DEFS['set_time_scale'].description,
+    inputSchema: TOOL_DEFS['set_time_scale'].inputSchema,
     async handler(toolArgs) {
       try { return toolSuccess(await callApi('POST', '/sim/timescale', { scale: toolArgs.scale })); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'set_time_scale'); }
     },
   },
 
   {
     name: 'enter_preview',
-    description: 'POST /preview/enter — enter preview mode.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        startPaused: { type: 'boolean', description: 'Start preview in paused state' },
-      },
-    },
+    description: TOOL_DEFS['enter_preview'].description,
+    inputSchema: TOOL_DEFS['enter_preview'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = toolArgs.startPaused != null ? { startPaused: toolArgs.startPaused } : {};
         return toolSuccess(await callApi('POST', '/preview/enter', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'enter_preview'); }
     },
   },
 
   {
     name: 'stop_preview',
-    description: 'POST /preview/exit — exit preview mode (rewinds the sim to pre-preview state).',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['stop_preview'].description,
+    inputSchema: TOOL_DEFS['stop_preview'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/preview/exit', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'stop_preview'); }
     },
   },
 
@@ -495,44 +484,26 @@ const TOOLS = [
 
   {
     name: 'load_scenario',
-    description:
-      'POST /scenario/load — load a scenario by name. ' +
-      'Set waitForReady:true to block until the cluster reaches OperatingEdit.',
-    inputSchema: {
-      type: 'object',
-      required: ['name'],
-      properties: {
-        name: { type: 'string', description: 'Scenario name (relative path)' },
-        waitForReady: {
-          type: 'boolean',
-          description: 'Wait for cluster to reach OperatingEdit before returning',
-        },
-      },
-    },
+    description: TOOL_DEFS['load_scenario'].description,
+    inputSchema: TOOL_DEFS['load_scenario'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/scenario/load', {
           name: toolArgs.name,
           waitForReady: toolArgs.waitForReady ?? false,
         }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'load_scenario'); }
     },
   },
 
   {
     name: 'save_scenario',
-    description: 'POST /scenario/save — save the current authored world as a scenario.',
-    inputSchema: {
-      type: 'object',
-      required: ['name'],
-      properties: {
-        name: { type: 'string', description: 'Scenario file name to save as' },
-      },
-    },
+    description: TOOL_DEFS['save_scenario'].description,
+    inputSchema: TOOL_DEFS['save_scenario'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/scenario/save', { name: toolArgs.name }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'save_scenario'); }
     },
   },
 
@@ -540,28 +511,18 @@ const TOOLS = [
 
   {
     name: 'list_commands',
-    description: 'GET /commands — enumerate publishable FDP event types with field schemas.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['list_commands'].description,
+    inputSchema: TOOL_DEFS['list_commands'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/commands')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_commands'); }
     },
   },
 
   {
     name: 'send_entity_command',
-    description:
-      'POST /entities/command — publish an FDP event by type name. ' +
-      'Set wait:true to attempt correlated-ack wait (awaited:false if sim not running).',
-    inputSchema: {
-      type: 'object',
-      required: ['eventType'],
-      properties: {
-        eventType: { type: 'string', description: 'FDP event type name (e.g. MissionControlIntent)' },
-        payload: { type: 'object', description: 'Event fields as JSON object' },
-        wait: { type: 'boolean', description: 'Attempt to wait for correlated ack' },
-      },
-    },
+    description: TOOL_DEFS['send_entity_command'].description,
+    inputSchema: TOOL_DEFS['send_entity_command'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/entities/command', {
@@ -569,29 +530,14 @@ const TOOLS = [
           payload: toolArgs.payload ?? {},
           wait: toolArgs.wait ?? false,
         }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'send_entity_command'); }
     },
   },
 
   {
     name: 'spawn_entity',
-    description: 'POST /entities/spawn — spawn an entity from a TKB type.',
-    inputSchema: {
-      type: 'object',
-      required: ['tkbType'],
-      properties: {
-        tkbType: { type: 'number', description: 'TKB type ID (long)' },
-        transform: {
-          type: 'object',
-          description: 'Transform: { position: {x,y,z}, rotation: {x,y,z,w} }',
-        },
-        components: { type: 'array', description: 'Additional component overrides' },
-        attributesJson: {
-          type: 'string',
-          description: 'JSON string of attribute overrides (JsonAttributeCompiler patch)',
-        },
-      },
-    },
+    description: TOOL_DEFS['spawn_entity'].description,
+    inputSchema: TOOL_DEFS['spawn_entity'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = { tkbType: toolArgs.tkbType };
@@ -599,7 +545,7 @@ const TOOLS = [
         if (toolArgs.components != null) body.components = toolArgs.components;
         if (toolArgs.attributesJson != null) body.attributesJson = toolArgs.attributesJson;
         return toolSuccess(await callApi('POST', '/entities/spawn', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'spawn_entity'); }
     },
   },
 
@@ -607,36 +553,23 @@ const TOOLS = [
 
   {
     name: 'list_entity_types',
-    description: 'GET /tkb/types — list entity types (TKB templates) with id, name, category, disType.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        category: { type: 'string', description: 'Filter by category path' },
-      },
-    },
+    description: TOOL_DEFS['list_entity_types'].description,
+    inputSchema: TOOL_DEFS['list_entity_types'].inputSchema,
     async handler(toolArgs) {
       try {
         const qs = toolArgs.category ? `?category=${encodeURIComponent(toolArgs.category)}` : '';
         return toolSuccess(await callApi('GET', `/tkb/types${qs}`));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'list_entity_types'); }
     },
   },
 
   {
     name: 'get_entity_type',
-    description:
-      'GET /tkb/types/{tkbType} — full TKB descriptor: mandatory components, ' +
-      'child blueprints, DIS type, and descriptor DTOs.',
-    inputSchema: {
-      type: 'object',
-      required: ['tkbType'],
-      properties: {
-        tkbType: { type: 'number', description: 'TKB type ID (long)' },
-      },
-    },
+    description: TOOL_DEFS['get_entity_type'].description,
+    inputSchema: TOOL_DEFS['get_entity_type'].inputSchema,
     async handler(toolArgs) {
       try { return toolSuccess(await callApi('GET', `/tkb/types/${toolArgs.tkbType}`)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_entity_type'); }
     },
   },
 
@@ -644,68 +577,37 @@ const TOOLS = [
 
   {
     name: 'get_world_info',
-    description:
-      'GET /world/info — world metadata: geo origin, spatial grid extent. ' +
-      'terrain and navmesh are null in editor mode.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_world_info'].description,
+    inputSchema: TOOL_DEFS['get_world_info'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/world/info')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_world_info'); }
     },
   },
 
   {
     name: 'geo_to_local',
-    description:
-      'POST /world/geo-to-local — convert geographic coordinates to local ENU {x,y,z}. ' +
-      'Optional headingDeg → rotation quaternion.',
-    inputSchema: {
-      type: 'object',
-      required: ['lat', 'lon', 'alt'],
-      properties: {
-        lat: { type: 'number', description: 'Latitude (degrees)' },
-        lon: { type: 'number', description: 'Longitude (degrees)' },
-        alt: { type: 'number', description: 'Altitude (meters)' },
-        headingDeg: { type: 'number', description: 'Optional heading (degrees CW from North) → rotation quaternion' },
-      },
-    },
+    description: TOOL_DEFS['geo_to_local'].description,
+    inputSchema: TOOL_DEFS['geo_to_local'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = { lat: toolArgs.lat, lon: toolArgs.lon, alt: toolArgs.alt };
         if (toolArgs.headingDeg != null) body.headingDeg = toolArgs.headingDeg;
         return toolSuccess(await callApi('POST', '/world/geo-to-local', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'geo_to_local'); }
     },
   },
 
   {
     name: 'local_to_geo',
-    description:
-      'POST /world/local-to-geo — convert local ENU {x,y,z} to geographic coordinates. ' +
-      'Optional rotation quaternion → headingDeg.',
-    inputSchema: {
-      type: 'object',
-      required: ['x', 'y', 'z'],
-      properties: {
-        x: { type: 'number', description: 'Local X (meters East)' },
-        y: { type: 'number', description: 'Local Y (meters Up)' },
-        z: { type: 'number', description: 'Local Z (meters North)' },
-        rotation: {
-          type: 'object',
-          description: 'Optional quaternion {x,y,z,w} → headingDeg in response',
-          properties: {
-            x: { type: 'number' }, y: { type: 'number' },
-            z: { type: 'number' }, w: { type: 'number' },
-          },
-        },
-      },
-    },
+    description: TOOL_DEFS['local_to_geo'].description,
+    inputSchema: TOOL_DEFS['local_to_geo'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = { x: toolArgs.x, y: toolArgs.y, z: toolArgs.z };
         if (toolArgs.rotation != null) body.rotation = toolArgs.rotation;
         return toolSuccess(await callApi('POST', '/world/local-to-geo', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'local_to_geo'); }
     },
   },
 
@@ -713,33 +615,8 @@ const TOOLS = [
 
   {
     name: 'set_breakpoint',
-    description:
-      'POST /breakpoints — register a run-until-condition breakpoint. ' +
-      'condition is a polymorphic SearchPredicateDto JSON object (use $type discriminator: ' +
-      'Lifecycle, PropertyMatch, TransientEvent, Compound, Structural, SpatialBounding, etc.). ' +
-      'Returns { breakpointId }.',
-    inputSchema: {
-      type: 'object',
-      required: ['condition'],
-      properties: {
-        condition: {
-          type: 'object',
-          description: 'SearchPredicateDto with $type discriminator (e.g. {"$type":"Lifecycle","IdentifierType":"NameSubstring","TargetValue":"Alpha","NamePropertyPath":"Name"})',
-        },
-        filterNetworkId: {
-          type: 'number',
-          description: 'Optional: only trigger for this entity (network ID)',
-        },
-        occurrenceThreshold: {
-          type: 'number',
-          description: 'Number of hits before pausing (default 1)',
-        },
-        name: {
-          type: 'string',
-          description: 'Human-readable label for the breakpoint',
-        },
-      },
-    },
+    description: TOOL_DEFS['set_breakpoint'].description,
+    inputSchema: TOOL_DEFS['set_breakpoint'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = { condition: toolArgs.condition };
@@ -747,45 +624,37 @@ const TOOLS = [
         if (toolArgs.occurrenceThreshold != null) body.occurrenceThreshold = toolArgs.occurrenceThreshold;
         if (toolArgs.name != null) body.name = toolArgs.name;
         return toolSuccess(await callApi('POST', '/breakpoints', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'set_breakpoint'); }
     },
   },
 
   {
     name: 'list_breakpoints',
-    description: 'GET /breakpoints — list all registered breakpoints with id, conditionSummary, enabled, occurrenceThreshold, hitCount, name.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['list_breakpoints'].description,
+    inputSchema: TOOL_DEFS['list_breakpoints'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/breakpoints')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_breakpoints'); }
     },
   },
 
   {
     name: 'remove_breakpoint',
-    description: 'DELETE /breakpoints/{id} — remove a breakpoint by its ID string (e.g. "BP#1").',
-    inputSchema: {
-      type: 'object',
-      required: ['id'],
-      properties: {
-        id: { type: 'string', description: 'Breakpoint ID string (e.g. "BP#1" from set_breakpoint or list_breakpoints)' },
-      },
-    },
+    description: TOOL_DEFS['remove_breakpoint'].description,
+    inputSchema: TOOL_DEFS['remove_breakpoint'].inputSchema,
     async handler(toolArgs) {
       try { return toolSuccess(await callApi('DELETE', `/breakpoints/${encodeURIComponent(toolArgs.id)}`)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'remove_breakpoint'); }
     },
   },
 
   {
     name: 'get_breakpoint_status',
-    description:
-      'GET /breakpoints/hits — current pause state and last breakpoint hit. ' +
-      'Returns { isPaused, pausedTick, lastHit: { breakpointId, networkId } | null }.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_breakpoint_status'].description,
+    inputSchema: TOOL_DEFS['get_breakpoint_status'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/breakpoints/hits')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_breakpoint_status'); }
     },
   },
 
@@ -793,82 +662,47 @@ const TOOLS = [
 
   {
     name: 'checkpoint',
-    description:
-      'POST /checkpoint — take a single-slot RAM snapshot via IPreviewController.EnterPreviewMode(startPaused:true). ' +
-      'Returns 409 if a live run is active. Returns 400 if already in preview/checkpointed. ' +
-      'Single slot: mutually exclusive with /preview/enter.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['checkpoint'].description,
+    inputSchema: TOOL_DEFS['checkpoint'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/checkpoint', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'checkpoint'); }
     },
   },
 
   {
     name: 'restore_checkpoint',
-    description:
-      'POST /checkpoint/restore — rewind the simulation to the checkpointed state via IPreviewController.ExitPreviewMode(). ' +
-      'Returns 400 if no checkpoint is active.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['restore_checkpoint'].description,
+    inputSchema: TOOL_DEFS['restore_checkpoint'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/checkpoint/restore', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'restore_checkpoint'); }
     },
   },
 
   {
     name: 'capture_diff_baseline',
-    description:
-      'POST /diff/capture — serialize current entity states server-side and return a baselineId. ' +
-      'Use before mutating the world, then call diff_state with the baselineId to see what changed. ' +
-      'Optional entities array (networkId list) scopes which entities to capture (default: all).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        entities: {
-          type: 'array',
-          items: { type: 'number' },
-          description: 'Optional list of networkIds to capture (default: all entities)',
-        },
-      },
-    },
+    description: TOOL_DEFS['capture_diff_baseline'].description,
+    inputSchema: TOOL_DEFS['capture_diff_baseline'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = {};
         if (toolArgs.entities != null) body.entities = toolArgs.entities;
         return toolSuccess(await callApi('POST', '/diff/capture', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'capture_diff_baseline'); }
     },
   },
 
   {
     name: 'diff_state',
-    description:
-      'POST /diff/compare — compare a previously captured baseline against current entity state. ' +
-      'Returns a per-entity diff tree showing only what changed (token-efficient). ' +
-      'baselineId comes from capture_diff_baseline. ' +
-      'Optional entities array scopes which entities to diff.',
-    inputSchema: {
-      type: 'object',
-      required: ['baselineId'],
-      properties: {
-        baselineId: {
-          type: 'string',
-          description: 'Baseline ID from capture_diff_baseline (e.g. "BL#1")',
-        },
-        entities: {
-          type: 'array',
-          items: { type: 'number' },
-          description: 'Optional list of networkIds to diff (default: all entities in baseline)',
-        },
-      },
-    },
+    description: TOOL_DEFS['diff_state'].description,
+    inputSchema: TOOL_DEFS['diff_state'].inputSchema,
     async handler(toolArgs) {
       try {
         const body = { baselineId: toolArgs.baselineId };
         if (toolArgs.entities != null) body.entities = toolArgs.entities;
         return toolSuccess(await callApi('POST', '/diff/compare', body));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'diff_state'); }
     },
   },
 
@@ -876,136 +710,85 @@ const TOOLS = [
 
   {
     name: 'start_recording',
-    description:
-      'POST /recording/start — start recording. mode="preview" (revertible, EnterPreviewMode→PrepareRecordingAsync) ' +
-      'or mode="live" (not supported in editor mode). ' +
-      'Returns { recording:true, mode, fdpPath }. ' +
-      'Mutually exclusive with checkpoint (both use the preview slot).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        mode: {
-          type: 'string',
-          enum: ['preview', 'live'],
-          description: 'Recording mode: "preview" (revertible) or "live" (not supported in editor mode). Default: "preview"',
-        },
-      },
-    },
+    description: TOOL_DEFS['start_recording'].description,
+    inputSchema: TOOL_DEFS['start_recording'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/recording/start', { mode: toolArgs.mode ?? 'preview' }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'start_recording'); }
     },
   },
 
   {
     name: 'stop_recording',
-    description:
-      'POST /recording/stop — stop the active recording. ' +
-      'For preview mode: finalizes BEFORE the exit rewind (hard ordering rule). ' +
-      'Returns { recording:false, fdpPath }.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['stop_recording'].description,
+    inputSchema: TOOL_DEFS['stop_recording'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/recording/stop', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'stop_recording'); }
     },
   },
 
   {
     name: 'load_replay',
-    description:
-      'POST /replay/load {fdpPath} — load a .fdp recording into an ISOLATED ReplayBrowserContext. ' +
-      'Returns { loaded:true, fdpPath, totalFrames, currentFrame }. ' +
-      'While replay is active, /replay/entities returns entities from the sandbox (not the live world).',
-    inputSchema: {
-      type: 'object',
-      required: ['fdpPath'],
-      properties: {
-        fdpPath: { type: 'string', description: 'Absolute path to the .fdp recording file' },
-      },
-    },
+    description: TOOL_DEFS['load_replay'].description,
+    inputSchema: TOOL_DEFS['load_replay'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/replay/load', { fdpPath: toolArgs.fdpPath }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'load_replay'); }
     },
   },
 
   {
     name: 'seek_replay',
-    description:
-      'POST /replay/seek {frame} — seek to a specific frame in the ISOLATED sandbox. ' +
-      'Does NOT touch the live _world (isolation guarantee). ' +
-      'Returns { frame, totalFrames }.',
-    inputSchema: {
-      type: 'object',
-      required: ['frame'],
-      properties: {
-        frame: { type: 'number', description: 'Frame index to seek to (0-based)' },
-      },
-    },
+    description: TOOL_DEFS['seek_replay'].description,
+    inputSchema: TOOL_DEFS['seek_replay'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/replay/seek', { frame: toolArgs.frame }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'seek_replay'); }
     },
   },
 
   {
     name: 'step_replay',
-    description:
-      'POST /replay/step {dir} — step one frame forward or backward in the ISOLATED sandbox. ' +
-      'Does NOT touch the live _world. ' +
-      'Returns { stepped:bool, frame, totalFrames }.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        dir: {
-          type: 'string',
-          enum: ['forward', 'back'],
-          description: 'Step direction: "forward" or "back". Default: "forward"',
-        },
-      },
-    },
+    description: TOOL_DEFS['step_replay'].description,
+    inputSchema: TOOL_DEFS['step_replay'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/replay/step', { dir: toolArgs.dir ?? 'forward' }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'step_replay'); }
     },
   },
 
   {
     name: 'get_replay_status',
-    description:
-      'GET /replay/status — replay sandbox status: replayActive, currentFrame, totalFrames.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_replay_status'].description,
+    inputSchema: TOOL_DEFS['get_replay_status'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/replay/status')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_replay_status'); }
     },
   },
 
   {
     name: 'list_replay_entities',
-    description:
-      'GET /replay/entities — list entities from the ISOLATED replay sandbox. ' +
-      'Requires an active replay (call load_replay first). ' +
-      'Returns same schema as list_entities but from the sandbox repo, NOT the live world.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['list_replay_entities'].description,
+    inputSchema: TOOL_DEFS['list_replay_entities'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/replay/entities')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'list_replay_entities'); }
     },
   },
 
   {
     name: 'unload_replay',
-    description:
-      'POST /replay/unload — dispose the replay sandbox and return to live world queries.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['unload_replay'].description,
+    inputSchema: TOOL_DEFS['unload_replay'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('POST', '/replay/unload', null)); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'unload_replay'); }
     },
   },
 
@@ -1013,37 +796,8 @@ const TOOLS = [
 
   {
     name: 'get_logs',
-    description:
-      'GET /logs — query the in-process log sinks (NLogMessageLogTarget + AiBehaviorLogTarget). ' +
-      'Returns [{timestamp, level, logger, message}] sorted newest-first. ' +
-      'All parameters optional. ' +
-      'level = minimum severity (inclusive): Trace, Debug, Info, Warning, Error, Critical. ' +
-      'logger = case-insensitive substring match on logger name. ' +
-      'since = ISO-8601 timestamp; entries with timestamp >= since are included. ' +
-      'max = upper bound on results (default 200). ' +
-      'Read off-thread — no main-thread marshal required.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        level: {
-          type: 'string',
-          enum: ['Trace', 'Debug', 'Info', 'Warning', 'Error', 'Critical'],
-          description: 'Minimum severity level (inclusive). Omit to return all levels.',
-        },
-        logger: {
-          type: 'string',
-          description: 'Filter by logger name substring (case-insensitive). Omit to return all loggers.',
-        },
-        since: {
-          type: 'string',
-          description: 'ISO-8601 timestamp. Only entries with timestamp >= since are returned.',
-        },
-        max: {
-          type: 'number',
-          description: 'Maximum number of entries to return (default 200).',
-        },
-      },
-    },
+    description: TOOL_DEFS['get_logs'].description,
+    inputSchema: TOOL_DEFS['get_logs'].inputSchema,
     async handler(toolArgs) {
       try {
         const params = new URLSearchParams();
@@ -1053,51 +807,34 @@ const TOOLS = [
         if (toolArgs.max != null) params.set('max', String(toolArgs.max));
         const qs = params.toString() ? `?${params}` : '';
         return toolSuccess(await callApi('GET', `/logs${qs}`));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'get_logs'); }
     },
   },
+
   // ── Group K — AI Behavior Traces (ADA-BATCH-12) ──────────────────────────
 
   {
     name: 'observe_trace',
-    description:
-      'POST /trace/observe — arm or disarm AI behavior trace buffer allocation for an entity. ' +
-      'Must arm before get_entity_trace will return populated trace data.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId', 'on'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID (long)' },
-        on: { type: 'boolean', description: 'true to arm tracing, false to disarm' },
-      },
-    },
+    description: TOOL_DEFS['observe_trace'].description,
+    inputSchema: TOOL_DEFS['observe_trace'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/trace/observe', {
           networkId: toolArgs.networkId,
           on: toolArgs.on,
         }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'observe_trace'); }
     },
   },
 
   {
     name: 'get_entity_trace',
-    description:
-      'GET /entities/{networkId}/trace — extract AI behavior trace for an entity. ' +
-      'Returns BTree active node path + history, HSM active leaves, or blueprint live state. ' +
-      'Arm the entity with observe_trace first to populate trace data.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID (long)' },
-      },
-    },
+    description: TOOL_DEFS['get_entity_trace'].description,
+    inputSchema: TOOL_DEFS['get_entity_trace'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('GET', `/entities/${toolArgs.networkId}/trace`));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'get_entity_trace'); }
     },
   },
 
@@ -1106,33 +843,18 @@ const TOOLS = [
 
   {
     name: 'get_attributes_schema',
-    description:
-      'GET /attributes/schema — return all patchable attribute paths and their JSON Schema. ' +
-      'Use patch_attribute to apply a patch using these paths.',
-    inputSchema: { type: 'object', properties: {} },
+    description: TOOL_DEFS['get_attributes_schema'].description,
+    inputSchema: TOOL_DEFS['get_attributes_schema'].inputSchema,
     async handler() {
       try { return toolSuccess(await callApi('GET', '/attributes/schema')); }
-      catch (err) { return toolError(err.message, err.envelope); }
+      catch (err) { return toolError(err.message, err.envelope, 'get_attributes_schema'); }
     },
   },
 
   {
     name: 'patch_attribute',
-    description:
-      'POST /entities/{networkId}/attribute — apply a JSON attribute patch to an entity. ' +
-      'Authority-aware; unregistered keys are silently ignored (no error). ' +
-      'patchJson may be a nested JSON object like {"Name":"Alpha"} or a JSON string. ' +
-      'Returns the updated entity dump on success.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId', 'patchJson'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID (long)' },
-        patchJson: {
-          description: 'Patch as a JSON object {"Name":"Alpha"} or as a JSON string',
-        },
-      },
-    },
+    description: TOOL_DEFS['patch_attribute'].description,
+    inputSchema: TOOL_DEFS['patch_attribute'].inputSchema,
     async handler(toolArgs) {
       try {
         // Accept patchJson as either a nested object or a string.
@@ -1140,37 +862,21 @@ const TOOLS = [
         return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/attribute`, {
           patchJson: toolArgs.patchJson,
         }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'patch_attribute'); }
     },
   },
 
   {
     name: 'edit_component',
-    description:
-      'POST /entities/{networkId}/component — StructEdit escape hatch for arbitrary component fields. ' +
-      'Opens a StructEdit session, applies the patch fields, validates via IComponentValidator, ' +
-      'and writes the result back to ECS. ' +
-      'Invalid values → 400, component unchanged. ' +
-      'For fields registered in the attribute schema, prefer patch_attribute.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId', 'componentType', 'patch'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID (long)' },
-        componentType: { type: 'string', description: 'ECS component type name (e.g. "EntityInfo", "SimTransform")' },
-        patch: {
-          type: 'object',
-          description: 'JSON object with field names and new values to apply to the component',
-        },
-      },
-    },
+    description: TOOL_DEFS['edit_component'].description,
+    inputSchema: TOOL_DEFS['edit_component'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/component`, {
           componentType: toolArgs.componentType,
           patch: toolArgs.patch,
         }));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'edit_component'); }
     },
   },
 
@@ -1178,63 +884,23 @@ const TOOLS = [
 
   {
     name: 'focus_entity',
-    description:
-      'POST /entities/{networkId}/focus — pan and zoom the map canvas to an entity. ' +
-      'Publishes CenterOnEntityCommand (headless-verifiable via event history). ' +
-      'The actual camera move only occurs in a windowed session (MANUAL-VERIFY). ' +
-      'Returns { focused: true } on success.',
-    inputSchema: {
-      type: 'object',
-      required: ['networkId'],
-      properties: {
-        networkId: { type: 'number', description: 'Network entity ID to center the view on' },
-      },
-    },
+    description: TOOL_DEFS['focus_entity'].description,
+    inputSchema: TOOL_DEFS['focus_entity'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', `/entities/${toolArgs.networkId}/focus`, {}));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'focus_entity'); }
     },
   },
 
   {
     name: 'add_annotation',
-    description:
-      'POST /annotations — draw a debug primitive (sphere, anchor, or line) in the gizmo buffer. ' +
-      'The buffer write is headless-verifiable; the actual gizmo render requires a windowed session ' +
-      '(MANUAL-VERIFY). Supported types:\n' +
-      '  "sphere" — x, y, z, radius (float), optional color (hex "#RRGGBB")\n' +
-      '  "anchor" — networkId, x, y, z, optional heading (float)\n' +
-      '  "line"   — from:{x,y,z}, to:{x,y,z}, optional color\n' +
-      'Returns { added: true, primitiveIndex, bufferCount } on success.',
-    inputSchema: {
-      type: 'object',
-      required: ['type'],
-      properties: {
-        type: { type: 'string', enum: ['sphere', 'anchor', 'line'], description: 'Annotation type' },
-        networkId: { type: 'number', description: 'Entity network ID (anchor only)' },
-        x: { type: 'number', description: 'World X coordinate' },
-        y: { type: 'number', description: 'World Y coordinate' },
-        z: { type: 'number', description: 'World Z coordinate' },
-        radius: { type: 'number', description: 'Sphere radius in metres' },
-        heading: { type: 'number', description: 'Heading in degrees (anchor)' },
-        color: { type: 'string', description: 'Hex color string e.g. "#FF0000"' },
-        from: {
-          type: 'object',
-          description: 'Line start point {x,y,z}',
-          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
-        },
-        to: {
-          type: 'object',
-          description: 'Line end point {x,y,z}',
-          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
-        },
-      },
-    },
+    description: TOOL_DEFS['add_annotation'].description,
+    inputSchema: TOOL_DEFS['add_annotation'].inputSchema,
     async handler(toolArgs) {
       try {
         return toolSuccess(await callApi('POST', '/annotations', toolArgs));
-      } catch (err) { return toolError(err.message, err.envelope); }
+      } catch (err) { return toolError(err.message, err.envelope, 'add_annotation'); }
     },
   },
 ];
