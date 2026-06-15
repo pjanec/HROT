@@ -65,7 +65,9 @@ Distinctions to settle:
 - **Cross-entity.** Relates to the known "blueprints can write other entities mid-tick" theme (memory `project-blueprint-cross-entity-sync-mutation`) — a shared blackboard may span entities (squad), which has snapshot/determinism implications.
 - **Mechanism candidates.** A dedicated shared `BlueprintBlackboard*` slot keyed by a *shared id* (not per-node); or a separate shared-state component; or elevating selected variables to "shared/behavior-scope" in the authoring model so the allocator gives them one slice that all bindings alias.
 
-Open question to settle first: at what **scope** is the first shared blackboard needed (single-behavior shared scratch vs squad-level), and is it read/written by multiple **entities** or single-entity-multi-node? That scopes both the mechanism and a Slice 2 demo (e.g. "two actions coordinate via a shared `TargetSlot`"). Captured here as a Slice 2 / Slice 2+ theme to design before implementing.
+**RESOLVED (architect + user, 2026-06-15):**
+- **First iteration = single-behavior, single-entity shared scratch** (scoped to the nodes of one executing tree on one entity), living in the same `BlueprintBlackboard*` tier → synchronous, zero-allocation inline mutation. A multi-entity shared blackboard would require routing writes through an `EntityCommandBuffer` (one-frame latency) and breaks synchronous determinism — so **not** for v1.
+- **Squad-level sharing uses the virtual squad-leader entity's blackboard** (user, 2026-06-15). The "virtual leader" is an existing concept (hardcoded hill-attack commander; `Hrot.SquadCoordination`). Squad members **read** the leader entity's blackboard; the leader writes its own synchronously — sidestepping cross-entity mid-tick writes / `EntityCommandBuffer` latency. This is the intended squad-scope mechanism, distinct from behavior-scope scratch, and relates to memory `project-blueprint-cross-entity-sync-mutation` (read-via-snapshot, not synchronous cross-entity write).
 
 ## 8. Resume checklist (when starting Slice 2)
 1. Read `docs/blueprints/Blueprint_Subsystem_Slice2_Candidates.md` Theme C/C1 + Roadmap v1.1.
@@ -74,3 +76,14 @@ Open question to settle first: at what **scope** is the first shared blackboard 
 4. Wire provisioning + tier selection (aggregate over stateful node instances).
 5. Build demos S2-1..S2-3 + proof tests.
 6. (Separate) open the **shared-blackboard** design pass (§7) when a behavior needs shared mutable state.
+
+## 9. Architect review (2026-06-15) — confirmations & resolutions
+Reviewed by architect; reconciled against code (✓ = verified this session).
+- **Slot identity — CONFIRMED (our reframing was right).** `BlueprintId` alone collides when the same stateful blueprint is used by multiple nodes. The allocator key is **strictly a 32-bit `int`** (no composite key — `BlueprintSlotEntry` packs to 16 B). **Synthesize a unique id per node instance = FNV-1a hash of `(BehaviorAssetId, NodeVisualId)`**, bake it into the per-node adapter thunk, use it as the slot key.
+- **adapter-calls-`TickCore` — CONFIRMED for both params + working state.** Adapter projects `Params` (bin-packed offset over `BrainBlackboard`) + `WorkingState` (node partition slot over `BlueprintBlackboard*`), then calls the blueprint's shared `TickCore`.
+- **Provisioning (Q1) — CONFIRMED: static worst-case at assignment.** No lazy mid-tick allocation (ECS structural changes are forbidden mid-`Simulation` without an `EntityCommandBuffer`; a mid-tick tier upgrade would drop ticks). `BehaviorIngressSystem` sums all **reachable** stateful nodes' state sizes, pre-provisions the correct tier component, and eager-allocates every slot.
+- **Behavior change (Q2) — CONFIRMED.** On `AssignBehaviorEvent` (Input phase), `BehaviorIngressSystem` `TryDetach`es the old behavior's stateful slots before attaching the new (dense-compact + coalesce) — no slot leak.
+- **Hot-reload (Q2) — CONFIRMED (✓ ResetSlot/InstanceVersion exist).** Slots survive ALC swaps; on `StructureHash` mismatch the thunk calls `BlueprintBlackboardPartitions.ResetSlot` (zero payload + bump `InstanceVersion`, keep the allocation). Cursor implicitly resets to `{ResumeAt=0, InstanceVersion=0}`.
+- **Latent/await (Q5) — CONFIRMED.** A 16-byte `BlueprintLatentCursor` is emitted at **offset 0** of `WorkingState`; lives in the partition payload → survives ticks + soft reloads.
+- **Mixing stateless + stateful (Q6) — CONFIRMED: no hazard.** Disjoint memory — `Params` over `BrainBlackboard` inline; `WorkingState` over the `BlueprintBlackboard*` partition slot. The adapter does both projections sequentially before `TickCore`.
+- **Shared blackboard (Q4) — see §7 (resolved):** first iteration = single-behavior single-entity scratch in the `BlueprintBlackboard*` tier; squad-scope via the **virtual-leader entity's blackboard** (read by members).
