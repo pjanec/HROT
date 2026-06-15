@@ -138,6 +138,38 @@ public sealed class CollisionDetectorTests
         Assert.Equal(2, byShort["Alpha"].ClaimingFqns.Count);
         Assert.Equal(2, byShort["Beta"].ClaimingFqns.Count);
     }
+
+    // ── GetBindingAmbiguities (Fix 3) ─────────────────────────────────────────
+
+    [Fact]
+    public void GetBindingAmbiguities_AlwaysEmpty_EvenWhenShortNamesCollide()
+    {
+        // Two FQNs that share the short name "Action_Wander" from different declaring types —
+        // the scenario that caused false-positive "SUB-ELEMENT COLLISIONS DETECTED" in the UI.
+        var exporter = new FakeSchemaExporter(
+            FakeSchemaExporter.Make("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"),
+            FakeSchemaExporter.Make("Hrot.AI.Behaviors.Brains.EqsCombatNodes.Action_Wander"));
+
+        // GetCollisions still detects the short-name collision (underlying detection is unchanged).
+        var rawCollisions = SubElementCollisionDetector.GetCollisions(exporter);
+        Assert.Single(rawCollisions);
+
+        // But GetBindingAmbiguities returns empty — FQN-based binding means no real ambiguity.
+        var ambiguities = SubElementCollisionDetector.GetBindingAmbiguities(exporter);
+        Assert.Empty(ambiguities);
+    }
+
+    [Fact]
+    public void GetBindingAmbiguities_AlwaysEmpty_EvenWhenNoCollisions()
+    {
+        var exporter = new FakeSchemaExporter(
+            FakeSchemaExporter.Make("A.ActionAlpha"),
+            FakeSchemaExporter.Make("B.ActionBeta"));
+
+        var ambiguities = SubElementCollisionDetector.GetBindingAmbiguities(exporter);
+
+        Assert.Empty(ambiguities);
+    }
 }
 
 // Helper for the same-FQN test — exposes a fixed dictionary

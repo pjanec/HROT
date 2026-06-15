@@ -42,6 +42,16 @@ public sealed class BTreeFacetFqnContext
     /// can call <see cref="BlackboardFieldPickerDrawer.Promote"/> with the correct node id.
     /// </summary>
     public string? CurrentNodeVisualId { get; set; }
+
+    /// <summary>
+    /// The delegate shape of the action/condition node currently selected, or
+    /// <see langword="null"/> when no action/condition node is selected.
+    /// Written by <see cref="BTreeFacetMapper.GetFacet"/>; read by
+    /// <see cref="BlackboardFieldPickerDrawer"/> to suppress the picker and Promote
+    /// affordance for <see cref="BTreeActionDelegateShape.FourParamFull"/> (whole-blackboard)
+    /// actions, which have no per-DTO expression-target binding.
+    /// </summary>
+    public BTreeActionDelegateShape? CurrentDelegateShape { get; set; }
 }
 
 /// <summary>
@@ -182,10 +192,18 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
     /// variable matches its DtoType.  Used to show a "Promote to new variable" affordance in
     /// the inspector and is testable without an ImGui context.
     /// </summary>
+    /// <remarks>
+    /// Always returns <see langword="false"/> for <see cref="BTreeActionDelegateShape.FourParamFull"/>
+    /// (whole-blackboard) actions; they have no per-DTO expression-target field, so there is
+    /// nothing to promote.
+    /// </remarks>
     public bool HasNoCompatibleVariables
     {
         get
         {
+            // FourParamFull actions operate on the full blackboard — no per-DTO binding exists.
+            if (_fqnContext?.CurrentDelegateShape == BTreeActionDelegateShape.FourParamFull)
+                return false;
             if (_exporter is null || _fqnAccessor is null) return false;
             var fqn = _fqnAccessor();
             if (fqn is null) return false;
@@ -244,6 +262,13 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
 
+        // FourParamFull actions receive the entire blackboard — there is no per-DTO binding.
+        if (_fqnContext?.CurrentDelegateShape == BTreeActionDelegateShape.FourParamFull)
+        {
+            ImGuiNET.ImGui.TextDisabled("Operates on the full blackboard — no per-DTO binding.");
+            return false;
+        }
+
         var current = value as string ?? string.Empty;
         var items   = GetItems();
 
@@ -264,6 +289,11 @@ public sealed class BlackboardFieldPickerDrawer : IImGuiFieldDrawer, Hrot.Editor
                 // Fallback: queue the flag for any external consumer.
                 TriggerPromote();
             }
+            if (ImGuiNET.ImGui.IsItemHovered())
+                ImGuiNET.ImGui.SetTooltip(
+                    "Creates a new blackboard variable of this action's parameter type and binds this node to it.\n\n" +
+                    "The action's parameters are stored in the entity's blackboard at a fixed offset, are editable here, " +
+                    "and can be shared with other nodes that bind to the same variable (zero-copy).");
             return false;
         }
 

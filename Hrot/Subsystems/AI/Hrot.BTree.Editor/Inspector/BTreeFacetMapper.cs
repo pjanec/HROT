@@ -54,6 +54,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             {
                 _fqnContext.CurrentActionFqn    = null;
                 _fqnContext.CurrentNodeVisualId = null;
+                _fqnContext.CurrentDelegateShape = null;
             }
         }
 
@@ -154,8 +155,9 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         var fqn = node.Action?.MethodFqn ?? string.Empty;
         if (ctx is not null)
         {
-            ctx.CurrentActionFqn   = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId = node.VisualId.ToString();
+            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
+            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
+            ctx.CurrentDelegateShape = node.Action?.DelegateShape;
         }
         return new BTreeActionFacet
         {
@@ -174,8 +176,9 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         var fqn = node.Condition?.MethodFqn ?? string.Empty;
         if (ctx is not null)
         {
-            ctx.CurrentActionFqn   = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId = node.VisualId.ToString();
+            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
+            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
+            ctx.CurrentDelegateShape = node.Condition?.DelegateShape;
         }
         return new BTreeConditionFacet
         {

@@ -524,7 +524,10 @@ public sealed class InspectorWindow : ManagedWindow
     {
         if (_schemaExporter is null) return;
 
-        var collisions = SubElementCollisionDetector.GetCollisions(_schemaExporter);
+        // GetBindingAmbiguities returns only genuine ambiguities for FQN-based binding.
+        // Short-name collisions between distinct FQNs are harmless when binding is always
+        // by full FQN — using GetBindingAmbiguities avoids false-positive error strips.
+        var collisions = SubElementCollisionDetector.GetBindingAmbiguities(_schemaExporter);
         if (collisions.Count == 0) return;
 
         ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.ChildBg, new System.Numerics.Vector4(0.2f, 0.05f, 0.05f, 1f));
