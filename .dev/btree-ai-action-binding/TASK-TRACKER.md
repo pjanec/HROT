@@ -26,7 +26,7 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 
 - [x] **S2-1** WorkingState → `BlueprintBlackboard*` (Option β) + FNV-1a per-node slot key + adapter [details](./TASK-DETAIL.md#s2-1--option-beta-working-state--slot-key) — *done BATCH-06 (mechanism via stateful demo primitive, not full blueprint-TickCore composition → DEBT-AIB-025; emitted-thunk compile-gap → DEBT-AIB-026 @ S2-G)*
 - [x] **S2-2** Synchronous `Input`-phase tier provisioning (Fix 1) [details](./TASK-DETAIL.md#s2-2--synchronous-input-phase-provisioning) — *done BATCH-06 (sync AddComponent+CopyToLargerTier+RemoveComponent in Input; slot preservation verified)*
-- [ ] **S2-3** Hot-reload ghost-slot fix — re-publish `AssignBehaviorEvent` (Fix 2) [details](./TASK-DETAIL.md#s2-3--hot-reload-ghost-slot-fix) — *deps S2-1, S2-2*
+- [x] **S2-3** Hot-reload ghost-slot fix — re-publish `AssignBehaviorEvent` (Fix 2) [details](./TASK-DETAIL.md#s2-3--hot-reload-ghost-slot-fix) — *done BATCH-08 (ghost-slot-safe re-provision ACTIVE; size-sensitive hash resolves DEBT-AIB-027; coordinator OnHardReloadCompleted event dormant until host wiring → DEBT-AIB-031; full-suite flakiness → DEBT-AIB-030)*
 - [x] **S2-4** Cross-region validator: forbid concurrent stateful Subtree (Fix 3) [details](./TASK-DETAIL.md#s2-4--cross-region-validator-stateful-subtree) — *done BATCH-07 (HsmValidator ConcurrentStatefulSubtree hard-error; dormant until subtree-ref persistence + resolver wiring → DEBT-AIB-028/029)*
 - [ ] **S2-G** **DEMO GATE** — multiple stateful primitives + mixed stateless + proof tests [details](./TASK-DETAIL.md#s2-g--slice-2-demo-gate) — *deps S2-1…S2-4*
 

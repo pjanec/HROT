@@ -226,11 +226,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         // ── S2-2: stateful slot provisioning helpers ─────────────────────────────
 
         /// <summary>
-        /// S2-2: Synchronously provisions BlueprintBlackboard* tier and eagerly allocates
+        /// S2-2/S2-3: Synchronously provisions BlueprintBlackboard* tier and eagerly allocates
         /// every stateful working-state slot from the behavior manifest.
         /// Selects the smallest tier that can fit the manifest slots (considering existing
         /// occupancy when an entity already carries a tier). Performs tier upgrade inline
         /// (synchronous structural mutation is safe in Input phase, outside the Simulation lock).
+        ///
+        /// S2-3 addition: when an existing tier carries slots from this manifest that will be
+        /// detached-and-reattached (size/hash mismatch), their current payload is treated as
+        /// "to-be-freed" when computing available space, so tier selection is correct even when
+        /// a WorkingState grows on a hard reload.
         /// </summary>
         private static unsafe void ProvisionStatefulSlots(
             EntityRepository repo, Entity entity,
@@ -239,10 +244,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
             int requiredPayload = 0;
-            int requiredSlots   = slots.Count;
             foreach (var s in slots)
                 requiredPayload += AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment)
                                  + BlueprintBlackboardPartitions.SlotEntrySize;
+            int requiredSlots = slots.Count;
 
             // Determine the entity's current tier (0 = none, else TotalSize).
             int currentTier = GetCurrentTierSize(repo, entity);
@@ -255,18 +260,24 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             else
             {
-                // Tier exists: check if it has enough FREE SPACE and remaining slot entries.
-                // We must consider existing occupancy so a partially-full tier can trigger upgrade.
-                int freePayload  = GetTierFreePayload(repo, entity, currentTier);
-                int freeSlots    = GetTierFreeSlotCount(repo, entity, currentTier);
-                bool tierFits    = freePayload >= requiredPayload && freeSlots >= requiredSlots;
+                // S2-3: compute how much space will be *freed* by detaching existing manifest slots
+                // that are already attached (they will be detach+reattach'd if size/hash differs,
+                // or are idempotently kept if identical). Only detach candidates contribute freed space.
+                int toBeFreedPayload = GetManifestSlotsToBeFreedPayload(repo, entity, currentTier, slots);
+                int toBeReusedSlots  = GetManifestSlotsAlreadyAttachedCount(repo, entity, currentTier, slots);
+
+                // Effective free space: current free + what will be freed by detach.
+                // Effective required slots: requiredSlots - already-attached (those reuse their slot entries).
+                int freePayload       = GetTierFreePayload(repo, entity, currentTier) + toBeFreedPayload;
+                int freeSlots         = GetTierFreeSlotCount(repo, entity, currentTier) + toBeReusedSlots;
+                bool tierFits         = freePayload >= requiredPayload && freeSlots >= requiredSlots;
 
                 if (!tierFits)
                 {
                     // Current tier cannot accommodate manifest: compute total needed
-                    // (existing used + new manifest) and select the smallest larger tier.
-                    int usedPayload  = GetTierUsedPayload(repo, entity, currentTier);
-                    int usedSlots    = GetTierUsedSlotCount(repo, entity, currentTier);
+                    // (existing used - freed-by-detach + new manifest) and select the smallest tier.
+                    int usedPayload  = GetTierUsedPayload(repo, entity, currentTier) - toBeFreedPayload;
+                    int usedSlots    = GetTierUsedSlotCount(repo, entity, currentTier) - toBeReusedSlots;
                     int totalPayload = usedPayload + requiredPayload;
                     int totalSlots   = usedSlots   + requiredSlots;
                     int targetTier   = SelectTierForPayload(totalPayload, totalSlots);
@@ -279,7 +290,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // If tierFits: leave existing tier in place.
             }
 
-            // Eager-allocate every manifest slot (skip if already attached).
+            // Eager-allocate every manifest slot (idempotent for same-size+hash; detach+reattach for mismatch).
             AttachManifestSlots(repo, entity, slots);
         }
 
@@ -343,6 +354,112 @@ namespace Fdp.Toolkit.Behavior.Systems
                             : tierSize == BlueprintBlackboard4096.TotalSize  ? BlueprintBlackboard4096.PayloadSize
                             : BlueprintBlackboard1024.PayloadSize;
             return payloadSize - GetTierFreePayload(repo, entity, tierSize);
+        }
+
+        /// <summary>
+        /// S2-3: Sums the aligned PayloadSize of manifest slots that are already attached
+        /// AND will be detached+reattached (PayloadSize or StructureHash mismatch).
+        /// This is the amount of space that will be freed before reattachment, so the
+        /// tier-fit calculation in ProvisionStatefulSlots can use it as "available extra space".
+        /// </summary>
+        private static unsafe int GetManifestSlotsToBeFreedPayload(
+            EntityRepository repo, Entity entity, int tierSize,
+            IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            if (tierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeToBeFreedPayload(mem, slots);
+            }
+            if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeToBeFreedPayload(mem, slots);
+            }
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeToBeFreedPayload(mem, slots);
+            }
+        }
+
+        private static unsafe int ComputeToBeFreedPayload(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
+            int freed = 0;
+            foreach (var s in slots)
+            {
+                for (int i = 0; i < header.SlotCount; i++)
+                {
+                    ref var entry = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                    if (entry.BlueprintId == s.SlotKey)
+                    {
+                        // Will this slot be detached? Only if size or hash mismatches.
+                        int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
+                        if (entry.PayloadSize != alignedManifestSize ||
+                            entry.StructureHash != (uint)s.StructureHash)
+                        {
+                            freed += entry.PayloadSize; // this size will be returned to free list
+                        }
+                        break;
+                    }
+                }
+            }
+            return freed;
+        }
+
+        /// <summary>
+        /// S2-3: Counts manifest slots already attached in the tier regardless of mismatch.
+        /// These slots will either be kept (idempotent) or freed+reattached, but either way
+        /// they do not consume an additional slot entry beyond what's already allocated.
+        /// This count is used to adjust the free-slot-entry count when computing tier fit.
+        /// </summary>
+        private static unsafe int GetManifestSlotsAlreadyAttachedCount(
+            EntityRepository repo, Entity entity, int tierSize,
+            IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            if (tierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeAlreadyAttachedCount(mem, slots);
+            }
+            if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeAlreadyAttachedCount(mem, slots);
+            }
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = t.Memory)
+                    return ComputeAlreadyAttachedCount(mem, slots);
+            }
+        }
+
+        private static unsafe int ComputeAlreadyAttachedCount(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
+            int count = 0;
+            foreach (var s in slots)
+            {
+                for (int i = 0; i < header.SlotCount; i++)
+                {
+                    ref var entry = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                    if (entry.BlueprintId == s.SlotKey)
+                    {
+                        count++;
+                        break;
+                    }
+                }
+            }
+            return count;
         }
 
         /// <summary>Returns the used slot count (SlotCount) in the entity's tier.</summary>
@@ -533,14 +650,72 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
         }
 
+        /// <summary>
+        /// S2-3: Ghost-slot-safe slot attachment.
+        /// For each manifest slot:
+        /// <list type="bullet">
+        ///   <item>Not attached → attach (as before).</item>
+        ///   <item>Attached with SAME PayloadSize AND StructureHash → leave it (idempotent;
+        ///         working state is preserved — no churn on soft reload / no-op re-assign).</item>
+        ///   <item>Attached with DIFFERENT PayloadSize OR StructureHash → TryDetach then
+        ///         TryAttach at the manifest size/hash. The resized slot's working state
+        ///         resets (expected on a structural reload). Adjacent slots remain intact
+        ///         because TryDetach dense-compacts the slot table and returns payload to
+        ///         the free list before TryAttach takes new space.</item>
+        /// </list>
+        /// Caller (ProvisionStatefulSlots) must have already ensured the tier has enough total
+        /// space to satisfy the manifest (accounting for slots that will be freed before reattach).
+        /// </summary>
         private static unsafe void AttachSlotsToMemory(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
         {
             foreach (var s in slots)
             {
-                // Skip if already attached (idempotency guard).
-                if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out _))
+                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out int existingOffset))
+                {
+                    // Not attached — attach fresh.
+                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
                     continue;
-                BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                }
+
+                // Already attached — locate the slot entry to compare size and hash.
+                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+                int slotCount = header.SlotCount;
+                byte* slotTable = mem + Unsafe.SizeOf<BlueprintBlackboardHeader>();
+
+                bool mismatch = false;
+                for (int i = 0; i < slotCount; i++)
+                {
+                    ref var entry = ref Unsafe.AsRef<BlueprintSlotEntry>(
+                        slotTable + i * BlueprintBlackboardPartitions.SlotEntrySize);
+                    if (entry.BlueprintId == s.SlotKey)
+                    {
+                        // Compare manifest PayloadSize (may be unaligned) against the aligned
+                        // allocated size stored in the entry, and the hash.
+                        int alignedManifestSize = AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment);
+                        if (entry.PayloadSize == alignedManifestSize &&
+                            entry.StructureHash == (uint)s.StructureHash)
+                        {
+                            // Same size AND same hash → idempotent; preserve working state.
+                            mismatch = false;
+                        }
+                        else
+                        {
+                            mismatch = true;
+                        }
+                        break;
+                    }
+                }
+
+                if (mismatch)
+                {
+                    // S2-3 ghost-slot fix: detach the old (possibly wrong-sized) slot and
+                    // re-attach at the manifest-specified size. This correctly re-provisions
+                    // a slot that grew (or otherwise changed layout) on a hard reload.
+                    // TryDetach dense-compacts the slot table — adjacent slots remain intact.
+                    BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
+                    BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+                }
+                // else: same size + hash → idempotent leave-it path (no churn, working state preserved).
             }
         }
 

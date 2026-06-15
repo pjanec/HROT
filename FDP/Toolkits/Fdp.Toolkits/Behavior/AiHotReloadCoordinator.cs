@@ -73,6 +73,26 @@ public sealed class AiHotReloadCoordinator : IDisposable
     public event Action?            OnReloadCompleted;
     public event Action<Exception>? OnReloadFailed;
 
+    /// <summary>
+    /// S2-3: Fired from <see cref="DrainPendingCallbacks"/> after a <b>Hard</b> reload
+    /// (<see cref="ApplyReload"/>), immediately after the live registry is updated.
+    /// The argument is the list of behavior IDs that were reloaded (from the staging registry).
+    ///
+    /// Subscribers with access to the ECS world should use this event to re-publish
+    /// <see cref="Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent"/> for every entity
+    /// whose <see cref="Fdp.Toolkit.Behavior.Components.BehaviorState.ActiveBehaviorHash"/>
+    /// matches a reloaded ID, so <see cref="Systems.BehaviorIngressSystem"/> can
+    /// detach old ghost slots and re-provision correctly-sized ones.
+    ///
+    /// NOT fired for Quick Reloads (<see cref="ApplyQuickReload"/>), which do not
+    /// replace working-state slot layouts.
+    ///
+    /// Design note: the coordinator does not hold an EntityRepository or Bus reference
+    /// (no static/global handle). The subscriber is responsible for enumerating entities
+    /// and publishing events — this is the "injected callback" hook described in §10 Flaw 2.
+    /// </summary>
+    public event Action<IReadOnlyList<int>>? OnHardReloadCompleted;
+
     // ---- Dependencies (set in constructor) ---------------------------------
     private readonly BehaviorRegistry              _behaviorRegistry;
     private readonly BlueprintRegistry             _blueprintRegistry;
@@ -318,6 +338,16 @@ public sealed class AiHotReloadCoordinator : IDisposable
         // Step 5: merge staging BehaviorRegistry -> live registry (only on full success).
         _behaviorRegistry.MergeFrom(behaviorStaging);
 
+        // S2-3: collect the behavior IDs that were reloaded so subscribers can re-publish
+        // AssignBehaviorEvent for affected entities (forces BehaviorIngressSystem to
+        // detach old ghost slots and re-provision correctly-sized ones).
+        // Must be collected BEFORE clearing _alcByBlueprintId below.
+        var reloadedBehaviorIds = behaviorStaging.GetRegisteredNames()
+            .Select(name => { behaviorStaging.TryGetId(name, out int id); return id; })
+            .Where(id => id != 0)
+            .Distinct()
+            .ToList();
+
         // Step 6: replace per-blueprint ALCs. Full rebuild means all old ALCs for
         // superseded ids are replaced; unload those no longer referenced.
         var oldAlcs = _alcByBlueprintId.Values.Distinct().ToList();
@@ -332,6 +362,12 @@ public sealed class AiHotReloadCoordinator : IDisposable
             if (!stillReferenced)
                 old.Unload();
         }
+
+        // S2-3: fire the hard-reload event with the list of reloaded behavior IDs.
+        // Subscribers with ECS world access use this to re-publish AssignBehaviorEvent.
+        // Fired AFTER the staging commit and ALC swap so the live registry is fully updated.
+        if (OnHardReloadCompleted != null && reloadedBehaviorIds.Count > 0)
+            OnHardReloadCompleted.Invoke(reloadedBehaviorIds);
     }
 
     /// <summary>

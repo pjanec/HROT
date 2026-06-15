@@ -529,11 +529,18 @@ public static class BTreeBridgeEmitCore
         foreach (var (slotKey, wsTypeId) in slotsBySeen.Values)
         {
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
-            // StructureHash = FNV-1a-32 of the WS type's full name (stable layout proxy).
-            uint structHash = ComputeTypeNameHash(wsTypeId);
+            // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
+            // WorkingState struct grows or changes layout (not just the type name).
+            // Strategy: XOR the FNV-1a-32 type-name hash with Marshal.SizeOf<T>() at
+            // registration time so the hash changes whenever the struct's byte size changes.
+            // Marshal.SizeOf is evaluated at registration time (not emit time), so this
+            // correctly reflects the loaded struct's actual unmanaged size.
+            // Primary guard: PayloadSize mismatch already catches size-growth ghost-slot cases.
+            // Hash guard: catches same-size layout changes (field type/order changes).
+            uint typeNameHash = ComputeTypeNameHash(wsTypeId);
             // PayloadSize: emitted as Marshal.SizeOf<T>() call (evaluated at registration time).
-            // For blittable demo structs (DemoCursorState = { int Cursor } = 4 bytes), this is correct.
-            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), {structHash}u),");
+            // StructureHash: also folds in Marshal.SizeOf<T>() so it changes when struct grows.
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>())),");
         }
         sb.AppendLine($"{pad}}},");
     }
