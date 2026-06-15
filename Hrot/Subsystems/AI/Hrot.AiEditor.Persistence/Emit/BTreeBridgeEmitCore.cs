@@ -107,32 +107,38 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad}public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<{bbShort}, {ctxShort}> actionRegistry)");
         sb.AppendLine($"{pad}{{");
 
-        // Build blob + interpreter. The action registry is injected by the coordinator/
-        // scanner, pre-populated from this assembly's [FbtRegistrar] (FbtActionRegistrar),
-        // so bound actions/conditions resolve to real logic instead of the Failure fallback.
-        sb.AppendLine($"{pad2}// Build the blob from the topology-core thunk.");
+        // S1-G ordering: thunks must be registered BEFORE the Interpreter is constructed.
+        // Interpreter.BindActions runs in the constructor; a thunk registered after construction
+        // is missed and the action falls back to the silent Failure delegate.
+        //
+        // Correct order:
+        //   1. Build the blob (pure data, no registry dependency).
+        //   2. Register all action/condition thunks into actionRegistry.
+        //   3. Construct the Interpreter (BindActions now sees the populated registry).
+        //   4. Call beh.Register with the definition.
+        sb.AppendLine($"{pad2}// 1. Build the blob from the topology-core thunk.");
         sb.AppendLine($"{pad2}var blob = {coreClass}.Build();");
-        sb.AppendLine($"{pad2}var interpreter = new Interpreter<{bbShort}, {ctxShort}>(blob, actionRegistry);");
         sb.AppendLine();
-
-        // Register definition
-        sb.AppendLine($"{pad2}// Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
-        sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
-        sb.AppendLine($"{pad2}{{");
-        sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
-        sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
-        sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
-        sb.AppendLine($"{pad2}}});");
 
         // S1-3: For managed assets, emit real baked-offset thunks for each
         // (MethodFqn, ExpressionTargetField) → offset binding.
         // For non-managed assets, fall back to stub thunks (pre-BATCH-02 behaviour).
         bool isManaged = dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0;
 
+        // Pre-compute packed fields once so both thunk emitters and the variable-array
+        // emitter share the same offset map without calling Pack twice.
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields = null;
         if (isManaged)
         {
-            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, sizeResolver);
-            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, sizeResolver);
+            try { packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _); }
+            catch { packedFields = null; }
+        }
+
+        if (isManaged)
+        {
+            sb.AppendLine($"{pad2}// 2. Register baked-offset action/condition thunks before Interpreter construction.");
+            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
         }
         else
         {
@@ -168,6 +174,22 @@ public static class BTreeBridgeEmitCore
             }
         }
 
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// 3. Construct the Interpreter — BindActions runs here; registry must be populated above.");
+        sb.AppendLine($"{pad2}var interpreter = new Interpreter<{bbShort}, {ctxShort}>(blob, actionRegistry);");
+        sb.AppendLine();
+
+        // 4. Register definition
+        sb.AppendLine($"{pad2}// 4. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
+        sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
+        sb.AppendLine($"{pad2}{{");
+        sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
+        sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
+        sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
+        if (isManaged && packedFields != null && packedFields.Count > 0)
+            EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
+        sb.AppendLine($"{pad2}}});");
+
         sb.AppendLine($"{pad}}}");
     }
 
@@ -179,18 +201,9 @@ public static class BTreeBridgeEmitCore
     private static void EmitManagedActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        SizeResolverDelegate? sizeResolver = null)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
     {
-        // Build offset map once.
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
-        try
-        {
-            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
-        }
-        catch
-        {
-            return; // unknown type — skip (validator should have caught this)
-        }
+        if (packedFields == null) return;
 
         var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
         foreach (var f in packedFields)
@@ -245,17 +258,9 @@ public static class BTreeBridgeEmitCore
     private static void EmitManagedConditionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        SizeResolverDelegate? sizeResolver = null)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
     {
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields;
-        try
-        {
-            packedFields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
-        }
-        catch
-        {
-            return;
-        }
+        if (packedFields == null) return;
 
         var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
         foreach (var f in packedFields)
@@ -299,6 +304,33 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
         }
+    }
+
+    /// <summary>
+    /// Emits the <c>ManagedBlackboardVariables</c> array initializer inside the
+    /// <c>BehaviorDefinition</c> object initializer for managed blackboard assets.
+    /// Example output:
+    /// <code>
+    ///     ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+    ///     {
+    ///         new("counter", typeof(global::Namespace.DemoCounterParams), 0),
+    ///         new("accum",   typeof(global::Namespace.DemoAccumParams), 8),
+    ///     },
+    /// </code>
+    /// </summary>
+    private static void EmitManagedBlackboardVariablesArray(
+        StringBuilder sb,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
+        string pad)
+    {
+        sb.AppendLine($"{pad}ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]");
+        sb.AppendLine($"{pad}{{");
+        foreach (var f in packedFields)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(f.TypeId);
+            sb.AppendLine($"{pad}{Indent}new(\"{f.Name}\", typeof({dtoTypeFqn}), {f.ByteOffset}),");
+        }
+        sb.AppendLine($"{pad}}},");
     }
 
     /// <summary>

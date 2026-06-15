@@ -75,6 +75,22 @@ file sealed class _BbManagedAsset : IEditableAsset, IBlackboardManagedAsset
     public void RemoveVariables(IReadOnlyList<string> ns)                                     { }
 }
 
+/// <summary>
+/// Minimal <see cref="IActionSchemaExporter"/> stub for testing hardcoded-DTO-field wiring.
+/// </summary>
+file sealed class _StubActionSchemaExporter : IActionSchemaExporter
+{
+    private readonly IReadOnlyDictionary<string, ActionSchemaEntry> _all;
+
+    public _StubActionSchemaExporter(IReadOnlyDictionary<string, ActionSchemaEntry> entries)
+        => _all = entries;
+
+    public IReadOnlyDictionary<string, ActionSchemaEntry> All => _all;
+    public ActionSchemaEntry? Lookup(string fqn) => _all.TryGetValue(fqn, out var e) ? e : null;
+    public void Rebuild() { }
+    public event Action? Changed { add { } remove { } }
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 public sealed class BlackboardAuthoringWindowBindingTests
@@ -209,5 +225,46 @@ public sealed class BlackboardAuthoringWindowBindingTests
         Assert.Same(asset1, store.ActiveAsset);
         Assert.Single(vmBack.Variables);
         Assert.Equal("x", vmBack.Variables[0].Name);
+    }
+
+    // ── Task 2c: IActionSchemaExporter wired through BuildViewModel ───────────
+
+    [Fact]
+    public void BlackboardWindow_ActionSchemaExporter_PopulatesHardcodedDtoFields()
+    {
+        // Arrange: a stub exporter with one action entry that has two DTO fields.
+        const string fqn = "Foo.Bar.Action_Test";
+        var dtoType = typeof(int); // use a simple type; field reflection not exercised here
+        var dtoFields = new[]
+        {
+            new DtoFieldDescriptor("FieldA", typeof(int)),
+            new DtoFieldDescriptor("FieldB", typeof(float)),
+        };
+        var entry = new ActionSchemaEntry(
+            Fqn:       fqn,
+            DtoType:   dtoType,
+            Hosting:   ActionHosting.BTree,
+            Access:    BlackboardAccess.ReadWrite,
+            HeavyDtoType: null,
+            IsCondition: false,
+            DtoFields: dtoFields);
+
+        var exporter = new _StubActionSchemaExporter(
+            new Dictionary<string, ActionSchemaEntry>(StringComparer.Ordinal)
+            {
+                [fqn] = entry,
+            });
+
+        // Act: build with the exporter and a bound FQN list.
+        var vm = BlackboardAuthoringWindow.BuildViewModel(
+            activeAsset: null,
+            actionSchemaExporter: exporter,
+            boundActionFqns: new[] { fqn });
+
+        // Assert: HardcodedDtoFields must contain the two fields from the stub entry.
+        Assert.NotEmpty(vm.HardcodedDtoFields);
+        Assert.Equal(2, vm.HardcodedDtoFields.Count);
+        Assert.Equal("FieldA", vm.HardcodedDtoFields[0].Name);
+        Assert.Equal("FieldB", vm.HardcodedDtoFields[1].Name);
     }
 }

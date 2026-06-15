@@ -1,0 +1,105 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000011-0000-0000-0000-000000000000",
+	"Name": "T11_Aliasing",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "bb010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "bb020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"bb030000-0000-0000-0000-000000000001",
+				"bb040000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "bb030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Action_IncrementCounter (node A)",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 260,
+				"Comment": "First IncrementCounter — shares 'counter' variable with node B",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+				"ExpressionTargetField": "counter",
+				"DelegateShape": "ThreeParamReusable"
+			}
+		},
+		{
+			"kind": "Action",
+			"VisualId": "bb040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Action_IncrementCounter (node B)",
+			"EditorMetadata": {
+				"X": 400,
+				"Y": 260,
+				"Comment": "Second IncrementCounter — aliases the same 'counter' variable as node A",
+				"Collapsed": false,
+				"Color": null
+			},
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+				"ExpressionTargetField": "counter",
+				"DelegateShape": "ThreeParamReusable"
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": [
+			{
+				"Name": "counter",
+				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Shared counter DTO — both nodes alias the same bytes at offset 0",
+				"IsAutoManaged": false
+			}
+		]
+	}
+}

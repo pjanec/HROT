@@ -71,6 +71,28 @@ public class BrainBlackboardRendererTests
         Assert.False(result);
     }
 
+    // Task 2a: BehaviorDefinition stores ManagedBlackboardVariables and round-trips correctly
+    [Fact]
+    public void BehaviorDefinition_StoreManagedBlackboardVariables_RoundTrips()
+    {
+        var vars = new[]
+        {
+            new ManagedBlackboardVariable("counter", typeof(int), 0),
+            new ManagedBlackboardVariable("accum",   typeof(int), 8),
+        };
+        var def = new BehaviorDefinition
+        {
+            Name = "T10_MultiAction",
+            BrainTier = BehaviorConstants.BrainTierBTree,
+            ManagedBlackboardVariables = vars,
+        };
+        Assert.Equal(2, def.ManagedBlackboardVariables!.Count);
+        Assert.Equal("counter", def.ManagedBlackboardVariables[0].Name);
+        Assert.Equal(0, def.ManagedBlackboardVariables[0].ByteOffset);
+        Assert.Equal("accum", def.ManagedBlackboardVariables[1].Name);
+        Assert.Equal(8, def.ManagedBlackboardVariables[1].ByteOffset);
+    }
+
     // Helpers
     private sealed class MockSession : IInspectableSession
     {

@@ -37,6 +37,9 @@ namespace Fdp.Toolkit.Behavior
         ref BTreeContext ctx,
         int paramIndex);
 
+    /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
+    public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
+
     /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).
     /// Created once at startup; read-only thereafter.
@@ -96,6 +99,14 @@ namespace Fdp.Toolkit.Behavior
         /// (the managed class reference is fetched directly and does not need Inspector projection).
         /// </summary>
         public Type? HeavyDtoType { get; init; }
+
+        /// <summary>
+        /// For managed-blackboard BTree assets: ordered list of packed variables,
+        /// each at its bin-packed ByteOffset. Used by BrainBlackboardRenderer to
+        /// project each DTO at its own offset instead of only reading offset 0.
+        /// Null for non-managed or HSM behaviors.
+        /// </summary>
+        public IReadOnlyList<ManagedBlackboardVariable>? ManagedBlackboardVariables { get; init; }
     }
 
     /// <summary>

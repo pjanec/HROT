@@ -226,6 +226,25 @@ namespace Fbt.Compiler
             return AddLeaf(NodeType.Action, action, visualId, sourceFile, lineNumber);
         }
 
+        /// <summary>
+        /// Adds an Action leaf node keyed by a pre-computed string <paramref name="methodKey"/>.
+        /// Used by managed-blackboard assets whose baked-offset thunks are registered separately
+        /// by the bridge (BTreeBridgeEmitCore / S1-3). The key is stored verbatim in the
+        /// <see cref="BehaviorTreeBlob.MethodNames"/> array; the runtime resolves it from the
+        /// <see cref="Fbt.Runtime.ActionRegistry{TBB,TCtx}"/> injected by the bridge.
+        /// </summary>
+        public BTreeBuilder<TBlackboard, TContext> Action(
+            string methodKey,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            var node = new BuilderNode { Type = NodeType.Action, MethodName = methodKey };
+            var meta = BuildMeta(methodKey, sourceFile, lineNumber, visualId);
+            _entries.Add(new BuilderEntry(node, meta));
+            return this;
+        }
+
         /// <summary>Adds a Condition leaf node backed by <paramref name="condition"/>.</summary>
         public BTreeBuilder<TBlackboard, TContext> Condition(
             NodeLogicDelegate<TBlackboard, TContext> condition,
@@ -234,6 +253,23 @@ namespace Fbt.Compiler
             [CallerLineNumber] int lineNumber = 0)
         {
             return AddLeaf(NodeType.Condition, condition, visualId, sourceFile, lineNumber);
+        }
+
+        /// <summary>
+        /// Adds a Condition leaf node keyed by a pre-computed string <paramref name="methodKey"/>.
+        /// Mirrors <see cref="Action(string,Guid,string,int)"/> for conditions.
+        /// Used by managed-blackboard assets (S1-3 baked-offset thunks).
+        /// </summary>
+        public BTreeBuilder<TBlackboard, TContext> Condition(
+            string methodKey,
+            Guid visualId = default,
+            [CallerFilePath] string sourceFile = "",
+            [CallerLineNumber] int lineNumber = 0)
+        {
+            var node = new BuilderNode { Type = NodeType.Condition, MethodName = methodKey };
+            var meta = BuildMeta(methodKey, sourceFile, lineNumber, visualId);
+            _entries.Add(new BuilderEntry(node, meta));
+            return this;
         }
 
         /// <summary>

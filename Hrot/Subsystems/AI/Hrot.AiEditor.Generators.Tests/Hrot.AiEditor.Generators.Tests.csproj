@@ -8,6 +8,8 @@
     <IsPackable>false</IsPackable>
     <!-- PU-201/PU-202/PU-205: GeneratorDriver tests for BTree+HSM IncrementalGenerators. -->
     <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+    <!-- S1-G proof tests use unsafe pointer reads via Unsafe.As / BrainBlackboard.BehaviorParameters. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

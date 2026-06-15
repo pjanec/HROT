@@ -54,5 +54,35 @@ namespace Hrot.AI.Behaviors.Brains
             p.Counter++;
             return NodeStatus.Success;
         }
+
+        // ── Second demo DTO + action (S1-G) ───────────────────────────────────────
+
+        /// <summary>
+        /// Blackboard DTO for the accumulator demo. Blittable, sequential layout.
+        /// Placed at a non-zero offset after <see cref="DemoCounterParams"/> in T10.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DemoAccumParams
+        {
+            /// <summary>Running total; incremented by <see cref="Action_AddStepToSum"/> each tick.</summary>
+            public int Sum;
+
+            /// <summary>Amount added per tick. Seeded by the proof test before the first tick.</summary>
+            public int Step;
+        }
+
+        /// <summary>
+        /// Action: adds <c>Step</c> to <c>Sum</c> and returns Success. Purely stateless and
+        /// side-effect-free — the result is observable directly through the blackboard.
+        /// </summary>
+        [BTreeAction]
+        public static NodeStatus Action_AddStepToSum(
+            ref DemoAccumParams p,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx)
+        {
+            p.Sum += p.Step;
+            return NodeStatus.Success;
+        }
     }
 }

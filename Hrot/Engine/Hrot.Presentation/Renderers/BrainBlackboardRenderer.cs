@@ -71,7 +71,18 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
 
         if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
 
-        if (def.ParamsDtoType != null)
+        if (def.ManagedBlackboardVariables is { Count: > 0 } vars)
+        {
+            foreach (var v in vars)
+            {
+                ImGui.TextUnformatted(v.Name + ":");
+                ImGui.SameLine();
+                RenderTypedDtoAtOffset(bb, v.Type, v.ByteOffset, out string? childPath);
+                if (childPath != null && doubleClickedPath == null)
+                    doubleClickedPath = $"$.BehaviorParameters[{v.ByteOffset}]" + childPath[1..];
+            }
+        }
+        else if (def.ParamsDtoType != null)
         {
             RenderTypedDto(bb, def.ParamsDtoType, out string? childPath);
             // Translate "$.Speed" -> "$.BehaviorParameters.Speed" to match the actual ECS component layout
@@ -95,6 +106,12 @@ public sealed class BrainBlackboardRenderer : IEntityAwareImGuiRenderer
     private static unsafe void RenderTypedDto(BrainBlackboard bb, Type dtoType, out string? doubleClickedPath)
     {
         object boxed = Marshal.PtrToStructure((IntPtr)bb.BehaviorParameters, dtoType)!;
+        ImGuiPropertyTree.Render(boxed, contextType: dtoType, out doubleClickedPath);
+    }
+
+    private static unsafe void RenderTypedDtoAtOffset(BrainBlackboard bb, Type dtoType, int byteOffset, out string? doubleClickedPath)
+    {
+        object boxed = Marshal.PtrToStructure((IntPtr)(bb.BehaviorParameters + byteOffset), dtoType)!;
         ImGuiPropertyTree.Render(boxed, contextType: dtoType, out doubleClickedPath);
     }
 

@@ -70,6 +70,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private readonly ComparisonToolbarAction? _comparisonToolbar;
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
+    private IActionSchemaExporter? _actionSchemaExporter;
 
     // Inline rename state
     
@@ -119,7 +120,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         ComparisonSessionRegistry? sessionRegistry = null,
         BlackboardAggregatorService? aggregatorService = null,
         string? idOverride = null,
-        string? owningPerspective = null)
+        string? owningPerspective = null,
+        IActionSchemaExporter? actionSchemaExporter = null)
         : base(idOverride ?? "ai_blackboard_variables", "Blackboard Variables",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -127,6 +129,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         _refactorService = refactorService;
         _sessionRegistry = sessionRegistry;
         _aggregatorService = aggregatorService;
+        _actionSchemaExporter = actionSchemaExporter;
         if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
             _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
     }
@@ -372,7 +375,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             ? _aggregatorService.Aggregate(_store.ActiveAsset)
             : (AggregationResult?)null;
 
-        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult);
+        var vm = BuildViewModel(_store.ActiveAsset, aggregationResult: aggregationResult, actionSchemaExporter: _actionSchemaExporter);
 
         if (!vm.HasActiveAsset)
         {

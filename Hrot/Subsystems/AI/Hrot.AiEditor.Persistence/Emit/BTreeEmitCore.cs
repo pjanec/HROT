@@ -81,7 +81,12 @@ public static class BTreeEmitCore
             ? "Hrot.AI.Behaviors.Trees"
             : dto.TargetNamespace;
 
-        string structName = SanitizeIdentifier(dto.Blackboard.TypeName);
+        // Use the authored TypeName when non-empty; fall back to the asset name so each
+        // asset's struct has a unique, deterministic name (avoids CS0101 when multiple
+        // assets have an empty TypeName).
+        string structName = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
+            ? SanitizeIdentifier(dto.Name) + "Blackboard"
+            : SanitizeIdentifier(dto.Blackboard.TypeName);
         if (string.IsNullOrEmpty(structName))
             structName = SanitizeIdentifier(dto.Name) + "Blackboard";
 
