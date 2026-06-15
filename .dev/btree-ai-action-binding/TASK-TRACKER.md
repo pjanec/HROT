@@ -11,8 +11,8 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 
 **Goal:** authored JSON BTrees bind multiple stateless actions/conditions, each with its own param DTO at its own bin-packed offset; surfaced + editable in the blackboard UI; runnable demo.
 
-- [ ] **S1-0** `bool` `[MarshalAs(UnmanagedType.I1)]` fix in `BlackboardDtoEmitter` (prerequisite) [details](./TASK-DETAIL.md#s1-0--bool-marshalas-fix) — *land before/with S1-2*
-- [ ] **S1-1** Variables panel read-only reflection of hardcoded Category-1 DTOs (via `ActionSchemaExporter`) [details](./TASK-DETAIL.md#s1-1--category-1-dto-reflection-in-variables-panel) — *independent (editor-only)*
+- [x] **S1-0** `bool` `[MarshalAs(UnmanagedType.I1)]` fix in `BlackboardDtoEmitter` (prerequisite) [details](./TASK-DETAIL.md#s1-0--bool-marshalas-fix) — *done BATCH-01 (P2: DEBT-AIB-008)*
+- [x] **S1-1** Variables panel read-only reflection of hardcoded Category-1 DTOs (via `ActionSchemaExporter`) [details](./TASK-DETAIL.md#s1-1--category-1-dto-reflection-in-variables-panel) — *done BATCH-01 (VM-level; live wiring DEBT-AIB-009 → S1-5/S1-G)*
 - [ ] **S1-2** Per-asset blackboard struct + topology-over-struct codegen [details](./TASK-DETAIL.md#s1-2--per-asset-struct--topology-over-struct) — *deps S1-0*
 - [ ] **S1-3** Per-asset baked-offset registrar + adapter-calls-`TickCore` [details](./TASK-DETAIL.md#s1-3--baked-offset-registrar--adapter) — *deps S1-2*
 - [ ] **S1-4** Validator: unblock `ThreeParamReusable` (type-matched binding) [details](./TASK-DETAIL.md#s1-4--validator-unblock-threeparamreusable) — *MUST land with S1-2/S1-3 (else build break)*

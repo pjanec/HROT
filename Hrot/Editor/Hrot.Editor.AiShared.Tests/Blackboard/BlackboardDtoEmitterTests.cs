@@ -2,8 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Emit;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Hrot.Editor.AiShared.Tests.Blackboard;
 
@@ -163,6 +167,65 @@ public sealed class BlackboardDtoEmitterTests
         Assert.Contains("    public bool isActive;", output);
         // Must NOT emit "System.Boolean"
         Assert.DoesNotContain("System.Boolean", output);
+    }
+
+    [Fact]
+    public void Emit_BoolField_CarriesMarshalAsI1()
+    {
+        // Build a model with int A, bool B, int C so we can verify layout.
+        var model = SimpleModel(
+            ManagedField("A", typeof(int)),
+            ManagedField("B", typeof(bool)),
+            ManagedField("C", typeof(int)));
+        var output = BlackboardDtoEmitter.Emit(model);
+
+        // 1. [MarshalAs(UnmanagedType.I1)] must appear in the output.
+        Assert.Contains("[MarshalAs(UnmanagedType.I1)]", output);
+
+        // 2. The attribute line must appear immediately before `public bool B;`.
+        var lines = Lines(output);
+        int boolLineIdx = Array.FindIndex(lines, l => l.TrimEnd() == "    public bool B;");
+        Assert.True(boolLineIdx > 0, "public bool B; line not found");
+        Assert.Equal("    [MarshalAs(UnmanagedType.I1)]", lines[boolLineIdx - 1].TrimEnd());
+
+        // 3. ReadOnly (non-bool) fields must NOT have [MarshalAs(UnmanagedType.I1)] injected.
+        int aLineIdx = Array.FindIndex(lines, l => l.TrimEnd() == "    public int A;");
+        Assert.True(aLineIdx >= 0, "public int A; line not found");
+        Assert.DoesNotContain("[MarshalAs", lines[aLineIdx - 1]);
+
+        // 4. Compile the emitted source with Roslyn and verify binary layout via Marshal.
+        var syntaxTree = CSharpSyntaxTree.ParseText(output);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(StructLayoutAttribute).Assembly.Location),
+            // System.Runtime (contains MarshalAsAttribute in net8)
+            MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
+        };
+
+        var compilation = CSharpCompilation.Create(
+            "TestAssembly_BoolMarshalAs",
+            new[] { syntaxTree },
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        using var ms = new System.IO.MemoryStream();
+        var emitResult = compilation.Emit(ms);
+        Assert.True(emitResult.Success,
+            "Roslyn compilation failed:\n" + string.Join("\n", emitResult.Diagnostics));
+
+        ms.Seek(0, System.IO.SeekOrigin.Begin);
+        var assembly = Assembly.Load(ms.ToArray());
+        var structType = assembly.GetType($"{TestNamespace}.{TestStructName}");
+        Assert.NotNull(structType);
+
+        // With [MarshalAs(UnmanagedType.I1)], bool marshals as 1 byte.
+        // Sequential layout: int A@0(4), bool B@4(1), pad 3, int C@8(4) -> total 12.
+        int offsetC = (int)Marshal.OffsetOf(structType!, "C");
+        Assert.Equal(8, offsetC);
+
+        int totalSize = Marshal.SizeOf(structType!);
+        Assert.Equal(12, totalSize);
     }
 
     [Fact]

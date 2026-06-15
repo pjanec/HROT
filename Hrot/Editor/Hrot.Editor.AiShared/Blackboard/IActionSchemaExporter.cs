@@ -5,6 +5,12 @@ using System.Reflection;
 namespace Hrot.Editor.AiShared.Blackboard;
 
 /// <summary>
+/// Describes a single public instance field of a DTO struct, as reflected by
+/// <see cref="ActionSchemaExporter"/>.
+/// </summary>
+public record DtoFieldDescriptor(string Name, Type FieldType);
+
+/// <summary>
 /// Indicates which AI systems can host a given action method.
 /// A single method may be registered for multiple hosting contexts (combine with |).
 /// </summary>
@@ -49,13 +55,18 @@ public enum BlackboardAccess
 /// (<c>[BTreeCondition]</c>, <c>[SharedAiCondition]</c>, <c>[SharedAiHeavyCondition]</c>);
 /// false for actions and guards. Defaults to false for backward compatibility.
 /// </param>
+/// <param name="DtoFields">
+/// Public instance fields of <see cref="DtoType"/>, enumerated in declaration order.
+/// Used by the Variables panel to show hardcoded DTO fields as read-only rows.
+/// </param>
 public record ActionSchemaEntry(
     string Fqn,
     Type DtoType,
     ActionHosting Hosting,
     BlackboardAccess Access,
     Type? HeavyDtoType,
-    bool IsCondition = false
+    bool IsCondition = false,
+    IReadOnlyList<DtoFieldDescriptor>? DtoFields = null
 );
 
 /// <summary>

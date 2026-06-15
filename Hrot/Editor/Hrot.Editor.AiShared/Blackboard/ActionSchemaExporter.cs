@@ -175,8 +175,32 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         string declaringTypeName = method.DeclaringType?.FullName ?? method.DeclaringType?.Name ?? "<unknown>";
         string fqn = $"{declaringTypeName}.{method.Name}";
 
+        // Enumerate public instance fields of the DTO type.
+        var dtoFields = ReflectDtoFields(dtoType);
+
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
-        collected[fqn] = new ActionSchemaEntry(fqn, dtoType, hosting, access, heavyDtoType, isCondition);
+        collected[fqn] = new ActionSchemaEntry(fqn, dtoType, hosting, access, heavyDtoType, isCondition, dtoFields);
+    }
+
+    /// <summary>
+    /// Returns the public instance fields of <paramref name="dtoType"/> in declaration order.
+    /// </summary>
+    private static IReadOnlyList<DtoFieldDescriptor> ReflectDtoFields(Type dtoType)
+    {
+        FieldInfo[] fields;
+        try
+        {
+            fields = dtoType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+        }
+        catch
+        {
+            return Array.Empty<DtoFieldDescriptor>();
+        }
+
+        var result = new DtoFieldDescriptor[fields.Length];
+        for (int i = 0; i < fields.Length; i++)
+            result[i] = new DtoFieldDescriptor(fields[i].Name, fields[i].FieldType);
+        return result;
     }
 
     /// <summary>

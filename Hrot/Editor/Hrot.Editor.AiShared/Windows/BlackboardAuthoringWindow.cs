@@ -23,7 +23,8 @@ public sealed record VariableViewModel(
     string? Comment,
     IReadOnlyList<(string AssetName, Guid AssetId, Guid ElementId)> AliasedBy,
     bool   IsUnused,
-    bool   IsAutoManaged = false);
+    bool   IsAutoManaged = false,
+    bool   IsReadOnly = false);
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -52,7 +53,8 @@ public sealed record BlackboardWindowViewModel(
     PackWarning Warning,
     IReadOnlyList<VariableViewModel> Variables,
     IReadOnlyList<string> KnownTypeNames,
-    IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements);
+    IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements,
+    IReadOnlyList<VariableViewModel> HardcodedDtoFields = null!);
 
 // ---- Window -----------------------------------------------------------------
 
@@ -135,12 +137,28 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// Builds a <see cref="BlackboardWindowViewModel"/> from the currently active asset.
     /// Pure; no ImGui calls; safe to invoke from unit tests.
     /// </summary>
+    /// <param name="activeAsset">The currently selected asset, or null when nothing is selected.</param>
+    /// <param name="knownTypeNames">Optional override for the type-name completion list.</param>
+    /// <param name="aggregationResult">Optional sub-tree aggregation result (AIE-052).</param>
+    /// <param name="actionSchemaExporter">
+    /// Optional schema exporter used to resolve hardcoded DTO fields from bound action FQNs.
+    /// When null, <see cref="BlackboardWindowViewModel.HardcodedDtoFields"/> is empty.
+    /// </param>
+    /// <param name="boundActionFqns">
+    /// FQNs of hardcoded actions bound to nodes in the active asset.
+    /// Only used when <paramref name="actionSchemaExporter"/> is non-null.
+    /// </param>
     public static BlackboardWindowViewModel BuildViewModel(
         IEditableAsset? activeAsset,
         IReadOnlyList<string>? knownTypeNames = null,
-        AggregationResult? aggregationResult = null)
+        AggregationResult? aggregationResult = null,
+        IActionSchemaExporter? actionSchemaExporter = null,
+        IReadOnlyList<string>? boundActionFqns = null)
     {
         var typeNames = knownTypeNames ?? BlackboardTypeHelper.DefaultKnownTypeNames;
+
+        // Compute hardcoded DTO fields from bound action FQNs (S1-1).
+        var hardcodedDtoFields = BuildHardcodedDtoFields(actionSchemaExporter, boundActionFqns);
 
         if (activeAsset is null)
         {
@@ -155,7 +173,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
-                UnboundRequirements:       Array.Empty<UnboundRequirementViewModel>());
+                UnboundRequirements:       Array.Empty<UnboundRequirementViewModel>(),
+                HardcodedDtoFields:        hardcodedDtoFields);
         }
 
         if (activeAsset is not IBlackboardManagedAsset bbAsset
@@ -172,7 +191,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
-                UnboundRequirements:       Array.Empty<UnboundRequirementViewModel>());
+                UnboundRequirements:       Array.Empty<UnboundRequirementViewModel>(),
+                HardcodedDtoFields:        hardcodedDtoFields);
         }
 
         var rawVars = bbAsset.BlackboardVariables;
@@ -213,7 +233,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 Warning:                   PackWarning.None,
                 Variables:                 Array.Empty<VariableViewModel>(),
                 KnownTypeNames:            typeNames,
-                UnboundRequirements:       unboundRows);
+                UnboundRequirements:       unboundRows,
+                HardcodedDtoFields:        hardcodedDtoFields);
         }
 
         var descriptors = rawVars
@@ -261,7 +282,49 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
             Warning:                   pack.Warning,
             Variables:                 rows,
             KnownTypeNames:            typeNames,
-            UnboundRequirements:       unboundRows);
+            UnboundRequirements:       unboundRows,
+            HardcodedDtoFields:        hardcodedDtoFields);
+    }
+
+    /// <summary>
+    /// Builds the list of read-only <see cref="VariableViewModel"/> rows derived from
+    /// hardcoded action DTO fields (S1-1).
+    /// </summary>
+    private static IReadOnlyList<VariableViewModel> BuildHardcodedDtoFields(
+        IActionSchemaExporter? exporter,
+        IReadOnlyList<string>? boundFqns)
+    {
+        if (exporter == null || boundFqns == null || boundFqns.Count == 0)
+            return Array.Empty<VariableViewModel>();
+
+        var result = new List<VariableViewModel>();
+        // Use a set to deduplicate fields by (DtoType, FieldName) across multiple FQNs.
+        var seen = new HashSet<(Type, string)>();
+
+        foreach (var fqn in boundFqns)
+        {
+            var entry = exporter.Lookup(fqn);
+            if (entry?.DtoFields == null)
+                continue;
+
+            foreach (var field in entry.DtoFields)
+            {
+                if (!seen.Add((entry.DtoType, field.Name)))
+                    continue;
+
+                result.Add(new VariableViewModel(
+                    Name:      field.Name,
+                    TypeName:  BlackboardTypeHelper.GetDisplayName(field.FieldType),
+                    ByteSize:  0,
+                    FieldType: field.FieldType,
+                    Comment:   null,
+                    AliasedBy: Array.Empty<(string, Guid, Guid)>(),
+                    IsUnused:  false,
+                    IsReadOnly: true));
+            }
+        }
+
+        return result;
     }
 
     // Extracts the asset name from a RequiredByPath string, e.g.

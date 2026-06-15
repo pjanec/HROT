@@ -19,6 +19,9 @@ public struct TestSharedDto { public bool Flag; }
 public struct TestHeavyDto  { public double D; }
 public struct TestHeavyContainer { public byte[] Data; }
 
+/// <summary>A DTO with two known public fields, used for S1-1 DtoFields tests.</summary>
+public struct FooDto { public int Health; public float Speed; }
+
 /// <summary>
 /// Static fixture class whose methods are decorated with the various AI action/condition
 /// attributes so the schema exporter can reflect over them.
@@ -58,6 +61,10 @@ public static class ActionFixtures
 
     [BTreeAction]
     public static void UnannotatedParamMethod(ref TestBTreeDto dto) { }
+
+    // S1-1 fixture: BTree action with FooDto (used to verify DtoFields reflection)
+    [BTreeAction]
+    public static void FooDtoAction(ref FooDto dto) { }
 
     // DEBT-01 fixtures: void* parameters with DtoType on the attribute
     [HsmAction(DtoType = typeof(TestHsmDto))]
@@ -438,6 +445,63 @@ public sealed class ActionSchemaExporterTests
 
         var entry = exporter.All[Fqn(nameof(ActionFixtures.HsmVoidPtrGuard_WithDtoType))];
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Hsm));
+    }
+
+    // -------------------------------------------------------------------------
+    // S1-1 — DtoFields reflection (BATCH-01)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void ActionSchema_ReflectsFirstRefParamDto_DtoType_IsCorrect()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.FooDtoAction))];
+        Assert.Equal(typeof(FooDto), entry.DtoType);
+    }
+
+    [Fact]
+    public void ActionSchema_ReflectsFirstRefParamDto_DtoFields_NotNull()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.FooDtoAction))];
+        Assert.NotNull(entry.DtoFields);
+    }
+
+    [Fact]
+    public void ActionSchema_ReflectsFirstRefParamDto_DtoFields_ContainsHealth()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.FooDtoAction))];
+        Assert.NotNull(entry.DtoFields);
+        Assert.Contains(entry.DtoFields!, f => f.Name == "Health" && f.FieldType == typeof(int));
+    }
+
+    [Fact]
+    public void ActionSchema_ReflectsFirstRefParamDto_DtoFields_ContainsSpeed()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.FooDtoAction))];
+        Assert.NotNull(entry.DtoFields);
+        Assert.Contains(entry.DtoFields!, f => f.Name == "Speed" && f.FieldType == typeof(float));
+    }
+
+    [Fact]
+    public void ActionSchema_ReflectsFirstRefParamDto_DtoFields_CountIs2()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.FooDtoAction))];
+        Assert.NotNull(entry.DtoFields);
+        Assert.Equal(2, entry.DtoFields!.Count);
     }
 
     // -------------------------------------------------------------------------

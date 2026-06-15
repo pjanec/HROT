@@ -7,6 +7,23 @@ using Xunit;
 
 namespace Hrot.Editor.AiShared.Tests.Blackboard;
 
+// Stub IActionSchemaExporter backed by a pre-built dictionary.
+
+file sealed class StubActionSchemaExporter : IActionSchemaExporter
+{
+    private readonly IReadOnlyDictionary<string, ActionSchemaEntry> _entries;
+
+    public StubActionSchemaExporter(IReadOnlyDictionary<string, ActionSchemaEntry> entries)
+        => _entries = entries;
+
+    public IReadOnlyDictionary<string, ActionSchemaEntry> All => _entries;
+    public ActionSchemaEntry? Lookup(string fqn) => _entries.TryGetValue(fqn, out var e) ? e : null;
+    public void Rebuild() { }
+#pragma warning disable CS0067 // Event is never used
+    public event Action? Changed;
+#pragma warning restore CS0067
+}
+
 // ---- Minimal mutable stub for BlackboardAuthoringWindow view-model tests ---
 
 file sealed class MutableBbAssetForWindowTests : IEditableAsset, IBlackboardManagedAsset
@@ -211,5 +228,104 @@ public sealed class BlackboardAuthoringWindowTests
         var vm = BlackboardAuthoringWindow.BuildViewModel(asset, aggregationResult: aggRes);
 
         Assert.True(vm.RequiresHeavyComponent);
+    }
+
+    // ---- S1-1: HardcodedDtoFields (BATCH-01) --------------------------------
+
+    private static IActionSchemaExporter MakeFooExporter(string fqn)
+    {
+        var dtoFields = new[]
+        {
+            new DtoFieldDescriptor("Health", typeof(int)),
+            new DtoFieldDescriptor("Speed",  typeof(float)),
+        };
+        var entry = new ActionSchemaEntry(
+            fqn, typeof(FooDto),
+            ActionHosting.BTree,
+            BlackboardAccess.Unknown,
+            null,
+            false,
+            dtoFields);
+        return new StubActionSchemaExporter(
+            new Dictionary<string, ActionSchemaEntry> { [fqn] = entry });
+    }
+
+    [Fact]
+    public void VariablesPanel_ReflectsHardcodedDto_ReadOnly_FieldsAppearInHardcodedDtoFields()
+    {
+        const string fqn = "Fixtures.FooDtoAction";
+        var asset    = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
+        var exporter = MakeFooExporter(fqn);
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(
+            asset,
+            actionSchemaExporter: exporter,
+            boundActionFqns: new[] { fqn });
+
+        Assert.NotNull(vm.HardcodedDtoFields);
+        Assert.Equal(2, vm.HardcodedDtoFields!.Count);
+    }
+
+    [Fact]
+    public void VariablesPanel_ReflectsHardcodedDto_ReadOnly_AllFieldsHaveIsReadOnlyTrue()
+    {
+        const string fqn = "Fixtures.FooDtoAction";
+        var asset    = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
+        var exporter = MakeFooExporter(fqn);
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(
+            asset,
+            actionSchemaExporter: exporter,
+            boundActionFqns: new[] { fqn });
+
+        Assert.All(vm.HardcodedDtoFields!, f => Assert.True(f.IsReadOnly));
+    }
+
+    [Fact]
+    public void VariablesPanel_ReflectsHardcodedDto_ReadOnly_FieldsNotInEditableVariables()
+    {
+        const string fqn = "Fixtures.FooDtoAction";
+        var asset    = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
+        asset.AddVariable(new BlackboardVariableEntry("myVar", typeof(int), null));
+        var exporter = MakeFooExporter(fqn);
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(
+            asset,
+            actionSchemaExporter: exporter,
+            boundActionFqns: new[] { fqn });
+
+        // HardcodedDtoFields names must not appear in Variables (the editable set).
+        var editableNames = new HashSet<string>(System.Linq.Enumerable.Select(vm.Variables, v => v.Name));
+        foreach (var dtoField in vm.HardcodedDtoFields!)
+            Assert.False(editableNames.Contains(dtoField.Name),
+                $"DTO field '{dtoField.Name}' must not appear in editable Variables.");
+    }
+
+    [Fact]
+    public void VariablesPanel_ReflectsHardcodedDto_ReadOnly_FieldNamesCorrect()
+    {
+        const string fqn = "Fixtures.FooDtoAction";
+        var asset    = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
+        var exporter = MakeFooExporter(fqn);
+
+        var vm = BlackboardAuthoringWindow.BuildViewModel(
+            asset,
+            actionSchemaExporter: exporter,
+            boundActionFqns: new[] { fqn });
+
+        var names = new HashSet<string>(System.Linq.Enumerable.Select(vm.HardcodedDtoFields!, f => f.Name));
+        Assert.Contains("Health", names);
+        Assert.Contains("Speed",  names);
+    }
+
+    [Fact]
+    public void VariablesPanel_NoExporter_HardcodedDtoFields_IsEmpty()
+    {
+        var asset = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
+        var vm    = BlackboardAuthoringWindow.BuildViewModel(asset);
+
+        // When no exporter is provided, HardcodedDtoFields must be empty (not null).
+        Assert.NotNull(vm.HardcodedDtoFields);
+        Assert.Empty(vm.HardcodedDtoFields!);
     }
 }

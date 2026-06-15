@@ -312,6 +312,10 @@ public static class BlackboardDtoEmitter
         {
             sb.Append(Indent).Append("/// <summary>").Append(field.Comment).Append("</summary>").Append(NL);
         }
+        if (field.FieldType == typeof(bool))
+        {
+            sb.Append(Indent).Append("[MarshalAs(UnmanagedType.I1)]").Append(NL);
+        }
         sb.Append(Indent)
           .Append("public ")
           .Append(GetTypeName(field.FieldType))
