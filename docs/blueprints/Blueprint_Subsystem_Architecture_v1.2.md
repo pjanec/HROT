@@ -893,7 +893,7 @@ public sealed class WaitForEventNode : Node
 Two storage stories, one per dispatch kind:
 
 - **Instance dispatch** uses the new `BlueprintBlackboard{1024,4096,16384}` components with partition allocator. Multi-Blueprint per entity supported from Slice 1.
-- **AiPrimitive dispatch** uses the engine's existing `Blackboard1024` for working state. **Slice 1 constraint:** one AiPrimitive working-state Blueprint per entity (Slice 2 adds partition allocator to `Blackboard1024`).
+- **AiPrimitive dispatch** uses the engine's existing `Blackboard1024` for working state. **Slice 1 constraint:** one AiPrimitive working-state Blueprint per entity (Slice 2 lifts this via Option β — partitioning into the `BlueprintBlackboard*` tiers, **not** the engine `Blackboard1024`; see `BTree_AiActionParameterBinding_Detailed_Design.md` §4).
 
 The architect's clarification settled this: AiPrimitives reuse the existing `[SharedAiHeavy*]` projection pattern over `Blackboard1024`. They do not use `BlueprintBlackboard*`. This keeps storage stories cleanly separated and avoids retrofitting.
 
