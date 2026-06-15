@@ -456,6 +456,16 @@ public static class HsmAssetMapper
         var t = Type.GetType(typeId);
         if (t != null) return t;
 
+        // DTO struct types live in behavior assemblies, not the editor assembly — Type.GetType
+        // misses them. Search loaded assemblies by full name (`+` nested separator from Type.FullName).
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type? byName;
+            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
+            catch { byName = null; }
+            if (byName != null) return byName;
+        }
+
         foreach (var name in BlackboardTypeHelper.DefaultKnownTypeNames)
         {
             var pt = BlackboardTypeHelper.GetPrimitiveType(name);

@@ -338,6 +338,7 @@ file sealed class StubBlackboardAsset : IBlackboardManagedAsset
     private readonly Dictionary<string, List<BlackboardAliasBinding>> _aliases = new();
 
     public bool IsBlackboardEditorManaged => true;
+    public void SetBlackboardEditorManaged(bool managed) { /* test stub: always managed */ }
     public IReadOnlyList<BlackboardVariableEntry> BlackboardVariables => _vars;
 
     public void AddVariable(string name, Type type) =>

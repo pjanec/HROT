@@ -252,7 +252,14 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         var pack = BlackboardBinPacker.Pack(descriptors, aggregatedDescriptors);
 
         // Build per-variable view models using byte size from the packer result.
-        var sizeMap = pack.Variables.ToDictionary(pv => pv.Name, pv => pv.ByteSize);
+        // Note: aggregated DTO-requirement descriptors are named by DtoType.Name, so several
+        // can share a name when multiple nodes bind the same DTO type (e.g. a condition and an
+        // action both bound to one DemoCounterParams variable). Dedup is safe — same name means
+        // the same DTO type and therefore the same byte size — and only master-variable names
+        // (unique) are looked up below.
+        var sizeMap = new Dictionary<string, int>();
+        foreach (var pv in pack.Variables)
+            sizeMap[pv.Name] = pv.ByteSize;
         var rows = new List<VariableViewModel>(rawVars.Count);
         foreach (var v in rawVars)
         {

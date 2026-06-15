@@ -277,4 +277,46 @@ public sealed class BlackboardAuthoringWindowTests
         Assert.Empty(vm.Variables);
         Assert.Equal(0, vm.TotalInlineBytes);
     }
+
+    // ---- Regression: duplicate aggregated DTO requirements (editor crash on T10) ----
+
+    /// <summary>
+    /// When multiple nodes bind the same DTO type (e.g. a condition and an action both bound to one
+    /// DemoCounterParams variable), aggregation yields several DtoRequirements with the same
+    /// DtoType — hence several packed descriptors named by that type. BuildViewModel built its
+    /// size map with ToDictionary, which threw "same key already added" and crashed the editor.
+    /// </summary>
+    [Fact]
+    public void BuildViewModel_DuplicateAggregatedDtoRequirements_DoesNotThrow()
+    {
+        var asset = new StubBlackboardAsset
+        {
+            IsBlackboardEditorManaged = true,
+            BlackboardVariables = new[]
+            {
+                new BlackboardVariableEntry("counter", typeof(DupAggProbeDto), null),
+            },
+        };
+
+        var agg = new AggregationResult(
+            new[]
+            {
+                new DtoRequirement(typeof(DupAggProbeDto), "Tree > Condition#1", Guid.NewGuid(), Guid.NewGuid()),
+                new DtoRequirement(typeof(DupAggProbeDto), "Tree > Action#2",    Guid.NewGuid(), Guid.NewGuid()),
+            },
+            Array.Empty<AggregationWarning>());
+
+        var ex = Record.Exception(() =>
+            BlackboardAuthoringWindow.BuildViewModel(asset, aggregationResult: agg));
+
+        Assert.Null(ex);
+    }
+}
+
+/// <summary>Top-level struct used as a duplicate DTO requirement type in the regression test.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct DupAggProbeDto
+{
+    public int A;
+    public int B;
 }
