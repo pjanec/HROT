@@ -123,6 +123,12 @@ public enum BTreeDelegateShapeDto
 {
     ThreeParamReusable,
     FourParamFull,
+    /// <summary>
+    /// S2-1: stateful 4-param shape: (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref BTreeContext).
+    /// The WorkingState is projected from the entity's active BlueprintBlackboard* partition slot,
+    /// keyed by FNV-1a-32(assetGuid, nodeVisualId).
+    /// </summary>
+    ThreeParamReusableStateful = 2,
 }
 
 public sealed class BTreeActionPayloadDto
@@ -130,6 +136,14 @@ public sealed class BTreeActionPayloadDto
     public string MethodFqn { get; set; } = string.Empty;
     public string? ExpressionTargetField { get; set; }
     public BTreeDelegateShapeDto DelegateShape { get; set; }
+    /// <summary>
+    /// S2-1: for <see cref="BTreeDelegateShapeDto.ThreeParamReusableStateful"/> bindings,
+    /// the CLR FQN of the WorkingState struct (second ref param after TParams).
+    /// E.g. "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState".
+    /// Null/omitted for stateless shapes.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkingStateTypeId { get; set; }
 }
 
 public sealed class BTreeConditionPayloadDto

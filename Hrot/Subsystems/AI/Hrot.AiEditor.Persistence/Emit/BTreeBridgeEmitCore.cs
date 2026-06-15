@@ -105,6 +105,36 @@ public static class BTreeBridgeEmitCore
         return sb.ToString();
     }
 
+    // ── FNV-1a-32 slot key ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// S2-1: computes the per-node stateful slot key by running FNV-1a-32 over the
+    /// 32 bytes of (assetId ++ nodeVisualId). The result is masked to a positive int
+    /// (<c>&amp; 0x7FFFFFFF</c>) so it is always non-negative and safe as a dictionary key.
+    ///
+    /// Algorithm is identical to <c>FnvHasher.Hash32</c> in the runtime assembly but
+    /// replicated here because the emitter cannot reference that internal class.
+    /// The runtime must use the same algorithm so compile-time and runtime keys match.
+    /// </summary>
+    public static int ComputeStatefulSlotKey(Guid assetId, Guid nodeVisualId)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u; // FNV offset basis
+            foreach (byte b in assetId.ToByteArray())
+            {
+                hash ^= b;
+                hash *= 16777619u; // FNV prime
+            }
+            foreach (byte b in nodeVisualId.ToByteArray())
+            {
+                hash ^= b;
+                hash *= 16777619u;
+            }
+            return (int)(hash & 0x7FFFFFFFu);
+        }
+    }
+
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitBTreeRegisterMethod(
@@ -160,6 +190,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}// 2. Register baked-offset action/condition thunks before Interpreter construction.");
             EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
         }
         else
         {
@@ -218,6 +249,8 @@ public static class BTreeBridgeEmitCore
             EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
+        if (isManaged)
+            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
         sb.AppendLine($"{pad2}}});");
 
         sb.AppendLine($"{pad}}}");
@@ -333,6 +366,222 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
+        }
+    }
+
+    /// <summary>
+    /// S2-1: emits baked-offset stateful Action registry entries for a managed blackboard asset.
+    /// Key format: <c>{MethodFqn}@{paramOffset}@{slotKey}</c> — combines Slice-1 param projection
+    /// with a per-node partition slot for WorkingState.
+    ///
+    /// The thunk:
+    ///   1. Projects Params at the baked param offset from <c>bb.BehaviorParameters</c> (Slice-1 pattern).
+    ///   2. Dispatches across tier components (16384 → 4096 → 1024) to find the entity's active tier.
+    ///   3. Calls <c>TryGetSlotOffset(memory, SLOTKEY, out int wsOff)</c>.
+    ///   4. Projects WorkingState at <c>memory + wsOff</c>.
+    ///   5. Calls the 4-param method <c>(ref p, ref ws, ref st, ref ctx)</c>.
+    ///   6. On missing slot: returns <see cref="NodeStatus.Failure"/> and fires <c>Debug.Assert(false)</c>.
+    /// </summary>
+    private static void EmitStatefulActionThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        string pad2, string bbShort, string ctxShort,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+    {
+        if (packedFields == null) return;
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        // Collect unique (key, MethodFqn, dtoTypeFqn, paramOffset, slotKey, wsTypeFqn) tuples.
+        // Two nodes with the same method + param variable but different VisualIds → distinct slot keys.
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Key, string MethodFqn, string DtoTypeId, int Offset, int SlotKey, string WsTypeId)>();
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto actNode) continue;
+            var p = actNode.Action;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            int slotKey = ComputeStatefulSlotKey(dto.AssetId, actNode.VisualId);
+
+            // WorkingState type is taken from WorkingStateTypeId (added to BTreeActionPayloadDto in S2-1).
+            // If missing, fall back to the naming convention (Action_AdvanceCursor → DemoCursorState).
+            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                : p.WorkingStateTypeId!;
+
+            string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
+            if (!seen.Add(key)) continue;
+
+            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
+        }
+
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// S2-1: stateful action thunks — project Params at baked offset + WorkingState from partition slot.");
+        sb.AppendLine($"{pad2}// Key = {{MethodFqn}}@{{paramOffset}}@{{slotKey}} — per-node unique (includes FNV-1a slot key).");
+        foreach (var (key, methodFqn, dtoTypeId, offset, slotKey, wsTypeId) in entries)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
+            string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
+            string methodRef  = GlobalMethodRef(methodFqn);
+            sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){offset}));");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard16384\");");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard4096\");");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: stateful slot {slotKey} missing from BlueprintBlackboard1024\");");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref ws, ref st, ref ctx);");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// No tier component found — fail loud.");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S2-1: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}\");");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
+            sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+            sb.AppendLine($"{pad2}{Indent}}});");
+        }
+    }
+
+    /// <summary>
+    /// S2-1: emits the <c>StatefulWorkingSlots</c> array initializer inside the
+    /// <c>BehaviorDefinition</c> object initializer.
+    /// Only emitted when the asset has at least one stateful node; otherwise emits nothing
+    /// (non-managed or no-stateful assets stay byte-identical).
+    /// </summary>
+    private static void EmitStatefulWorkingSlotsArray(
+        StringBuilder sb, BehaviorTreeAssetDto dto, string pad)
+    {
+        // Collect unique stateful entries (deduped by SlotKey).
+        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId)>();
+
+        // Need packed fields for size lookup — we rebuild the offset map using variable names.
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto actNode) continue;
+            var p = actNode.Action;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+
+            int slotKey = ComputeStatefulSlotKey(dto.AssetId, actNode.VisualId);
+            if (slotsBySeen.ContainsKey(slotKey)) continue;
+
+            string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                : p.WorkingStateTypeId!;
+
+            slotsBySeen[slotKey] = (slotKey, wsTypeId);
+        }
+
+        if (slotsBySeen.Count == 0) return;
+
+        sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
+        sb.AppendLine($"{pad}{{");
+        foreach (var (slotKey, wsTypeId) in slotsBySeen.Values)
+        {
+            string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
+            // StructureHash = FNV-1a-32 of the WS type's full name (stable layout proxy).
+            uint structHash = ComputeTypeNameHash(wsTypeId);
+            // PayloadSize: emitted as Marshal.SizeOf<T>() call (evaluated at registration time).
+            // For blittable demo structs (DemoCursorState = { int Cursor } = 4 bytes), this is correct.
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), {structHash}u),");
+        }
+        sb.AppendLine($"{pad}}},");
+    }
+
+    /// <summary>
+    /// S2-1: derives the WorkingState type FQN from a method FQN by convention.
+    /// Example: "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor"
+    ///       → "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
+    /// Convention: strip method name, look for a nested type in the declaring class
+    /// whose name ends with "State". This is a fallback for when WorkingStateTypeId
+    /// is not explicitly stored on the payload DTO.
+    /// </summary>
+    private static string DeriveWorkingStateTypeFromMethod(string methodFqn)
+    {
+        // Fallback: WorkingStateTypeId should always be set on ThreeParamReusableStateful payloads.
+        // When missing, derive by convention: "Namespace.Class.Action_AdvanceCursor"
+        //   → "Namespace.Class+AdvanceCursorState"
+        // This is fragile but gives a compilable default; emitter tests always set WorkingStateTypeId.
+        int lastDot = methodFqn.LastIndexOf('.');
+        if (lastDot < 0) return methodFqn + "State";
+        string declaringType = methodFqn.Substring(0, lastDot);
+        string methodName    = methodFqn.Substring(lastDot + 1);
+        string suffix = methodName.StartsWith("Action_", StringComparison.Ordinal)
+            ? methodName.Substring("Action_".Length) + "State"
+            : methodName + "State";
+        return $"{declaringType}+{suffix}";
+    }
+
+    /// <summary>
+    /// Computes FNV-1a-32 hash of the UTF-8 bytes of a type name string.
+    /// Used as a structural hash proxy for WorkingState types.
+    /// </summary>
+    private static uint ComputeTypeNameHash(string typeName)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u;
+            foreach (char c in typeName)
+            {
+                hash ^= (byte)(c & 0xFF);
+                hash *= 16777619u;
+                if (c > 0xFF)
+                {
+                    hash ^= (byte)(c >> 8);
+                    hash *= 16777619u;
+                }
+            }
+            return hash;
         }
     }
 
@@ -517,6 +766,14 @@ public static class BTreeBridgeEmitCore
         if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
             set.Add("System.Runtime.CompilerServices");
+        }
+
+        // S2-1: stateful thunks need Debug.Assert for fail-loud missing-slot guard.
+        bool hasStateful = dto.Blackboard.Managed && dto.Nodes.OfType<BTreeActionNodeDto>()
+            .Any(n => n.Action?.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful);
+        if (hasStateful)
+        {
+            set.Add("System.Diagnostics");
         }
 
         // DEBT-AIB-013 fix: ParseParams deserialization requires System.Text.Json for managed

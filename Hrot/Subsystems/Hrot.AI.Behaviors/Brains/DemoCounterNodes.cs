@@ -84,5 +84,51 @@ namespace Hrot.AI.Behaviors.Brains
             p.Sum += p.Step;
             return NodeStatus.Success;
         }
+
+        // ── Stateful cursor demo (S2-1) ───────────────────────────────────────────
+
+        /// <summary>
+        /// Params DTO for the cursor demo. Blittable, sequential layout.
+        /// Carries the Limit that <see cref="Action_AdvanceCursor"/> counts toward.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DemoCursorParams
+        {
+            /// <summary>Upper bound; cursor stops (Success) once it reaches this value.</summary>
+            public int Limit;
+        }
+
+        /// <summary>
+        /// Working state for the cursor demo. Lives in a <c>BlueprintBlackboard*</c> partition
+        /// slot, NOT in <c>BrainBlackboard.BehaviorParameters</c>, so it persists across ticks
+        /// independently per node instance.
+        /// </summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DemoCursorState
+        {
+            /// <summary>Cursor position; incremented by <see cref="Action_AdvanceCursor"/> each tick.</summary>
+            public int Cursor;
+        }
+
+        /// <summary>
+        /// Stateful action: increments <c>Cursor</c> by one each tick, returning
+        /// <see cref="NodeStatus.Running"/> until the cursor reaches <c>Limit</c>,
+        /// then <see cref="NodeStatus.Success"/>. WorkingState is projected from the
+        /// entity's active <c>BlueprintBlackboard*</c> tier partition slot.
+        ///
+        /// NOT marked [BTreeAction] — this method uses the ThreeParamReusableStateful delegate
+        /// shape (4-param with WorkingState) registered by the bridge emitter, not the
+        /// standard FbtActionRegistrar auto-registration. The [BTreeAction] attribute only
+        /// supports the standard 3-param (ref TDto, ref BehaviorTreeState, ref BTreeContext) shape.
+        /// </summary>
+        public static NodeStatus Action_AdvanceCursor(
+            ref DemoCursorParams p,
+            ref DemoCursorState ws,
+            ref BehaviorTreeState state,
+            ref BTreeContext ctx)
+        {
+            ws.Cursor++;
+            return ws.Cursor < p.Limit ? NodeStatus.Running : NodeStatus.Success;
+        }
     }
 }

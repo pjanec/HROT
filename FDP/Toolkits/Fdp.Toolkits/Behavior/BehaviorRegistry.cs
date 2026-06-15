@@ -41,6 +41,13 @@ namespace Fdp.Toolkit.Behavior
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
     /// <summary>
+    /// S2-1: per-node stateful slot manifest entry. Describes one working-state partition slot
+    /// that must be pre-provisioned before the first BTree tick of the behavior.
+    /// SlotKey is FNV-1a-32(assetGuid, nodeVisualId) &amp; 0x7FFFFFFF (positive int).
+    /// </summary>
+    public sealed record StatefulSlotInfo(int SlotKey, int PayloadSize, uint StructureHash);
+
+    /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).
     /// Created once at startup; read-only thereafter.
     /// </summary>
@@ -107,6 +114,15 @@ namespace Fdp.Toolkit.Behavior
         /// Null for non-managed or HSM behaviors.
         /// </summary>
         public IReadOnlyList<ManagedBlackboardVariable>? ManagedBlackboardVariables { get; init; }
+
+        /// <summary>
+        /// S2-1: per-node stateful working-state slot manifest. One entry per distinct stateful
+        /// node instance in the asset (deduped by SlotKey). Consumed by
+        /// <see cref="Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem"/> (S2-2) to
+        /// pre-provision partition slots before the first BTree tick.
+        /// Null for non-managed assets, HSM behaviors, or assets with no stateful nodes.
+        /// </summary>
+        public IReadOnlyList<StatefulSlotInfo>? StatefulWorkingSlots { get; init; }
     }
 
     /// <summary>

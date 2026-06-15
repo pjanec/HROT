@@ -14,6 +14,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\..\Engine\Fdp.ModuleHost\Fdp.ModuleHost.csproj" />
+    <!-- S2-1: StatefulPrimitiveTests uses DemoCounterNodes from Hrot.AI.Behaviors. -->
+    <ProjectReference Include="..\..\..\Hrot\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <!-- Non-analyzer reference: exposes GizmoRegistrarGenerator class for unit testing. -->
     <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
     <!-- Non-analyzer reference: exposes TkbDescriptorGenerator class for unit testing. -->

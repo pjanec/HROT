@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -116,6 +119,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ParseParams succeeded (or was not required). Commit behavior transition.
 
                 // 1. Update BehaviorState.
+                // Read previous behavior hash before overwriting (needed for S2-2 detach).
+                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
                 ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 behavior.ActiveBehaviorHash = behaviorId;
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
@@ -126,6 +131,22 @@ namespace Fdp.Toolkit.Behavior.Systems
                     !repo.HasComponent<Blackboard1024>(evt.Entity))
                 {
                     repo.AddComponent(evt.Entity, new Blackboard1024());
+                }
+
+                // S2-2: Synchronously provision stateful working-state partition slots.
+                // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
+                if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
+                {
+                    // Detach previous behavior's slots to avoid leaking them.
+                    if (previousBehaviorId != BehaviorIds.None &&
+                        previousBehaviorId != behaviorId &&
+                        _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                        prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+                    {
+                        DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
+                    }
+
+                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots);
                 }
 
                 // 2. Reset BTree execution pointer so the new behavior starts from the root.
@@ -201,6 +222,331 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
         }
+
+        // ── S2-2: stateful slot provisioning helpers ─────────────────────────────
+
+        /// <summary>
+        /// S2-2: Synchronously provisions BlueprintBlackboard* tier and eagerly allocates
+        /// every stateful working-state slot from the behavior manifest.
+        /// Selects the smallest tier that can fit the manifest slots (considering existing
+        /// occupancy when an entity already carries a tier). Performs tier upgrade inline
+        /// (synchronous structural mutation is safe in Input phase, outside the Simulation lock).
+        /// </summary>
+        private static unsafe void ProvisionStatefulSlots(
+            EntityRepository repo, Entity entity,
+            IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            // Compute aggregate required payload for the new manifest:
+            // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
+            int requiredPayload = 0;
+            int requiredSlots   = slots.Count;
+            foreach (var s in slots)
+                requiredPayload += AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment)
+                                 + BlueprintBlackboardPartitions.SlotEntrySize;
+
+            // Determine the entity's current tier (0 = none, else TotalSize).
+            int currentTier = GetCurrentTierSize(repo, entity);
+
+            if (currentTier == 0)
+            {
+                // No tier present: select smallest tier whose abstract capacity fits the manifest.
+                int targetTier = SelectTierForPayload(requiredPayload, requiredSlots);
+                AddAndInitializeTier(repo, entity, targetTier);
+            }
+            else
+            {
+                // Tier exists: check if it has enough FREE SPACE and remaining slot entries.
+                // We must consider existing occupancy so a partially-full tier can trigger upgrade.
+                int freePayload  = GetTierFreePayload(repo, entity, currentTier);
+                int freeSlots    = GetTierFreeSlotCount(repo, entity, currentTier);
+                bool tierFits    = freePayload >= requiredPayload && freeSlots >= requiredSlots;
+
+                if (!tierFits)
+                {
+                    // Current tier cannot accommodate manifest: compute total needed
+                    // (existing used + new manifest) and select the smallest larger tier.
+                    int usedPayload  = GetTierUsedPayload(repo, entity, currentTier);
+                    int usedSlots    = GetTierUsedSlotCount(repo, entity, currentTier);
+                    int totalPayload = usedPayload + requiredPayload;
+                    int totalSlots   = usedSlots   + requiredSlots;
+                    int targetTier   = SelectTierForPayload(totalPayload, totalSlots);
+
+                    if (targetTier > currentTier)
+                        UpgradeTier(repo, entity, currentTier, targetTier);
+                    // If targetTier == currentTier (shouldn't happen since tierFits was false),
+                    // we proceed; TryAttach will fail silently (not enough space).
+                }
+                // If tierFits: leave existing tier in place.
+            }
+
+            // Eager-allocate every manifest slot (skip if already attached).
+            AttachManifestSlots(repo, entity, slots);
+        }
+
+        /// <summary>Returns the current free payload bytes in the entity's tier.</summary>
+        private static unsafe int GetTierFreePayload(EntityRepository repo, Entity entity, int tierSize)
+        {
+            if (tierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
+            }
+            if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
+            }
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).PayloadFree;
+            }
+        }
+
+        /// <summary>Returns the number of free slot entries (MaxSlots - SlotCount) in the entity's tier.</summary>
+        private static unsafe int GetTierFreeSlotCount(EntityRepository repo, Entity entity, int tierSize)
+        {
+            if (tierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = t.Memory)
+                {
+                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+                    return h.MaxSlots - h.SlotCount;
+                }
+            }
+            if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = t.Memory)
+                {
+                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+                    return h.MaxSlots - h.SlotCount;
+                }
+            }
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = t.Memory)
+                {
+                    ref var h = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+                    return h.MaxSlots - h.SlotCount;
+                }
+            }
+        }
+
+        /// <summary>Returns the used payload bytes = (PayloadSize - PayloadFree) in the entity's tier.</summary>
+        private static unsafe int GetTierUsedPayload(EntityRepository repo, Entity entity, int tierSize)
+        {
+            int payloadSize = tierSize == BlueprintBlackboard16384.TotalSize ? BlueprintBlackboard16384.PayloadSize
+                            : tierSize == BlueprintBlackboard4096.TotalSize  ? BlueprintBlackboard4096.PayloadSize
+                            : BlueprintBlackboard1024.PayloadSize;
+            return payloadSize - GetTierFreePayload(repo, entity, tierSize);
+        }
+
+        /// <summary>Returns the used slot count (SlotCount) in the entity's tier.</summary>
+        private static unsafe int GetTierUsedSlotCount(EntityRepository repo, Entity entity, int tierSize)
+        {
+            if (tierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
+            }
+            if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
+            }
+            {
+                ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = t.Memory)
+                    return Unsafe.AsRef<BlueprintBlackboardHeader>(mem).SlotCount;
+            }
+        }
+
+        /// <summary>
+        /// S2-2: Detaches the previous behavior's stateful slots from the entity's tier.
+        /// Called before attaching new behavior's slots to prevent slot leaks.
+        /// </summary>
+        private static unsafe void DetachStatefulSlots(
+            EntityRepository repo, Entity entity,
+            IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            // Try each tier in order (check which one the entity has).
+            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = tier.Memory)
+                {
+                    foreach (var s in slots)
+                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
+                }
+                return;
+            }
+            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = tier.Memory)
+                {
+                    foreach (var s in slots)
+                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
+                }
+                return;
+            }
+            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = tier.Memory)
+                {
+                    foreach (var s in slots)
+                        BlueprintBlackboardPartitions.TryDetach(mem, s.SlotKey);
+                }
+            }
+        }
+
+        /// <summary>Returns the TotalSize constant of the entity's active tier, or 0 if none.</summary>
+        private static int GetCurrentTierSize(EntityRepository repo, Entity entity)
+        {
+            if (repo.HasComponent<BlueprintBlackboard16384>(entity)) return BlueprintBlackboard16384.TotalSize;
+            if (repo.HasComponent<BlueprintBlackboard4096>(entity))  return BlueprintBlackboard4096.TotalSize;
+            if (repo.HasComponent<BlueprintBlackboard1024>(entity))  return BlueprintBlackboard1024.TotalSize;
+            return 0;
+        }
+
+        /// <summary>
+        /// Selects the TotalSize of the smallest tier whose abstract capacity fits the given
+        /// payload and slot count. Falls through to 16384 if nothing smaller fits.
+        /// </summary>
+        private static int SelectTierForPayload(int requiredPayload, int requiredSlots)
+        {
+            if (requiredPayload <= BlueprintBlackboard1024.PayloadSize &&
+                requiredSlots   <= BlueprintBlackboard1024.MaxSlots)
+                return BlueprintBlackboard1024.TotalSize;
+            if (requiredPayload <= BlueprintBlackboard4096.PayloadSize &&
+                requiredSlots   <= BlueprintBlackboard4096.MaxSlots)
+                return BlueprintBlackboard4096.TotalSize;
+            return BlueprintBlackboard16384.TotalSize;
+        }
+
+        /// <summary>Adds a fresh tier component of the given size and initializes its allocator.</summary>
+        private static unsafe void AddAndInitializeTier(EntityRepository repo, Entity entity, int tierSize)
+        {
+            if (tierSize == BlueprintBlackboard1024.TotalSize)
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard1024());
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = tier.Memory)
+                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
+            }
+            else if (tierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard4096());
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = tier.Memory)
+                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
+            }
+            else
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard16384());
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = tier.Memory)
+                    BlueprintBlackboardPartitions.Initialize(mem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
+            }
+        }
+
+        /// <summary>
+        /// Upgrades from a smaller tier to a larger one synchronously:
+        /// AddComponent(larger), CopyToLargerTier, RemoveComponent(smaller).
+        /// Preserves existing slots and their payloads.
+        /// </summary>
+        private static unsafe void UpgradeTier(EntityRepository repo, Entity entity, int srcTierSize, int dstTierSize)
+        {
+            if (srcTierSize == BlueprintBlackboard1024.TotalSize &&
+                dstTierSize == BlueprintBlackboard4096.TotalSize)
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard4096());
+                ref var src = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* srcMem = src.Memory)
+                fixed (byte* dstMem = dst.Memory)
+                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard1024.TotalSize,
+                        dstMem, BlueprintBlackboard4096.TotalSize, BlueprintBlackboard4096.MaxSlots);
+                repo.RemoveComponent<BlueprintBlackboard1024>(entity);
+            }
+            else if (srcTierSize == BlueprintBlackboard1024.TotalSize &&
+                     dstTierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard16384());
+                ref var src = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* srcMem = src.Memory)
+                fixed (byte* dstMem = dst.Memory)
+                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard1024.TotalSize,
+                        dstMem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
+                repo.RemoveComponent<BlueprintBlackboard1024>(entity);
+            }
+            else if (srcTierSize == BlueprintBlackboard4096.TotalSize &&
+                     dstTierSize == BlueprintBlackboard16384.TotalSize)
+            {
+                repo.AddComponent(entity, new BlueprintBlackboard16384());
+                ref var src = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                ref var dst = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* srcMem = src.Memory)
+                fixed (byte* dstMem = dst.Memory)
+                    BlueprintBlackboardPartitions.CopyToLargerTier(srcMem, BlueprintBlackboard4096.TotalSize,
+                        dstMem, BlueprintBlackboard16384.TotalSize, BlueprintBlackboard16384.MaxSlots);
+                repo.RemoveComponent<BlueprintBlackboard4096>(entity);
+            }
+            // No downgrade path (current >= target means no-op, handled by caller).
+        }
+
+        /// <summary>
+        /// Attaches each manifest slot to the entity's active tier.
+        /// Skips slots already attached (TryAttach is not idempotent; guard via TryGetSlotOffset).
+        /// </summary>
+        private static unsafe void AttachManifestSlots(
+            EntityRepository repo, Entity entity, IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            // Dispatch to whichever tier component the entity has.
+            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
+                fixed (byte* mem = tier.Memory)
+                    AttachSlotsToMemory(mem, slots);
+                return;
+            }
+            if (repo.HasComponent<BlueprintBlackboard4096>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
+                fixed (byte* mem = tier.Memory)
+                    AttachSlotsToMemory(mem, slots);
+                return;
+            }
+            if (repo.HasComponent<BlueprintBlackboard1024>(entity))
+            {
+                ref var tier = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
+                fixed (byte* mem = tier.Memory)
+                    AttachSlotsToMemory(mem, slots);
+            }
+        }
+
+        private static unsafe void AttachSlotsToMemory(byte* mem, IReadOnlyList<StatefulSlotInfo> slots)
+        {
+            foreach (var s in slots)
+            {
+                // Skip if already attached (idempotency guard).
+                if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, s.SlotKey, out _))
+                    continue;
+                BlueprintBlackboardPartitions.TryAttach(mem, s.SlotKey, s.PayloadSize, s.StructureHash, out _);
+            }
+        }
+
+        /// <summary>Aligns a size up to the given alignment boundary.</summary>
+        private static int AlignUp(int size, int alignment)
+            => (size + alignment - 1) & ~(alignment - 1);
 
         // ── HSM reset helper ─────────────────────────────────────────────────────
 
