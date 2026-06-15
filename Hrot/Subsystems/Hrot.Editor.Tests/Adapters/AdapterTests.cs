@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -166,6 +167,55 @@ namespace Hrot.Editor.Tests.Adapters
             var behaviors = service.GetAvailableBehaviors((long)entity.Index);
 
             Assert.Empty(behaviors);
+        }
+
+        [Fact]
+        public void GetAvailableBehaviors_IncludesRegisteredEditorBTree()
+        {
+            // Arrange: register an editor-authored BTree behavior (simulates T10_MultiAction style).
+            _registry.Register(42, "T10_MultiAction", new BehaviorDefinition
+            {
+                Name      = "T10_MultiAction",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
+
+            var service = new EditorMissionService(_bus, _repo, _registry);
+
+            // Act
+            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+
+            // Assert: editor-authored BTree should appear in the result for any entity type.
+            Assert.Contains("T10_MultiAction", behaviors);
+        }
+
+        [Fact]
+        public void GetAvailableBehaviors_DoesNotDuplicateCuratedEntries()
+        {
+            // Arrange: register a behavior that also exists in the BehaviorCatalog curated list
+            // (e.g., "Ambush" appears for Insurgent via [BehaviorContract]).  Registering it with
+            // BrainTierBTree must NOT cause it to appear twice.
+            _registry.Register(1, "Ambush", new BehaviorDefinition
+            {
+                Name      = "Ambush",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.Insurgent });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = (long)entity.Index });
+
+            var service = new EditorMissionService(_bus, _repo, _registry);
+
+            // Act
+            var behaviors = service.GetAvailableBehaviors((long)entity.Index);
+
+            // Assert: exactly one occurrence — no duplicates regardless of catalog/registry overlap.
+            int count = behaviors.Count(n => n == "Ambush");
+            Assert.Equal(1, count);
         }
 
         [Fact]

@@ -75,7 +75,41 @@ namespace Hrot.Editor.Adapters
             long tkbType = _repo.GetComponent<TkbIdentity>(entity).TkbType;
             var catalog  = BehaviorCatalog.GetValidBehaviors(tkbType);
 
-            return catalog.Where(n => _registry.TryGetId(n, out _)).ToList();
+            // Curated list: only names that are actually registered in the live registry.
+            var result = catalog.Where(n => _registry.TryGetId(n, out _)).ToList();
+
+            // Append editor-authored BTree behaviors not already in the curated list.
+            AppendEditorBTreeBehaviors(_registry, result);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Appends registered editor-authored BTree behaviors (BrainTier == BrainTierBTree) to
+        /// <paramref name="result"/>, skipping any names already present (dedup, curated first).
+        /// </summary>
+        /// <remarks>
+        /// INTERIM approach: all BrainTierBTree entries that are not in the curated list are
+        /// included, making editor-authored BTrees available to every entity type.
+        /// TODO (option c): gate by per-asset DisEntityType affinity mask instead of listing for all entity types.
+        /// </remarks>
+        private static void AppendEditorBTreeBehaviors(BehaviorRegistry registry, List<string> result)
+        {
+            var existingNames = new HashSet<string>(result, StringComparer.Ordinal);
+            foreach (var name in registry.GetRegisteredNames())
+            {
+                if (existingNames.Contains(name))
+                    continue;
+                if (!registry.TryGetId(name, out int id))
+                    continue;
+                if (!registry.TryGetDefinition(id, out var def))
+                    continue;
+                if (def.BrainTier != BehaviorConstants.BrainTierBTree)
+                    continue;
+
+                result.Add(name);
+                existingNames.Add(name); // keep dedup consistent if there are duplicates in the registry
+            }
         }
 
         /// <inheritdoc/>
