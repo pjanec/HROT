@@ -1,141 +1,145 @@
 {
-	"$meta": {
-		"docType": "Hrot.BTree",
-		"schemaVersion": 1
-	},
-	"AssetId": "bb000010-0000-0000-0000-000000000000",
-	"Name": "T10_MultiAction",
-	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
-	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
-	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
-	"Nodes": [
-		{
-			"kind": "Root",
-			"VisualId": "ba010000-0000-0000-0000-000000000001",
-			"ChildVisualIds": [
-				"ba020000-0000-0000-0000-000000000001"
-			],
-			"DisplayLabel": "Root",
-			"EditorMetadata": {
-				"X": 300,
-				"Y": 0,
-				"Comment": null,
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Sequence",
-			"VisualId": "ba020000-0000-0000-0000-000000000001",
-			"ChildVisualIds": [
-				"ba030000-0000-0000-0000-000000000001",
-				"ba040000-0000-0000-0000-000000000001",
-				"ba050000-0000-0000-0000-000000000001"
-			],
-			"DisplayLabel": "Sequence",
-			"EditorMetadata": {
-				"X": 300,
-				"Y": 130,
-				"Comment": null,
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Condition",
-			"VisualId": "ba030000-0000-0000-0000-000000000001",
-			"ChildVisualIds": [],
-			"DisplayLabel": "Condition_CounterBelowThreshold",
-			"EditorMetadata": {
-				"X": 100,
-				"Y": 260,
-				"Comment": null,
-				"Collapsed": false,
-				"Color": null
-			},
-			"Condition": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold",
-				"ExpressionTargetField": "counter",
-				"DelegateShape": "ThreeParamReusable"
-			}
-		},
-		{
-			"kind": "Action",
-			"VisualId": "ba040000-0000-0000-0000-000000000001",
-			"ChildVisualIds": [],
-			"DisplayLabel": "Action_IncrementCounter",
-			"EditorMetadata": {
-				"X": 300,
-				"Y": 260,
-				"Comment": null,
-				"Collapsed": false,
-				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
-				"ExpressionTargetField": "counter",
-				"DelegateShape": "ThreeParamReusable"
-			}
-		},
-		{
-			"kind": "Action",
-			"VisualId": "ba050000-0000-0000-0000-000000000001",
-			"ChildVisualIds": [],
-			"DisplayLabel": "Action_AddStepToSum",
-			"EditorMetadata": {
-				"X": 500,
-				"Y": 260,
-				"Comment": null,
-				"Collapsed": false,
-				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum",
-				"ExpressionTargetField": "accum",
-				"DelegateShape": "ThreeParamReusable"
-			}
-		}
-	],
-	"Pills": [
-		{
-			"VisualId": "ba110000-0000-0000-0000-000000000001",
-			"HostNodeVisualId": "ba040000-0000-0000-0000-000000000001",
-			"DecoratorType": "Repeater",
-			"IntParam": 1,
-			"FloatParam": null,
-			"Comment": "Repeater decorator on IncrementCounter (S1-G demo)",
-			"StackIndex": 0
-		}
-	],
-	"Canvas": {
-		"PanX": 0,
-		"PanY": 0,
-		"Zoom": 1
-	},
-	"SubtreeSyncBindings": {},
-	"Suppressions": {
-		"Conflict": [],
-		"Unused": []
-	},
-	"Blackboard": {
-		"Managed": true,
-		"TypeName": "",
-		"HeavyDtoType": null,
-		"Variables": [
-			{
-				"Name": "counter",
-				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Counter+Threshold DTO for Condition_CounterBelowThreshold / Action_IncrementCounter",
-				"IsAutoManaged": false
-			},
-			{
-				"Name": "accum",
-				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoAccumParams", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Sum+Step DTO for Action_AddStepToSum",
-				"IsAutoManaged": false
-			}
-		]
-	}
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 1
+  },
+  "AssetId": "bb000010-0000-0000-0000-000000000000",
+  "Name": "T10_MultiAction",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "ba010000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "ba020000-0000-0000-0000-000000000001"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "ba020000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "ba030000-0000-0000-0000-000000000001",
+        "ba040000-0000-0000-0000-000000000001",
+        "ba050000-0000-0000-0000-000000000001"
+      ],
+      "DisplayLabel": "Sequence",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold",
+        "ExpressionTargetField": "counter",
+        "DelegateShape": "ThreeParamReusable"
+      },
+      "VisualId": "ba030000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Condition_CounterBelowThreshold",
+      "EditorMetadata": {
+        "X": 9,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+        "ExpressionTargetField": "counter",
+        "DelegateShape": "ThreeParamReusable"
+      },
+      "VisualId": "ba040000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Action_IncrementCounter",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum",
+        "ExpressionTargetField": "accum",
+        "DelegateShape": "ThreeParamReusable"
+      },
+      "VisualId": "ba050000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [],
+      "DisplayLabel": "Action_AddStepToSum",
+      "EditorMetadata": {
+        "X": 526,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [
+    {
+      "VisualId": "ba110000-0000-0000-0000-000000000001",
+      "HostNodeVisualId": "ba040000-0000-0000-0000-000000000001",
+      "DecoratorType": "Repeater",
+      "IntParam": 1,
+      "FloatParam": null,
+      "Comment": "Repeater decorator on IncrementCounter (S1-G demo)",
+      "StackIndex": 0
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "counter",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Counter+Threshold DTO for Condition_CounterBelowThreshold / Action_IncrementCounter"
+      },
+      {
+        "Name": "accum",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoAccumParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Sum+Step DTO for Action_AddStepToSum"
+      }
+    ]
+  }
 }

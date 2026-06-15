@@ -274,6 +274,17 @@ public static class BlackboardBinPacker
     {
         if (PrimitiveSizes.TryGetValue(t, out int known))
             return known;
-        return Marshal.SizeOf(t);
+        try
+        {
+            return Marshal.SizeOf(t);
+        }
+        catch (ArgumentException)
+        {
+            // The type can't be marshaled (e.g. a variable whose CLR type could not be resolved
+            // and fell back to System.Object, or a struct whose assembly isn't loaded). Degrade to
+            // 0 instead of crashing the whole editor render loop; the variable still renders (as
+            // 0 bytes), which surfaces the resolution problem without taking the app down.
+            return 0;
+        }
     }
 }

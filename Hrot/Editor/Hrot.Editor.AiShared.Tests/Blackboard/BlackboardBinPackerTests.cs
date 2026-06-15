@@ -406,4 +406,18 @@ public sealed class BlackboardBinPackerTests
 
         Assert.True(result.TotalHeavyBytes > 0);
     }
+
+    // Regression: an unmarshalable type (e.g. a variable whose CLR type couldn't be resolved and
+    // fell back to System.Object) must NOT crash the editor render loop — it degrades to 0 bytes.
+    [Fact]
+    public void UnmarshalableType_DegradesToZero_DoesNotThrow()
+    {
+        var vars = new[] { V("unresolved", typeof(object)) };
+
+        var ex = Record.Exception(() => BlackboardBinPacker.Pack(vars));
+        Assert.Null(ex);
+
+        var result = BlackboardBinPacker.Pack(vars);
+        Assert.Equal(0, result.Variables.Single(v => v.Name == "unresolved").ByteSize);
+    }
 }
