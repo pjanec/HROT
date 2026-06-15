@@ -61,7 +61,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             byte layer = 0)
         {
             var prim = DebugPrimitive.MakeSemanticShape(
-                entity.Index,
+                (int)networkId,
                 (ushort)entity.Generation,
                 networkId,
                 profileId,
