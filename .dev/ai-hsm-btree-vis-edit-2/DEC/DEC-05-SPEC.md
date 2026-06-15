@@ -95,7 +95,11 @@ Both were traced to source this session. They reframe DEC-05 from "wire 3 pieces
 - **ABI drift**: if `BrainBlackboard`'s layout/size ever changes, every generated struct must track it — centralize the tail-register layout (don't hand-copy offsets per asset; derive from `BehaviorConstants`).
 - **Unmanaged constraint**: only `unmanaged` variable types are bindable; the panel's known types (bool…Quaternion) all qualify; DTO structs must be blittable.
 
-## 7. Recommendation (revised after §4 verification)
+## RESOLUTION (2026-06-15)
+- **PREREQ-A — DONE** (`8eb45e0c`). JSON BTrees now execute real bound actions/conditions in **both** the live game and the editor. Two gaps were closed: (1) the bridge built an empty `ActionRegistry` → now the scanner/coordinator inject one populated from the assembly's `[FbtRegistrar]` (new `BTreeActionRegistryFactory`); (2) the live `CgfSubsystem` discarded JSON behavior definitions (throwaway registry) → now passes the live registry.
+- **PREREQ-B — DROPPED (non-issue).** The earlier "generic runtime / per-asset struct" framing was wrong. The kernel already binds typed DTO params via **offset-0 `Unsafe.As` bridge closures** generated into `FbtActionRegistrar` (keys like `Type.Method@0`), exactly the engine convention (DTO mapped to the start of `BrainBlackboard`). The runtime stays uniformly `Interpreter<BrainBlackboard,BTreeContext>`; no generic runtime or reinterpret seam is needed. The hand-written `HideInCoverBehavior` already works this way. So DEC-05 "real condition binding" reduces to the editor authoring UX (set `ExpressionTargetField` + unblock the validator at `BTreeMethodCompatibilityValidator.cs:149`) — the runtime mechanism is already present and now wired.
+
+## 7. Recommendation (superseded by RESOLUTION above)
 The investigation changed the picture: DEC-05 (typed binding) sits on top of **two unfinished prerequisites**, not one.
 
 - **PREREQ-A — JSON BTree runtime execution gap (§4.1).** Bound methods don't run *at all* today (everything → `Failure`). This is the highest-leverage fix and is independent of typed binding: likely "bridge uses `CreateBuilder().GetRegistry()` instead of `new ActionRegistry()`." **Recommend doing this first, as its own batch** — it makes existing `FourParamFull` actions (e.g. `Action_Wander`) actually execute, which is independently valuable and gives a runnable demo. Confirm key parity + why the empty-registry/stub pattern was chosen (there may be a hot-reload reason).
