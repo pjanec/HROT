@@ -7,7 +7,6 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb.Domain;
-using static CarKinem.Core.GizmoShapeCategory;
 
 namespace CarKinem.Tkb
 {
@@ -93,78 +92,6 @@ namespace CarKinem.Tkb
 
             if (repo.IsComponentTypeRegistered<FormationController>() && !repo.HasComponent<FormationController>(entity))
                 repo.AddComponent(entity, new FormationController());
-
-            // ── BATCH-S2-G2: populate Map2DFootprint for ALL entities carrying VehicleParametersDto ──
-            // Mirrors StrideVisualBindingSystem.ResolveShapeDims "0→default" logic:
-            //   OrientedBox → GroundVehicle, dims from BoxHalfX/Y (fallback to dto.Length/Width)
-            //   Capsule     → Humanoid,      dims from ShapeRadius  (fallback to PhysicsCollider.Radius)
-            //   other       → Unknown,        radius-equivalent dims
-            if (repo.IsComponentTypeRegistered<Map2DFootprint>() && !repo.HasComponent<Map2DFootprint>(entity))
-            {
-                Map2DFootprint footprint;
-                if (renderDef == null)
-                {
-                    // No render def available — derive from dto dims, assume vehicle shaped.
-                    footprint = new Map2DFootprint
-                    {
-                        LengthM = dto.Length,
-                        WidthM  = dto.Width,
-                        Shape   = GroundVehicle,
-                    };
-                }
-                else
-                {
-                    switch (renderDef.ShapeKind)
-                    {
-                        case CollisionShapeKind.OrientedBox:
-                        {
-                            float halfX = renderDef.BoxHalfX != 0f ? renderDef.BoxHalfX : dto.Length / 2f;
-                            float halfY = renderDef.BoxHalfY != 0f ? renderDef.BoxHalfY : dto.Width  / 2f;
-                            footprint = new Map2DFootprint
-                            {
-                                LengthM = 2f * halfX,
-                                WidthM  = 2f * halfY,
-                                Shape   = GroundVehicle,
-                            };
-                            break;
-                        }
-                        case CollisionShapeKind.Capsule:
-                        case CollisionShapeKind.Cylinder:
-                        case CollisionShapeKind.Sphere:
-                        {
-                            float r = renderDef.ShapeRadius;
-                            if (r == 0f && repo.HasComponent<PhysicsCollider>(entity))
-                            {
-                                ref readonly var col = ref repo.GetComponentRO<PhysicsCollider>(entity);
-                                r = col.Radius;
-                            }
-                            if (r == 0f) r = 0.3f; // hard default matching StrideVisualBindingSystem
-                            var cat = renderDef.ShapeKind == CollisionShapeKind.Capsule
-                                ? Humanoid
-                                : Unknown;
-                            footprint = new Map2DFootprint
-                            {
-                                LengthM = 2f * r,
-                                WidthM  = 2f * r,
-                                Shape   = cat,
-                            };
-                            break;
-                        }
-                        default:
-                        {
-                            // None / MeshFromModel — use dto dims, Unknown shape.
-                            footprint = new Map2DFootprint
-                            {
-                                LengthM = dto.Length,
-                                WidthM  = dto.Width,
-                                Shape   = Unknown,
-                            };
-                            break;
-                        }
-                    }
-                }
-                repo.AddComponent(entity, footprint);
-            }
         }
     }
 }

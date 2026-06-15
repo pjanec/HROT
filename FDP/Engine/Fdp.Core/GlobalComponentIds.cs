@@ -413,9 +413,6 @@
         /// <summary><c>WeaponMountInfo</c> — identifies a weapon mount child entity; carries mount index, weapon GUID, and effective range.</summary>
         public const int WeaponMountInfo = 216;
 
-        /// <summary><c>Map2DFootprint</c> — neutral 2D map footprint (length, width, shape category) for the 2D gizmo renderer (BATCH-S2-G2).</summary>
-        public const int Map2DFootprint = 217;
-
         // ── Animation subsystem (220–249) ────────────────────────────────────────
         // Animation components: replicated channels, internal executors, queues.
         // DD-Fake §11.1 allocation block.
