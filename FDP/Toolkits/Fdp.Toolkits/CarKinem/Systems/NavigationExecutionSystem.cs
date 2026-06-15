@@ -76,23 +76,12 @@ namespace CarKinem.Systems
                     $"{nameof(NavigationExecutionSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            // STR-D21 BATCH-25: exclude entities that carry VehicleState.
-            // Vehicle navigation (and their stuck/frustration logic) is owned by
-            // VehicleNavigationIntentSystem; running the frustration guard here too
-            // causes premature FailedBlocked when the physics body hasn't entered the
-            // Bullet simulation yet (rb.Simulation == null → SetLinearVelocityXZ no-op
-            // → SimVelocity=0 → 120-tick frustration fires before the body is ready).
-            // Infantry entities never carry VehicleState, so this exclusion is zero-risk
-            // for the crowd-nav path.  (STR-D20: VehicleKinematicsTkbTranslator footgun
-            // means infantry COULD get VehicleState, but that is fixed upstream in the
-            // F6 harness by stripping VehicleState before issuing the order.)
             var query = repo.Query()
                 .With<NavigationIntent>()
                 .With<NavigationStatus>()
                 .With<FrustrationTicks>()
                 .With<SimTransform>()
                 .With<SimVelocity>()
-                .Without<VehicleState>()
                 .Build();
 
             foreach (var entity in query)

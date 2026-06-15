@@ -334,6 +334,36 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(0.3f, status.ProgressS, precision: 4);
         }
 
+        // ── Test N: VehicleState entities are NOT excluded from the query ────────────────────────────
+
+        /// <summary>
+        /// Regression guard — the system must NOT carry .Without&lt;VehicleState&gt;();
+        /// excluding vehicles broke arrival reporting on the SimHost (non-stride) path.
+        /// </summary>
+        [Fact]
+        public void NavigationExecution_ProcessesEntitiesWithVehicleState()
+        {
+            using var repo = CreateWorld();
+            // Register the vehicle component in this test only — do not modify CreateWorld.
+            repo.RegisterComponent<VehicleState>();
+            var system = new NavigationExecutionSystem();
+
+            // Entity placed 3 m from target; radius is 5 m → within arrival threshold.
+            var entity = AddNavigatingEntity(repo,
+                position:      new Vector2(97f, 0f),
+                destination:   new Vector2(100f, 0f),
+                arrivalRadius: 5f,
+                velocityX:     0f);
+
+            // Attach a VehicleState component so the entity matches a vehicle archetype.
+            repo.AddComponent(entity, new VehicleState { Speed = 0f, SteerAngle = 0f });
+
+            system.Execute(repo, 0.016f);
+
+            var status = repo.GetComponent<NavigationStatus>(entity);
+            Assert.Equal(NavResult.Arrived, status.Result);
+        }
+
         // ── OFX-018: ReplanTimeBudget stops replanning when elapsed >= budget ────
 
         /// <summary>
