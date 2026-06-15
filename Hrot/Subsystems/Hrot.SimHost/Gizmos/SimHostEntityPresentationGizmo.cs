@@ -27,7 +27,6 @@ namespace Hrot.SimHost.Gizmos
 
             EntityPresentationGizmoShared.DrawSemanticShape(
                 draw,
-                view,
                 entity,
                 networkId,
                 profileId,
