@@ -502,7 +502,7 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad)
     {
         // Collect unique stateful entries (deduped by SlotKey).
-        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId)>();
+        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel)>();
 
         // Need packed fields for size lookup — we rebuild the offset map using variable names.
         foreach (var node in dto.Nodes)
@@ -519,14 +519,19 @@ public static class BTreeBridgeEmitCore
                 ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
                 : p.WorkingStateTypeId!;
 
-            slotsBySeen[slotKey] = (slotKey, wsTypeId);
+            // NodeLabel: prefer DisplayLabel, fall back to VisualId string.
+            string nodeLabel = !string.IsNullOrEmpty(actNode.DisplayLabel)
+                ? actNode.DisplayLabel
+                : actNode.VisualId.ToString();
+
+            slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel);
         }
 
         if (slotsBySeen.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
-        foreach (var (slotKey, wsTypeId) in slotsBySeen.Values)
+        foreach (var (slotKey, wsTypeId, nodeLabel) in slotsBySeen.Values)
         {
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
             // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
@@ -540,7 +545,10 @@ public static class BTreeBridgeEmitCore
             uint typeNameHash = ComputeTypeNameHash(wsTypeId);
             // PayloadSize: emitted as Marshal.SizeOf<T>() call (evaluated at registration time).
             // StructureHash: also folds in Marshal.SizeOf<T>() so it changes when struct grows.
-            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>())),");
+            // WorkingStateType: typeof(global::...) so the inspector can project typed values.
+            // NodeLabel: the node's DisplayLabel for a friendly row label in the inspector.
+            string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"),");
         }
         sb.AppendLine($"{pad}}},");
     }

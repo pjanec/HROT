@@ -44,8 +44,20 @@ namespace Fdp.Toolkit.Behavior
     /// S2-1: per-node stateful slot manifest entry. Describes one working-state partition slot
     /// that must be pre-provisioned before the first BTree tick of the behavior.
     /// SlotKey is FNV-1a-32(assetGuid, nodeVisualId) &amp; 0x7FFFFFFF (positive int).
+    /// <para>
+    /// <paramref name="WorkingStateType"/> and <paramref name="NodeLabel"/> are optional
+    /// (default null) so all existing 3-arg constructions compiled in BATCH-06/08 tests
+    /// remain valid without change.  When non-null, <paramref name="WorkingStateType"/>
+    /// enables typed live-value rendering in <c>BlueprintBlackboard*Renderer</c> and
+    /// <paramref name="NodeLabel"/> provides a friendly row label in the inspector.
+    /// </para>
     /// </summary>
-    public sealed record StatefulSlotInfo(int SlotKey, int PayloadSize, uint StructureHash);
+    public sealed record StatefulSlotInfo(
+        int SlotKey,
+        int PayloadSize,
+        uint StructureHash,
+        Type? WorkingStateType = null,
+        string? NodeLabel = null);
 
     /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).

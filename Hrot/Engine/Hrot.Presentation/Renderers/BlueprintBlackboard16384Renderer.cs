@@ -70,6 +70,9 @@ public sealed class BlueprintBlackboard16384Renderer : IEntityAwareImGuiRenderer
 
                 ImGui.EndTable();
             }
+
+            // Feature A (BATCH-10): render typed WorkingState section after the summary table.
+            StatefulWorkingStateProjection.RenderWorkingState(session, entity, mem);
         }
 
         return true; // suppress default byte-dump

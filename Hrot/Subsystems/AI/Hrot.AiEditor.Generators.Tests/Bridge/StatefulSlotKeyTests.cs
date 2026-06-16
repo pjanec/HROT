@@ -175,5 +175,15 @@ public sealed class StatefulSlotKeyTests
         // (f) The thunk key format is {MethodFqn}@{paramOffset}@{slotKey}.
         bridgeSrc.Should().Contain($"@0@{expectedSlotKey}",
             "stateful thunk key must follow {MethodFqn}@{paramOffset}@{slotKey} format");
+
+        // (g) BATCH-10 PREREQ: StatefulWorkingSlots entry must include typeof(WorkingState).
+        bridgeSrc.Should().Contain("typeof(",
+            "emitted StatefulWorkingSlots entry must carry typeof(WorkingState) for live-value rendering");
+        bridgeSrc.Should().MatchRegex(@"typeof\(.*DemoCursorState.*\)",
+            "typeof() must reference the DemoCursorState working-state type");
+
+        // (h) BATCH-10 PREREQ: StatefulWorkingSlots entry must include the node label string.
+        bridgeSrc.Should().Contain("\"AdvanceCursor\"",
+            "emitted StatefulWorkingSlots entry must carry NodeLabel = the node's DisplayLabel");
     }
 }

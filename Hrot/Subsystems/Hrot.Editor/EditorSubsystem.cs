@@ -636,6 +636,11 @@ namespace Hrot.Editor
             Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
             Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
 
+            // Feature A (BATCH-10): expose the behavior registry to the shared stateful
+            // working-state projection helper so BlueprintBlackboard* renderers can decode
+            // and display typed WorkingState structs in the Entity Inspector.
+            Hrot.Presentation.Renderers.StatefulWorkingStateProjection.BehaviorRegistryAccessor = behaviorRegistry;
+
             // ?? Hot reload: watch the deployment directory for Hrot.AI.Behaviors.dll changes ??
             // When the user clicks "Reload BTrees" and MSBuild overwrites the DLL, the watcher
             // detects the change, loads the new assembly into a fresh collectible ALC on a
