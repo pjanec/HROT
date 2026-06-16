@@ -34,5 +34,6 @@ The intuitive place, but the window is design-time and the asset ≠ the running
 - Feature B scope = **selected-entity MVP, confirmed** ("selected entity is exactly what I expect"). The harder "any entity running this behavior" / canvas-overlay tier is **dropped** for now (do not build the AssetId→BehaviorId map / session iteration).
 - **Do not build anything yet** — BATCH-10 (Feature A + PREREQ) is spec'd and ready but ON HOLD until the user explicitly says go.
 
-## Sequencing
-PREREQ (manifest Type) + Feature A (BATCH-10) — spec'd, HOLD for user go -> user sees A live -> Feature B MVP, selected-entity scope (BATCH-11, authored after A is seen).
+## Sequencing — BOTH DONE
+- PREREQ + Feature A: **DONE (BATCH-10, commit f817e809)** — typed WorkingState in the Entity Inspector; user confirmed live (cursors incrementing).
+- Feature B MVP (selected-entity): **DONE (BATCH-11)** — live "Value" column in the Blackboard variable window via `ILiveBlackboardValueProvider` (name-match gate). Deferred "any entity"/canvas-overlay tier remains out of scope.

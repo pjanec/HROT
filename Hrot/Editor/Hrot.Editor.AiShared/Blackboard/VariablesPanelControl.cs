@@ -100,9 +100,10 @@ public sealed class VariablesPanelControl
     }
 
     public void DrawSingle(VariablesPanelSection section,
-        Func<string, FieldDecoration?>? rowDecoration = null)
+        Func<string, FieldDecoration?>? rowDecoration = null,
+        IReadOnlyDictionary<string, string>? liveValues = null)
     {
-        DrawSection(section, rowDecoration);
+        DrawSection(section, rowDecoration, liveValues);
         DrawPopups();
     }
 
@@ -111,10 +112,10 @@ public sealed class VariablesPanelControl
     {
         if (ImGui.CollapsingHeader($"{topSection.SectionName} ({topSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
             DrawSection(topSection, rowDecoration);
-        
+
         ImGui.Separator();
         ImGui.Spacing();
-        
+
         if (ImGui.CollapsingHeader($"{bottomSection.SectionName} ({bottomSection.TotalInlineBytes} B)", ImGuiTreeNodeFlags.DefaultOpen))
             DrawSection(bottomSection, rowDecoration);
 
@@ -122,7 +123,8 @@ public sealed class VariablesPanelControl
     }
 
     private void DrawSection(VariablesPanelSection section,
-        Func<string, FieldDecoration?>? rowDecoration = null)
+        Func<string, FieldDecoration?>? rowDecoration = null,
+        IReadOnlyDictionary<string, string>? liveValues = null)
     {
         var schema = section.Schema;
 
@@ -177,7 +179,7 @@ public sealed class VariablesPanelControl
         }
         else
         {
-            DrawTable(section, mainVars, rowDecoration);
+            DrawTable(section, mainVars, rowDecoration, liveValues);
         }
 
         // Node-Owned Allocations sub-group (dimmed, read-only).
@@ -243,14 +245,16 @@ public sealed class VariablesPanelControl
 
     private void DrawTable(VariablesPanelSection section,
         List<VariableViewModel> rows,
-        Func<string, FieldDecoration?>? rowDecoration = null)
+        Func<string, FieldDecoration?>? rowDecoration = null,
+        IReadOnlyDictionary<string, string>? liveValues = null)
     {
         var schema = section.Schema;
-        if (ImGui.BeginTable(section.TableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable(section.TableId, 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthFixed, 90f);
+            ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
+            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
 
@@ -372,6 +376,14 @@ public sealed class VariablesPanelControl
 
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.TypeName);
                 ImGui.TableNextColumn(); ImGui.TextUnformatted(row.ByteSize.ToString());
+                ImGui.TableNextColumn();
+                {
+                    // BATCH-11: live value column ("—" when no provider or no matching entity).
+                    if (liveValues != null && liveValues.TryGetValue(row.Name, out var lv))
+                        ImGui.TextUnformatted(lv);
+                    else
+                        ImGui.TextDisabled("—");
+                }
                 ImGui.TableNextColumn();
                 if (!schema.IsReadOnly && ImGui.SmallButton("[x]"))
                 {

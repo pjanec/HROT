@@ -140,6 +140,10 @@ public class PerspectiveWorkspaceRegistrar
     ///   facet types that carry an <c>ExpressionTargetField</c> (BTree Action/Condition
     ///   facets; HSM Transition/GlobalTransition facets). Return null for other types.
     /// </param>
+    /// <param name="liveValueProvider">
+    ///   Optional live-value provider (BATCH-11). When non-null, the Blackboard Authoring
+    ///   window shows a "Value" column with the selected entity's live values.
+    /// </param>
     public PerspectiveWorkspaceRegistrar(
         string perspectiveName,
         EditorSelectionStore selectionStore,
@@ -155,7 +159,8 @@ public class PerspectiveWorkspaceRegistrar
         IActionSchemaExporter? schemaExporter = null,
         IComponentEditService? facetEditService = null,
         IReadOnlyDictionary<Type, IImGuiFieldDrawer>? facetCustomDrawers = null,
-        Func<object?, string?>? expressionTargetFieldAccessor = null)
+        Func<object?, string?>? expressionTargetFieldAccessor = null,
+        ILiveBlackboardValueProvider? liveValueProvider = null)
     {
         if (string.IsNullOrWhiteSpace(perspectiveName))
             throw new ArgumentException("perspectiveName must not be null or whitespace.", nameof(perspectiveName));
@@ -204,7 +209,8 @@ public class PerspectiveWorkspaceRegistrar
             sessionRegistry:    sessionRegistry,
             aggregatorService:  aggregatorService,
             idOverride:         $"ai_blackboard_variables_{suffix}",
-            owningPerspective:  perspectiveName);
+            owningPerspective:  perspectiveName,
+            liveValueProvider:  liveValueProvider);
 
         Diagnostics = new DiagnosticsWindow(
             catalog:           catalog,

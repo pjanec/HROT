@@ -1973,6 +1973,20 @@ namespace Hrot.Editor
                     () => _hsmDebugSession);
             // ────────────────────────────────────────────────────────────────────────────────────
 
+            // BATCH-11: Build the live-value provider for the Blackboard Authoring window's Value column.
+            // Captures _fdpRepoAdapter (set in Initialize, null until simulation runs) and _behaviorRegistry
+            // via lambdas so both perspectives share the same live-world source.
+            // Both selection stores share the same entity selection (global), so we use one provider
+            // instance per perspective; both read the same entity via their respective store.
+            var btreeLiveValueProvider = new LiveBlackboardValueProvider(
+                sessionFactory:  () => _fdpRepoAdapter,
+                registryFactory: () => _behaviorRegistry,
+                store:           _btreeSelectionStore);
+            var hsmLiveValueProvider = new LiveBlackboardValueProvider(
+                sessionFactory:  () => _fdpRepoAdapter,
+                registryFactory: () => _behaviorRegistry,
+                store:           _hsmSelectionStore);
+
             // Build per-perspective selection stores and registrars.
             // AIE-034: pass _bpManager so each perspective gets Watch + Breakpoints windows.
             // AIE-050: pass comparison services so BlackboardAuthoringWindow shows comparison toolbar.
@@ -2001,7 +2015,8 @@ namespace Hrot.Editor
                 aggregatorService:             aggregatorService,
                 schemaExporter:                sharedSchemaExporter,
                 facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField);
+                expressionTargetFieldAccessor: ResolveExpressionTargetField,
+                liveValueProvider:             btreeLiveValueProvider);
             _hsmRegistrar      = new PerspectiveWorkspaceRegistrar(
                 "HSM", _hsmSelectionStore, catalog, refactorService, debugRegistry,
                 validators: new Hrot.Editor.AiShared.Validation.IAssetValidator[]
@@ -2015,7 +2030,8 @@ namespace Hrot.Editor
                 aggregatorService:             aggregatorService,
                 schemaExporter:                sharedSchemaExporter,
                 facetEditService:              facetEditService,
-                expressionTargetFieldAccessor: ResolveExpressionTargetField);
+                expressionTargetFieldAccessor: ResolveExpressionTargetField,
+                liveValueProvider:             hsmLiveValueProvider);
             _blueprintRegistrar = new PerspectiveWorkspaceRegistrar(
                 "Blueprint", _blueprintSelectionStore, catalog, refactorService, debugRegistry,
                 breakpointManager:    _bpManager,

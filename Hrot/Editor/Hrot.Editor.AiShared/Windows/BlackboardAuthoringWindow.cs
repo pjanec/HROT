@@ -71,6 +71,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     private readonly ComparisonSessionRegistry? _sessionRegistry;
     private readonly BlackboardAggregatorService? _aggregatorService;
     private IActionSchemaExporter? _actionSchemaExporter;
+    private readonly ILiveBlackboardValueProvider? _liveValueProvider;
 
     // Inline rename state
     
@@ -112,6 +113,11 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
     /// <param name="owningPerspective">
     ///   Perspective that owns this instance. Defaults to <c>"Authoring"</c>.
     /// </param>
+    /// <param name="liveValueProvider">
+    ///   Optional live-value provider (BATCH-11). When non-null, a "Value" column is shown
+    ///   in the variables table displaying the selected entity's live blackboard values.
+    ///   When null (default), the column still renders but shows "—" for every row.
+    /// </param>
     public BlackboardAuthoringWindow(
         EditorSelectionStore store,
         IRefactorService refactorService,
@@ -121,7 +127,8 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         BlackboardAggregatorService? aggregatorService = null,
         string? idOverride = null,
         string? owningPerspective = null,
-        IActionSchemaExporter? actionSchemaExporter = null)
+        IActionSchemaExporter? actionSchemaExporter = null,
+        ILiveBlackboardValueProvider? liveValueProvider = null)
         : base(idOverride ?? "ai_blackboard_variables", "Blackboard Variables",
                owningPerspective ?? "Authoring", WindowScope.PerspectiveBound)
     {
@@ -130,6 +137,7 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
         _sessionRegistry = sessionRegistry;
         _aggregatorService = aggregatorService;
         _actionSchemaExporter = actionSchemaExporter;
+        _liveValueProvider = liveValueProvider;
         if (sanitizerRegistry != null && exportBuilder != null && sessionRegistry != null)
             _comparisonToolbar = new ComparisonToolbarAction(sanitizerRegistry, exportBuilder, sessionRegistry);
     }
@@ -471,7 +479,12 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                 rowDec = fieldName => BlackboardComparisonDecorator.GetDecoration(fieldName, compSession);
         }
 
-        _variablesControl.DrawSingle(section, rowDec);
+        // BATCH-11: collect live variable values once per frame and pass to the table renderer.
+        IReadOnlyDictionary<string, string>? liveValues = null;
+        if (_liveValueProvider != null && asset != null)
+            liveValues = _liveValueProvider.GetLiveVariableValues(asset);
+
+        _variablesControl.DrawSingle(section, rowDec, liveValues);
 
         // Sub-tree allocations section (1e-05): auto-managed slots for Approach B nodes.
         var autoAllocs = (asset as IBTreeSyncableAsset)?.GetAutoAllocatedVariables();
