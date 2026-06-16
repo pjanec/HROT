@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 490" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <marker id="a7" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#C7A98C"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="920" height="490" fill="#F7F8FA"/>
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#3A4250">Distributed Simulation — One Entity, Split Across Nodes</text>
+  <text x="40" y="68" font-size="14" fill="#6B7280">An entity has no single wire object. It's a set of descriptor topics; ownership is granular per descriptor.</text>
+
+  <!-- The entity, shown as facets -->
+  <text x="180" y="108" font-size="13" font-weight="700" fill="#5B7BA6" text-anchor="middle">Brain owns cognition</text>
+  <text x="720" y="108" font-size="13" font-weight="700" fill="#7A916A" text-anchor="middle">Muscle owns physics</text>
+
+  <!-- central entity identity -->
+  <g filter="url(#soft)"><rect x="385" y="130" width="150" height="58" rx="29" fill="#E4E7EC" stroke="#9AA3B0" stroke-width="1.7"/></g>
+  <text x="460" y="156" font-size="13" font-weight="700" fill="#3A4250" text-anchor="middle">EntityMaster</text>
+  <text x="460" y="174" font-size="10" fill="#6B7280" text-anchor="middle">existence + shared key</text>
+
+  <!-- Brain descriptors -->
+  <g filter="url(#soft)"><rect x="60" y="130" width="180" height="48" rx="9" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.5"/></g>
+  <text x="150" y="159" font-size="12" fill="#3A4250" text-anchor="middle">Mission · NavigationIntent</text>
+  <g filter="url(#soft)"><rect x="60" y="188" width="180" height="48" rx="9" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.5"/></g>
+  <text x="150" y="217" font-size="12" fill="#3A4250" text-anchor="middle">Threat memory · behavior</text>
+
+  <!-- Muscle descriptors -->
+  <g filter="url(#soft)"><rect x="680" y="130" width="180" height="48" rx="9" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.5"/></g>
+  <text x="770" y="159" font-size="12" fill="#3A4250" text-anchor="middle">WorldPos · velocity</text>
+  <g filter="url(#soft)"><rect x="680" y="188" width="180" height="48" rx="9" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.5"/></g>
+  <text x="770" y="217" font-size="12" fill="#3A4250" text-anchor="middle">NavigationStatus · physics</text>
+
+  <line x1="240" y1="154" x2="385" y2="154" stroke="#9AA3B0" stroke-width="1.4"/>
+  <line x1="240" y1="210" x2="385" y2="168" stroke="#9AA3B0" stroke-width="1.4"/>
+  <line x1="535" y1="154" x2="680" y2="154" stroke="#9AA3B0" stroke-width="1.4"/>
+  <line x1="535" y1="168" x2="680" y2="210" stroke="#9AA3B0" stroke-width="1.4"/>
+
+  <!-- bottom row: three mechanisms -->
+  <g filter="url(#soft)"><rect x="60" y="280" width="250" height="160" rx="12" fill="#FBFCFD" stroke="#9AA3B0" stroke-width="1.4"/></g>
+  <text x="185" y="308" font-size="14" font-weight="700" fill="#3A4250" text-anchor="middle">Ghosts &amp; dead reckoning</text>
+  <text x="185" y="332" font-size="11" fill="#6B7280" text-anchor="middle">unowned replicas appear as</text>
+  <text x="185" y="349" font-size="11" fill="#6B7280" text-anchor="middle">ghosts; promoted only when</text>
+  <text x="185" y="366" font-size="11" fill="#6B7280" text-anchor="middle">fully hydrated; motion is</text>
+  <text x="185" y="383" font-size="11" fill="#6B7280" text-anchor="middle">extrapolated between updates</text>
+  <text x="185" y="414" font-size="10.5" font-style="italic" fill="#5B7BA6" text-anchor="middle">never operate on a half-built entity</text>
+
+  <g filter="url(#soft)"><rect x="335" y="280" width="250" height="160" rx="12" fill="#FBFCFD" stroke="#9AA3B0" stroke-width="1.4"/></g>
+  <text x="460" y="308" font-size="14" font-weight="700" fill="#3A4250" text-anchor="middle">QoS matched to data</text>
+  <rect x="355" y="324" width="210" height="34" rx="7" fill="#EAF0E3" stroke="#7A916A" stroke-width="1.1"/>
+  <text x="460" y="345" font-size="10.5" fill="#4f5d44" text-anchor="middle">position → BestEffort (cheap, frequent)</text>
+  <rect x="355" y="366" width="210" height="34" rx="7" fill="#DEE7F1" stroke="#5B7BA6" stroke-width="1.1"/>
+  <text x="460" y="387" font-size="10.5" fill="#46566e" text-anchor="middle">ownership/commands → Reliable</text>
+  <text x="460" y="423" font-size="10.5" font-style="italic" fill="#9AA3B0" text-anchor="middle">deliberate per-topic, not a default</text>
+
+  <g filter="url(#soft)"><rect x="610" y="280" width="250" height="160" rx="12" fill="#FBFCFD" stroke="#9AA3B0" stroke-width="1.4"/></g>
+  <text x="735" y="308" font-size="14" font-weight="700" fill="#3A4250" text-anchor="middle">Deterministic time</text>
+  <text x="735" y="332" font-size="11" fill="#6B7280" text-anchor="middle">lockstep mode advances only</text>
+  <text x="735" y="349" font-size="11" fill="#6B7280" text-anchor="middle">when all nodes acknowledge;</text>
+  <text x="735" y="366" font-size="11" fill="#6B7280" text-anchor="middle">continuous mode for live ops</text>
+  <text x="735" y="397" font-size="10.5" fill="#6B7280" text-anchor="middle">switchable protocols:</text>
+  <text x="735" y="414" font-size="10.5" font-style="italic" fill="#A86F8C" text-anchor="middle">full NED  ·  lightweight BDC</text>
+</svg>

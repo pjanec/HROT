@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 520" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#C7A98C"/>
+    </marker>
+    <marker id="arRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#B5796B"/>
+    </marker>
+    <filter id="s2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="920" height="520" fill="#F7F8FA"/>
+
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#3A4250">Actuation — Decision to Motion</text>
+  <text x="40" y="68" font-size="14" fill="#6B7280">AI writes a command to a channel; the muscle tier gates, dispatches, and executes it.</text>
+
+  <!-- BRAIN side label -->
+  <text x="150" y="108" font-size="12" font-weight="700" fill="#5B7BA6" text-anchor="middle" letter-spacing="1">BRAIN (cognition)</text>
+  <!-- MUSCLE side label -->
+  <text x="640" y="108" font-size="12" font-weight="700" fill="#7A916A" text-anchor="middle" letter-spacing="1">MUSCLE (execution)</text>
+
+  <!-- divider -->
+  <line x1="300" y1="120" x2="300" y2="480" stroke="#9AA3B0" stroke-width="1" stroke-dasharray="4 5"/>
+
+  <!-- Behavior node (brain) -->
+  <g filter="url(#s2)">
+    <rect x="50" y="150" width="210" height="92" rx="12" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.8"/>
+  </g>
+  <text x="155" y="178" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">BTree / HSM action</text>
+  <text x="155" y="200" font-size="11.5" fill="#46566e" text-anchor="middle">decides what to do</text>
+  <text x="155" y="222" font-size="11" font-style="italic" fill="#5B7BA6" text-anchor="middle">writes the channel — never moves the entity</text>
+
+  <!-- Channel (the register) -->
+  <g filter="url(#s2)">
+    <rect x="360" y="150" width="200" height="92" rx="12" fill="#E4E7EC" stroke="#9AA3B0" stroke-width="1.8"/>
+  </g>
+  <text x="460" y="176" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">Channel</text>
+  <text x="460" y="196" font-size="11" fill="#6B7280" text-anchor="middle">Locomotion · Weapon · Interaction</text>
+  <text x="460" y="213" font-size="10.5" fill="#6B7280" text-anchor="middle">ActiveAction · Params · Status</text>
+  <text x="460" y="229" font-size="10.5" fill="#6B7280" text-anchor="middle">instance counters (lifecycle)</text>
+
+  <!-- Dispatcher -->
+  <g filter="url(#s2)">
+    <rect x="360" y="290" width="200" height="84" rx="12" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.8"/>
+  </g>
+  <text x="460" y="318" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">Dispatcher</text>
+  <text x="460" y="339" font-size="11" fill="#4f5d44" text-anchor="middle">checks ActorCapability</text>
+  <text x="460" y="356" font-size="11" fill="#4f5d44" text-anchor="middle">routes action → executor</text>
+
+  <!-- Executor -->
+  <g filter="url(#s2)">
+    <rect x="640" y="290" width="210" height="84" rx="12" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.8"/>
+  </g>
+  <text x="745" y="318" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">Executor</text>
+  <text x="745" y="339" font-size="11" fill="#4f5d44" text-anchor="middle">OnEnter / Execute / OnExit</text>
+  <text x="745" y="356" font-size="11" fill="#4f5d44" text-anchor="middle">drives physical state frame-by-frame</text>
+
+  <!-- Physical outcome -->
+  <g filter="url(#s2)">
+    <rect x="640" y="408" width="210" height="64" rx="12" fill="#E6D9C7" stroke="#B08C5E" stroke-width="1.8"/>
+  </g>
+  <text x="745" y="435" font-size="14" font-weight="700" fill="#3A4250" text-anchor="middle">Physical state</text>
+  <text x="745" y="455" font-size="11" fill="#6e5836" text-anchor="middle">motion · fire · interaction</text>
+
+  <!-- flows -->
+  <line x1="260" y1="196" x2="360" y2="196" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#ar)"/>
+  <text x="310" y="188" font-size="10.5" font-weight="600" fill="#9b7d5e" text-anchor="middle">write</text>
+
+  <line x1="460" y1="242" x2="460" y2="290" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#ar)"/>
+  <text x="500" y="270" font-size="10.5" font-weight="600" fill="#9b7d5e" text-anchor="middle">read each frame</text>
+
+  <line x1="560" y1="332" x2="640" y2="332" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#ar)"/>
+  <line x1="745" y1="374" x2="745" y2="408" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#ar)"/>
+
+  <!-- status back to channel -->
+  <path d="M745,290 C745,250 600,250 562,210" fill="none" stroke="#6B7280" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+  <text x="650" y="246" font-size="10.5" font-style="italic" fill="#6B7280" text-anchor="middle">Status → Running/Success/Failure</text>
+
+  <!-- capability gate callout -->
+  <g>
+    <rect x="50" y="300" width="250" height="62" rx="10" fill="#E8CFC9" stroke="#B5796B" stroke-width="1.4"/>
+    <text x="175" y="324" font-size="12" font-weight="700" fill="#3A4250" text-anchor="middle">Capability gate &amp; preemption</text>
+    <text x="175" y="343" font-size="10.5" fill="#7a4f44" text-anchor="middle">no capability → forced Failure;</text>
+    <text x="175" y="357" font-size="10.5" fill="#7a4f44" text-anchor="middle">behavior switch → stale command cleared</text>
+  </g>
+  <path d="M300,331 C330,331 340,331 360,331" fill="none" stroke="#B5796B" stroke-width="1.6" marker-end="url(#arRed)"/>
+</svg>

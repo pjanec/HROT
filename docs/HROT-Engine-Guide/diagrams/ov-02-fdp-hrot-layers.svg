@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 470" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="920" height="470" fill="#F7F8FA"/>
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#3A4250">Two Layers — FDP &amp; HROT</text>
+  <text x="40" y="68" font-size="14" fill="#6B7280">FDP is the domain-agnostic engine. HROT is the military application built on it. Nothing in FDP knows what a tank is.</text>
+
+  <!-- HROT layer (application) -->
+  <g filter="url(#soft)"><rect x="60" y="100" width="800" height="150" rx="14" fill="#E5D2DD" stroke="#A86F8C" stroke-width="1.8"/></g>
+  <text x="84" y="128" font-size="16" font-weight="700" fill="#3A4250">HROT — Military Application</text>
+  <text x="84" y="148" font-size="11.5" fill="#7a4f6a">combined-arms tactical simulation · the domain layer</text>
+
+  <g>
+    <rect x="84" y="166" width="170" height="66" rx="9" fill="#F2E6EC" stroke="#C49DB4" stroke-width="1.3"/>
+    <text x="169" y="190" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">TKB entities</text>
+    <text x="169" y="208" font-size="10.5" fill="#7a4f6a" text-anchor="middle">tanks · infantry</text>
+    <text x="169" y="222" font-size="10.5" fill="#7a4f6a" text-anchor="middle">templates &amp; types</text>
+  </g>
+  <g>
+    <rect x="270" y="166" width="170" height="66" rx="9" fill="#F2E6EC" stroke="#C49DB4" stroke-width="1.3"/>
+    <text x="355" y="190" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">Combat &amp; perception</text>
+    <text x="355" y="208" font-size="10.5" fill="#7a4f6a" text-anchor="middle">ballistics · sensors</text>
+    <text x="355" y="222" font-size="10.5" fill="#7a4f6a" text-anchor="middle">line-of-sight</text>
+  </g>
+  <g>
+    <rect x="456" y="166" width="170" height="66" rx="9" fill="#F2E6EC" stroke="#C49DB4" stroke-width="1.3"/>
+    <text x="541" y="190" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">Tactical AI</text>
+    <text x="541" y="208" font-size="10.5" fill="#7a4f6a" text-anchor="middle">missions · squads</text>
+    <text x="541" y="222" font-size="10.5" fill="#7a4f6a" text-anchor="middle">behaviors</text>
+  </g>
+  <g>
+    <rect x="642" y="166" width="194" height="66" rx="9" fill="#F2E6EC" stroke="#C49DB4" stroke-width="1.3"/>
+    <text x="739" y="190" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">Subsystems</text>
+    <text x="739" y="208" font-size="10.5" fill="#7a4f6a" text-anchor="middle">CGF · SimHost · IG</text>
+    <text x="739" y="222" font-size="10.5" fill="#7a4f6a" text-anchor="middle">ExCon · Orchestrator</text>
+  </g>
+
+  <!-- builds-on arrow -->
+  <text x="460" y="278" font-size="12" font-style="italic" fill="#9AA3B0" text-anchor="middle">builds on ▼</text>
+
+  <!-- FDP layer (engine) -->
+  <g filter="url(#soft)"><rect x="60" y="292" width="800" height="150" rx="14" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.8"/></g>
+  <text x="84" y="320" font-size="16" font-weight="700" fill="#3A4250">FDP — Framework for Distributed Processing</text>
+  <text x="84" y="340" font-size="11.5" fill="#46566e">domain-agnostic simulation engine · reusable across domains</text>
+
+  <g>
+    <rect x="84" y="358" width="170" height="66" rx="9" fill="#DEE7F1" stroke="#88A2C4" stroke-width="1.3"/>
+    <text x="169" y="382" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">ECS kernel</text>
+    <text x="169" y="400" font-size="10.5" fill="#46566e" text-anchor="middle">flat memory</text>
+    <text x="169" y="414" font-size="10.5" fill="#46566e" text-anchor="middle">zero-alloc hot path</text>
+  </g>
+  <g>
+    <rect x="270" y="358" width="170" height="66" rx="9" fill="#DEE7F1" stroke="#88A2C4" stroke-width="1.3"/>
+    <text x="355" y="382" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">Module host</text>
+    <text x="355" y="400" font-size="10.5" fill="#46566e" text-anchor="middle">hot-plug at 60 Hz</text>
+    <text x="355" y="414" font-size="10.5" fill="#46566e" text-anchor="middle">live reload</text>
+  </g>
+  <g>
+    <rect x="456" y="358" width="170" height="66" rx="9" fill="#DEE7F1" stroke="#88A2C4" stroke-width="1.3"/>
+    <text x="541" y="382" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">DDS networking</text>
+    <text x="541" y="400" font-size="10.5" fill="#46566e" text-anchor="middle">CycloneDDS</text>
+    <text x="541" y="414" font-size="10.5" fill="#46566e" text-anchor="middle">pub/sub</text>
+  </g>
+  <g>
+    <rect x="642" y="358" width="194" height="66" rx="9" fill="#DEE7F1" stroke="#88A2C4" stroke-width="1.3"/>
+    <text x="739" y="382" font-size="12" font-weight="600" fill="#3A4250" text-anchor="middle">Flight recorder</text>
+    <text x="739" y="400" font-size="10.5" fill="#46566e" text-anchor="middle">deterministic event bus</text>
+    <text x="739" y="414" font-size="10.5" fill="#46566e" text-anchor="middle">delta capture</text>
+  </g>
+</svg>
