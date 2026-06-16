@@ -1619,6 +1619,7 @@ public sealed class EditorStrideSubsystem : IDisposable
         {
             new SpatialCoreTkbTranslator(),                               // Fdp.Toolkit.Spatial
             new VehicleKinematicsTkbTranslator(),                         // CarKinem.Tkb
+            new InfantryVehicleStateStripTkbTranslator(),                 // Hrot.Stride.Core — strips VehicleState/VehicleParams from capsule (infantry) entities
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
