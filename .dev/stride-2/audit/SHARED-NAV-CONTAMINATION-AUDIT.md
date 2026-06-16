@@ -45,13 +45,24 @@ to silence the spurious frustration during the body-not-yet-in-sim startup windo
 
 | # | File | Δ | SimHost impact today | Verdict |
 |---|------|---|----------------------|---------|
-| 1 | `CarKinem/Systems/NavigationExecutionSystem.cs` | `.Without<VehicleState>()` | **BROKE tanks** | **MASK — RESTORED to main ✅** |
-| 2 | `CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs` | +50 | Tanks unaffected (OrientedBox keeps VehicleState). **Infantry lose VehicleState** | **REVIEW (high)** — shared TKB now makes a muscle-specific decision |
-| 3 | `Navigation/Systems/CrowdAgentUpdateSystem.cs` | ~50 | Inert (not registered in SimHost) | **REVIEW (high)** — split-authority refactor: writes `CrowdMotorIntent` instead of `SimVelocity`/`SimTransform` |
-| 4 | `Navigation/CrowdMotorIntent.cs` (new) + `NavigationContractsComponentIds` (265) | +65/+10 | Inert (not registered) | **REVIEW (med)** — Stride/Bullet split-authority component placed in shared toolkit |
-| 5 | `Navigation/Systems/NavigationIntentBridgeSystem.cs` | +92 | Inert (gated on `_dtCrowd != null`; SimHost has none) | **REVIEW (low)** — crowd-registration retry + GPU diagnostics; behavior-safe but noisy |
+| 1 | `CarKinem/Systems/NavigationExecutionSystem.cs` | `.Without<VehicleState>()` | **BROKE tanks** | **MASK — RESTORED to main ✅** (`dcaeb306`) |
+| 2 | `CarKinem/Tkb/VehicleKinematicsTkbTranslator.cs` | +50 | Tanks unaffected (OrientedBox keeps VehicleState). **Infantry lose VehicleState** | **MASK — RESTORED to main ✅** (`0fe91056`); muscle decision relocated to `Hrot.Stride.Core/InfantryVehicleStateStripTkbTranslator` |
+| 3 | `Navigation/Systems/CrowdAgentUpdateSystem.cs` | ~50 | Inert (not registered in SimHost; dormant on main) | **KEEP (shared nav-v2 infra)** — split-authority (write `CrowdMotorIntent`); not a mask, no main behavior change |
+| 4 | `Navigation/CrowdMotorIntent.cs` (new) + `NavigationContractsComponentIds` (265) | +65/+10 | Inert (not registered) | **KEEP (shared nav-v2 infra)** — explicitly engine-agnostic intent component (design §5.3) |
+| 5 | `Navigation/Systems/NavigationIntentBridgeSystem.cs` | +92 | Inert (gated on `_dtCrowd != null`; SimHost has none) | **KEEP** — robustness/diagnostics on main's existing gated crowd block; behavior-safe |
 | 6 | `Navigation/IDtCrowdProvider.cs` + Engine/Fake impls | +9/+3/+5 | Inert | **KEEP (low-risk)** — additive, backward-compatible overload (`RegisterAgent(..., startPositionFdp)`) |
 | 7 | `Hrot.SimHost/.../EcsRecordReplayController.cs` | +15 | Active (record/replay) | **KEEP / promote separately** — unrelated record→replay file-handle release fix (BATCH-16), not navigation |
+
+### Resolution (2026-06-16, user decision)
+Items **#1 and #2 were the behavior-changing masks** and are reverted to main; their muscle-specific
+intent now lives on the muscle side (#1 via the Stride `VehicleNavigationIntentSystem` already writing
+Arrived; #2 via the new Stride `InfantryVehicleStateStripTkbTranslator`). **Items #3–#7 are kept as shared
+nav-v2 infra**: they are engine-agnostic and/or dormant/gated on main (no behavior change there) — not
+"masking fixes." Full literal relocation of #3–#5 was deliberately NOT done because (a) `CrowdMotorIntent`
+would need a Stride-owned component-id range (a component-id-ownership architecture decision — defer to
+architect), and (b) reverting the bridge robustness risks silently breaking Stride *infantry* crowd
+registration with no infantry-crowd test coverage. Revisit #3–#5 as a separate, tested pass if/when the
+nav-v2 split-authority work lands on main on its own merits.
 
 ### Notes on the "REVIEW (high)" items
 - **#2 VehicleKinematicsTkbTranslator** is the *same anti-pattern* as the tank bug: a **shared** translator
