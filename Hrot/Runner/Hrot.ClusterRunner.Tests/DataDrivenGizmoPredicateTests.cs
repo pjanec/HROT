@@ -83,9 +83,9 @@ namespace Hrot.ClusterRunner.Tests
             Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 col, float headSize = 1f, byte l = 0) { }
         public void DrawText(float x, float y, FixedString32 text, Rgba32 col,
-            CoordinateSpace space = CoordinateSpace.World, byte l = 0) { }
+            CoordinateSpace space = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string text, Rgba32 col,
-            CoordinateSpace space = CoordinateSpace.World, byte l = 0) { }
+            CoordinateSpace space = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityBadge(Entity target, FixedString32 richText,
             PipelineTarget targetPipeline = PipelineTarget.All) { }
         public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,

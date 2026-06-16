@@ -28,8 +28,6 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         // Horizontal offset east of the entity (world metres).
         private const float LabelOffsetX = 12f;
-        // Vertical spacing between lines (world metres).
-        private const float LineSpacing = 6f;
 
         private readonly BehaviorRegistry _behaviorRegistry;
 
@@ -49,11 +47,16 @@ namespace Hrot.ScenarioEditor.Gizmos
             float baseX = tf.Position.X + LabelOffsetX;
             float baseY = tf.Position.Y;
 
-            // Line 1: Network ID.
-            draw.DrawText(baseX, baseY, new FixedString32($"{netId.Value}"), IdColor);
+            // All three lines share the same world anchor point. Screen-pixel vertical spacing
+            // is applied via lineOffsetPx (carried in AnchorGeneration), so the block stays
+            // fixed-size and zoom-independent. Negative offsets place the block ABOVE the
+            // entity (top-right), stacked HP (top) / behavior / id (just above the entity).
 
-            // Line 2: Active behavior name.
-            float line2Y = baseY - LineSpacing;
+            // Bottom line: Network ID (white), 16 px above the entity.
+            draw.DrawText(baseX, baseY, new FixedString32($"{netId.Value}"), IdColor,
+                fontSizePx: 13f, lineOffsetPx: -16f);
+
+            // Middle line: Active behavior name (yellow), 30 px above the entity.
             if (view.HasComponent<BehaviorState>(entity))
             {
                 ref readonly var bs = ref view.GetComponentRO<BehaviorState>(entity);
@@ -63,16 +66,17 @@ namespace Hrot.ScenarioEditor.Gizmos
                     string truncated = behaviorName.Length > 20
                         ? behaviorName.Substring(0, 20)
                         : behaviorName;
-                    draw.DrawTextLong(baseX, line2Y, truncated, BehaviorColor);
+                    draw.DrawTextLong(baseX, baseY, truncated, BehaviorColor,
+                        fontSizePx: 13f, lineOffsetPx: -30f);
                 }
                 else
                 {
-                    draw.DrawText(baseX, line2Y, new FixedString32("?"), BehaviorColor);
+                    draw.DrawText(baseX, baseY, new FixedString32("?"), BehaviorColor,
+                        fontSizePx: 13f, lineOffsetPx: -30f);
                 }
             }
 
-            // Line 3: HP current/max.
-            float line3Y = baseY - 2f * LineSpacing;
+            // Top line: HP current/max (coloured by ratio), 44 px above the entity.
             if (view.HasComponent<Health>(entity))
             {
                 ref readonly var hp = ref view.GetComponentRO<Health>(entity);
@@ -80,7 +84,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 Rgba32 hpColor = ratio >= 0.66f ? HpGreen
                                : ratio >= 0.33f ? HpYellow
                                : HpRed;
-                draw.DrawTextLong(baseX, line3Y, $"HP:{hp.Current:F0}/{hp.Max:F0}", hpColor);
+                draw.DrawTextLong(baseX, baseY, $"HP:{hp.Current:F0}/{hp.Max:F0}", hpColor,
+                    fontSizePx: 13f, lineOffsetPx: -44f);
             }
         }
     }

@@ -41,6 +41,7 @@ internal sealed class LocalWindowController
         _shell.SetupImGui();
 
         var atlas = _shell.LoadIconAtlas();
+        _shell.LoadGizmoFont();
         var wm = new Fdp.Presentation.WindowManager.WindowManager(atlas);
 
         // Message log

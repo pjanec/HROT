@@ -43,6 +43,14 @@ namespace Fdp.Toolkit.Scenario
     /// </remarks>
     public sealed class ScenarioSerializer
     {
+        /// <summary>
+        /// Current scenario schema version written into the document <c>$meta</c> envelope.
+        /// v2: entity DIS type is now persisted via the <c>DisEntityType</c> translator
+        /// (added on top of the v1 component set). Load remains backward-compatible — v1
+        /// files simply lack the <c>DisEntityType</c> entry.
+        /// </summary>
+        public const int CurrentSchemaVersion = 2;
+
         private readonly string _subsystemType;
         private readonly IEntityScenarioTranslator[] _translators;
 
@@ -189,7 +197,7 @@ namespace Fdp.Toolkit.Scenario
             var root = new JsonObject { ["Entities"] = entitiesNode };
             if (header.TkbName != null)
                 root["Header"] = new JsonObject { ["TkbName"] = JsonValue.Create(header.TkbName) };
-            JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, 1));
+            JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;
         }
 
@@ -223,10 +231,17 @@ namespace Fdp.Toolkit.Scenario
 
                 // STRICT ARCHITECTURE BOUNDARY: Enforce the requested component mask.
                 // If this translator consumes none of the requested components, skip it.
+                // Exception: translators with an empty consumed mask are "header-native" —
+                // they read from entity-header data (not ECS components) and must always run
+                // (they self-gate via CanTranslate above).  Only apply the strict mask gate
+                // to translators that actually declare component consumption.
                 var consumed = translator.GetConsumedComponentsMask();
-                var intersection = consumed;
-                intersection.BitwiseAnd(componentMask);
-                if (intersection.IsEmpty()) continue;
+                if (!consumed.IsEmpty())
+                {
+                    var intersection = consumed;
+                    intersection.BitwiseAnd(componentMask);
+                    if (intersection.IsEmpty()) continue;
+                }
 
                 var entries = translator.Extract(repo, entity, resolver);
                 foreach (var kv in entries)

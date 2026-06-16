@@ -24,7 +24,8 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new Blackboard1024Translator(behaviorRegistry))
                 .RegisterTranslator(new BTreeTraceWorkingMemoryTranslator(behaviorRegistry))
                 .RegisterTranslator(new HsmTraceWorkingMemoryTranslator(behaviorRegistry))
-                .RegisterTranslator(new BlueprintStateTranslator(blueprintRegistry));
+                .RegisterTranslator(new BlueprintStateTranslator(blueprintRegistry))
+                .RegisterTranslator(new DisEntityTypeTranslator());
 
             return builder.Build();
         }

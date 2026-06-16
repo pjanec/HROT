@@ -299,7 +299,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public static DebugPrimitive MakeText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f)
         {
             var p = default(DebugPrimitive);
             p.Shape       = DebugPrimitiveShape.Text;
@@ -311,6 +313,14 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.TextY       = y;
             p.TextContent = text;
             // StringHash remains 0 (inline mode)
+            // ThicknessU16 is repurposed for Text to carry the desired screen-pixel font size
+            // (stored as-is, not * 10 like line/sphere thickness). Zero means "use renderer default".
+            if (fontSizePx > 0f)
+                p.ThicknessU16 = (ushort)fontSizePx;
+            // AnchorGeneration carries the screen-pixel line offset for Text primitives.
+            // Signed: negative moves the line UP, positive DOWN (stored as int16 bit-pattern).
+            if (lineOffsetPx != 0f)
+                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
             return p;
         }
 

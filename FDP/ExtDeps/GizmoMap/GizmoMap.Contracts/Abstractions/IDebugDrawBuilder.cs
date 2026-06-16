@@ -56,7 +56,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0);
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f);
 
         // Interns full managed string for text exceeding 31 chars; emits StringHash != 0.
         // The first 31 chars are stored inline as a preview fallback.
@@ -65,7 +67,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0);
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f);
 
         /// <summary>
         /// Called once per frame before gizmo systems execute. Advances the persistence clock

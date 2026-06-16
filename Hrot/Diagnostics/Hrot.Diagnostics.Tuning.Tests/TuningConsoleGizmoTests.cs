@@ -53,12 +53,12 @@ namespace Hrot.Diagnostics.Tuning.Tests
         public void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0) => OtherCount++;
+            byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) => OtherCount++;
 
         public void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0) => OtherCount++;
+            byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) => OtherCount++;
     }
 
     public sealed class TuningConsoleGizmoTests

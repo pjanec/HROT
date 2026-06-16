@@ -34,4 +34,11 @@
       <LogicalName>FDP.Toolkit_ImGui.Icons.famfamfam-silk.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
+
+  <!-- Embedded UI font (gizmo / debug-text rendering) -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Data\Fonts\Roboto-Regular.ttf">
+      <LogicalName>FDP.Toolkit_ImGui.Fonts.Roboto-Regular.ttf</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

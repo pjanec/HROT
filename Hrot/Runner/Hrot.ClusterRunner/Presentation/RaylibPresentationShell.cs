@@ -7,6 +7,7 @@ namespace Hrot.ClusterRunner.Presentation;
 internal sealed class RaylibPresentationShell : IPresentationShell
 {
     private Raylib_cs.Texture2D _atlasTexture;
+    private Raylib_cs.Font _gizmoFont;
     private IntPtr _iniFilenamePtr;
 
     public void InitWindow(int width, int height, string title, int targetFps)
@@ -48,6 +49,8 @@ internal sealed class RaylibPresentationShell : IPresentationShell
     {
         if (_atlasTexture.Id != 0)
             Raylib_cs.Raylib.UnloadTexture(_atlasTexture);
+        if (_gizmoFont.Texture.Id != 0)
+            Raylib_cs.Raylib.UnloadFont(_gizmoFont);
         Raylib_cs.Raylib.CloseWindow();
     }
 
@@ -68,5 +71,15 @@ internal sealed class RaylibPresentationShell : IPresentationShell
         Raylib_cs.Raylib.UnloadImage(img);
         return new Fdp.Presentation.Icons.IconAtlas(
             (nint)_atlasTexture.Id, _atlasTexture.Width, _atlasTexture.Height, 16f);
+    }
+
+    public void LoadGizmoFont()
+    {
+        byte[] ttf = Fdp.Presentation.Fonts.EmbeddedFontResources.GetRobotoRegularTtfBytes();
+        // Load at 32-pixel base size for crisp downscaling to 9–13 px gizmo text.
+        // glyphCount = 0 → load the default character set (covers ASCII + Latin).
+        _gizmoFont = Raylib_cs.Raylib.LoadFontFromMemory(".ttf", ttf, 32, null, 0);
+        Raylib_cs.Raylib.SetTextureFilter(_gizmoFont.Texture, Raylib_cs.TextureFilter.Bilinear);
+        GizmoMap.Presentation.DebugPrimitiveRenderer2D.TextFont = _gizmoFont;
     }
 }

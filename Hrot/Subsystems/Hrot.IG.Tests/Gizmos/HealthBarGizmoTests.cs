@@ -40,9 +40,9 @@ namespace Hrot.IG.Tests.Gizmos
             Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 from, Vector3 to, Rgba32 color, float headSize = 1f, byte layer = 0) { }
         public void DrawText(float x, float y, FixedString32 text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0) { }
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0) { }
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityLocal(Entity anchor, Vector3 localStart, Vector3 localEnd,
             Rgba32 color, float thickness = 1f, byte layer = 0) { }
         public void DrawEntityLocalInteractive(Entity anchor, Vector3 localStart, Vector3 localEnd,

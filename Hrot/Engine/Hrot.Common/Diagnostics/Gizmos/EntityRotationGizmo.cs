@@ -27,10 +27,15 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var q   = tf.Rotation;
             float yawRad = SimMath.ExtractYaw(q);
 
-            float arrowLen = _settings.Read(
-                GizmoSettingsRegistry.ComputeHash(EntityRotationGizmoSettings.ArrowLength)).FloatValue;
-            if (arrowLen <= 0f)
-                arrowLen = EntityRotationGizmoSettings.DefaultArrowLength.FloatValue;
+            // Nose length = half the entity's length + 25%, so the indicator just
+            // overreaches the front of the entity shape rather than being a long ray.
+            float halfLen = 2.5f; // default for a ~5 m entity when VehicleParams is absent
+            if (view.HasComponent<CarKinem.Core.VehicleParams>(entity))
+            {
+                float vehLen = view.GetComponentRO<CarKinem.Core.VehicleParams>(entity).Length;
+                if (vehLen > 0f) halfLen = vehLen * 0.5f;
+            }
+            float arrowLen = halfLen * 1.25f;
 
             // Tip of the arrow in the facing direction.
             var tip = new Vector3(

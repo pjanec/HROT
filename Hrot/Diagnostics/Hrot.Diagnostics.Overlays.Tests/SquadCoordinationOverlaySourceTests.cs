@@ -48,10 +48,10 @@ namespace Hrot.Diagnostics.Overlays.Tests
             float headSize = 1f, byte layer = 0) => EmitCount++;
 
         public void DrawText(float x, float y, FixedString32 text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0) => EmitCount++;
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) => EmitCount++;
 
         public void DrawTextLong(float x, float y, string text, Rgba32 color,
-            CoordinateSpace space = CoordinateSpace.World, byte layer = 0)
+            CoordinateSpace space = CoordinateSpace.World, byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f)
         { EmitCount++; LongTexts.Add(text); }
     }
 

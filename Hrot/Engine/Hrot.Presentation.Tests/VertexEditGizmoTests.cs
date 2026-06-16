@@ -32,9 +32,9 @@ public class VertexEditGizmoTests : IDisposable
             Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
         public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
         public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c,
-            CoordinateSpace sp = CoordinateSpace.World, byte l = 0) { }
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawTextLong(float x, float y, string t, Rgba32 c,
-            CoordinateSpace sp = CoordinateSpace.World, byte l = 0) { }
+            CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) { }
         public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt,
             PipelineTarget tg = PipelineTarget.All) { }
         public void DrawEntityLocal(Entity a, Vector3 ls, Vector3 le,

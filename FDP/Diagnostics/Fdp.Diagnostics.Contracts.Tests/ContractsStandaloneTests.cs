@@ -277,6 +277,75 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(entity, token.Target);
         }
 
+        // ---- SC-FONT-TEXT tests (font size in Text primitive) -------------------
+
+        // SC-FONT-TEXT-1: DrawText with fontSizePx=9 produces ThicknessU16==9 and Shape==Text.
+        [Fact]
+        public void DrawText_WithFontSizePx_StoresSizeInThicknessU16()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawText(0f, 0f, new Fdp.Core.FixedString32("hi"), new Rgba32(255, 255, 255, 255),
+                fontSizePx: 9f);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            var prim = frame[0];
+            Assert.Equal(DebugPrimitiveShape.Text, prim.Shape);
+            Assert.Equal((ushort)9, prim.ThicknessU16);
+        }
+
+        // SC-FONT-TEXT-2: DrawText without fontSizePx leaves ThicknessU16==0 (renderer uses default 13px).
+        [Fact]
+        public void DrawText_WithoutFontSizePx_LeavesThicknessU16Zero()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawText(0f, 0f, new Fdp.Core.FixedString32("hi"), new Rgba32(255, 255, 255, 255));
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal((ushort)0, frame[0].ThicknessU16);
+        }
+
+        // SC-FONT-TEXT-3: DrawTextLong with fontSizePx=9 stores size in ThicknessU16.
+        [Fact]
+        public void DrawTextLong_WithFontSizePx_StoresSizeInThicknessU16()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawTextLong(0f, 0f, "hello world long text", new Rgba32(255, 255, 255, 255),
+                fontSizePx: 9f);
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            var prim = frame[0];
+            Assert.Equal(DebugPrimitiveShape.Text, prim.Shape);
+            Assert.Equal((ushort)9, prim.ThicknessU16);
+        }
+
+        // SC-FONT-TEXT-4: DrawTextLong without fontSizePx leaves ThicknessU16==0.
+        [Fact]
+        public void DrawTextLong_WithoutFontSizePx_LeavesThicknessU16Zero()
+        {
+            var buffer = new DebugPrimitiveBuffer(capacity: 4);
+            buffer.DrawTextLong(0f, 0f, "hello", new Rgba32(255, 255, 255, 255));
+
+            var frame = buffer.GetFrame();
+            Assert.Equal(1, frame.Length);
+            Assert.Equal((ushort)0, frame[0].ThicknessU16);
+        }
+
+        // SC-FONT-TEXT-5: MakeText with fontSizePx=9 stores value in ThicknessU16.
+        [Fact]
+        public void MakeText_WithFontSizePx_StoresSizeInThicknessU16()
+        {
+            var prim = DebugPrimitive.MakeText(1f, 2f,
+                new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32(),
+                new Rgba32(255, 0, 0, 255),
+                fontSizePx: 9f);
+
+            Assert.Equal(DebugPrimitiveShape.Text, prim.Shape);
+            Assert.Equal((ushort)9, prim.ThicknessU16);
+        }
+
         // ---- Helpers -----------------------------------------------------------
 
         // FNV-1a 32-bit hash -- mirrors GizmoSettingsRegistry.ComputeHash.

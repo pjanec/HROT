@@ -13,14 +13,14 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// </summary>
     public sealed class ScenarioSerializerTests : IDisposable
     {
-        // ¦¦ Setup / Teardown ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ Setup / Teardown ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         private readonly EntityRepository _repo;
 
         public ScenarioSerializerTests()
         {
             // Clear global static registry so each test starts from a predictable state.
-            // WARNING: ComponentTypeRegistry is a shared static — tests run sequentially
+            // WARNING: ComponentTypeRegistry is a shared static ï¿½ tests run sequentially
             // within this class via xUnit's default serial ordering per class.
             ComponentTypeRegistry.Clear();
 
@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             repo.RegisterComponent<Fdp.Core.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
 
-        // ¦¦ Helper ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ Helper ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         private static ScenarioSerializer BuildSerializer(
             string subsystemType = "TestSubsystem",
@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             return builder.Build();
         }
 
-        // ¦¦ RoundTrip_1to1_PreservesAllFields ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ RoundTrip_1to1_PreservesAllFields ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// No custom translators; <c>FdpAutoSerializer</c> round-trips 3 entities each
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // ¦¦ NtoM_CustomTranslator_CompressesComponents ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ NtoM_CustomTranslator_CompressesComponents ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// <c>MissileOrdnanceTranslator</c> compresses <c>TestBallisticProjectile</c> +
@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // ¦¦ ConsumptionMask_PreventsDuplication ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ ConsumptionMask_PreventsDuplication ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// After the translator's <c>Extract</c> runs, the consumed bits are cleared from
@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "Auto-serializer must not emit TestPhysicsCollider after translator consumed it.");
         }
 
-        // ¦¦ EntityCrossReference_ResolvedViaIGuidResolver ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ EntityCrossReference_ResolvedViaIGuidResolver ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// <c>GuidedTarget.TargetId: Entity</c> is serialized as a GUID string and
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // ¦¦ DataPolicyNoSave_ComponentExcluded ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ DataPolicyNoSave_ComponentExcluded ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// <c>NoSaveVelocity</c> is marked <c>[DataPolicy(DataPolicy.NoSave)]</c> and
@@ -250,7 +250,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "Saveable component must still appear in the DOM.");
         }
 
-        // ¦¦ ScenarioIgnore_FieldExcluded ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ ScenarioIgnore_FieldExcluded ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// <c>CachedSpeedComponent.MaxSpeed</c> (saved) appears in the DOM;
@@ -279,7 +279,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "CachedWheelAngle must be absent (annotated [ScenarioIgnore]).");
         }
 
-        // ¦¦ ScenarioIgnoreTag_EntitySkipped ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ ScenarioIgnoreTag_EntitySkipped ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// An entity bearing <see cref="ScenarioIgnoreTag"/> must not appear in
@@ -302,7 +302,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Single(entitiesNode);
         }
 
-        // ¦¦ EpisodeLoad_StampsEpisodeTag ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ EpisodeLoad_StampsEpisodeTag ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// Deserializing with <c>asEpisode: true</c> stamps <see cref="Fdp.Core.EpisodeTag"/> on every
@@ -337,7 +337,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.Dispose();
         }
 
-        // ¦¦ SubsystemType_MismatchSkipsDeserialize ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ SubsystemType_MismatchSkipsDeserialize ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// A DOM with a mismatched <c>SubsystemType</c> must not cause any entity
@@ -358,14 +358,14 @@ namespace Fdp.Toolkit.Scenario.Tests
             var dom = simhostSerializer.Serialize(sourceRepo, new ScenarioHeader("Hrot.SimHost"));
 
             Assert.Equal(0, _repo.EntityCount);
-            // Deserialize using a serializer configured for CGF — should be a no-op.
+            // Deserialize using a serializer configured for CGF ï¿½ should be a no-op.
             cgfSerializer.Deserialize(_repo, dom);
             Assert.Equal(0, _repo.EntityCount);
 
             sourceRepo.Dispose();
         }
 
-        // ¦¦ FdpAutoSerializer_NoReflectionOnHotPath ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ FdpAutoSerializer_NoReflectionOnHotPath ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
         /// After <c>Build()</c>, the <c>FdpAutoSerializer</c> operates through compiled
@@ -390,7 +390,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "FdpAutoSerializer must not use PropertyInfo.GetValue on the hot path.");
 
             // Behavior assertion: if compiled delegates execute correctly, a round-trip
-            // returns matching values — proving field access works without reflection.
+            // returns matching values ï¿½ proving field access works without reflection.
             var entity = _repo.CreateEntity();
             _repo.SetComponent(entity, new DummyPosition { X = 42f, Y = 43f, Z = 44f });
 
@@ -423,7 +423,7 @@ namespace Fdp.Toolkit.Scenario.Tests
                 "If non-zero, the Expression.Field optimization is broken.");
         }
 
-        // ¦¦ Utility ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ Utility ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         private static Entity GetSingleEntity(EntityRepository repo)
         {
@@ -435,10 +435,10 @@ namespace Fdp.Toolkit.Scenario.Tests
             throw new InvalidOperationException("No alive entity found in repository.");
         }
 
-        // ¦¦ Fail-fast tests (CGF-1-BATCH-12 Part A.1 / A.7) ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+        // ï¿½ï¿½ Fail-fast tests (CGF-1-BATCH-12 Part A.1 / A.7) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
-        /// A DOM where <c>Entities</c> is absent must throw — not return silently — to
+        /// A DOM where <c>Entities</c> is absent must throw ï¿½ not return silently ï¿½ to
         /// expose corrupt or partially-written scenario files at the earliest possible point.
         /// </summary>
         [Fact]
@@ -505,7 +505,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         }
 
         /// <summary>
-        /// <c>asEpisode: true</c> with <c>episodeId: Guid.Empty</c> must throw fast — do not
+        /// <c>asEpisode: true</c> with <c>episodeId: Guid.Empty</c> must throw fast ï¿½ do not
         /// stamp an empty episode identifier on loaded entities.
         /// </summary>
         [Fact]
@@ -526,7 +526,7 @@ namespace Fdp.Toolkit.Scenario.Tests
 
         /// <summary>
         /// A translator that returns an unsupported payload type (e.g. a raw <c>long</c>)
-        /// must cause <see cref="ScenarioSerializer.Serialize"/> to throw — not silently
+        /// must cause <see cref="ScenarioSerializer.Serialize"/> to throw ï¿½ not silently
         /// stringify the value.
         /// </summary>
         [Fact]
@@ -542,9 +542,67 @@ namespace Fdp.Toolkit.Scenario.Tests
             Assert.Throws<InvalidOperationException>(() =>
                 serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem")));
         }
+
+        // â”€â”€ SerializeEntity_HeaderNativeTranslator_AlwaysRuns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        /// <summary>
+        /// A translator whose <c>GetConsumedComponentsMask()</c> returns an empty mask
+        /// ("header-native") must NOT be skipped by <see cref="ScenarioSerializer.SerializeEntity"/>
+        /// even when the empty consumed mask does not intersect the caller-supplied
+        /// <paramref name="componentMask"/>.
+        /// Regression: before the fix, <c>if (intersection.IsEmpty()) continue</c> ran
+        /// unconditionally, which always skipped header-native translators like
+        /// <c>DisEntityTypeTranslator</c>.
+        /// </summary>
+        [Fact]
+        public void SerializeEntity_HeaderNativeTranslator_AlwaysRuns()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 1f });
+
+            var headerTranslator = new FakeHeaderNativeTranslator();
+            var serializer = BuildSerializer("TestSubsystem", headerTranslator);
+
+            // Use the saveable mask â€” it has no bits that match an empty consumed mask,
+            // so the old (buggy) gate would have skipped the translator.
+            var componentMask = _repo.GetSaveableMask();
+
+            var entityNode = serializer.SerializeEntity(
+                _repo, entity, new NullGuidResolver(), componentMask);
+
+            Assert.True(entityNode.ContainsKey("FakeHeaderKey"),
+                "Header-native translator (empty consumed mask) must not be skipped by SerializeEntity.");
+        }
+
+        /// <summary>
+        /// Regression guard: a component-bound translator (non-empty consumed mask) whose
+        /// consumed bits do NOT intersect the requested <paramref name="componentMask"/>
+        /// must still be skipped â€” the fix must not break the strict mask gate for
+        /// component-bound translators.
+        /// </summary>
+        [Fact]
+        public void SerializeEntity_ComponentBoundTranslator_SkippedWhenMaskDoesNotIntersect()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 2f });
+
+            // FakeComponentBoundTranslator has CanTranslate=true but a non-empty consumed
+            // mask that will not appear in the empty BitMask512 we pass as componentMask.
+            var componentOnlyTranslator = new FakeComponentBoundTranslator();
+            var serializer = BuildSerializer("TestSubsystem", componentOnlyTranslator);
+
+            // An empty mask has no bits set â€” it cannot intersect any non-empty consumed mask.
+            var emptyMask = new BitMask512();
+
+            var entityNode = serializer.SerializeEntity(
+                _repo, entity, new NullGuidResolver(), emptyMask);
+
+            Assert.False(entityNode.ContainsKey("FakeComponentKey"),
+                "Component-bound translator whose consumed mask does not intersect the requested mask must be skipped.");
+        }
     }
 
-    // ¦¦ Helper translator for bad payload type test ¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦¦
+    //ï¿½ï¿½ Helper translator for bad payload type test ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
     /// <summary>
     /// Returns a <c>long</c> (not in the allowed set) so the switch default throws.
@@ -562,6 +620,70 @@ namespace Fdp.Toolkit.Scenario.Tests
         public void Inject(
             EntityRepository repo, Entity entity,
             Dictionary<string, object> data, IGuidResolver resolver) { }
+    }
+
+    /// <summary>
+    /// Header-native translator: <c>GetConsumedComponentsMask()</c> returns an empty
+    /// <see cref="BitMask512"/> (no ECS component consumption).  Simulates translators
+    /// like <c>DisEntityTypeTranslator</c> that read from entity-header data instead.
+    /// </summary>
+    internal sealed class FakeHeaderNativeTranslator : IEntityScenarioTranslator
+    {
+        public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+
+        public bool CanTranslate(EntityRepository repo, Entity entity) => true;
+
+        public Dictionary<string, object> Extract(
+            EntityRepository repo, Entity entity, IGuidResolver resolver)
+            => new() { ["FakeHeaderKey"] = JsonValue.Create("header-native-value")! };
+
+        public void Inject(
+            EntityRepository repo, Entity entity,
+            Dictionary<string, object> data, IGuidResolver resolver) { }
+
+        public System.Collections.Generic.IEnumerable<string> GetOutputDomKeys()
+            => new[] { "FakeHeaderKey" };
+    }
+
+    /// <summary>
+    /// Component-bound translator: <c>GetConsumedComponentsMask()</c> returns a
+    /// non-empty mask (bit 291 â€” a free test component ID).  <c>CanTranslate</c>
+    /// always returns true so the only gate is the mask intersection check.
+    /// </summary>
+    internal sealed class FakeComponentBoundTranslator : IEntityScenarioTranslator
+    {
+        // Use component ID 291 â€” declared free in TestComponents.cs comment block.
+        private const int FakeComponentBit = 291;
+
+        public BitMask512 GetConsumedComponentsMask()
+        {
+            var mask = new BitMask512();
+            mask.SetBit(FakeComponentBit);
+            return mask;
+        }
+
+        public bool CanTranslate(EntityRepository repo, Entity entity) => true;
+
+        public Dictionary<string, object> Extract(
+            EntityRepository repo, Entity entity, IGuidResolver resolver)
+            => new() { ["FakeComponentKey"] = JsonValue.Create("component-bound-value")! };
+
+        public void Inject(
+            EntityRepository repo, Entity entity,
+            Dictionary<string, object> data, IGuidResolver resolver) { }
+
+        public System.Collections.Generic.IEnumerable<string> GetOutputDomKeys()
+            => new[] { "FakeComponentKey" };
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IGuidResolver"/> that never resolves (safe for
+    /// tests that do not exercise cross-entity references).
+    /// </summary>
+    internal sealed class NullGuidResolver : IGuidResolver
+    {
+        public string Resolve(Entity entity) => Guid.NewGuid().ToString();
+        public Entity Resolve(string guidStr) => default;
     }
 }
 

@@ -205,19 +205,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f)
         {
             // StringHash is always 0 for inline FixedString32 mode.
             // Fdp.Core.FixedString32 and GizmoMap.Contracts.FixedString32 share identical
             // 32-byte sequential layout; reinterpret for the MakeText factory method.
             var gizmoText = Unsafe.As<FixedString32, GizmoStr>(ref text);
-            Append(DebugPrimitive.MakeText(x, y, gizmoText, color, space, layer));
+            Append(DebugPrimitive.MakeText(x, y, gizmoText, color, space, layer, fontSizePx, lineOffsetPx));
         }
 
         public void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f)
         {
             uint hash = StringInternMap.Fnv1a32(text);
             _internMap.Intern(hash, text);   // idempotent; allocates only on first call
@@ -236,6 +240,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             // Construct via Fdp.Core.FixedString32 (same layout) then reinterpret.
             var coreStr = new FixedString32(text);
             p.TextContent = Unsafe.As<FixedString32, GizmoStr>(ref coreStr);
+            // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
+            if (fontSizePx > 0f)
+                p.ThicknessU16 = (ushort)fontSizePx;
+            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            if (lineOffsetPx != 0f)
+                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
             Append(p);
         }
 

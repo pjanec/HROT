@@ -26,6 +26,13 @@ namespace GizmoMap.Presentation
 
         private const float DegToRad = MathF.PI / 180f;
 
+        /// <summary>
+        /// Optional Raylib Font used for all gizmo text rendering.
+        /// Set once by the integration layer after the GL context and window are created.
+        /// When null the renderer falls back to Raylib's built-in default font.
+        /// </summary>
+        public static Font? TextFont { get; set; }
+
         public DebugPrimitiveRenderer2D(
             IEntityShapeLibrary? shapeLibrary = null,
             ImGuiPropertyTreeAdapter? imGuiAdapter = null)
@@ -260,7 +267,13 @@ namespace GizmoMap.Presentation
                 {
                     var from = new Vector2(prim.ArrowFrom.X, prim.ArrowFrom.Y);
                     var to   = new Vector2(prim.ArrowTo.X,   prim.ArrowTo.Y);
-                    DrawArrow(from, to, prim.ArrowHeadSize * geomScale, color, thickness);
+                    // Indicator arrows render at a constant on-screen size: a 1 px stroke
+                    // (or ThicknessU16 if set) and a fixed-pixel arrowhead, regardless of zoom.
+                    // The arrow span stays in world space so it still points to / scales with
+                    // the entity's heading or destination.
+                    float arrowScreenScale = zoom > 0f ? 1f / zoom : 1f;
+                    float arrowThickness = baseThickness * arrowScreenScale;
+                    DrawArrow(from, to, prim.ArrowHeadSize * arrowScreenScale, color, arrowThickness);
                     break;
                 }
 
@@ -305,10 +318,50 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.Text:
                 {
-                    int tx = (int)prim.TextX;
-                    int ty = (int)prim.TextY;
+                    // All gizmo text is rendered at a constant on-screen pixel size regardless of
+                    // camera zoom. SizeMode is intentionally not consulted for text scaling.
+                    //
+                    // ThicknessU16 is repurposed for Text: carries the desired font size in pixels
+                    // (stored as-is, NOT multiplied by 10 like line/sphere thickness).
+                    // 0 means "use the renderer default of 13 px".
+                    float px = prim.ThicknessU16 > 0 ? prim.ThicknessU16 : 13f;
+
                     string str = prim.TextContent.ToString();
-                    Raylib.DrawText(str, tx, ty, 12, color);
+
+                    // Use the embedded TTF only if it actually loaded (valid GPU texture).
+                    // Drawing with an invalid font texture corrupts the active render batch
+                    // (symptom: missing lines AND no text), so fall back to the built-in font.
+                    Font font = (TextFont.HasValue && TextFont.Value.Texture.Id != 0)
+                        ? TextFont.Value
+                        : Raylib.GetFontDefault();
+
+                    // AnchorGeneration carries a screen-pixel vertical line offset for Text
+                    // (set via DrawText/DrawTextLong lineOffsetPx). Lets a gizmo stack multiple
+                    // lines anchored at one world point with constant on-screen spacing.
+                    if (screenSpace)
+                    {
+                        // Already outside camera space (outer guard called EndMode2D):
+                        // TextX/TextY are screen pixels — draw at the requested pixel size.
+                        float offsetY = (short)prim.AnchorGeneration;
+                        Raylib.DrawTextEx(font, str, new Vector2(prim.TextX, prim.TextY + offsetY), px, 1f, color);
+                    }
+                    else
+                    {
+                        // World-anchored text. Stay INSIDE BeginMode2D — do NOT toggle
+                        // EndMode2D/BeginMode2D per primitive (toggling mid-batch risks rlgl
+                        // matrix-stack corruption). Counter-scale the font by 1/cameraZoom so
+                        // the camera's zoom multiply cancels out, yielding a constant on-screen
+                        // pixel size. Use the CAMERA's actual zoom (the exact factor Raylib
+                        // applies) rather than the passed-in 'zoom' parameter, which may be a
+                        // different metric and would mis-size the text.
+                        float camZoom = camera.Zoom > 0f ? camera.Zoom : (zoom > 0f ? zoom : 1f);
+                        float invZoom = 1f / camZoom;
+                        // Screen-pixel line offset (signed) converted to world units so it stays constant on screen.
+                        float offsetY = (short)prim.AnchorGeneration * invZoom;
+                        Raylib.DrawTextEx(
+                            font, str, new Vector2(prim.TextX, prim.TextY + offsetY),
+                            px * invZoom, 1f * invZoom, color);
+                    }
                     break;
                 }
 
@@ -342,6 +395,18 @@ namespace GizmoMap.Presentation
                     float len = prim.LengthMeters > 0f ? prim.LengthMeters : 5f;
                     float wid = prim.WidthMeters > 0f ? prim.WidthMeters : len * 0.5f;
 
+                    // Clamp to a minimum on-screen size so the avatar stays visible when zoomed
+                    // out (real-world metres would otherwise shrink to sub-pixel). Preserves
+                    // real-world proportions when already larger than the floor.
+                    const float MinAvatarPx = 16f;
+                    float onScreenLenPx = len * zoom;
+                    if (zoom > 0f && onScreenLenPx > 0f && onScreenLenPx < MinAvatarPx)
+                    {
+                        float upscale = MinAvatarPx / onScreenLenPx;
+                        len *= upscale;
+                        wid *= upscale;
+                    }
+
                     var profile = _shapeLibrary.GetShape(null, prim.ProfileId);
                     if (profile != null && profile.Name != "_fallback")
                     {
@@ -366,7 +431,10 @@ namespace GizmoMap.Presentation
                             worldY - wid * geomScale * 0.5f,
                             len * geomScale,
                             wid * geomScale);
-                        Raylib.DrawRectangleLinesEx(rect, 1f, new Color((byte)255, (byte)0, (byte)255, color.A));
+                        // Constant 1-pixel border regardless of zoom (1 world unit * zoom would
+                        // scale up; divide by zoom so the on-screen stroke stays 1 px).
+                        float strokePx = zoom > 0f ? 1f / zoom : 1f;
+                        Raylib.DrawRectangleLinesEx(rect, strokePx, new Color((byte)255, (byte)0, (byte)255, color.A));
                     }
                     break;
                 }

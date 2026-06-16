@@ -114,8 +114,12 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
             world.AddComponent(entity, new TkbIdentity { TkbType = cmd.TkbType });
 
             // Store the DIS entity type natively in the entity header so all systems
-            // can access it without a component lookup.
-            world.SetDisType(entity, new DISEntityType { Value = cmd.DisType });
+            // can access it without a component lookup. When the spawn command does not
+            // carry an explicit DIS type (e.g. editor placement, or scenario load that
+            // doesn't populate it), fall back to the TKB template's DIS type so the header
+            // is always correctly stamped rather than left zero.
+            ulong disValue = cmd.DisType != 0 ? cmd.DisType : template.DisType.Value;
+            world.SetDisType(entity, new DISEntityType { Value = disValue });
 
             // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)
