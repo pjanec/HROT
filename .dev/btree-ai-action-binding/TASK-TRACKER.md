@@ -28,7 +28,7 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 - [x] **S2-2** Synchronous `Input`-phase tier provisioning (Fix 1) [details](./TASK-DETAIL.md#s2-2--synchronous-input-phase-provisioning) — *done BATCH-06 (sync AddComponent+CopyToLargerTier+RemoveComponent in Input; slot preservation verified)*
 - [x] **S2-3** Hot-reload ghost-slot fix — re-publish `AssignBehaviorEvent` (Fix 2) [details](./TASK-DETAIL.md#s2-3--hot-reload-ghost-slot-fix) — *done BATCH-08 (ghost-slot-safe re-provision ACTIVE; size-sensitive hash resolves DEBT-AIB-027; coordinator OnHardReloadCompleted event dormant until host wiring → DEBT-AIB-031; full-suite flakiness → DEBT-AIB-030)*
 - [x] **S2-4** Cross-region validator: forbid concurrent stateful Subtree (Fix 3) [details](./TASK-DETAIL.md#s2-4--cross-region-validator-stateful-subtree) — *done BATCH-07 (HsmValidator ConcurrentStatefulSubtree hard-error; dormant until subtree-ref persistence + resolver wiring → DEBT-AIB-028/029)*
-- [ ] **S2-G** **DEMO GATE** — multiple stateful primitives + mixed stateless + proof tests [details](./TASK-DETAIL.md#s2-g--slice-2-demo-gate) — *deps S2-1…S2-4*
+- [x] **S2-G** **DEMO GATE** — multiple stateful primitives + mixed stateless + proof tests [details](./TASK-DETAIL.md#s2-g--slice-2-demo-gate) — *done BATCH-09: T20 asset + 2 end-to-end proof tests (generate→compile→provision→tick); clean rebuild 0 errors (DEBT-AIB-026 closed — fixed 3 emitter gaps the compile-gate surfaced); byte-identity 129/0.* ✅ **SLICE 2 COMPLETE**
 
 ---
 

@@ -81,14 +81,17 @@ public static class BTreeEmitCore
             ? "Hrot.AI.Behaviors.Trees"
             : dto.TargetNamespace;
 
-        // Use the authored TypeName when non-empty; fall back to the asset name so each
-        // asset's struct has a unique, deterministic name (avoids CS0101 when multiple
-        // assets have an empty TypeName).
-        string structName = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
-            ? SanitizeIdentifier(dto.Name) + "Blackboard"
+        // Always prefix with the asset name to ensure uniqueness across multiple managed assets
+        // in the same namespace — multiple assets share the same BlackboardTypeName (e.g.
+        // "Fdp.Toolkit.Behavior.Components.BrainBlackboard") which would produce identical
+        // struct names (CS0101) if we used the TypeName alone.
+        // Pattern: {AssetName}_{TypeNameSuffix} — e.g. "T10_MultiAction_BrainBlackboard".
+        string assetPrefix   = SanitizeIdentifier(dto.Name);
+        string typeSuffix    = string.IsNullOrWhiteSpace(dto.Blackboard.TypeName)
+            ? "Blackboard"
             : SanitizeIdentifier(dto.Blackboard.TypeName);
-        if (string.IsNullOrEmpty(structName))
-            structName = SanitizeIdentifier(dto.Name) + "Blackboard";
+        if (string.IsNullOrEmpty(typeSuffix)) typeSuffix = "Blackboard";
+        string structName = assetPrefix + "_" + typeSuffix;
 
         var sb = new StringBuilder();
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -607,7 +610,7 @@ public static class BTreeEmitCore
         switch (node)
         {
             case BTreeActionNodeDto actNode:
-                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
+                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets, dto.AssetId);
                 break;
             case BTreeConditionNodeDto condNode:
                 EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
@@ -639,7 +642,8 @@ public static class BTreeEmitCore
     private static void EmitAction(
         StringBuilder sb, BTreeActionNodeDto node, string pad, bool isLast,
         string methodPrefix = ".",
-        IReadOnlyDictionary<string, int>? variableOffsets = null)
+        IReadOnlyDictionary<string, int>? variableOffsets = null,
+        Guid assetId = default)
     {
         var p = node.Action;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -673,6 +677,20 @@ public static class BTreeEmitCore
                 sb.AppendLine($"{pad}{methodPrefix}Action(dto => dto.{actionTargetField}, {methodRef},");
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
+        }
+        else if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful &&
+                 !string.IsNullOrEmpty(actionTargetField) &&
+                 variableOffsets != null && variableOffsets.Count > 0 &&
+                 variableOffsets.TryGetValue(actionTargetField!, out int statefulParamOffset))
+        {
+            // S2-1: stateful thunk — emit string blob key "{MethodFqn}@{paramOffset}@{slotKey}".
+            // The slot key is FNV-1a-32(assetId, nodeVisualId) baked at code-gen time.
+            // The BTreeBuilder.Action(string key, ...) overload stores the key in the blob as-is;
+            // the bridge registers a thunk under the same key.
+            int slotKey  = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, node.VisualId);
+            string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
+            sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
         else
         {

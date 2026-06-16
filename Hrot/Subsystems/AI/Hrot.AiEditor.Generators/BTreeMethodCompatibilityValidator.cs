@@ -165,6 +165,18 @@ internal static class BTreeMethodCompatibilityValidator
                 ctxTypeName);
         }
 
+        // S2-1: ThreeParamReusableStateful uses the 4-param stateful shape:
+        //   (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)
+        // This is NOT the FourParamFull shape — param-0 is a DTO (not TBB) and param-1
+        // is a WorkingState struct (not TBB). Validate it via a dedicated check.
+        if (delegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+        {
+            return CheckThreeParamReusableStateful(
+                methodFqn, expressionTargetField, blackboard,
+                compilation, behaviorTreeStateSymbol, nodeStatusSymbol, ctxSymbol,
+                ctxTypeName);
+        }
+
         // Resolve the method symbol.
         IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
         if (method == null)
@@ -312,6 +324,110 @@ internal static class BTreeMethodCompatibilityValidator
         if (ctxSymbol != null &&
             !SymbolEqualityComparer.Default.Equals(param2.Type, ctxSymbol))
             return $"method '{methodFqn}' param 2 type '{param2.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
+
+        return null; // valid
+    }
+
+    /// <summary>
+    /// S2-1: Validates a ThreeParamReusableStateful binding.
+    /// The stateful shape has 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx).
+    /// Unlike FourParamFull, param-0 is a DTO type (matching the blackboard variable) and
+    /// param-1 is a WorkingState struct (projected from the partition slot).
+    /// Accepts when:
+    ///   - method resolves, is public static, returns NodeStatus
+    ///   - method has exactly 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)
+    ///   - ExpressionTargetField names a variable in the managed blackboard block
+    ///   - that variable's TypeId (normalized) matches param-0's type FQN (type-safe binding)
+    /// Returns null on success, reason string on failure (BTREE0002 skip, not build break).
+    /// </summary>
+    private static string? CheckThreeParamReusableStateful(
+        string methodFqn,
+        string? expressionTargetField,
+        BlackboardBlockDto blackboard,
+        Compilation compilation,
+        INamedTypeSymbol? behaviorTreeStateSymbol,
+        INamedTypeSymbol? nodeStatusSymbol,
+        INamedTypeSymbol? ctxSymbol,
+        string ctxTypeName)
+    {
+        // ExpressionTargetField must be set.
+        if (string.IsNullOrEmpty(expressionTargetField))
+            return $"ThreeParamReusableStateful binding has no ExpressionTargetField — set the target variable in the editor";
+
+        // The blackboard block must be managed and contain the variable.
+        if (!blackboard.Managed)
+            return $"ThreeParamReusableStateful binding requires a managed blackboard (Managed=true); got Managed=false";
+
+        BlackboardVariableDto? targetVar = null;
+        foreach (var v in blackboard.Variables)
+        {
+            if (string.Equals(v.Name, expressionTargetField, StringComparison.Ordinal))
+            {
+                targetVar = v;
+                break;
+            }
+        }
+        if (targetVar == null)
+            return $"ThreeParamReusableStateful: variable '{expressionTargetField}' not found in the managed blackboard block";
+
+        // Resolve the method.
+        IMethodSymbol? method = ResolveMethod(compilation, methodFqn);
+        if (method == null)
+            return $"method '{methodFqn}' could not be resolved in the compilation; ensure the declaring assembly is referenced";
+
+        if (!method.IsStatic)
+            return $"method '{methodFqn}' is not static";
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            return $"method '{methodFqn}' is not public";
+
+        // Return type must be NodeStatus.
+        if (nodeStatusSymbol == null)
+            return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, nodeStatusSymbol))
+            return $"method '{methodFqn}' returns '{method.ReturnType.ToDisplayString()}' but ThreeParamReusableStateful requires Fbt.NodeStatus";
+
+        // Must have exactly 4 parameters: (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx).
+        if (method.Parameters.Length != 4)
+            return $"method '{methodFqn}' has {method.Parameters.Length} parameter(s) but ThreeParamReusableStateful requires exactly 4 (ref TDto, ref TWorkingState, ref BehaviorTreeState, ref TCtx)";
+
+        // Param 0: ref TDto — must match the variable's TypeId.
+        var param0 = method.Parameters[0];
+        if (param0.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 0 must be 'ref TDto'; got '{param0.RefKind}'";
+
+        string param0TypeFqn = param0.Type.ToDisplayString(
+            new SymbolDisplayFormat(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted,
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
+
+        string varTypeId = targetVar.Type?.TypeId ?? string.Empty;
+        string param0TypeNormalized = param0TypeFqn.Replace('+', '.');
+        string varTypeNormalized    = varTypeId.Replace('+', '.');
+
+        if (!string.Equals(param0TypeNormalized, varTypeNormalized, StringComparison.Ordinal))
+            return $"method '{methodFqn}' param 0 type '{param0TypeFqn}' does not match variable '{expressionTargetField}' type '{varTypeId}'";
+
+        // Param 1: ref TWorkingState — must be a ref struct (not validated against a specific type
+        // since it comes from the partition slot, not the blackboard). Just check it is a ref param.
+        var param1 = method.Parameters[1];
+        if (param1.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 1 (WorkingState) must be 'ref'; got '{param1.RefKind}'";
+
+        // Param 2: ref BehaviorTreeState.
+        var param2 = method.Parameters[2];
+        if (param2.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 2 must be 'ref BehaviorTreeState'; got refkind '{param2.RefKind}'";
+        if (behaviorTreeStateSymbol != null &&
+            !SymbolEqualityComparer.Default.Equals(param2.Type, behaviorTreeStateSymbol))
+            return $"method '{methodFqn}' param 2 must be 'ref Fbt.BehaviorTreeState'; got '{param2.Type.ToDisplayString()}'";
+
+        // Param 3: ref TCtx.
+        var param3 = method.Parameters[3];
+        if (param3.RefKind != RefKind.Ref)
+            return $"method '{methodFqn}' param 3 must be 'ref TCtx'; got refkind '{param3.RefKind}'";
+        if (ctxSymbol != null &&
+            !SymbolEqualityComparer.Default.Equals(param3.Type, ctxSymbol))
+            return $"method '{methodFqn}' param 3 type '{param3.Type.ToDisplayString()}' does not match context type '{ctxTypeName}'";
 
         return null; // valid
     }
