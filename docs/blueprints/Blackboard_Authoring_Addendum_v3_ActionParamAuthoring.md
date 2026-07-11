@@ -132,6 +132,12 @@ So, for a BTree/HSM action: a **static** field = "config, fixed when this behavi
 **change while running** → bind the DTO to a (shared) variable that something else updates (Approach A/B). The
 Inspector should show a one-line tooltip to this effect so designers aren't surprised.
 
+> **Mutable working state (local / shared variables).** The "shared variable that something else updates" above is
+> formalized in `BTree_AiActionParameterBinding_Detailed_Design.md §4.4`: variables carry a **role** (`input` param vs
+> `state`) and, for state, a **scope** (`Node` = local, `Behavior`/`Entity` = shared). State reaches the action either as
+> a Mode-1 `ref` arg (its own scoped slot) or via the Mode-2 `GetShared<T>/GetSharedRW<T>(entity, scope)` accessor
+> (another entity's / a group's slot). This is the general mechanism; §3's node-owned variable is the `Node`-scoped case.
+
 ---
 
 ## 5. How an AI designer authors action parameters (workflow)

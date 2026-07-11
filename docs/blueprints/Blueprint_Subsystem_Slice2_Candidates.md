@@ -144,6 +144,8 @@ Same as B7 — listed in §14 but not yet in any concrete planning. Replay-safet
 ### C1. AiPrimitive concurrent working-state per entity **[HIGH | M]**
 
 > **Note:** the original wording of this item conflated two different `Blackboard1024` components and over-stated the constraint. The corrected framing below is narrower and more precise.
+>
+> **Design pass (2026-06):** the per-node case is realized by Slice-2 (`BTree_AiActionParameterBinding_Detailed_Design.md §4.1–4.3`); its generalization to **scoped local/shared working state** (`Node`/`Behavior`/`Entity`, plus the `GetShared/GetSharedRW` accessor for cross-entity/commander sharing) is designed in **`§4.4`** of that doc — which also subsumes §A10 (promote-local-to-shared). MVP = `Behavior` scope. Pending architect review.
 
 #### The two `Blackboard1024`s in play
 

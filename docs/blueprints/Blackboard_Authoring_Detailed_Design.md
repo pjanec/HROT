@@ -611,6 +611,8 @@ The framework provides two memory tiers for blackboard data:
 
 The convention from earlier design rounds: **top-level master parameters always go to the inline tier**; sub-tree aggregated parameters can spill to the heavy tier. The bin-packer implements this convention.
 
+**Role matters, not just size.** The inline-vs-heavy choice above is for **params** (role = *input*): small stays inline, large spills heavy. **Mutable *state* variables** (role = *state*: local / shared working state — `BTree_AiActionParameterBinding_Detailed_Design.md §4.4`) are **always heavy regardless of size**, because they must persist across ticks and be slot-keyed by scope (`Node`/`Behavior`/`Entity`), which the transient inline region cannot host. So a variable's tier is decided by `(role, size)`: `input` → size-driven; `state` → always heavy.
+
 ### 6.2 The bin-packing algorithm
 
 When the editor needs to decide where each variable lives, it runs the bin-packer:

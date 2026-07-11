@@ -1,6 +1,7 @@
 # BTree AI Action/Condition Parameter Binding — Detailed Design
 
 > **Status:** architect-approved (Slice 1 and Slice 2, 2026-06-15). Describes the **future state** after both slices are implemented.
+> **Status of §4.4 (scoped local/shared working state):** **proposed design pass — not yet architect-reviewed** (realizes the deferred shared-blackboard item + `Blueprint_Subsystem_Slice2_Candidates.md §C1/§A10`).
 > **Scope:** how authored (JSON, `Managed==true`) behavior trees bind multiple AI actions/conditions — each with its own parameter DTO — to editor-managed blackboard variables, with correct non-zero bin-packed offsets and (Slice 2) per-node working state.
 > **Working drafts / demo specs:** `.dev/btree-ai-action-binding/` (SLICE1-DESIGN, SLICE2-DESIGN, ARCHITECT-REVIEW-BRIEF). This doc is the canonical aggregation.
 > **Related canonical docs:** `Blackboard_Authoring_Detailed_Design.md` (Category-2 variables, bin-packing, cross-region validation), `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` (whole-DTO binding, node-owned variables), `Blueprint_Subsystem_Architecture_v1.2.md` (AiPrimitive, partition allocator, the Slice-1 working-state constraint this design lifts), `BTree_HSM_JSON_Persistence_Detailed_Design.md` (the `[BlueprintRegistrar]` masquerade registrar, D14), `Blueprint_Subsystem_Slice2_Candidates.md` §C1 (the candidate this realizes).
@@ -48,8 +49,63 @@ The same stateful blueprint used by multiple nodes must get a distinct slot per 
 2. **Hot-reload ghost slot.** BTree synthetic slot keys are not registered Instance blueprints, so `BlueprintTickSystem`'s reconcile ignores them; a Hard Reload that *grows* a `WorkingState` would overflow the old slot and corrupt the neighbor (`ResetSlot` can't resize). Fix: on Hard Reload of a BTree asset, `AiHotReloadCoordinator` **re-publishes `AssignBehaviorEvent`** for affected entities, forcing `BehaviorIngressSystem` to `TryDetach` the old slots and re-provision correctly-sized ones.
 3. **Concurrent-subtree collision.** The same stateful Subtree run in two orthogonal parallel regions computes the same synthetic key → race corruption. Fix: extend the cross-region conflict validator (`WouldCreateCrossRegionConflict`) to treat a stateful Subtree as a mutating writer and **hard-error** on concurrent execution across parallel regions.
 
-### 4.4 Shared blackboard (separate, scoped)
-Per-instance working state is isolated. For **shared** mutable state: the first iteration targets **single-behavior, single-entity scratch** in the same `BlueprintBlackboard*` tier (synchronous, zero-alloc). **Squad-scope** sharing uses the **virtual squad-leader entity's blackboard** (an existing concept — hill-attack commander / `Hrot.SquadCoordination`): members read the leader's blackboard, avoiding synchronous cross-entity writes / `EntityCommandBuffer` latency. Multi-entity synchronous shared mutation is explicitly out of scope (breaks determinism).
+### 4.4 Scoped working state — local vs shared variables (proposed design pass)
+
+> Realizes the deferred "shared blackboard" work and `Blueprint_Subsystem_Slice2_Candidates.md §C1/§A10`. The per-node `WorkingState` of §4.1–4.2 is the **`Node`-scoped** case of this one general mechanism. **Proposed — pending architect review** (open questions in §4.4.4).
+
+**Unified variable model.** Every piece of blackboard data is a typed, named variable with two attributes:
+- **role** — `input` (a *param*, §3) or `state` (mutable, read+write, persists across ticks).
+- **scope** (state only) — `Node` | `Behavior` | `Entity` (slot-key granularity).
+
+Authoring names: a **local variable** = `state` @ `Node` (isolated per node instance — the §4.2 case); a **shared variable** = `state` @ `Behavior` or `Entity`. "Working state" is the umbrella runtime term; local and shared differ **only** by scope.
+
+**Scope → slot key** (same partitioned `BlueprintBlackboard*` tier + `BlueprintBlackboardPartitions` as §4.1 — only the key changes):
+
+| Scope | Slot key | Shared across | Lifetime |
+|---|---|---|---|
+| `Node` (§4.2) | `FNV-1a(assetId, nodeVisualId)` | one node instance | node run |
+| `Behavior` | `FNV-1a(assetId, entityId)` | all nodes of the behavior on that entity | `AssignBehaviorEvent` → `ClearBehaviorEvent` |
+| `Entity` | `entityId` | all behaviors on the entity | entity lifetime |
+
+There is **no separate "squad/group" scope.** A group is represented by a virtual/leader entity (the existing command-hierarchy concept — the hill-attack commander), so group-shared state is simply an `Entity`-scoped slot **hosted on the commander entity**, read by members via the Mode-2 accessor below. "Commander" names the *target entity*, not a scope.
+
+**Tier.** State is **always heavy** — it must persist across ticks and be slot-keyed, which the transient 100 B inline region cannot host — so it uses the heavy tier regardless of size. (Contrast: *params* are size-driven inline-vs-heavy, `Blackboard_Authoring_Detailed_Design.md §6`.)
+
+#### 4.4.1 Runtime access — two modes
+
+**Mode 1 — static `ref` args (the action's own data, resolved at bind time).** The framework pre-resolves *this* entity + the declared scope to a slot offset and hands the action a typed `ref`. An action binds `params + up to 2 scoped state variables`; delegate shapes are three arities, scope being a per-binding attribute (next to `ExpressionTargetField`):
+
+```
+NodeStatus M(ref TParams p, ref BehaviorTreeState st, ref TCtx ctx)                                  // params only (§3)
+NodeStatus M(ref TParams p, ref TState s1, ref BehaviorTreeState st, ref TCtx ctx)                     // + one scoped state
+NodeStatus M(ref TParams p, ref TState s1, ref TState s2, ref BehaviorTreeState st, ref TCtx ctx)      // + local & shared
+```
+
+The scope of `s1`/`s2` (`Node`/`Behavior`/`Entity`) lives in the binding; the §4.2 adapter resolves the slot with the scope's key instead of always the node key. "3+ static state slots" is not a shape — route the overflow through Mode 2.
+
+**Mode 2 — accessor (another entity's state, or a runtime-chosen one).** When the target entity is a runtime value (a subordinate from the roster, the leader from the command hierarchy) the slot cannot be pre-projected. Mirrors the ECS `GetComponentRO/RW` convention:
+
+```csharp
+ref readonly T GetShared<T>  (Entity e, WorkingStateScope scope);   // read-only, zero-copy (ref readonly, no copy)
+ref T          GetSharedRW<T>(Entity e, WorkingStateScope scope);   // writable
+```
+
+`scope` is required — the slot key is `(entity, scope, type)` and the same type may exist at multiple scopes on one entity (a convenience overload may infer scope when a type is bound at exactly one). **Group/commander access is exactly this:** a member does `GetShared<SquadPlan>(commanderEntity, Entity)`.
+
+**Concurrency.** Single-writer is a **convention, not enforced** — two writers are allowed. `Behavior` scope is single-entity and its nodes tick sequentially, so it is race-free by construction (the safe MVP). Broader scopes (`Entity`, cross-entity via Mode 2) reintroduce the multi-writer hazard the §4.3 Fix-3 cross-region validator guards for the per-node case; here we rely on the coordinator-writes / members-read convention plus a **debug-build-only "second distinct writer this tick" assertion** on shared slots (zero production cost; catches accidental violations).
+
+#### 4.4.2 Lifetime / provisioning
+`Behavior` scope maps onto behavior lifetime: provision the slot **synchronously in the `Input` phase** on `AssignBehaviorEvent` (reuse §4.3 Fix-1 worst-case provisioning), free on `ClearBehaviorEvent` — single owner, no ref-counting. `Entity`/commander scope outlive one behavior and need ref-counting or explicit ownership (which behavior frees it) — **architect-consult before implementing** (§4.4.4).
+
+#### 4.4.3 Authoring & monitoring
+Declared like params in the Variables panel (`Blackboard_Authoring_Detailed_Design.md §4`) with a **role** and, for state, a **scope** selector; persisted in the asset's blackboard block. **Editing = the field shape + initial/default values** (live values are not hand-edited at author time). **Monitoring is v1-mandatory:** the live-value inspector (typed `WorkingState` renderer) resolves the scoped slot and shows current values read-only — e.g. watching a commander's wave masks / attacker slots update in real time. (Inspector-driven runtime write-override / "poke a value" is a later debug affordance, not v1.)
+
+#### 4.4.4 MVP & open (architect) questions
+- **v1 = `Behavior` scope** end-to-end (covers the hill-attack commander); `Entity` + commander-access next.
+- **Architect-consult:** (a) forward heavy-tier split — `Blackboard1024` (legacy/hardcoded, single-primitive) vs partitioned `BlueprintBlackboard*` (authored/scoped); reconcile the drift with `Blueprint_Subsystem_Architecture_v1.2.md` ("AiPrimitive working state → `Blackboard1024`"). (b) `Entity`/commander lifetime ownership + how scope-keyed slots interact with the §4.3 Fix-3 concurrency hard-error.
+
+#### 4.4.5 Worked example — hill-attack commander
+`PlatoonHillAttack`'s `HillAttackMutableState` (120 B: wave/slot bitmasks + SoA attacker arrays) is shared across `CalculateSegments` / `DispatchWave` / `IsWaveCompleted` on one commander → a `Behavior`-scoped **shared variable**. The nodes bind `(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, …)` (Mode-1, 4-param, scope `Behavior`), replacing today's manual `ctx.World.GetComponentRW<Blackboard1024>() + Unsafe.As`. Subordinate state the commander inspects stays Mode-2 / ECS component reads. This behavior is the concrete driver for this pass.
 
 ## 5. Demos
 Stateless multi-action (Slice 1): a managed blackboard with ≥2 distinct-DTO variables at distinct offsets, each bound to a different action/condition, plus a `Repeater`; counter climbs to threshold then a condition fails; observed via a runtime proof test (mirroring blueprint `CountingDemo_ProofTests`) and live in `BrainBlackboardRenderer`/`BTreeVisualizerRenderer`. Stateful multi-primitive (Slice 2): the same stateful primitive at two nodes maintains independent state; mixed stateless+stateful coexist. Full demo specs in `.dev/btree-ai-action-binding/SLICE1-DESIGN §5` and `SLICE2-DESIGN §5`.
