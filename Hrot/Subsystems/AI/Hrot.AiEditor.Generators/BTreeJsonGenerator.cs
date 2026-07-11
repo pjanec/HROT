@@ -199,10 +199,28 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         }
 
         // Bridge: {Name}.Registrar.g.cs  (additive, separate hint name — PU-203, §14 item 3)
+        // HAJSON-B: scan for [BTreeDeactivator] hooks and pass them to the bridge emitter.
         string bridge;
         try
         {
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver);
+            // Build the set of action keys that will be registered by this bridge so the
+            // scanner can match against them without needing to re-derive offsets.
+            System.Func<string, int?>? resolverForDeactivator = structSizeResolver;
+            System.Collections.Generic.IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packed = null;
+            if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0 && resolverForDeactivator != null)
+            {
+                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, resolverForDeactivator, out _); }
+                catch { packed = null; }
+            }
+            else if (dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+            {
+                try { packed = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, null, out _); }
+                catch { packed = null; }
+            }
+
+            var registeredKeys = BTreeBridgeEmitCore.CollectRegisteredActionKeys(dto, packed);
+            var deactivators   = BTreeDeactivatorScanner.Scan(compilation, registeredKeys);
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators);
         }
         catch (Exception ex)
         {

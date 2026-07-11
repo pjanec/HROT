@@ -2155,4 +2155,265 @@ namespace Stub
             },
         };
     }
+
+    // ── HAJSON-B: [BTreeDeactivator] deactivator registration ─────────────────
+
+    /// <summary>
+    /// Stub source for HAJSON-B tests.
+    ///
+    /// Defines:
+    ///   - Stub.HajsonBb (blackboard — FourParamFull shape)
+    ///   - Stub.HajsonCtx (context)
+    ///   - Stub.HajsonDto (DTO struct for ThreeParamReusable)
+    ///   - Stub.HajsonNodes.Action_Full      — 4-param action (FourParamFull)
+    ///   - Stub.HajsonNodes.Deactivate_Full  — 4-param deactivator paired with Action_Full
+    ///   - Stub.HajsonNodes.Action_Dto       — 3-param action (ThreeParamReusable)
+    ///   - Stub.HajsonNodes.Deactivate_Dto   — 3-param deactivator paired with Action_Dto@0
+    ///   - Stub.HajsonNodes.Action_NoDe      — 4-param action with NO paired deactivator
+    /// </summary>
+    private const string DeactivatorStubs = @"
+using System.Runtime.InteropServices;
+using Fbt;
+
+namespace Stub
+{
+    public struct HajsonBb { }
+    public struct HajsonCtx { }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HajsonDto { public int Value; }
+
+    public static class HajsonNodes
+    {
+        // 4-param action (FourParamFull)
+        public static NodeStatus Action_Full(
+            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            => NodeStatus.Running;
+
+        // 4-param deactivator paired with Action_Full (key = bare FQN)
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Full"")]
+        public static void Deactivate_Full(
+            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+        { }
+
+        // 3-param action (ThreeParamReusable), DTO = HajsonDto at offset 0
+        public static NodeStatus Action_Dto(
+            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
+            => NodeStatus.Running;
+
+        // 3-param deactivator paired with Action_Dto at offset 0
+        [BTreeDeactivator(""Stub.HajsonNodes.Action_Dto@0"")]
+        public static void Deactivate_Dto(
+            ref HajsonDto dto, ref BehaviorTreeState state, ref HajsonCtx ctx)
+        { }
+
+        // 4-param action with NO paired deactivator
+        public static NodeStatus Action_NoDe(
+            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            => NodeStatus.Running;
+    }
+}
+";
+
+    /// <summary>
+    /// Builds a non-managed FourParamFull DTO that binds a single Action node to a given method FQN.
+    /// Used for the bare-key (4-param) deactivator tests.
+    /// </summary>
+    private static BehaviorTreeAssetDto BuildNonManagedActionDto(string methodFqn, string assetName = "HajsonFullAsset")
+    {
+        var actionId = new Guid("AA100000-0000-0000-0000-000000000001");
+        return new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AA100000-0000-0000-0000-AABBCCDD0001"),
+            Name = assetName,
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.HajsonBb",
+            ContextTypeName    = "Stub.HajsonCtx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn     = methodFqn,
+                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+        };
+    }
+
+    /// <summary>
+    /// Builds a managed ThreeParamReusable DTO that binds a single Action node to a given method FQN
+    /// targeting the "Value" field (offset 0) of HajsonDto.
+    /// </summary>
+    private static BehaviorTreeAssetDto BuildManagedThreeParamDeactivatorDto(string methodFqn, string assetName = "HajsonDtoAsset")
+    {
+        var actionId = new Guid("AB100000-0000-0000-0000-000000000001");
+        return new BehaviorTreeAssetDto
+        {
+            AssetId = new Guid("AB100000-0000-0000-0000-AABBCCDD0001"),
+            Name = assetName,
+            TargetNamespace = "Test.Ns",
+            BlackboardTypeName = "Stub.HajsonBb",
+            ContextTypeName    = "Stub.HajsonCtx",
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeActionNodeDto
+                {
+                    VisualId = actionId,
+                    ChildVisualIds = new List<Guid>(),
+                    EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn             = methodFqn,
+                        DelegateShape         = BTreeDelegateShapeDto.ThreeParamReusable,
+                        ExpressionTargetField = "Value",
+                    },
+                },
+            },
+            Pills = new List<BTreePillDto>(),
+            Canvas = new CanvasDto(),
+            SubtreeSyncBindings = new Dictionary<string, List<SubtreeSyncBindingDto>>(),
+            Suppressions = new SuppressionsDto(),
+            Blackboard = new BlackboardBlockDto
+            {
+                Managed  = true,
+                TypeName = "HajsonDtoBlackboard",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto
+                    {
+                        Name = "Value",
+                        Type = new BlackboardTypeRefDto { TypeId = "Stub.HajsonDto" },
+                    },
+                },
+            },
+        };
+    }
+
+    /// <summary>
+    /// HAJSON-B: A 4-param FourParamFull action bound in a non-managed asset, where
+    /// the compilation contains a [BTreeDeactivator] companion, must emit
+    /// <c>actionRegistry.RegisterDeactivator("Stub.HajsonNodes.Action_Full", ...)</c>
+    /// in the generated registrar.
+    /// </summary>
+    [Fact]
+    public void Deactivator_FourParam_Action_EmitsRegisterDeactivatorCall()
+    {
+        var dto  = BuildNonManagedActionDto("Stub.HajsonNodes.Action_Full");
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonFull.btree.json", json));
+
+        // Asset must emit 2 files (non-managed: topology + bridge, no blackboard struct)
+        result.GeneratedTrees.Should().HaveCount(2,
+            "non-managed asset with FourParamFull action must emit topology core + bridge");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "valid bound action must not trigger BTREE0002");
+
+        // Bridge file must contain the RegisterDeactivator call.
+        var bridge = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
+            .ToString();
+
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Full\"",
+            "bridge must call RegisterDeactivator with the action's bare FQN key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Full",
+            "bridge must reference the deactivator method directly (4-param = no wrapper)");
+    }
+
+    /// <summary>
+    /// HAJSON-B: A 3-param ThreeParamReusable action in a managed asset, where
+    /// the compilation contains a [BTreeDeactivator] companion, must emit a
+    /// RegisterDeactivator call with a wrapper lambda that projects the DTO at offset 0.
+    /// </summary>
+    [Fact]
+    public void Deactivator_ThreeParam_Action_EmitsWrapperLambda_WithBakedOffset()
+    {
+        var dto  = BuildManagedThreeParamDeactivatorDto("Stub.HajsonNodes.Action_Dto");
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonDto.btree.json", json));
+
+        // Managed asset must emit 3 files (topology + blackboard struct + bridge).
+        result.GeneratedTrees.Should().HaveCount(3,
+            "managed asset must emit topology core + blackboard struct + bridge");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "valid bound action must not trigger BTREE0002");
+
+        // Bridge file must contain the RegisterDeactivator call with wrapper lambda.
+        var bridge = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
+            .ToString();
+
+        bridge.Should().Contain("RegisterDeactivator(\"Stub.HajsonNodes.Action_Dto@0\"",
+            "bridge must call RegisterDeactivator with the {methodFqn}@{offset} key");
+        bridge.Should().Contain("global::Stub.HajsonNodes.Deactivate_Dto",
+            "bridge must reference the 3-param deactivator method in the wrapper");
+        bridge.Should().Contain("(nint)0",
+            "wrapper lambda must bake in byte offset 0 for the DTO projection");
+    }
+
+    /// <summary>
+    /// HAJSON-B: A bound action that has NO [BTreeDeactivator] companion must NOT emit any
+    /// RegisterDeactivator call in the bridge — no false positives.
+    /// </summary>
+    [Fact]
+    public void Deactivator_NoCompanion_DoesNotEmitRegisterDeactivatorCall()
+    {
+        // Action_NoDe has no [BTreeDeactivator] annotation in the stubs.
+        var dto = BuildNonManagedActionDto("Stub.HajsonNodes.Action_NoDe", "HajsonNoDeAsset");
+        string json = BTreeJsonServices.Serialize(dto);
+
+        var result = RunGeneratorWithStubs(DeactivatorStubs,
+            MakeAdditionalText("/p/HajsonNoDe.btree.json", json));
+
+        result.GeneratedTrees.Should().HaveCount(2,
+            "valid non-managed asset without deactivator must still emit topology + bridge");
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "absence of a deactivator is not an error");
+
+        var bridge = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
+            .ToString();
+
+        bridge.Should().NotContain("RegisterDeactivator",
+            "bridge must NOT emit RegisterDeactivator when no companion exists");
+    }
+
+    /// <summary>
+    /// HAJSON-B: Existing valid JSON assets (SampleScout — no bound actions, hence no
+    /// deactivators) must still emit the same 2-file output they did before HAJSON-B,
+    /// with no BTREE0002 warnings.
+    /// </summary>
+    [Fact]
+    public void Deactivator_ExistingValidAsset_UnchangedEmission_NoDeactivatorSection()
+    {
+        var model  = LoadSampleScout();
+        var dto    = BehaviorTreeAssetMapper.ToDto(model);
+        string json = BTreeJsonServices.Serialize(dto);
+
+        // Run without stubs (SampleScout has no action methods needing stubs).
+        var result = RunGenerator(MakeAdditionalText("/p/SampleScout.btree.json", json));
+
+        result.GeneratedTrees.Should().HaveCount(2,
+            "SampleScout (Wait-only, no actions) must emit 2 files as before HAJSON-B");
+        result.Diagnostics.Should().BeEmpty("SampleScout must produce no diagnostics after HAJSON-B");
+
+        var bridge = result.GeneratedTrees
+            .First(t => t.FilePath.EndsWith("Registrar.g.cs"))
+            .ToString();
+        bridge.Should().NotContain("RegisterDeactivator",
+            "SampleScout has no bound actions, so no deactivator section must be emitted");
+    }
 }
