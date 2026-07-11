@@ -1,0 +1,128 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "1a000000-0000-0000-0000-0000000000dd",
+	"Name": "PlatoonHillAttack",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "1a000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": ["1a000000-0000-0000-0000-000000000002"],
+			"DisplayLabel": "Root",
+			"EditorMetadata": { "X": 400, "Y": 0, "Comment": "PlatoonHillAttack commander — sets up the platoon then loops waves until the target area is clear.", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "1a000000-0000-0000-0000-000000000002",
+			"ChildVisualIds": [
+				"1a000000-0000-0000-0000-0000000000a1",
+				"1a000000-0000-0000-0000-0000000000a2",
+				"1a000000-0000-0000-0000-0000000000a3",
+				"1a000000-0000-0000-0000-000000000003"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": { "X": 400, "Y": 100, "Comment": "Setup (calc slots → move to baseline → wait for arrival) then the repeating wave loop.", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000a1",
+			"ChildVisualIds": [],
+			"DisplayLabel": "CalculateSegments",
+			"EditorMetadata": { "X": 150, "Y": 230, "Comment": "Compute firing-line slot count; zero all masks.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000a2",
+			"ChildVisualIds": [],
+			"DisplayLabel": "DispatchAllToBaseline",
+			"EditorMetadata": { "X": 300, "Y": 230, "Comment": "Publish MoveToLocation intents so every subordinate moves to its baseline slot.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000a3",
+			"ChildVisualIds": [],
+			"DisplayLabel": "AreAllAtBaseline",
+			"EditorMetadata": { "X": 450, "Y": 230, "Comment": "Running until every alive subordinate has arrived (dead/blocked count as arrived).", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "1a000000-0000-0000-0000-000000000003",
+			"ChildVisualIds": [
+				"1a000000-0000-0000-0000-0000000000b1",
+				"1a000000-0000-0000-0000-0000000000b2",
+				"1a000000-0000-0000-0000-0000000000b3",
+				"1a000000-0000-0000-0000-0000000000b4"
+			],
+			"DisplayLabel": "WaveLoop",
+			"EditorMetadata": { "X": 650, "Y": 230, "Comment": "One wave: EQS scan → resolve → dispatch half the platoon → wait for the wave to return. Repeater(-1) repeats until IsAreaQueryResolved returns Failure (area clear).", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000b1",
+			"ChildVisualIds": [],
+			"DisplayLabel": "RequestAreaQuery",
+			"EditorMetadata": { "X": 550, "Y": 370, "Comment": "Submit an EQS area query over the target polygon for hostiles.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000b2",
+			"ChildVisualIds": [],
+			"DisplayLabel": "IsAreaQueryResolved",
+			"EditorMetadata": { "X": 650, "Y": 370, "Comment": "Running while pending; Failure when the area is clear (breaks the repeater → behavior ends); Success with targets.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000b3",
+			"ChildVisualIds": [],
+			"DisplayLabel": "DispatchWaveWithTargets",
+			"EditorMetadata": { "X": 750, "Y": 370, "Comment": "Select this wave's tanks (Entity.Index parity), assign firing/baseline slots + round-robin targets, publish HullDownAttack intents.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "1a000000-0000-0000-0000-0000000000b4",
+			"ChildVisualIds": [],
+			"DisplayLabel": "IsWaveCompleted",
+			"EditorMetadata": { "X": 850, "Y": 370, "Comment": "Running until all attackers return/die; burns the firing slot of any tank that dies.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		}
+	],
+	"Pills": [
+		{
+			"VisualId": "1a000000-0000-0000-0000-0000000000f1",
+			"HostNodeVisualId": "1a000000-0000-0000-0000-000000000003",
+			"DecoratorType": "Repeater",
+			"IntParam": -1,
+			"FloatParam": null,
+			"Comment": "Repeat waves forever; the loop exits when IsAreaQueryResolved returns Failure (area clear).",
+			"StackIndex": 0
+		}
+	],
+	"Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+	"SubtreeSyncBindings": {},
+	"Suppressions": { "Conflict": [], "Unused": [] },
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": [
+			{
+				"Name": "Params",
+				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Static hill-attack config (firing line, baseline, attack dir, target area entity). Populated once at behavior assignment by ParsePlatoonHillAttackParams; all nodes alias this one variable.",
+				"IsAutoManaged": false
+			}
+		]
+	}
+}

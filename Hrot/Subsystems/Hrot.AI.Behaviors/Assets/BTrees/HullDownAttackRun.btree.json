@@ -1,0 +1,100 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "2b000000-0000-0000-0000-0000000000dd",
+	"Name": "HullDownAttackRun",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "2b000000-0000-0000-0000-000000000001",
+			"ChildVisualIds": ["2b000000-0000-0000-0000-000000000002"],
+			"DisplayLabel": "Root",
+			"EditorMetadata": { "X": 400, "Y": 0, "Comment": "HullDownAttackRun — one tank: creep over the crest, fire at its assigned target, then reverse back to baseline (guaranteed retreat).", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "2b000000-0000-0000-0000-000000000002",
+			"ChildVisualIds": [
+				"2b000000-0000-0000-0000-000000000003",
+				"2b000000-0000-0000-0000-0000000000a4"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": { "X": 400, "Y": 100, "Comment": "Engagement (with always-succeeding fallback) THEN a guaranteed reverse-to-baseline.", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Selector",
+			"VisualId": "2b000000-0000-0000-0000-000000000003",
+			"ChildVisualIds": [
+				"2b000000-0000-0000-0000-000000000004",
+				"2b000000-0000-0000-0000-0000000000a3"
+			],
+			"DisplayLabel": "Selector",
+			"EditorMetadata": { "X": 400, "Y": 220, "Comment": "Try the engagement; if it fails (overshoot), fall back to AbortEngagement so the outer Sequence still reaches ReverseToBaseline.", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "2b000000-0000-0000-0000-000000000004",
+			"ChildVisualIds": [
+				"2b000000-0000-0000-0000-0000000000a1",
+				"2b000000-0000-0000-0000-0000000000a2"
+			],
+			"DisplayLabel": "Engagement",
+			"EditorMetadata": { "X": 300, "Y": 340, "Comment": "Creep to/past the firing slot, then aim and fire at the assigned target.", "Collapsed": false, "Color": null }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "2b000000-0000-0000-0000-0000000000a1",
+			"ChildVisualIds": [],
+			"DisplayLabel": "CreepToAndBeyondSlot",
+			"EditorMetadata": { "X": 200, "Y": 460, "Comment": "Approach the slot, then creep along AttackDir; Running normally, Failure on >50m overshoot, early Success when the target becomes visible.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "2b000000-0000-0000-0000-0000000000a2",
+			"ChildVisualIds": [],
+			"DisplayLabel": "AimAndFireSpecific",
+			"EditorMetadata": { "X": 400, "Y": 460, "Comment": "Aim + fire at TargetNetworkId; tracks rounds via ammo drop against MaxRounds.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "2b000000-0000-0000-0000-0000000000a3",
+			"ChildVisualIds": [],
+			"DisplayLabel": "AbortEngagement",
+			"EditorMetadata": { "X": 550, "Y": 340, "Comment": "Always-Success fallback so the guaranteed retreat runs regardless of overshoot.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		},
+		{
+			"kind": "Action",
+			"VisualId": "2b000000-0000-0000-0000-0000000000a4",
+			"ChildVisualIds": [],
+			"DisplayLabel": "ReverseToBaseline",
+			"EditorMetadata": { "X": 550, "Y": 220, "Comment": "Reverse (armor toward enemy) to the baseline slot; publishes ClearBehaviorEvent on arrival — this is what the commander's IsWaveCompleted watches for.", "Collapsed": false, "Color": null },
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+		}
+	],
+	"Pills": [],
+	"Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
+	"SubtreeSyncBindings": {},
+	"Suppressions": { "Conflict": [], "Unused": [] },
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": [
+			{
+				"Name": "Params",
+				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.HullDownAttackParams", "IsArray": false, "FixedLength": null },
+				"DefaultValueJson": null,
+				"Comment": "Per-tank orders (firing slot, baseline slot, attack dir, speeds, TargetNetworkId, shot quota). Set per dispatch by ParseHullDownAttackParams; RoundsFired/LastObservedAmmo are mutated in place across ticks.",
+				"IsAutoManaged": false
+			}
+		]
+	}
+}

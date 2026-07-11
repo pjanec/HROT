@@ -10,6 +10,7 @@ using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Generated;
+using Hrot.AI.Behaviors.Trees;
 
 namespace Hrot.AI.Behaviors
 {
@@ -89,8 +90,10 @@ namespace Hrot.AI.Behaviors
             var joinFormationBlob = FbtTreeCatalog.GetJoinFormation(isResourceOwning);
             var wanderBlob        = FbtTreeCatalog.GetWanderMilitary(isResourceOwning);
             var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget(isResourceOwning);
-            var hullDownBlob      = FbtTreeCatalog.GetHullDownAttackRun(isResourceOwning);
-            var platoonHillBlob   = FbtTreeCatalog.GetPlatoonHillAttack(isResourceOwning);
+            // HAJSON-A: Use JSON-generated blobs for Hill Attack trees.
+            // Deactivator wiring (isResourceOwning) is HAJSON-B; not yet wired here.
+            var hullDownBlob      = HullDownAttackRun.Build();
+            var platoonHillBlob   = PlatoonHillAttack.Build();
 
             // Pre-compile HSM blob for Idle_HSM: a single "Idle" state with no transitions.
             var idleHsmBuilder = new HsmBuilder("Idle_HSM");
