@@ -386,8 +386,10 @@ namespace Hrot.Network.NED.SimHost
 
             foreach (var response in batch.Responses)
             {
-                // Use modulo ring-buffer indexing (consistent with AreaQueryBatchHelper.RequestAreaQuery).
-                int slot = (int)((uint)response.RequestId % (uint)AreaQueryBatchData.DefaultCapacity);
+                // Use the same XOR-hash slot formula as AreaQueryBatchHelper.ComputeSlot and
+                // AreaQueryResultMaterializationSystem.ComputeSlot so the brain ingress writes
+                // to the same ring-buffer slot that GetAreaQueryResult() will later read.
+                int slot = (int)(((ulong)response.RequestId ^ ((ulong)response.RequestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
 
                 int groupHandle = -1;
                 int resolvedCount = 0;

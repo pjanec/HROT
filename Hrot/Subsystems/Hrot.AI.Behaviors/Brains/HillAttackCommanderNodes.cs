@@ -496,6 +496,8 @@ namespace Hrot.AI.Behaviors.Brains
                         if (beh.ActiveBehaviorHash != HullDownAttackRunBehaviorId)
                         {
                             // Run complete (returned to baseline or abort path).
+                            // Release the baseline slot so subsequent waves can reuse it.
+                            s.BaselineReservedMask &= (ushort)~(1 << s.ReturnBaselineSlotIndex[i]);
                             SwapRemove(ref s, i);
                         }
                     }

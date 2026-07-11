@@ -208,6 +208,30 @@ namespace Hrot.SimHost.Tests
             new AreaQueryResultMaterializationSystem().Execute(repo, dt);
         }
 
+        /// <summary>
+        /// Runs one tick through only the BTree phase (no EQS pipeline).
+        /// Use this for ticks where the BTree reads a previously-resolved EQS result and
+        /// publishes non-EQS events (AssignTacticalIntentEvent, BehaviorFinishedEvent, etc.)
+        /// that must survive to the test assertion.
+        ///
+        /// After this call, any events published by btreeTick are in the WRITE buffer.
+        /// The caller must call <c>repo.Bus.SwapBuffers()</c> once to move them to READ.
+        /// </summary>
+        private static void TickBTreeOnly(EntityRepository repo,
+            BehaviorIngressSystem behaviorIngress,
+            TacticalIntentResolutionSystem tacticalResolution,
+            BTreeTickSystem btreeTick,
+            float dt = 0.1f)
+        {
+            // Begin frame: swap previous write->read so ingress systems can see last frame's events.
+            repo.Bus.SwapBuffers();
+            behaviorIngress.Execute(repo, dt);
+            tacticalResolution.Execute(repo, dt);
+            // BTree runs: publishes events (BFE, ATIE, etc.) to WRITE buffer.
+            // Caller swaps once more to move WRITE→READ before asserting.
+            btreeTick.Execute(repo, dt);
+        }
+
         private static long ParseTargetNetworkId(string json)
         {
             using var doc = JsonDocument.Parse(json);
@@ -335,8 +359,6 @@ namespace Hrot.SimHost.Tests
         /// the first and third dispatched tank receive the same target, while the
         /// second receives the other.
         /// </summary>
-        // STABILITY(Broken): Expected 3 assigned targets but got 0 — DispatchWave round-robin assignment not working; investigate HillAttack BTree
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem()
         {
@@ -380,10 +402,10 @@ namespace Hrot.SimHost.Tests
             AddRoster(_repo, commander, subs);
 
             // Publish AssignBehaviorEvent with a 90 m firing line (3 slots @ 30 m).
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":90,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":90,\"y\":50},"
+            string json = "{\"firingLineStart\":[0,0],"
+                        + "\"firingLineEnd\":[0,90],"
+                        + "\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,90],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -405,7 +427,9 @@ namespace Hrot.SimHost.Tests
             //         → Success) → Action_DispatchWaveWithTargets publishes one
             //         "HullDownAttack" AssignTacticalIntentEvent per tank →
             //         Condition_IsWaveCompleted returns Running (wave active).
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the
+            // AssignTacticalIntentEvents before the test can read them.
+            TickBTreeOnly(_repo, ingress, resolution, btree);
 
             // Move the HullDownAttack events from the write buffer to the read buffer.
             _repo.Bus.SwapBuffers();
@@ -436,8 +460,6 @@ namespace Hrot.SimHost.Tests
         /// firing-line slot.  The test drives the commander through
         /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
         /// </summary>
-        // STABILITY(Broken): Expected ≥2 HullDownAttack dispatch events but got 0 — DispatchWave unique slot assignment not working; investigate HillAttack BTree
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
         {
@@ -476,10 +498,10 @@ namespace Hrot.SimHost.Tests
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":90,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":90,\"y\":50},"
+            string json = "{\"firingLineStart\":[0,0],"
+                        + "\"firingLineEnd\":[0,90],"
+                        + "\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,90],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -495,7 +517,9 @@ namespace Hrot.SimHost.Tests
 
             // Tick 2: BTree reads EQS result (2 targets) → DispatchWaveWithTargets
             //         publishes 3 "HullDownAttack" events → IsWaveCompleted Running.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the
+            // AssignTacticalIntentEvents before the test can read them.
+            TickBTreeOnly(_repo, ingress, resolution, btree);
 
             _repo.Bus.SwapBuffers();
 
@@ -529,8 +553,6 @@ namespace Hrot.SimHost.Tests
         /// firing-line slot into <c>BurnedSlotsMask</c>.  The wave still completes
         /// once the surviving tank finishes its run.
         /// </summary>
-        // STABILITY(Broken): Expected 2 dispatched tanks but got 0 — IsWaveCompleted killed-tank slot burn not working; investigate HillAttack BTree
-        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem()
         {
@@ -570,10 +592,10 @@ namespace Hrot.SimHost.Tests
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":60,\"y\":50},"
+            string json = "{\"firingLineStart\":[0,0],"
+                        + "\"firingLineEnd\":[0,60],"
+                        + "\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,60],"
                         + "\"tankSpacing\":30,"
                         + $"\"targetAreaNetworkId\":{areaNetId}}}";
 
@@ -637,8 +659,6 @@ namespace Hrot.SimHost.Tests
         /// The Repeater exits on that Failure path and BehaviorFinishedEvent is published
         /// for the commander within a few ticks.
         /// </summary>
-        // STABILITY(Broken): BehaviorFinishedEvent not published for commander — HillAttack full end-to-end pipeline broken; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty()
         {
@@ -683,10 +703,13 @@ namespace Hrot.SimHost.Tests
             }
             AddRoster(_repo, commander, subs);
 
-            string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
-                        + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
-                        + "\"baselineStart\":{\"x\":0,\"y\":50},"
-                        + "\"baselineEnd\":{\"x\":60,\"y\":50},"
+            // PickableGeoPoint uses [JsonConverter(typeof(PickableGeoPointArrayConverter))]
+            // which expects [latitude, longitude] arrays. Cartesian fallback maps
+            // Longitude→X, Latitude→Y, so {x,y} becomes [y, x] in the array.
+            string json = "{\"firingLineStart\":[0,0],"
+                        + "\"firingLineEnd\":[0,60],"
+                        + "\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,60],"
                         + "\"tankSpacing\":30,"
                         + "\"targetAreaNetworkId\":9001}";
 
@@ -702,10 +725,14 @@ namespace Hrot.SimHost.Tests
             //       Tick 2: BTree resumes, Condition_IsAreaQueryResolved → Failure
             //              (TargetCount == 0), Repeater exits, BTree returns Failure,
             //              BTreeTickSystem publishes BehaviorFinishedEvent.
+            // Tick 1 uses the full EQS pipeline to collapse latency.
             TickOnce(_repo, behaviorIngress, tacticalResolution, btreeTick, eqsSolver);
-            TickOnce(_repo, behaviorIngress, tacticalResolution, btreeTick, eqsSolver);
+            // Tick 2: BTree reads the resolved result and publishes BFE to WRITE.
+            // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the BFE
+            // before the test can read it.
+            TickBTreeOnly(_repo, behaviorIngress, tacticalResolution, btreeTick);
 
-            // Move the event from write buffer to read buffer.
+            // Move the BFE from write buffer to read buffer.
             _repo.Bus.SwapBuffers();
 
             // Assert — BehaviorFinishedEvent must be published for the commander.

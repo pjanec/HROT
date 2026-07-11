@@ -2,6 +2,7 @@
 
 **Suites in scope:** `FDP/Toolkits/Fdp.Toolkits.Tests` · `Hrot/Subsystems/Hrot.SimHost.Tests`
 **Baseline batch:** TH-1 (2026-06-10)
+**TH-2 batch:** 2026-07-11
 
 ## Legend
 
@@ -65,6 +66,23 @@
 
 ## Hrot/Subsystems/Hrot.SimHost.Tests
 
+### Fixed (TH-2, 2026-07-11 — Hill-Attack 14 failing tests)
+
+| Test | Suite | Bucket | Classification | Root Cause | Resolution |
+|------|-------|--------|----------------|------------|------------|
+| `HullDownAttackParams_Is40Bytes` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | struct grew from 40→56 bytes (added `TargetNetworkId` long + `MaxRounds/RoundsFired/LastObservedAmmo` int fields; Sequential layout pads to largest alignment=8) | Updated assertion to `Assert.Equal(56, ...)` |
+| `SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel_AndIncrementsId` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `Action_AimAndFireSpecific` returns Failure early if entity lacks `WeaponState` component; test fixture did not add it | Added `WeaponState{Ammo=10}` component and set `MaxRounds=1, LastObservedAmmo=-1` in params |
+| `SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Test wrote to `batch.Results[0]` but `AreaQueryBatchHelper` uses XOR-hash slot formula; slot ≠ 0 | Computed correct slot with XOR formula before writing test data |
+| `SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same wrong-slot root cause as SC_HA011_4 | Same fix |
+| `SC_HA012_6b_IsWaveCompleted_RunComplete_WhenHashNoLongerMatchesAfterStarted` | Hrot.SimHost.Tests | **Fixed** | C (Production Bug — fixed) | `Condition_IsWaveCompleted` in the run-complete path (`HasStartedRun==1`, `BehaviorHash cleared`) called `SwapRemove` without releasing `BaselineReservedMask`, leaving the slot permanently reserved | Added `s.BaselineReservedMask &= (ushort)~(1 << s.ReturnBaselineSlotIndex[i])` before `SwapRemove` in `HillAttackCommanderNodes.cs` |
+| `SC_HA016_1_ParsePlatoonHillAttackParams_DeserializesFromJson` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `PickableGeoPoint` has `[JsonConverter(typeof(PickableGeoPointArrayConverter))]` requiring `[lat, lon]` arrays; test used `{"x":0,"y":0}` object format causing parse failure and zeroed params | Updated JSON to array format: `{x,y}` → `[y, x]` (Cartesian fallback maps `Longitude→X, Latitude→Y`) |
+| `SC_HA016_3_ParsePlatoonHillAttackParams_ResolvesTargetArea_WhenValid` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same wrong JSON format as SC_HA016_1 causing parse failure → `Entity.Null` returned | Same JSON format fix |
+| `SC_HA004_1_AreaQueryPipeline_BrainRequestReachesBack_WithTargets` | Hrot.SimHost.Tests | **Fixed** | B+C (Fixture Gap + Production Bug) | Two bugs: (1) `AddArea` helper in test didn't add `SimTransform` so solver guard `!HasComponent<SimTransform>` fired, publishing empty result; (2) `AreaQueryBrainIngressTranslator.ProcessBatch` used simple modulo slot formula inconsistent with `AreaQueryBatchHelper.ComputeSlot` (XOR hash), so brain ingress wrote to wrong slot | (1) Added `SimTransform` in `AddArea` in `AreaQueryTranslatorTests.cs`; (2) Fixed slot formula in `AreaQueryTranslators.cs` to use XOR hash matching `AreaQueryBatchHelper.ComputeSlot` |
+| `SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Two issues: (1) JSON used `{"x":y}` object format → parse failure → `Entity.Null` target → wrong BTree path; (2) `TickOnce` does 3 SwapBuffers/tick so `BehaviorFinishedEvent` from btreeTick gets destroyed by the T-B→T-C swap pair before test can read it | (1) Fixed JSON to array format; (2) Added `TickBTreeOnly` helper that skips EQS pipeline; used it for Tick 2 where no new EQS request is submitted |
+| `SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same JSON format issue; additionally `AssignTacticalIntentEvent`s published by BTree in Tick 2 were destroyed by extra SwapBuffers in `TickOnce` before test could read them | Fixed JSON; used `TickBTreeOnly` for Tick 2 to preserve dispatch events |
+| `SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) + C (Production Bug — fixed) | JSON format prevented params from parsing → TargetAreaEntity=null → no EQS dispatch; additionally the production `BaselineReservedMask` bug (SC_HA012_6b) caused Tick 4 to fail | Fixed JSON; production bug fixed (see SC_HA012_6b) |
+| `SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same JSON format + TickOnce buffer destruction as SC_HA015_2 | Same fixes as SC_HA015_2 |
+
 ### Flaky
 
 | Test | Suite | Bucket | Reason | Resolution/Target |
@@ -76,24 +94,12 @@
 
 | Test | Suite | Bucket | Reason | Resolution/Target |
 |------|-------|--------|--------|-------------------|
-| `HullDownAttackParams_Is40Bytes` | Hrot.SimHost.Tests | **Broken** | sizeof(HullDownAttackParams)=56 vs expected 40 — struct layout changed | Update test count or fix struct layout |
+| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | Hrot.SimHost.Tests | **Broken** | C-REPORT: `AreaQueryBatchHelper.RequestAreaQuery` generates ID as `((long)entity.Index << 32) \| repo.GlobalVersion`; same entity in same frame yields same `GlobalVersion` → duplicate IDs; also never returns -1 for over-capacity. Changing the ID scheme (include `sourceNodeId`, use per-entity counter, etc.) is non-trivial and may affect distributed routing assumptions | Lead decision needed: add `sourceNodeId` to ID hash, or switch to a per-entity monotonic counter |
+| `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` | Hrot.SimHost.Tests | **Broken** | C-REPORT (spec discrepancy): Test expects AttackDir = left-hand perpendicular of firing line. Production `ParsePlatoonHillAttackParams` computes `AttackDir = normalize(firingCenter - baselineCenter)` (baseline→firing direction). Both are reasonable interpretations; cannot determine which is correct without spec clarification | Lead decision needed: is AttackDir the approach vector (baseline→firing) or the lateral spread vector (perp to firing line)? |
 | `Inject_WithValidGuid_WritesInitialUnitSubordinateIntent` | Hrot.SimHost.Tests | **Broken** | JSON designation field: test passes Number but translator expects String | Fix designation type in UnitSubordinateTranslator (int vs string) |
 | `Inject_WithUnresolvableGuid_WritesIntentWithZeroNetworkId` | Hrot.SimHost.Tests | **Broken** | Same designation type mismatch as above | Fix designation type in UnitSubordinateTranslator |
 | `Extract_WithCommander_ProducesCommanderGuidAndDesignation` | Hrot.SimHost.Tests | **Broken** | designation extracted as String but JSON expects Int32 | Fix designation type in UnitSubordinateTranslator |
-| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | Hrot.SimHost.Tests | **Broken** | Duplicate RequestId 1 at index 1 — AreaQueryBatchData ID allocation returns colliding IDs | Fix AreaQueryBatchData.RequestAreaQuery ID generation |
-| `SC_HA012_6b_IsWaveCompleted_RunComplete_WhenHashNoLongerMatchesAfterStarted` | Hrot.SimHost.Tests | **Broken** | Baseline slot not cleared after run completes — IsWaveCompleted cleanup logic broken | Investigate HillAttack IsWaveCompleted implementation |
-| `SC_HA016_3_ParsePlatoonHillAttackParams_ResolvesTargetArea_WhenValid` | Hrot.SimHost.Tests | **Broken** | Entity.Null returned instead of valid entity — TargetArea entity resolution broken | Fix ParsePlatoonHillAttackParams entity resolution |
-| `SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel_AndIncrementsId` | Hrot.SimHost.Tests | **Broken** | WeaponChannel not written or value mismatch — AimAndFireSpecific behavior broken | Investigate AimAndFireSpecific BTree node |
-| `SC_HA011_3_IsAreaQueryResolved_ReturnsRunning_WhenResultNotReady` | Hrot.SimHost.Tests | **Broken** | Component type ID 117 not registered — missing AreaQuery component registration | Add AreaQuery component registration to test fixture |
-| `SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets` | Hrot.SimHost.Tests | **Broken** | Expected Failure result but got different — IsAreaQueryResolved logic broken for zero-target case | Fix IsAreaQueryResolved condition |
-| `SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId` | Hrot.SimHost.Tests | **Broken** | Expected Success result but got different — IsAreaQueryResolved logic broken | Fix IsAreaQueryResolved condition |
 | `PathfindingBatchData_DefaultCapacity_Is64` | Hrot.SimHost.Tests | **Broken** | PathfindingBatchData.DefaultCapacity != 64 — constant changed without updating test | Update test constant or restore DefaultCapacity to 64 |
-| `SC_HA016_1_ParsePlatoonHillAttackParams_DeserializesFromJson` | Hrot.SimHost.Tests | **Broken** | float value not within tolerance 0.001 — JSON deserialization precision issue | Investigate ParsePlatoonHillAttackParams float conversion |
-| `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` | Hrot.SimHost.Tests | **Broken** | float value not within tolerance 0.001 — AttackDir computation issue | Investigate ParsePlatoonHillAttackParams direction computation |
-| `SC_HA015_1_FullEndToEnd_CommanderFinishes_WhenAreaIsEmpty` | Hrot.SimHost.Tests | **Broken** | BehaviorFinishedEvent not published for commander — HillAttack full end-to-end pipeline broken | Investigate HillAttack BTree pipeline |
-| `SC_HA015_4_DispatchWaveWithTargets_AssignsTargetsRoundRobin_ViaBTreeSystem` | Hrot.SimHost.Tests | **Broken** | Expected 3 assigned targets but got 0 — round-robin assignment broken | Investigate DispatchWave round-robin logic |
-| `SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem` | Hrot.SimHost.Tests | **Broken** | Expected ≥2 HullDownAttack dispatch events but got 0 — unique slot assignment broken | Investigate DispatchWave slot assignment |
-| `SC_HA015_3_IsWaveCompleted_BurnsSlotOfKilledTank_ViaBTreeSystem` | Hrot.SimHost.Tests | **Broken** | Expected 2 dispatched tanks but got 0 — killed-tank slot burn broken | Investigate IsWaveCompleted slot burn |
 | `C013_ChildOverride_KeyAbsent_AllocatorCalledForChild` | Hrot.SimHost.Tests | **Broken** | AllocateId() called 1 time instead of expected 2 — child allocation logic broken | Investigate CreateEntityRequestSystem child override allocation |
 | `StartEpisode_NullRepo_WhenParticipating_Throws` | Hrot.SimHost.Tests | **Broken** | Handler not participating when scenario file exists — PrefetchFiles/participation logic broken | Investigate EpisodeLoadClusterOpHandler.PrepareAsync |
 | `GZH011_2_UpdateAndDraw_WithEditing_PublishesOnce_NoDuplicateEcho` | Hrot.SimHost.Tests | **Broken** | Expected 1 event but got 0/2 — LayerControlGizmo echo suppression logic broken | Investigate LayerControlGizmo UpdateAndDraw |
@@ -138,6 +144,13 @@
 
 | Suite | Fixed | Flaky | Environment | Broken | Total Marked/Fixed |
 |-------|-------|-------|-------------|--------|-------------------|
-| Fdp.Toolkits.Tests | 5 (ComponentId collision renumbers) | 3 | 0 | 19 | 27 |
-| Hrot.SimHost.Tests | 0 | 2 | 0 | 55 | 57 |
-| **Total** | **5** | **5** | **0** | **74** | **84** |
+| Fdp.Toolkits.Tests | 5 (TH-1: ComponentId collision renumbers) | 3 | 0 | 19 | 27 |
+| Hrot.SimHost.Tests | 12 (TH-2: 12 Hill-Attack tests) | 2 | 0 | 43 | 57 |
+| **Total** | **17** | **5** | **0** | **62** | **84** |
+
+### TH-2 C-REPORT Summary (lead decision required)
+
+| Test | Production Issue | Proposed Fix Options |
+|------|-----------------|---------------------|
+| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | ID = `(entity.Index << 32) \| GlobalVersion`; same entity+frame always yields same ID; no capacity-exceeded return | Option A: include `sourceNodeId` in ID hash; Option B: per-entity monotonic counter in `AreaQueryBatchData` |
+| `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` | `AttackDir = normalize(firingCenter − baselineCenter)` (approach vector); test expects left-hand perpendicular of firing line | Clarify spec: approach vector (current code) or lateral spread vector (test expectation) |

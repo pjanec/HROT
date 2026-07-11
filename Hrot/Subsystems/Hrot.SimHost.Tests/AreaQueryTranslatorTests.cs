@@ -75,6 +75,14 @@ namespace Hrot.SimHost.Tests
         private static Entity AddArea(EntityRepository repo, List<Vector2> polygon)
         {
             var entity = repo.CreateEntity();
+            // AreaQuerySolverSystem requires SimTransform on the area entity to read its
+            // world-space origin; without it the guard !HasComponent<SimTransform> fires
+            // and the solver publishes an empty result (TargetCount = 0, IsReady = false).
+            repo.AddComponent(entity, new SimTransform
+            {
+                Position = System.Numerics.Vector3.Zero,
+                Rotation = System.Numerics.Quaternion.Identity,
+            });
             var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
             ecb.AddManagedComponent(entity, new EditablePolyline
             {
@@ -141,8 +149,6 @@ namespace Hrot.SimHost.Tests
         /// -> Muscle egress -> Brain ingress.  Two enemy entities inside the polygon must
         /// be resolved back to the Brain with TargetCount == 2.
         /// </summary>
-        // STABILITY(Broken): Solver does not mark result IsReady — AreaQuerySolverSystem pipeline not completing; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA004_1_AreaQueryPipeline_BrainRequestReachesBack_WithTargets()
         {
@@ -209,7 +215,9 @@ namespace Hrot.SimHost.Tests
             RunMuscleSolverPipeline(_muscleRepo);
 
             // Verify ring buffer was populated.
-            int muscleSlot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            // Slot uses the same XOR hash as AreaQueryResultMaterializationSystem.ComputeSlot:
+            // (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % DefaultCapacity)
+            int muscleSlot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
             ref readonly var muscleBatch = ref _muscleRepo.GetSingleton<AreaQueryBatchData>();
             Assert.True(muscleBatch.Results[muscleSlot].IsReady, "Solver must mark result IsReady");
             Assert.Equal(2, muscleBatch.Results[muscleSlot].TargetCount);
@@ -244,7 +252,7 @@ namespace Hrot.SimHost.Tests
             };
             brainIngressTrans.ProcessBatch(targetedResponse, _brainRepo);
 
-            int brainSlot = (int)((uint)requestId % (uint)AreaQueryBatchData.DefaultCapacity);
+            int brainSlot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
             ref readonly var brainFinalBatch = ref _brainRepo.GetSingleton<AreaQueryBatchData>();
             Assert.True(brainFinalBatch.Results[brainSlot].IsReady, "Brain ingress must mark result IsReady");
             Assert.Equal(2, brainFinalBatch.Results[brainSlot].TargetCount);

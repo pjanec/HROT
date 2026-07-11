@@ -56,12 +56,13 @@ namespace Hrot.SimHost.Tests
         /// layout so it fits within the 60-byte param region and the
         /// <c>LocomotionChannel.Params</c> 32-byte fixed buffer.
         /// </summary>
-        // STABILITY(Broken): sizeof(HullDownAttackParams)=56 vs expected 40 — struct layout changed; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void HullDownAttackParams_Is40Bytes()
         {
-            Assert.Equal(40, sizeof(HullDownAttackParams));
+            // Struct grew from 40 bytes: 8 fields × 4 bytes + TargetNetworkId(long, 8 bytes) +
+            // MaxRounds + RoundsFired + LastObservedAmmo (3 × 4 bytes) = 52 bytes raw,
+            // padded to 56 by Sequential layout (must align to largest field: 8 bytes).
+            Assert.Equal(56, sizeof(HullDownAttackParams));
         }
 
         /// <summary>

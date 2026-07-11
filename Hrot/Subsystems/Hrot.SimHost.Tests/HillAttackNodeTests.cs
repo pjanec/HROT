@@ -291,8 +291,6 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA008-1: AimAndFireSpecific writes WeaponChannel; ActionInstanceId
         /// incremented exactly once per engagement.</summary>
-        // STABILITY(Broken): Expected WeaponChannel written but value mismatch — AimAndFireSpecific behavior broken; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel_AndIncrementsId()
         {
@@ -306,8 +304,11 @@ namespace Hrot.SimHost.Tests
             netMap.Register(77L, target);
 
             repo.AddComponent(tank, new WeaponChannel());
+            // Action_AimAndFireSpecific requires WeaponState to track rounds; without it the method
+            // returns Failure early without writing to WeaponChannel.
+            repo.AddComponent(tank, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10 });
 
-            var p     = new HullDownAttackParams { TargetNetworkId = 77L };
+            var p     = new HullDownAttackParams { TargetNetworkId = 77L, MaxRounds = 1, LastObservedAmmo = -1 };
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
@@ -779,8 +780,6 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA011-4: Condition_IsAreaQueryResolved returns Failure and resets
         /// CachedEqsRequestId = -1 when IsReady == true and TargetCount == 0.</summary>
-        // STABILITY(Broken): Expected Failure but got different result — IsAreaQueryResolved not returning Failure with zero targets; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets()
         {
@@ -795,9 +794,11 @@ namespace Hrot.SimHost.Tests
                 long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                     repo, commander, areaEntity, ForceId.Hostile);
 
-                // Mark result as ready with 0 targets.
+                // Write the result to the correct ring-buffer slot (same XOR hash used by
+                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
+                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
                 ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[0] = new AreaQueryResult
+                batch.Results[slot] = new AreaQueryResult
                 {
                     RequestId   = requestId,
                     IsReady     = true,
@@ -827,8 +828,6 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA011-5: Condition_IsAreaQueryResolved returns Success when
         /// IsReady == true and TargetCount > 0. CachedEqsRequestId is NOT cleared.</summary>
-        // STABILITY(Broken): Expected Success but got different result — IsAreaQueryResolved not returning Success correctly; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId()
         {
@@ -843,9 +842,11 @@ namespace Hrot.SimHost.Tests
                 long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                     repo, commander, areaEntity, ForceId.Hostile);
 
-                // Mark result as ready with 2 targets.
+                // Write the result to the correct ring-buffer slot (same XOR hash used by
+                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
+                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
                 ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[0] = new AreaQueryResult
+                batch.Results[slot] = new AreaQueryResult
                 {
                     RequestId         = requestId,
                     IsReady           = true,
@@ -1143,8 +1144,6 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA012-6b: When attacker's BehaviorHash matches HullDownAttackRun at
         /// tick T (HasStartedRun set), then no longer matches at T+1 => entry removed => Success.</summary>
-        // STABILITY(Broken): Baseline slot not cleared after run completes — IsWaveCompleted wave cleanup logic broken; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SC_HA012_6b_IsWaveCompleted_RunComplete_WhenHashNoLongerMatchesAfterStarted()
         {
@@ -1393,16 +1392,18 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA016-1: PlatoonHillAttackParamsJsonDto deserializes from full JSON.
         /// Missing tankSpacing uses default 30f.</summary>
-        // STABILITY(Broken): float value not within tolerance 0.001 — JSON deserialization precision or unit conversion issue; investigate ParsePlatoonHillAttackParams
-        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA016_1_ParsePlatoonHillAttackParams_DeserializesFromJson()
         {
+            // PickableGeoPoint is serialized as [latitude, longitude] array.
+            // In the Cartesian fallback path: StartX = longitude, StartY = latitude.
+            // So [y, x] → firingLineStart{x=0,y=0} → [0,0]; firingLineEnd{x=100,y=0} → [0,100];
+            // baselineStart{x=0,y=50} → [50,0]; baselineEnd{x=100,y=50} → [50,100].
             const string json =
-                @"{""firingLineStart"":{""x"":0,""y"":0}," +
-                @"""firingLineEnd"":{""x"":100,""y"":0}," +
-                @"""baselineStart"":{""x"":0,""y"":50}," +
-                @"""baselineEnd"":{""x"":100,""y"":50}," +
+                @"{""firingLineStart"":[0,0]," +
+                @"""firingLineEnd"":[0,100]," +
+                @"""baselineStart"":[50,0]," +
+                @"""baselineEnd"":[50,100]," +
                 @"""targetAreaNetworkId"":0}";
             // (no tankSpacing => should default to 30f)
 
@@ -1447,8 +1448,6 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>SC-HA016-3: Valid TargetAreaNetworkId that maps to a live entity =>
         /// TargetAreaEntity != Entity.Null.</summary>
-        // STABILITY(Broken): Entity.Null returned instead of valid entity — TargetArea resolution broken; investigate ParsePlatoonHillAttackParams
-        [Trait("Stability", "Broken")]
         [Fact]
         public unsafe void SC_HA016_3_ParsePlatoonHillAttackParams_ResolvesTargetArea_WhenValid()
         {
@@ -1458,11 +1457,13 @@ namespace Hrot.SimHost.Tests
             var entityMap  = new NetworkEntityMap();
             entityMap.Register(999L, areaEntity);
 
+            // PickableGeoPoint uses [latitude, longitude] array format.
+            // In Cartesian fallback: StartX=longitude, StartY=latitude.
             string json =
-                @"{""firingLineStart"":{""x"":0,""y"":0}," +
-                @"""firingLineEnd"":{""x"":10,""y"":0}," +
-                @"""baselineStart"":{""x"":0,""y"":5}," +
-                @"""baselineEnd"":{""x"":10,""y"":5}," +
+                @"{""firingLineStart"":[0,0]," +
+                @"""firingLineEnd"":[0,10]," +
+                @"""baselineStart"":[5,0]," +
+                @"""baselineEnd"":[5,10]," +
                 @"""tankSpacing"":30," +
                 @"""targetAreaNetworkId"":999}";
 
