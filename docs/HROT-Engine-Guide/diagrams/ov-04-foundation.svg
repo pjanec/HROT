@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 440" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="920" height="440" fill="#F7F8FA"/>
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#3A4250">Foundation — What the Engine Gives You</text>
+  <text x="40" y="68" font-size="14" fill="#6B7280">One data-oriented core under every node: physics, AI, rendering, and the editor all sit on it.</text>
+
+  <!-- four pillars -->
+  <g filter="url(#soft)"><rect x="40" y="100" width="200" height="220" rx="12" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.7"/></g>
+  <circle cx="140" cy="150" r="24" fill="#EAF0E3" stroke="#7A916A" stroke-width="1.5"/>
+  <text x="140" y="157" font-size="20" text-anchor="middle">⚡</text>
+  <text x="140" y="200" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Performance</text>
+  <text x="140" y="226" font-size="11" fill="#4f5d44" text-anchor="middle">zero-allocation</text>
+  <text x="140" y="244" font-size="11" fill="#4f5d44" text-anchor="middle">hot path</text>
+  <text x="140" y="268" font-size="11" fill="#4f5d44" text-anchor="middle">flat unmanaged</text>
+  <text x="140" y="286" font-size="11" fill="#4f5d44" text-anchor="middle">memory (ECS)</text>
+
+  <g filter="url(#soft)"><rect x="256" y="100" width="200" height="220" rx="12" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.7"/></g>
+  <circle cx="356" cy="150" r="24" fill="#DEE7F1" stroke="#5B7BA6" stroke-width="1.5"/>
+  <text x="356" y="157" font-size="20" text-anchor="middle">🔄</text>
+  <text x="356" y="200" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Hot-pluggable</text>
+  <text x="356" y="226" font-size="11" fill="#46566e" text-anchor="middle">install / remove</text>
+  <text x="356" y="244" font-size="11" fill="#46566e" text-anchor="middle">modules at 60 Hz</text>
+  <text x="356" y="268" font-size="11" fill="#46566e" text-anchor="middle">enables AI</text>
+  <text x="356" y="286" font-size="11" fill="#46566e" text-anchor="middle">hot-reload</text>
+
+  <g filter="url(#soft)"><rect x="472" y="100" width="200" height="220" rx="12" fill="#E6D9C7" stroke="#B08C5E" stroke-width="1.7"/></g>
+  <circle cx="572" cy="150" r="24" fill="#F2E9DC" stroke="#B08C5E" stroke-width="1.5"/>
+  <text x="572" y="157" font-size="20" text-anchor="middle">🧵</text>
+  <text x="572" y="200" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Safe background</text>
+  <text x="572" y="226" font-size="11" fill="#6e5836" text-anchor="middle">AI, perception,</text>
+  <text x="572" y="244" font-size="11" fill="#6e5836" text-anchor="middle">recording off the</text>
+  <text x="572" y="268" font-size="11" fill="#6e5836" text-anchor="middle">main thread —</text>
+  <text x="572" y="286" font-size="11" fill="#6e5836" text-anchor="middle">no locks</text>
+
+  <g filter="url(#soft)"><rect x="688" y="100" width="200" height="220" rx="12" fill="#E5D2DD" stroke="#A86F8C" stroke-width="1.7"/></g>
+  <circle cx="788" cy="150" r="24" fill="#F2E6EC" stroke="#A86F8C" stroke-width="1.5"/>
+  <text x="788" y="157" font-size="20" text-anchor="middle">🎯</text>
+  <text x="788" y="200" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Deterministic</text>
+  <text x="788" y="226" font-size="11" fill="#7a4f6a" text-anchor="middle">double-buffered</text>
+  <text x="788" y="244" font-size="11" fill="#7a4f6a" text-anchor="middle">lock-free event bus</text>
+  <text x="788" y="268" font-size="11" fill="#7a4f6a" text-anchor="middle">reproducible</text>
+  <text x="788" y="286" font-size="11" fill="#7a4f6a" text-anchor="middle">results</text>
+
+  <!-- base bar -->
+  <rect x="40" y="344" width="848" height="44" rx="10" fill="#E4E7EC" stroke="#9AA3B0" stroke-width="1.3"/>
+  <text x="464" y="371" font-size="13" font-weight="600" fill="#6B7280" text-anchor="middle">Same foundation everywhere — physics · AI · rendering · editor</text>
+</svg>

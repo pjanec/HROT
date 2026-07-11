@@ -52,12 +52,12 @@ namespace Hrot.Diagnostics.Overlays.Tests
         public void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0) => EmitCount++;
+            byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) => EmitCount++;
 
         public void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0) => EmitCount++;
+            byte layer = 0, float fontSizePx = 0f, float lineOffsetPx = 0f) => EmitCount++;
     }
 
     public sealed class OverlaySourceTests

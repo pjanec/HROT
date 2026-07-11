@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 470" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <marker id="a5" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#C7A98C"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+  <rect width="920" height="470" fill="#F7F8FA"/>
+  <text x="40" y="44" font-size="22" font-weight="700" fill="#3A4250">AI &amp; Behavior — Four Complementary Paradigms</text>
+  <text x="40" y="68" font-size="14" fill="#6B7280">Author behavior four ways — all visual, all hot-reloadable. Pick the right tool per problem.</text>
+
+  <!-- four authoring systems -->
+  <g filter="url(#soft)"><rect x="40" y="100" width="195" height="92" rx="11" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.7"/></g>
+  <text x="137" y="128" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Behavior Trees</text>
+  <text x="137" y="150" font-size="11" fill="#46566e" text-anchor="middle">structured, reactive</text>
+  <text x="137" y="167" font-size="11" fill="#46566e" text-anchor="middle">"what do I do now"</text>
+
+  <g filter="url(#soft)"><rect x="247" y="100" width="195" height="92" rx="11" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.7"/></g>
+  <text x="344" y="128" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">State Machines</text>
+  <text x="344" y="150" font-size="11" fill="#46566e" text-anchor="middle">explicit modes</text>
+  <text x="344" y="167" font-size="11" fill="#46566e" text-anchor="middle">Patrol→Engage→Retreat</text>
+
+  <g filter="url(#soft)"><rect x="454" y="100" width="195" height="92" rx="11" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.7"/></g>
+  <text x="551" y="128" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Blueprints</text>
+  <text x="551" y="150" font-size="11" fill="#46566e" text-anchor="middle">visual dataflow</text>
+  <text x="551" y="167" font-size="11" fill="#46566e" text-anchor="middle">custom logic &amp; glue</text>
+
+  <g filter="url(#soft)"><rect x="661" y="100" width="195" height="92" rx="11" fill="#E5D2DD" stroke="#A86F8C" stroke-width="1.7"/></g>
+  <text x="758" y="128" font-size="14.5" font-weight="700" fill="#3A4250" text-anchor="middle">Utility AI</text>
+  <text x="758" y="150" font-size="11" fill="#7a4f6a" text-anchor="middle">scored decisions</text>
+  <text x="758" y="167" font-size="11" fill="#7a4f6a" text-anchor="middle">graded judgement</text>
+
+  <!-- supporting systems band -->
+  <text x="40" y="232" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="0.5">FED BY</text>
+  <g filter="url(#soft)"><rect x="40" y="244" width="255" height="64" rx="10" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.6"/></g>
+  <text x="167" y="270" font-size="13" font-weight="700" fill="#3A4250" text-anchor="middle">EQS — spatial sensing</text>
+  <text x="167" y="290" font-size="10.5" fill="#4f5d44" text-anchor="middle">cover · flanking · reachability · LOS</text>
+
+  <g filter="url(#soft)"><rect x="311" y="244" width="255" height="64" rx="10" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.6"/></g>
+  <text x="438" y="270" font-size="13" font-weight="700" fill="#3A4250" text-anchor="middle">Perception</text>
+  <text x="438" y="290" font-size="10.5" fill="#4f5d44" text-anchor="middle">contacts · threat memory · multi-modal</text>
+
+  <g filter="url(#soft)"><rect x="582" y="244" width="274" height="64" rx="10" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.6"/></g>
+  <text x="719" y="270" font-size="13" font-weight="700" fill="#3A4250" text-anchor="middle">Missions &amp; squads</text>
+  <text x="719" y="290" font-size="10.5" fill="#4f5d44" text-anchor="middle">mission plans · triggers · group maneuvers</text>
+
+  <!-- arrows from authoring down to channels -->
+  <line x1="448" y1="308" x2="448" y2="360" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#a5)"/>
+
+  <!-- actuation channels -->
+  <text x="40" y="350" font-size="12" font-weight="700" fill="#6B7280" letter-spacing="0.5">ACTS THROUGH</text>
+  <g filter="url(#soft)"><rect x="40" y="372" width="816" height="74" rx="12" fill="#E6D9C7" stroke="#B08C5E" stroke-width="1.7"/></g>
+  <text x="448" y="398" font-size="14" font-weight="700" fill="#3A4250" text-anchor="middle">Actuation channels</text>
+  <text x="448" y="420" font-size="11.5" fill="#6e5836" text-anchor="middle">Locomotion · Weapon · Interaction — AI writes intent, never touches physics directly</text>
+  <text x="448" y="437" font-size="10.5" font-style="italic" fill="#9b7d5e" text-anchor="middle">capability-gated · clean preemption on behavior switch</text>
+</svg>

@@ -56,7 +56,7 @@ namespace GizmoMap.Presentation.Shapes
                             new Vector3(-0.5f, -0.35f, 0f), new Vector3(0.5f, -0.35f, 0f),
                             new Vector3(0.5f, 0.35f, 0f), new Vector3(-0.5f, 0.35f, 0f)
                         },
-                        IsClosed = true, IsFilled = false, LineThickness = 2f
+                        IsClosed = true, IsFilled = false, LineThickness = 1f
                     }
                 }
             };
@@ -75,7 +75,7 @@ namespace GizmoMap.Presentation.Shapes
                         {
                             new Vector3(0f, -0.5f, 0f), new Vector3(0f, 0.5f, 0f)
                         },
-                        IsClosed = false, IsFilled = false, LineThickness = 2f
+                        IsClosed = false, IsFilled = false, LineThickness = 1f
                     }
                 }
             };
@@ -95,7 +95,7 @@ namespace GizmoMap.Presentation.Shapes
                             new Vector3(-0.5f, 0f, 0f), new Vector3(0.5f, 0f, 0f),
                             new Vector3(0f, -0.15f, 0f), new Vector3(0f, 0.15f, 0f)
                         },
-                        IsClosed = false, IsFilled = false, LineThickness = 2f
+                        IsClosed = false, IsFilled = false, LineThickness = 1f
                     }
                 }
             };

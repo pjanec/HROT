@@ -795,6 +795,7 @@ namespace Hrot.Editor
             // Register Urban Combat entity blueprints (TKB types 1001?2003) so the
             // ScenarioSerializer can resolve MilitaryApc, InfantrySoldier, and Insurgent.
             UrbanCombatNewScenario.RegisterUrbanCombatTkbTemplates(tkbDb);
+            if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
             var translators = new List<ITkbEntityTranslator>
             {
                 new SpatialCoreTkbTranslator(),
@@ -1061,6 +1062,8 @@ namespace Hrot.Editor
             // Auto-register all [GizmoProjector]-decorated gizmos in Hrot.ScenarioEditor.Gizmos
             // (IgEntityPresentationGizmo, RouteGizmo, MapOverlayGizmo, EffectPresentationGizmo, ...).
             Hrot.ScenarioEditor.Gizmos.GizmoRegistrar.RegisterAll(
+                editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
+            Hrot.SimHost.Gizmos.GizmoRegistrar.RegisterAll(
                 editorGizmoRegistry, editorStatelessGizmoRegistry, editorGizmoSettings);
             // Register gizmos from Hrot.Common.Diagnostics (SelectionHighlightGizmo, HealthBarGizmo, ...).
             Hrot.Common.Diagnostics.Gizmos.GizmoRegistrar.RegisterAll(

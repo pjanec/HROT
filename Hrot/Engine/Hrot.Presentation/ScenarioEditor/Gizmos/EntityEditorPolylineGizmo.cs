@@ -16,7 +16,8 @@ namespace Hrot.ScenarioEditor.Gizmos
     /// that the heading of even small entities is immediately apparent at typical editor
     /// zoom levels.
     /// </summary>
-    [GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
+    //Commented out in favor of SimHostEntityPresentationGizmo
+    //[GizmoProjector(typeof(SimTransform), typeof(NetworkIdentity))]
     public sealed class EntityEditorPolylineGizmo : IStatelessGizmo
     {
         // Outline dimensions in screen pixels.

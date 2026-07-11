@@ -20,12 +20,15 @@ public class GZH012_Tests
         public int ShutdownImGuiCallCount { get; private set; }
         public int CloseWindowCallCount   { get; private set; }
         public int LoadAtlasCallCount     { get; private set; }
+        public int LoadGizmoFontCallCount { get; private set; }
 
         public void InitWindow(int w, int h, string t, int fps) => InitWindowCallCount++;
         public void SetupImGui()      => SetupImGuiCallCount++;
         public void ShutdownImGui()   => ShutdownImGuiCallCount++;
         public void CloseWindow()     => CloseWindowCallCount++;
         public void UnloadAtlasTexture() { }
+        // No-op in tests: Raylib GPU context is unavailable in headless test environment.
+        public void LoadGizmoFont()   => LoadGizmoFontCallCount++;
 
         public Fdp.Presentation.Icons.IconAtlas LoadIconAtlas()
         {

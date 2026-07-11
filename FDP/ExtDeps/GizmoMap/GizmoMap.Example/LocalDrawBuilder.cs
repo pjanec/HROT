@@ -82,17 +82,19 @@ namespace GizmoMap.Example
         public void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f, float lineOffsetPx = 0f)
         {
-            _buffer.DrawText(x, y, text, color, space, layer);
+            _buffer.DrawText(x, y, text, color, space, layer, fontSizePx, lineOffsetPx);
         }
 
         public void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f, float lineOffsetPx = 0f)
         {
-            _buffer.DrawTextLong(x, y, text, color, space, layer);
+            _buffer.DrawTextLong(x, y, text, color, space, layer, fontSizePx, lineOffsetPx);
         }
 
         /// <summary>

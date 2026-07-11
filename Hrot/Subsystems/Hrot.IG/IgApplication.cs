@@ -535,8 +535,28 @@ public class IgApplication : IDisposable
 
         rlImGui.Setup(darkTheme: true);
 
+        // Load Roboto TTF into Raylib and register it for gizmo text rendering.
+        // Must be called after InitWindow (GL context must exist).
+        LoadAndRegisterGizmoFont();
+
         InitializeEmbedded(domainIdOverride: domainIdOverride);
 
+    }
+
+
+
+    /// <summary>
+    /// Loads the embedded Roboto TTF font into Raylib and registers it for gizmo text rendering.
+    /// Must be called after <c>Raylib.InitWindow</c> so the GL context exists.
+    /// Safe to call multiple times (idempotent at the Raylib level; last call wins for the static field).
+    /// </summary>
+    private static void LoadAndRegisterGizmoFont()
+    {
+        byte[] ttf = Fdp.Presentation.Fonts.EmbeddedFontResources.GetRobotoRegularTtfBytes();
+        // 32-pixel base size gives crisp downscaling to 9–13 px gizmo labels.
+        var font = Raylib.LoadFontFromMemory(".ttf", ttf, 32, null, 0);
+        Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
+        GizmoMap.Presentation.DebugPrimitiveRenderer2D.TextFont = font;
     }
 
 

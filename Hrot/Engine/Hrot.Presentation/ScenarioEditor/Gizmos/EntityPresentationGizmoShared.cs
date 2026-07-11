@@ -45,8 +45,25 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public static ulong ResolveProfileId(ISimulationView view, Entity entity)
         {
-            if (view is EntityRepository repo)
-                return repo.GetDisType(entity).Value;
+            if (view is not EntityRepository repo)
+                return 0UL;
+
+            var dis = repo.GetDisType(entity);
+            if (dis.Value != 0UL)
+                return dis.Value;
+
+            // Header DisType is unset (e.g. the entity was spawned via TKB, or loaded without
+            // the DisEntityType translator reaching this repository). Fall back to the TKB
+            // template keyed by TkbType — mirroring DisEntityTypeTranslator's extract-time
+            // fallback — so the shape still resolves to the correct DIS profile.
+            if (repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
+                && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>())
+            {
+                var tkb = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+                ref readonly var tkbId = ref repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity);
+                if (tkb != null && tkb.TryGetByType(tkbId.TkbType, out var template))
+                    return template.DisType.Value;
+            }
             return 0UL;
         }
 
@@ -61,7 +78,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             byte layer = 0)
         {
             var prim = DebugPrimitive.MakeSemanticShape(
-                entity.Index,
+                (int)networkId,
                 (ushort)entity.Generation,
                 networkId,
                 profileId,
@@ -69,6 +86,10 @@ namespace Hrot.ScenarioEditor.Gizmos
                 width,
                 conditionMask,
                 layer: layer);
+            // MakeSemanticShape builds from default(DebugPrimitive), which leaves Color at
+            // (0,0,0,0) — fully transparent, so the avatar would draw invisibly. Set an
+            // explicit opaque color so the shape (and the magenta fallback) is visible.
+            prim.Color = new Rgba32(100, 220, 255, 255);
             draw.EmitRaw(in prim);
         }
     }

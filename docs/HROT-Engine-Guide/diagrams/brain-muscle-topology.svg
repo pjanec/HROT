@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 560" font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#C7A98C"/>
+    </marker>
+    <marker id="arrowSlate" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6B7280"/>
+    </marker>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#3A4250" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="920" height="560" fill="#F7F8FA"/>
+
+  <!-- title -->
+  <text x="40" y="46" font-size="22" font-weight="700" fill="#3A4250">Brain / Muscle — Cluster Topology</text>
+  <text x="40" y="70" font-size="14" fill="#6B7280">All inter-node traffic is DDS pub/sub. The Brain decides; the Muscle executes; neither crosses the boundary.</text>
+
+  <!-- DDS bus band -->
+  <rect x="40" y="92" width="840" height="30" rx="15" fill="#E4E7EC" stroke="#9AA3B0" stroke-width="1.2"/>
+  <text x="460" y="112" font-size="13" font-weight="600" fill="#6B7280" text-anchor="middle">DDS Domain (CycloneDDS) — discovery handles topology changes transparently</text>
+
+  <!-- Orchestrator -->
+  <g filter="url(#soft)">
+    <rect x="60" y="160" width="180" height="92" rx="12" fill="#E5D2DD" stroke="#A86F8C" stroke-width="1.6"/>
+  </g>
+  <text x="150" y="188" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">Orchestrator</text>
+  <text x="150" y="210" font-size="11.5" fill="#6B7280" text-anchor="middle">Cluster state machine</text>
+  <text x="150" y="226" font-size="11.5" fill="#6B7280" text-anchor="middle">2-phase commit</text>
+  <text x="150" y="242" font-size="11.5" fill="#6B7280" text-anchor="middle">Central asset gateway</text>
+
+  <!-- ExCon -->
+  <g filter="url(#soft)">
+    <rect x="680" y="160" width="180" height="92" rx="12" fill="#E5D2DD" stroke="#A86F8C" stroke-width="1.6"/>
+  </g>
+  <text x="770" y="188" font-size="15" font-weight="700" fill="#3A4250" text-anchor="middle">ExCon (IOS)</text>
+  <text x="770" y="210" font-size="11.5" fill="#6B7280" text-anchor="middle">Operator console</text>
+  <text x="770" y="226" font-size="11.5" fill="#6B7280" text-anchor="middle">Scenario lifecycle</text>
+  <text x="770" y="242" font-size="11.5" fill="#6B7280" text-anchor="middle">Time control</text>
+
+  <!-- CGF Brain -->
+  <g filter="url(#soft)">
+    <rect x="60" y="300" width="220" height="118" rx="12" fill="#C9D6E8" stroke="#5B7BA6" stroke-width="1.8"/>
+  </g>
+  <text x="170" y="328" font-size="16" font-weight="700" fill="#3A4250" text-anchor="middle">CGF — Brain</text>
+  <text x="170" y="350" font-size="11.5" fill="#46566e" text-anchor="middle">Behavior trees · HSM · Blueprints</text>
+  <text x="170" y="367" font-size="11.5" fill="#46566e" text-anchor="middle">Mission plans · Utility AI</text>
+  <text x="170" y="384" font-size="11.5" fill="#46566e" text-anchor="middle">Threat memory · spawn authority</text>
+  <text x="170" y="405" font-size="10.5" font-style="italic" fill="#5B7BA6" text-anchor="middle">owns cognition · writes intent</text>
+
+  <!-- SimHost Muscle -->
+  <g filter="url(#soft)">
+    <rect x="640" y="300" width="220" height="118" rx="12" fill="#D8E0CE" stroke="#7A916A" stroke-width="1.8"/>
+  </g>
+  <text x="750" y="328" font-size="16" font-weight="700" fill="#3A4250" text-anchor="middle">SimHost — Muscle</text>
+  <text x="750" y="350" font-size="11.5" fill="#4f5d44" text-anchor="middle">Ground kinematics · physics</text>
+  <text x="750" y="367" font-size="11.5" fill="#4f5d44" text-anchor="middle">Combat · ballistics</text>
+  <text x="750" y="384" font-size="11.5" fill="#4f5d44" text-anchor="middle">Perception · line-of-sight</text>
+  <text x="750" y="405" font-size="10.5" font-style="italic" fill="#7A916A" text-anchor="middle">owns physics · authoritative position</text>
+
+  <!-- IG -->
+  <g filter="url(#soft)">
+    <rect x="330" y="452" width="260" height="80" rx="12" fill="#E6D9C7" stroke="#B08C5E" stroke-width="1.8"/>
+  </g>
+  <text x="460" y="480" font-size="16" font-weight="700" fill="#3A4250" text-anchor="middle">IG — Image Generator</text>
+  <text x="460" y="502" font-size="11.5" fill="#6e5836" text-anchor="middle">Ghost replication · 2-D/3-D render</text>
+  <text x="460" y="519" font-size="11.5" fill="#6e5836" text-anchor="middle">Operator pick &amp; interaction</text>
+
+  <!-- vertical links to DDS bus -->
+  <line x1="150" y1="160" x2="150" y2="122" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arrowSlate)"/>
+  <line x1="770" y1="160" x2="770" y2="122" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arrowSlate)"/>
+  <line x1="170" y1="300" x2="170" y2="122" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arrowSlate)"/>
+  <line x1="750" y1="300" x2="750" y2="122" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arrowSlate)"/>
+  <line x1="460" y1="452" x2="460" y2="122" stroke="#6B7280" stroke-width="1.5" marker-end="url(#arrowSlate)"/>
+
+  <!-- Brain <-> Muscle intent/status (the key relationship) -->
+  <line x1="280" y1="345" x2="640" y2="345" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="460" y="338" font-size="11.5" font-weight="600" fill="#9b7d5e" text-anchor="middle">NavigationIntent · WeaponFireIntent  →</text>
+  <line x1="640" y1="372" x2="280" y2="372" stroke="#C7A98C" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <text x="460" y="390" font-size="11.5" font-weight="600" fill="#9b7d5e" text-anchor="middle">←  WorldPos · NavigationStatus · EntityDamage</text>
+
+  <!-- legend -->
+  <g transform="translate(60,540)">
+    <rect x="0" y="-12" width="14" height="14" rx="3" fill="#C9D6E8" stroke="#5B7BA6"/>
+    <text x="20" y="0" font-size="11" fill="#6B7280">Cognition</text>
+    <rect x="100" y="-12" width="14" height="14" rx="3" fill="#D8E0CE" stroke="#7A916A"/>
+    <text x="120" y="0" font-size="11" fill="#6B7280">Physics</text>
+    <rect x="190" y="-12" width="14" height="14" rx="3" fill="#E6D9C7" stroke="#B08C5E"/>
+    <text x="210" y="0" font-size="11" fill="#6B7280">Render</text>
+    <rect x="275" y="-12" width="14" height="14" rx="3" fill="#E5D2DD" stroke="#A86F8C"/>
+    <text x="295" y="0" font-size="11" fill="#6B7280">Control</text>
+  </g>
+</svg>

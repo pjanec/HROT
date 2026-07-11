@@ -167,15 +167,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public void DrawText(
             float x, float y, FixedString32 text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f)
         {
-            Append(DebugPrimitive.MakeText(x, y, text, color, space, layer));
+            Append(DebugPrimitive.MakeText(x, y, text, color, space, layer, fontSizePx, lineOffsetPx));
         }
 
         public void DrawTextLong(
             float x, float y, string text, Rgba32 color,
             CoordinateSpace space = CoordinateSpace.World,
-            byte layer = 0)
+            byte layer = 0,
+            float fontSizePx = 0f,
+            float lineOffsetPx = 0f)
         {
             uint hash = StringInternMap.Fnv1a32(text);
             _internMap.Intern(hash, text);   // idempotent; allocates only on first call
@@ -192,6 +196,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.StringHash  = hash;
             // Store first MaxLength chars inline as a preview fallback.
             p.TextContent = new FixedString32(text);
+            // ThicknessU16 repurposed for Text: carries desired screen-pixel font size (not * 10).
+            if (fontSizePx > 0f)
+                p.ThicknessU16 = (ushort)fontSizePx;
+            // AnchorGeneration carries the screen-pixel line offset for Text primitives (signed).
+            if (lineOffsetPx != 0f)
+                p.AnchorGeneration = unchecked((ushort)(short)lineOffsetPx);
             Append(p);
         }
 

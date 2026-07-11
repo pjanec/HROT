@@ -60,8 +60,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         }
 
         // SC_GZ057_3: Draw emits a SemanticShape primitive with AnchorIndex matching networkId.
-        // STABILITY(Broken): Expected DebugPrimitiveShape.SemanticShape but got Box2D — SimHostEntityPresentationGizmo emitting wrong shape type; investigate
-        [Trait("Stability", "Broken")]
+        // Gizmo emits: [0] SpatialAnchor, [1] PickBox (Box2D), [2] SemanticShape.
         [Fact]
         public void SC_GZ057_3_Draw_EmitsSemanticShapeWithMatchingAnchorIndex()
         {
@@ -74,12 +73,58 @@ namespace Hrot.SimHost.Tests.Gizmos
             gizmo.Draw(_repo, entity, buffer);
 
             var frame = buffer.GetFrame();
-            Assert.True(frame.Length >= 2);
+            Assert.True(frame.Length >= 3);
 
-            var semantic = frame[1];
+            var semantic = frame[2];
             Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
             Assert.Equal(CoordinateSpace.EntityLocal, semantic.Space);
             Assert.Equal(99, semantic.AnchorIndex);
+        }
+
+        // SC_GZ057_5: AnchorIndex == (int)networkId even when entity.Index diverges from networkId.
+        // Regression for the bug where entity.Index was passed as anchorIndex instead of (int)networkId,
+        // causing the renderer's SpatialAnchor cache lookup (keyed by networkId) to always miss.
+        [Fact]
+        public void SC_GZ057_5_DrawSemanticShape_AnchorIndex_MatchesNetworkId_NotEntityIndex()
+        {
+            // Create multiple entities so entity.Index is not 1, then assign a large networkId
+            // that is guaranteed to differ from any plausible entity.Index.
+            var dummy = _repo.CreateEntity();
+            _repo.AddComponent(dummy, new SimTransform());
+            _repo.AddComponent(dummy, new NetworkIdentity(0L));
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
+            const long networkId = 9999L;
+            _repo.AddComponent(entity, new NetworkIdentity(networkId));
+
+            // Verify the precondition: entity.Index must differ from (int)networkId
+            Assert.NotEqual((int)networkId, entity.Index);
+
+            var buffer = new DebugPrimitiveBuffer();
+            var gizmo  = new SimHostEntityPresentationGizmo();
+            gizmo.Draw(_repo, entity, buffer);
+
+            var frame = buffer.GetFrame();
+            Assert.True(frame.Length >= 3);
+
+            // Find the SemanticShape — it is at frame[2]: [0]=SpatialAnchor, [1]=PickBox, [2]=SemanticShape
+            var semantic = frame[2];
+            Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
+            Assert.Equal(CoordinateSpace.EntityLocal, semantic.Space);
+
+            // AnchorIndex must equal (int)networkId, NOT entity.Index.
+            // The renderer caches SpatialAnchors keyed by networkId; a mismatch causes every
+            // SemanticShape to be silently dropped (anchor lookup miss).
+            Assert.Equal((int)networkId, semantic.AnchorIndex);
+            Assert.NotEqual(entity.Index, semantic.AnchorIndex);
+
+            // Round-trip: the SpatialAnchor at frame[0] carries the same networkId,
+            // so the renderer key and the SemanticShape lookup key both equal networkId.
+            var anchor = frame[0];
+            Assert.Equal(DebugPrimitiveShape.SpatialAnchor, anchor.Shape);
+            Assert.Equal(networkId, anchor.NetworkId);
+            Assert.Equal(anchor.NetworkId, (long)semantic.AnchorIndex);
         }
 
         // SC_GZ057_4: Draw with VehicleParams emits non-zero dimensions in SemanticShape.
