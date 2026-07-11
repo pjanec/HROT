@@ -57,12 +57,12 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
                 Operation     = Fdp.Toolkit.Orchestration.NodeOpType.StartEpisode,
-                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty → not valid
+                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty -> not valid
             };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
-            // IsParticipatingForTest must be false (invalid payload → not participating).
+            // IsParticipatingForTest must be false (invalid payload -> not participating).
             Assert.False(handler.IsParticipatingForTest,
                 "Handler must mark itself non-participating when EpisodeId is missing.");
 
@@ -97,14 +97,14 @@ namespace Hrot.SimHost.Tests
 
         // ── A.2 fix 3: null repo when CommitStartEpisode runs for a participant ─
 
-        // STABILITY(Broken): Handler not participating when scenario file exists — PrefetchFiles / participation logic broken; investigate EpisodeLoadClusterOpHandler
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): LocalDiskStorageProvider looks in _tempRoot/scenarios/<scenarioId>/
+        // The test was writing to _tempRoot/<scenarioId>/ — fixed to add the "scenarios" subdirectory.
         [Fact]
         public async Task StartEpisode_NullRepo_WhenParticipating_Throws()
         {
             // Create a scenario directory + matching JSON file so PrepareAsync participates.
             var scenarioId = "s_nullrepo_" + Guid.NewGuid().ToString("N");
-            var dir = Path.Combine(_tempRoot, scenarioId);
+            var dir = Path.Combine(_tempRoot, "scenarios", scenarioId);
             Directory.CreateDirectory(dir);
 
             // Minimal scenario JSON that passes subsystem-match check.

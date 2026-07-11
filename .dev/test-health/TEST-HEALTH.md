@@ -3,6 +3,7 @@
 **Suites in scope:** `FDP/Toolkits/Fdp.Toolkits.Tests` · `Hrot/Subsystems/Hrot.SimHost.Tests`
 **Baseline batch:** TH-1 (2026-06-10)
 **TH-2 batch:** 2026-07-11
+**TH-3 batch:** 2026-07-11
 
 ## Legend
 
@@ -144,15 +145,57 @@
 | `Extract_InitialUnitSubordinateIntent_RemapsCommanderNetworkIdViaOldToNewMap` | Hrot.SimHost.Tests | **Broken** | EditablePolyline managed component not registered — missing in fixture | Add RegisterManagedComponent<EditablePolyline>() to StagingEntityExtractor fixture |
 | `Extract_ChildEntity_InitialPassengersIntent_NetworkIdIsRemapped` | Hrot.SimHost.Tests | **Broken** | EditablePolyline managed component not registered — missing in fixture | Add RegisterManagedComponent<EditablePolyline>() to StagingEntityExtractor fixture |
 
+### Fixed (TH-3, 2026-07-11 — non-Hill-Attack fixture gaps and stale tests)
+
+| Test | Suite | Bucket | Classification | Root Cause | Resolution | File |
+|------|-------|--------|----------------|------------|------------|------|
+| `PathfindingBatchData_DefaultCapacity_Is64` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | `PathfindingBatchData.DefaultCapacity` changed from 64 to 256 without updating test | Updated assertion to `Assert.Equal(256, ...)` | `PathfindingBatchDataTests.cs` |
+| `LoadExistingScenario_SpawnsCorrectEntityCount` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `LocalDiskStorageProvider` resolves `_tempDir/scenarios/<id>/` but test wrote to `_tempDir/<id>/` — missing "scenarios" subdirectory | Fixed path: `Path.Combine(_tempDir, "scenarios", scenarioId)` | `EditLoadClusterOpHandlerTests.cs` |
+| `Commit_DoesNotBlockLongerThan50ms` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same missing "scenarios" subdirectory as above | Same path fix | `EditLoadClusterOpHandlerTests.cs` |
+| `StartEpisode_NullRepo_WhenParticipating_Throws` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same missing "scenarios" subdirectory — `HrotScenarioLoader` uses `OrchestrationConstants.ScenariosDirectoryName` ("scenarios") prefix | Fixed path: `Path.Combine(_tempRoot, "scenarios", scenarioId)` | `EpisodeLoadClusterOpHandlerTests.cs` |
+| `Inject_WithValidGuid_WritesInitialUnitSubordinateIntent` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `UnitSubordinateTranslator.Designation` is `string?` (serializes as enum name); test was passing integer | Changed `["designation"] = 3` to `["designation"] = ((TacticalDesignation)3).ToString()` | `UnitSubordinateTranslatorTests.cs` |
+| `Inject_WithUnresolvableGuid_WritesIntentWithZeroNetworkId` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | Same designation type mismatch | Changed `["designation"] = 0` to `TacticalDesignation.Undefined.ToString()` | `UnitSubordinateTranslatorTests.cs` |
+| `Extract_WithCommander_ProducesCommanderGuidAndDesignation` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | designation extracted as string but assertion used `GetValue<int>()` | Changed to `GetValue<string>()` and compared to enum name | `UnitSubordinateTranslatorTests.cs` |
+| `CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | `DebugStatePatchSystem` removed from `CognitiveRuntimeModule.InputSystems`; count went 3→2 | Updated `Assert.Equal(2, pack.InputSystems.Count)` | `CgfLogicPackTests.cs` |
+| `CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | Same `DebugStatePatchSystem` removal; InputSystems count 3→2 | Updated `Assert.Equal(2, ...)` | `CgfLogicPackTests.cs` |
+| `CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | Total system count 21→20 after `DebugStatePatchSystem` removal | Updated `Assert.Equal(20, ...)` | `CgfLogicPackTests.cs` |
+| `SimHostCoreLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | `EqsResultUpdateSystem` added to `SimHostCoreLogicPack` simList; count went 8→9 | Updated `Assert.Equal(9, pack.SimulationSystems.Count)` | `SimHostCoreLogicPackTests.cs` |
+| `Extract_EntityWithActiveMissionPlan_ReturnsMissionPlanDomObject` | Hrot.SimHost.Tests | **Fixed** | A (Stale Test) | `MissionPlanTranslator.Extract` intentionally omits `CurrentPhase`/`PhaseElapsedSeconds` (transient state not persisted); test was asserting their presence | Replaced with `Assert.Null(obj["CurrentPhase"])` and `Assert.Null(obj["PhaseElapsedSeconds"])` | `MissionPlanTranslatorTests.cs` |
+| `Inject_WithExtractedDom_RestoresActivePlanAndQueue` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `MissionTriggerHelper.ResolveTrigger(null)` returns `TimerElapsed`; `CreateMissionEntity` supplied no triggers so `BehaviorFinished` assertion failed | Added `Triggers = [{Type="BehaviorFinished"}]` to `DomainMissionTask` in helper | `MissionPlanTranslatorTests.cs` |
+| `GZH011_2_UpdateAndDraw_WithEditing_PublishesOnce_NoDuplicateEcho` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `OpenLayerEditorEvent` is an unmanaged struct; `LayerControlGizmo` reads via `_interactionBus.Read<>()` (unmanaged ring); test used `bus.PublishManaged()` (managed ring — wrong channel) | Changed to `bus.Publish(new OpenLayerEditorEvent())` | `Gizmos/LayerControlGizmoTests.cs` |
+| `SC_ER007_ValidActionName_KnownEntity_PublishesGlobalActionRequestedEvent` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `ContextActionIngressSystem` reads `ContextActionTriggered` from its own `_interactionBus` (not `_repo.Bus`); test was publishing to `_repo.Bus` | Changed to publish to `interactionBus` and swap that bus | `Gizmos/ContextActionRotateHandlerTests.cs` |
+| `SC_GZ057_4_Draw_WithVehicleParams_EmitsNonZeroDimensions` | Hrot.SimHost.Tests | **Fixed** | B (Fixture Gap) | `SimHostEntityPresentationGizmo.Draw` emits 3 primitives in order: [0]=SpatialAnchor, [1]=PickBox, [2]=SemanticShape; test was reading `frame[1]` (PickBox) instead of `frame[2]` (SemanticShape) | Changed to `frame[2]`, guard to `>= 3`, added shape assertion | `Gizmos/SimHostEntityPresentationGizmoTests.cs` |
+
+### Remaining Broken (TH-3 — C-REPORT, lead action needed)
+
+| Test | Suite | Bucket | Root Cause | C-REPORT Notes |
+|------|-------|--------|------------|----------------|
+| `InitializeEmbedded_DomainZero_UsesDomainZero` | Hrot.SimHost.Tests | **Broken** | `EngineBackedNavigationModule.RegisterProviders` throws `InvalidOperationException: Call RegisterSystems before RegisterProviders`; production registers providers before systems in `SimHostNodeBootstrapper.RegisterSpawningPipeline` | Real ordering bug in bootstrapper; `[Trait("Stability","Broken")]` applied |
+| `InitializeHeadless_NodeIdZero_FallsBackToLegacyConstant` | Hrot.SimHost.Tests | **Broken** | Same RegisterSystems/RegisterProviders ordering bug | Same — `[Trait("Stability","Broken")]` applied |
+| `InitializeHeadless_NodeIdTen_ResolvedToTen` | Hrot.SimHost.Tests | **Broken** | Same ordering bug | Same |
+| `OnLoad_RegistersCycloneNetworkCleanupSystem` | Hrot.SimHost.Tests | **Broken** | Same ordering bug | Same |
+| `SimHost_Tick_DoesNotThrow` | Hrot.SimHost.Tests | **Broken** | Same ordering bug — in `SimHostTimeSyncTests` | Same |
+| `BranchedRecording_CapturesHistoricalStateAsKeyframe` | Hrot.SimHost.Tests | **Broken** | `FullBranchPipelineTests` — pipeline fails with file-not-found or branch recording bug; environment-dependent | `[Trait("Stability","Broken")]` applied |
+
 ---
 
 ## Summary Counts
 
-| Suite | Fixed | Flaky | Environment | Broken | Total Marked/Fixed |
-|-------|-------|-------|-------------|--------|-------------------|
-| Fdp.Toolkits.Tests | 5 (TH-1: ComponentId collision renumbers) | 3 | 0 | 19 | 27 |
-| Hrot.SimHost.Tests | 13 (TH-2: 12 Hill-Attack tests + TH-2b: 1 AreaQuery slot allocator) | 2 | 0 | 42 | 57 |
-| **Total** | **18** | **5** | **0** | **61** | **84** |
+| Suite | Batch | Fixed | Flaky | Environment | Broken | Total Marked/Fixed |
+|-------|-------|-------|-------|-------------|--------|-------------------|
+| Fdp.Toolkits.Tests | TH-1 | 5 (ComponentId collision renumbers) | 3 | 0 | 19 | 27 |
+| Hrot.SimHost.Tests | TH-2 | 13 (12 Hill-Attack tests + 1 AreaQuery slot allocator) | 2 | 0 | 42 | 57 |
+| Hrot.SimHost.Tests | **TH-3** | **17** (non-Hill-Attack A+B fixes) | 0 | 0 | **6** (C-REPORT — all `Broken`-tagged) | **23** |
+| **Total** | | **35** | **5** | **0** | **67** | **107** |
+
+**TH-3 result:** `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests` — **Failed: 6, Passed: 639, Skipped: 3** (all 6 failures are `[Trait("Stability","Broken")]` C-REPORT items — 5 RegisterProviders ordering bug + 1 FullBranchPipeline).
+
+### TH-3 C-REPORT Summary (lead decision required)
+
+| Issue | Location | Description | Proposed Fix |
+|-------|----------|-------------|--------------|
+| `RegisterSystems before RegisterProviders` | `SimHostNodeBootstrapper.RegisterSpawningPipeline` (line 294) calling `RegisterSpawningPipeline` → `EngineBackedNavigationModule.RegisterProviders` before `RegisterSystems` | Production bootstrapper calls providers before systems; `EngineBackedNavigationModule` enforces the opposite ordering | Reorder: call `RegisterSystems` on `EngineBackedNavigationModule` before `RegisterProviders` in `SimHostNodeBootstrapper.RegisterSpawningPipeline` |
+| `FullBranchPipeline` failure | `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` | Branch recording pipeline fails — likely missing recording infra or keyframe capture bug | Investigate `FullBranchPipelineTests` fixture and `BranchedRecording` implementation |
 
 ### TH-2 C-REPORT Summary (lead decision required)
 

@@ -30,8 +30,9 @@ namespace Hrot.SimHost.Tests.Gizmos
         // SC_ER007: A ContextActionTriggered with a valid integer ActionName and a known
         // entity network ID is translated into a GlobalActionRequestedEvent with the
         // matching ActionId and resolved Target entity.
-        // STABILITY(Broken): Expected 1 GlobalActionRequestedEvent but got 0 — ContextActionIngressSystem not routing event correctly; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): ContextActionIngressSystem reads from its own _interactionBus,
+        // not _repo.Bus. Test must publish ContextActionTriggered to interactionBus and swap it
+        // before Execute, then swap again before reading GlobalActionRequestedEvent.
         [Fact]
         public void SC_ER007_ValidActionName_KnownEntity_PublishesGlobalActionRequestedEvent()
         {
@@ -41,12 +42,13 @@ namespace Hrot.SimHost.Tests.Gizmos
             var interactionBus = new FdpEventBus();
             var sys = new ContextActionIngressSystem(_entityMap, interactionBus);
 
-            _repo.Bus.PublishManaged(new ContextActionTriggered
+            // Publish to the isolated interactionBus — NOT _repo.Bus.
+            interactionBus.PublishManaged(new ContextActionTriggered
             {
-                ActionName     = GlobalActionIds.Rotate.ToString(),
+                ActionName      = GlobalActionIds.Rotate.ToString(),
                 EntityNetworkId = 42,
             });
-            _repo.Bus.SwapBuffers();
+            interactionBus.SwapBuffers();
 
             sys.Execute(_repo, 0f);
             interactionBus.SwapBuffers();

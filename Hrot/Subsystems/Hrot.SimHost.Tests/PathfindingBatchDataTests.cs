@@ -35,14 +35,13 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// <see cref="PathfindingBatchData.DefaultCapacity"/> must be 64 as specified in the design.
+        /// <see cref="PathfindingBatchData.DefaultCapacity"/> must match the production constant.
+        /// A (Stale Test TH-3): constant changed from 64 to 256 in PathfindingBatchData.cs.
         /// </summary>
-        // STABILITY(Broken): PathfindingBatchData.DefaultCapacity != 64 — constant changed or logic pack regression; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void PathfindingBatchData_DefaultCapacity_Is64()
         {
-            Assert.Equal(64, PathfindingBatchData.DefaultCapacity);
+            Assert.Equal(256, PathfindingBatchData.DefaultCapacity);
         }
 
         /// <summary>

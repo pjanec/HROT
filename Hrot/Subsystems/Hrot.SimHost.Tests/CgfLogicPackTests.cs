@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using CarKinem.Formation;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -89,8 +89,8 @@ namespace Hrot.SimHost.Tests
         /// All three sub-module system sets register without error and run on an
         /// empty world without throwing.
         /// </summary>
-        // STABILITY(Broken): system count mismatch (Expected 3, Actual 2) — a system was added/removed from CgfLogicPack without updating the test count; investigate
-        [Trait("Stability", "Broken")]
+        // A (Stale Test TH-3): DebugStatePatchSystem removed from CognitiveRuntimeModule.InputSystems;
+        // InputSystems count dropped from 3 to 2; total from 21 to 20.
         [Fact]
         public void CgfLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
@@ -109,11 +109,10 @@ namespace Hrot.SimHost.Tests
             });
             Assert.Null(ex);
 
-            // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1),
-            //               DebugStatePatchSystem (1, behav-diag-1) = 3
-            // SimulationSystems: 16 + TacticalIntentResolutionSystem + UnitHierarchySystem
-            //                    + TraceBufferLifecycleSystem (behav-diag-1) = 18
-            Assert.Equal(3,  pack.InputSystems.Count);
+            // InputSystems: MissionControlExecutionSystem (1), BehaviorIngressSystem (1) = 2
+            // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
+            // SimulationSystems: 18 (unchanged)
+            Assert.Equal(2,  pack.InputSystems.Count);
             Assert.Equal(18, pack.SimulationSystems.Count);
         }
 
@@ -261,15 +260,15 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, commands.Count);
         }
 
-        // â”€â”€ S306: Two-group overload routes systems correctly â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // -- S306: Two-group overload routes systems correctly --
 
         /// <summary>
         /// S306-SC1/SC2/SC3: The two-group overload places <see cref="MissionControlExecutionSystem"/>
         /// and <see cref="BehaviorIngressSystem"/> in the Input group, and all remaining
         /// systems in the Simulation group.
         /// </summary>
-        // STABILITY(Broken): system count mismatch (Expected 3, Actual 2) — system added/removed from CgfLogicPack without updating count; investigate
-        [Trait("Stability", "Broken")]
+        // A (Stale Test TH-3): DebugStatePatchSystem removed from CognitiveRuntimeModule.InputSystems;
+        // InputSystems count corrected from 3 to 2.
         [Fact]
         public void CgfLogicPack_TwoGroupOverload_RoutesSystemsCorrectly()
         {
@@ -289,19 +288,19 @@ namespace Hrot.SimHost.Tests
             // MissionAdapterSystem stays in SimulationSystems.
             Assert.Contains(pack.SimulationSystems, s => s is MissionAdapterSystem);
 
-            // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem
-            //               + DebugStatePatchSystem (behav-diag-1) = 3
-            Assert.Equal(3,  pack.InputSystems.Count);
-            // SimulationSystems: total 21 - 3 = 18 (incl. TraceBufferLifecycleSystem behav-diag-1)
+            // InputSystems: MissionControlExecutionSystem + BehaviorIngressSystem = 2
+            // (DebugStatePatchSystem removed from CognitiveRuntimeModule — TH-3/A)
+            Assert.Equal(2,  pack.InputSystems.Count);
+            // SimulationSystems: 18 (unchanged)
             Assert.Equal(18, pack.SimulationSystems.Count);
         }
 
         /// <summary>
-        /// S306-SC4: The existing single-group overload still adds all 15 systems to the same
+        /// S306-SC4: The existing single-group overload still adds all systems to the same
         /// group (no regression).
         /// </summary>
-        // STABILITY(Broken): system count mismatch (Expected 21, Actual 20) — system added/removed from CgfLogicPack without updating count; investigate
-        [Trait("Stability", "Broken")]
+        // A (Stale Test TH-3): total system count corrected from 21 to 20
+        // (DebugStatePatchSystem removed from CognitiveRuntimeModule.InputSystems).
         [Fact]
         public void CgfLogicPack_SingleGroupOverload_StillAddsAllSystemsToOneGroup()
         {
@@ -312,9 +311,8 @@ namespace Hrot.SimHost.Tests
 
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
                 new TacticalIntentMapperRegistry());
-            // Total systems across both phases equals 21
-            //   (split: 3 input + 18 sim — adds DebugStatePatchSystem + TraceBufferLifecycleSystem from behav-diag-1).
-            Assert.Equal(21, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // Total systems across both phases equals 20 (2 input + 18 sim).
+            Assert.Equal(20, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using System.Reflection;
 using CarKinem.Core;
@@ -128,8 +128,8 @@ namespace Hrot.SimHost.Tests.Gizmos
         }
 
         // SC_GZ057_4: Draw with VehicleParams emits non-zero dimensions in SemanticShape.
-        // STABILITY(Broken): Expected 3 primitives but got 8 — SimHostEntityPresentationGizmo emitting extra primitives with VehicleParams; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): test was reading frame[1] (PickBox) instead of frame[2] (SemanticShape).
+        // Gizmo emits: [0] SpatialAnchor, [1] PickBox (Box2D), [2] SemanticShape.
         [Fact]
         public void SC_GZ057_4_Draw_WithVehicleParams_EmitsNonZeroDimensions()
         {
@@ -143,9 +143,11 @@ namespace Hrot.SimHost.Tests.Gizmos
             gizmo.Draw(_repo, entity, buffer);
 
             var frame = buffer.GetFrame();
-            Assert.True(frame.Length >= 2);
+            Assert.True(frame.Length >= 3);
 
-            var semantic = frame[1];
+            // [0] SpatialAnchor, [1] PickBox (Box2D), [2] SemanticShape with VehicleParams dimensions.
+            var semantic = frame[2];
+            Assert.Equal(DebugPrimitiveShape.SemanticShape, semantic.Shape);
             Assert.Equal(8f, semantic.LengthMeters);
             Assert.Equal(3f, semantic.WidthMeters);
         }

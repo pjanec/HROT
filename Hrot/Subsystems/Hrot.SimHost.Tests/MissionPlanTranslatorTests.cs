@@ -67,6 +67,12 @@ namespace Hrot.SimHost.Tests
                         TaskId    = Guid.NewGuid(),
                         BehaviorName = behaviorName,
                         BehaviorParams = string.Empty,
+                        // B (Fixture Gap TH-3): ResolveTrigger(null) returns TimerElapsed; must
+                        // supply a Trigger so production Inject sets MissionTrigger.BehaviorFinished.
+                        Triggers  = new List<DomainMissionTrigger>
+                        {
+                            new DomainMissionTrigger { Type = "BehaviorFinished" }
+                        },
                     }
                 }
             };
@@ -95,11 +101,12 @@ namespace Hrot.SimHost.Tests
         // ── Test 1: Extract returns expected DOM keys and values ──────────────────
 
         /// <summary>
-        /// S201-SC1: Extract produces a dictionary with key "MissionPlan" containing
-        /// PlanData, CurrentPhase, and PhaseElapsedSeconds.
+        /// S201-SC1: Extract produces a dictionary with key "MissionPlan" containing PlanData.
+        /// CurrentPhase and PhaseElapsedSeconds are intentionally omitted from the JSON (transient
+        /// execution state is not persisted — see MissionPlanTranslator.Extract comments).
         /// </summary>
-        // STABILITY(Broken): NullReferenceException — MissionPlanTranslator.Extract returns null instead of DOM object; investigate
-        [Trait("Stability", "Broken")]
+        // A (Stale Test TH-3): stale assertions for CurrentPhase/PhaseElapsedSeconds removed;
+        // production intentionally does not write those fields to the scenario JSON.
         [Fact]
         public void Extract_EntityWithActiveMissionPlan_ReturnsMissionPlanDomObject()
         {
@@ -114,8 +121,9 @@ namespace Hrot.SimHost.Tests
             var obj = result["MissionPlan"] as JsonObject;
             Assert.NotNull(obj);
             Assert.NotNull(obj!["PlanData"]);
-            Assert.Equal(0, obj["CurrentPhase"]!.GetValue<int>());
-            Assert.Equal(1.5f, obj["PhaseElapsedSeconds"]!.GetValue<float>(), precision: 5);
+            // CurrentPhase and PhaseElapsedSeconds are intentionally NOT written by Extract.
+            Assert.Null(obj["CurrentPhase"]);
+            Assert.Null(obj["PhaseElapsedSeconds"]);
         }
 
         // ── Test 2: Inject restores ActiveMissionPlan and MissionPlanQueue ────────
@@ -124,8 +132,8 @@ namespace Hrot.SimHost.Tests
         /// S201-SC2: Inject with DOM from Extract restores ActiveMissionPlan.Plan.Tasks[0].BehaviorId
         /// and the corresponding MissionPlanQueue.Phases[0].BehaviorId.
         /// </summary>
-        // STABILITY(Broken): BehaviorId restored as TimerElapsed instead of BehaviorFinished — MissionPlanTranslator.Inject phase behavior mismatch; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): CreateMissionEntity now supplies Triggers=[{Type="BehaviorFinished"}]
+        // so ResolveTrigger maps to MissionTrigger.BehaviorFinished instead of TimerElapsed.
         [Fact]
         public void Inject_WithExtractedDom_RestoresActivePlanAndQueue()
         {

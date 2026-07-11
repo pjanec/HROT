@@ -37,8 +37,9 @@ namespace Hrot.SimHost.Tests.Gizmos
         // GZH011_2: When _isEditing is toggled by an OpenLayerEditorEvent, UpdateAndDraw calls
         //           the publisher exactly once. A second UpdateAndDraw with the same DTO state
         //           does NOT echo the state (StructInspectorProjector suppresses duplicates).
-        // STABILITY(Broken): Expected 1 published event but got 0/2 — LayerControlGizmo echo suppression or event publish logic broken; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): OpenLayerEditorEvent is an unmanaged struct; gizmo reads it via
+        // _interactionBus.Read<OpenLayerEditorEvent>() (unmanaged ring). Test must use bus.Publish
+        // (not bus.PublishManaged) so it reaches the correct ring buffer.
         [Fact]
         public void GZH011_2_UpdateAndDraw_WithEditing_PublishesOnce_NoDuplicateEcho()
         {
@@ -47,8 +48,8 @@ namespace Hrot.SimHost.Tests.Gizmos
             var publisher = new LayerControlPublisherStub();
             var gizmo     = new LayerControlGizmo(anchorId: 1L, bus, editSvc, publisher);
 
-            // Trigger _isEditing by publishing the toggle event, then swap buffers so gizmo can read it.
-            bus.PublishManaged(new OpenLayerEditorEvent());
+            // Trigger _isEditing by publishing the toggle event (unmanaged), then swap buffers.
+            bus.Publish(new OpenLayerEditorEvent());
             bus.SwapBuffers();
 
             // First UpdateAndDraw: editing is active, expect one Publish call.

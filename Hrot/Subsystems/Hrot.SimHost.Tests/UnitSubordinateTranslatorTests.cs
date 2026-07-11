@@ -50,8 +50,8 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T01: Inject with valid GUID writes InitialUnitSubordinateIntent
 
-        // STABILITY(Broken): JSON designation field type mismatch — JSON has Number but translator expects String; investigate designation serialization
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): production UnitSubordinateDto.Designation is string?; test must pass
+        // the enum name as a string, not an int. Production spec: "serialises designation as a string".
         [Fact]
         public void Inject_WithValidGuid_WritesInitialUnitSubordinateIntent()
         {
@@ -66,7 +66,7 @@ namespace Hrot.SimHost.Tests
                 ["UnitSubordinate"] = new JsonObject
                 {
                     ["commanderGuid"] = "guid-commander",
-                    ["designation"]   = 3,
+                    ["designation"]   = ((TacticalDesignation)3).ToString(),
                 }
             };
 
@@ -82,8 +82,7 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T02: Inject with unresolvable GUID writes intent with CommanderNetworkId = 0
 
-        // STABILITY(Broken): JSON designation field type mismatch — JSON has Number but translator expects String; investigate designation serialization
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): designation must be a string (enum name).
         [Fact]
         public void Inject_WithUnresolvableGuid_WritesIntentWithZeroNetworkId()
         {
@@ -94,7 +93,7 @@ namespace Hrot.SimHost.Tests
                 ["UnitSubordinate"] = new JsonObject
                 {
                     ["commanderGuid"] = "guid-unknown",
-                    ["designation"]   = 0,
+                    ["designation"]   = TacticalDesignation.Undefined.ToString(),
                 }
             };
 
@@ -109,8 +108,8 @@ namespace Hrot.SimHost.Tests
 
         // CS013-T03: Extract with commander produces correct keys
 
-        // STABILITY(Broken): designation extracted as String but JSON expects Int32; investigate designation serialization
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): production serializes designation as a string (enum name via .ToString()).
+        // Test must read GetValue<string>() and compare the enum name, not the integer ordinal.
         [Fact]
         public void Extract_WithCommander_ProducesCommanderGuidAndDesignation()
         {
@@ -132,7 +131,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(dict.ContainsKey("UnitSubordinate"));
             var obj = (JsonObject)dict["UnitSubordinate"];
             Assert.Equal("guid-cmdr-abc", obj["commanderGuid"]!.GetValue<string>());
-            Assert.Equal((int)TacticalDesignation.Wingman, obj["designation"]!.GetValue<int>());
+            Assert.Equal(TacticalDesignation.Wingman.ToString(), obj["designation"]!.GetValue<string>());
         }
 
         // CS013-T04: CanTranslate returns false when Commander is null

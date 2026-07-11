@@ -110,13 +110,13 @@ namespace Hrot.SimHost.Tests
         /// repository whose <see cref="EditLoadTestPos"/> component values match the
         /// serialized source data (CGF1-S0302 second success condition).
         /// </summary>
-        // STABILITY(Broken): No scenario file found — ReferenceEditLoadHandler.PrefetchFiles not called before LoadingEdit in test; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): LocalDiskStorageProvider looks in _tempDir/scenarios/<scenarioId>/
+        // The test must write into that "scenarios" subdirectory, not directly under _tempDir.
         [Fact]
         public async Task LoadExistingScenario_SpawnsCorrectEntityCount()
         {
             const string scenarioId = "edit_load_test_01";
-            var scenarioDir = Path.Combine(_tempDir, scenarioId);
+            var scenarioDir = Path.Combine(_tempDir, "scenarios", scenarioId);
             Directory.CreateDirectory(scenarioDir);
 
             // Spawn 3 entities and serialise to file.
@@ -162,13 +162,12 @@ namespace Hrot.SimHost.Tests
         /// 100-entity JSON file; asserts elapsed time is under 50 ms
         /// (CGF1-S0302 third success condition).
         /// </summary>
-        // STABILITY(Broken): No scenario file found — ReferenceEditLoadHandler.PrefetchFiles not called before LoadingEdit in test; investigate
-        [Trait("Stability", "Broken")]
+        // B (Fixture Gap TH-3): same scenarios subdir fix as LoadExistingScenario_SpawnsCorrectEntityCount.
         [Fact]
         public async Task Commit_DoesNotBlockLongerThan50ms()
         {
             const string scenarioId = "edit_load_perf_01";
-            var scenarioDir = Path.Combine(_tempDir, scenarioId);
+            var scenarioDir = Path.Combine(_tempDir, "scenarios", scenarioId);
             Directory.CreateDirectory(scenarioDir);
 
             // Spawn 100 entities and serialise to file.

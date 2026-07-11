@@ -98,8 +98,8 @@ namespace Hrot.SimHost.Tests
         /// All four sub-module system sets register without error, and a single-frame
         /// pump does not throw on an empty world.
         /// </summary>
-        // STABILITY(Broken): system count mismatch — system added/removed from SimHostCoreLogicPack without updating the test's expected count; investigate
-        [Trait("Stability", "Broken")]
+        // A (Stale Test TH-3): EqsResultUpdateSystem added to SimHostCoreLogicPack simList;
+        // SimulationSystems count corrected from 8 to 9.
         [Fact]
         public void SimHostCoreLogicPack_EmptyWorld_AllSystemsRegisterAndRunWithoutException()
         {
@@ -135,8 +135,9 @@ namespace Hrot.SimHost.Tests
             // GroundKinematicsModule.SimulationSystems: SpatialHashSystem, FormationTargetSystem,
             //   VehicleCommandSystem, NavigationExecutionSystem (sim=4)
             // UnitHierarchySystem (sim=1)
-            // total sim = 8
-            Assert.Equal(8, pack.SimulationSystems.Count);
+            // EqsResultUpdateSystem (sim=1, added TH-3/A)
+            // total sim = 9
+            Assert.Equal(9, pack.SimulationSystems.Count);
 
             // CombatModule: BallisticsSystem (postSim=1)
             // GroundKinematicsModule.PostSimulationSystems: CarKinematicsSystem, LinearKinematicsSystem (postSim=2)
