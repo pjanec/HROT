@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// Requests are submitted as <see cref="AreaQueryRequestEvent"/> events via
     /// <see cref="FdpEventBus"/>; results are written here by
     /// <c>AreaQueryResultMaterializationSystem</c> after the solver resolves them.
-    /// Indexed by <c>requestId % DefaultCapacity</c> (modulo ring buffer).
+    /// Indexed via the slot index returned by <c>AreaQueryBatchHelper.RequestAreaQuery</c>.
     /// </summary>
     [ComponentId(GlobalComponentIds.AreaQueryBatchData)]
     public struct AreaQueryBatchData
@@ -41,8 +41,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public const int DefaultCapacity = 64;
 
         /// <summary>Results written by <c>AreaQueryResultMaterializationSystem</c>.
-        /// Indexed via <c>requestId % DefaultCapacity</c>.</summary>
+        /// Indexed by the slot (requestId) allocated in <c>AreaQueryBatchHelper.RequestAreaQuery</c>.</summary>
         public NativeArray<AreaQueryResult> Results;
+
+        /// <summary>
+        /// Bitmask of occupied slots (bit <c>i</c> set ⇒ slot <c>i</c> is in-flight).
+        /// Managed exclusively by <c>AreaQueryBatchHelper</c>:
+        /// set on <c>RequestAreaQuery</c>, cleared on <c>FreeAreaQuerySlot</c>.
+        /// </summary>
+        public ulong OccupiedSlots;
     }
 
     /// <summary>

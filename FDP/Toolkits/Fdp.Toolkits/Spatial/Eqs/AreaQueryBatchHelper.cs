@@ -1,3 +1,4 @@
+using System.Numerics;
 using Fdp.Core;
 
 namespace Fdp.Toolkit.Spatial.Eqs
@@ -13,15 +14,21 @@ namespace Fdp.Toolkit.Spatial.Eqs
     public static class AreaQueryBatchHelper
     {
         /// <summary>
-        /// Publishes an <see cref="AreaQueryRequestEvent"/> and primes the corresponding ring-buffer
-        /// slot so the BTree does not read stale results from an earlier query.
+        /// Allocates the next free slot in <see cref="AreaQueryBatchData"/>, primes it, and
+        /// publishes an <see cref="AreaQueryRequestEvent"/> so the solver can resolve it.
+        /// The returned <c>RequestId</c> is the slot index (0–63); <c>ComputeSlot(slotIndex) == slotIndex</c>
+        /// so all downstream slot calculations remain consistent.
         /// </summary>
         /// <param name="repo">The live ECS world.</param>
-        /// <param name="requestingEntity">The entity submitting the query (used to build the request ID).</param>
+        /// <param name="requestingEntity">The entity submitting the query.</param>
         /// <param name="targetAreaEntity">The area polygon entity whose <c>EditablePolyline</c> bounds the query.</param>
         /// <param name="targetForce">Force affiliation filter for the query.</param>
         /// <param name="sourceNodeId">Originating Brain node ID for distributed routing.</param>
-        /// <returns>The non-negative <c>RequestId</c> that the BTree must hold to poll the result.</returns>
+        /// <returns>
+        /// The non-negative <c>RequestId</c> (slot index) that the BTree must hold to poll the
+        /// result; <c>-1</c> if the batch is full (all 64 slots are in-flight).
+        /// Call <see cref="FreeAreaQuerySlot"/> when the caller no longer needs the result.
+        /// </returns>
         public static long RequestAreaQuery(
             EntityRepository repo,
             Entity requestingEntity,
@@ -29,24 +36,37 @@ namespace Fdp.Toolkit.Spatial.Eqs
             ForceId targetForce,
             int sourceNodeId = 0)
         {
-            // Generate a monotonically driven ID using entity index + current world version.
-            // Cast to long before shifting to prevent silent 32-bit truncation.
-            long requestId = ((long)requestingEntity.Index << 32) | repo.GlobalVersion;
+            if (!repo.HasSingleton<AreaQueryBatchData>())
+                return -1;
 
-            // Prime the ring-buffer slot to prevent reading stale data from a previous query.
-            if (repo.HasSingleton<AreaQueryBatchData>())
+            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
+
+            // Find the first free slot via the occupancy bitmask.
+            // A slot is free when its corresponding bit in OccupiedSlots is 0.
+            ulong occupied = batch.OccupiedSlots;
+            if (occupied == ulong.MaxValue)
+                return -1;   // all 64 slots in use
+
+            // Isolate the lowest clear bit position.
+            int slot = System.Numerics.BitOperations.TrailingZeroCount(~occupied);
+
+            // Mark the slot as occupied.
+            batch.OccupiedSlots = occupied | (1UL << slot);
+
+            // The requestId IS the slot index. ComputeSlot(slot) == slot for 0..63
+            // because slot fits in the low 6 bits and the upper 32 bits are zero,
+            // so the XOR-fold is a no-op: (slot ^ (slot >> 32)) % 64 == slot % 64 == slot.
+            long requestId = slot;
+
+            // Prime the ring-buffer slot to prevent reading stale data from an earlier query.
+            batch.Results[slot] = new AreaQueryResult
             {
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                int slot = ComputeSlot(requestId);
-                batch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId         = requestId,
-                    IsReady           = false,
-                    TargetCount       = 0,
-                    TargetGroupHandle = -1,
-                    SourceNodeId      = sourceNodeId,
-                };
-            }
+                RequestId         = requestId,
+                IsReady           = false,
+                TargetCount       = 0,
+                TargetGroupHandle = -1,
+                SourceNodeId      = sourceNodeId,
+            };
 
             // Fire-and-forget: the solver will pick this up on its next background tick.
             repo.Bus.Publish(new AreaQueryRequestEvent
@@ -58,6 +78,26 @@ namespace Fdp.Toolkit.Spatial.Eqs
             });
 
             return requestId;
+        }
+
+        /// <summary>
+        /// Releases the ring-buffer slot allocated by <see cref="RequestAreaQuery"/> so it
+        /// can be reused by a subsequent request.
+        /// <para>
+        /// Call this whenever the BTree sets <c>CachedEqsRequestId = -1</c> (i.e., after
+        /// consuming the result, on timeout, on area-clear, or on abort).
+        /// Passing <c>requestId &lt; 0</c> or out-of-range is a no-op.
+        /// </para>
+        /// </summary>
+        public static void FreeAreaQuerySlot(EntityRepository repo, long requestId)
+        {
+            if (requestId < 0 || requestId >= AreaQueryBatchData.DefaultCapacity)
+                return;
+            if (!repo.HasSingleton<AreaQueryBatchData>())
+                return;
+
+            ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
+            batch.OccupiedSlots &= ~(1UL << (int)requestId);
         }
 
         /// <summary>

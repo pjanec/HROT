@@ -256,6 +256,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
                     BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s. RequestId=" + s.CachedEqsRequestId + ".");
+                    AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
                     s.CachedEqsRequestId = -1;
                     s.CachedTargetGroupHandle = -1;
                     return NodeStatus.Failure;
@@ -268,6 +269,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (result.TargetCount == 0)
             {
                 // Area cleared: break out of the Repeater so the BTree can finish.
+                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
                 s.CachedEqsRequestId      = -1;
                 s.CachedTargetGroupHandle = -1;
                 s.EqsRequestTime          = 0f;
@@ -327,6 +329,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
             {
                 s.CachedTargetGroupHandle = -1;
+                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
                 s.CachedEqsRequestId      = -1;
                 s.EqsRequestTime          = 0f;
                 s.CurrentWave             = (byte)(1 - s.CurrentWave);
@@ -438,6 +441,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             s.CachedTargetGroupHandle = -1;
+            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
             s.CachedEqsRequestId      = -1;
             s.EqsRequestTime          = 0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
@@ -534,6 +538,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ctx.World.HasComponent<Blackboard1024>(ctx.Self)) return;
             ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
             ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
+            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
             s.CachedEqsRequestId = -1;
         }
 

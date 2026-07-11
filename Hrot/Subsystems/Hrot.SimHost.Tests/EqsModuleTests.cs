@@ -149,7 +149,7 @@ namespace Hrot.SimHost.Tests
 
             long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                 _world, requestingEntity, areaEntity, ForceId.Hostile);
-            Assert.True(requestId != 0);
+            Assert.True(requestId >= 0, "RequestAreaQuery must succeed (returns slot index 0..63, or -1 when full)");
 
             // Act
             RunSolverPipeline();

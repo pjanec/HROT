@@ -66,6 +66,12 @@
 
 ## Hrot/Subsystems/Hrot.SimHost.Tests
 
+### Fixed (TH-2b, 2026-07-11 — AreaQueryBatchHelper slot allocator)
+
+| Test | Suite | Bucket | Classification | Root Cause | Resolution |
+|------|-------|--------|----------------|------------|------------|
+| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | Hrot.SimHost.Tests | **Fixed** | C (Production Bug) | `RequestAreaQuery` generated ID as `((long)entity.Index << 32) \| repo.GlobalVersion`; same entity + same frame → identical GlobalVersion → duplicate IDs; no capacity check so never returned -1. **Design implemented (TH-2b):** Replaced with a bounded slot allocator using `AreaQueryBatchData.OccupiedSlots` (ulong bitmask). `RequestAreaQuery` scans for the lowest-clear bit via `BitOperations.TrailingZeroCount(~occupied)`, returns the slot index as the RequestId (valid since `ComputeSlot(i)==i` for `i` in 0..63), sets the bit, and returns -1 when all 64 bits are set. **Reclamation:** Added `FreeAreaQuerySlot(repo, requestId)` static method, called at all 5 sites in `HillAttackCommanderNodes.cs` where `CachedEqsRequestId = -1` is assigned (timeout, area-clear, no-UnitRoster, after-dispatch, deactivator). **Step-1 investigation result:** No code anywhere parses the bit-structure of RequestId (no `>> 32`, no `& 0xFFFF`, no extraction of entity.Index or GlobalVersion back out of a requestId). The ID is used purely as an opaque key + XOR-hashed to a slot. Change is safe. | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/AreaQueryBatchData.cs` (added `OccupiedSlots ulong`); `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/AreaQueryBatchHelper.cs` (slot allocator + `FreeAreaQuerySlot`); `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackCommanderNodes.cs` (5 `FreeAreaQuerySlot` calls); `Hrot/Subsystems/Hrot.SimHost.Tests/AreaQueryTranslatorTests.cs` + `EqsModuleTests.cs` (corrected `requestId != 0` → `requestId >= 0` assertions, since slot 0 is a valid success) |
+
 ### Fixed (TH-2, 2026-07-11 — Hill-Attack 14 failing tests)
 
 | Test | Suite | Bucket | Classification | Root Cause | Resolution |
@@ -94,7 +100,7 @@
 
 | Test | Suite | Bucket | Reason | Resolution/Target |
 |------|-------|--------|--------|-------------------|
-| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | Hrot.SimHost.Tests | **Broken** | C-REPORT: `AreaQueryBatchHelper.RequestAreaQuery` generates ID as `((long)entity.Index << 32) \| repo.GlobalVersion`; same entity in same frame yields same `GlobalVersion` → duplicate IDs; also never returns -1 for over-capacity. Changing the ID scheme (include `sourceNodeId`, use per-entity counter, etc.) is non-trivial and may affect distributed routing assumptions | Lead decision needed: add `sourceNodeId` to ID hash, or switch to a per-entity monotonic counter |
+| ~~`RequestAreaQuery_DistinctIds_AndFailsAtCapacity`~~ | Hrot.SimHost.Tests | **Fixed (TH-2b)** | Fixed in TH-2b — see Fixed table above | |
 | `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` | Hrot.SimHost.Tests | **Broken** | C-REPORT (spec discrepancy): Test expects AttackDir = left-hand perpendicular of firing line. Production `ParsePlatoonHillAttackParams` computes `AttackDir = normalize(firingCenter - baselineCenter)` (baseline→firing direction). Both are reasonable interpretations; cannot determine which is correct without spec clarification | Lead decision needed: is AttackDir the approach vector (baseline→firing) or the lateral spread vector (perp to firing line)? |
 | `Inject_WithValidGuid_WritesInitialUnitSubordinateIntent` | Hrot.SimHost.Tests | **Broken** | JSON designation field: test passes Number but translator expects String | Fix designation type in UnitSubordinateTranslator (int vs string) |
 | `Inject_WithUnresolvableGuid_WritesIntentWithZeroNetworkId` | Hrot.SimHost.Tests | **Broken** | Same designation type mismatch as above | Fix designation type in UnitSubordinateTranslator |
@@ -145,12 +151,16 @@
 | Suite | Fixed | Flaky | Environment | Broken | Total Marked/Fixed |
 |-------|-------|-------|-------------|--------|-------------------|
 | Fdp.Toolkits.Tests | 5 (TH-1: ComponentId collision renumbers) | 3 | 0 | 19 | 27 |
-| Hrot.SimHost.Tests | 12 (TH-2: 12 Hill-Attack tests) | 2 | 0 | 43 | 57 |
-| **Total** | **17** | **5** | **0** | **62** | **84** |
+| Hrot.SimHost.Tests | 13 (TH-2: 12 Hill-Attack tests + TH-2b: 1 AreaQuery slot allocator) | 2 | 0 | 42 | 57 |
+| **Total** | **18** | **5** | **0** | **61** | **84** |
 
 ### TH-2 C-REPORT Summary (lead decision required)
 
 | Test | Production Issue | Proposed Fix Options |
 |------|-----------------|---------------------|
-| `RequestAreaQuery_DistinctIds_AndFailsAtCapacity` | ID = `(entity.Index << 32) \| GlobalVersion`; same entity+frame always yields same ID; no capacity-exceeded return | Option A: include `sourceNodeId` in ID hash; Option B: per-entity monotonic counter in `AreaQueryBatchData` |
+| ~~`RequestAreaQuery_DistinctIds_AndFailsAtCapacity`~~ | ~~ID collision~~ | **Fixed in TH-2b** — slot-allocator with OccupiedSlots bitmask |
 | `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` | `AttackDir = normalize(firingCenter − baselineCenter)` (approach vector); test expects left-hand perpendicular of firing line | Clarify spec: approach vector (current code) or lateral spread vector (test expectation) |
+
+### TH-2b Note: SC_HA016_2
+
+`SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` was noted as lead-fixed per the task prompt. It remains in the Broken table pending spec clarification — no code change was made to it in TH-2b.

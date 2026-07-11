@@ -188,7 +188,7 @@ namespace Hrot.SimHost.Tests
             var commander = _brainRepo.CreateEntity();
             long requestId = AreaQueryBatchHelper.RequestAreaQuery(
                 _brainRepo, commander, brainAreaEntity, ForceId.Hostile, sourceNodeId: brainNodeId);
-            Assert.True(requestId != 0, "RequestAreaQuery must succeed");
+            Assert.True(requestId >= 0, "RequestAreaQuery must succeed (returns slot index 0..63, or -1 when full)");
 
             // Swap so BrainEgress can read the request event.
             _brainRepo.Bus.SwapBuffers();
