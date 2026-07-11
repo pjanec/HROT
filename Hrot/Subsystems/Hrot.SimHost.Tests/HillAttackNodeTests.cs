@@ -1420,18 +1420,19 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(30f, result.TankSpacing, 0.001f);
         }
 
-        /// <summary>SC-HA016-2: Horizontal firing line (0,0)-(100,0) => AttackDirX==0,
-        /// |AttackDirY|==1 (perpendicular to firing line).</summary>
-        // STABILITY(Broken): float value not within tolerance 0.001 — AttackDir computation precision or convention issue; investigate ParsePlatoonHillAttackParams
-        [Trait("Stability", "Broken")]
+        /// <summary>SC-HA016-2: Firing line (0,0)-(100,0) with baseline (0,50)-(100,50) =>
+        /// AttackDir is the approach vector normalize(firingCenter - baselineCenter) = (0,-1):
+        /// AttackDirX==0 and |AttackDirY|==1 (points from the baseline toward the firing line).
+        /// For a baseline parallel to the firing line this equals the firing-line perpendicular.</summary>
         [Fact]
         public unsafe void SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular()
         {
+            // PickableGeoPoint uses [latitude, longitude] array format; Cartesian fallback: X=lon, Y=lat.
             const string json =
-                @"{""firingLineStart"":{""x"":0,""y"":0}," +
-                @"""firingLineEnd"":{""x"":100,""y"":0}," +
-                @"""baselineStart"":{""x"":0,""y"":50}," +
-                @"""baselineEnd"":{""x"":100,""y"":50}," +
+                @"{""firingLineStart"":[0,0]," +
+                @"""firingLineEnd"":[0,100]," +
+                @"""baselineStart"":[50,0]," +
+                @"""baselineEnd"":[50,100]," +
                 @"""tankSpacing"":30}";
 
             var result = new PlatoonHillAttackParams();
@@ -1441,7 +1442,7 @@ namespace Hrot.SimHost.Tests
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
-            // Left-hand perp of (1,0) is (0,1).
+            // Approach vector (baseline -> firing line) is (0,-1); assert X==0 and |Y|==1.
             Assert.Equal(0f, result.AttackDirX, 0.001f);
             Assert.Equal(1f, Math.Abs(result.AttackDirY), 0.001f);
         }
