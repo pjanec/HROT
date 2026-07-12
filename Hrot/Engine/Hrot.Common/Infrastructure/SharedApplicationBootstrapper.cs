@@ -156,6 +156,12 @@ public abstract class SharedApplicationBootstrapper
         // Phase 7 — Initialize kernel. Always last.
         context.Kernel.Initialize();
 
+        // Phase 7+ — Post-initialize hook (virtual, defaults to no-op).
+        // Called after Kernel.Initialize() so that providers that require
+        // RegisterSystems to have run (e.g. EngineBackedNavigationModule.RegisterProviders
+        // which needs _navmesh/_registry created by RegisterSystems) can be wired here.
+        PostInitialize(context);
+
         return context;
     }
 
@@ -255,6 +261,15 @@ public abstract class SharedApplicationBootstrapper
     /// Default is a no-op.
     /// </summary>
     protected virtual void RegisterApplicationSystems(HrotNodeContext context) { }
+
+    /// <summary>
+    /// Phase 7+: Called immediately after <see cref="ModuleHostKernel.Initialize()"/> completes.
+    /// Override to register providers or perform setup that requires <c>RegisterSystems</c>
+    /// to have already run (e.g. <c>EngineBackedNavigationModule.RegisterProviders</c>
+    /// which needs <c>_navmesh</c>/<c>_registry</c> created during <c>RegisterSystems</c>).
+    /// Default is a no-op.
+    /// </summary>
+    protected virtual void PostInitialize(HrotNodeContext context) { }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 

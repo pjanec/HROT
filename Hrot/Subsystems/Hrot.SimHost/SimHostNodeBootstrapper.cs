@@ -55,6 +55,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     private NodeBootstrapper? _nodeBootstrapper;
     private ITkbDatabase? _tkbDb;
     private IReadOnlyList<ITkbEntityTranslator>? _translators;
+    private EngineBackedNavigationModule? _navModule;
 
     /// <summary>
     /// Core simulation systems pack. Valid after <see cref="SharedApplicationBootstrapper.BootstrapNode"/> returns.
@@ -104,6 +105,15 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterApplicationSystems(HrotNodeContext context)
         => ApplicationSystemsRegistrar?.Invoke(context);
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Calls <see cref="EngineBackedNavigationModule.RegisterProviders"/> here (post-Initialize)
+    /// because RegisterProviders requires <c>_navmesh</c>/<c>_registry</c> which are
+    /// created by <c>RegisterSystems</c> during <c>Kernel.Initialize()</c> (Phase 7).
+    /// </remarks>
+    protected override void PostInitialize(HrotNodeContext context)
+        => _navModule!.RegisterProviders(context.World);
 
     /// <param name="networkFactory">Optional network factory for DDS setup.</param>
     /// <param name="role">Node role controlling which simulation modules are activated.</param>
@@ -286,12 +296,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         context.Kernel.RegisterModule(CoreLogicPack!);
         context.Kernel.RegisterModule(new EqsModule());
 
-        // Register engine-backed navigation providers (road-graph + direct-line stubs).
-        var navModule = new EngineBackedNavigationModule(
+        // Register engine-backed navigation module (road-graph + direct-line stubs).
+        // RegisterProviders is deferred to PostInitialize (after Kernel.Initialize) because
+        // EngineBackedNavigationModule.RegisterProviders requires _navmesh/_registry which
+        // are created by RegisterSystems — run during Kernel.Initialize (Phase 7).
+        _navModule = new EngineBackedNavigationModule(
             RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
             CoreLogicPack!.TrajectoryPool);
-        context.Kernel.RegisterModule(navModule);
-        navModule.RegisterProviders(context.World);
+        context.Kernel.RegisterModule(_navModule);
 
         context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
 

@@ -13,6 +13,7 @@ using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.Common.Serializers;
+using Hrot.IG.Components;
 
 namespace Hrot.SimHost.Tests
 {
@@ -133,6 +134,9 @@ namespace Hrot.SimHost.Tests
             _goldRepo.RegisterComponent<EpisodeTag>();
             _goldRepo.RegisterManagedComponent<InitialPassengersIntent>();
             _goldRepo.RegisterManagedComponent<InitialUnitSubordinateIntent>();
+            // EditablePolyline must be registered so StagingEntityExtractor.RegisterAllGlobalTypesInRepo
+            // can include it regardless of test-execution order (D-5 fixture gap fix).
+            _goldRepo.RegisterManagedComponent<EditablePolyline>();
         }
 
         public void Dispose() => _goldRepo.Dispose();
