@@ -113,6 +113,12 @@ of the Windows-specific concerns.
   already gone once references are bumped.
 - Build `IOS-IG-SimHost.sln` on Linux (119 projects, none Windows-locked). Do
   NOT build `Stride/HrotStrideApp.sln` - that is the Stride exclusion (WI-9).
+- Headless test runs: test projects that touch Raylib/ImGui (e.g.
+  `Fdp.Presentation.Tests`) need an X display - run them under `xvfb-run -a`
+  (Xvfb is preinstalled here). Without it, `Raylib.InitWindow` aborts the test
+  host on a headless box. Also note the Linux ImGui.NET native `.so` is built
+  with assertions enabled, so any ImGui call without a current context aborts
+  (fixed in tests via the shared ImGui context fixture - see WI-11).
 
 ## 5. Findings summary (why each work item exists)
 

@@ -2,6 +2,7 @@
 // in response to exclusive InputCaptureBinding primitives.
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Presentation.Tests;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Vis2D;
@@ -11,6 +12,13 @@ using Xunit;
 
 namespace Fdp.Toolkit.Vis2D.Tests.Layers
 {
+    // DebugGizmoLayer.Update() routes through GizmoMap.Presentation.DebugGizmoLayer.HandleInput,
+    // which unconditionally reads ImGuiNET.ImGui.GetIO() to respect ImGui's mouse/keyboard
+    // capture state. That call requires a current ImGui context (GImGui != null) or the native
+    // ImGui.NET build aborts the process (Linux build has assertions enabled). Use the shared
+    // headless ImGuiTestFixture and the "ImGui Sequential" collection like the other ImGui-touching
+    // test classes.
+    [Collection("ImGui Sequential")]
     public class DebugGizmoLayerCaptureTests
     {
         // Minimal IInputProvider stub: all values default to zero / false.
@@ -48,6 +56,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var buf    = MakeBindingBuffer();
             var layer  = new DebugGizmoLayer(31, buf, bus);
 
+            using var fixture = new ImGuiTestFixture();
             layer.Update(0f);
 
             Assert.True(layer.TestHook_IsCaptureActive);
@@ -61,6 +70,8 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var bus    = new FdpEventBus();
             var buf    = MakeBindingBuffer();
             var layer  = new DebugGizmoLayer(31, buf, bus);
+
+            using var fixture = new ImGuiTestFixture();
 
             // Frame 1: binding present -- capture active.
             layer.Update(0f);
@@ -80,6 +91,7 @@ namespace Fdp.Toolkit.Vis2D.Tests.Layers
             var buf    = MakeBindingBuffer();
             var layer  = new DebugGizmoLayer(31, buf, bus);
 
+            using var fixture = new ImGuiTestFixture();
             layer.Update(0f);
 
             layer.HandleHover(new Vector2(10f, 20f));
