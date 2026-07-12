@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using Hrot.AiEditor.Persistence;
 
 namespace Hrot.AiEditor.Persistence.Hsm;
 
@@ -168,6 +169,16 @@ public sealed class HsmBlackboardVariableDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsAutoManaged { get; set; }
+    /// <summary>
+    /// Authoring role: Input (default) or State. Omitted from JSON when Input (default).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public BlackboardVariableRole Role { get; set; }
+    /// <summary>
+    /// Working-state scope (only meaningful when Role == State). Omitted from JSON when Node (default).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public WorkingStateScope Scope { get; set; }
 }
 
 public sealed class HsmBlackboardBlockDto

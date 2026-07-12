@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Hrot.AiEditor.Persistence;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
@@ -35,6 +36,16 @@ public interface IBlackboardManagedAsset
     /// from the persisted JSON).
     /// </summary>
     void UpdateVariableDefaultValueJson(string name, string? defaultValueJson);
+
+    /// <summary>
+    /// Sets the authoring role on an existing variable (S3-1). No-op if not found. Fires Changed.
+    /// </summary>
+    void UpdateVariableRole(string name, BlackboardVariableRole role) { }
+
+    /// <summary>
+    /// Sets the working-state scope on an existing variable (S3-1). No-op if not found. Fires Changed.
+    /// </summary>
+    void UpdateVariableScope(string name, WorkingStateScope scope) { }
 
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     void MoveVariable(int sourceIndex, int destIndex);

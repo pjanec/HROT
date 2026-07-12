@@ -176,6 +176,10 @@ public sealed class BlueprintVariableSchemaSource : IVariablesSchemaSource
 
     public int CountNodesReferencingVariable(string name) => 0;
 
+    // S3-1: Blueprint variables do not use role/scope; no-op implementations.
+    public void UpdateVariableRole(string name, Hrot.AiEditor.Persistence.BlackboardVariableRole role) { }
+    public void UpdateVariableScope(string name, Hrot.AiEditor.Persistence.WorkingStateScope scope) { }
+
     public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements => Array.Empty<UnboundRequirementViewModel>();
     public void AddAlias(string name, BlackboardAliasBinding binding) { }
     public void RemoveAlias(string name, Guid reqAssetId, Guid reqElemId) { }

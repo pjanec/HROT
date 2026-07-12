@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ImGuiNET;
+using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.Windows;
@@ -20,6 +21,10 @@ public interface IVariablesSchemaSource
     void MoveVariable(int sourceIndex, int destIndex);
     int CountNodesReferencingVariable(string name);
     
+    // S3-1: Role / Scope authoring (default no-op so existing mock implementations continue to compile)
+    void UpdateVariableRole(string name, BlackboardVariableRole role) { }
+    void UpdateVariableScope(string name, WorkingStateScope scope) { }
+
     // Aliasing
     IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements { get; }
     void AddAlias(string name, BlackboardAliasBinding binding);
@@ -50,6 +55,9 @@ public sealed class BTreeHsmSchemaSource : IVariablesSchemaSource
     public void MoveVariable(int sourceIndex, int destIndex) => _asset.MoveVariable(sourceIndex, destIndex);
     public int CountNodesReferencingVariable(string name) => _asset.CountNodesReferencingVariable(name);
     
+    public void UpdateVariableRole(string name, BlackboardVariableRole role) => _asset.UpdateVariableRole(name, role);
+    public void UpdateVariableScope(string name, WorkingStateScope scope) => _asset.UpdateVariableScope(name, scope);
+
     public IReadOnlyList<UnboundRequirementViewModel> UnboundRequirements => _vm.UnboundRequirements;
     public void AddAlias(string name, BlackboardAliasBinding binding) => _asset.AddAlias(name, binding);
     public void RemoveAlias(string name, Guid reqAssetId, Guid reqElemId) => _asset.RemoveAlias(name, reqAssetId, reqElemId);
@@ -249,12 +257,14 @@ public sealed class VariablesPanelControl
         IReadOnlyDictionary<string, string>? liveValues = null)
     {
         var schema = section.Schema;
-        if (ImGui.BeginTable(section.TableId, 5, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+        if (ImGui.BeginTable(section.TableId, 7, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
         {
             ImGui.TableSetupColumn("Name",  ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("Type",  ImGuiTableColumnFlags.WidthFixed, 90f);
             ImGui.TableSetupColumn("Bytes", ImGuiTableColumnFlags.WidthFixed, 50f);
             ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Role",  ImGuiTableColumnFlags.WidthFixed, 56f);
+            ImGui.TableSetupColumn("Scope", ImGuiTableColumnFlags.WidthFixed, 72f);
             ImGui.TableSetupColumn("##rmv", ImGuiTableColumnFlags.WidthFixed, 24f);
             ImGui.TableHeadersRow();
 
@@ -383,6 +393,45 @@ public sealed class VariablesPanelControl
                         ImGui.TextUnformatted(lv);
                     else
                         ImGui.TextDisabled("—");
+                }
+                // Role column
+                ImGui.TableNextColumn();
+                if (!schema.IsReadOnly)
+                {
+                    ImGui.SetNextItemWidth(-1f);
+                    int roleIdx = (int)row.Role;
+                    if (ImGui.Combo($"##role_{rowIdx}", ref roleIdx, "Input\0State\0\0"))
+                    {
+                        var newRole = (BlackboardVariableRole)roleIdx;
+                        schema.UpdateVariableRole(row.Name, newRole);
+                    }
+                }
+                else
+                {
+                    ImGui.TextUnformatted(row.Role == BlackboardVariableRole.State ? "state" : "input");
+                }
+                // Scope column — only meaningful when Role == State
+                ImGui.TableNextColumn();
+                if (row.ShowScopeSelector)
+                {
+                    if (!schema.IsReadOnly)
+                    {
+                        ImGui.SetNextItemWidth(-1f);
+                        int scopeIdx = (int)row.Scope;
+                        if (ImGui.Combo($"##scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
+                        {
+                            var newScope = (WorkingStateScope)scopeIdx;
+                            schema.UpdateVariableScope(row.Name, newScope);
+                        }
+                    }
+                    else
+                    {
+                        ImGui.TextUnformatted(row.Scope.ToString());
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("—");
                 }
                 ImGui.TableNextColumn();
                 if (!schema.IsReadOnly && ImGui.SmallButton("[x]"))

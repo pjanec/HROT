@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Presentation.WindowManager;
+using Hrot.AiEditor.Persistence;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Comparison;
 using Hrot.Editor.AiShared.Comparison.UI;
@@ -23,8 +24,14 @@ public sealed record VariableViewModel(
     string? Comment,
     IReadOnlyList<(string AssetName, Guid AssetId, Guid ElementId)> AliasedBy,
     bool   IsUnused,
-    bool   IsAutoManaged = false,
-    bool   IsReadOnly = false);
+    bool   IsAutoManaged         = false,
+    bool   IsReadOnly            = false,
+    BlackboardVariableRole Role  = BlackboardVariableRole.Input,
+    WorkingStateScope Scope      = WorkingStateScope.Node)
+{
+    /// <summary>True when the Scope selector should be shown (i.e. Role == State).</summary>
+    public bool ShowScopeSelector => Role == BlackboardVariableRole.State;
+};
 
 /// <summary>
 /// Display data for one unbound sub-tree DTO requirement row (BB SS5.6).
@@ -286,7 +293,10 @@ public sealed class BlackboardAuthoringWindow : ManagedWindow
                     ? aliases
                     : (IReadOnlyList<(string, Guid, Guid)>)Array.Empty<(string, Guid, Guid)>(),
                 isUnused,
-                IsAutoManaged: v.IsAutoManaged));
+                IsAutoManaged: v.IsAutoManaged,
+                IsReadOnly:    false,
+                Role:          v.Role,
+                Scope:         v.Scope));
         }
 
         return new BlackboardWindowViewModel(

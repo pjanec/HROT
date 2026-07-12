@@ -397,6 +397,8 @@ public static class BehaviorTreeAssetMapper
                 DefaultValueJson = v.DefaultValueJson,
                 Comment          = v.Comment,
                 IsAutoManaged    = v.IsAutoManaged,
+                Role             = v.Role,
+                Scope            = v.Scope,
             });
         }
 
@@ -413,7 +415,9 @@ public static class BehaviorTreeAssetMapper
             result.Add(new BlackboardVariableEntry(
                 v.Name, clrType, v.Comment,
                 IsAutoManaged:    v.IsAutoManaged,
-                DefaultValueJson: v.DefaultValueJson));
+                DefaultValueJson: v.DefaultValueJson,
+                Role:             v.Role,
+                Scope:            v.Scope));
         }
         return result;
     }

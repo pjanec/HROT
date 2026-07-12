@@ -152,6 +152,24 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         MarkDirty();
     }
 
+    /// <summary>Sets the authoring role on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
+    public void UpdateVariableRole(string name, Hrot.AiEditor.Persistence.BlackboardVariableRole role)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+        if (idx < 0) return;
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role };
+        MarkDirty();
+    }
+
+    /// <summary>Sets the working-state scope on an existing variable (S3-1). No-op if not found. Fires Changed.</summary>
+    public void UpdateVariableScope(string name, Hrot.AiEditor.Persistence.WorkingStateScope scope)
+    {
+        int idx = _blackboardVariables.FindIndex(v => v.Name == name);
+        if (idx < 0) return;
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Scope = scope };
+        MarkDirty();
+    }
+
     /// <summary>Moves a variable from sourceIndex to destIndex in canonical order. Fires Changed.</summary>
     public void MoveVariable(int sourceIndex, int destIndex)
     {

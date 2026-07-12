@@ -1,4 +1,5 @@
 using System;
+using Hrot.AiEditor.Persistence;
 
 namespace Hrot.Editor.AiShared.Blackboard;
 
@@ -22,9 +23,19 @@ namespace Hrot.Editor.AiShared.Blackboard;
 /// The value is applied once at behaviour assignment via the generated <c>ParseParamsDelegate</c>
 /// before any runtime overrides. Only meaningful for Category-2 (editor-managed) variables.
 /// </param>
+/// <param name="Role">
+/// Authoring role of this variable: Input (default) or State.
+/// Persisted; omitted from JSON when default (Input) for back-compat.
+/// </param>
+/// <param name="Scope">
+/// Working-state scope (only meaningful when Role == State): Node (default), Behavior, or Entity.
+/// Persisted; omitted from JSON when default (Node) for back-compat.
+/// </param>
 public record BlackboardVariableEntry(
-    string  Name,
-    Type    FieldType,
-    string? Comment,
-    bool    IsAutoManaged    = false,
-    string? DefaultValueJson = null);
+    string               Name,
+    Type                 FieldType,
+    string?              Comment,
+    bool                 IsAutoManaged    = false,
+    string?              DefaultValueJson = null,
+    BlackboardVariableRole Role           = BlackboardVariableRole.Input,
+    WorkingStateScope    Scope            = WorkingStateScope.Node);
