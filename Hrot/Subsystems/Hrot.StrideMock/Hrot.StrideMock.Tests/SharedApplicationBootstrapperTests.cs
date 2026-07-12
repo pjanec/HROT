@@ -310,7 +310,8 @@ public sealed class SharedApplicationBootstrapperTests
     public void AbstractAndVirtualHooks_ExactlyAsSpecified_Reflection()
     {
         // SC_SM002_5: the class exposes exactly the 6 specified abstract hooks
-        // and exactly the 3 specified virtual hooks (including Phase 6d RegisterApplicationSystems).
+        // and exactly the 4 specified virtual hooks (including Phase 6d RegisterApplicationSystems
+        // and the Phase 7+ PostInitialize hook).
         var type = typeof(SharedApplicationBootstrapper);
 
         // Abstract hooks
@@ -322,6 +323,7 @@ public sealed class SharedApplicationBootstrapperTests
             "BuildOrchestration",
             "RegisterSpawningPipeline",
             "RegisterNetworkTranslators",
+            "BuildContext",
         };
 
         // Virtual hooks
@@ -330,6 +332,7 @@ public sealed class SharedApplicationBootstrapperTests
             "GetAdditionalModules",
             "GetBehaviorRegistry",
             "RegisterApplicationSystems",
+            "PostInitialize",
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);

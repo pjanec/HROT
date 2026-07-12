@@ -174,7 +174,18 @@ public sealed class HrotRunnerHarness : IDisposable
         Orchestrator.Shutdown();
         // Dispose the shared participant after all DDS readers/writers owned by the
         // subsystems have been torn down inside Shutdown().
-        _participant.Dispose();
+        // Defensive: if a prior exception left DDS readers in a bad state (e.g. dds_take
+        // failed: -3 / ReturnCode.BadParameter), suppress the teardown exception so it
+        // cannot abort the test host process and prevent remaining tests from executing.
+        try
+        {
+            _participant.Dispose();
+        }
+        catch (Exception)
+        {
+            // Intentional no-op: DDS teardown errors after abnormal shutdown must not
+            // propagate as unhandled exceptions and kill the xUnit test host.
+        }
     }
 
     private void Warmup()

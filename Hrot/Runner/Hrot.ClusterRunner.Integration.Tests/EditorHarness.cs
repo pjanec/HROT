@@ -146,7 +146,13 @@ public sealed class EditorHarness : IDisposable
         _previewHandler = new PreviewClusterOpHandler(Repo);
 
         // MasterSyncController in Deterministic mode — no DDS sync, starts paused.
-        var timeConfig  = new TimeControllerConfig { Role = TimeRole.Standalone };
+        // LookaheadWallTicks=0 ensures SwitchToDeterministic sets a barrier at "now" so Step()
+        // advances immediately in tests (default 200ms lookahead would cause PumpFrames no-ops).
+        var timeConfig  = new TimeControllerConfig
+        {
+            Role       = TimeRole.Standalone,
+            SyncConfig = new TimeConfig { LookaheadWallTicks = 0 },
+        };
         _timeController = (MasterSyncController)TimeControllerFactory.Create(Bus, timeConfig);
         Kernel.SetTimeController(_timeController);
         _timeController.SwitchToDeterministic(new HashSet<int>());

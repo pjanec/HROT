@@ -67,6 +67,12 @@ public sealed class HrotNodeBuilder
         return this;
     }
 
+    /// <summary>
+    /// Exposes the factory so that <see cref="HrotNodeBuilderWithReplication"/> can call
+    /// <c>CreateReplicationModule()</c> in the <c>NodeRole.None</c> skip path.
+    /// </summary>
+    public INetworkFactory? NetworkFactory => _networkFactory;
+
     // ── Build ─────────────────────────────────────────────────────────────────
 
     /// <summary>
