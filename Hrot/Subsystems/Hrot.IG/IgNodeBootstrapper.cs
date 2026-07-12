@@ -221,7 +221,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         string storageDirectory = !string.IsNullOrWhiteSpace(_hrotConfig.LocalTempRoot)
             ? _hrotConfig.LocalTempRoot
-            : @"C:\FDP_Temp";
+            : OrchestrationConstants.ResolveStagingRoot();
 
         // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay
         // unconditional; PrepareLive only when replay active).

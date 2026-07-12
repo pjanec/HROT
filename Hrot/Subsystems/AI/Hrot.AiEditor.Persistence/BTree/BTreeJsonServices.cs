@@ -145,8 +145,14 @@ public static class BTreeJsonServices
         SearchOption searchOption = SearchOption.AllDirectories)
     {
         if (!Directory.Exists(rootDirectory)) yield break;
-        foreach (var file in Directory.EnumerateFiles(rootDirectory, "*.btree.json", searchOption))
+        // netstandard2.0 has no EnumerationOptions/MatchCasing overload, so the extension
+        // pattern can't be matched case-insensitively via the glob itself (PlatformDefault
+        // casing on Linux would silently miss e.g. Foo.BTree.json). Enumerate all files and
+        // filter with a case-insensitive suffix check instead.
+        foreach (var file in Directory.EnumerateFiles(rootDirectory, "*", searchOption))
         {
+            if (!file.EndsWith(".btree.json", StringComparison.OrdinalIgnoreCase))
+                continue;
             string? json = null;
             try { json = File.ReadAllText(file); }
             catch { continue; }

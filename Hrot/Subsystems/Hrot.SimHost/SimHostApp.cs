@@ -303,7 +303,7 @@ namespace Hrot.SimHost
                 ExternalParticipant = shellParticipant,
                 LocalTempRoot       = Path.Combine(
                     string.IsNullOrEmpty(nodeConfig.LocalTempRoot)
-                        ? Fdp.Toolkit.Orchestration.OrchestrationConstants.DefaultStagingDirectory
+                        ? Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot()
                         : nodeConfig.LocalTempRoot,
                     "nodes",
                     $"node-{localNodeId}"),

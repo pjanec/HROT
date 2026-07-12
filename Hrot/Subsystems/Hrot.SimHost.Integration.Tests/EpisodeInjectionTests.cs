@@ -108,12 +108,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         handler.Commit(cmd, _repo);
 
         Assert.Equal(3, _repo.EntityCount);
-        var query = _repo.Query().With<EpisodeTag>().Build();
-        foreach (var e in query)
-        {
-            ref readonly var tag = ref _repo.GetComponentRO<EpisodeTag>(e);
-            Assert.Equal(episodeId, tag.EpisodeId);
-        }
+        AssertAllEntitiesHaveEpisodeTag(episodeId);
     }
 
     // ── Test 2 ────────────────────────────────────────────────────────────────
@@ -240,11 +235,24 @@ public sealed class EpisodeInjectionTests : IDisposable
         Assert.Equal(2, _repo.EntityCount);
 
         // Episode 2 entities still present.
+        AssertAllEntitiesHaveEpisodeTag(s2Id);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Synchronous helper: <see cref="EntityQuery"/>'s enumerator is a ref struct and
+    /// <see cref="EntityRepository.GetComponentRO{T}"/> returns a by-ref value, neither of
+    /// which can live inside an async method's state machine, so this stays synchronous
+    /// and is called (without awaiting) from the async test methods.
+    /// </summary>
+    private void AssertAllEntitiesHaveEpisodeTag(Guid expectedEpisodeId)
+    {
         var query = _repo.Query().With<EpisodeTag>().Build();
         foreach (var e in query)
         {
             ref readonly var tag = ref _repo.GetComponentRO<EpisodeTag>(e);
-            Assert.Equal(s2Id, tag.EpisodeId);
+            Assert.Equal(expectedEpisodeId, tag.EpisodeId);
         }
     }
 

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 
 namespace Hrot.Orchestrator;
@@ -25,7 +26,7 @@ public sealed class ClusterConfiguration
     /// files from nodes.  Must differ from each node's <c>LocalTempRoot</c> to
     /// prevent source == destination errors.  Default is for single-machine dev use only.
     /// </summary>
-    public string NasBasePath { get; init; } = @"C:\FDP_Temp\shared";
+    public string NasBasePath { get; init; } = Path.Combine(Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot(), "shared");
 
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     public static ClusterConfiguration Default { get; } = new();

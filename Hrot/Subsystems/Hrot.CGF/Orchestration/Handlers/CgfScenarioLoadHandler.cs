@@ -71,7 +71,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             EntityRepository? world,
             ScenarioBehaviorRemapper? remapper = null,
             IRecordReplayController? controller = null,
-            string storageDirectory = @"C:\FDP_Temp")
+            string? storageDirectory = null)
         {
             _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
             _scenarioLoader    = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
@@ -81,7 +81,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             _world             = world;
             _remapper          = remapper;
             _controller        = controller;
-            _storageDirectory  = storageDirectory ?? @"C:\FDP_Temp";
+            _storageDirectory  = storageDirectory ?? OrchestrationConstants.ResolveStagingRoot();
         }
 
         /// <inheritdoc />

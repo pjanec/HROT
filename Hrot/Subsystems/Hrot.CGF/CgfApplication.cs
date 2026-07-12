@@ -93,15 +93,16 @@ namespace Hrot.CGF
         /// </param>
         /// <param name="localTempRoot">
         /// Local staging directory root for pre-fetched scenario files.
-        /// Defaults to <c>C:\FDP_Temp</c>.
+        /// Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
         /// </param>
         public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
             DdsParticipant? participant = null,
-            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = OrchestrationConstants.DefaultStagingDirectory,
+            ScenarioSerializer? scenarioSerializer = null, string? localTempRoot = null,
             INetworkFactory? networkFactory = null,
             CgfLogicPack? logicPack = null)
         {
             _nodeId      = nodeId;
+            localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
             // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
             // When null, the node operates without DDS (offline / pure-domain test path).
             _participant = participant;

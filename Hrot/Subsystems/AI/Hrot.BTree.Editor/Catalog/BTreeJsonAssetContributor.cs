@@ -86,8 +86,14 @@ public sealed class BTreeJsonAssetContributor : IAssetCatalogContributor
         }
         else if (rootDirectory != null && Directory.Exists(rootDirectory))
         {
-            paths = Directory.EnumerateFiles(rootDirectory, "*.btree.json",
-                SearchOption.AllDirectories);
+            // Case-insensitive match: *.btree.json files may have drifted extension casing
+            // when authored on Windows; PlatformDefault would silently miss them on Linux.
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                MatchCasing           = MatchCasing.CaseInsensitive,
+            };
+            paths = Directory.EnumerateFiles(rootDirectory, "*.btree.json", options);
         }
         else
         {

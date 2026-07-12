@@ -55,28 +55,39 @@ namespace Fdp.Toolkit.Commands.Tests
                 // Simple polling for test
                 for (int i = 0; i < 50; i++)
                 {
-                    try 
+                    try
                     {
-                        using var samples = serverReader.Take(1);
-                        foreach (var sample in samples)
+                        if (TryHandleRequest())
                         {
-                            if (sample.Info.ValidData != 0)
-                            {
-                                var req = sample.Data;
-                                // Send Ack
-                                var ack = new TestAck
-                                {
-                                    RequestId = req.RequestId,
-                                    Reply = "Ack: " + req.Message
-                                };
-                                serverWriter.Write(ack);
-                                return; // Done
-                            }
+                            return; // Done
                         }
                     }
                     catch { } // method might throw if no data/timeout
-                    
+
                     await Task.Delay(100);
+                }
+
+                // Synchronous local function: DdsLoan/DdsSample are ref structs and
+                // cannot be used inside this async method's state machine.
+                bool TryHandleRequest()
+                {
+                    using var samples = serverReader.Take(1);
+                    foreach (var sample in samples)
+                    {
+                        if (sample.Info.ValidData != 0)
+                        {
+                            var req = sample.Data;
+                            // Send Ack
+                            var ack = new TestAck
+                            {
+                                RequestId = req.RequestId,
+                                Reply = "Ack: " + req.Message
+                            };
+                            serverWriter.Write(ack);
+                            return true;
+                        }
+                    }
+                    return false;
                 }
             });
 

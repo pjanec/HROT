@@ -5,7 +5,7 @@
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>12.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GizmoMap.Contracts\GizmoMap.Contracts.csproj" />
@@ -16,7 +16,7 @@
     <ProjectReference Include="..\..\StructEdit\src\StructEdit.Reflection\StructEdit.Reflection.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.2.3" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
   </ItemGroup>
 </Project>

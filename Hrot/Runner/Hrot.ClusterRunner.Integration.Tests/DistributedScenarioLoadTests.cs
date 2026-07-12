@@ -45,7 +45,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     public DistributedScenarioLoadTests()
     {
         _scenarioId = "test_dist_load_" + Guid.NewGuid().ToString("N");
-        _stagingDir = Path.Combine(OrchestrationConstants.DefaultStagingDirectory, _scenarioId);
+        _stagingDir = Path.Combine(OrchestrationConstants.ResolveStagingRoot(), _scenarioId);
     }
 
     public void Dispose()

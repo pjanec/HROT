@@ -1,0 +1,8 @@
+This directory is the "LocalFeed" NuGet package source declared in the repo
+nuget.config (<add key="LocalFeed" value="./nugets" />).
+
+It must exist even when empty: NuGet restore hard-fails with NU1301
+("The local source '.../nugets' doesn't exist") on a fresh checkout otherwise,
+because git does not track empty directories. This placeholder keeps the empty
+feed present so restore falls through to nuget.org. Drop local .nupkg files here
+if you need to override a package with a private build.

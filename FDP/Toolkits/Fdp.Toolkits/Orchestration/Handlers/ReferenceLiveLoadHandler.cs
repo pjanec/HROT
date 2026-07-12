@@ -55,16 +55,16 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         /// <param name="storageDirectory">
         /// Root directory where exercise recording files are staged; forwarded to
         /// <see cref="IRecordReplayController.PrepareRecordingAsync"/>.
-        /// Defaults to <c>C:\FDP_Temp</c>.
+        /// Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
         /// </param>
         public ReferenceLiveLoadHandler(
             CheckpointIOWorker?       checkpointWorker = null,
             IRecordReplayController?  controller       = null,
-            string                    storageDirectory = @"C:\FDP_Temp")
+            string?                   storageDirectory = null)
         {
             _checkpointWorker = checkpointWorker;
             _controller       = controller;
-            _storageDirectory = storageDirectory ?? @"C:\FDP_Temp";
+            _storageDirectory = storageDirectory ?? OrchestrationConstants.ResolveStagingRoot();
         }
 
         /// <inheritdoc />

@@ -7,7 +7,8 @@ namespace Fdp.Toolkit.Orchestration
 {
     /// <summary>
     /// File-system implementation of <see cref="IScenarioStorageProvider"/> that stages
-    /// scenario files under a configurable local root directory (default: <c>C:\FDP_Temp</c>).
+    /// scenario files under a configurable local root directory (default: see
+    /// <see cref="OrchestrationConstants.ResolveStagingRoot"/>).
     ///
     /// <para>
     /// Each simulation node has a local staging root where the SMB-gateway prefetch copies
@@ -16,14 +17,14 @@ namespace Fdp.Toolkit.Orchestration
     /// </summary>
     public sealed class LocalDiskStorageProvider : IScenarioStorageProvider
     {
-        private const string DefaultLocalTempRoot = OrchestrationConstants.DefaultStagingDirectory;
         private readonly string _localTempRoot;
 
         /// <param name="localTempRoot">
-        /// Root staging directory.  Defaults to <c>C:\FDP_Temp</c>.
+        /// Root staging directory.  Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
         /// </param>
-        public LocalDiskStorageProvider(string localTempRoot = DefaultLocalTempRoot)
+        public LocalDiskStorageProvider(string? localTempRoot = null)
         {
+            localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
             if (string.IsNullOrWhiteSpace(localTempRoot))
                 throw new ArgumentException("localTempRoot must not be null or whitespace.", nameof(localTempRoot));
             _localTempRoot = localTempRoot;
@@ -48,8 +49,12 @@ namespace Fdp.Toolkit.Orchestration
         public IEnumerable<string> EnumerateScenarioFiles(string scenarioId)
         {
             var dir = Path.Combine(_localTempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+            // Case-insensitive match: scenario *.json files may have drifted extension
+            // casing when authored on Windows; PlatformDefault would silently miss them
+            // on Linux.
             return Directory.Exists(dir)
-                ? Directory.GetFiles(dir, "*.json")
+                ? Directory.GetFiles(dir, "*.json",
+                    new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive })
                 : Enumerable.Empty<string>();
         }
     }

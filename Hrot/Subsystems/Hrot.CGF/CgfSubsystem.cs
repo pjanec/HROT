@@ -204,7 +204,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     public void Initialize(SubsystemConfig config)
     {        _headless = config.Headless;
         int cgfNodeId = config.NodeId != 0 ? config.NodeId : 400;
-        string baseTempRoot = OrchestrationConstants.DefaultStagingDirectory;
+        string baseTempRoot = OrchestrationConstants.ResolveStagingRoot();
         string isolatedTempRoot = System.IO.Path.Combine(baseTempRoot, "nodes", $"node-{cgfNodeId}");
         string resolvedLogDir = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
         // ── Create DDS participant in the Application Shell (Composition Root) ───

@@ -145,4 +145,28 @@ public sealed class HsmJsonAssetContributorTests : IDisposable
         contrib.Enumerate()[0].IsDirty.Should().BeFalse(
             "load must not call MarkDirty (PU-602 constraint)");
     }
+
+    // ── WI-5: extension casing must not affect discovery on Linux ─────────────
+
+    [Fact]
+    public void Discover_ExtensionCasingDiffersFromLiteral_FileIsStillFound()
+    {
+        // Simulates a file authored on case-insensitive Windows whose extension casing
+        // drifted (e.g. via a case-insensitive copy/rename). Directory.EnumerateFiles
+        // glob matching is case-SENSITIVE on Linux by default (PlatformDefault), so
+        // without the case-insensitive EnumerationOptions fix this file is silently
+        // skipped -- no exception, just an empty result.
+        var dto  = MakeDto("Widget");
+        var json = HsmJsonServices.Serialize(dto);
+        var path = Path.Combine(_tempDir, "Widget.HSM.JSON");
+        File.WriteAllText(path, json);
+
+        var contrib = new HsmJsonAssetContributor();
+        contrib.Refresh(rootDirectory: _tempDir);
+
+        var assets = contrib.Enumerate();
+        assets.Should().HaveCount(1, "the *.hsm.json scan must match regardless of extension casing");
+        assets[0].AssetId.Should().Be(dto.AssetId);
+        assets[0].Name.Should().Be("Widget");
+    }
 }

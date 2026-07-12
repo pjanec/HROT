@@ -7,8 +7,9 @@ namespace Fdp.Toolkit.Orchestration
     ///
     /// <para>
     /// The Hrot reference implementation, <c>LocalDiskStorageProvider</c>,
-    /// wraps <c>C:\FDP_Temp\{scenarioId}\</c> as the staging root.  Applications
-    /// that mount their staging area elsewhere pass a different root path.
+    /// wraps <c>{OrchestrationConstants.ResolveStagingRoot()}\{scenarioId}\</c> as the
+    /// staging root.  Applications that mount their staging area elsewhere pass a
+    /// different root path.
     /// </para>
     /// </summary>
     public interface IScenarioStorageProvider

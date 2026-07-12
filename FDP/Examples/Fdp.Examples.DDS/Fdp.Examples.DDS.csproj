@@ -6,6 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CycloneDDS.NET" Version="0.2.3" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
   </ItemGroup>
 </Project>

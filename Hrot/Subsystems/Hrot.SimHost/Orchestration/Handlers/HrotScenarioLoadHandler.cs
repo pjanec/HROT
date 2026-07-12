@@ -75,7 +75,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         INetworkIdAllocator idAllocator,
         EntityRepository? world = null,
         IRecordReplayController? controller = null,
-        string storageDirectory = @"C:\FDP_Temp",
+        string? storageDirectory = null,
         ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null)
     {
         _serializer        = serializer     ?? throw new ArgumentNullException(nameof(serializer));
@@ -86,7 +86,7 @@ public sealed class HrotScenarioLoadHandler : ITickableClusterStateHandler
         _idAllocator       = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
         _world             = world;
         _controller        = controller;
-        _storageDirectory  = storageDirectory ?? @"C:\FDP_Temp";
+        _storageDirectory  = storageDirectory ?? OrchestrationConstants.ResolveStagingRoot();
         _readOnlyAdapter   = readOnlyMigrationAdapter;
     }
 

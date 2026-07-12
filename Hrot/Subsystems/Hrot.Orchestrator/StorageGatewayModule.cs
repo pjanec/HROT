@@ -73,6 +73,14 @@ public sealed class StorageGatewayModule
     public const int MaxParallelCopies = 8;
 
     /// <summary>
+    /// Comparison to use for filesystem path equality: case-insensitive on Windows
+    /// (NTFS default), case-sensitive (Ordinal) elsewhere, since case-differing paths
+    /// are distinct files on Linux.
+    /// </summary>
+    private static StringComparison PlatformPathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    /// <summary>
     /// Pulls all files described by <paramref name="manifests"/> from their source
     /// paths and copies them into <paramref name="nasBasePath"/>, preserving the
     /// relative destination expressed in each <see cref="FileManifestEntry.RelativeDest"/>.
@@ -267,8 +275,10 @@ public sealed class StorageGatewayModule
                 {
                     var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
 
-                    // Skip if source and destination are the exact same file
-                    if (string.Equals(srcFile, destPath, StringComparison.OrdinalIgnoreCase))
+                    // Skip if source and destination are the exact same file. Path equality
+                    // is case-insensitive only on Windows; on Linux, case-differing paths
+                    // are distinct files.
+                    if (string.Equals(srcFile, destPath, PlatformPathComparison))
                     {
                         Interlocked.Increment(ref success);
                         return;
@@ -376,8 +386,11 @@ public sealed class StorageGatewayModule
     public IReadOnlyList<string> ScanLocalScenarios(string root)
     {
         if (!Directory.Exists(root)) return Array.Empty<string>();
+        // Case-insensitive match: scenario *.json files may have drifted extension casing
+        // when authored on Windows; PlatformDefault would silently miss them on Linux.
+        var jsonMatch = new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive };
         return Directory.GetDirectories(root)
-            .Where(d => Directory.GetFiles(d, "*.json").Length > 0)
+            .Where(d => Directory.GetFiles(d, "*.json", jsonMatch).Length > 0)
             .Select(Path.GetFileName)
             .Where(n => n != null)
             .Select(n => n!)
@@ -393,10 +406,14 @@ public sealed class StorageGatewayModule
     {
         if (!Directory.Exists(root)) return Array.Empty<ExerciseInventoryItem>();
 
+        // Case-insensitive match: *.fdp files may have drifted extension casing when
+        // authored on Windows; PlatformDefault would silently miss them on Linux.
+        var fdpMatch = new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive };
+
         var result = new List<ExerciseInventoryItem>();
         foreach (var d in Directory.GetDirectories(root))
         {
-            if (Directory.GetFiles(d, "*.fdp").Length == 0) continue;
+            if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             var startTime = Directory.GetCreationTimeUtc(d);
@@ -414,10 +431,14 @@ public sealed class StorageGatewayModule
     {
         if (!Directory.Exists(nasRoot)) return Array.Empty<ExerciseInventoryItem>();
 
+        // Case-insensitive match: *.fdp files may have drifted extension casing when
+        // authored on Windows; PlatformDefault would silently miss them on Linux.
+        var fdpMatch = new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive };
+
         var result = new List<ExerciseInventoryItem>();
         foreach (var d in Directory.GetDirectories(nasRoot))
         {
-            if (Directory.GetFiles(d, "*.fdp").Length == 0) continue;
+            if (Directory.GetFiles(d, "*.fdp", fdpMatch).Length == 0) continue;
             if (!Guid.TryParse(Path.GetFileName(d), out var exerciseId)) continue;
 
             DateTime startTime = Directory.GetCreationTimeUtc(d);
@@ -443,7 +464,10 @@ public sealed class StorageGatewayModule
                 }
             }
 
-            var metaFiles = Directory.GetFiles(d, "*.meta.json");
+            // Case-insensitive match: *.meta.json files may have drifted extension casing
+            // when authored on Windows; PlatformDefault would silently miss them on Linux.
+            var metaFiles = Directory.GetFiles(d, "*.meta.json",
+                new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
             foreach (var metaPath in metaFiles)
             {
                 try

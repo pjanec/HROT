@@ -9,9 +9,13 @@ namespace Fdp.Toolkit.Orchestration
     public static class OrchestrationConstants
     {
         /// <summary>
-        /// Default root directory for scenario staging, checkpoints, and archives.
+        /// Resolves the default root directory for scenario staging, checkpoints, and archives.
+        /// Honors the <c>FDP_STAGING_ROOT</c> environment variable when set, otherwise falls
+        /// back to a platform-appropriate temp directory (cross-platform; not a fixed Windows path).
         /// </summary>
-        public const string DefaultStagingDirectory = @"C:\FDP_Temp";
+        public static string ResolveStagingRoot() =>
+            Environment.GetEnvironmentVariable("FDP_STAGING_ROOT")
+            ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FDP_Temp");
         public const string ScenariosDirectoryName = "scenarios";
         public const string ExercisesDirectoryName = "exercises";
         public const string EpisodesDirectoryName = "episodes";
@@ -23,7 +27,7 @@ namespace Fdp.Toolkit.Orchestration
             => $"node-{nodeId}";
 
         public static string GetNodeStagingRoot(int nodeId)
-            => GetNodeStagingRoot(DefaultStagingDirectory, nodeId);
+            => GetNodeStagingRoot(ResolveStagingRoot(), nodeId);
 
         public static string GetNodeStagingRoot(string stagingRoot, int nodeId)
             => Path.Combine(stagingRoot, "nodes", GetNodeDirectoryName(nodeId));

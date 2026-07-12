@@ -41,26 +41,33 @@ namespace Hrot.DDS.DataModel.Tests
             writer.Write(sample);
             await Task.Delay(500);
 
-            var loan = reader.Take();
-            try
+            CheckReceivedSample();
+
+            // Local function: DdsLoan<T> is a ref struct and cannot be used
+            // directly inside this async method's state machine.
+            void CheckReceivedSample()
             {
-                // Find our specific sample by NodeId (there may be cache entries from other sources)
-                bool found = false;
-                for (int i = 0; i < loan.Count; i++)
+                var loan = reader.Take();
+                try
                 {
-                    if (loan[i].NodeId == expectedNodeId)
+                    // Find our specific sample by NodeId (there may be cache entries from other sources)
+                    bool found = false;
+                    for (int i = 0; i < loan.Count; i++)
                     {
-                        Assert.Equal("SimHost", loan[i].SubsystemName);
-                        Assert.True(loan[i].Ready);
-                        found = true;
-                        break;
+                        if (loan[i].NodeId == expectedNodeId)
+                        {
+                            Assert.Equal("SimHost", loan[i].SubsystemName);
+                            Assert.True(loan[i].Ready);
+                            found = true;
+                            break;
+                        }
                     }
+                    Assert.True(found, $"Should have received sample with NodeId={expectedNodeId}");
                 }
-                Assert.True(found, $"Should have received sample with NodeId={expectedNodeId}");
-            }
-            finally
-            {
-                loan.Dispose();
+                finally
+                {
+                    loan.Dispose();
+                }
             }
         }
 
@@ -93,25 +100,32 @@ namespace Hrot.DDS.DataModel.Tests
             // TransientLocal: late reader should receive the cached sample
             await Task.Delay(500);
 
-            var loan = lateReader.Take();
-            try
+            CheckLateJoinerReceivedAnnouncement();
+
+            // Local function: DdsLoan<T> is a ref struct and cannot be used
+            // directly inside this async method's state machine.
+            void CheckLateJoinerReceivedAnnouncement()
             {
-                bool found = false;
-                for (int i = 0; i < loan.Count; i++)
+                var loan = lateReader.Take();
+                try
                 {
-                    if (loan[i].NodeId == earlyNodeId)
+                    bool found = false;
+                    for (int i = 0; i < loan.Count; i++)
                     {
-                        Assert.Equal("IG", loan[i].SubsystemName);
-                        found = true;
-                        break;
+                        if (loan[i].NodeId == earlyNodeId)
+                        {
+                            Assert.Equal("IG", loan[i].SubsystemName);
+                            found = true;
+                            break;
+                        }
                     }
+                    Assert.True(found,
+                        $"Late-joining reader should receive the TransientLocal cached announcement with NodeId={earlyNodeId}");
                 }
-                Assert.True(found,
-                    $"Late-joining reader should receive the TransientLocal cached announcement with NodeId={earlyNodeId}");
-            }
-            finally
-            {
-                loan.Dispose();
+                finally
+                {
+                    loan.Dispose();
+                }
             }
         }
     }

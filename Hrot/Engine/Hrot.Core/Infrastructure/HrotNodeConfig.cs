@@ -20,9 +20,9 @@ public sealed class HrotNodeConfig
 
     /// <summary>
     /// Root directory for scenario staging and checkpoint storage.
-    /// Defaults to <c>C:\FDP_Temp</c>.
+    /// Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
     /// </summary>
-    public string LocalTempRoot { get; set; } = OrchestrationConstants.DefaultStagingDirectory;
+    public string LocalTempRoot { get; set; } = OrchestrationConstants.ResolveStagingRoot();
 
     /// <summary>
     /// When <c>true</c>, all DDS-related initialization steps are skipped

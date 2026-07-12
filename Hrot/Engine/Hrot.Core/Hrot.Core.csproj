@@ -16,7 +16,7 @@
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <!-- CycloneDDS.Runtime: DdsParticipant can be accepted/stored in HrotNodeConfig -->
-    <PackageReference Include="CycloneDDS.NET" Version="0.2.3" />
+    <PackageReference Include="CycloneDDS.NET" Version="0.3.2" />
   </ItemGroup>
   <ItemGroup>
     <!-- From Hrot.Common.csproj -->

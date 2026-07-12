@@ -213,24 +213,24 @@ namespace Hrot.ExCon
                 postSimGroup:          null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
-                storageDirectory:      @"C:\FDP_Temp"));
+                storageDirectory:      OrchestrationConstants.ResolveStagingRoot()));
 
             // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive.
             // ExCon carries no ECS state and does not start a recording.
             _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       iosRrController,
-                storageDirectory: @"C:\FDP_Temp"));
+                storageDirectory: OrchestrationConstants.ResolveStagingRoot()));
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
             // Wire ReferencePrefetchHandler / ReferenceArchiveHandler so ExCon ACKs
             // background file fan-outs (PrefetchFiles / SerializeLocal) and cannot stall 2PC UI tracking.
-            var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.DefaultStagingDirectory);
+            var exConStorageProvider = new LocalDiskStorageProvider(OrchestrationConstants.ResolveStagingRoot());
             _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(exConStorageProvider));
             _clusterSlave.RegisterHandler(new ReferenceArchiveHandler(
-                OrchestrationConstants.DefaultStagingDirectory, iosNodeId));
+                OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
 
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);
@@ -249,7 +249,7 @@ namespace Hrot.ExCon
                 {
                     NodeId = iosNodeId,
                     SubsystemName = SubsystemName,
-                    LocalTempRoot = OrchestrationConstants.DefaultStagingDirectory,
+                    LocalTempRoot = OrchestrationConstants.ResolveStagingRoot(),
                     LogDirectory = System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs"),
                 }));
 
@@ -299,7 +299,7 @@ namespace Hrot.ExCon
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
 
             // Wire the cluster diagnostics panel (reads UICache on observerBus; publishes via bus).
-            _exConFileDialogService  = new Fdp.Presentation.Panels.WinFormsFileDialogService();
+            _exConFileDialogService  = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
             _clusterDiagnosticsPanel = new Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel(
                 _uiCache,
                 _bus,
@@ -433,6 +433,12 @@ namespace Hrot.ExCon
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
                 _mock.SetPanelsWindowManaged();
             }
+
+            // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
+            // Harmless no-op for the Win32 backend: WindowManager only draws the service
+            // when it is an ImGuiFileDialogService.
+            if (_exConFileDialogService != null)
+                windowManager.SetFileDialogService(_exConFileDialogService);
         }
 
         /// <inheritdoc/>

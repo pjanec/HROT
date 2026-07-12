@@ -24,7 +24,7 @@ namespace Hrot.Orchestrator;
 /// <para>
 /// <b>Save path</b> (<see cref="NodeOpType.SerializeLocal"/>): Writes
 /// <c>GlobalContextDto</c> (simulation start wall ticks, scene identifier) to
-/// <c>C:\FDP_Temp\&lt;ExerciseId&gt;\Orchestrator.json</c>.
+/// <c>&lt;LocalTempRoot&gt;\&lt;ExerciseId&gt;\Orchestrator.json</c>.
 /// Returns the file path as a single-entry <see cref="FileManifestEntry"/>
 /// in <c>NodeOpStatus.ResultJson</c>.
 /// </para>
@@ -45,9 +45,10 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
 {
     /// <summary>
     /// Local working directory root; substituable in tests.
-    /// In production this is <c>C:\FDP_Temp</c> (Windows NAS-mirror convention).
+    /// In production this resolves via <see cref="Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot"/>
+    /// (NAS-mirror convention).
     /// </summary>
-    public string LocalTempRoot { get; set; } = @"C:\FDP_Temp";
+    public string LocalTempRoot { get; set; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
 
     private readonly DdsWriter<OrchestratorContextTopic> _contextWriter;
     private readonly string _scenarioId;

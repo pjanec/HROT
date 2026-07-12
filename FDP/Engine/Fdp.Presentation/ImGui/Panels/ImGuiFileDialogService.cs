@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Text;
@@ -26,11 +27,17 @@ namespace Fdp.Presentation.Panels;
 public sealed class ImGuiFileDialogService : IFileDialogService
 {
     private bool   _isOpen;
+    private bool   _multiSelect;
     private string _currentDirectory = Directory.GetCurrentDirectory();
     private string _fileNameBuffer   = string.Empty;
     private string _extensionFilter  = "*";
     private string _dialogTitle      = "Save As";
     private TaskCompletionSource<string?>? _tcs;
+    private TaskCompletionSource<string[]?>? _multiTcs;
+
+    // Multi-select state: full paths of files checked by the user. Persists across
+    // directory navigation within a single multi-select dialog session.
+    private readonly HashSet<string> _selectedFiles = new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc/>
     public Task<string?> ShowSaveAsDialogAsync(string callSiteId, string defaultFileName, string extensionFilter)
@@ -42,24 +49,43 @@ public sealed class ImGuiFileDialogService : IFileDialogService
 
     /// <inheritdoc/>
     public Task<string[]?> ShowOpenMultipleFilesDialogAsync(string callSiteId, string extensionFilter)
-    {
-        // ImGui-based multi-select is not implemented; return null (cancelled) to fall back gracefully.
-        return Task.FromResult<string[]?>(null);
-    }
+        => OpenMultiDialogInternal("Open Files", extensionFilter);
 
     private Task<string?> OpenDialogInternal(string title, string defaultFileName, string extensionFilter)
     {
-        // Cancel any pending dialog.
+        // Cancel any pending dialog (single- or multi-select).
         _tcs?.TrySetCanceled();
+        _multiTcs?.TrySetCanceled();
 
         _fileNameBuffer   = defaultFileName;
         _extensionFilter  = extensionFilter;
         _dialogTitle      = title;
+        _multiSelect      = false;
         if (!Directory.Exists(_currentDirectory))
             _currentDirectory = Directory.GetCurrentDirectory();
         _tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _multiTcs = null;
         _isOpen = true;
         return _tcs.Task;
+    }
+
+    private Task<string[]?> OpenMultiDialogInternal(string title, string extensionFilter)
+    {
+        // Cancel any pending dialog (single- or multi-select).
+        _tcs?.TrySetCanceled();
+        _multiTcs?.TrySetCanceled();
+
+        _fileNameBuffer   = string.Empty;
+        _extensionFilter  = extensionFilter;
+        _dialogTitle      = title;
+        _multiSelect      = true;
+        _selectedFiles.Clear();
+        if (!Directory.Exists(_currentDirectory))
+            _currentDirectory = Directory.GetCurrentDirectory();
+        _multiTcs = new TaskCompletionSource<string[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _tcs = null;
+        _isOpen = true;
+        return _multiTcs.Task;
     }
 
     /// <summary>
@@ -80,6 +106,15 @@ public sealed class ImGuiFileDialogService : IFileDialogService
             // Up button
             if (ImGuiApi.Button("Up") && Directory.GetParent(_currentDirectory) is { } parent)
                 _currentDirectory = parent.FullName;
+
+            ImGuiApi.SameLine();
+            // Home shortcut: useful on non-Windows where the drive combo only ever shows "/".
+            if (ImGuiApi.Button("Home"))
+            {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrEmpty(home) && Directory.Exists(home))
+                    _currentDirectory = home;
+            }
 
             ImGuiApi.SameLine();
             ImGuiApi.SetNextItemWidth(80f);
@@ -110,8 +145,24 @@ public sealed class ImGuiFileDialogService : IFileDialogService
                 foreach (string file in Directory.GetFiles(_currentDirectory, _extensionFilter))
                 {
                     string fileName = Path.GetFileName(file);
-                    if (ImGuiApi.Selectable(fileName, false))
-                        _fileNameBuffer = fileName;
+                    if (_multiSelect)
+                    {
+                        // Multi-select mode: one checkbox per file, keyed by full path so
+                        // selections survive navigating between directories.
+                        bool isChecked = _selectedFiles.Contains(file);
+                        if (ImGuiApi.Checkbox(fileName, ref isChecked))
+                        {
+                            if (isChecked)
+                                _selectedFiles.Add(file);
+                            else
+                                _selectedFiles.Remove(file);
+                        }
+                    }
+                    else
+                    {
+                        if (ImGuiApi.Selectable(fileName, false))
+                            _fileNameBuffer = fileName;
+                    }
                 }
             }
             catch (UnauthorizedAccessException) { ImGuiApi.TextDisabled("[Access denied]"); }
@@ -119,35 +170,69 @@ public sealed class ImGuiFileDialogService : IFileDialogService
 
             ImGuiApi.Separator();
 
-            // File name input
-            byte[] buf = Encoding.UTF8.GetBytes(_fileNameBuffer.PadRight(256, '\0'));
-            Array.Resize(ref buf, 256);
-            if (ImGuiApi.InputText("File name", buf, (uint)buf.Length))
-                _fileNameBuffer = Encoding.UTF8.GetString(buf).TrimEnd('\0');
+            if (_multiSelect)
+            {
+                // Multi-select mode: no free-text file name — selection is via the checkboxes above.
+                ImGuiApi.Text($"Selected: {_selectedFiles.Count} file(s)");
+            }
+            else
+            {
+                // File name input
+                byte[] buf = Encoding.UTF8.GetBytes(_fileNameBuffer.PadRight(256, '\0'));
+                Array.Resize(ref buf, 256);
+                if (ImGuiApi.InputText("File name", buf, (uint)buf.Length))
+                    _fileNameBuffer = Encoding.UTF8.GetString(buf).TrimEnd('\0');
+            }
 
-            string confirmLabel = _dialogTitle == "Open File" ? "Open" : "Save";
+            string confirmLabel = _multiSelect ? "Open" : (_dialogTitle == "Open File" ? "Open" : "Save");
             if (ImGuiApi.Button(confirmLabel))
             {
-                string result = Path.Combine(_currentDirectory, _fileNameBuffer);
                 _isOpen = false;
-                _tcs?.TrySetResult(result);
-                _tcs = null;
+                if (_multiSelect)
+                {
+                    string[] result = new string[_selectedFiles.Count];
+                    _selectedFiles.CopyTo(result);
+                    _multiTcs?.TrySetResult(result);
+                    _multiTcs = null;
+                }
+                else
+                {
+                    string result = Path.Combine(_currentDirectory, _fileNameBuffer);
+                    _tcs?.TrySetResult(result);
+                    _tcs = null;
+                }
                 ImGuiApi.CloseCurrentPopup();
             }
             ImGuiApi.SameLine();
             if (ImGuiApi.Button("Cancel"))
             {
                 _isOpen = false;
-                _tcs?.TrySetResult(null);
-                _tcs = null;
+                if (_multiSelect)
+                {
+                    _multiTcs?.TrySetResult(null);
+                    _multiTcs = null;
+                }
+                else
+                {
+                    _tcs?.TrySetResult(null);
+                    _tcs = null;
+                }
                 ImGuiApi.CloseCurrentPopup();
             }
 
             if (!open) // User clicked the X
             {
                 _isOpen = false;
-                _tcs?.TrySetResult(null);
-                _tcs = null;
+                if (_multiSelect)
+                {
+                    _multiTcs?.TrySetResult(null);
+                    _multiTcs = null;
+                }
+                else
+                {
+                    _tcs?.TrySetResult(null);
+                    _tcs = null;
+                }
             }
 
             ImGuiApi.EndPopup();
