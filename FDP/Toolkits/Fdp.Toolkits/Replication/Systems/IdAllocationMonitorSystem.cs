@@ -34,6 +34,10 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (repo.HasSingletonManaged<BlockIdManager>())
                 {
                     _manager = repo.GetSingletonManaged<BlockIdManager>();
+                    if (_manager != null)
+                    {
+                        _manager.OnLowWaterMark += HandleLowWaterMark;
+                    }
                 }
             }
             else

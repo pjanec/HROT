@@ -64,8 +64,6 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
         // ── SR-T03: GreaterThan -- multiple frames match ──────────────────────
 
-        // STABILITY(Broken): ExecuteSearch returns 1 instead of 3 for GreaterThan(75) on {100,90,80,70,60} — suspected real bug in RecordingSearchService predicate evaluation; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void SR_T03_GreaterThan_FindsMultipleFrames()
         {

@@ -31,7 +31,8 @@ namespace CarKinem.Controllers
         {
             // 1. Update speed
             state.Speed += accel * dt;
-            
+            state.Speed = MathF.Max(0f, state.Speed);
+
             // 2. Calculate angular velocity (yaw rate)
             // omega = (v / L) * tan(delta)
             float angularVel = (state.Speed / wheelBase) * MathF.Tan(steerAngle);

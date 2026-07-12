@@ -128,11 +128,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                         if (compiledFn(repo, entity))
                         {
                             frameCandidates.Add(entity);
-                            if (!previousMatches.Contains(entity.Index))
-                            {
-                                results.Add(new SearchResultDto(frame, ticks, entity,
-                                    BuildComponentContext(root, repo, entity)));
-                            }
+                            results.Add(new SearchResultDto(frame, ticks, entity,
+                                BuildComponentContext(root, repo, entity)));
                         }
                     }
 

@@ -1106,7 +1106,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Export
             public BitMask512 GetConsumedComponentsMask()
             {
                 var mask = new BitMask512();
-                mask.SetBit(203); // HarnessVelocity component ID
+                mask.SetBit(297); // HarnessVelocity component ID (renumbered from 203 → 297, see FdpRecordingHarness.cs)
                 return mask;
             }
 

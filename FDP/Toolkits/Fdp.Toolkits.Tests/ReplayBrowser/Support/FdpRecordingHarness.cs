@@ -6,21 +6,23 @@ using Fdp.Core.FlightRecorder;
 
 namespace Fdp.Toolkit.ReplayBrowser.Support
 {
-    // Component IDs 202-205 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Support)
+    // Component IDs 296-299 reserved for this file (Fdp.Toolkits.Tests/ReplayBrowser/Support)
+    // (Moved from 202-205 which collide with production AreaQueryBatchData/EqsTargetPool/BlueprintBlackboard1024/4096.
+    //  291-295 also taken by other test files.)
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(202)]
+    [ComponentId(296)]
     public struct HarnessPosition { public float X, Y, Z; }
 
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(205)]
+    [ComponentId(299)]
     public struct HarnessEntityInfo { public FixedString32 Name; }
 
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(203)]
+    [ComponentId(297)]
     public struct HarnessVelocity { public float Vx, Vy; }
 
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(204)]
+    [ComponentId(298)]
     public struct HarnessTransform
     {
         public System.Numerics.Vector3 Position;

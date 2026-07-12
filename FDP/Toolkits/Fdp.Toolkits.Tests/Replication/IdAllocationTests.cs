@@ -9,8 +9,6 @@ namespace Fdp.Toolkit.Replication.Tests
 {
     public class IdAllocationTests
     {
-        // STABILITY(Broken): OnLowWaterMark event never attached — first Execute resolves manager but skips event subscription; real bug in IdAllocationMonitorSystem; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void MonitorSystem_PublishesRequest_WhenLowWaterMarkTriggers()
         {
@@ -45,8 +43,6 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.NotNull(requests[0].ClientId);
         }
         
-        // STABILITY(Broken): requests collection is empty (same root cause as MonitorSystem_PublishesRequest) → index[0] out of range; real bug in IdAllocationMonitorSystem; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void MonitorSystem_ProcessesResponse_AndAddsBlock()
         {

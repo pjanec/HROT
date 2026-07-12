@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Settings
         {
             "Bool"    => GizmoSettingValue.From(bool.Parse(value)),
             "Int32"   => GizmoSettingValue.From(int.Parse(value, CultureInfo.InvariantCulture)),
-            "Float32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
+            "CsFloat32" => GizmoSettingValue.From(float.Parse(value, CultureInfo.InvariantCulture)),
             _         => default,
         };
 

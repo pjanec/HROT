@@ -74,7 +74,8 @@ namespace Fdp.Toolkit.Scenario.Tests
             _repo.RegisterComponent<FixedLongComp>();
             _repo.RegisterComponent<InlineFloatComp>();
             _repo.RegisterComponent<BrainBlackboard>();
-            _repo.RegisterComponent<MissionPlanQueue>();
+            // Override NoSave so FdpAutoSerializer includes MissionPlanQueue in round-trip tests.
+            _repo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
         }
 
         public void Dispose()
@@ -273,11 +274,13 @@ namespace Fdp.Toolkit.Scenario.Tests
         /// S302-SC3: MissionPlanQueue (which has MissionPhaseBuffer [InlineArray(8)])
         /// round-trips phase data correctly.
         /// </summary>
-        // STABILITY(Broken): MissionPlanQueue not registered on freshRepo during Deserialize → InvalidOperationException — investigate serializer registration flow
-        [Trait("Stability", "Broken")]
         [Fact]
         public void RoundTrip_MissionPlanQueue_PreservesPhaseData()
         {
+            // MissionPlanQueue is registered with DataPolicy.Default in the fixture ctor
+            // so FdpAutoSerializer includes it in serialization.
+            var serializer = BuildSerializer();
+
             var entity = _repo.CreateEntity();
             var queue  = new MissionPlanQueue
             {
@@ -290,15 +293,14 @@ namespace Fdp.Toolkit.Scenario.Tests
             phases[1] = new MissionPhase { BehaviorId = 99, Trigger = MissionTrigger.TimerElapsed,      TriggerParam = 5f };
             _repo.SetComponent(entity, queue);
 
-            var serializer = BuildSerializer();
-            var dom        = serializer.Serialize(_repo, new ScenarioHeader(SubsystemType));
+            var dom = serializer.Serialize(_repo, new ScenarioHeader(SubsystemType));
 
             var freshRepo = new EntityRepository();
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
             freshRepo.RegisterComponent<BrainBlackboard>();
-            freshRepo.RegisterComponent<MissionPlanQueue>();
+            freshRepo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
             serializer.Deserialize(freshRepo, dom);
 
             Entity freshEntity = GetSingleEntity(freshRepo);

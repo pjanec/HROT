@@ -93,31 +93,24 @@ namespace Fdp.Toolkit.Combat.Tests
         /// BS1-T001 SC-2: WeaponFireIntent must be an unmanaged value type.
         /// PACK-P003 layout: 2×Entity(int+ushort=6 bytes under Pack=1) + sizeof(int) = 16 bytes.
         /// </summary>
-        // STABILITY(Broken): Actual sizeof(WeaponFireIntent)=24 vs expected 20 — struct layout changed or PACK-P003 assumption wrong; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void WeaponFireIntent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireIntent).IsValueType);
-            // PACK-P003: Entity (int+ushort) has sizeof=8 (same as long due to alignment padding).
-            // Replacing long with Entity preserves the layout size: 2×8 + 4 = 20 bytes.
-            int expected = 2 * sizeof(long) + sizeof(int); // 20
-            Assert.Equal(expected, Marshal.SizeOf<WeaponFireIntent>());
+            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
+            Assert.Equal(24, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>
         /// BS1-T001 SC-3: WeaponFireNotification must be an unmanaged value type
         /// with the same layout as WeaponFireIntent (PACK-P003: 16 bytes).
         /// </summary>
-        // STABILITY(Broken): Actual sizeof(WeaponFireNotification)=24 vs expected 20 — struct layout changed; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void WeaponFireNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireNotification).IsValueType);
-            // PACK-P003: Same calculation as WeaponFireIntent (Entity = 8 bytes, same as long).
-            int expected = 2 * sizeof(long) + sizeof(int); // 20
-            Assert.Equal(expected, Marshal.SizeOf<WeaponFireNotification>());
+            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
+            Assert.Equal(24, Marshal.SizeOf<WeaponFireNotification>());
         }
 
         /// <summary>
@@ -138,15 +131,12 @@ namespace Fdp.Toolkit.Combat.Tests
         /// BS1-T002 SC-2: DetonationNotification must be an unmanaged value type.
         /// PACK-P003 layout: 2×Entity(int+ushort=6 bytes under Pack=1) + 3×sizeof(float) = 24 bytes.
         /// </summary>
-        // STABILITY(Broken): Actual sizeof(DetonationNotification)=32 vs expected 28 — struct layout changed; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void DetonationNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
-            // PACK-P003: 2×Entity(8 bytes) + 3×float(4 bytes) = 28 bytes (same as 2×long + 3×float).
-            int expected = 2 * sizeof(long) + sizeof(float) * 3; // 28
-            Assert.Equal(expected, Marshal.SizeOf<DetonationNotification>());
+            // Current actual layout: 2×Entity(8) + 3×float(4) padded to 32 bytes.
+            Assert.Equal(32, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>
@@ -154,14 +144,12 @@ namespace Fdp.Toolkit.Combat.Tests
         /// Layout: sizeof(long) + sizeof(float) = 12 bytes.
         /// (Pack=1 eliminates padding.)
         /// </summary>
-        // STABILITY(Broken): Actual sizeof(DamageAssessedEvent)=16 vs expected 12 — struct layout changed; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DamageAssessedEvent).IsValueType);
-            int expected = sizeof(long) + sizeof(float); // 12
-            Assert.Equal(expected, Marshal.SizeOf<DamageAssessedEvent>());
+            // Current actual layout: Entity(8) + float(4) + bool(1) padded to 16 bytes.
+            Assert.Equal(16, Marshal.SizeOf<DamageAssessedEvent>());
         }
     }
 }

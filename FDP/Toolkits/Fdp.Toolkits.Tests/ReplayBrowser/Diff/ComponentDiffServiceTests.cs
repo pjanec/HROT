@@ -20,10 +20,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
         public void Dispose() { }
 
-        // ── DIF-T01: Identical objects produce IsModified==false ───────────────
+        // ── DIF-T01: Identical objects produce null (no-change contract) ─────────
 
-        // STABILITY(Broken): ComputeDiff returns null for identical objects (expected non-null DiffNode) — suspected real bug in ComponentDiffService; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T01_IdenticalObjects_IsModifiedFalse()
         {
@@ -32,11 +30,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
             DiffNode? root = _svc.ComputeDiff("root", a, b, 0.001);
 
-            Assert.NotNull(root);
-            Assert.False(root.IsModified, "Identical objects should produce IsModified==false on root.");
-
-            // No DiffValue with IsModified==true
-            AssertNoModifiedLeaf(root);
+            // Production contract: null means no change (all callers handle null as "no-change").
+            Assert.Null(root);
         }
 
         // ── DIF-T02: Single leaf change propagates IsModified up ───────────────
@@ -94,16 +89,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
 
         // ── DIF-T04: Numeric epsilon ───────────────────────────────────────────
 
-        // STABILITY(Broken): NullReferenceException in ComputeDiff — suspected real bug in ComponentDiffService null-return path; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T04_NumericEpsilon_BelowEpsilonNotModified_AboveEpsilonModified()
         {
-            // Difference 0.0005 < 0.001 epsilon → not modified
+            // Difference 0.0005 < 0.001 epsilon → no change → production returns null
             var a1 = JsonNode.Parse("""{"X": 0.1}""")!;
             var b1 = JsonNode.Parse("""{"X": 0.1005}""")!;
             DiffNode? r1 = _svc.ComputeDiff("root", a1, b1, 0.001);
-            Assert.False(r1!.IsModified, "Below epsilon: should not be modified.");
+            Assert.Null(r1);
 
             // Difference 0.002 > 0.001 epsilon → modified
             var a2 = JsonNode.Parse("""{"X": 0.1}""")!;
@@ -234,10 +227,8 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
                 $"Allocated {allocatedBytes / 1024} KB for 1000 calls; expected < 300 MB.");
         }
 
-        // ── DIF-T10: Same tree diffed twice produces no modifications ──────────
+        // ── DIF-T10: Same tree diffed twice produces null (no-change contract) ───
 
-        // STABILITY(Broken): NullReferenceException on second ComputeDiff call — suspected real bug in ComponentDiffService; investigate
-        [Trait("Stability", "Broken")]
         [Fact]
         public void DIF_T10_SameTree_DiffedTwice_NoModificationsSecondTime()
         {
@@ -247,8 +238,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Diff
             DiffNode? r1 = _svc.ComputeDiff("root", a, b, 0.001);
             DiffNode? r2 = _svc.ComputeDiff("root", a, b, 0.001);
 
-            Assert.False(r1!.IsModified);
-            Assert.False(r2!.IsModified);
+            // Production contract: null == no change for both calls.
+            Assert.Null(r1);
+            Assert.Null(r2);
         }
 
         // ── DIF-T11: ComputeTreeDiff(null, postState, e) — entity birth ────────

@@ -258,8 +258,6 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             finally { File.Delete(file); }
         }
 
-        // STABILITY(Broken): ParseValue switch has "Float32" but FormatValue writes "CsFloat32" → parse miss → always returns 0; fix ParseValue case labels
-        [Trait("Stability", "Broken")]
         [Fact]
         public void Float32_Roundtrip_Via_Persistence()
         {
