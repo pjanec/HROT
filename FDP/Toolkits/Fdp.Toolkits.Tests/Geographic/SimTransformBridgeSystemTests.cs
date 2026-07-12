@@ -47,8 +47,8 @@ namespace Fdp.Toolkit.Geographic.Tests
             Assert.Equal(270f, heading, precision: 1);
         }
 
-        // STABILITY(Broken): Returns 90 instead of 0 for 90° pitch-down rotation — suspected real bug in RotationToHeadingDeg degenerate-case handling; investigate
-        [Trait("Stability", "Broken")]
+        // Fixed (D-2): RotationToHeadingDeg now falls back to 0 at gimbal lock (nose straight
+        // up/down), where the forward axis projects to ~zero in the XY plane.
         [Fact]
         public void RotationToHeadingDeg_DegenerateRotation_Returns0()
         {
@@ -148,8 +148,7 @@ namespace Fdp.Toolkit.Geographic.Tests
         /// 30° nose-up pitch: pitchDeg ≈ +30, rollDeg ≈ 0.
         /// ENU frame: UnitY = body-left, so rotating around -UnitY by +30° tilts the nose toward +Z.
         /// </summary>
-        // STABILITY(Broken): Returns pitchDeg=-30 (sign inverted) instead of +30 — sign convention mismatch in RotationToPitchRollDeg; investigate
-        [Trait("Stability", "Broken")]
+        // Fixed (D-2): bridge now negates SimMath's nose-down-positive pitch to nose-up-positive.
         [Fact]
         public void RotationToPitchRollDeg_NoseUp30_ReturnsPitchPositive30()
         {
@@ -165,8 +164,7 @@ namespace Fdp.Toolkit.Geographic.Tests
         /// <summary>
         /// 30° nose-down pitch: pitchDeg ≈ −30, rollDeg ≈ 0.
         /// </summary>
-        // STABILITY(Broken): Returns pitchDeg=+30 (sign inverted) instead of -30 — sign convention mismatch in RotationToPitchRollDeg; investigate
-        [Trait("Stability", "Broken")]
+        // Fixed (D-2): see RotationToPitchRollDeg_NoseUp30.
         [Fact]
         public void RotationToPitchRollDeg_NoseDown30_ReturnsPitchNegative30()
         {
@@ -200,8 +198,7 @@ namespace Fdp.Toolkit.Geographic.Tests
         /// Compound rotation — 20° nose-up AND 30° right-wing-down:
         /// pitchDeg ≈ +20 (±2°) and rollDeg ≈ +30 (±2°).
         /// </summary>
-        // STABILITY(Broken): pitchDeg=-20 (sign inverted) instead of +20 — same sign convention mismatch in RotationToPitchRollDeg; investigate
-        [Trait("Stability", "Broken")]
+        // Fixed (D-2): see RotationToPitchRollDeg_NoseUp30.
         [Fact]
         public void RotationToPitchRollDeg_Combined_PitchAndRollIndependent()
         {
@@ -221,8 +218,7 @@ namespace Fdp.Toolkit.Geographic.Tests
         /// from RotationToHeadingDeg (this test replaces the former integration test that
         /// relied on SimTransformBridgeSystem.Execute() writing a GeoTransform component).
         /// </summary>
-        // STABILITY(Broken): pitchDeg=-20 (sign inverted) fails InRange(18,22) — same sign convention mismatch in RotationToPitchRollDeg; investigate
-        [Trait("Stability", "Broken")]
+        // Fixed (D-2): see RotationToPitchRollDeg_NoseUp30.
         [Fact]
         public void RotationToPitchRollDeg_PitchedRotation_PitchDegNonZero()
         {

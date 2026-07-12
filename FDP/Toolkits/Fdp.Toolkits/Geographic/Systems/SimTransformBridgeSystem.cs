@@ -22,6 +22,13 @@ namespace Fdp.Modules.Geographic.Systems
         /// </summary>
         public static float RotationToHeadingDeg(Quaternion rotation)
         {
+            // Degenerate guard: when the nose points nearly straight up/down, the body-forward
+            // axis projects to ~zero in the XY (ENU) plane and compass heading is undefined
+            // (gimbal lock) → fall back to 0. Non-degenerate headings are unchanged.
+            Vector3 fwd = Vector3.Transform(Vector3.UnitX, rotation);
+            if (new Vector2(fwd.X, fwd.Y).LengthSquared() < 1e-6f)
+                return 0f;
+
             var (yawDeg, _, _) = SimMath.ToYawPitchRollDeg(rotation);
             return (90f - yawDeg + 360f) % 360f;
         }
@@ -38,8 +45,12 @@ namespace Fdp.Modules.Geographic.Systems
                                                    out float pitchDeg,
                                                    out float rollDeg)
         {
+            // SimMath's pitch convention is nose-DOWN-positive (see SimMath docs); this bridge
+            // (and the DIS/aerospace wire protocol its consumers feed) uses nose-UP-positive.
+            // Negate to convert. Consumers (GeoSpatialEgressTranslator, BdcWorldPosTranslator)
+            // write this value straight to the wire, so the sign must be correct here.
             var (_, p, r) = SimMath.ToYawPitchRollDeg(rotation);
-            pitchDeg = p;
+            pitchDeg = -p;
             rollDeg = r;
         }
 
