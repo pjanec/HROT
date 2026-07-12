@@ -221,4 +221,98 @@ public sealed class HsmValidatorStatefulSubtreeTests
         // But the new check fires.
         Assert.Single(diagnostics, d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
     }
+
+    // ---- S3-6: ConcurrentSharedScopeKey (shared-slot analogue) ----------------
+
+    /// <summary>
+    /// S3-6 required test #1.
+    /// Two DIFFERENT subtree assets, one per orthogonal parallel region, that resolve to the SAME
+    /// Behavior-scoped shared-slot key → hard error. Rule 8 (same-subtree) does NOT fire because the
+    /// subtree asset ids differ; the new shared-scope-key rule catches the shared-slot race.
+    /// </summary>
+    [Fact]
+    public void SharedBehaviorVar_WrittenInTwoParallelRegions_HardErrors()
+    {
+        var (asset, parallel, child0, child1) = MakeParallelAsset();
+
+        // Different subtree assets in the two regions...
+        var subtreeA = Guid.NewGuid();
+        var subtreeB = Guid.NewGuid();
+        child0.SubtreeAssetId = subtreeA;
+        child1.SubtreeAssetId = subtreeB;
+
+        // ...but both bind the same Behavior-scoped variable → same shared scope key.
+        const int sharedKey = 0x5150C0DE;
+        var validator = new HsmValidator(
+            sharedScopeKeys: id => (id == subtreeA || id == subtreeB)
+                ? new[] { sharedKey }
+                : System.Array.Empty<int>());
+        var diagnostics = validator.Validate(asset, blackboard: null);
+
+        var diag = Assert.Single(diagnostics, d => d.Code == HsmDiagnosticCode.ConcurrentSharedScopeKey);
+        Assert.Equal(HsmDiagnosticSeverity.Error, diag.Severity);
+        Assert.Contains(parallel.StableId, diag.TargetStableIds);
+
+        // The same-subtree rule must NOT fire (distinct subtree asset ids).
+        Assert.DoesNotContain(diagnostics,
+            d => d.Code == HsmDiagnosticCode.ConcurrentStatefulSubtree);
+    }
+
+    /// <summary>
+    /// S3-6 required test #2.
+    /// The same shared Behavior variable used by SEQUENTIAL nodes (under a non-parallel composite)
+    /// → no error. Behavior scope only races under orthogonal parallel regions; sequential use is
+    /// the intended MVP pattern (e.g. Hill Attack) and must stay valid.
+    /// </summary>
+    [Fact]
+    public void SharedBehaviorVar_SequentialNodes_Allowed()
+    {
+        // Non-parallel composite with two sequential children.
+        var root = new StateNode("__root__");
+        var seq  = new StateNode("Sequential") { Parent = root }; // IsParallel = false
+        root.Children.Add(seq);
+
+        var subtreeA = Guid.NewGuid();
+        var subtreeB = Guid.NewGuid();
+        var c0 = new StateNode("C0") { IsInitial = true, Parent = seq, SubtreeAssetId = subtreeA };
+        var c1 = new StateNode("C1") { Parent = seq, SubtreeAssetId = subtreeB };
+        seq.Children.Add(c0);
+        seq.Children.Add(c1);
+
+        var asset = MakeAsset(root, new List<StateNode> { seq, c0, c1 });
+
+        // Both resolve to the same shared Behavior key — but they are sequential (not parallel).
+        const int sharedKey = 0x5150C0DE;
+        var validator = new HsmValidator(
+            sharedScopeKeys: id => (id == subtreeA || id == subtreeB)
+                ? new[] { sharedKey }
+                : System.Array.Empty<int>());
+        var diagnostics = validator.Validate(asset, blackboard: null);
+
+        Assert.DoesNotContain(diagnostics,
+            d => d.Code == HsmDiagnosticCode.ConcurrentSharedScopeKey);
+    }
+
+    /// <summary>
+    /// S3-6 boundary: two different subtrees with DIFFERENT shared keys, one per region → no error
+    /// (distinct scope keys don't collide).
+    /// </summary>
+    [Fact]
+    public void DifferentSharedKeys_OnePerRegion_NoError()
+    {
+        var (asset, _, child0, child1) = MakeParallelAsset();
+        var subtreeA = Guid.NewGuid();
+        var subtreeB = Guid.NewGuid();
+        child0.SubtreeAssetId = subtreeA;
+        child1.SubtreeAssetId = subtreeB;
+
+        var validator = new HsmValidator(
+            sharedScopeKeys: id => id == subtreeA ? new[] { 111 }
+                                 : id == subtreeB ? new[] { 222 }
+                                 : System.Array.Empty<int>());
+        var diagnostics = validator.Validate(asset, blackboard: null);
+
+        Assert.DoesNotContain(diagnostics,
+            d => d.Code == HsmDiagnosticCode.ConcurrentSharedScopeKey);
+    }
 }

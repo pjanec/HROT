@@ -62,4 +62,11 @@ public enum HsmDiagnosticCode
     // in two regions produces the same key for both → race-write corruption.
     // Hard-error; must be resolved before the asset can be used at runtime.
     ConcurrentStatefulSubtree,
+
+    // (S3-6) Two stateful nodes in distinct orthogonal parallel regions of the same
+    // composite resolve to the SAME Behavior/Entity shared-slot key (same scope+variable),
+    // even when they live in different subtree assets. Behavior/Entity-scoped working state
+    // is shared per entity, so concurrent writes from two regions race and corrupt the slot.
+    // The shared-slot analogue of ConcurrentStatefulSubtree. Hard-error.
+    ConcurrentSharedScopeKey,
 }

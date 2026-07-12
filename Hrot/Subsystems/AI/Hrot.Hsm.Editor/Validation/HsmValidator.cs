@@ -25,11 +25,22 @@ public sealed class HsmValidator
     /// </summary>
     private readonly Func<Guid, bool> _isStatefulSubtree;
 
+    /// <summary>
+    /// (S3-6) Resolver: given a subtree asset id, returns the set of <b>shared</b> (Behavior/Entity)
+    /// scope keys its stateful bindings resolve to (FNV-1a scope keys per AIB-DD §4.4). Node-scoped
+    /// and stateless subtrees contribute no shared keys (empty). Injected like
+    /// <see cref="_isStatefulSubtree"/> so the validator stays decoupled from the key algorithm;
+    /// defaults to "no shared keys" so existing callers are unaffected.
+    /// </summary>
+    private readonly Func<Guid, IReadOnlyCollection<int>> _sharedScopeKeys;
+
     public HsmValidator(IActionSchemaExporter? schema = null,
-        Func<Guid, bool>? isStatefulSubtree = null)
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
     {
         _schema = schema;
         _isStatefulSubtree = isStatefulSubtree ?? (_ => false);
+        _sharedScopeKeys = sharedScopeKeys ?? (_ => System.Array.Empty<int>());
     }
 
     public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,
@@ -45,6 +56,7 @@ public sealed class HsmValidator
         CheckEventReferenceDangling(asset, diagnostics);
         CheckOutputLaneConflicts(asset, diagnostics);
         CheckConcurrentStatefulSubtrees(asset, diagnostics);
+        CheckConcurrentSharedScopeKeys(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -261,6 +273,52 @@ public sealed class HsmValidator
                     $"{string.Join(", ", sortedRegions)}. " +
                     $"Concurrent execution of the same stateful Subtree produces synthetic " +
                     $"key collisions and race-write corruption.",
+                    new[] { composite.StableId }));
+            }
+        }
+    }
+
+    // Rule 8b (S3-6): ConcurrentSharedScopeKey — the shared-slot analogue of Rule 8.
+    // Rule 8 catches the SAME subtree asset in ≥2 regions (its per-node Node-scope keys collide).
+    // This rule catches DIFFERENT subtree assets (or nodes) that resolve to the SAME Behavior/
+    // Entity shared-slot key: because Behavior/Entity-scoped working state is shared per entity,
+    // two orthogonal parallel regions writing the same scope key race on one slot.
+    // Purely-sequential Behavior use (same var across non-concurrent nodes) never reaches a
+    // parallel composite here, so it stays valid — the rule only fires across distinct regions.
+    private void CheckConcurrentSharedScopeKeys(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var composite in asset.AllStates)
+        {
+            if (!composite.IsParallel || composite.RegionNodes.Count < 2) continue;
+
+            // scopeKey → set of distinct region indices whose direct-child subtree writes it.
+            var keyRegions = new Dictionary<int, HashSet<int>>();
+            foreach (var child in composite.Children)
+            {
+                if (child.SubtreeAssetId == Guid.Empty) continue;
+                foreach (var scopeKey in _sharedScopeKeys(child.SubtreeAssetId))
+                {
+                    if (!keyRegions.TryGetValue(scopeKey, out var regionSet))
+                    {
+                        regionSet = new HashSet<int>();
+                        keyRegions[scopeKey] = regionSet;
+                    }
+                    regionSet.Add(child.RegionIndex);
+                }
+            }
+
+            foreach (var (scopeKey, regions) in keyRegions)
+            {
+                if (regions.Count < 2) continue;
+
+                var sortedRegions = regions.OrderBy(r => r).ToList();
+                out_.Add(new HsmDiagnostic(
+                    HsmDiagnosticCode.ConcurrentSharedScopeKey,
+                    HsmDiagnosticSeverity.Error,
+                    $"Parallel composite '{composite.Name}' writes the same shared working-state " +
+                    $"slot (scope key {scopeKey}) concurrently in regions " +
+                    $"{string.Join(", ", sortedRegions)}. Behavior/Entity-scoped state is shared " +
+                    $"per entity, so concurrent writes from orthogonal regions race and corrupt the slot.",
                     new[] { composite.StableId }));
             }
         }
