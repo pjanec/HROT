@@ -610,7 +610,7 @@ public static class BTreeEmitCore
         switch (node)
         {
             case BTreeActionNodeDto actNode:
-                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets, dto.AssetId);
+                EmitAction(sb, actNode, pad, innerIsLast, leafMethodPrefix, variableOffsets, dto);
                 break;
             case BTreeConditionNodeDto condNode:
                 EmitCondition(sb, condNode, pad, innerIsLast, leafMethodPrefix, variableOffsets);
@@ -643,7 +643,7 @@ public static class BTreeEmitCore
         StringBuilder sb, BTreeActionNodeDto node, string pad, bool isLast,
         string methodPrefix = ".",
         IReadOnlyDictionary<string, int>? variableOffsets = null,
-        Guid assetId = default)
+        BehaviorTreeAssetDto? dto = null)
     {
         var p = node.Action;
         var visualId = $"visualId: new Guid(\"{node.VisualId:D}\")";
@@ -683,11 +683,14 @@ public static class BTreeEmitCore
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(actionTargetField!, out int statefulParamOffset))
         {
-            // S2-1: stateful thunk — emit string blob key "{MethodFqn}@{paramOffset}@{slotKey}".
-            // The slot key is FNV-1a-32(assetId, nodeVisualId) baked at code-gen time.
-            // The BTreeBuilder.Action(string key, ...) overload stores the key in the blob as-is;
-            // the bridge registers a thunk under the same key.
-            int slotKey  = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, node.VisualId);
+            // S2-1/S3-3: stateful thunk — emit string blob key "{MethodFqn}@{paramOffset}@{slotKey}".
+            // The slot key is scope-aware (S3-3): Node → FNV-1a(assetId, nodeVisualId) unchanged;
+            // Behavior → FNV-1a(assetId, variableId) so co-bound nodes share one slot. Baked at
+            // code-gen time. Must match the bridge thunk's baked const (BTreeBridgeEmitCore
+            // .EmitStatefulActionThunks) — both go through ResolveStatefulSlotKey, single source.
+            int slotKey  = dto != null
+                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, actionTargetField, node.VisualId)
+                : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
             string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");

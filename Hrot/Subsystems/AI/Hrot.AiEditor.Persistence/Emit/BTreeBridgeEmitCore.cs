@@ -256,7 +256,7 @@ public static class BTreeBridgeEmitCore
     /// case (Input role, variable absent, null target) falls back to <see cref="WorkingStateScope.Node"/>,
     /// which yields the byte-identical legacy per-node key (Slice-2 untouched).
     /// </summary>
-    private static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
+    internal static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
     {
         var scope = WorkingStateScope.Node;
         if (!string.IsNullOrEmpty(targetField) && dto.Blackboard?.Variables != null)
@@ -555,7 +555,10 @@ public static class BTreeBridgeEmitCore
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
 
-            int slotKey = ComputeStatefulSlotKey(dto.AssetId, actNode.VisualId);
+            // S3-3: scope-aware baked const — Behavior-scoped co-bound nodes bake the same key
+            // (and dedup via `seen` below), so they dispatch to one thunk over one shared slot.
+            // Must stay in lockstep with the topology blob key in BTreeEmitCore.EmitAction.
+            int slotKey = ResolveStatefulSlotKey(dto, targetField, actNode.VisualId);
 
             // WorkingState type is taken from WorkingStateTypeId (added to BTreeActionPayloadDto in S2-1).
             // If missing, fall back to the naming convention (Action_AdvanceCursor → DemoCursorState).
