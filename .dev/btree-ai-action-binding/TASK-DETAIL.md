@@ -129,3 +129,72 @@
   - `MixedStatelessAndStateful_Coexist` — assert the Slice-1 stateless `Params` (over `BrainBlackboard`) and the stateful `WorkingState` (over the partition slot) both behave correctly in one behavior (disjoint memory, no interference).
 - Live: the partitioned working state is inspectable (extend / reuse the `Blackboard1024Renderer` pattern for the tier component).
 **Done when:** all proof tests pass; full relevant suites green; clean rebuild green. **Slice 2 complete.**
+
+## S3-1 — Authoring: role + scope
+**Design:** AIB-DD §4.4, §4.4.3. **Touches:** `BlackboardVariableDto` (`Hrot.AiEditor.Persistence/BTree/BehaviorTreeAssetDto.cs:26`), `BlackboardVariableEntry` (editor model), `VariablesPanelControl` (`Hrot.Editor.AiShared/Blackboard/VariablesPanelControl.cs`).
+**Scope:** add `Role` (`input`|`state`, default `input`) and `Scope` (`Node`|`Behavior`|`Entity`, default `Node`) to the persisted DTO + editor model; Variables-panel shows a role selector and (when role=state) a scope selector; round-trips through asset JSON. Back-compat: absent → `input`/`Node`. No codegen in this batch.
+**Success conditions:**
+- Editor/serialization test: `BlackboardVariable_RoleScope_RoundTrips` — author a `state`/`Behavior` variable, save+reload the asset, attributes preserved; a legacy asset with neither field deserializes as `input`/`Node`.
+- Editor test: `VariablesPanel_ShowsScopeSelector_OnlyForState` — scope control appears only when role=state.
+**Done when:** both pass; existing Variables-panel tests green.
+
+## S3-2 — Scope-aware slot key
+**Design:** AIB-DD §4.4 (scope→slot-key table, **corrected** to include `variableId`). **Touches:** `ComputeStatefulSlotKey` (`Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs:168`).
+**Scope:** generalize the FNV-1a key to be scope-aware and **per-variable**: `Node` = `FNV-1a(assetId, nodeVisualId, variableId)` (behavior-identical to today for the single-var-per-node case), `Behavior` = `FNV-1a(assetId, entityId, variableId)`, `Entity` = `FNV-1a(entityId, variableId)`. Pure function; keep the existing 2-arg overload delegating to Node scope for callers not yet migrated. **Blocks on architect confirmation of the corrected formula (variableId inclusion).**
+**Success conditions:**
+- Unit test: `SlotKey_Behavior_SameVar_TwoNodes_Equal` — two nodes, same Behavior-scoped variable, same (assetId, entityId) → **equal** keys (they share the slot).
+- Unit test: `SlotKey_Behavior_TwoVars_SameEntity_Differ` — two distinct Behavior-scoped variables on one entity → **distinct** keys (no collision — the §4.4 correction).
+- Unit test: `SlotKey_Node_MatchesLegacy` — Node scope for the existing single-variable case matches the previous 2-arg result (no drift for S2 assets).
+**Done when:** all pass.
+
+## S3-3 — Runtime key in thunk
+**Design:** AIB-DD §4.4.1 Mode-1; grounding finding #1. **Touches:** `EmitStatefulActionThunks` (`BTreeBridgeEmitCore.cs:443–551`), `BTreeDelegateShapeDto` (unchanged — reuse `ThreeParamReusableStateful`).
+**Scope:** today the thunk bakes `const int __slotKey = {slotKey}`. For **Behavior/Entity**-scoped bindings emit a **runtime** computation: bake only `assetId`+`variableId` as constants and compute `int __slotKey = ComputeStatefulSlotKey(__assetId, scope, default, ctx.Self, __varId);` at tick time (Node scope keeps the baked const, zero behavior change). `TryGetSlotOffset` call is otherwise identical.
+**Success conditions:**
+- Compile gate: generate a Behavior-scoped stateful asset → clean rebuild 0 errors (mirrors the S2-G compile gate that closed DEBT-AIB-026).
+- Runtime test: `BehaviorScoped_TwoNodes_ShareOneSlot` — two nodes binding one Behavior-scoped variable read/write the **same** slot (writer node's change is visible to the reader node the same tick).
+- Regression: `NodeScoped_StillBakedConst` — an S2 Node-scoped asset still emits the baked const and its `SameStatefulPrimitive_TwoNodes_IndependentSlots` behavior is unchanged.
+**Done when:** all pass; clean rebuild.
+
+## S3-4 — Shared-slot provisioning
+**Design:** AIB-DD §4.4.2. **Touches:** `ProvisionStatefulSlots`/`DetachStatefulSlots` + `StatefulWorkingSlots` manifest (`BehaviorIngressSystem.cs`), `StatefulSlotInfo` (`Fdp.Toolkits/Behavior/BehaviorRegistry.cs:55`), `EmitStatefulWorkingSlotsArray` (`BTreeBridgeEmitCore.cs:559+`).
+**Scope:** today provisioning allocates one slot per stateful **node**. For Behavior scope, allocate **one slot per distinct (variable) scope-key per entity**, shared by all binding nodes; the manifest must represent a shared slot once (dedupe by scope key) so `ProvisionStatefulSlots` does not double-attach and the worst-case reachable-node count (S2-2) counts shared vars once.
+**Success conditions:**
+- Runtime test: `Assign_BehaviorScoped_ProvisionsOneSlot_ForSharedVar` — a behavior whose 3 nodes share one Behavior variable provisions exactly **one** partition slot (not three).
+- Runtime test: `Assign_MixedNodeAndBehaviorScope_SlotCountsCorrect` — a behavior with 2 Node-scoped stateful nodes + 1 shared Behavior variable provisions 3 slots total.
+**Done when:** both pass.
+
+## S3-5 — ClearBehaviorEvent detach
+**Design:** AIB-DD §4.4.4(b) "Required fix". **Touches:** `ClearBehaviorEvent` handler (`BehaviorIngressSystem.cs:168–184`), reuse `DetachStatefulSlots` (`:491`).
+**Scope:** the clear handler currently only nulls `ActiveBehaviorHash` — it must first capture the previous behavior id and `DetachStatefulSlots` its stateful slots (today only the *switch* path detaches, so a clear-without-successor leaks the slot until the next assign). Make `DetachStatefulSlots` scope-aware enough to free `Node`/`Behavior` slots (Entity-scope retention is an S3-follow-on, not MVP).
+**Success conditions:**
+- Runtime test: `Clear_DetachesStatefulSlots_NoLeak` — assign a stateful behavior, then publish `ClearBehaviorEvent`; assert the partition slot(s) are detached (free-list reflects the reclaim; a subsequent re-assign reuses the space).
+- Regression: `Switch_StillDetachesPreviousSlots` — the existing switch path is unchanged.
+**Done when:** both pass.
+
+## S3-6 — Fix-3 scope guard
+**Design:** AIB-DD §4.4.4 change #3; parity with S2-4. **Touches:** `HsmValidator.CheckConcurrentStatefulSubtrees` (`Hrot.Hsm.Editor/Validation/HsmValidator.cs:228`).
+**Scope:** extend the concurrent-region guard so that two stateful nodes in **distinct concurrent HSM regions** that resolve to the **same** Behavior/Entity scope key (same scope+variable under one asset) hard-error — the shared-slot analogue of the S2-4 same-subtree rule. Behavior scope with purely sequential nodes stays valid (no concurrent regions → no error); this only fires under parallel composites.
+**Success conditions:**
+- Validation test: `SharedBehaviorVar_WrittenInTwoParallelRegions_HardErrors`.
+- Validation test: `SharedBehaviorVar_SequentialNodes_Allowed` — same var across sequential (non-concurrent) nodes ⇒ no error.
+**Done when:** both pass.
+
+## S3-7 — Scope-aware monitoring
+**Design:** AIB-DD §4.4.3 (monitoring is v1-mandatory). **Touches:** `StatefulSlotInfo` (`BehaviorRegistry.cs:55`), `EmitStatefulWorkingSlotsArray` (bake role/scope), `StatefulWorkingStateProjection.RenderWorkingState` (`Hrot.Presentation/Renderers/StatefulWorkingStateProjection.cs:42`).
+**Scope:** thread `Role`/`Scope` through the emitted manifest into `StatefulSlotInfo`; the live inspector resolves the scoped slot and renders its current values read-only, labelled/grouped by scope (e.g. a commander's `HillAttackMutableState` wave masks visible while the behavior runs). Read-only only — "poke a value" is out of v1.
+**Success conditions:**
+- Test/inspection: `Inspector_ShowsBehaviorScopedSlot_LiveValues` — with a running Behavior-scoped stateful behavior, the projection resolves the shared slot and reports its typed current values (mirrors the S2 `Blackboard1024Renderer`-pattern proof).
+- Manifest test: `StatefulSlotInfo_CarriesRoleAndScope` — emitted manifest entries carry the authored role/scope.
+**Done when:** both pass.
+
+## S3-G — Slice 3 DEMO GATE
+**Design:** AIB-DD §4.4.5 (worked example). **Demonstrates:** Hill Attack running on a `Behavior`-scoped shared variable instead of the `Blackboard1024`+`Unsafe.As` hack.
+**Deliverables:** `HillAttackMutableState` (120 B) declared as a `Behavior`-scoped `state` variable in the `PlatoonHillAttack.btree.json` blackboard block; `CalculateSegments`/`DispatchWave`/`IsWaveCompleted` rebound to 4-param `(ref PlatoonHillAttackParams, ref HillAttackMutableState, ref BehaviorTreeState, ref TCtx)` (`ThreeParamReusableStateful`, scope `Behavior`); the manual `GetComponentRW<Blackboard1024>() + Unsafe.As` removed.
+**Success conditions (the gate):**
+- Build: clean rebuild 0 errors; byte-identity green.
+- Proof test `T30_BehaviorScopedShared_ProofTests`:
+  - `HillAttack_SharedState_PersistsAcrossNodes` — generate→compile→provision→tick; the wave/slot bitmasks written by `DispatchWave` are read by `IsWaveCompleted` the same run (one shared slot), reproducing today's hardcoded behavior.
+  - `HillAttack_NoBlackboard1024Access` — the generated code no longer references `Blackboard1024`/`Unsafe.As` for this state.
+- Live: the inspector shows the commander's shared `HillAttackMutableState` updating in real time (S3-7).
+**Done when:** all proof tests pass; full relevant suites green; clean rebuild green. **Slice 3 complete — Hill Attack fully jsonized on shared working state.**

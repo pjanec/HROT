@@ -30,11 +30,29 @@ Status: `[ ]` not done / `[x]` done. Both slices architect-approved (2026-06-15)
 - [x] **S2-4** Cross-region validator: forbid concurrent stateful Subtree (Fix 3) [details](./TASK-DETAIL.md#s2-4--cross-region-validator-stateful-subtree) — *done BATCH-07 (HsmValidator ConcurrentStatefulSubtree hard-error; dormant until subtree-ref persistence + resolver wiring → DEBT-AIB-028/029)*
 - [x] **S2-G** **DEMO GATE** — multiple stateful primitives + mixed stateless + proof tests [details](./TASK-DETAIL.md#s2-g--slice-2-demo-gate) — *done BATCH-09: T20 asset + 2 end-to-end proof tests (generate→compile→provision→tick); clean rebuild 0 errors (DEBT-AIB-026 closed — fixed 3 emitter gaps the compile-gate surfaced); byte-identity 129/0.* ✅ **SLICE 2 COMPLETE**
 
+## Slice 3 — Scoped shared working state (§4.4 MVP = Behavior scope)
+
+**Goal:** every blackboard variable carries a `role` (input/state) and, for state, a `scope` (Node/Behavior/Entity). A **local** variable = state@Node (the S2 case); a **shared** variable = state@Behavior. MVP ships **Behavior scope**: multiple nodes on one entity share **one** working-state slot. Concrete driver: replace Hill Attack's manual `GetComponentRW<Blackboard1024>() + Unsafe.As` with a `Behavior`-scoped `HillAttackMutableState` shared across `CalculateSegments`/`DispatchWave`/`IsWaveCompleted`. Design: AIB-DD §4.4 (resolved 2026-07-12). Storage reuses the S2 partitioned tier + `BlueprintBlackboardPartitions` unchanged — **only the slot key + provisioning granularity change**.
+
+> **Two grounding findings that refine §4.4 (confirmed in code):**
+> 1. **Slot key is baked as a compile-time `const`** in the emitted thunk (`BTreeBridgeEmitCore` `const int __slotKey = {slotKey}`). Node scope works because `nodeVisualId` is compile-time. **Behavior scope keys on the runtime `entityId`** → the thunk must compute the key **at runtime** from `ctx.Self` for Behavior/Entity bindings. (S3-3.)
+> 2. **The §4.4 key formula `FNV-1a(assetId, entityId)` is under-specified** — two distinct Behavior-scoped variables in one asset would collide. Correct key = **`FNV-1a(assetId, entityId, variableId)`**; nodes binding the *same* variable share the slot because they share `variableId`. **Architect-confirm.** (S3-2.)
+
+- [ ] **S3-1** Authoring: add `Role`+`Scope` to `BlackboardVariableDto`/`BlackboardVariableEntry` (default `input`/`Node` = back-compat); Variables-panel selectors; persist in asset blackboard block [details](./TASK-DETAIL.md#s3-1--authoring-role--scope) — *editor-only, no codegen; parallelizable*
+- [ ] **S3-2** Scope-aware slot key: `ComputeStatefulSlotKey(assetId, scope, nodeVisualId, entityId, variableId)` — Node=(asset,node,var) unchanged behavior; Behavior=(asset,entity,var); Entity=(entity,var). Pure fn + unit tests [details](./TASK-DETAIL.md#s3-2--scope-aware-slot-key)
+- [ ] **S3-3** Runtime key resolution in the emitted thunk (the crux): Behavior/Entity bindings emit a **runtime** key from `ctx.Self` instead of the baked `const`; Node stays baked [details](./TASK-DETAIL.md#s3-3--runtime-key-in-thunk) — *depends S3-2*
+- [ ] **S3-4** Shared-slot provisioning/dedup: provision **one** slot per distinct Behavior-scoped variable per entity (not per node); manifest (`StatefulWorkingSlots`/`StatefulSlotInfo`) represents shared slots; `ProvisionStatefulSlots` dedupes by scope key [details](./TASK-DETAIL.md#s3-4--shared-slot-provisioning) — *depends S3-2*
+- [ ] **S3-5** `ClearBehaviorEvent` detach fix (design change #2): capture previous behavior id + call `DetachStatefulSlots` on clear, not only on switch (today leaks on clear-without-successor) [details](./TASK-DETAIL.md#s3-5--clearbehaviorevent-detach) — *depends S3-4*
+- [ ] **S3-6** Fix-3 guard extension (design change #3): flag two stateful nodes in concurrent HSM regions resolving to the same Behavior/Entity slot key (same scope+type under one asset); extend `HsmValidator.CheckConcurrentStatefulSubtrees` [details](./TASK-DETAIL.md#s3-6--fix3-scope-guard) — *depends S3-2*
+- [ ] **S3-7** Monitoring (v1-mandatory): thread `Role`/`Scope` into `StatefulSlotInfo`; `StatefulWorkingStateProjection` groups/labels by scope; live read-only inspector shows the shared slot's current values [details](./TASK-DETAIL.md#s3-7--scope-aware-monitoring) — *depends S3-4*
+- [ ] **S3-G** **DEMO GATE** — Hill Attack `HillAttackMutableState` as a `Behavior`-scoped shared variable; 3 nodes bind 4-param `(ref Params, ref HillAttackMutableState, …)`; end-to-end proof test (generate→compile→provision→tick) replacing the `Blackboard1024`+`Unsafe.As` hack; live inspector shows shared state [details](./TASK-DETAIL.md#s3-g--slice-3-demo-gate) — *gate; Hill Attack fully jsonized on shared state*
+
 ---
 
 ### Implementation order
-S1-0 → S1-1 (parallel) → S1-2 → S1-3 → S1-4 → **S1-2b** → S1-5 → **S1-G** → S2-1 → S2-2 → S2-3 → S2-4 → **S2-G**.
+S1-0 → S1-1 (parallel) → S1-2 → S1-3 → S1-4 → **S1-2b** → S1-5 → **S1-G** → S2-1 → S2-2 → S2-3 → S2-4 → **S2-G** → **[architect-confirm S3-2 key formula]** → S3-1 (parallel, editor-only) ∥ (S3-2 → S3-3 → S3-4 → S3-5) → S3-6 (after S3-2) → S3-7 (after S3-4) → **S3-G**.
 (S1-2b inserted 2026-06-15 by user decision — struct-DTO sizing; must precede S1-G. See [[project-btree-struct-dto-sizing]].)
+(Slice 3 added 2026-07-12 — §4.4 Behavior-scope shared working state MVP; storage reuses S2's partitioned tier, only slot-key + provisioning-granularity change. **Gate before starting: architect confirms the corrected key formula includes `variableId` (S3-2).**)
 
 Notes:
 - **S1-4 must not ship without S1-2+S1-3** — unblocking `ThreeParamReusable` before the per-asset struct/registrar exist turns clean `BTREE0002` skips into hard build breaks (AIB-DD §3.3).
