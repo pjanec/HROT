@@ -1638,7 +1638,8 @@ internal sealed class GraphScheduler
             if (link is null) continue;
             if (!_nodeById.TryGetValue(link.ToNodeId, out var target)) continue;
 
-            if (pin.Name.Contains("True", StringComparison.OrdinalIgnoreCase))
+            // netstandard2.0 has no string.Contains(string, StringComparison); IndexOf is equivalent.
+            if (pin.Name.IndexOf("True", StringComparison.OrdinalIgnoreCase) >= 0)
                 trueSucc = target;
             else
                 falseSucc = target;
