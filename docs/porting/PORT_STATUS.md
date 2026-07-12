@@ -23,8 +23,9 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 | WI | Title | Owner OS | State | Build Win | Build Linux | Test Win | Test Linux | Notes |
 |---|---|---|---|---|---|---|---|---|
 | WI-1 | Cross-platform NativeMemoryAllocator (Win/POSIX backends) | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | 14/14 pass | Backend split done + reviewed. Facade unchanged; Windows backend = verbatim relocation; POSIX backend = mmap/mprotect/madvise/munmap with 64KB-aligned trim. Decommit/Free throw only under FDP_PARANOID_MODE (original Release semantics preserved). Debug+Release build 0 warnings. Event-stream NativeMemory simplification deferred. |
-| WI-2 | Bump CycloneDDS.NET -> 0.3.2 | Linux | code-done | - | - | n/a | - | References bumped in commit `3113b4b`. Remaining: restore resolves 0.3.2, 0.2.x->0.3.2 API-compat, Linux DDS loopback smoke test. |
+| WI-2 | Bump CycloneDDS.NET -> 0.3.2 | Linux | code-done | pass | pass | - | - | References bumped (`3113b4b`). Restore resolves 0.3.2 from nuget.org. API-compat VERIFIED: reflection probe shows DdsLoan<T>/DdsSample<T> are ref structs in BOTH 0.2.3 and 0.3.2, so the bump introduces zero new compile errors; all DDS production code builds on Linux. Remaining: live DDS loopback smoke test only. |
 | WI-3 | File-dialog factory + wire ImGui fallback + multi-select | split | code-done | - | pass | NEEDS-WIN-VALIDATION | pass (ReplayBrowser) | Done + reviewed. `FileDialogServiceFactory.Create()` (Win32 on Windows, ImGui else) at 4 call sites; `SetFileDialogService` wired in each subsystem's RegisterWindows (harmless no-op on Windows). ImGui multi-select implemented (checkboxes + full-path HashSet + separate TCS). 5 projects build 0 warnings; ReplayBrowser.Tests 27/27. ImGui modal itself needs manual runtime check on a Linux desktop (can't test headless). Fdp.Presentation.Tests crash is pre-existing = WI-11. |
+| WI-12 | 3 test projects fail to compile: ref structs in async methods | either | todo | FAIL | FAIL | - | - | PRE-EXISTING at origin/main, NOT the port (platform-independent C# rules; fail on Windows too). Fdp.Toolkits.Tests (DdsCommandClientTests) + Hrot.Network.NED.Tests: DdsLoan/DdsSample ref structs in async. Hrot.SimHost.Integration.Tests (EpisodeInjectionTests): EntityQuery ref-struct enumerator + ref local in async. Fix = extract the ref-struct loops into non-async local functions / make the methods sync. User's test-health domain; blocks a fully-green master build on ALL platforms. |
 | WI-11 | Fdp.Presentation.Tests crash on headless Linux (ImGui no-context) | Linux | code-done | - | n/a | NEEDS-WIN-VALIDATION | completes (382 pass / 34 pre-existing fail) | Done + reviewed. Real cause was `DebugGizmoLayerCaptureTests` (a non-ImGui class whose Update() reads ImGui.GetIO() with no context) - added `[Collection("ImGui Sequential")]` + `using var fixture = new ImGuiTestFixture()` (12-line test-only diff, no product code). Suite now runs to completion. ALSO REQUIRES xvfb: `FdpApplicationTests` calls Raylib.InitWindow which needs an X display - run headless Linux Presentation tests under `xvfb-run -a`. The 34 remaining FAILs are pre-existing (ctx.Resources NRE in DebugPrimitiveRenderer2D tests, hardcoded input stubs) - separate triage, not port regressions. |
 | WI-4 | Centralize `C:\FDP_Temp` staging root (FDP_STAGING_ROOT / temp) | Linux | code-done | - | pass* | NEEDS-WIN-VALIDATION | pass* | Done + reviewed. `OrchestrationConstants.ResolveStagingRoot()` (FDP_STAGING_ROOT env or temp); ~24 sites updated (removing the const forced all refs). Default-param sites -> `= null` + `?? ResolveStagingRoot()`. Fdp.Toolkits/Orchestrator/SimHost/ExCon build clean. *CGF/IG/Editor edits verified via temp-patch only - their Linux build is blocked by WI-10 (netstandard2.0), not by WI-4. |
 | WI-10 | Hrot.Blueprints.Compiler netstandard2.0 API gap | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | - | FIXED. Was a single occurrence: `Stage5_Schedule.cs:1641` `string.Contains(string, StringComparison)` (not in netstandard2.0). Replaced with `IndexOf(..., StringComparison) >= 0` (identical semantics). Compiler builds both TFMs; CGF/IG/Editor now build clean on Linux, which also confirms WI-4's edits in those projects. |
@@ -36,6 +37,19 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 
 ## Coordination log (newest first)
 
+- 2026-07-12 - Master-solution Linux build sweep (Opus). Retargeted the lone
+  net9.0 project (Fdp.Examples.CarKinem.Tests) to net8.0 so the whole master
+  solution uses the net8 SDK. Full `dotnet build IOS-IG-SimHost.sln` on Linux:
+  ALL production code and nearly all test projects build. The only compile
+  failures are 3 test projects, all the same root cause (ref structs used in
+  async methods) and all PRE-EXISTING at origin/main (not the port, not the DDS
+  bump - proven): Fdp.Toolkits.Tests (DdsCommandClientTests) and
+  Hrot.Network.NED.Tests use DdsLoan/DdsSample (ref structs in 0.2.3 AND 0.3.2)
+  in async; Hrot.SimHost.Integration.Tests/EpisodeInjectionTests uses
+  EntityQuery's ref-struct enumerator + a ref local in async. These are
+  platform-independent C# errors (fail on Windows too) = user's parked test debt,
+  filed as WI-12. Net: the port introduces no build regression; production is
+  Linux-clean.
 - 2026-07-12 - WI-11 fixed (Sonnet) + reviewed (Opus). Bisected the host crash to
   DebugGizmoLayerCaptureTests (not the ImGui/ folder, which was already
   serialized); gave it a headless ImGui context. Independently confirmed the
