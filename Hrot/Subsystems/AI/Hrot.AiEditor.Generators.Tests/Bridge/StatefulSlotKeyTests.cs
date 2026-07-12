@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
 using Xunit;
@@ -185,5 +186,84 @@ public sealed class StatefulSlotKeyTests
         // (h) BATCH-10 PREREQ: StatefulWorkingSlots entry must include the node label string.
         bridgeSrc.Should().Contain("\"AdvanceCursor\"",
             "emitted StatefulWorkingSlots entry must carry NodeLabel = the node's DisplayLabel");
+    }
+
+    // ── S3-2 scope-aware tests ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// S3-2: The same Behavior-scoped variable bound at two different nodes must produce
+    /// equal slot keys (they share the slot; nodeVisualId is NOT in the Behavior key).
+    /// </summary>
+    [Fact]
+    public void SlotKey_Behavior_SameVar_TwoNodes_Equal()
+    {
+        var assetId  = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+        var nodeId1  = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
+        var nodeId2  = Guid.Parse("cccccccc-0000-0000-0000-000000000003");
+        const string variableId = "myBehaviorVar";
+
+        int key1 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, nodeId1, variableId);
+        int key2 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, nodeId2, variableId);
+
+        key1.Should().Be(key2,
+            "Behavior-scoped key depends only on assetId + variableId, not nodeVisualId");
+        key1.Should().BeGreaterThanOrEqualTo(0, "slot key must be non-negative (0x7FFFFFFF mask)");
+    }
+
+    /// <summary>
+    /// S3-2: Two distinct Behavior variables in one asset must produce distinct keys
+    /// (no collision — corrects §4.4 pre-resolution concern).
+    /// </summary>
+    [Fact]
+    public void SlotKey_Behavior_TwoVars_Differ()
+    {
+        var assetId   = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+        var nodeId    = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
+        const string varA = "stateVarA";
+        const string varB = "stateVarB";
+
+        int keyA = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, nodeId, varA);
+        int keyB = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Behavior, nodeId, varB);
+
+        keyA.Should().NotBe(keyB,
+            "distinct Behavior variable names must produce distinct slot keys");
+    }
+
+    /// <summary>
+    /// S3-2: Node scope via the 4-arg overload must be byte-identical to the legacy 2-arg result.
+    /// Guards against any drift in S2 assets.
+    /// </summary>
+    [Fact]
+    public void SlotKey_Node_MatchesLegacy()
+    {
+        var assetId      = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+        var nodeVisualId = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
+        const string variableId = "anyVar"; // irrelevant for Node scope
+
+        int legacy   = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, nodeVisualId);
+        int scopeKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId, WorkingStateScope.Node, nodeVisualId, variableId);
+
+        scopeKey.Should().Be(legacy,
+            "Node scope via 4-arg overload must be byte-identical to the 2-arg legacy result");
+    }
+
+    /// <summary>
+    /// S3-2 (optional): Entity scope produces the same key regardless of assetId.
+    /// This verifies that assetId is intentionally excluded for post-MVP entity-lifetime slots.
+    /// </summary>
+    [Fact]
+    public void SlotKey_Entity_IndependentOfAsset()
+    {
+        var assetId1     = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+        var assetId2     = Guid.Parse("ffffffff-0000-0000-0000-0000000000ff");
+        var nodeId       = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
+        const string variableId = "entityScopedVar";
+
+        int key1 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId1, WorkingStateScope.Entity, nodeId, variableId);
+        int key2 = BTreeBridgeEmitCore.ComputeStatefulSlotKey(assetId2, WorkingStateScope.Entity, nodeId, variableId);
+
+        key1.Should().Be(key2,
+            "Entity-scoped key must not depend on assetId (survives behavior switch)");
+        key1.Should().BeGreaterThanOrEqualTo(0, "slot key must be non-negative (0x7FFFFFFF mask)");
     }
 }

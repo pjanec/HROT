@@ -184,6 +184,71 @@ public static class BTreeBridgeEmitCore
         }
     }
 
+    /// <summary>
+    /// S3-2: scope-aware overload.  Derives the stateful slot key according to the
+    /// variable's declared <see cref="WorkingStateScope"/>:
+    ///
+    /// <list type="bullet">
+    ///   <item><term><see cref="WorkingStateScope.Node"/></term>
+    ///     <description>FNV-1a-32(assetId bytes ++ nodeVisualId bytes) — byte-identical
+    ///     to the existing 2-arg overload (S2 keys are preserved).</description></item>
+    ///   <item><term><see cref="WorkingStateScope.Behavior"/></term>
+    ///     <description>FNV-1a-32(assetId bytes ++ variableId UTF-8 bytes) — shared by
+    ///     every node in the same asset that binds the same variable.</description></item>
+    ///   <item><term><see cref="WorkingStateScope.Entity"/></term>
+    ///     <description>FNV-1a-32(variableId UTF-8 bytes only) — survives a behavior
+    ///     switch; assetId is intentionally excluded (post-MVP).</description></item>
+    /// </list>
+    ///
+    /// Result is always masked to a non-negative int (<c>&amp; 0x7FFFFFFF</c>).
+    /// <paramref name="nodeVisualId"/> is only consumed for <see cref="WorkingStateScope.Node"/>;
+    /// pass <see cref="Guid.Empty"/> for other scopes.
+    /// <paramref name="variableId"/> is the binding's <c>ExpressionTargetField</c> (variable Name).
+    /// </summary>
+    public static int ComputeStatefulSlotKey(
+        Guid assetId,
+        WorkingStateScope scope,
+        Guid nodeVisualId,
+        string variableId)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u; // FNV offset basis
+            const uint Prime = 16777619u;
+
+            switch (scope)
+            {
+                case WorkingStateScope.Node:
+                    // Byte-identical to the 2-arg overload — delegates to it to guarantee parity.
+                    return ComputeStatefulSlotKey(assetId, nodeVisualId);
+
+                case WorkingStateScope.Behavior:
+                    foreach (byte b in assetId.ToByteArray())
+                    {
+                        hash ^= b;
+                        hash *= Prime;
+                    }
+                    foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId))
+                    {
+                        hash ^= b;
+                        hash *= Prime;
+                    }
+                    return (int)(hash & 0x7FFFFFFFu);
+
+                case WorkingStateScope.Entity:
+                    foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId))
+                    {
+                        hash ^= b;
+                        hash *= Prime;
+                    }
+                    return (int)(hash & 0x7FFFFFFFu);
+
+                default:
+                    throw new System.ArgumentOutOfRangeException(nameof(scope), scope, null);
+            }
+        }
+    }
+
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitBTreeRegisterMethod(
