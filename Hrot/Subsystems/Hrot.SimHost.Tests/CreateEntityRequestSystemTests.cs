@@ -621,11 +621,17 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(102L, idAlloc.LastAllocatedId);
         }
 
-        /// <summary>C013 SC6: Key not present for a child — AllocateId() called for that child.</summary>
-        // STABILITY(Broken): AllocatorCalledForChild — allocator called 1 time instead of expected 2; investigate CreateEntityRequestSystem child allocation logic
-        [Trait("Stability", "Broken")]
+        /// <summary>
+        /// C013 SC6: When a scenario-load request (PreAllocatedNetworkId != 0) has a
+        /// ChildComponentOverrides dict that does NOT contain an entry for a child's InstanceId,
+        /// that child is intentionally SKIPPED (ORBAT-dedup path — subordinate was extracted as a
+        /// root entity). Only the parent SpawnEntityCommand is published; AllocateId() is not called.
+        /// </summary>
+        // Production intentionally skips children with no override entry on scenario load
+        // (CreateEntityRequestSystem: "Prevent duplicate ORBAT entities on scenario load" — the
+        // subordinate was extracted as a root entity). Architect-confirmed 2026-07-12 (DECISIONS D-14).
         [Fact]
-        public void C013_ChildOverride_KeyAbsent_AllocatorCalledForChild()
+        public void C013_ChildOverride_KeyAbsent_ChildSkipped_OnScenarioLoad()
         {
             var repo   = CreateWorld();
             var tkb    = CreateTkbWithChild(childInstanceId: 2);
@@ -652,12 +658,12 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
 
             var cmds = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
-            Assert.Equal(2, cmds.Count);
 
-            // AllocateId() called once for the child (parent was pre-allocated).
-            Assert.Equal(100L, idAlloc.LastAllocatedId);
-            var childCmd = cmds.First(c => c.NetworkId != 5555L);
-            Assert.Equal(100L, childCmd.NetworkId);
+            // On scenario load (PreAllocatedNetworkId != 0), a child with no override entry
+            // is SKIPPED — only the parent is spawned. AllocateId() is not called.
+            Assert.Single(cmds);
+            Assert.Equal(5555L, cmds[0].NetworkId);
+            Assert.Equal(0L, idAlloc.LastAllocatedId);
         }
     }
 
