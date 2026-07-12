@@ -273,6 +273,30 @@ public static class BTreeBridgeEmitCore
         return ComputeStatefulSlotKey(dto.AssetId, scope, nodeVisualId, targetField ?? string.Empty);
     }
 
+    /// <summary>
+    /// S3-7: resolves the authored (Role, Scope) of the bound variable for the live inspector
+    /// manifest. Returns the integer enum values (Role: 0=Input,1=State; Scope: 0=Node,1=Behavior,
+    /// 2=Entity). Defaults to (Input, Node) when the variable is absent — matching a legacy slot.
+    /// </summary>
+    internal static (int Role, int Scope) ResolveVariableRoleScope(BehaviorTreeAssetDto dto, string? targetField)
+    {
+        var role = BlackboardVariableRole.Input;
+        var scope = WorkingStateScope.Node;
+        if (!string.IsNullOrEmpty(targetField) && dto.Blackboard?.Variables != null)
+        {
+            foreach (var v in dto.Blackboard.Variables)
+            {
+                if (string.Equals(v.Name, targetField, StringComparison.Ordinal))
+                {
+                    role = v.Role;
+                    scope = v.Scope;
+                    break;
+                }
+            }
+        }
+        return ((int)role, (int)scope);
+    }
+
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitBTreeRegisterMethod(
@@ -652,7 +676,7 @@ public static class BTreeBridgeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad)
     {
         // Collect unique stateful entries (deduped by SlotKey).
-        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel)>();
+        var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Role, int Scope)>();
 
         // Need packed fields for size lookup — we rebuild the offset map using variable names.
         foreach (var node in dto.Nodes)
@@ -675,14 +699,17 @@ public static class BTreeBridgeEmitCore
                 ? actNode.DisplayLabel
                 : actNode.VisualId.ToString();
 
-            slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel);
+            // S3-7: carry the authored role/scope so the live inspector can group/label by scope.
+            var (role, scope) = ResolveVariableRoleScope(dto, p.ExpressionTargetField);
+
+            slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel, role, scope);
         }
 
         if (slotsBySeen.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
-        foreach (var (slotKey, wsTypeId, nodeLabel) in slotsBySeen.Values)
+        foreach (var (slotKey, wsTypeId, nodeLabel, role, scope) in slotsBySeen.Values)
         {
             string wsTypeFqn = DtoTypeToGlobal(wsTypeId);
             // DEBT-AIB-027: StructureHash must be layout-sensitive so it changes when the
@@ -699,7 +726,10 @@ public static class BTreeBridgeEmitCore
             // WorkingStateType: typeof(global::...) so the inspector can project typed values.
             // NodeLabel: the node's DisplayLabel for a friendly row label in the inspector.
             string escapedLabel = nodeLabel.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"),");
+            // S3-7: Role/Scope (inspector metadata). Only appended when non-default (State/Behavior/
+            // Entity) so the existing Node-scoped corpus (e.g. T20) emits the byte-identical 5-arg form.
+            string roleScopeArgs = (role != 0 || scope != 0) ? $", {role}, {scope}" : string.Empty;
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
         sb.AppendLine($"{pad}}},");
     }

@@ -52,12 +52,26 @@ namespace Fdp.Toolkit.Behavior
     /// <paramref name="NodeLabel"/> provides a friendly row label in the inspector.
     /// </para>
     /// </summary>
+    /// <param name="Role">
+    /// (S3-7) Authoring role of the bound variable, as the integer value of the editor's
+    /// <c>BlackboardVariableRole</c> enum: 0 = Input, 1 = State. A stateful working slot is
+    /// always State; carried for the live inspector. Default 0 for legacy 3-/5-arg constructions.
+    /// (Stored as <see cref="byte"/> because this low-level runtime assembly must not reference
+    /// the editor's persistence enums.)
+    /// </param>
+    /// <param name="Scope">
+    /// (S3-7) Working-state scope, as the integer value of the editor's <c>WorkingStateScope</c>
+    /// enum: 0 = Node, 1 = Behavior, 2 = Entity. Lets the inspector group/label slots by scope.
+    /// Default 0 (Node) for legacy constructions.
+    /// </param>
     public sealed record StatefulSlotInfo(
         int SlotKey,
         int PayloadSize,
         uint StructureHash,
         Type? WorkingStateType = null,
-        string? NodeLabel = null);
+        string? NodeLabel = null,
+        byte Role = 0,
+        byte Scope = 0);
 
     /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).

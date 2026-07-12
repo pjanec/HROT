@@ -266,4 +266,68 @@ public sealed class StatefulSlotKeyTests
             "Entity-scoped key must not depend on assetId (survives behavior switch)");
         key1.Should().BeGreaterThanOrEqualTo(0, "slot key must be non-negative (0x7FFFFFFF mask)");
     }
+
+    // ── S3-7: manifest carries role/scope ─────────────────────────────────────────
+
+    /// <summary>
+    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a Behavior-scoped State variable
+    /// must carry the authored Role (State=1) and Scope (Behavior=1) as the trailing ctor args, so
+    /// the live inspector can group/label by scope. (Node/Input assets stay byte-identical — the
+    /// args are omitted when default — which is why only the non-default case is asserted here.)
+    /// </summary>
+    [Fact]
+    public void StatefulSlotInfo_CarriesRoleAndScope()
+    {
+        const string ParamsTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorParams";
+        const string StateTypeId  = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState";
+        const string MethodFqn    = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor";
+
+        var assetId = Guid.Parse("cc000030-0000-0000-0000-000000000000");
+        var nodeId  = Guid.Parse("dd000031-0000-0000-0000-000000000000");
+
+        var dto = new BehaviorTreeAssetDto
+        {
+            AssetId            = assetId,
+            Name               = "S3RoleScope",
+            TargetNamespace    = "Hrot.AI.Behaviors.Trees",
+            BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+            ContextTypeName    = "Fdp.Toolkit.Behavior.BTreeContext",
+            Blackboard         = new BlackboardBlockDto
+            {
+                Managed  = true,
+                TypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+                Variables = new List<BlackboardVariableDto>
+                {
+                    new BlackboardVariableDto
+                    {
+                        Name  = "shared",
+                        Type  = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
+                        Role  = BlackboardVariableRole.State,
+                        Scope = WorkingStateScope.Behavior,
+                    }
+                }
+            },
+            Nodes = new List<BTreeNodeDto>
+            {
+                new BTreeRootNodeDto { VisualId = Guid.NewGuid(), ChildVisualIds = new List<Guid> { nodeId }, DisplayLabel = "Root", EditorMetadata = new NodeEditorMetadataDto() },
+                new BTreeActionNodeDto
+                {
+                    VisualId = nodeId, DisplayLabel = "AdvanceShared", EditorMetadata = new NodeEditorMetadataDto(),
+                    Action = new BTreeActionPayloadDto
+                    {
+                        MethodFqn = MethodFqn, ExpressionTargetField = "shared",
+                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
+                        WorkingStateTypeId = StateTypeId,
+                    }
+                }
+            }
+        };
+
+        Func<string, int?> sizeResolver = t => t == ParamsTypeId ? 4 : (int?)null;
+        string bridgeSrc = BTreeBridgeEmitCore.EmitBridge(dto, sizeResolver);
+
+        // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string.
+        bridgeSrc.Should().Contain("\"AdvanceShared\", 1, 1)",
+            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State(1), Scope=Behavior(1)");
+    }
 }

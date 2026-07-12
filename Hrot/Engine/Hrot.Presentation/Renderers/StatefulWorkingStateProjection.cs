@@ -71,7 +71,10 @@ public static class StatefulWorkingStateProjection
                 headerPrinted = true;
             }
 
-            string label = s.NodeLabel ?? $"slot 0x{s.SlotKey:X8}";
+            // S3-7: label/group by scope (Node/Behavior/Entity) so shared slots are visually
+            // distinct from per-node ones (e.g. a commander's Behavior-scoped HillAttackMutableState).
+            string scopeTag = ScopeName(s.Scope);
+            string label = $"[{scopeTag}] " + (s.NodeLabel ?? $"slot 0x{s.SlotKey:X8}");
             if (ImGui.TreeNodeEx(label, ImGuiTreeNodeFlags.DefaultOpen))
             {
                 ImGuiPropertyTree.Render(boxed, contextType: s.WorkingStateType, out _);
@@ -79,6 +82,14 @@ public static class StatefulWorkingStateProjection
             }
         }
     }
+
+    /// <summary>S3-7: maps a <see cref="StatefulSlotInfo.Scope"/> byte to a display tag.</summary>
+    internal static string ScopeName(byte scope) => scope switch
+    {
+        1 => "Behavior",
+        2 => "Entity",
+        _ => "Node",
+    };
 
     // ── Testable decode seam ─────────────────────────────────────────────────
 

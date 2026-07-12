@@ -166,6 +166,49 @@ public sealed class StatefulWorkingStateProjectionTests
         Assert.Null(s.NodeLabel);
     }
 
+    // ── S3-7: Behavior-scoped shared slot — live values + scope metadata ──────
+
+    /// <summary>
+    /// S3-7: with a Behavior-scoped shared slot, the projection resolves the slot and reports its
+    /// typed current values (mirrors the S2 decode proof), and the manifest entry carries the
+    /// authored scope so the inspector can group/label it as "[Behavior]".
+    /// </summary>
+    [Fact]
+    public unsafe void Inspector_ShowsBehaviorScopedSlot_LiveValues()
+    {
+        const int SlotKey = 0x5150C0DE; // stands in for FNV-1a(assetId, "shared")
+        const int LiveValue = 1337;
+
+        byte* memory = stackalloc byte[BlueprintBlackboard1024.TotalSize];
+        BlueprintBlackboardPartitions.Initialize(memory, BlueprintBlackboard1024.TotalSize, BlueprintBlackboard1024.MaxSlots);
+
+        int payloadSize = Marshal.SizeOf<TestCursorState>();
+        bool attached = BlueprintBlackboardPartitions.TryAttach(
+            memory, SlotKey, payloadSize, structureHash: 0, out int payloadOffset);
+        Assert.True(attached, "shared slot must attach");
+
+        // A DispatchWave-style writer sets the shared value; IsWaveCompleted-style reader sees it.
+        ref var ws = ref Unsafe.AsRef<TestCursorState>(memory + payloadOffset);
+        ws.Cursor = LiveValue;
+
+        // Behavior-scoped manifest entry (Role=State=1, Scope=Behavior=1).
+        var slotInfo = new StatefulSlotInfo(
+            SlotKey, payloadSize, StructureHash: 0,
+            WorkingStateType: typeof(TestCursorState),
+            NodeLabel: "HillAttackMutableState",
+            Role: 1, Scope: 1);
+
+        var result = StatefulWorkingStateProjection.TryProjectSlot(memory, slotInfo, out object? boxed);
+
+        Assert.Equal(StatefulWorkingStateProjection.SlotProjectionResult.Ok, result);
+        Assert.NotNull(boxed);
+        Assert.Equal(LiveValue, ((TestCursorState)boxed!).Cursor);
+
+        // Scope metadata drives the inspector's grouping label.
+        Assert.Equal(1, slotInfo.Scope);
+        Assert.Equal("Behavior", StatefulWorkingStateProjection.ScopeName(slotInfo.Scope));
+    }
+
     // ── Minimal MockSession (mirrors BrainBlackboardRendererTests) ────────────
     private sealed class MockSession : IInspectableSession
     {
