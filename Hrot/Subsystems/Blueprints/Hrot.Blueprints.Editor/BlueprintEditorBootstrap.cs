@@ -177,8 +177,11 @@ public static class BlueprintEditorBootstrap
         if (!Directory.Exists(recipesPath))
             return recipes;
 
-        // Enumerate all .bp.json files in the recipes directory
-        var recipeFiles = Directory.GetFiles(recipesPath, "*.bp.json");
+        // Enumerate all .bp.json files in the recipes directory.
+        // Case-insensitive match: files may have drifted extension casing when authored
+        // on Windows; PlatformDefault would silently miss them on Linux.
+        var recipeFiles = Directory.GetFiles(recipesPath, "*.bp.json",
+            new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive });
 
         foreach (var filePath in recipeFiles)
         {

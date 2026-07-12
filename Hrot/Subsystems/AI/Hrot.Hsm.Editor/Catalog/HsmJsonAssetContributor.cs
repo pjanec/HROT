@@ -59,8 +59,14 @@ public sealed class HsmJsonAssetContributor : IAssetCatalogContributor
         }
         else if (rootDirectory != null && Directory.Exists(rootDirectory))
         {
-            paths = Directory.EnumerateFiles(rootDirectory, "*.hsm.json",
-                SearchOption.AllDirectories);
+            // Case-insensitive match: *.hsm.json files may have drifted extension casing
+            // when authored on Windows; PlatformDefault would silently miss them on Linux.
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                MatchCasing           = MatchCasing.CaseInsensitive,
+            };
+            paths = Directory.EnumerateFiles(rootDirectory, "*.hsm.json", options);
         }
         else
         {

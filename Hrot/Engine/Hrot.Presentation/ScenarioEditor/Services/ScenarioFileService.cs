@@ -48,6 +48,14 @@ public sealed class ScenarioFileService
     private string? _lastLoadPath;
 
     /// <summary>
+    /// Comparison to use for filesystem path equality: case-insensitive on Windows
+    /// (NTFS default), case-sensitive (Ordinal) elsewhere, since case-differing paths
+    /// are distinct files on Linux.
+    /// </summary>
+    private static StringComparison PlatformPathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    /// <summary>
     /// The <see cref="MigrationLoadResult"/> from the most recent
     /// <see cref="LoadScenario"/> call that went through the persistent adapter,
     /// or <c>null</c> if no migration-aware load has occurred.
@@ -112,7 +120,7 @@ public sealed class ScenarioFileService
 
         if (_migrationServices != null
             && _lastLoadResult != null
-            && string.Equals(filePath, _lastLoadPath, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(filePath, _lastLoadPath, PlatformPathComparison))
         {
             // Use the persistent adapter so that any round-trip journal is applied
             // (restoring higher-version-only fields) and cleaned up on success.

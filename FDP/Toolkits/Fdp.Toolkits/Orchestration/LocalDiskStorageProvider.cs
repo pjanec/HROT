@@ -49,8 +49,12 @@ namespace Fdp.Toolkit.Orchestration
         public IEnumerable<string> EnumerateScenarioFiles(string scenarioId)
         {
             var dir = Path.Combine(_localTempRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+            // Case-insensitive match: scenario *.json files may have drifted extension
+            // casing when authored on Windows; PlatformDefault would silently miss them
+            // on Linux.
             return Directory.Exists(dir)
-                ? Directory.GetFiles(dir, "*.json")
+                ? Directory.GetFiles(dir, "*.json",
+                    new EnumerationOptions { MatchCasing = MatchCasing.CaseInsensitive })
                 : Enumerable.Empty<string>();
         }
     }

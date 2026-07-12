@@ -27,7 +27,7 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 | WI-3 | File-dialog factory + wire ImGui fallback + multi-select | split | todo | - | - | - | - | 4 hardcoded call sites; factory picks Win32 on Windows else ImGui. |
 | WI-4 | Centralize `C:\FDP_Temp` staging root (FDP_STAGING_ROOT / temp) | Linux | code-done | - | pass* | NEEDS-WIN-VALIDATION | pass* | Done + reviewed. `OrchestrationConstants.ResolveStagingRoot()` (FDP_STAGING_ROOT env or temp); ~24 sites updated (removing the const forced all refs). Default-param sites -> `= null` + `?? ResolveStagingRoot()`. Fdp.Toolkits/Orchestrator/SimHost/ExCon build clean. *CGF/IG/Editor edits verified via temp-patch only - their Linux build is blocked by WI-10 (netstandard2.0), not by WI-4. |
 | WI-10 | Hrot.Blueprints.Compiler netstandard2.0 API gap | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | - | FIXED. Was a single occurrence: `Stage5_Schedule.cs:1641` `string.Contains(string, StringComparison)` (not in netstandard2.0). Replaced with `IndexOf(..., StringComparison) >= 0` (identical semantics). Compiler builds both TFMs; CGF/IG/Editor now build clean on Linux, which also confirms WI-4's edits in those projects. |
-| WI-5 | Case-insensitive asset discovery (EnumerationOptions) + path-equality fixes | Linux | todo | - | - | - | - | Silent-failure class; add mixed-case regression test. |
+| WI-5 | Case-insensitive asset discovery (EnumerationOptions) + path-equality fixes | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | pass | Done + reviewed. 12 enumeration sites -> MatchCasing.CaseInsensitive (recursion preserved per-site); 2 netstandard2.0 loaders use "*"+case-insensitive EndsWith fallback; 2 path-equality sites -> platform-aware PlatformPathComparison (OrdinalIgnoreCase on Windows, Ordinal else). New regression test (Widget.HSM.JSON found via *.hsm.json) fails pre-fix, passes post-fix. Hsm.Editor.Tests 504/504, BTree.Editor.Tests 575/575. Deliberate exclusions (non-asset globs) documented. |
 | WI-6 | Portable one-offs (SpecialFolder.Fonts, UseShellExecute open-file) | Linux | todo | - | - | - | - | Demo + editor conveniences. |
 | WI-7 | Relax CarKinem win-x64 RID | either | todo | - | - | n/a | n/a | Trivial csproj edit. |
 | WI-8 | Linux launch scripts (.sh mirrors of run_*.bat) | Linux | todo | n/a | - | n/a | - | No Dirigent port. |
@@ -35,6 +35,13 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 
 ## Coordination log (newest first)
 
+- 2026-07-12 - WI-5 implemented (Sonnet) + reviewed (Opus). Case-insensitive
+  asset/scenario/blueprint discovery (12 sites, recursion preserved per-site;
+  netstandard2.0 loaders use a "*"+EndsWith fallback) plus platform-aware path
+  equality (2 sites). New mixed-case regression test verified fail-before /
+  pass-after. Touched projects build 0 warnings; Hsm/BTree editor test suites
+  green. Pre-existing Hrot.Blueprints.Tests failures (8, Roslyn/PDB golden +
+  alloc-threshold) confirmed unrelated via stash.
 - 2026-07-12 - WI-10 fixed (Opus, one-liner): `string.Contains(string,
   StringComparison)` -> `IndexOf(...) >= 0` in Stage5_Schedule.cs for the
   netstandard2.0 target. Unblocks CGF/IG/Editor on Linux (all now build clean),

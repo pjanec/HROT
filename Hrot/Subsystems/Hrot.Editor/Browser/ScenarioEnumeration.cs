@@ -40,9 +40,20 @@ public static class ScenarioEnumeration
         string relativePath,
         List<string> results)
     {
-        // Check the current directory for a scenario.json marker.
-        string markerPath = Path.Combine(currentDir, "scenario.json");
-        if (File.Exists(markerPath) && relativePath.Length > 0)
+        // Check the current directory for a scenario.json marker. Enumerate the directory
+        // once and match the marker name case-insensitively: File.Exists with a literal
+        // name would silently miss e.g. "Scenario.json" authored on Windows (PlatformDefault
+        // casing is case-sensitive on Linux).
+        bool hasMarker = false;
+        foreach (string entry in Directory.EnumerateFiles(currentDir))
+        {
+            if (string.Equals(Path.GetFileName(entry), "scenario.json", StringComparison.OrdinalIgnoreCase))
+            {
+                hasMarker = true;
+                break;
+            }
+        }
+        if (hasMarker && relativePath.Length > 0)
         {
             // Normalize to forward slashes.
             results.Add(relativePath.Replace('\\', '/'));

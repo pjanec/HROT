@@ -57,6 +57,9 @@ public sealed class BlueprintPeerSource
         {
             RecurseSubdirectories = true,
             IgnoreInaccessible    = true,
+            // Case-insensitive match: *.bp.json files may have drifted extension casing
+            // when authored on Windows; PlatformDefault would silently miss them on Linux.
+            MatchCasing           = MatchCasing.CaseInsensitive,
         };
 
         foreach (var filePath in Directory.EnumerateFiles(
