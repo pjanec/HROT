@@ -41,7 +41,7 @@ public sealed class AssetPrefetchProcessManager
     /// <param name="nasBasePath">NAS root from which scenario files are copied.</param>
     /// <param name="localStagingRoot">
     /// Local staging root used to build per-node destination paths.
-    /// Defaults to <see cref="OrchestrationConstants.DefaultStagingDirectory"/>.
+    /// Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
     /// </param>
     public AssetPrefetchProcessManager(
         FdpEventBus bus,
@@ -52,7 +52,7 @@ public sealed class AssetPrefetchProcessManager
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
-        _localStagingRoot = localStagingRoot ?? OrchestrationConstants.DefaultStagingDirectory;
+        _localStagingRoot = localStagingRoot ?? OrchestrationConstants.ResolveStagingRoot();
     }
 
     /// <summary>

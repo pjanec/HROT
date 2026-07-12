@@ -85,7 +85,7 @@ public sealed class FakeStrideApp : FdpApplication
             SubsystemName       = "StrideMock",
             ExternalParticipant = _participant,
             LocalTempRoot       = Path.Combine(
-                OrchestrationConstants.DefaultStagingDirectory,
+                OrchestrationConstants.ResolveStagingRoot(),
                 "nodes", $"node-{_nodeId}"),
             LogDirectory        = Path.Combine(AppContext.BaseDirectory, "logs"),
         };

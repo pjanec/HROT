@@ -131,7 +131,7 @@ namespace Hrot.SimHost
         /// </param>
         /// <param name="localTempRoot">
         /// Local staging directory root used by <c>ScenarioLoadClusterStateHandler</c> to locate pre-fetched
-        /// scenario files.  Defaults to <c>C:\FDP_Temp</c>.
+        /// scenario files.  Defaults to <see cref="OrchestrationConstants.ResolveStagingRoot"/>.
         /// </param>
         /// <param name="tkbDb">
         /// Optional TKB database. When non-null, a <see cref="TkbLoadClusterStateHandler"/>
@@ -172,7 +172,7 @@ namespace Hrot.SimHost
             IScenarioEntityExtractor? scenarioExtractor = null,
             ScenarioEntityCreationRequestSource? scenarioSource = null,
             INetworkIdAllocator? scenarioIdAllocator = null,
-            string localTempRoot = @"C:\FDP_Temp",
+            string? localTempRoot = null,
             ITkbDatabase? tkbDb = null,             // TKB-020: used by TkbLoadClusterStateHandler
             CheckpointIOWorker? checkpointWorker = null,
             Fdp.ModuleHost.Scheduling.TogglableSimulationGroup?    simGroup = null,
@@ -188,6 +188,8 @@ namespace Hrot.SimHost
                 throw new ArgumentNullException(nameof(participant),
                     $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
                     "ClusterSlave cannot run without DDS in production.");
+
+            localTempRoot ??= OrchestrationConstants.ResolveStagingRoot();
 
             var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus);
             SlaveTranslator = null;

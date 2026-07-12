@@ -1333,13 +1333,13 @@ namespace Hrot.Editor
                 _orchestrationBus!,
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.DefaultStagingDirectory,
+                OrchestrationConstants.ResolveStagingRoot(),
                 EditorNodeId);
             _assetPrefetchProcessManager = new AssetPrefetchProcessManager(
                 _orchestrationBus!,
                 _storageGateway,
                 ClusterConfiguration.Default.NasBasePath,
-                OrchestrationConstants.DefaultStagingDirectory);
+                OrchestrationConstants.ResolveStagingRoot());
             _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
             _fileDialogService = new WinFormsFileDialogService();

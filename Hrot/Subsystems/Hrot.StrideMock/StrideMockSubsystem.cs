@@ -154,7 +154,7 @@ public sealed class StrideMockSubsystem : ISubsystem, IMapCameraProvider, IWindo
             SkipAllocatorRouting = config.Headless,
             ExternalParticipant  = shellParticipant,
             LocalTempRoot        = System.IO.Path.Combine(
-                OrchestrationConstants.DefaultStagingDirectory,
+                OrchestrationConstants.ResolveStagingRoot(),
                 "nodes", $"node-{config.NodeId}"),
             LogDirectory         = System.IO.Path.Combine(AppContext.BaseDirectory, "logs"),
         };

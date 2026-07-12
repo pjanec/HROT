@@ -33,7 +33,7 @@ public sealed class CgfRecordingIntegrationTests
     private const int CgfNodeId     = 400;
 
     private static string RecordingFile(string exerciseId, int nodeId) =>
-        Path.Combine(OrchestrationConstants.DefaultStagingDirectory, exerciseId, $"node_{nodeId}.fdp");
+        Path.Combine(OrchestrationConstants.ResolveStagingRoot(), exerciseId, $"node_{nodeId}.fdp");
 
     // Issue a TransitionState cluster op and pump until the master reaches the target state.
     private static async Task TransitionAsync(

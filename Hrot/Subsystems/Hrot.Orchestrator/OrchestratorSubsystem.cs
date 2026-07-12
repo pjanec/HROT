@@ -213,7 +213,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _bus!,
             storageGateway,
             _config.NasBasePath,
-            OrchestrationConstants.DefaultStagingDirectory,
+            OrchestrationConstants.ResolveStagingRoot(),
             orchestratorNodeId);
 
         // TASK-S003: Wire the episode process manager.

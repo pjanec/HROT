@@ -88,11 +88,11 @@ namespace Hrot.SimHost
         /// <c>{LocalTempRoot}/{ScenarioId}/</c>.
         /// Checkpoint storage uses <c>{LocalTempRoot}/checkpoints/</c> so that both
         /// are co-located and share the same root for capacity planning and cleanup.
-        /// Override in <c>config.json</c> on nodes where <c>C:\FDP_Temp</c> is not
-        /// the correct volume (e.g. Linux deployments, non-<c>C:</c> drives).
+        /// Defaults via <see cref="OrchestrationConstants.ResolveStagingRoot"/>; override in
+        /// <c>config.json</c> on nodes where that resolved volume is not the correct one.
         /// </para>
         /// </summary>
-        public string LocalTempRoot { get; init; } = OrchestrationConstants.DefaultStagingDirectory;
+        public string LocalTempRoot { get; init; } = OrchestrationConstants.ResolveStagingRoot();
 
         // ── Serialisation ─────────────────────────────────────────────────────
 
