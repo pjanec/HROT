@@ -286,4 +286,123 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         world.Dispose();
     }
+
+    // ── S3-5: ClearBehaviorEvent detach ───────────────────────────────────────────
+
+    /// <summary>Reads the entity's active-tier slot count (whichever tier it carries).</summary>
+    private static int SlotCountOf(EntityRepository world, Entity entity)
+    {
+        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
+        if (world.HasComponent<BlueprintBlackboard4096>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
+        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
+        return 0;
+    }
+
+    private static bool HasSlot(EntityRepository world, Entity entity, int key)
+    {
+        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
+        if (world.HasComponent<BlueprintBlackboard4096>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
+        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        { ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(m, key, out _); }
+        return false;
+    }
+
+    private static void Assign(EntityRepository world, BehaviorIngressSystem sys, Entity entity, string name)
+    {
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = name, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+    }
+
+    /// <summary>
+    /// S3-5: assigning a stateful behavior then publishing ClearBehaviorEvent must detach the
+    /// stateful slots (no leak). The free space is reclaimed, so a subsequent re-assign of the
+    /// same behavior re-provisions the same slot count in the same tier.
+    /// </summary>
+    [Fact]
+    public void Clear_DetachesStatefulSlots_NoLeak()
+    {
+        var (world, sys, registry) = CreateFixture();
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.AddComponent(entity, new BrainBlackboard());
+        world.AddComponent(entity, new BrainBTreeState());
+
+        var assetId = Guid.NewGuid();
+        int k1 = MakeSlotKey(assetId, Guid.NewGuid());
+        int k2 = MakeSlotKey(assetId, Guid.NewGuid());
+        var slots = new StatefulSlotInfo[] { new StatefulSlotInfo(k1, 4, 0u), new StatefulSlotInfo(k2, 4, 0u) };
+
+        const string name = "ClearNoLeakBehavior";
+        const int BehaviorId = 8201;
+        registry.Register(BehaviorId, name, MakeStatefulDefinition(name, BehaviorId, slots));
+
+        Assign(world, sys, entity, name);
+        Assert.Equal(2, SlotCountOf(world, entity));
+        Assert.True(HasSlot(world, entity, k1) && HasSlot(world, entity, k2), "both slots provisioned after assign");
+
+        // Clear: must detach the stateful slots.
+        // ClearBehaviorEvent is an unmanaged struct → Publish (not PublishManaged, which is the
+        // managed channel used by AssignBehaviorEvent's string payload).
+        world.Bus.Publish(new ClearBehaviorEvent { Entity = entity });
+        world.Bus.SwapBuffers();
+        sys.Execute(world, 0.016f);
+
+        Assert.Equal(0, SlotCountOf(world, entity));
+        Assert.False(HasSlot(world, entity, k1), "slot k1 must be detached after clear (no leak)");
+        Assert.False(HasSlot(world, entity, k2), "slot k2 must be detached after clear (no leak)");
+
+        // Reclaimed space is reusable: re-assign re-provisions the same slots.
+        Assign(world, sys, entity, name);
+        Assert.Equal(2, SlotCountOf(world, entity));
+        Assert.True(HasSlot(world, entity, k1) && HasSlot(world, entity, k2), "re-assign reuses the reclaimed space");
+
+        world.Dispose();
+    }
+
+    /// <summary>
+    /// S3-5 regression: the existing switch path (Assign B over A) still detaches A's slots and
+    /// provisions B's — unchanged by the clear-path fix.
+    /// </summary>
+    [Fact]
+    public void Switch_StillDetachesPreviousSlots()
+    {
+        var (world, sys, registry) = CreateFixture();
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.AddComponent(entity, new BrainBlackboard());
+        world.AddComponent(entity, new BrainBTreeState());
+
+        var assetA = Guid.NewGuid();
+        int a1 = MakeSlotKey(assetA, Guid.NewGuid());
+        int a2 = MakeSlotKey(assetA, Guid.NewGuid());
+        var assetB = Guid.NewGuid();
+        int b1 = MakeSlotKey(assetB, Guid.NewGuid());
+        int b2 = MakeSlotKey(assetB, Guid.NewGuid());
+
+        const string nameA = "SwitchBehaviorA"; const int idA = 8202;
+        const string nameB = "SwitchBehaviorB"; const int idB = 8203;
+        registry.Register(idA, nameA, MakeStatefulDefinition(nameA, idA,
+            new StatefulSlotInfo[] { new StatefulSlotInfo(a1, 4, 0u), new StatefulSlotInfo(a2, 4, 0u) }));
+        registry.Register(idB, nameB, MakeStatefulDefinition(nameB, idB,
+            new StatefulSlotInfo[] { new StatefulSlotInfo(b1, 4, 0u), new StatefulSlotInfo(b2, 4, 0u) }));
+
+        Assign(world, sys, entity, nameA);
+        Assert.True(HasSlot(world, entity, a1) && HasSlot(world, entity, a2), "A's slots provisioned");
+
+        Assign(world, sys, entity, nameB);
+        Assert.True(HasSlot(world, entity, b1) && HasSlot(world, entity, b2), "B's slots provisioned after switch");
+        Assert.False(HasSlot(world, entity, a1), "A's slot a1 detached on switch");
+        Assert.False(HasSlot(world, entity, a2), "A's slot a2 detached on switch");
+        Assert.Equal(2, SlotCountOf(world, entity));
+
+        world.Dispose();
+    }
 }

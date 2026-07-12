@@ -174,6 +174,20 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
+                // S3-5: detach the outgoing behavior's stateful slots BEFORE clearing.
+                // The switch path (AssignBehaviorEvent) already detaches on switch, but a clear-
+                // without-successor previously only nulled ActiveBehaviorHash, leaking the slots
+                // until the next assign. Capture the previous behavior id and reclaim its slots.
+                // DetachStatefulSlots frees by the manifest's SlotKey, which is scope-aware (S3-4),
+                // so this reclaims Node- and Behavior-scoped slots alike.
+                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
+                if (previousBehaviorId != BehaviorIds.None &&
+                    _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                    prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+                {
+                    DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
+                }
+
                 ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 behavior.ActiveBehaviorHash = BehaviorIds.None;
                 unchecked { behavior.InstanceId++; }
