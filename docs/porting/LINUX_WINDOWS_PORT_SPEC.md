@@ -25,8 +25,11 @@ there is explicitly out of scope for this pass.
 - Rewriting the external Dirigent orchestrator (separate Windows-only tool, not
   in this repo). Linux launch uses shell scripts / systemd instead.
 - macOS support.
-- Porting the Stride game-engine visualization heads (decision item WI-9;
-  default is to exclude them from the Linux build, not port them).
+- Porting the Stride game-engine visualization apps to Linux. They are excluded
+  from the Linux build (WI-9); the master solution already omits them.
+- Producing the Linux DDS native. This is DONE out-of-band: CycloneDDS.NET now
+  ships linux-x64 support as of version 0.3.2 on nuget.org. This spec only bumps
+  the package references and validates the DDS smoke test (WI-2).
 
 ## 2. Guiding principles (non-negotiable)
 
@@ -64,7 +67,7 @@ of the Windows-specific concerns.
 |---|---|---|
 | Authors the portable code changes (WI-1, WI-4, WI-5, WI-6) | reviews / re-tests | **authors** |
 | POSIX memory backend (WI-1) runtime proof | builds only | **authors + runtime-tests** |
-| DDS Linux native (WI-2) | n/a | **authors + tests** |
+| DDS package bump 0.3.2 (WI-2) | re-validates | **authors bump + Linux smoke test** |
 | File-dialog factory (WI-3) | **validates Win32 path** | authors ImGui path |
 | Windows regression: full build + test suite still green | **owns** | n/a |
 | Stride heads decision (WI-9) | **owns** | consumes decision |
@@ -102,13 +105,14 @@ of the Windows-specific concerns.
   simulation deployment, DDS also needs the native Cyclone runtime (WI-2).
 - Native library search: Raylib-cs, rlImgui-cs and ImGui.NET already ship
   `linux-x64` natives via NuGet (`libraylib.so`, `libcimgui.so`) - confirmed.
-- First-run expectation BEFORE any fix: `dotnet build` of the portable
+- First-run expectation BEFORE the WI-1 fix: `dotnet build` of the portable
   projects succeeds (they target plain `net8.0`), but running anything that
-  touches the ECS will throw `DllNotFoundException` from `kernel32.dll` (WI-1),
-  and anything touching DDS will fail to load `ddsc` (WI-2). That is the
-  baseline this effort removes.
-- Exclude the Stride `net8.0-windows` projects from Linux builds by building the
-  specific solution/projects rather than every csproj (see WI-9).
+  touches the ECS will throw `DllNotFoundException` from `kernel32.dll` (WI-1).
+  That is the baseline this effort removes. DDS itself now works on Linux via
+  the 0.3.2 package (WI-2), so the DDS load failure that existed at 0.2.3 is
+  already gone once references are bumped.
+- Build `IOS-IG-SimHost.sln` on Linux (119 projects, none Windows-locked). Do
+  NOT build `Stride/HrotStrideApp.sln` - that is the Stride exclusion (WI-9).
 
 ## 5. Findings summary (why each work item exists)
 
@@ -116,9 +120,10 @@ The engine's native Windows surface is small and well-contained. The whole tree
 has exactly **two** native Win32 P/Invoke files, most projects already target
 plain `net8.0`, the render/UI stack is already cross-platform, and there are no
 named pipes, named mutexes, memory-mapped files, thread-affinity calls, or
-high-resolution-timer P/Invokes. The port is dominated by two hard blockers
-(ECS virtual memory, DDS native) plus a set of "compiles but silently
-misbehaves on Linux" issues (case sensitivity, hardcoded paths, file dialogs).
+high-resolution-timer P/Invokes. With the DDS native now resolved upstream
+(CycloneDDS.NET 0.3.2), the port is dominated by a single hard blocker (the ECS
+virtual-memory allocator, WI-1) plus a set of "compiles but silently misbehaves
+on Linux" issues (case sensitivity, hardcoded paths, file dialogs).
 
 ## 6. Work items
 
@@ -181,33 +186,33 @@ the platform-conditional surface to one class.
   option (b) chosen); an ECS smoke test (create world, spawn+destroy entities
   across chunk boundaries, trigger decommit) runs without native errors.
 
-#### WI-2: DDS native runtime for Linux  [effort L, Opus decision + Sonnet packaging]
-**Files:** all csproj referencing `CycloneDDS.NET` 0.2.3 (~20 projects incl.
+#### WI-2: Bump CycloneDDS.NET to 0.3.2 (Linux native now published)  [effort S, Sonnet + Linux smoke test]
+**Status:** the native side is DONE out-of-band. CycloneDDS.NET 0.3.2 on
+nuget.org now ships linux-x64 support (previous 0.2.x shipped only
+`runtimes/win-x64/native/ddsc.dll`). App code is already abstracted
+(`DdsParticipant`, `IDdsReader<T>`/`IDdsWriter<T>`); no app-code P/Invoke changes
+expected. This work item has already been applied in this branch's commit that
+bumps the package references.
+
+**Files:** the 23 csproj referencing `CycloneDDS.NET` (incl.
 `FDP/Network/Fdp.Network.Cyclone`, `Hrot/Network/*`, `Hrot/Engine/Hrot.Core`,
-`Hrot/Runner/Hrot.ClusterRunner`, `GizmoMap.Network`). App code is already
-abstracted (`DdsParticipant`, `IDdsReader<T>`/`IDdsWriter<T>`); no app-code
-P/Invoke changes expected.
+`Hrot/Engine/Hrot.Common`, `Hrot/Runner/Hrot.ClusterRunner`, `Fdp.Toolkits`,
+`GizmoMap.*`, plus the DDS test projects). All bumped 0.2.3 (and one conditional
+0.2.2 in `GizmoMap.Contracts`) -> 0.3.2.
 
-**Problem:** The `CycloneDDS.NET` 0.2.3 NuGet package ships **only**
-`runtimes/win-x64/native/ddsc.dll`; there is no `linux-x64`/`libddsc.so`.
-Eclipse Cyclone DDS itself is cross-platform - only this .NET binding was
-published Windows-only.
-
-**Approach (Opus to choose, then Sonnet executes):**
-1. Preferred: build Eclipse Cyclone DDS for `linux-x64` to produce `libddsc.so`,
-   and obtain/produce a matching Linux runtime for the binding. Upstream binding
-   repo referenced by the package is `pjanec/CycloneDds.NET`. Stage the `.so`
-   either via a Linux runtime NuGet or via a repo-local `runtimes/linux-x64/native/`
-   asset wired with `NativeLibrary.SetDllImportResolver` / a `.targets` file so
-   `dotnet publish -r linux-x64` copies it.
-2. Fallback: evaluate an alternate DDS binding with published multi-platform
-   natives, behind the existing `IDds*` abstraction.
+**Remaining work:** validation only.
+- Confirm `dotnet restore` resolves 0.3.2 from nuget.org on both OSes (the repo
+  `nuget.config` lists a `./nugets` LocalFeed first, then nuget.org; NuGet will
+  fall through to nuget.org for 0.3.2 - verify the LocalFeed does not pin an
+  older copy).
+- Check the 0.2.x -> 0.3.2 jump introduces no binding API breaks against the
+  abstracted call sites; if any surface, fix them behind the `IDds*` types.
 
 **Acceptance:**
 - Linux: `Hrot.ClusterRunner -m simhost` (and one peer role) start, create a DDS
   participant, and exchange at least one sample over loopback without native
   load errors. `CYCLONEDDS_URI` config path resolves (coordinate with WI-4).
-- Windows: unchanged; still uses `ddsc.dll`.
+- Windows: unchanged; DDS still works via the 0.3.2 win-x64 native.
 
 ---
 
@@ -311,17 +316,28 @@ already portable `net8.0`; Raylib is cross-platform), or make it
 `<RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>`.
 **Acceptance:** builds on both OSes; `dotnet publish -r linux-x64` succeeds.
 
-#### WI-9: Stride heads decision  [Opus decision, Windows box owns]
+#### WI-9: Exclude Stride from the Linux build  [effort S, decided]
 **Files:** `Stride/HrotStrideApp.Windows/*.csproj`,
 `Stride/HrotStrideApp.Game/*.csproj`, `Stride/BepuSample/*`.
-These are `net8.0-windows` / `win-x64` / `WinExe`. First confirm the actual sim
-binaries (`Hrot.ClusterRunner`) do not reference the Stride projects (they
-appear not to). **Default decision:** exclude the Stride solution from the Linux
-build matrix (do not attempt to port). Document this in `PORT_STATUS.md`. Only
-if a Linux visualization head is required, revisit adding a `.Linux` Stride head
-(SDL/Vulkan) as a separate, larger effort.
-**Acceptance:** Linux build/test scripts build the FDP+Hrot engine solutions and
-skip Stride; Windows continues to build Stride as today.
+**Decision (final): exclude Stride from Linux; do not port it.** Confirmed facts:
+- The real Stride apps live ONLY in `Stride/HrotStrideApp.sln`. They are NOT in
+  the master `IOS-IG-SimHost.sln`, nothing outside `Stride/` references them, and
+  no `run_*.bat` launches them.
+- The master `IOS-IG-SimHost.sln` has 119 projects and **zero** are Windows-locked
+  (`net8.0-windows`). The only "Stride"-named project it contains is
+  `Hrot.MuscleCharacter.Animation.Stride`, a portable `net8.0` adapter with no
+  Stride NuGet dependency.
+- Stride 4.2.1.2487 is D3D11/Windows-centric with an incomplete Linux graphics
+  path and a Windows-oriented build-time asset compiler; a real Linux port would
+  be a separate, much larger effort. The engine's actual runtime visualization
+  uses Raylib + ImGui (already cross-platform), so Stride is not required.
+
+**Action:** on Linux, build the master solution (`IOS-IG-SimHost.sln`) and never
+`Stride/HrotStrideApp.sln`. No project edits are needed - the exclusion is a
+matter of which solution the Linux build targets. Record the decision in
+`PORT_STATUS.md`.
+**Acceptance:** Linux build builds `IOS-IG-SimHost.sln` (Stride absent); Windows
+continues to build both the master and Stride solutions as today.
 
 ---
 
@@ -340,7 +356,7 @@ requested mode(s).
 | Work item | Build Win | Build Linux | Test Win | Test Linux | Primary lane |
 |---|---|---|---|---|---|
 | WI-1 allocator | required | required | required | required | Linux |
-| WI-2 DDS native | required | required | n/a | required | Linux |
+| WI-2 DDS bump 0.3.2 | required | required | n/a | smoke test | Linux |
 | WI-3 dialogs | required | required | manual | manual | split |
 | WI-4 staging root | required | required | required | required | Linux |
 | WI-5 case sensitivity | required | required | required | required | Linux |
@@ -366,11 +382,14 @@ full engine test suite after every portable change to guard against regressions.
 
 ## 9. Open questions / risks
 
-- **WI-2 is the schedule risk.** Producing a Linux `libddsc.so` + binding runtime
-  may require building upstream Cyclone DDS and possibly engaging the binding
-  maintainer. Start this first on the Linux VM in parallel with WI-1.
+- **WI-1 (allocator) is now the primary technical risk**, since DDS is resolved.
+  It is well-specified and self-contained; validate the mmap/mprotect/madvise
+  semantics (esp. recommit zero-fill and the `munmap` size) on the Linux VM early.
 - The repo `nuget.config` references a `./nugets` LocalFeed that is absent in a
-  fresh checkout; confirm restore works on Linux or point the feed appropriately.
+  fresh checkout; confirm restore of CycloneDDS.NET 0.3.2 falls through to
+  nuget.org on Linux, or point the feed appropriately.
 - The `originalReservedSize` -> `munmap` size dependency (WI-1) assumes all call
   sites pass correct sizes; verified true today, but re-check if new callers are
   added during the work.
+- The 0.2.x -> 0.3.2 CycloneDDS.NET bump could carry binding API changes; if the
+  abstracted call sites fail to compile, fix behind the `IDds*` types (WI-2).

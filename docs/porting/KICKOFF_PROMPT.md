@@ -42,10 +42,11 @@ parallel in a single message.
 1. Confirm a clean baseline build/test in your lane; note it in
    `docs/porting/PORT_STATUS.md` (create it if missing; use a simple per-work-item
    table: id | owner-os | state | build-win | build-linux | test-win | test-linux | notes).
-2. Linux VM: start WI-2 (DDS native) first in parallel - it is the schedule risk -
-   then proceed WI-1, WI-4, WI-5, WI-3, WI-6, WI-8. Windows box: confirm baseline,
-   then take WI-9 and WI-7, and re-validate each portable change the Linux box
-   pushes.
+2. Linux VM: start with WI-1 (the allocator - now the primary technical risk;
+   DDS is already resolved via the 0.3.2 bump), then WI-2 smoke test, WI-4, WI-5,
+   WI-3, WI-6, WI-8. Windows box: confirm baseline, then take WI-9 (build the
+   master solution, never the Stride solution) and WI-7, and re-validate each
+   portable change the Linux box pushes.
 3. One work item in flight at a time per author. `git pull --rebase` before
    starting an item and before every push. Commit per item with the id prefix,
    e.g. `WI-1: cross-platform NativeMemoryAllocator`. Push to
@@ -69,9 +70,8 @@ changes.
 - Run the two sessions roughly in parallel. The Linux VM does most of the
   authoring; the Windows box mostly pulls, rebuilds, and validates, plus owns the
   two Windows-specific items (WI-7 is trivial and can go on either box).
-- WI-2 (DDS Linux native) may need out-of-repo work (building Eclipse Cyclone DDS
-  for linux-x64, staging `libddsc.so`). If it stalls, the rest of the port
-  (WI-1/4/5/3/6) can still be completed and validated independently; only the
-  live DDS smoke test in the Definition of Done is blocked on it.
+- WI-2 (DDS) is already resolved upstream: CycloneDDS.NET 0.3.2 ships linux-x64
+  support and the package references are bumped in this branch. Only the Linux
+  DDS smoke test and a restore/API-compat check remain.
 - `PORT_STATUS.md` is the shared source of truth for progress between the two
   boxes; keep it current on every push.
