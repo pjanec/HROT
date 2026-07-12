@@ -139,21 +139,25 @@
 **Done when:** both pass; existing Variables-panel tests green.
 
 ## S3-2 — Scope-aware slot key
-**Design:** AIB-DD §4.4 (scope→slot-key table, **corrected** to include `variableId`). **Touches:** `ComputeStatefulSlotKey` (`Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs:168`).
-**Scope:** generalize the FNV-1a key to be scope-aware and **per-variable**: `Node` = `FNV-1a(assetId, nodeVisualId, variableId)` (behavior-identical to today for the single-var-per-node case), `Behavior` = `FNV-1a(assetId, entityId, variableId)`, `Entity` = `FNV-1a(entityId, variableId)`. Pure function; keep the existing 2-arg overload delegating to Node scope for callers not yet migrated. **Blocks on architect confirmation of the corrected formula (variableId inclusion).**
+**Design:** AIB-DD §4.4 (scope→slot-key table + key-formula resolution 2026-07-12). **Touches:** `ComputeStatefulSlotKey` (`Hrot.AiEditor.Persistence/Emit/BTreeBridgeEmitCore.cs:168`).
+**Scope:** generalize the FNV-1a key to be scope-aware. **All inputs are compile-time constants; `entityId` is NOT in the key** (the tier is a per-entity component, so the key space is already per-entity — see §4.4 resolution). `variableId` = the binding's `ExpressionTargetField`.
+- `Node` = `FNV-1a(assetId, nodeVisualId)` — **unchanged** (keep the existing 2-arg overload; do not add `variableId` — today one state var per node, and changing it would perturb S2 keys for no reason).
+- `Behavior` = `FNV-1a(assetId, variableId)`.
+- `Entity` = `FNV-1a(variableId)` (no `assetId` — survives behavior switch; post-MVP).
+Add the scope-aware overload alongside the existing 2-arg one (which stays = Node scope).
 **Success conditions:**
-- Unit test: `SlotKey_Behavior_SameVar_TwoNodes_Equal` — two nodes, same Behavior-scoped variable, same (assetId, entityId) → **equal** keys (they share the slot).
-- Unit test: `SlotKey_Behavior_TwoVars_SameEntity_Differ` — two distinct Behavior-scoped variables on one entity → **distinct** keys (no collision — the §4.4 correction).
-- Unit test: `SlotKey_Node_MatchesLegacy` — Node scope for the existing single-variable case matches the previous 2-arg result (no drift for S2 assets).
+- Unit test: `SlotKey_Behavior_SameVar_TwoNodes_Equal` — same Behavior variable bound at two different nodes → **equal** keys (they share the slot; nodeVisualId is NOT in the Behavior key).
+- Unit test: `SlotKey_Behavior_TwoVars_Differ` — two distinct Behavior variables in one asset → **distinct** keys (no collision — the §4.4 correction).
+- Unit test: `SlotKey_Node_MatchesLegacy` — Node scope equals the previous 2-arg result (no drift for S2 assets).
 **Done when:** all pass.
 
-## S3-3 — Runtime key in thunk
-**Design:** AIB-DD §4.4.1 Mode-1; grounding finding #1. **Touches:** `EmitStatefulActionThunks` (`BTreeBridgeEmitCore.cs:443–551`), `BTreeDelegateShapeDto` (unchanged — reuse `ThreeParamReusableStateful`).
-**Scope:** today the thunk bakes `const int __slotKey = {slotKey}`. For **Behavior/Entity**-scoped bindings emit a **runtime** computation: bake only `assetId`+`variableId` as constants and compute `int __slotKey = ComputeStatefulSlotKey(__assetId, scope, default, ctx.Self, __varId);` at tick time (Node scope keeps the baked const, zero behavior change). `TryGetSlotOffset` call is otherwise identical.
+## S3-3 — Scope-aware baked const
+**Design:** AIB-DD §4.4 key-formula resolution (keys are compile-time constants — the originally-planned "runtime key" is unnecessary). **Touches:** `EmitStatefulActionThunks` (`BTreeBridgeEmitCore.cs:443–551`), `BTreeDelegateShapeDto` (unchanged — reuse `ThreeParamReusableStateful`).
+**Scope:** the thunk keeps `const int __slotKey = {slotKey}` **unchanged in shape** — only the value's derivation is scope-aware: for a `Behavior`-scoped binding, `{slotKey}` is `ComputeStatefulSlotKey(assetId, Behavior, _, variableId)` (Node scope is byte-for-byte as today). Because both nodes binding the same Behavior variable bake the **same** const, they resolve to the same per-entity slot via the identical `TryGetSlotOffset(mem, __slotKey)` call. **No runtime hashing, no thunk restructuring.**
 **Success conditions:**
 - Compile gate: generate a Behavior-scoped stateful asset → clean rebuild 0 errors (mirrors the S2-G compile gate that closed DEBT-AIB-026).
 - Runtime test: `BehaviorScoped_TwoNodes_ShareOneSlot` — two nodes binding one Behavior-scoped variable read/write the **same** slot (writer node's change is visible to the reader node the same tick).
-- Regression: `NodeScoped_StillBakedConst` — an S2 Node-scoped asset still emits the baked const and its `SameStatefulPrimitive_TwoNodes_IndependentSlots` behavior is unchanged.
+- Regression: `NodeScoped_StillBakedConst` — an S2 Node-scoped asset emits an identical baked const and `SameStatefulPrimitive_TwoNodes_IndependentSlots` is unchanged.
 **Done when:** all pass; clean rebuild.
 
 ## S3-4 — Shared-slot provisioning

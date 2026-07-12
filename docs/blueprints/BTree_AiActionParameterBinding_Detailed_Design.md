@@ -64,8 +64,10 @@ Authoring names: a **local variable** = `state` @ `Node` (isolated per node inst
 | Scope | Slot key | Shared across | Lifetime |
 |---|---|---|---|
 | `Node` (§4.2) | `FNV-1a(assetId, nodeVisualId)` | one node instance | node run |
-| `Behavior` | `FNV-1a(assetId, entityId)` | all nodes of the behavior on that entity | `AssignBehaviorEvent` → `ClearBehaviorEvent` |
-| `Entity` | `entityId` | all behaviors on the entity | entity lifetime |
+| `Behavior` | `FNV-1a(assetId, variableId)` | all nodes of the behavior on that entity | `AssignBehaviorEvent` → `ClearBehaviorEvent` |
+| `Entity` | `FNV-1a(variableId)` | all behaviors on the entity | entity lifetime |
+
+> **Key-formula resolution (2026-07-12, code-grounded, architect-proxy).** The partitioned tier is a **per-entity ECS component** (`GetComponentRW<BlueprintBlackboard*>(ctx.Self)`; `TryGetSlotOffset` scans only that entity's embedded slot table), so the key only has to disambiguate slots **within one entity** — the entity is implicit and **`entityId` must NOT appear in the key**. The sharing unit is the *(scope, variable)* pair, so the key **must include `variableId`** (the binding's `ExpressionTargetField`, a compile-time constant) — otherwise two distinct `Behavior`-scoped variables in one asset collide onto one slot. Consequences: (1) `Behavior` = `FNV-1a(assetId, variableId)`; nodes sharing a variable bake the **same** value and resolve to the same per-entity slot. (2) `Entity` = `FNV-1a(variableId)` with **no `assetId`**, so an Entity-scoped variable survives behavior switches and is shared across behaviors via a name/type contract. (3) **All keys stay compile-time constants** (both inputs are known at emit time) — there is **no runtime key computation**; the emitted thunk keeps its baked `const`, only the derivation changes per scope. (4) Keys are ephemeral runtime ids, never persisted → **no byte-identity impact**; `Node` keys are unchanged so Slice-2 is untouched. `variableId` in the `Node` key is only needed if a node ever binds >1 state variable (not today).
 
 There is **no separate "squad/group" scope.** A group is represented by a virtual/leader entity (the existing command-hierarchy concept — the hill-attack commander), so group-shared state is simply an `Entity`-scoped slot **hosted on the commander entity**, read by members via the Mode-2 accessor below. "Commander" names the *target entity*, not a scope.
 
