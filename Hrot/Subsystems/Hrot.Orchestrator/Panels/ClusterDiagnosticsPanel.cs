@@ -644,12 +644,21 @@ public sealed class ClusterDiagnosticsPanel
 
         if (File.Exists(fullPath))
         {
-            Process.Start(new ProcessStartInfo
+            try
             {
-                FileName       = fullPath,
-                UseShellExecute = true,
-            });
-            _inlineError = null;
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName       = fullPath,
+                    UseShellExecute = true,
+                });
+                _inlineError = null;
+            }
+            catch (Exception ex)
+            {
+                // File exists but no handler is registered for it (e.g. no
+                // xdg-open / default app on the host).
+                _inlineError = "Could not open file: " + ex.Message;
+            }
         }
         else
         {

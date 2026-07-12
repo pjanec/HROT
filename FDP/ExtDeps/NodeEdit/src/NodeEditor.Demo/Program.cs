@@ -7,12 +7,18 @@ namespace NodeEditor.Demo;
 
 internal static class Program
 {
-    // Candidate paths for Arial on Windows.  We fall back through the list until
-    // one resolves so the demo works for both per-user and system font installs.
+    // Candidate paths for Arial (or an equivalent).  We fall back through the list
+    // until one resolves so the demo works for both per-user and system font installs.
+    // Environment.SpecialFolder.Fonts returns an empty string on Linux, so the first
+    // entry harmlessly fails to resolve there and we fall through to common Linux
+    // TrueType font locations (DejaVu Sans ships with most distributions).
     private static readonly string[] ArialCandidates =
     [
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf"),
         @"C:\Windows\Fonts\arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf",
     ];
 
     [STAThread]

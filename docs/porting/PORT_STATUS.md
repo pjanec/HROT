@@ -29,13 +29,20 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 | WI-4 | Centralize `C:\FDP_Temp` staging root (FDP_STAGING_ROOT / temp) | Linux | code-done | - | pass* | NEEDS-WIN-VALIDATION | pass* | Done + reviewed. `OrchestrationConstants.ResolveStagingRoot()` (FDP_STAGING_ROOT env or temp); ~24 sites updated (removing the const forced all refs). Default-param sites -> `= null` + `?? ResolveStagingRoot()`. Fdp.Toolkits/Orchestrator/SimHost/ExCon build clean. *CGF/IG/Editor edits verified via temp-patch only - their Linux build is blocked by WI-10 (netstandard2.0), not by WI-4. |
 | WI-10 | Hrot.Blueprints.Compiler netstandard2.0 API gap | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | - | FIXED. Was a single occurrence: `Stage5_Schedule.cs:1641` `string.Contains(string, StringComparison)` (not in netstandard2.0). Replaced with `IndexOf(..., StringComparison) >= 0` (identical semantics). Compiler builds both TFMs; CGF/IG/Editor now build clean on Linux, which also confirms WI-4's edits in those projects. |
 | WI-5 | Case-insensitive asset discovery (EnumerationOptions) + path-equality fixes | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | pass | Done + reviewed. 12 enumeration sites -> MatchCasing.CaseInsensitive (recursion preserved per-site); 2 netstandard2.0 loaders use "*"+case-insensitive EndsWith fallback; 2 path-equality sites -> platform-aware PlatformPathComparison (OrdinalIgnoreCase on Windows, Ordinal else). New regression test (Widget.HSM.JSON found via *.hsm.json) fails pre-fix, passes post-fix. Hsm.Editor.Tests 504/504, BTree.Editor.Tests 575/575. Deliberate exclusions (non-asset globs) documented. |
-| WI-6 | Portable one-offs (SpecialFolder.Fonts, UseShellExecute open-file) | Linux | todo | - | - | - | - | Demo + editor conveniences. |
-| WI-7 | Relax CarKinem win-x64 RID | either | todo | - | - | n/a | n/a | Trivial csproj edit. |
+| WI-6 | Portable one-offs (SpecialFolder.Fonts, UseShellExecute open-file) | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | n/a | Done + reviewed. NodeEditor.Demo font list gains Linux DejaVu/msttcorefonts paths (SpecialFolder.Fonts is empty on Linux; graceful fallback preserved). MessageLogPanel Process.Start left as-is (already UseShellExecute+try/catch = portable). ClusterDiagnosticsPanel Process.Start wrapped in try/catch (was unguarded -> would throw unhandled on Linux w/o xdg-open); surfaces via existing _inlineError. |
+| WI-7 | Relax CarKinem win-x64 RID | either | code-done | pass | pass | n/a | n/a | Done + reviewed. Removed `<RuntimeIdentifier>win-x64</RuntimeIdentifier>` + `<PlatformTarget>x64</PlatformTarget>`. Builds default and `-r linux-x64`. |
 | WI-8 | Linux launch scripts (.sh mirrors of run_*.bat) | Linux | code-done | n/a | n/a | n/a | bash -n pass | Done + reviewed. 6 scripts: run_SimHost/IG/IOS/Editor/all_together/all_standalone.sh. `start`->`nohup &`/backgrounded subshells; SIGINT trap+cleanup for multi-role launchers; SCRIPT_DIR-relative paths; -d/-m flags preserved; .bat untouched. No robocopy in these launchers. Not runtime-tested (needs built binary/desktop); bash -n clean. Dirigent not ported (out of scope). |
 | WI-9 | Exclude Stride from Linux build | Windows | validated | pass | n/a | pass | n/a | DECIDED. Master `IOS-IG-SimHost.sln` = 119 projects, 0 windows-locked, real Stride apps absent. Linux builds master sln, never `Stride/HrotStrideApp.sln`. No project edits. |
 
 ## Coordination log (newest first)
 
+- 2026-07-12 - WI-6 + WI-7 implemented (Sonnet) + reviewed (Opus). CarKinem RID
+  pin removed (builds default + linux-x64); NodeEditor.Demo font fallback gains
+  Linux paths; ClusterDiagnosticsPanel Process.Start guarded with try/catch
+  (genuine unguarded-throw defect); MessageLogPanel left as-is (already portable).
+  This completes the code work items; remaining are validation (Windows box) and
+  the two pre-existing test-harness items (WI-11, and the DDS restore/API check
+  in WI-2).
 - 2026-07-12 - WI-3 implemented (Sonnet) + reviewed (Opus). File-dialog factory,
   4 call sites, SetFileDialogService wiring per subsystem, ImGui multi-select.
   5 projects build clean; ReplayBrowser.Tests green. Review found the
