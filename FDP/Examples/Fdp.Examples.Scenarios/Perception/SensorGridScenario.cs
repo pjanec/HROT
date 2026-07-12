@@ -28,7 +28,7 @@ namespace Fdp.Examples.Scenarios.Perception
     ///   </item>
     ///   <item><term>Phase 2 (tick 60)</term>
     ///     <description>Target occluded by wall. HasThreat must be false
-    ///     (sighting stale: last seen at tick ~36. Staleness = 24 >= threshold 20).</description>
+    ///     (TargetMemory last boosted at tick ~42 via ActiveSensorTracks. Staleness = 18 >= threshold 15).</description>
     ///   </item>
     ///   <item><term>Phase 3 (tick 96)</term>
     ///     <description>Target reacquired after exiting wall shadow. HasThreat must be true.</description>
@@ -52,8 +52,19 @@ namespace Fdp.Examples.Scenarios.Perception
         private const float WallY      = 25f;
         private const float WallRadius = 10f;
 
-        /// <summary>Ticks without a confirmed sighting before a target is considered stale.</summary>
-        private const uint StalenessThreshold = 20;
+        /// <summary>
+        /// Ticks (sim ticks) without a fresh TargetMemory boost before a threat is stale.
+        ///
+        /// <para>With the full perception pipeline (D-12: SensorTrackDebounce →
+        /// ActiveSensorTracksUpdate → ThreatEvaluation), <see cref="TargetMemory.LastSeenTick"/>
+        /// is updated every time <c>ThreatEvaluationSystem</c> finds the entity in
+        /// <c>ActiveSensorTracks</c>. The Debounce keeps a contact Acquired for up to 20 ticks
+        /// after the last raw LOS — so the last TargetMemory boost fires ~6 ticks before the
+        /// Debounce marks the contact Lost. Setting this threshold below the Debounce window (20)
+        /// ensures Phase 2 (stale at tick 60) and Phase 3 (hot at tick 96) both succeed with
+        /// the 6-tick pipeline stride used by this scenario fixture.</para>
+        /// </summary>
+        private const uint StalenessThreshold = 15;
 
         // ── Observable state for tests ────────────────────────────────────────
 
@@ -65,11 +76,17 @@ namespace Fdp.Examples.Scenarios.Perception
 
         // ── Perception pipeline systems ───────────────────────────────────────
 
-        private LocalGridBuilderSystem?   _localGridBuilder;
-        private VisionBroadphaseSystem?   _visionBroadphase;
-        private LosRequestBatchingSystem? _losRequestBatching;
-        private ThreatEvaluationSystem?   _threatEvaluation;
-        private SpatialHashGrid           _localGrid;
+        private LocalGridBuilderSystem?          _localGridBuilder;
+        private VisionBroadphaseSystem?          _visionBroadphase;
+        private LosRequestBatchingSystem?        _losRequestBatching;
+        // D-12: SensorTrackDebounceSystem reads TargetVisibleEvent and writes
+        // SensorContactList + SensorTrackStateEvent.
+        private SensorTrackDebounceSystem?       _sensorTrackDebounce;
+        // D-12: ActiveSensorTracksUpdateSystem reads SensorTrackStateEvent and
+        // writes ActiveSensorTracks (required by ThreatEvaluationSystem).
+        private ActiveSensorTracksUpdateSystem?  _activeSensorTracksUpdate;
+        private ThreatEvaluationSystem?          _threatEvaluation;
+        private SpatialHashGrid                  _localGrid;
 
         // ── Entity handles ────────────────────────────────────────────────────
 
@@ -90,10 +107,17 @@ namespace Fdp.Examples.Scenarios.Perception
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<PhysicsCollider>();
+            // D-12: SensorTrackDebounceSystem writes SensorContactList;
+            //       ActiveSensorTracksUpdateSystem writes ActiveSensorTracks.
+            world.RegisterComponent<SensorContactList>();
+            world.RegisterComponent<ActiveSensorTracks>();
 
             // ── Event registration ─────────────────────────────────────────────
             world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
+            // D-12: SensorTrackDebounceSystem publishes SensorTrackStateEvent;
+            //       ActiveSensorTracksUpdateSystem consumes it.
+            world.RegisterEvent<SensorTrackStateEvent>();
 
             // ── Perception pipeline setup ──────────────────────────────────────
             _localGrid = SpatialHashGrid.Create(
@@ -103,15 +127,20 @@ namespace Fdp.Examples.Scenarios.Perception
                 PerceptionConstants.LocalGridMaxEntities,
                 Allocator.Persistent);
 
-            _localGridBuilder   = new LocalGridBuilderSystem(_localGrid);
-            _visionBroadphase   = new VisionBroadphaseSystem(_localGrid);
-            _losRequestBatching = new LosRequestBatchingSystem(
+            _localGridBuilder        = new LocalGridBuilderSystem(_localGrid);
+            _visionBroadphase        = new VisionBroadphaseSystem(_localGrid);
+            _losRequestBatching      = new LosRequestBatchingSystem(
                 mockMode: false,
                 colliderRadiusReader: (view, e) =>
                     view.HasComponent<PhysicsCollider>(e)
                         ? view.GetComponentRO<PhysicsCollider>(e).Radius
                         : 0f);
-            _threatEvaluation   = new ThreatEvaluationSystem();
+            // D-12: debounce converts TargetVisibleEvent → SensorContactList + SensorTrackStateEvent.
+            _sensorTrackDebounce     = new SensorTrackDebounceSystem();
+            // D-12: update system converts SensorTrackStateEvent → ActiveSensorTracks.
+            _activeSensorTracksUpdate = new ActiveSensorTracksUpdateSystem();
+            // ThreatEvaluationSystem reads ActiveSensorTracks to boost TargetMemory.
+            _threatEvaluation        = new ThreatEvaluationSystem();
 
             // ── Entity spawning ────────────────────────────────────────────────
             _observer = SpawnObserver(world);
@@ -150,7 +179,17 @@ namespace Fdp.Examples.Scenarios.Perception
                 _losRequestBatching!.Execute(view, dt);
                 FlushEcbAndSwap(world);
 
-                // Stage 4: Threat evaluation reads TargetVisibleEvents; updates TargetMemory via ECB.
+                // Stage 4 (D-12): SensorTrackDebounce reads TargetVisibleEvent; emits
+                // SensorContactList updates and SensorTrackStateEvent via ECB.
+                _sensorTrackDebounce!.Execute(view, dt);
+                FlushEcbAndSwap(world);
+
+                // Stage 5 (D-12): ActiveSensorTracksUpdate reads SensorTrackStateEvent;
+                // writes ActiveSensorTracks (cognitive buffer consumed by ThreatEvaluationSystem).
+                _activeSensorTracksUpdate!.Execute(view, dt);
+                FlushEcbAndSwap(world);
+
+                // Stage 6: Threat evaluation reads ActiveSensorTracks; boosts TargetMemory via ECB.
                 _threatEvaluation!.Execute(view, dt);
                 FlushEcbAndSwap(world);
             }

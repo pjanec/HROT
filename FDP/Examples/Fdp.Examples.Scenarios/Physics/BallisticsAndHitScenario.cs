@@ -36,8 +36,8 @@ namespace Fdp.Examples.Scenarios.Physics
     ///   <item><see cref="BallisticsSystem"/> — PostSim: submits swept-segment raycast <em>before</em> position advance</item>
     ///   <item><see cref="Fdp.Toolkit.CarKinem.Systems.LinearKinematicsSystem"/> — PostSim: advances bullet position</item>
     ///   <item><see cref="RaycastSolverSystem"/> — Input (next logical step): resolves batch from step 3</item>
-    ///   <item><see cref="HitResolutionSystem"/> — Input: emits <see cref="HitEvent"/> to event bus write buffer</item>
-    ///   <item><see cref="DamageSystem"/> — Sim: applies damage from the <em>previous</em> tick's HitEvent (after bus swap)</item>
+    ///   <item><see cref="HitResolutionSystem"/> — Input: emits <see cref="HitEvent"/> directly to event bus + queues bullet TearDown via ECB</item>
+    ///   <item><see cref="DamageSystem"/> — Sim: applies damage from HitEvent in the <em>same</em> tick (FlushEcbAndSwap makes it readable immediately)</item>
     /// </list>
     ///
     /// <para><b>Phase table:</b></para>
@@ -120,6 +120,12 @@ namespace Fdp.Examples.Scenarios.Physics
             // ── Event registration ─────────────────────────────────────────────
             world.RegisterEvent<WeaponFireIntent>();
             world.RegisterEvent<HitEvent>();
+            // D-11: RaycastRequestEvent/RaycastResultEvent are also consumed by
+            // RaycastSolverSystem in this scenario pipeline.  RegisterEvent is
+            // idempotent (GetOrAdd), so this is safe even when HeadlessDemoApp
+            // has already registered them in production.
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
 
             // ── Physics singleton (RaycastBatchData with persistent NativeArrays) ──
             // Module retains ownership; Dispose() is called via OnShutdown() at scenario teardown.
@@ -134,8 +140,8 @@ namespace Fdp.Examples.Scenarios.Physics
             // BallisticsSystem records PreviousPosition and submits the swept-segment raycast
             // BEFORE LinearKinematicsSystem advances the bullet, so the segment covers exactly
             // the distance traversed in the previous tick.
-            // HitResolutionSystem publishes HitEvent to the write bus; DamageSystem consumes
-            // the event one tick later after kernel.Update()'s SwapBuffers makes it readable.
+            // BallisticsModule.Tick() calls FlushEcbAndSwap between stages so each ECB-produced
+            // event is immediately readable by the next stage within the same kernel tick.
             var modSystems = new IEcsModuleSystem[]
             {
                 new FireProcessingSystem(),
@@ -325,10 +331,35 @@ namespace Fdp.Examples.Scenarios.Physics
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                foreach (var sys in _modSystems)
-                    sys.Execute(view, deltaTime);
-                foreach (var sys in _legacySystems)
-                    sys.Execute(view, deltaTime);
+                // Stage 1: FireProcessingSystem consumes WeaponFireIntent and spawns bullet.
+                //          SpatialHashSystem rebuilds the collision grid.
+                //          BallisticsSystem records PreviousPosition and submits the swept-segment
+                //          raycast via ECB (RaycastRequestEvent) BEFORE the bullet moves.
+                _modSystems[0].Execute(view, deltaTime);  // FireProcessingSystem
+                _modSystems[1].Execute(view, deltaTime);  // SpatialHashSystem
+                _modSystems[2].Execute(view, deltaTime);  // BallisticsSystem → ECB: RaycastRequestEvent
+                FlushEcbAndSwap(_world);                  // RaycastRequestEvent now in read buffer
+
+                // Stage 2: LinearKinematicsSystem advances bullet position.
+                //          RaycastSolverSystem reads the request batch and emits RaycastResultEvent via ECB.
+                _modSystems[3].Execute(view, deltaTime);  // LinearKinematicsSystem
+                _modSystems[4].Execute(view, deltaTime);  // RaycastSolverSystem → ECB: RaycastResultEvent
+                FlushEcbAndSwap(_world);                  // RaycastResultEvent now in read buffer
+
+                // Stage 3: HitResolutionSystem reads RaycastResultEvent and publishes HitEvent directly.
+                //          Also queues bullet TearDown via ECB.
+                _modSystems[5].Execute(view, deltaTime);  // HitResolutionSystem → Bus.Publish: HitEvent + ECB: TearDown
+                FlushEcbAndSwap(_world);                  // HitEvent now in read buffer; bullet lifecycle set to TearDown
+
+                // Stage 4: DamageSystem reads HitEvent and applies damage in this same tick.
+                _legacySystems[0].Execute(view, deltaTime);  // DamageSystem
+            }
+
+            private static void FlushEcbAndSwap(EntityRepository world)
+            {
+                var ecb = (EntityCommandBuffer)((ISimulationView)world).GetCommandBuffer();
+                ecb.Playback(world);
+                world.Bus.SwapBuffers();
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;

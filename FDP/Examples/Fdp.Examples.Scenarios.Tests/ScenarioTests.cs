@@ -513,6 +513,15 @@ namespace Fdp.Examples.Scenarios.Tests
 
     public class BallisticsAndHitScenarioTests
     {
+        private static NLog.Targets.MemoryTarget SetupNLog()
+        {
+            var mem = new NLog.Targets.MemoryTarget("ballistics-diag") { Layout = "${message}" };
+            var cfg = new NLog.Config.LoggingConfiguration();
+            cfg.AddRuleForAllLevels(mem);
+            NLog.LogManager.Configuration = cfg;
+            return mem;
+        }
+
         /// <summary>
         /// Full scenario run — all 4 phases pass (bullet spawned, flies past target in raw
         /// space, CCD hit applied, bullet destroyed) and exit code is 0 (CI SUCCESS).
@@ -520,8 +529,13 @@ namespace Fdp.Examples.Scenarios.Tests
         [Fact]
         public void BallisticsAndHit_RunToCompletion_ExitsZero()
         {
+            var mem = SetupNLog();
             int code = ScenarioTestHarness.Run(new BallisticsAndHitScenario(), maxTicks: 10);
-            Assert.Equal(0, code);
+            NLog.LogManager.Flush();
+            NLog.LogManager.Configuration = null;
+            // Surface diagnostics in failure message
+            string diag = string.Join(" | ", mem.Logs);
+            Assert.True(code == 0, $"Exit code {code}. Logs: {diag}");
         }
 
         /// <summary>

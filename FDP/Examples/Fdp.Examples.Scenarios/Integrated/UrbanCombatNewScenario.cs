@@ -122,16 +122,22 @@ namespace Fdp.Examples.Scenarios.Integrated
     ///   <item><term>MissionResumed</term><description>Log emitted, EvaluateTick returns true.</description></item>
     /// </list>
     ///
-    /// <para><b>System pipeline order:</b> BehaviorIngress → FireProcessing → RaycastSolver →
-    /// HitResolution → MissionDirector → ChannelArbitration → BTreeTick → HsmTick →
-    /// Damage → HsmDamageBridge → AudioPerception →
+    /// <para><b>System pipeline order (3-stage with FlushEcbAndSwap between stages):</b><br/>
+    /// Stage A: BehaviorIngress → FireProcessing → RaycastSolver<br/>
+    /// [FlushEcbAndSwap]<br/>
+    /// Stage B: HitResolution<br/>
+    /// [FlushEcbAndSwap]<br/>
+    /// Stage C: Damage → AudioPerception → MissionDirector → CognitiveInterrupt →
+    /// ChannelArbitration → BTreeTick → HsmTick →
     /// WeaponDispatcher → InteractionDispatcher → LocomotionDispatcher →
     /// SpatialHash → CarKinematics → LinearKinematics → Ballistics</para>
     ///
     /// <para><b>Damage → MobilityLost chain (PACK-M001 / PACK-M002):</b>
-    /// <c>DamageSystem</c> reduces HP; <c>HealthApplicationSystem</c> strips <c>CanMove</c>
-    /// on any non-lethal hit; <c>HsmDamageBridgeSystem</c> (now in <c>CognitiveRuntimeModule</c>)
-    /// enqueues <c>MobilityLost</c> into the Brain HSM the same frame.</para>
+    /// <c>DamageSystem</c> reduces HP and strips <c>CanMove</c> on non-lethal hits (same tick,
+    /// Stage C); <c>CognitiveInterruptSystem</c> detects the <c>CanMove→cleared</c> edge
+    /// in the same Stage C execution; <c>HsmTickSystem</c> injects <c>MobilityLost</c> into
+    /// the Brain HSM in the same tick; <c>OnEnter_Disabled</c> ejects passengers via
+    /// <c>InteractionDispatcherSystem</c> also within Stage C.</para>
     ///
     /// <para><b>HSM lifecycle:</b> The ConvoyEscort_HSM has two states: Cruising (initial) →
     /// Disabled (on MobilityLost).  OnEnter_Disabled stops the APC and ejects soldiers.
@@ -333,8 +339,8 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // 7. Build and register the system module.
             _trajectoryPool = new TrajectoryPoolManager();
-            var (modSystems, legacySystems) = BuildSystems(world);
-            kernel.RegisterModule(new UrbanCombatModule("UrbanCombatModule", modSystems, legacySystems));
+            var (stageA, stageB, stageC) = BuildSystems(world);
+            kernel.RegisterModule(new UrbanCombatModule("UrbanCombatModule", world, stageA, stageB, stageC));
 
             // 8. Spawn all 14 entities.
             SpawnAll(world);
@@ -408,6 +414,12 @@ namespace Fdp.Examples.Scenarios.Integrated
             // Events
             world.RegisterEvent<WeaponFireIntent>();
             world.RegisterEvent<HitEvent>();
+            // D-11: RaycastRequestEvent/RaycastResultEvent are consumed by
+            // RaycastSolverSystem in the urban combat pipeline.  RegisterEvent
+            // is idempotent (GetOrAdd), so double-registering with HeadlessDemoApp
+            // is safe.
+            world.RegisterEvent<RaycastRequestEvent>();
+            world.RegisterEvent<RaycastResultEvent>();
         }
 
         // ── Private helpers — TKB templates ──────────────────────────────────
@@ -638,7 +650,7 @@ namespace Fdp.Examples.Scenarios.Integrated
 
         // ── Private helpers — system pipeline ────────────────────────────────
 
-        private (IEcsModuleSystem[] modSystems, IEcsModuleSystem[] legacySystems) BuildSystems(EntityRepository world)
+        private (IEcsModuleSystem[] stageA, IEcsModuleSystem[] stageB, IEcsModuleSystem[] stageC) BuildSystems(EntityRepository world)
         {
             var weaponSys = new WeaponDispatcherSystem();
             weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
@@ -647,37 +659,57 @@ namespace Fdp.Examples.Scenarios.Integrated
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdOpenDoor, new OpenDoorExecutor());
 
-            var modSystems = new IEcsModuleSystem[]
+            // D-11 fixture: three-stage pipeline with FlushEcbAndSwap between stages so that
+            // ECB-produced events (RaycastResultEvent, HitEvent, bullet TearDown) are visible
+            // to the correct consumers within the same kernel tick.
+            //
+            // Stage A: pre-hit — BehaviorIngress → FireProcessing → RaycastSolver
+            //          RaycastSolver emits RaycastResultEvent via ECB.
+            //   [FlushEcbAndSwap] → RaycastResultEvent in read buffer.
+            //
+            // Stage B: hit resolution — HitResolution
+            //          HitResolution publishes HitEvent directly + queues bullet TearDown via ECB.
+            //   [FlushEcbAndSwap] → HitEvent in read buffer; bullet lifecycle = TearDown.
+            //
+            // Stage C: simulation — Damage, AI, dispatchers, kinematics, ballistics
+            //          DamageSystem reads HitEvent; bullet is TearDown (IsAlive=true) so
+            //          BallisticProjectile.Damage can be read.
+            //          CognitiveInterruptSystem runs AFTER DamageSystem in the SAME tick,
+            //          so it detects CanMove→cleared immediately and fires Interrupt_MobilityLost.
+            //          BallisticsSystem destroys TearDown bullets at the end of Stage C
+            //          (AFTER DamageSystem has already processed them).
+
+            var stageA = new IEcsModuleSystem[]
             {
-                // -- Input equivalent --
                 new BehaviorIngressSystem(_behaviorRegistry),
                 new FireProcessingSystem(),
-                new RaycastSolverSystem(),
-                new HitResolutionSystem(),
+                new RaycastSolverSystem(),   // ECB: RaycastResultEvent
+            };
 
-                // -- Simulation --------
+            var stageB = new IEcsModuleSystem[]
+            {
+                new HitResolutionSystem(),   // reads RaycastResultEvent; direct: HitEvent; ECB: bullet TearDown
+            };
+
+            var stageC = new IEcsModuleSystem[]
+            {
+                new DamageSystem(),          // reads HitEvent; bullet still TearDown (IsAlive=true)
+                new AudioPerceptionSystem(),
                 new MissionDirectorSystem(),
+                new CognitiveInterruptSystem(), // detects CanMove→cleared from DamageSystem above
                 new ChannelArbitrationSystem(),
                 new BTreeTickSystem(_behaviorRegistry),
                 new HsmTickSystem<BrainHsm128>(_behaviorRegistry),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),
-
-                // -- PostSim equivalent --
                 new SpatialHashSystem(),
                 new CarKinematicsSystem(_trajectoryPool!),
                 new LinearKinematicsSystem(),
-                new BallisticsSystem(),
+                new BallisticsSystem(),      // destroys TearDown bullets AFTER DamageSystem ran
             };
 
-            var legacySystems = new IEcsModuleSystem[]
-            {
-                new DamageSystem(),
-                new AudioPerceptionSystem(),
-            };
-
-            return (modSystems, legacySystems);
+            return (stageA, stageB, stageC);
         }
 
         // ── Private helpers — entity spawning ────────────────────────────────
@@ -856,36 +888,86 @@ namespace Fdp.Examples.Scenarios.Integrated
         // ── Inner: UrbanCombatModule ──────────────────────────────────────────
 
         /// <summary>
-        /// Minimal <see cref="IEcsModule"/> that drives all scenario systems sequentially
-        /// each kernel tick (after the kernel's own SwapBuffers pass).
+        /// Three-stage module that drives the UrbanCombat scenario pipeline with explicit
+        /// ECB-flush points between stages so that event-bus dependencies are resolved
+        /// within the same kernel tick.
+        ///
+        /// <para><b>Stage A</b> — pre-hit input (BehaviorIngress, FireProcessing, RaycastSolver).
+        ///   <see cref="RaycastSolverSystem"/> emits <c>RaycastResultEvent</c> via ECB.
+        ///   <see cref="FlushEcbAndSwap"/> makes it readable before Stage B.</para>
+        ///
+        /// <para><b>Stage B</b> — hit resolution (HitResolutionSystem).
+        ///   Reads <c>RaycastResultEvent</c>; publishes <c>HitEvent</c> directly;
+        ///   queues bullet <c>TearDown</c> via ECB.
+        ///   <see cref="FlushEcbAndSwap"/> makes <c>HitEvent</c> readable and applies
+        ///   the <c>TearDown</c> lifecycle before Stage C.</para>
+        ///
+        /// <para><b>Stage C</b> — simulation (Damage → AI → dispatchers → kinematics → Ballistics).
+        ///   <c>DamageSystem</c> reads <c>HitEvent</c> while bullet is still <c>TearDown</c>
+        ///   (alive) and applies damage, stripping <c>CanMove</c> on non-lethal hits.
+        ///   <c>CognitiveInterruptSystem</c> immediately detects the <c>CanMove→cleared</c>
+        ///   edge in the same tick; <c>HsmTickSystem</c> fires the <c>MobilityLost</c> event
+        ///   and <c>InteractionDispatcherSystem</c> ejects passengers in the same tick.
+        ///   <c>BallisticsSystem</c> destroys <c>TearDown</c> bullets last, after
+        ///   <c>DamageSystem</c> has already consumed the hit.</para>
+        ///
         /// Uses <c>ExecutionPolicy.Synchronous()</c> so the kernel passes the live
         /// <see cref="EntityRepository"/> directly (no serialisation overhead).
         /// </summary>
         private sealed class UrbanCombatModule : IEcsModule
         {
-            private readonly IEcsModuleSystem[] _modSystems;
-            private readonly IEcsModuleSystem[]  _legacySystems;
+            private readonly EntityRepository    _world;
+            private readonly IEcsModuleSystem[]  _stageA;
+            private readonly IEcsModuleSystem[]  _stageB;
+            private readonly IEcsModuleSystem[]  _stageC;
 
             public string Name { get; }
             public ExecutionPolicy Policy         => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;
 
-            public UrbanCombatModule(string name, IEcsModuleSystem[] modSystems, IEcsModuleSystem[] legacySystems)
+            public UrbanCombatModule(string name, EntityRepository world,
+                IEcsModuleSystem[] stageA, IEcsModuleSystem[] stageB, IEcsModuleSystem[] stageC)
             {
-                Name          = name;
-                _modSystems   = modSystems;
-                _legacySystems = legacySystems;
+                Name    = name;
+                _world  = world;
+                _stageA = stageA;
+                _stageB = stageB;
+                _stageC = stageC;
             }
 
             public void RegisterSystems(ISystemRegistry registry) { }
 
             public void Tick(ISimulationView view, float deltaTime)
             {
-                foreach (var sys in _modSystems)
+                // Stage A: BehaviorIngress → FireProcessing → RaycastSolver
+                // RaycastSolver emits RaycastResultEvent via ECB.
+                foreach (var sys in _stageA)
                     sys.Execute(view, deltaTime);
-                foreach (var sys in _legacySystems)
+
+                // Flush: RaycastResultEvent now in read buffer for Stage B.
+                FlushEcbAndSwap(_world);
+
+                // Stage B: HitResolution
+                // Reads RaycastResultEvent → publishes HitEvent directly → ECB: bullet TearDown.
+                foreach (var sys in _stageB)
                     sys.Execute(view, deltaTime);
+
+                // Flush: HitEvent now in read buffer; bullet lifecycle = TearDown (IsAlive=true).
+                FlushEcbAndSwap(_world);
+
+                // Stage C: Damage → AI → dispatchers → kinematics → Ballistics
+                // DamageSystem sees HitEvent + bullet alive (TearDown). Ballistics destroys
+                // TearDown bullets at the end, after DamageSystem already processed them.
+                foreach (var sys in _stageC)
+                    sys.Execute(view, deltaTime);
+            }
+
+            private static void FlushEcbAndSwap(EntityRepository world)
+            {
+                var ecb = (EntityCommandBuffer)((ISimulationView)world).GetCommandBuffer();
+                ecb.Playback(world);
+                world.Bus.SwapBuffers();
             }
 
             public IReadOnlyList<Type>? GetRequiredComponents() => null;
