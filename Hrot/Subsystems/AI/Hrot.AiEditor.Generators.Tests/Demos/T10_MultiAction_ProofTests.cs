@@ -136,6 +136,13 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
     private static (Assembly Assembly, AssemblyLoadContext Alc) CompileMultiAndLoad(
         string[] sources, string assemblyName)
     {
+        // Force System.Text.Json into the AppDomain BEFORE ForRuntimeAssemblies enumerates the
+        // loaded set. The emitted ParseParams bridge references System.Text.Json; when this test
+        // runs in isolation (nothing else has touched STJ yet) the assembly is otherwise absent
+        // from CurrentDomain.GetAssemblies(), so the reference resolver omits it and compilation
+        // fails with CS0234. Forcing the type load makes the compile order-independent.
+        GC.KeepAlive(typeof(System.Text.Json.JsonSerializer));
+
         var resolver = RoslynMRR.ForRuntimeAssemblies(AppDomain.CurrentDomain.GetAssemblies());
         var refs     = resolver.Resolve();
 

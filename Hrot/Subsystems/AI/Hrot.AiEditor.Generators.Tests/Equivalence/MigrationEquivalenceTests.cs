@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using Fbt;
 using Fbt.Kernel;
+using Fdp.Toolkit.Serialization;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
 using Hrot.AiEditor.Generators;
@@ -470,9 +471,12 @@ public sealed class MigrationEquivalenceTests
         var dto2 = BTreeJsonServices.Deserialize(json);
         dto2.Should().NotBeNull("deserialization of live SampleScout.btree.json must succeed");
 
-        // 3. Re-serialize and compare → byte-stable
-        string json2 = BTreeJsonServices.Serialize(dto2!);
-        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize");
+        // 3. Re-serialize through the CANONICAL editor save pipeline and compare → byte-stable.
+        // The editor writes assets as JsonAestheticFormatter.FlattenNumericArrays(Serialize(dto))
+        // (see BTreeNewAssetService / EditorSubsystem save paths), so the byte-stability round-trip
+        // must reproduce that same pipeline — Serialize alone is compact and never hits disk.
+        string json2 = JsonAestheticFormatter.FlattenNumericArrays(BTreeJsonServices.Serialize(dto2!));
+        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize→format");
 
         // 4. Layout: assert every non-root node has non-zero X or Y
         var nodesWithLayout = dto2!.Nodes
@@ -514,9 +518,11 @@ public sealed class MigrationEquivalenceTests
         var dto2 = HsmJsonServices.Deserialize(json);
         dto2.Should().NotBeNull("deserialization of live SampleGuard.hsm.json must succeed");
 
-        // 3. Re-serialize and compare → byte-stable
-        string json2 = HsmJsonServices.Serialize(dto2!);
-        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize");
+        // 3. Re-serialize through the CANONICAL editor save pipeline and compare → byte-stable.
+        // The editor writes assets as JsonAestheticFormatter.FlattenNumericArrays(Serialize(dto)),
+        // so the byte-stability round-trip must reproduce that same pipeline.
+        string json2 = JsonAestheticFormatter.FlattenNumericArrays(HsmJsonServices.Serialize(dto2!));
+        json2.Should().Be(json, "live JSON must be byte-stable after Deserialize→Serialize→format");
 
         // 4. Layout: assert at least one state has non-zero X or Y
         var statesWithLayout = dto2!.States
