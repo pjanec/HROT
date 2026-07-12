@@ -241,7 +241,7 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
 
             _diffService = new ComponentDiffService();
             _exportService = new RecordingExportService(_scenarioSerializer, _diffService);
-            _fileDialogService = new WinFormsFileDialogService();
+            _fileDialogService = FileDialogServiceFactory.Create();
             _timelinePanel = new ReplayTimelinePanel(
                 null,
                 () => _manager?.LocalEntitiesProviderNodeId ?? 0,
@@ -571,6 +571,12 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar
             _diffPanel!,
             _eventPanel!,
             _searchPanel!);
+
+        // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
+        // Harmless no-op for the Win32 backend: WindowManager only draws the service
+        // when it is an ImGuiFileDialogService.
+        if (_fileDialogService != null)
+            windowManager.SetFileDialogService(_fileDialogService);
     }
 
     /// <summary>

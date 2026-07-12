@@ -299,7 +299,7 @@ namespace Hrot.ExCon
             _clusterPanel = new ClusterScenarioPanel(_bus, _uiCache);
 
             // Wire the cluster diagnostics panel (reads UICache on observerBus; publishes via bus).
-            _exConFileDialogService  = new Fdp.Presentation.Panels.WinFormsFileDialogService();
+            _exConFileDialogService  = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
             _clusterDiagnosticsPanel = new Hrot.Orchestrator.Panels.ClusterDiagnosticsPanel(
                 _uiCache,
                 _bus,
@@ -433,6 +433,12 @@ namespace Hrot.ExCon
                 windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
                 _mock.SetPanelsWindowManaged();
             }
+
+            // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
+            // Harmless no-op for the Win32 backend: WindowManager only draws the service
+            // when it is an ImGuiFileDialogService.
+            if (_exConFileDialogService != null)
+                windowManager.SetFileDialogService(_exConFileDialogService);
         }
 
         /// <inheritdoc/>

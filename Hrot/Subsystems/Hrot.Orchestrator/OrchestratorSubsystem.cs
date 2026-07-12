@@ -249,7 +249,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _mergeWorker = new DiagnosticLogMergeWorker(_bus!);
 
         // Wire the diagnostics panel (reads from _uiCache, publishes via _bus).
-        _fileDialogService = new Fdp.Presentation.Panels.WinFormsFileDialogService();
+        _fileDialogService = Fdp.Presentation.Panels.FileDialogServiceFactory.Create();
         _diagnosticsPanel = new ClusterDiagnosticsPanel(
             _uiCache!,
             _bus!,
@@ -333,6 +333,12 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Register diagnostics window.
         if (_diagnosticsPanel != null)
             windowManager.RegisterWindow(new DiagnosticsWindow(_diagnosticsPanel));
+
+        // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
+        // Harmless no-op for the Win32 backend: WindowManager only draws the service
+        // when it is an ImGuiFileDialogService.
+        if (_fileDialogService != null)
+            windowManager.SetFileDialogService(_fileDialogService);
     }
 
     public void Shutdown()

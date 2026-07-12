@@ -24,7 +24,8 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 |---|---|---|---|---|---|---|---|---|
 | WI-1 | Cross-platform NativeMemoryAllocator (Win/POSIX backends) | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | 14/14 pass | Backend split done + reviewed. Facade unchanged; Windows backend = verbatim relocation; POSIX backend = mmap/mprotect/madvise/munmap with 64KB-aligned trim. Decommit/Free throw only under FDP_PARANOID_MODE (original Release semantics preserved). Debug+Release build 0 warnings. Event-stream NativeMemory simplification deferred. |
 | WI-2 | Bump CycloneDDS.NET -> 0.3.2 | Linux | code-done | - | - | n/a | - | References bumped in commit `3113b4b`. Remaining: restore resolves 0.3.2, 0.2.x->0.3.2 API-compat, Linux DDS loopback smoke test. |
-| WI-3 | File-dialog factory + wire ImGui fallback + multi-select | split | todo | - | - | - | - | 4 hardcoded call sites; factory picks Win32 on Windows else ImGui. |
+| WI-3 | File-dialog factory + wire ImGui fallback + multi-select | split | code-done | - | pass | NEEDS-WIN-VALIDATION | pass (ReplayBrowser) | Done + reviewed. `FileDialogServiceFactory.Create()` (Win32 on Windows, ImGui else) at 4 call sites; `SetFileDialogService` wired in each subsystem's RegisterWindows (harmless no-op on Windows). ImGui multi-select implemented (checkboxes + full-path HashSet + separate TCS). 5 projects build 0 warnings; ReplayBrowser.Tests 27/27. ImGui modal itself needs manual runtime check on a Linux desktop (can't test headless). Fdp.Presentation.Tests crash is pre-existing = WI-11. |
+| WI-11 | Fdp.Presentation.Tests crash on headless Linux (ImGui no-context) | Linux | todo | - | n/a | - | ABORT | NEW finding (pre-existing, not caused by any WI - reproduced on baseline via stash). Some tests call ImGui rendering without CreateContext/SetCurrentContext, so the native lib asserts and crashes the test host on Linux, aborting the run. Needs an ImGui-context test fixture or headless guard/skip. Blocks running Fdp.Presentation.Tests to completion on Linux. |
 | WI-4 | Centralize `C:\FDP_Temp` staging root (FDP_STAGING_ROOT / temp) | Linux | code-done | - | pass* | NEEDS-WIN-VALIDATION | pass* | Done + reviewed. `OrchestrationConstants.ResolveStagingRoot()` (FDP_STAGING_ROOT env or temp); ~24 sites updated (removing the const forced all refs). Default-param sites -> `= null` + `?? ResolveStagingRoot()`. Fdp.Toolkits/Orchestrator/SimHost/ExCon build clean. *CGF/IG/Editor edits verified via temp-patch only - their Linux build is blocked by WI-10 (netstandard2.0), not by WI-4. |
 | WI-10 | Hrot.Blueprints.Compiler netstandard2.0 API gap | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | - | FIXED. Was a single occurrence: `Stage5_Schedule.cs:1641` `string.Contains(string, StringComparison)` (not in netstandard2.0). Replaced with `IndexOf(..., StringComparison) >= 0` (identical semantics). Compiler builds both TFMs; CGF/IG/Editor now build clean on Linux, which also confirms WI-4's edits in those projects. |
 | WI-5 | Case-insensitive asset discovery (EnumerationOptions) + path-equality fixes | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | pass | Done + reviewed. 12 enumeration sites -> MatchCasing.CaseInsensitive (recursion preserved per-site); 2 netstandard2.0 loaders use "*"+case-insensitive EndsWith fallback; 2 path-equality sites -> platform-aware PlatformPathComparison (OrdinalIgnoreCase on Windows, Ordinal else). New regression test (Widget.HSM.JSON found via *.hsm.json) fails pre-fix, passes post-fix. Hsm.Editor.Tests 504/504, BTree.Editor.Tests 575/575. Deliberate exclusions (non-asset globs) documented. |
@@ -35,6 +36,12 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 
 ## Coordination log (newest first)
 
+- 2026-07-12 - WI-3 implemented (Sonnet) + reviewed (Opus). File-dialog factory,
+  4 call sites, SetFileDialogService wiring per subsystem, ImGui multi-select.
+  5 projects build clean; ReplayBrowser.Tests green. Review found the
+  Fdp.Presentation.Tests suite crashes on Linux (native ImGui "no current
+  context" assertion) - confirmed PRE-EXISTING by stashing WI-3 and reproducing
+  on baseline; filed as WI-11. WI-8 (Linux launch scripts) also landed.
 - 2026-07-12 - WI-5 implemented (Sonnet) + reviewed (Opus). Case-insensitive
   asset/scenario/blueprint discovery (12 sites, recursion preserved per-site;
   netstandard2.0 loaders use a "*"+EndsWith fallback) plus platform-aware path

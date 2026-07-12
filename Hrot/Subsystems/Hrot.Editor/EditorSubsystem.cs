@@ -1342,7 +1342,7 @@ namespace Hrot.Editor
                 OrchestrationConstants.ResolveStagingRoot());
             _uiCache = new ClusterUiCache(_orchestrationBus!, _timeController);
             _clusterPanel = new ClusterScenarioPanel(_orchestrationBus!, _uiCache);
-            _fileDialogService = new WinFormsFileDialogService();
+            _fileDialogService = FileDialogServiceFactory.Create();
             _clusterDiagnosticsPanel = new ClusterDiagnosticsPanel(
                 _uiCache,
                 _orchestrationBus!,
@@ -1888,6 +1888,12 @@ namespace Hrot.Editor
         public void RegisterWindows(Fdp.Presentation.WindowManager.WindowManager windowManager)
         {
             _wm = windowManager;
+
+            // Wire the ImGui file dialog fallback so it renders on non-Windows hosts.
+            // Harmless no-op for the Win32 backend: WindowManager only draws the service
+            // when it is an ImGuiFileDialogService.
+            if (_fileDialogService != null)
+                windowManager.SetFileDialogService(_fileDialogService);
 
             // ── AIE-015: Shared AI editor — document manager + perspective switcher ───────────
             // Wire the perspective switcher to the window manager so manual toolbar
