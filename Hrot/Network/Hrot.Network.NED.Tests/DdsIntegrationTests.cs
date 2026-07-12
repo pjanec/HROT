@@ -36,12 +36,19 @@ namespace Hrot.DDS.DataModel.Tests
             // Wait for data propagation
             await Task.Delay(1000); 
             
-            var samples = reader.Take();
-            
-            // Assert
-            Assert.True(samples.Length > 0, "Should have received at least one sample");
-            Assert.Equal(12345, samples[0].EntityId);
-            Assert.Equal(100, samples[0].TkbType);
+            CheckReceivedSample();
+
+            // Local function: DdsLoan<T> is a ref struct and cannot be used
+            // directly inside this async method's state machine.
+            void CheckReceivedSample()
+            {
+                var samples = reader.Take();
+
+                // Assert
+                Assert.True(samples.Length > 0, "Should have received at least one sample");
+                Assert.Equal(12345, samples[0].EntityId);
+                Assert.Equal(100, samples[0].TkbType);
+            }
         }
     }
 }

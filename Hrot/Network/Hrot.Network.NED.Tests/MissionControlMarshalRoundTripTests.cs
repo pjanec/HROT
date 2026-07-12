@@ -184,8 +184,13 @@ namespace Hrot.DDS.DataModel.Tests
             writer.Write(request);
             await System.Threading.Tasks.Task.Delay(500);
 
-            using (var loan = reader.Take(1))
+            AssertReplaceMissionReceived();
+
+            // Local function: DdsLoan<T>/DdsSample<T> are ref structs and cannot be
+            // used directly inside this async method's state machine.
+            void AssertReplaceMissionReceived()
             {
+                using var loan = reader.Take(1);
                 MissionControlRequest result = default;
                 foreach (var sample in loan)
                 {
@@ -237,17 +242,24 @@ namespace Hrot.DDS.DataModel.Tests
             writer2.Write(request);
             await System.Threading.Tasks.Task.Delay(500);
 
-            using var loan2 = reader2.Take(1);
-            MissionControlRequest result2 = default;
-            foreach (var sample in loan2)
-            {
-                if (sample.IsValid) { result2 = sample.Data; break; }
-            }
+            AssertReplaceMissionReceived();
 
-            Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, result2.Payload._d);
-            Assert.NotNull(result2.Payload.FullMissionData.Tasks);
-            Assert.Single(result2.Payload.FullMissionData.Tasks);
-            Assert.Equal("WanderMilitary", result2.Payload.FullMissionData.Tasks[0].BehaviorId);
+            // Local function: DdsLoan<T>/DdsSample<T> are ref structs and cannot be
+            // used directly inside this async method's state machine.
+            void AssertReplaceMissionReceived()
+            {
+                using var loan2 = reader2.Take(1);
+                MissionControlRequest result2 = default;
+                foreach (var sample in loan2)
+                {
+                    if (sample.IsValid) { result2 = sample.Data; break; }
+                }
+
+                Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, result2.Payload._d);
+                Assert.NotNull(result2.Payload.FullMissionData.Tasks);
+                Assert.Single(result2.Payload.FullMissionData.Tasks);
+                Assert.Equal("WanderMilitary", result2.Payload.FullMissionData.Tasks[0].BehaviorId);
+            }
         }
 
         [Fact]
