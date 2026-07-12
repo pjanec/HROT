@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>12.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- System.Runtime.CompilerServices.Unsafe is built-in on net8.0; needed explicitly for netstandard2.1 -->

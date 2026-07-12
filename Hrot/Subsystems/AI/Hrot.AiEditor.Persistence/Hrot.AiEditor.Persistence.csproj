@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>12.0</LangVersion>
     <!-- No editor (net8) / ImGui dependencies — consumed by the Phase-2 Roslyn generator. -->
     <!-- Design §3 D3: dedicated netstandard2.0 persisted DTO + JSON services. -->
     <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>

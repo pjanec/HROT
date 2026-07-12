@@ -34,8 +34,21 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 | WI-7 | Relax CarKinem win-x64 RID | either | validated | pass | pass | n/a | n/a | WIN-VALIDATED (2026-07-12): master sln Debug+Release build 0 errors on Windows with the RID pin removed (CarKinem builds without `win-x64`/`PlatformTarget=x64`). Done + reviewed. Removed `<RuntimeIdentifier>win-x64</RuntimeIdentifier>` + `<PlatformTarget>x64</PlatformTarget>`. Builds default and `-r linux-x64`. |
 | WI-8 | Linux launch scripts (.sh mirrors of run_*.bat) | Linux | code-done | n/a | n/a | n/a | bash -n pass | Done + reviewed. 6 scripts: run_SimHost/IG/IOS/Editor/all_together/all_standalone.sh. `start`->`nohup &`/backgrounded subshells; SIGINT trap+cleanup for multi-role launchers; SCRIPT_DIR-relative paths; -d/-m flags preserved; .bat untouched. No robocopy in these launchers. Not runtime-tested (needs built binary/desktop); bash -n clean. Dirigent not ported (out of scope). |
 | WI-9 | Exclude Stride from Linux build | Windows | validated | pass | n/a | pass | n/a | WIN-RECONFIRMED (2026-07-12): `Stride/HrotStrideApp.sln` still builds Debug 0 errors on Windows alongside the master sln, so the Windows Stride path is intact. DECIDED. Master `IOS-IG-SimHost.sln` = 119 projects, 0 windows-locked, real Stride apps absent. Linux builds master sln, never `Stride/HrotStrideApp.sln`. No project edits. |
+| WI-13 | Pin LangVersion to 12.0 (kill SDK-version language divergence) | either | code-done | pass | pass* | n/a | n/a | Changed 28 `<LangVersion>latest</LangVersion>` -> `12.0` so net8 projects compile as C#12 on ANY SDK (was C#12 on SDK8 / C#13 on SDK10 - the root cause of WI-12 only surfacing on the Linux lane). Provably safe: the Linux C#12 build already compiles all 28. Verified a sample (incl. the 3 WI-12 projects) builds under the default SDK 10 with C#12 forced. *Linux build unaffected (there `latest` already resolved to 12 on SDK8). Residual: SDK-version analyzer/warning behavior can still differ (LangVersion pin does not cover that; full SDK pin was declined by choice). |
 
 ## Coordination log (newest first)
+
+- 2026-07-12 - WI-13 (Opus): pinned the 28 `LangVersion=latest` projects to 12.0
+  after the Windows box flagged the SDK-8/SDK-10 divergence (C#12 vs C#13). This
+  permanently prevents the WI-12 class of "builds on one lane, not the other".
+  User chose LangVersion pinning over a global.json SDK pin. WI-3 interactive
+  comdlg32 dialog click-through remains the one un-automatable validation item
+  (needs a human on an interactive Windows desktop).
+- 2026-07-12 - Windows validation PASS (Windows box). Differential vs origin/main
+  on SDK 10.0.109: master sln Debug+Release + Stride sln all build 0 errors; no
+  test regressions (name-level diffs cleared the Fdp.Presentation +
+  SimHost.Integration count mismatches as pre-existing). All NEEDS-WIN-VALIDATION
+  items flipped to validated.
 
 - 2026-07-12 - **WINDOWS VALIDATION PASS (Opus orchestrator + Sonnet workers).**
   Differential baseline-vs-branch on the Windows box. SDK: **10.0.109** (note:

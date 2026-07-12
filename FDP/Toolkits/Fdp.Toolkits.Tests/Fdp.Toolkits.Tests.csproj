@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
+    <LangVersion>12.0</LangVersion>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <NoWarn>$(NoWarn);CS8618;CS8602;CS8601;CS8603;CS8604;CS8625;CS8600;CS8605;CS0618;CS0649;CS9191;SYSLIB0050;CS8620;CS0219;xUnit2017;xUnit2000;xUnit2013;xUnit1031</NoWarn>
