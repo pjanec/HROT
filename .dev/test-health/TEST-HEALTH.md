@@ -207,3 +207,25 @@
 ### TH-2b Note: SC_HA016_2
 
 `SC_HA016_2_ParsePlatoonHillAttackParams_ComputesAttackDir_Perpendicular` was noted as lead-fixed per the task prompt. It remains in the Broken table pending spec clarification — no code change was made to it in TH-2b.
+
+---
+
+## TH-4 Integration (2026-07-12) — architect decisions applied + verified
+
+Applied the unambiguous `DECISIONS.md` rulings via four scoped batches; three
+were hard-reviewed, independently re-run, and committed. FIX-C1 (Scenarios) is
+held for review (scope creep — see below). Verified per-project results:
+
+| Project | Result | Notes |
+|---------|--------|-------|
+| Hrot.SimHost.Tests | **643 passed / 2 known** | D-1 nav fix (`PostInitialize` hook) cleared the nav cluster. Remaining: `BranchedRecording_CapturesHistoricalStateAsKeyframe` (Broken), `EqsTargetPool_InitialState_IsZero` (order-flaky, passes isolated). |
+| Fdp.Toolkits.Tests | **1884 passed / 8** | D-3/D-4/D-5 applied. Remaining 8: 5 pitch-sign (D-2, deferred), 2 DataDrivenGizmo gen-0 (D-6 — real prod bug, left Broken), 1 static-registry order-flaky (`SC_GZ004_2`, passes isolated). |
+| Hrot.StrideMock.Tests | **41 passed / 0** | D-7 NodeRole.None skip. Reflection test updated for the new `PostInitialize` virtual hook (from D-1). |
+| ClusterRunner.Integration | D-9/D-10 applied | Depended on D-1; now integrated. Full integration re-run pending. |
+
+Commits: `39b715bb` (D-1), `98165dd0` (D-3/D-4/D-5), `213a1205` (D-7/D-9/D-10).
+
+### Held for review (not committed)
+- **FIX-C1 / Scenarios (D-11/D-12):** the decided fix was "register RaycastRequest/Result events" + "add the two missing SensorGrid systems." The batch also **restructured** `BallisticsAndHitScenario` and `UrbanCombatNewScenario` from one-tick-delayed flat pipelines into staged `FlushEcbAndSwap` pipelines (changed execution semantics) and retuned `SensorGrid` `StalenessThreshold` 20→15. That rewrite exceeds the ruling and needs review before commit. Kept in worktree `agent-a50583f2b690b7026`.
+- **D-2** (pitch-sign wire-protocol negation), **D-8** (Presentation `ctx.Resources` 84-line extraction), **D-13** (DistributedTank + ComponentDamage real regressions — need a tracing batch).
+- **D-6 verdict corrected:** DataDrivenGizmo gen-0 routing is a **real production bug** (`FindGizmo`'s `entity.IsNull` guard rejects gen-0 entities before the index-only lookup), not a stale test. Proposed fix: reject only `Index < 0` / `Entity.Null`. Left Broken pending your call.
