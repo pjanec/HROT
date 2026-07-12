@@ -22,7 +22,7 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 
 | WI | Title | Owner OS | State | Build Win | Build Linux | Test Win | Test Linux | Notes |
 |---|---|---|---|---|---|---|---|---|
-| WI-1 | Cross-platform NativeMemoryAllocator (Win/POSIX backends; move event streams to NativeMemory) | Linux | todo | - | pass (compiles) | - | 13/14 FAIL | Primary technical risk. Keep public API identical. Linux failure reproduced 2026-07-12: DllNotFoundException kernel32.dll at Reserve():48. |
+| WI-1 | Cross-platform NativeMemoryAllocator (Win/POSIX backends) | Linux | code-done | - | pass | NEEDS-WIN-VALIDATION | 14/14 pass | Backend split done + reviewed. Facade unchanged; Windows backend = verbatim relocation; POSIX backend = mmap/mprotect/madvise/munmap with 64KB-aligned trim. Decommit/Free throw only under FDP_PARANOID_MODE (original Release semantics preserved). Debug+Release build 0 warnings. Event-stream NativeMemory simplification deferred. |
 | WI-2 | Bump CycloneDDS.NET -> 0.3.2 | Linux | code-done | - | - | n/a | - | References bumped in commit `3113b4b`. Remaining: restore resolves 0.3.2, 0.2.x->0.3.2 API-compat, Linux DDS loopback smoke test. |
 | WI-3 | File-dialog factory + wire ImGui fallback + multi-select | split | todo | - | - | - | - | 4 hardcoded call sites; factory picks Win32 on Windows else ImGui. |
 | WI-4 | Centralize `C:\FDP_Temp` staging root (FDP_STAGING_ROOT / temp) | Linux | todo | - | - | - | - | ~9 sites -> one constant. |
@@ -34,6 +34,16 @@ every push. See `LINUX_WINDOWS_PORT_SPEC.md` for the work-item definitions and
 
 ## Coordination log (newest first)
 
+- 2026-07-12 - WI-1 implemented (Sonnet) + reviewed (Opus). `NativeMemoryAllocator`
+  now delegates to a runtime-selected backend; all 14 allocator tests pass on
+  Linux; Debug+Release build with 0 warnings. Full `Fdp.Core.Tests` = 1144 pass /
+  6 fail / 9 skip; the 6 failures are pre-existing and unrelated to WI-1:
+  3x Serialization.Migrations InMemoryMigrationStorage hash/corruption tests,
+  1x AsyncRecorderTests background-worker timing, 1x EntityLifecycle (flaky under
+  full-suite ordering - passes in isolation), 1x EntityIndexSync
+  Performance_100K_Entities (hardcoded <10ms threshold, VM measured ~15ms).
+  NEEDS-WIN-VALIDATION: Windows box must build + run allocator tests to confirm
+  the verbatim Windows backend is unchanged.
 - 2026-07-12 - Linux toolchain established (SDK 8.0.128 via apt). Added
   `nugets/.gitkeep` so the empty LocalFeed exists on fresh checkouts (restore
   hard-fails NU1301 otherwise). `Fdp.Core` builds clean on Linux; allocator
