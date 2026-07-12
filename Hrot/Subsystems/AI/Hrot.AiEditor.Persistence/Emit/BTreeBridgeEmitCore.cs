@@ -249,6 +249,30 @@ public static class BTreeBridgeEmitCore
         }
     }
 
+    /// <summary>
+    /// S3-4: resolves the scope-aware stateful slot key for a binding. Looks up the bound
+    /// variable (by Name == <paramref name="targetField"/>) in the asset blackboard; a
+    /// State-role variable contributes its declared <see cref="WorkingStateScope"/>. Any other
+    /// case (Input role, variable absent, null target) falls back to <see cref="WorkingStateScope.Node"/>,
+    /// which yields the byte-identical legacy per-node key (Slice-2 untouched).
+    /// </summary>
+    private static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
+    {
+        var scope = WorkingStateScope.Node;
+        if (!string.IsNullOrEmpty(targetField) && dto.Blackboard?.Variables != null)
+        {
+            foreach (var v in dto.Blackboard.Variables)
+            {
+                if (string.Equals(v.Name, targetField, StringComparison.Ordinal) && v.Role == BlackboardVariableRole.State)
+                {
+                    scope = v.Scope;
+                    break;
+                }
+            }
+        }
+        return ComputeStatefulSlotKey(dto.AssetId, scope, nodeVisualId, targetField ?? string.Empty);
+    }
+
     // ── Register method ─────────────────────────────────────────────────────────
 
     private static void EmitBTreeRegisterMethod(
@@ -635,7 +659,8 @@ public static class BTreeBridgeEmitCore
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
             if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
 
-            int slotKey = ComputeStatefulSlotKey(dto.AssetId, actNode.VisualId);
+            // S3-4: scope-aware key so co-bound Behavior-scoped nodes dedup onto one shared slot.
+            int slotKey = ResolveStatefulSlotKey(dto, p.ExpressionTargetField, actNode.VisualId);
             if (slotsBySeen.ContainsKey(slotKey)) continue;
 
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
