@@ -486,8 +486,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var menus = bus.Read<GizmoMenuActionEvent>();
             foreach (ref readonly var evt in menus)
             {
-                var entity = new Entity((int)evt.AnchorId, 0);
-                FindGizmo(entity, evt.GizmoTypeId)?.OnMenuAction(evt.ActionId);
+                // Index-only event: carries just an entity index (AnchorId), no generation.
+                FindGizmoByIndex((int)evt.AnchorId, evt.GizmoTypeId)?.OnMenuAction(evt.ActionId);
 
                 // Route to injected tools (VertexEditGizmo, RouteWaypointGizmo, ...).
                 foreach (var kvp in _injectedGizmos)
@@ -498,8 +498,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var structUpdates = bus.ReadManaged<GizmoStructUpdateEvent>();
             foreach (var evt in structUpdates)
             {
-                var entity = new Entity((int)evt.AnchorId, 0);
-                FindGizmo(entity, evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
+                // Index-only event: carries just an entity index (AnchorId), no generation.
+                FindGizmoByIndex((int)evt.AnchorId, evt.GizmoTypeId)?.OnStructUpdate(evt.PayloadJson);
             }
 
             // MouseEvent: only the focused exclusive-focus gizmo receives raw mouse events.
@@ -537,8 +537,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private IEntityStatefulGizmo? FindGizmo(Entity entity, uint gizmoTypeId)
         {
-            // STRICT ARCHITECTURAL BOUNDARY:
-            // Prevent empty-canvas events (Entity.Null, Index=0/Gen=0) from hijacking Entity 0's gizmos.
+            // STRICT ARCHITECTURAL BOUNDARY (interaction events only):
+            // Empty-canvas interaction clicks arrive as Entity.Null (Index=0/Gen=0). Reject them
+            // so they cannot hijack a real gizmo. Interaction events always carry a fully-qualified
+            // Token.Target (non-zero generation), so this guard never rejects a legitimate target.
+            // NOTE: index-only editor events (MenuAction/StructUpdate) use FindGizmoByIndex instead,
+            // which intentionally allows index 0 (a real entity can live there).
             if (entity.IsNull)
                 return null;
 
@@ -546,30 +550,41 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             if (_injectedGizmos.TryGetValue(entity, out var injected))
                 return injected;
 
-            // Events that carry only an entity index (generation == 0, e.g. StructUpdate,
-            // MenuAction) need an index-only lookup because the live entry has a non-zero
-            // generation that would fail an exact Entity equality check.
-            List<CompiledGizmoInstance>? list;
-            if (entity.Generation == 0)
-            {
-                list = null;
-                foreach (var kvp in _activeGizmos)
-                {
-                    if (kvp.Key.Index == entity.Index)
-                    {
-                        list = kvp.Value;
-                        break;
-                    }
-                }
-                if (list == null || list.Count == 0)
-                    return null;
-            }
-            else
-            {
-                if (!_activeGizmos.TryGetValue(entity, out list) || list.Count == 0)
-                    return null;
-            }
+            if (!_activeGizmos.TryGetValue(entity, out var list) || list.Count == 0)
+                return null;
 
+            return SelectByTypeId(list, gizmoTypeId);
+        }
+
+        /// <summary>
+        /// Index-only lookup for editor events (MenuAction, StructUpdate) that carry just an entity
+        /// index (AnchorId) with no generation. The live gizmo entry has a non-zero generation that
+        /// an exact Entity equality check would miss, so we match on Index alone.
+        /// <para>Unlike <see cref="FindGizmo"/>, this does NOT reject index 0: a real entity can live
+        /// at index 0, and these events are not empty-canvas interaction clicks.</para>
+        /// </summary>
+        private IEntityStatefulGizmo? FindGizmoByIndex(int index, uint gizmoTypeId)
+        {
+            if (index < 0)
+                return null;
+
+            List<CompiledGizmoInstance>? list = null;
+            foreach (var kvp in _activeGizmos)
+            {
+                if (kvp.Key.Index == index)
+                {
+                    list = kvp.Value;
+                    break;
+                }
+            }
+            if (list == null || list.Count == 0)
+                return null;
+
+            return SelectByTypeId(list, gizmoTypeId);
+        }
+
+        private static IEntityStatefulGizmo? SelectByTypeId(List<CompiledGizmoInstance> list, uint gizmoTypeId)
+        {
             if (gizmoTypeId == 0)
                 return list[0].Instance;
 

@@ -936,10 +936,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-2: GizmoStructUpdateEvent with def2's GizmoTypeId reaches def2 only.
-        // STABILITY(Broken): FindGizmo's entity.IsNull guard (Generation==0) fires before the
-        // gen-0 index-only lookup path, so AnchorId-based events are always dropped. Production
-        // bug: IsNull should only reject Index<0 or Entity.Null, not gen-0 with valid Index.
-        [Trait("Stability", "Broken")]
+        // Fixed (D-6): index-only editor events now use FindGizmoByIndex, which matches on Index
+        // and allows index 0 (previously dropped by FindGizmo's entity.IsNull/gen-0 guard).
         [Fact]
         public void SC_GZ066_2_StructUpdate_RoutesTo_MatchingGizmo()
         {
@@ -960,8 +958,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
 
         // SC-GZ066-5: GizmoMenuActionEvent with def2's GizmoTypeId — only def2 receives it.
-        // STABILITY(Broken): same IsNull/gen-0 production bug as SC_GZ066_2.
-        [Trait("Stability", "Broken")]
+        // Fixed (D-6): index-only routing via FindGizmoByIndex (see SC_GZ066_2).
         [Fact]
         public void SC_GZ066_5_MenuAction_RoutesTo_MatchingGizmo_Only()
         {
