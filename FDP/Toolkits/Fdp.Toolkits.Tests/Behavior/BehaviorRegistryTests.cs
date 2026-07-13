@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// Verifies that registry uses stable assigned <c>int</c> IDs rather than
     /// process-randomised <c>string.GetHashCode()</c>.
     /// </summary>
-    public class BehaviorRegistryTests
+    public unsafe class BehaviorRegistryTests
     {
         // ── Test 1 ────────────────────────────────────────────────────────────
         /// <summary>
@@ -119,6 +119,138 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.NotNull(names);
             Assert.Empty(names);
+        }
+
+        // ── Test 6 — double-registration anti-shadow rule ───────────────────
+        /// <summary>
+        /// Reproduces the HillAttack double-registration bug (AiBehaviorFactory id 3014
+        /// with ParseParams vs. a generated PlatoonHillAttackRegistrar id without ParseParams,
+        /// both registering the name "PlatoonHillAttack"). A ParseParams-bearing definition
+        /// registered first must not be shadowed by a later registration of the same name
+        /// under a different id that lacks ParseParams.
+        /// </summary>
+        [Fact]
+        public void Register_DuplicateName_ParseParamsBearingDefinitionWins_RegardlessOfOrder()
+        {
+            var registry = new BehaviorRegistry();
+
+            var withParseParams = new BehaviorDefinition
+            {
+                Name        = "X",
+                BrainTier   = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem) => { },
+            };
+            var withoutParseParams = new BehaviorDefinition
+            {
+                Name      = "X",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            };
+
+            registry.Register(100, "X", withParseParams);
+            registry.Register(200, "X", withoutParseParams);
+
+            bool found = registry.TryGetId("X", out var id);
+            Assert.True(found);
+            Assert.Equal(100, id);
+
+            bool defFound = registry.TryGetDefinition(id, out var def);
+            Assert.True(defFound);
+            Assert.NotNull(def!.ParseParams);
+        }
+
+        // ── Test 7 — double-registration anti-shadow rule, reverse order ────
+        /// <summary>
+        /// Same scenario as above but with the ParseParams-less definition registered
+        /// FIRST and the ParseParams-bearing one SECOND. The rule must be order-independent:
+        /// the ParseParams-bearing definition still wins the name mapping.
+        /// </summary>
+        [Fact]
+        public void Register_DuplicateName_ParseParamsBearingDefinitionWins_ReverseOrder()
+        {
+            var registry = new BehaviorRegistry();
+
+            var withoutParseParams = new BehaviorDefinition
+            {
+                Name      = "X",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            };
+            var withParseParams = new BehaviorDefinition
+            {
+                Name        = "X",
+                BrainTier   = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem) => { },
+            };
+
+            registry.Register(200, "X", withoutParseParams);
+            registry.Register(100, "X", withParseParams);
+
+            bool found = registry.TryGetId("X", out var id);
+            Assert.True(found);
+            Assert.Equal(100, id);
+        }
+
+        // ── Test 8 — distinct names register independently ──────────────────
+        /// <summary>
+        /// Registering two distinct behavior names must not interfere with each other's
+        /// name -> id mappings, even when the anti-shadow duplicate-name check runs.
+        /// </summary>
+        [Fact]
+        public void Register_DistinctNames_DoNotInterfereWithEachOther()
+        {
+            var registry = new BehaviorRegistry();
+
+            registry.Register(1, "Alpha", new BehaviorDefinition
+            {
+                Name        = "Alpha",
+                BrainTier   = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem) => { },
+            });
+            registry.Register(2, "Bravo", new BehaviorDefinition
+            {
+                Name      = "Bravo",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            Assert.True(registry.TryGetId("Alpha", out var alphaId));
+            Assert.Equal(1, alphaId);
+
+            Assert.True(registry.TryGetId("Bravo", out var bravoId));
+            Assert.Equal(2, bravoId);
+        }
+
+        // ── Test 9 — same-id re-registration is unaffected ───────────────────
+        /// <summary>
+        /// Re-registering the same name under the SAME id (the normal hot-reload case)
+        /// must update the stored definition and behave exactly as before the fix —
+        /// no anti-shadow logic should kick in since <c>existingId == id</c>.
+        /// </summary>
+        [Fact]
+        public void Register_SameIdReRegistration_UpdatesDefinitionWithoutRegression()
+        {
+            var registry = new BehaviorRegistry();
+
+            var original = new BehaviorDefinition
+            {
+                Name      = "Reloadable",
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            };
+            var updated = new BehaviorDefinition
+            {
+                Name        = "Reloadable",
+                BrainTier   = BehaviorConstants.BrainTierBTree,
+                ParseParams = static (string json, byte* mem) => { },
+            };
+
+            registry.Register(7, "Reloadable", original);
+            registry.Register(7, "Reloadable", updated);
+
+            bool found = registry.TryGetId("Reloadable", out var id);
+            Assert.True(found);
+            Assert.Equal(7, id);
+
+            bool defFound = registry.TryGetDefinition(7, out var def);
+            Assert.True(defFound);
+            Assert.Same(updated, def);
         }
     }
 }
