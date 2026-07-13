@@ -46,6 +46,7 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
 {
     private const string CalcSegments   = "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments";
     private const string IsWaveComplete = "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted";
+    private const string RequestAreaQry = "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery";
     private const string ParamsTypeId   = "Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams";
     private const string StateTypeId    = "Hrot.AI.Behaviors.Brains.HillAttackMutableState";
     private const string ParamVarName   = "cfg";
@@ -73,6 +74,12 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
     // ── DTO builder: two stateful commander nodes sharing one Behavior-scoped State variable ──
 
     private static BehaviorTreeAssetDto BuildAsset(Guid assetId, string name, Guid n1, Guid n2)
+        => BuildAssetNodes(assetId, name,
+            (n1, "CalculateSegments", CalcSegments),
+            (n2, "IsWaveCompleted",  IsWaveComplete));
+
+    private static BehaviorTreeAssetDto BuildAssetNodes(
+        Guid assetId, string name, params (Guid VisualId, string Label, string MethodFqn)[] nodes)
     {
         var root = new BTreeRootNodeDto { VisualId = Guid.NewGuid(), DisplayLabel = "Root" };
         var seq  = new BTreeSequenceNodeDto { VisualId = Guid.NewGuid(), DisplayLabel = "Sequence" };
@@ -89,10 +96,11 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         dto.Nodes.Add(root);
         dto.Nodes.Add(seq);
 
-        seq.ChildVisualIds.Add(n1);
-        seq.ChildVisualIds.Add(n2);
-        dto.Nodes.Add(StatefulNode(n1, "CalculateSegments", CalcSegments));
-        dto.Nodes.Add(StatefulNode(n2, "IsWaveCompleted",  IsWaveComplete));
+        foreach (var n in nodes)
+        {
+            seq.ChildVisualIds.Add(n.VisualId);
+            dto.Nodes.Add(StatefulNode(n.VisualId, n.Label, n.MethodFqn));
+        }
 
         dto.Blackboard = new BlackboardBlockDto
         {
@@ -356,5 +364,56 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
             "the GetComponentRW<Blackboard1024>() hack must be gone");
         all.Should().NotContain("Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>",
             "working state is projected from the slot pointer (Unsafe.AsRef), not reinterpreted over a component");
+    }
+
+    // ── TEST 3: HAJSON-B — the deactivator's node is baked resource-owning ─────────
+
+    /// <summary>
+    /// HAJSON-B: a stateful node whose method has a paired <c>[BTreeDeactivator]</c>
+    /// (<c>Action_RequestAreaQuery</c> ↔ <c>Deactivate_RequestAreaQuery</c>) must be baked
+    /// <b>resource-owning</b> in the compiled blob, and its deactivator registered under the node's
+    /// full <c>@offset@slotKey</c> key. Together these are exactly the interpreter's precondition for
+    /// firing the deactivator on branch abort/exit (the firing itself is covered generically by
+    /// FastBTree's <c>InterpreterCleanupTests</c>). Before the fix the JSON blob was compiled without
+    /// an <c>isResourceOwning</c> delegate, so the node stayed non-owning and the deactivator never fired.
+    /// </summary>
+    [Fact]
+    public void HillAttack_DeactivatorNode_IsResourceOwning()
+    {
+        GC.KeepAlive(typeof(HillAttackCommanderNodes));
+        GC.KeepAlive(typeof(HillAttackMutableState));
+        GC.KeepAlive(typeof(PlatoonHillAttackParams));
+
+        var assetId = new Guid("77300003-0000-0000-0000-000000000000");
+        const string assetName = "T30HillAttackDeactivator";
+        var n1 = new Guid("77330003-0000-0000-0000-000000000001");
+        var n2 = new Guid("77330003-0000-0000-0000-000000000002");
+
+        // Node 1 = Action_RequestAreaQuery (its Deactivate_RequestAreaQuery is discovered by the scanner).
+        var dto = BuildAssetNodes(assetId, assetName,
+            (n1, "RequestAreaQuery", RequestAreaQry),
+            (n2, "IsWaveCompleted",  IsWaveComplete));
+        var (def, alc) = BuildDefFromDto(dto);
+
+        int slotKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
+            assetId, WorkingStateScope.Behavior, Guid.Empty, StateVarName);
+        string nodeKey = $"{RequestAreaQry}@0@{slotKey}";
+
+        var blob = def.BTreeInterpreter!.Blob;
+        bool foundResourceOwning = false;
+        for (int i = 0; i < blob.Nodes.Length; i++)
+        {
+            var node = blob.Nodes[i];
+            if (node.Type is not (NodeType.Action or NodeType.Condition)) continue;
+            if (blob.MethodNames[node.PayloadIndex] != nodeKey) continue;
+            foundResourceOwning = node.IsResourceOwning;
+            break;
+        }
+
+        foundResourceOwning.Should().BeTrue(
+            "the RequestAreaQuery node must be baked resource-owning so the interpreter fires " +
+            "Deactivate_RequestAreaQuery on branch abort (HAJSON-B)");
+
+        alc.Unload();
     }
 }

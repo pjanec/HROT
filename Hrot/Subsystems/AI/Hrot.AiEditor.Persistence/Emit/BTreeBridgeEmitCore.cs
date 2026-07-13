@@ -342,6 +342,8 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad}public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<{bbShort}, {ctxShort}> actionRegistry)");
         sb.AppendLine($"{pad}{{");
 
+        bool hasDeactivators = deactivators != null && deactivators.Count > 0;
+
         // S1-G ordering: thunks must be registered BEFORE the Interpreter is constructed.
         // Interpreter.BindActions runs in the constructor; a thunk registered after construction
         // is missed and the action falls back to the silent Failure delegate.
@@ -351,8 +353,14 @@ public static class BTreeBridgeEmitCore
         //   2. Register all action/condition thunks into actionRegistry.
         //   3. Construct the Interpreter (BindActions now sees the populated registry).
         //   4. Call beh.Register with the definition.
+        //
+        // HAJSON-B: when the asset has deactivators, the blob is instead compiled AFTER the
+        // deactivators are registered (see below) so FastBTree's Compile(treeName, isResourceOwning)
+        // seam can bake the resource-owning bit — the interpreter fires deactivators only for
+        // resource-owning nodes. Assets without deactivators keep the byte-identical Build() here.
         sb.AppendLine($"{pad2}// 1. Build the blob from the topology-core thunk.");
-        sb.AppendLine($"{pad2}var blob = {coreClass}.Build();");
+        if (!hasDeactivators)
+            sb.AppendLine($"{pad2}var blob = {coreClass}.Build();");
         sb.AppendLine();
 
         // S1-3: For managed assets, emit real baked-offset thunks for each
@@ -413,9 +421,17 @@ public static class BTreeBridgeEmitCore
         // HAJSON-B: Register deactivator hooks for every action/condition key that has a
         // paired [BTreeDeactivator]-annotated method.
         // Must be registered BEFORE Interpreter construction (same ordering rule as thunks).
-        if (deactivators != null && deactivators.Count > 0)
+        if (hasDeactivators)
         {
-            EmitDeactivatorRegistrations(sb, dto, packedFields, deactivators, pad2, bbShort, ctxShort);
+            EmitDeactivatorRegistrations(sb, dto, packedFields, deactivators!, pad2, bbShort, ctxShort);
+
+            // HAJSON-B: compile the blob now that the deactivators are in the registry, so the
+            // resource-owning bit is baked for every node whose method has a paired deactivator.
+            // The interpreter fires deactivators only for resource-owning nodes on branch abort/exit;
+            // Compile(treeName, isResourceOwning) is FastBTree's existing seam (no ExtDep change).
+            sb.AppendLine();
+            sb.AppendLine($"{pad2}// 2b. Compile the blob AFTER deactivators are registered → resource-owning baked.");
+            sb.AppendLine($"{pad2}var blob = {coreClass}.CreateBuilder().Compile(\"{name}\", __k => actionRegistry.TryGetDeactivator(__k, out _));");
         }
 
         sb.AppendLine();

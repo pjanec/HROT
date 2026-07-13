@@ -92,8 +92,11 @@ namespace Hrot.AI.Behaviors
             var wanderBlob        = FbtTreeCatalog.GetWanderMilitary(isResourceOwning);
             var fireAtTargetBlob  = FbtTreeCatalog.GetFireAtTarget(isResourceOwning);
             // HAJSON-A: Use JSON-generated blobs for Hill Attack trees.
-            // Deactivator wiring (isResourceOwning) is HAJSON-B; not yet wired here.
-            var hullDownBlob      = HullDownAttackRun.Build();
+            // HAJSON-B: compile with the resource-owning bit baked (via FastBTree's existing
+            // Compile(treeName, isResourceOwning) seam) so HullDownAttackRun's branch-abort deactivators
+            // (Deactivate_CreepToAndBeyondSlot / Deactivate_AimAndFireSpecific) actually fire. The
+            // deactivators are registered into actionRegistry by FbtActionRegistrar.RegisterAll above.
+            var hullDownBlob      = HullDownAttackRun.CreateBuilder().Compile("HullDownAttackRun", isResourceOwning);
             // S3-G: PlatoonHillAttack is now stateful (Behavior-scoped shared working state). Its
             // interpreter + baked stateful thunks + working-slot manifest are produced by the generated
             // PlatoonHillAttackRegistrar (invoked in the registration below), not a hand-built def here.

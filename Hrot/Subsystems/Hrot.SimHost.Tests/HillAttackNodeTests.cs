@@ -1405,6 +1405,45 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3014, bs.ActiveBehaviorHash);
         }
 
+        /// <summary>HAJSON-B: the factory-registered PlatoonHillAttack + HullDownAttackRun blobs must bake
+        /// the resource-owning bit for every node whose method has a paired [BTreeDeactivator], so the
+        /// interpreter fires those deactivators on branch abort/exit (EQS slot / child-sensor cleanup).</summary>
+        [Fact]
+        public void SC_HA013_4_DeactivatorNodes_AreResourceOwning_InFactoryBlobs()
+        {
+            var registry = new BehaviorRegistry();
+            AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
+
+            // Commander (stateful, Behavior-scoped): RequestAreaQuery ↔ Deactivate_RequestAreaQuery.
+            Assert.True(registry.TryGetDefinition(3014, out var commanderDef));
+            int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
+                new Guid("1a000000-0000-0000-0000-0000000000dd"),
+                Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior, Guid.Empty, "State");
+            AssertNodeResourceOwning(commanderDef.BTreeInterpreter!.Blob,
+                $"Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@{slotKey}");
+
+            // Tank subordinate (non-stateful): CreepToAndBeyondSlot / AimAndFireSpecific deactivators.
+            Assert.True(registry.TryGetDefinition(3013, out var tankDef));
+            AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
+                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0");
+            AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
+                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0");
+        }
+
+        private static void AssertNodeResourceOwning(BehaviorTreeBlob blob, string methodKey)
+        {
+            for (int i = 0; i < blob.Nodes.Length; i++)
+            {
+                var node = blob.Nodes[i];
+                if (node.Type is not (NodeType.Action or NodeType.Condition)) continue;
+                if (blob.MethodNames[node.PayloadIndex] != methodKey) continue;
+                Assert.True(node.IsResourceOwning,
+                    $"node '{methodKey}' must be resource-owning so its deactivator fires on abort");
+                return;
+            }
+            Assert.Fail($"node '{methodKey}' not found in the compiled blob");
+        }
+
         // ── TASK-HA016: SC-HA016-1 through SC-HA016-6 ────────────────────────────
 
         /// <summary>SC-HA016-1: PlatoonHillAttackParamsJsonDto deserializes from full JSON.
