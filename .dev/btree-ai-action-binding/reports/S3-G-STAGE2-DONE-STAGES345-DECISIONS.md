@@ -1,5 +1,18 @@
 # S3-G — stage 2 landed; stages 3–5 need two decisions before touching production combat AI
 
+> **✅ RESOLVED & COMPLETE (2026-07-13).** The user chose **1a + 2a**. All stages are implemented,
+> verified, and pushed on `claude/hill-attack-json-slice-3-7fbaf4`:
+> stage 2 `85dea39`, stages 3+4 `e268a33` (landed together — compile-coupled as predicted below),
+> stage 5 `736b7b0`. Decision 1 → **1a** (emitter emits a 5-param slot-projecting stateful deactivator
+> registered under the full `@offset@slotKey` key). Decision 2 → **2a** (factory reuses the generated
+> `PlatoonHillAttackRegistrar` via a throwaway registry, then registers under the stable id 3014 with the
+> geo `ParseParams`). Gates all green (byte-identity 136/0, Generators 102/102, Behavior 144/144,
+> Presentation projection 6/6, SimHost HillAttack node 46/46 + integration 6/6, IG deactivator 3/3).
+> The rest of this note is the original pre-implementation analysis, kept for the record.
+
+---
+
+
 **Updated:** 2026-07-13. Stage 2 is **implemented, verified, pushed** on
 `claude/hill-attack-json-slice-3-7fbaf4`. Stages 3–5 are **parked** on two genuine design
 decisions that the continuation brief explicitly said not to guess on (deactivator stateful-slot
