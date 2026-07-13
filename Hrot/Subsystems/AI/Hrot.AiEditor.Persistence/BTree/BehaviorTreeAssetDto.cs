@@ -155,6 +155,18 @@ public sealed class BTreeActionPayloadDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkingStateTypeId { get; set; }
+
+    /// <summary>
+    /// S3-G: for stateful bindings whose <b>working-state</b> variable is distinct from the
+    /// param variable (<see cref="ExpressionTargetField"/>), the Name of the authored
+    /// working-state blackboard variable. Its declared <c>Role</c>/<c>Scope</c> drive the
+    /// slot key + provisioning scope (a shared Behavior/Entity variable lives here, not in
+    /// the param variable). When null/omitted, scope resolution falls back to
+    /// <see cref="ExpressionTargetField"/> (back-compat: Slice-2 assets and tests where the
+    /// bound variable IS the stateful one stay byte-identical).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WorkingStateTargetField { get; set; }
 }
 
 public sealed class BTreeConditionPayloadDto

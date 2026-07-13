@@ -47,6 +47,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     private const string MethodFqn = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor";
     private const string ParamsTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorParams";
     private const string WorkingStateTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState";
+    private const string ParamVarName = "cfg";
 
     private readonly BehaviorRegistry  _liveRegistry      = new();
     private readonly BlueprintRegistry _blueprintRegistry = new();
@@ -69,23 +70,33 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
     // ── DTO builders ──────────────────────────────────────────────────────────────
 
-    private static BlackboardVariableDto StateVar(string name, WorkingStateScope scope, int limit) => new()
+    // Input param variable (DemoCursorParams) — packed, projected as param-0; carries Limit.
+    private static BlackboardVariableDto ParamVar(string name, int limit) => new()
     {
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
         DefaultValueJson = $"{{\"Limit\":{limit}}}",
+        Role = BlackboardVariableRole.Input,
+    };
+
+    // Working-state variable (DemoCursorState) — State role + scope; NOT packed. Drives slot key.
+    private static BlackboardVariableDto StateVar(string name, WorkingStateScope scope) => new()
+    {
+        Name = name,
+        Type = new BlackboardTypeRefDto { TypeId = WorkingStateTypeId },
         Role = BlackboardVariableRole.State,
         Scope = scope,
     };
 
-    private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string targetField) => new()
+    private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string paramField, string stateField) => new()
     {
         VisualId = visualId,
         DisplayLabel = label,
         Action = new BTreeActionPayloadDto
         {
             MethodFqn = MethodFqn,
-            ExpressionTargetField = targetField,
+            ExpressionTargetField = paramField,
+            WorkingStateTargetField = stateField,
             DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = WorkingStateTypeId,
         },
@@ -93,7 +104,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
     private static BehaviorTreeAssetDto BuildAsset(
         Guid assetId, string name, IReadOnlyList<BlackboardVariableDto> variables,
-        IReadOnlyList<(Guid VisualId, string Label, string TargetField)> actionBindings)
+        IReadOnlyList<(Guid VisualId, string Label, string StateField)> actionBindings)
     {
         var root = new BTreeRootNodeDto { VisualId = Guid.NewGuid(), DisplayLabel = "Root" };
         var seq  = new BTreeSequenceNodeDto { VisualId = Guid.NewGuid(), DisplayLabel = "Sequence" };
@@ -112,7 +123,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         foreach (var b in actionBindings)
         {
             seq.ChildVisualIds.Add(b.VisualId);
-            dto.Nodes.Add(ActionNode(b.VisualId, b.Label, b.TargetField));
+            dto.Nodes.Add(ActionNode(b.VisualId, b.Label, ParamVarName, b.StateField));
         }
 
         dto.Blackboard = new BlackboardBlockDto
@@ -281,7 +292,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
         var dto = BuildAsset(
             assetId, assetName,
-            new[] { StateVar(shared, WorkingStateScope.Behavior, limit: 1) },
+            new[] { ParamVar(ParamVarName, limit: 1), StateVar(shared, WorkingStateScope.Behavior) },
             new[] { (n1, "A", shared), (n2, "B", shared) });
 
         var (def, alc) = BuildDefFromDto(dto);
@@ -339,8 +350,9 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
             assetId, "S3NodeScoped",
             new[]
             {
-                StateVar("localA", WorkingStateScope.Node, limit: 3),
-                StateVar("localB", WorkingStateScope.Node, limit: 5),
+                ParamVar(ParamVarName, limit: 3),
+                StateVar("localA", WorkingStateScope.Node),
+                StateVar("localB", WorkingStateScope.Node),
             },
             new[] { (n1, "A", "localA"), (n2, "B", "localB") });
 

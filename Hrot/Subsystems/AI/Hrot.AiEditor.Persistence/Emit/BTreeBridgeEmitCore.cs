@@ -256,6 +256,15 @@ public static class BTreeBridgeEmitCore
     /// case (Input role, variable absent, null target) falls back to <see cref="WorkingStateScope.Node"/>,
     /// which yields the byte-identical legacy per-node key (Slice-2 untouched).
     /// </summary>
+    /// <summary>
+    /// S3-G: the variable whose declared Role/Scope govern a stateful node's slot key. Prefers the
+    /// explicit working-state variable (<see cref="BTreeActionPayloadDto.WorkingStateTargetField"/>)
+    /// when the behavior separates params from working state (e.g. Hill Attack); falls back to the
+    /// param field so Slice-2 assets and the conflated Slice-3 tests stay byte-identical.
+    /// </summary>
+    internal static string? StatefulScopeVariable(BTreeActionPayloadDto p)
+        => string.IsNullOrEmpty(p.WorkingStateTargetField) ? p.ExpressionTargetField : p.WorkingStateTargetField;
+
     internal static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
     {
         var scope = WorkingStateScope.Node;
@@ -582,7 +591,8 @@ public static class BTreeBridgeEmitCore
             // S3-3: scope-aware baked const — Behavior-scoped co-bound nodes bake the same key
             // (and dedup via `seen` below), so they dispatch to one thunk over one shared slot.
             // Must stay in lockstep with the topology blob key in BTreeEmitCore.EmitAction.
-            int slotKey = ResolveStatefulSlotKey(dto, targetField, actNode.VisualId);
+            // S3-G: scope is governed by the working-state variable when distinct from params.
+            int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
 
             // WorkingState type is taken from WorkingStateTypeId (added to BTreeActionPayloadDto in S2-1).
             // If missing, fall back to the naming convention (Action_AdvanceCursor → DemoCursorState).
@@ -687,7 +697,9 @@ public static class BTreeBridgeEmitCore
             if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
 
             // S3-4: scope-aware key so co-bound Behavior-scoped nodes dedup onto one shared slot.
-            int slotKey = ResolveStatefulSlotKey(dto, p.ExpressionTargetField, actNode.VisualId);
+            // S3-G: scope governed by the working-state variable when distinct from params.
+            string? scopeVar = StatefulScopeVariable(p);
+            int slotKey = ResolveStatefulSlotKey(dto, scopeVar, actNode.VisualId);
             if (slotsBySeen.ContainsKey(slotKey)) continue;
 
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
@@ -700,7 +712,7 @@ public static class BTreeBridgeEmitCore
                 : actNode.VisualId.ToString();
 
             // S3-7: carry the authored role/scope so the live inspector can group/label by scope.
-            var (role, scope) = ResolveVariableRoleScope(dto, p.ExpressionTargetField);
+            var (role, scope) = ResolveVariableRoleScope(dto, scopeVar);
 
             slotsBySeen[slotKey] = (slotKey, wsTypeId, nodeLabel, role, scope);
         }

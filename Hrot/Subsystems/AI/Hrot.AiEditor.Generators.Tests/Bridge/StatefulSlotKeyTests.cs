@@ -298,10 +298,17 @@ public sealed class StatefulSlotKeyTests
                 TypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
                 Variables = new List<BlackboardVariableDto>
                 {
+                    // Input param variable (packed) + distinct Behavior-scoped working-state variable.
+                    new BlackboardVariableDto
+                    {
+                        Name = "cfg",
+                        Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
+                        Role = BlackboardVariableRole.Input,
+                    },
                     new BlackboardVariableDto
                     {
                         Name  = "shared",
-                        Type  = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
+                        Type  = new BlackboardTypeRefDto { TypeId = StateTypeId },
                         Role  = BlackboardVariableRole.State,
                         Scope = WorkingStateScope.Behavior,
                     }
@@ -315,7 +322,8 @@ public sealed class StatefulSlotKeyTests
                     VisualId = nodeId, DisplayLabel = "AdvanceShared", EditorMetadata = new NodeEditorMetadataDto(),
                     Action = new BTreeActionPayloadDto
                     {
-                        MethodFqn = MethodFqn, ExpressionTargetField = "shared",
+                        MethodFqn = MethodFqn, ExpressionTargetField = "cfg",
+                        WorkingStateTargetField = "shared",
                         DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
                         WorkingStateTypeId = StateTypeId,
                     }

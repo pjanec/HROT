@@ -688,8 +688,9 @@ public static class BTreeEmitCore
             // Behavior → FNV-1a(assetId, variableId) so co-bound nodes share one slot. Baked at
             // code-gen time. Must match the bridge thunk's baked const (BTreeBridgeEmitCore
             // .EmitStatefulActionThunks) — both go through ResolveStatefulSlotKey, single source.
+            // S3-G: scope governed by the working-state variable when distinct from params.
             int slotKey  = dto != null
-                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, actionTargetField, node.VisualId)
+                ? BTreeBridgeEmitCore.ResolveStatefulSlotKey(dto, BTreeBridgeEmitCore.StatefulScopeVariable(p), node.VisualId)
                 : BTreeBridgeEmitCore.ComputeStatefulSlotKey(default, node.VisualId);
             string blobKey = $"{p.MethodFqn}@{statefulParamOffset}@{slotKey}";
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");

@@ -132,6 +132,13 @@ public static class BTreeBlackboardPackHelper
 
         foreach (var v in variables)
         {
+            // S3-G: State-role variables are working state that lives in the partitioned
+            // BlueprintBlackboard* tier (keyed by scope), NOT in the inline BrainBlackboard param
+            // region — so they are excluded from param packing. Byte-identical for the existing
+            // corpus (all Input-role); prevents a large working-state struct (e.g. the 120-byte
+            // HillAttackMutableState) from overflowing the ≤100-byte inline param budget.
+            if (v.Role == BlackboardVariableRole.State) continue;
+
             string typeId = v.Type?.TypeId ?? string.Empty;
 
             if (!TryResolveSize(typeId, extraSizeResolver, out int size))
@@ -176,6 +183,10 @@ public static class BTreeBlackboardPackHelper
         int offset = 0;
         foreach (var v in variables)
         {
+            // S3-G: State-role vars live in the partition tier, not the inline param region
+            // (see Pack) — exclude them from the overflow budget.
+            if (v.Role == BlackboardVariableRole.State) continue;
+
             string typeId = v.Type?.TypeId ?? string.Empty;
             if (!TryResolveSize(typeId, extraSizeResolver, out int size))
             {

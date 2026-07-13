@@ -53,6 +53,8 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     private const string MethodFqn = "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor";
     private const string ParamsTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorParams";
     private const string WorkingStateTypeId = "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState";
+    // Shared Input param variable projected by every node (State vars no longer pack into the param region).
+    private const string ParamVarName = "cfg";
 
     private readonly BehaviorRegistry  _liveRegistry      = new();
     private readonly BlueprintRegistry _blueprintRegistry = new();
@@ -75,23 +77,34 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
     // ── DTO builders (in-memory asset) ────────────────────────────────────────────
 
-    private static BlackboardVariableDto StateVar(string name, WorkingStateScope scope) => new()
+    // Input param variable (DemoCursorParams) — packed into the param region, projected as param-0.
+    private static BlackboardVariableDto ParamVar(string name) => new()
     {
         Name = name,
         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
         DefaultValueJson = "{\"Limit\":1}",
+        Role = BlackboardVariableRole.Input,
+    };
+
+    // Working-state variable (DemoCursorState) — State role, given scope; NOT packed (lives in the
+    // partition tier). Its scope drives the slot key.
+    private static BlackboardVariableDto StateVar(string name, WorkingStateScope scope) => new()
+    {
+        Name = name,
+        Type = new BlackboardTypeRefDto { TypeId = WorkingStateTypeId },
         Role = BlackboardVariableRole.State,
         Scope = scope,
     };
 
-    private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string targetField) => new()
+    private static BTreeActionNodeDto ActionNode(Guid visualId, string label, string paramField, string stateField) => new()
     {
         VisualId = visualId,
         DisplayLabel = label,
         Action = new BTreeActionPayloadDto
         {
             MethodFqn = MethodFqn,
-            ExpressionTargetField = targetField,
+            ExpressionTargetField = paramField,       // param projection (DemoCursorParams)
+            WorkingStateTargetField = stateField,     // working-state variable — drives scope/key
             DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = WorkingStateTypeId,
         },
@@ -100,7 +113,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     /// <summary>Builds a Root → Sequence → (one Action per binding) asset with the given blackboard variables.</summary>
     private static BehaviorTreeAssetDto BuildAsset(
         Guid assetId, string name, IReadOnlyList<BlackboardVariableDto> variables,
-        IReadOnlyList<(Guid VisualId, string Label, string TargetField)> actionBindings)
+        IReadOnlyList<(Guid VisualId, string Label, string StateField)> actionBindings)
     {
         var rootId = Guid.NewGuid();
         var seqId  = Guid.NewGuid();
@@ -124,7 +137,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         foreach (var b in actionBindings)
         {
             seq.ChildVisualIds.Add(b.VisualId);
-            dto.Nodes.Add(ActionNode(b.VisualId, b.Label, b.TargetField));
+            dto.Nodes.Add(ActionNode(b.VisualId, b.Label, ParamVarName, b.StateField));
         }
 
         dto.Blackboard = new BlackboardBlockDto
@@ -350,7 +363,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         var dto = BuildAsset(
             assetId, assetName,
-            new[] { StateVar(sharedVar, WorkingStateScope.Behavior) },
+            new[] { ParamVar(ParamVarName), StateVar(sharedVar, WorkingStateScope.Behavior) },
             new[]
             {
                 (n1, "Action_A", sharedVar),
@@ -419,6 +432,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
             assetId, assetName,
             new[]
             {
+                ParamVar(ParamVarName),
                 StateVar("localA", WorkingStateScope.Node),
                 StateVar("localB", WorkingStateScope.Node),
                 StateVar("shared", WorkingStateScope.Behavior),
