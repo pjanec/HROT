@@ -11,6 +11,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -22,11 +23,13 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// FastBTree action nodes for the PlatoonHillAttack commander behavior.
     ///
-    /// <para>All delegates use the three-parameter
-    /// <c>ReusableActionDelegate&lt;TValue, BTreeContext&gt;</c> form.
-    /// Mutable working state is accessed by projecting the <c>Blackboard1024</c>
-    /// component (ComponentId 74) via <c>Unsafe.As</c> to
-    /// <see cref="HillAttackMutableState"/>.</para>
+    /// <para>S3-G: the six mutable-state nodes use the four-parameter stateful form
+    /// <c>(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState, ref BTreeContext)</c>.
+    /// The <see cref="HillAttackMutableState"/> working state is a <c>Behavior</c>-scoped variable that
+    /// lives in a <c>BlueprintBlackboard*</c> partition slot; it is projected by the JSON emitter's stateful
+    /// thunk (production path) or the code builder's <c>StatefulAction</c> helper (<see cref="BuildPlatoonHillAttackTree"/>).
+    /// The old <c>Blackboard1024</c> + <c>Unsafe.As</c> projection is gone.
+    /// <c>Condition_AreAllAtBaseline</c> touches no working state and stays three-parameter.</para>
     /// </summary>
     public static unsafe class HillAttackCommanderNodes
     {
@@ -40,13 +43,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// Computes firing-line slot count and zeroes all mutable bitmasks.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        [BTreeAction]
+        // S3-G: no [BTreeAction] — stateful (4-param) nodes are bound by the JSON emitter's stateful
+        // thunk / the code builder's StatefulAction helper, not FbtActionRegistrar's generic path.
         public static NodeStatus Action_CalculateSegments(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             var start = new Vector2(p.StartX, p.StartY);
             var end   = new Vector2(p.EndX,   p.EndY);
             float segLen  = Vector2.Distance(start, end);
@@ -74,13 +75,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>IntentId = "MoveToLocation"</c>.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        [BTreeAction]
         public static NodeStatus Action_DispatchAllToBaseline(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
                 return NodeStatus.Success;
 
@@ -187,13 +184,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// previously submitted request is still being resolved.
         /// Returns <see cref="NodeStatus.Success"/> once the request is queued.
         /// </summary>
-        [BTreeAction]
         public static NodeStatus Action_RequestAreaQuery(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             // Guard: if a request is already in-flight, do not submit a duplicate.
             if (s.CachedEqsRequestId != -1)
             {
@@ -240,13 +233,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>TargetGroupHandle</c> for use by <see cref="Action_DispatchWaveWithTargets"/>.
         /// Per SC-HA011-5, <c>CachedEqsRequestId</c> is NOT cleared on the Success path.
         /// </summary>
-        [BTreeAction]
         public static NodeStatus Condition_IsAreaQueryResolved(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             if (s.CachedEqsRequestId == -1)
                 return NodeStatus.Failure;  // guard; should not occur in correct topology
 
@@ -294,13 +283,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// then publishes <see cref="AssignTacticalIntentEvent"/> for each selected tank.
         /// Returns <see cref="NodeStatus.Success"/> unconditionally.
         /// </summary>
-        [BTreeAction]
         public static NodeStatus Action_DispatchWaveWithTargets(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             s.WaveUsedSlotsMask   = 0;
             s.ActiveAttackerCount = 0;
             byte dispatchWave = s.CurrentWave;
@@ -458,13 +443,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// to baseline (or were killed).
         /// Returns <see cref="NodeStatus.Running"/> while any attacker is still active.
         /// </summary>
-        [BTreeAction]
         public static NodeStatus Condition_IsWaveCompleted(
-            ref PlatoonHillAttackParams p, ref BehaviorTreeState state, ref BTreeContext ctx)
+            ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
-
             if (s.ActiveAttackerCount == 0) return NodeStatus.Success;
 
             for (int i = s.ActiveAttackerCount - 1; i >= 0; i--)
@@ -527,17 +508,19 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when
         /// the BTree execution pointer leaves the node via a mission-level abort, preventing
         /// the in-flight EQS query slot from being orphaned indefinitely.
+        ///
+        /// <para>S3-G: five-parameter stateful deactivator. The working state <paramref name="s"/> is
+        /// projected from the behaviour-scoped partition slot by the emitted wrapper (registered under the
+        /// node's full <c>{fqn}@{offset}@{slotKey}</c> key) — no <c>Blackboard1024</c> / <c>Unsafe.As</c>.</para>
         /// </summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0")]
         public static void Deactivate_RequestAreaQuery(
-            ref BrainBlackboard blackboard,
+            ref PlatoonHillAttackParams p,
+            ref HillAttackMutableState s,
             ref BehaviorTreeState state,
             ref BTreeContext ctx,
             int paramIndex)
         {
-            if (!ctx.World.HasComponent<Blackboard1024>(ctx.Self)) return;
-            ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref var s = ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavyComp);
             AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
             s.CachedEqsRequestId = -1;
         }
@@ -563,17 +546,36 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDefinition("PlatoonHillAttack")]
         public static BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext> BuildPlatoonHillAttackTree()
         {
+            // S3-G: the six mutable-state nodes bind HillAttackMutableState as a Behavior-scoped
+            // working-state variable ("State") — one shared partition slot, shared across all of them.
+            // The asset id matches PlatoonHillAttack.btree.json so the code-first and JSON slot keys agree.
+            // Condition_AreAllAtBaseline touches no working state and stays the plain 3-param form.
+            var manifest = new StatefulSlotManifestBuilder(new Guid("1a000000-0000-0000-0000-0000000000dd"));
+            const string stateVar = "State";
+
             return new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()
                 .Sequence(seq => seq
-                    .Action(bb => bb.Params, Action_CalculateSegments)
-                    .Action(bb => bb.Params, Action_DispatchAllToBaseline)
+                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                        bb => bb.Params, Action_CalculateSegments, manifest, stateVar,
+                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a1"), "CalculateSegments")
+                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                        bb => bb.Params, Action_DispatchAllToBaseline, manifest, stateVar,
+                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a2"), "DispatchAllToBaseline")
                     .Action(bb => bb.Params, Condition_AreAllAtBaseline)
                     .Repeater(-1, rep => rep
                         .Sequence(wseq => wseq
-                            .Action(bb => bb.Params, Action_RequestAreaQuery)
-                            .Action(bb => bb.Params, Condition_IsAreaQueryResolved)
-                            .Action(bb => bb.Params, Action_DispatchWaveWithTargets)
-                            .Action(bb => bb.Params, Condition_IsWaveCompleted))));
+                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                bb => bb.Params, Action_RequestAreaQuery, manifest, stateVar,
+                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b1"), "RequestAreaQuery")
+                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                bb => bb.Params, Condition_IsAreaQueryResolved, manifest, stateVar,
+                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b2"), "IsAreaQueryResolved")
+                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                bb => bb.Params, Action_DispatchWaveWithTargets, manifest, stateVar,
+                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b3"), "DispatchWaveWithTargets")
+                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                bb => bb.Params, Condition_IsWaveCompleted, manifest, stateVar,
+                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b4"), "IsWaveCompleted"))));
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────

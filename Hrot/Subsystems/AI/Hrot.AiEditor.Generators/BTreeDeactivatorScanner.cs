@@ -129,6 +129,37 @@ internal static class BTreeDeactivatorScanner
                         DtoByteOffset  = dtoOffset,
                     });
                 }
+                else if (paramCount == 5)
+                {
+                    // S3-G: 5-param ThreeParamReusableStateful deactivator:
+                    //   (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TCtx, int)
+                    // The bridge emits a wrapper that projects TParams at the offset encoded in the key
+                    // suffix AND the working state from the paired node's partition slot, then registers it
+                    // under the node's full {fqn}@{offset}@{slotKey} key (slot key resolved in the emitter).
+                    int atPos = targetAction!.LastIndexOf('@');
+                    if (atPos < 0) continue; // no offset suffix — unexpected shape, skip
+                    string offsetStr = targetAction.Substring(atPos + 1);
+                    if (!int.TryParse(offsetStr,
+                            System.Globalization.NumberStyles.None,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out int paramOffset)) continue;
+
+                    var displayFmt = new SymbolDisplayFormat(
+                        globalNamespaceStyle:  SymbolDisplayGlobalNamespaceStyle.Omitted,
+                        typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces);
+                    string paramsTypeFqn = "global::" + method.Parameters[0].Type.ToDisplayString(displayFmt).Replace('+', '.');
+                    string wsTypeFqn     = "global::" + method.Parameters[1].Type.ToDisplayString(displayFmt).Replace('+', '.');
+
+                    result.Add(new BTreeBridgeEmitCore.DeactivatorEntry
+                    {
+                        ActionKey           = targetAction!,
+                        DeactivatorFqn      = methodFqn,
+                        ParamCount          = 5,
+                        DtoTypeFqn          = paramsTypeFqn,
+                        DtoByteOffset       = paramOffset,
+                        WorkingStateTypeFqn = wsTypeFqn,
+                    });
+                }
                 // else: unexpected param count — forward-compat guard, skip silently.
             }
         }

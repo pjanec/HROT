@@ -15,6 +15,8 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -65,6 +67,11 @@ namespace Hrot.SimHost.Tests
             _repo = new EntityRepository();
             SimHostComponentRegistry.RegisterAll(_repo);
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
+            // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
+            _repo.RegisterComponent<BlueprintBlackboard1024>();
+            _repo.RegisterComponent<BlueprintBlackboard4096>();
+            _repo.RegisterComponent<BlueprintBlackboard16384>();
 
             // 100 x 100 cells, 5 m each → covers 0..500 m in both axes.
             _grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
@@ -136,8 +143,22 @@ namespace Hrot.SimHost.Tests
         private static unsafe ref HillAttackMutableState GetHeavyState(
             EntityRepository repo, Entity entity)
         {
-            ref var heavy = ref repo.GetComponentRW<Blackboard1024>(entity);
-            return ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavy);
+            // S3-G: working state now lives in the Behavior-scoped BlueprintBlackboard* partition slot
+            // (provisioned by BehaviorIngressSystem when PlatoonHillAttack is assigned), NOT Blackboard1024.
+            int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
+                new Guid("1a000000-0000-0000-0000-0000000000dd"),
+                StatefulSlotScope.Behavior, Guid.Empty, "State");
+
+            byte* mem;
+            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
+            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
+            else if (repo.HasComponent<BlueprintBlackboard4096>(entity))
+            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
+            else
+            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
+
+            BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off);
+            return ref Unsafe.AsRef<HillAttackMutableState>(mem + off);
         }
 
         private static unsafe void AddRoster(EntityRepository repo, Entity commander,

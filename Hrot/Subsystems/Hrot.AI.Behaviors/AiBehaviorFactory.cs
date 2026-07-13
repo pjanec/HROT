@@ -4,6 +4,7 @@ using Fbt.Runtime;
 using Fdp.Modules.Geographic;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Attributes;
 using Fdp.Toolkit.Replication.Services;
 using Fhsm.Compiler;
@@ -93,7 +94,9 @@ namespace Hrot.AI.Behaviors
             // HAJSON-A: Use JSON-generated blobs for Hill Attack trees.
             // Deactivator wiring (isResourceOwning) is HAJSON-B; not yet wired here.
             var hullDownBlob      = HullDownAttackRun.Build();
-            var platoonHillBlob   = PlatoonHillAttack.Build();
+            // S3-G: PlatoonHillAttack is now stateful (Behavior-scoped shared working state). Its
+            // interpreter + baked stateful thunks + working-slot manifest are produced by the generated
+            // PlatoonHillAttackRegistrar (invoked in the registration below), not a hand-built def here.
 
             // Pre-compile HSM blob for Idle_HSM: a single "Idle" state with no transitions.
             var idleHsmBuilder = new HsmBuilder("Idle_HSM");
@@ -181,18 +184,31 @@ namespace Hrot.AI.Behaviors
                             hullDownBlob, actionRegistry),
                     });
 
-                registry.Register(PlatoonHillAttack_BT, "PlatoonHillAttack",
-                    new BehaviorDefinition
+                // S3-G: PlatoonHillAttack runs on a Behavior-scoped shared working-state slot. Reuse the
+                // generated PlatoonHillAttackRegistrar to register the six stateful thunks + the deactivator
+                // into the shared actionRegistry and to build the interpreter + StatefulWorkingSlots manifest.
+                // The registrar registers its def under its own asset-derived id into a THROWAWAY registry;
+                // we then register the real def under the stable CGF id (PlatoonHillAttack_BT = 3014) with the
+                // geo-aware ParseParams the generated registrar cannot supply. The params DTO is unchanged;
+                // only the working-state hack was removed (HeavyDtoType → StatefulWorkingSlots manifest).
+                var platoonHillStaging = new BehaviorRegistry();
+                PlatoonHillAttackRegistrar.Register(
+                    platoonHillStaging, new BlueprintRegistry().BeginStaging(), actionRegistry);
+                if (platoonHillStaging.TryGetId("PlatoonHillAttack", out int genPlatoonHillId) &&
+                    platoonHillStaging.TryGetDefinition(genPlatoonHillId, out var genPlatoonHillDef))
+                {
+                    registry.Register(PlatoonHillAttack_BT, "PlatoonHillAttack", new BehaviorDefinition
                     {
-                        Name             = "PlatoonHillAttack",
-                        BrainTier        = BehaviorConstants.BrainTierBTree,
-                        ParamsDtoType    = typeof(PlatoonHillAttackParams),
-                        HeavyDtoType     = typeof(HillAttackMutableState),
-                        ParseParams      = (json, ptr) => HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
+                        Name                       = genPlatoonHillDef.Name,
+                        BrainTier                  = genPlatoonHillDef.BrainTier,
+                        BTreeInterpreter           = genPlatoonHillDef.BTreeInterpreter,
+                        ManagedBlackboardVariables = genPlatoonHillDef.ManagedBlackboardVariables,
+                        StatefulWorkingSlots       = genPlatoonHillDef.StatefulWorkingSlots,
+                        ParamsDtoType              = typeof(PlatoonHillAttackParams),
+                        ParseParams                = (json, ptr) => HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
                             json, ptr, geoTransform, entityMap),
-                        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
-                            platoonHillBlob, actionRegistry),
                     });
+                }
             };
         }
     }

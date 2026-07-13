@@ -34,7 +34,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "CalculateSegments",
 			"EditorMetadata": { "X": 150, "Y": 230, "Comment": "Compute firing-line slot count; zero all masks.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		},
 		{
 			"kind": "Action",
@@ -42,7 +42,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "DispatchAllToBaseline",
 			"EditorMetadata": { "X": 300, "Y": 230, "Comment": "Publish MoveToLocation intents so every subordinate moves to its baseline slot.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		},
 		{
 			"kind": "Action",
@@ -70,7 +70,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "RequestAreaQuery",
 			"EditorMetadata": { "X": 550, "Y": 370, "Comment": "Submit an EQS area query over the target polygon for hostiles.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		},
 		{
 			"kind": "Action",
@@ -78,7 +78,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "IsAreaQueryResolved",
 			"EditorMetadata": { "X": 650, "Y": 370, "Comment": "Running while pending; Failure when the area is clear (breaks the repeater → behavior ends); Success with targets.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		},
 		{
 			"kind": "Action",
@@ -86,7 +86,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "DispatchWaveWithTargets",
 			"EditorMetadata": { "X": 750, "Y": 370, "Comment": "Select this wave's tanks (Entity.Index parity), assign firing/baseline slots + round-robin targets, publish HullDownAttack intents.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		},
 		{
 			"kind": "Action",
@@ -94,7 +94,7 @@
 			"ChildVisualIds": [],
 			"DisplayLabel": "IsWaveCompleted",
 			"EditorMetadata": { "X": 850, "Y": 370, "Comment": "Running until all attackers return/die; burns the firing slot of any tank that dies.", "Collapsed": false, "Color": null },
-			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusable" }
+			"Action": { "MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted", "ExpressionTargetField": "Params", "DelegateShape": "ThreeParamReusableStateful", "WorkingStateTargetField": "State", "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState" }
 		}
 	],
 	"Pills": [
@@ -122,6 +122,14 @@
 				"DefaultValueJson": null,
 				"Comment": "Static hill-attack config (firing line, baseline, attack dir, target area entity). Populated once at behavior assignment by ParsePlatoonHillAttackParams; all nodes alias this one variable.",
 				"IsAutoManaged": false
+			},
+			{
+				"Name": "State",
+				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.HillAttackMutableState", "IsArray": false, "FixedLength": null },
+				"Comment": "S3-G: mutable commander working state (slot masks, wave cursor, EQS handles, per-attacker SoA). Behavior-scoped State variable: one shared BlueprintBlackboard* partition slot aliased by all six stateful commander nodes. Replaces the former Blackboard1024 + Unsafe.As hack. Excluded from the inline param region (lives in the partition tier).",
+				"IsAutoManaged": false,
+				"Role": "State",
+				"Scope": "Behavior"
 			}
 		]
 	}

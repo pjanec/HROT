@@ -111,8 +111,15 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             // Check for any unresolvable managed variable BEFORE emitting anything.
             // An unresolvable type means we cannot guarantee the struct layout, so skip
             // the whole asset with BTREE0002 (never a partial/silent emit).
+            // S3-G: State-role variables live in the partition tier, NOT the inline param region, so
+            // they never contribute to the inline struct layout and their size is taken at runtime via
+            // Marshal.SizeOf<T>(). They are excluded from this compile-time size pre-check (matching the
+            // Pack/WouldOverflow exclusion) — this lets fixed-buffer working-state structs the
+            // compile-time StructSizeResolver cannot size (e.g. HillAttackMutableState) still generate.
             foreach (var v in dto.Blackboard.Variables)
             {
+                if (v.Role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
+
                 string typeId = v.Type?.TypeId ?? string.Empty;
                 if (!BTreeBlackboardPackHelper.TryGetSize(typeId, out _))
                 {

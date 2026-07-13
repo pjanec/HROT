@@ -51,21 +51,33 @@ public static class BTreeBridgeEmitCore
         ///       → registered directly as NodeDeactivatorDelegate.
         ///   3 → ThreeParamReusable shape: (ref TDto, ref BehaviorTreeState, ref TCtx)
         ///       → bridge emits a wrapper lambda projecting TDto at <see cref="DtoByteOffset"/>.
+        ///   5 → ThreeParamReusableStateful shape (S3-G):
+        ///       (ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TCtx, int)
+        ///       → bridge emits a wrapper that projects TParams at <see cref="DtoByteOffset"/> AND the
+        ///         working state from the paired stateful node's partition slot, then registers under the
+        ///         node's full stateful key {fqn}@{offset}@{slotKey} (so the interpreter's
+        ///         deactivator lookup by node MethodName resolves it).
         /// </summary>
         public int ParamCount { get; set; }
 
         /// <summary>
-        /// Global C# type name of param-0 for 3-param deactivators (e.g. "global::Ns.EqsParams").
-        /// Null for 4-param deactivators (they use the full blackboard directly).
+        /// Global C# type name of param-0 for 3-param deactivators (e.g. "global::Ns.EqsParams") and the
+        /// params DTO for 5-param stateful deactivators. Null for 4-param deactivators (full blackboard).
         /// </summary>
         public string? DtoTypeFqn { get; set; }
 
         /// <summary>
-        /// Byte offset of the DTO within the blackboard for 3-param deactivators.
+        /// Byte offset of the DTO within the blackboard for 3-param and 5-param deactivators.
         /// Extracted from the suffix of <see cref="ActionKey"/> after the last '@'.
         /// Zero for 4-param deactivators (not used).
         /// </summary>
         public int DtoByteOffset { get; set; }
+
+        /// <summary>
+        /// (S3-G) Global C# type name of the working-state param (param-1) for 5-param stateful
+        /// deactivators, e.g. "global::Ns.HillAttackMutableState". Null for 3-/4-param deactivators.
+        /// </summary>
+        public string? WorkingStateTypeFqn { get; set; }
     }
 
     /// <summary>
@@ -403,7 +415,7 @@ public static class BTreeBridgeEmitCore
         // Must be registered BEFORE Interpreter construction (same ordering rule as thunks).
         if (deactivators != null && deactivators.Count > 0)
         {
-            EmitDeactivatorRegistrations(sb, deactivators, pad2, bbShort, ctxShort);
+            EmitDeactivatorRegistrations(sb, dto, packedFields, deactivators, pad2, bbShort, ctxShort);
         }
 
         sb.AppendLine();
@@ -1099,9 +1111,13 @@ public static class BTreeBridgeEmitCore
     /// For 4-param deactivators: registers the method directly.
     /// For 3-param deactivators: emits a wrapper lambda that projects the DTO at the baked offset
     /// and forwards to the 3-param method, mirroring the action-thunk pattern.
+    /// For 5-param stateful deactivators (S3-G): emits a wrapper that projects params + the paired
+    /// stateful node's partition slot, registered under the node's full {fqn}@{offset}@{slotKey} key.
     /// </summary>
     private static void EmitDeactivatorRegistrations(
         StringBuilder sb,
+        BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
         IReadOnlyList<DeactivatorEntry> deactivators,
         string pad2,
         string bbShort,
@@ -1120,6 +1136,34 @@ public static class BTreeBridgeEmitCore
                 // 4-param: matches NodeDeactivatorDelegate<TBB,TCtx> directly.
                 sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{d.ActionKey}\", {methodRef});");
             }
+            else if (d.ParamCount == 5)
+            {
+                // S3-G: stateful deactivator. Resolve the paired stateful node's slot key so the wrapper
+                // is registered under the node's full key {fqn}@{offset}@{slotKey} — the interpreter looks
+                // up deactivators by the node's blob MethodName, which is the full stateful key.
+                int? slotKey = ResolveStatefulDeactivatorSlotKey(dto, packedFields, d.ActionKey);
+                if (slotKey == null)
+                    continue; // paired stateful node not found — skip (should not happen for a matched key)
+
+                string fullKey = $"{d.ActionKey}@{slotKey.Value}";
+                sb.AppendLine($"{pad2}actionRegistry.RegisterDeactivator(\"{fullKey}\",");
+                sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+                sb.AppendLine($"{pad2}{Indent}{{");
+                sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{{");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint){d.DtoByteOffset}));");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project WorkingState from the entity's active partition tier (16384 → 4096 → 1024).");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey.Value};");
+                EmitStatefulDeactivatorTierBlock(sb, pad2, "16384", methodRef, d.WorkingStateTypeFqn!, slotKey.Value);
+                EmitStatefulDeactivatorTierBlock(sb, pad2, "4096", methodRef, d.WorkingStateTypeFqn!, slotKey.Value);
+                EmitStatefulDeactivatorTierBlock(sb, pad2, "1024", methodRef, d.WorkingStateTypeFqn!, slotKey.Value);
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// No tier component found — nothing to clean up.");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot {slotKey.Value}\");");
+                sb.AppendLine($"{pad2}{Indent}{Indent}}}");
+                sb.AppendLine($"{pad2}{Indent}}});");
+            }
             else
             {
                 // 3-param: emit a wrapper lambda that projects TDto at the baked byte offset,
@@ -1136,6 +1180,63 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}}});");
             }
         }
+    }
+
+    /// <summary>
+    /// S3-G: emits one tier-dispatch block for a stateful deactivator wrapper — mirrors the stateful
+    /// action thunk's tier block but returns void (deactivators have no return value).
+    /// </summary>
+    private static void EmitStatefulDeactivatorTierBlock(
+        StringBuilder sb, string pad2, string tierSize, string methodRef, string wsTypeFqn, int slotKey)
+    {
+        string tierType = $"global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard{tierSize}";
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (ctx.World.HasComponent<{tierType}>(ctx.Self))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}ref var tier = ref ctx.World.GetComponentRW<{tierType}>(ctx.Self);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}fixed (byte* mem = tier.Memory)");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}if (global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{{");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(mem + wsOff);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref ws, ref st, ref ctx, pi);");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}return;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false, \"S3-G: stateful deactivator slot {slotKey} missing from BlueprintBlackboard{tierSize}\");");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}return;");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}}}");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
+    }
+
+    /// <summary>
+    /// S3-G: resolves the FNV-1a slot key of the stateful node whose base action key
+    /// (<c>{MethodFqn}@{offset}</c>) equals <paramref name="actionKey"/>, so a 5-param deactivator can be
+    /// registered under the node's full <c>{MethodFqn}@{offset}@{slotKey}</c> key. Returns null if no
+    /// matching stateful node is present.
+    /// </summary>
+    private static int? ResolveStatefulDeactivatorSlotKey(
+        BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        string actionKey)
+    {
+        if (packedFields == null) return null;
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        foreach (var node in dto.Nodes)
+        {
+            if (node is not BTreeActionNodeDto actNode) continue;
+            var p = actNode.Action;
+            if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
+            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            string? targetField = p.ExpressionTargetField;
+            if (string.IsNullOrEmpty(targetField)) continue;
+            if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
+
+            if (string.Equals($"{p.MethodFqn}@{field.ByteOffset}", actionKey, StringComparison.Ordinal))
+                return ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
+        }
+        return null;
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
