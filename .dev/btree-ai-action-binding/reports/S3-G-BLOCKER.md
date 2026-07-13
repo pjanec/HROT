@@ -1,5 +1,9 @@
 # S3-G (DEMO GATE) — decisions resolved; stage 1 landed; stages 2–5 remain
 
+> **⚠️ SUPERSEDED / STALE (2026-07-13).** All S3-G stages (1–5) are now **complete, verified,
+> and pushed** — see `S3-G-STAGE2-DONE-STAGES345-DECISIONS.md` in this folder for the authoritative
+> status. The "stages 2–5 remain" framing below is out of date; kept only for historical context.
+
 **Updated:** 2026-07-12 (overnight run). Was a blocker; the design questions are now **decided** (with the user) and **stage 1 is implemented, verified, pushed**. This doc is now the continuation plan.
 
 ## Decisions (made with the user)

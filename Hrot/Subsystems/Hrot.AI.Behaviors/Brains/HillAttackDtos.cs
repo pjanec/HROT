@@ -84,8 +84,14 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
-    /// Mutable working state for the PlatoonHillAttack commander behavior, projected
-    /// via <c>Unsafe.As</c> onto <c>Blackboard1024.Memory</c> at the start of each tick.
+    /// Mutable working state for the PlatoonHillAttack commander behavior.
+    ///
+    /// <para>Since S3-G this lives in a <b>Behavior-scoped</b> <c>BlueprintBlackboard</c>
+    /// partition slot (provisioned by <c>BehaviorIngressSystem</c> from the behavior's
+    /// <c>StatefulWorkingSlots</c> manifest and projected into the stateful node delegates),
+    /// not in a fixed <c>Blackboard1024.Memory</c> offset via <c>Unsafe.As</c> — that legacy
+    /// hack was removed. See <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> and the
+    /// S3-G reports for the migration.</para>
     ///
     /// <para>All <c>fixed</c> arrays are sized to 8 entries, matching
     /// <c>UnitRoster.MaxSubordinates / 2</c> (maximum wave size from a 16-subordinate platoon).</para>
