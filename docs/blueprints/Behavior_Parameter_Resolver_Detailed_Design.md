@@ -16,7 +16,8 @@
 5. Runtime: registration, identity, and the resolver hook
 6. Mapping to the current implementation (ground truth)
 7. Open implementation gaps & phasing
-8. Cross-references / supersedes
+8. Blueprint & editor extension plan (G2 + G7 decomposed)
+9. Cross-references / supersedes
 
 ---
 
@@ -206,9 +207,57 @@ These are the pieces that do **not** exist yet and must be built (roughly in ord
 - **G6 — Retire `AiBehaviorFactory`** once G1–G5 land, moving each behavior's resolver reference + params onto its self-registration.
 - **G7 — Editor affordances:** the "detach authored shape" action, divergence detection, and the "Parameter resolver: None/Pick/Create" control with Library-function scaffolding. Builds on the existing `VariablesPanelControl` and `BehaviorUiCompiler`.
 
-Each gap is independently landable behind the others except where noted (G6 depends on G1–G5; the blueprint-resolver path depends on G2).
+Each gap is independently landable behind the others except where noted (G6 depends on G1–G5; the blueprint-resolver path depends on G2). §8 decomposes the two blueprint-heavy gaps (G2, G7) into concrete runtime/compiler and editor work, with a reuse strategy that avoids the two hardest pieces.
 
-## 8. Cross-references / supersedes
+## 8. Blueprint & editor extension plan (G2 + G7 decomposed)
+
+Verified against code on branch `claude/hill-attack-json-slice-3-7fbaf4` (2026-07-13). **Headline finding:** the Library dispatch path is *not* a stub — `LibraryEmitter.EmitClass` already emits a real `public static` C# method per `Function` graph, with a real body, and it compiles (`Hrot.Blueprints.Compiler/Emit/LibraryEmitter.cs:7-49`; `MathUtilsLib_EndToEndTests`). What is missing is everything *around* the call — a delegate, a registration slot, a way to reach it by name, struct-typed parameters, and world-singleton access — plus editor affordances to *create* Library/Function graphs (the editor is Instance-only in practice: New-Asset hardcodes `Dispatch = Instance` at `Hrot.Blueprints.Editor/BlueprintNewAssetService.cs:96`, the Library picker and "create function" command are documented but unbuilt). So the work is "add the seams around a working emitter," not "build Library dispatch from scratch."
+
+> ⚠️ **Trap:** `CallPeerBlueprintNode` / the "peer call" path *looks* like a cross-asset Library-call foundation but is **designed-only and non-functional** — it emits a class name (`__Peer_{id}_Bp`) that is never generated, so it would not compile if exercised. Do **not** build the resolver on it.
+
+### 8.1 Runtime + compiler work (decomposes G2)
+
+| # | Piece | Difficulty | Evidence / reuse |
+|---|---|---|---|
+| **R1** | A resolver **delegate type** + a `Functions` table on `BlueprintDefinition` | Mechanical | Copy the existing `EventHandlers` dict pattern (`Fdp.Toolkits/Blueprints/BlueprintDefinition.cs:19-20`); `TickDelegate`'s `(Span<byte>, ISimulationView, Entity, float)` shape (`BlueprintDelegates.cs:11-37`) is the template. |
+| **R2** | Emit **registration** for Library functions (populate that table) | Mechanical | `LibraryEmitter` already emits deterministically-named static methods; add a registrar loop mirroring the Instance `EventHandlers` emission. Today `EmitLibraryRegistration` stops at a bare marker (`Hrot.Blueprints.Compiler/Emit/CSharpEmitter.cs:194-205`, `StateSize=0`, no delegate). |
+| **R3** | **Struct/DTO-typed** graph inputs/outputs | Hard (architectural) | `StaticTypeRegistry` is a fixed scalar/vector/Entity list; Library assets are barred from declaring variables (`Stage2_Validate.cs:95-97`, BP1011). **Avoided by §8.3.** |
+| **R4** | **World-singleton reach** from a function (geo transform, entity map) | Medium | `NetworkEntityMap` already uses `SetSingletonManaged` (`Hrot.SimHost/SimHostApp.cs:482`); **geo transform does not** (passed by ref — gap G3). `ISimulationView` exposes no singleton accessor, but the compiler already downcasts `((EntityRepository)view)` (`EmissionContext.cs:71-74`), so the runtime accessor exists; no blueprint *node*/IR op reads a singleton yet. |
+| **R5** | **Invocation shim** in `BehaviorIngressSystem` | Small | Known seam (`BehaviorIngressSystem.cs:~119`), replaces the 2-arg `def.ParseParams(json, dst)` (`:96`); depends on R1–R4. |
+
+### 8.2 Editor work (decomposes G7)
+
+The editor is Instance-centric by omission: the data model supports all three kinds, but the "My Blueprint" Functions section is stubbed (`"editor.create-function"` declared, no handler) and there is a `Kind != Instance → continue` gate in the attach flow.
+
+| # | Editor piece | Note / reuse |
+|---|---|---|
+| **E1** | Create a Library asset + Function graph | **Cheap start:** `NewFromRecipeService` already round-trips any `Dispatch` through JSON clone — a Library recipe in `Recipes/Blueprints/` works today, zero code (proven by `NewAssetServiceTests`). Full fix = "New > Library" + a `create-function` handler. |
+| **E2** | Type a graph input as a specific authored DTO | Paired with R3. `GraphSignatureWindow` edits Inputs/Outputs but its type combo is a hardcoded scalar list; `Host/NodePinSchema.ReflectDataMembers` (`:663-689`) already decomposes a CLR type into per-field pins — the building block for §8.3. |
+| **E3** | Palette nodes for singleton / geo-convert / net-id→Entity | Paired with R4. Math/vector palette (`Normalize/Dot/Cross/Distance`) is reusable for `AttackDir`; `FunctionCallNode` "CLR method" mode is an interim escape hatch to hand-call a conversion helper without new node kinds. |
+| **E4** | Bind graph outputs → behavior `Role=Input` variables | Blueprint variables and behavior Role/Scope vars are **separate systems** today, with the blueprint side a hard-coded no-op (`Variables/BlueprintVariablesWindow.cs:179-181`). **Avoided by §8.3.** |
+| **E5** | "Create resolver" scaffolding from the params editor | Reuse `Hrot.Presentation/Behavior/BehaviorUiCompiler.BuildPropertyRenderers<TDto>` — it already reflects the authored DTO's pickable fields, exactly what a scaffold needs to pre-fill the graph signature. |
+| **E6** | "Detach authored shape" + divergence-detection UI | Lives on the behavior/BTree side, not the blueprint editor; nothing exists yet. |
+
+### 8.3 Reuse strategy — avoid the two hard pieces (R3 + E4)
+
+The only architecturally-hard pieces are R3 (struct pins in the general blueprint type system) and E4 (a cross-asset bridge from blueprint outputs to behavior variables). Both are **avoided** by riding the rail that stateful actions already use — the "**BTree owns layout, blueprint provides `TickCore`**" composition from `BTree_AiActionParameterBinding_Detailed_Design.md` §3.2, where the generated per-asset registrar emits an adapter that projects a struct at its baked offset and calls the blueprint's core function.
+
+Applied to the resolver:
+
+- The **generated per-asset behavior adapter** (not the blueprint) owns the marshalling: it reads the managed authored DTO's fields (via the getters `BehaviorUiCompiler` already compiles), fetches the two world services via `GetSingletonManaged`, calls the blueprint function, and writes the results into the usable-params slot at their known offsets.
+- The **blueprint function stays pure scalar-in / scalar-out**, which the type system already supports — decompose `firingLineStart` → two `float` inputs, `StartX/StartY/AttackDirX/…` → `float` outputs, using the existing `ReflectDataMembers` field-decomposition.
+
+This collapses R3 and E4 entirely (no struct pins, no cross-asset variable bridge). What genuinely remains new on the blueprint side shrinks to R1 + R2 (mechanical) plus getting the two world services into the function (R4 — either as adapter-supplied service arguments, or a small "read singleton" node). Geo-transform-as-singleton (G3) is required either way.
+
+The maximal alternative — a fully general struct-typed Library call ABI with a cross-asset variable bridge (R3 + E2 + E4 in full) — is worth building only if this decomposition rail is rejected; it should not be, given the adapter emission already exists.
+
+### 8.4 Phasing
+
+1. **Phase 1 — hardcoded resolver, no blueprint work.** G1 + G3 + G4 + G5. Retires `AiBehaviorFactory` and proves the whole model with a C# resolver reached via world singletons. Small.
+2. **Phase 2 — blueprint-authored resolver runnable.** R1 + R2 + R4 + the §8.3 adapter emission. Authored via a Library recipe / hand-JSON at first. Medium.
+3. **Phase 3 — editor ergonomics.** E1 + E3 + E5 + E6. Mostly UI. Medium–large.
+
+## 9. Cross-references / supersedes
 
 - **Supersedes** the factory-injected `ParseParams` closure model described operationally in `AI-Behavior-Authoring.md` §7.4 and `docs/AI_DEV_GUIDE.md` "Writing the ParseParamsDelegate" — those describe the current state this design replaces.
 - **Builds on** `BTree_AiActionParameterBinding_Detailed_Design.md` §4.4 (the `Node`/`Behavior`/`Entity` scoped-variable model; this doc adds the authored↔usable resolver on top of it) and `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` §4 (the once-at-assignment runtime pipeline; this doc names the previously-inline resolve step and makes it pluggable).
