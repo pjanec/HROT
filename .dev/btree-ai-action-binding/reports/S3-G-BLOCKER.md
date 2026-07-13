@@ -1,49 +1,43 @@
-# S3-G (DEMO GATE) — PARKED, needs a design decision before implementation
+# S3-G (DEMO GATE) — decisions resolved; stage 1 landed; stages 2–5 remain
 
-**Date:** 2026-07-12 (overnight autonomous run) · **Status:** blocked, not attempted (no code changed).
-**Context:** Slice-3 mechanism batches S3-3, S3-4, S3-5, S3-6, S3-7 are all **done, verified, pushed**. S3-G applies that mechanism to the *real* Hill Attack behavior. I stopped here deliberately per the "park if genuinely ambiguous rather than guess" instruction — S3-G touches production combat AI and I found genuine ambiguities that need an architect/user decision, not a guess.
+**Updated:** 2026-07-12 (overnight run). Was a blocker; the design questions are now **decided** (with the user) and **stage 1 is implemented, verified, pushed**. This doc is now the continuation plan.
 
-## What S3-G asks for (TASK-DETAIL §S3-G)
-Declare `HillAttackMutableState` (120 B) as a `Behavior`-scoped `state` variable in `PlatoonHillAttack.btree.json`; rebind `CalculateSegments`/`DispatchWave`/`IsWaveCompleted` to the 4-param `ThreeParamReusableStateful` shape; remove the `Blackboard1024 + Unsafe.As` hack; prove it with `T30_BehaviorScopedShared_ProofTests`.
+## Decisions (made with the user)
+1. **Keep the code `[BTreeDefinition]` builder** — do NOT obsolete it. It's a first-class code-first authoring path (valuable for AI-agent/code prototyping). It must support 4-param stateful nodes.
+2. **FastBTree stays generic** (no FDP-bound types in the ExtDep). Confirmed feasible: `BTreeBuilder.Action(NodeLogicDelegate<TBlackboard,TContext>, …)` (Fbt.Compiler/BTreeBuilder.cs:220) already accepts a raw 4-arg thunk. FDP curries `(param projection + partition-slot working-state projection via TContext=BTreeContext)` into that seam — **no FastBTree change needed**. The builder already handles in-blackboard working state (field projection); Slice 2/3 only added a *second*, partition-tier state region (FDP-specific), which the seam lets FDP inject.
+3. **Convert all 7 commander nodes + the deactivator** (not just the 3 named) — partial conversion would split state across the partition slot and Blackboard1024.
+4. **Staged, verify each.**
 
-## Why it's blocked — three concrete issues
+## Stage 1 — DONE (`2a888ed`), verified
+Authoring model for behaviors with **distinct** param + working-state variables (the real Hill Attack shape):
+- `BTreeActionPayloadDto.WorkingStateTargetField` names the working-state variable; its Role/Scope drive the slot key. Falls back to `ExpressionTargetField` (byte-identical for Slice-2).
+- `BTreeBridgeEmitCore.StatefulScopeVariable(p)` used at all three baked-key sites (thunk, topology, manifest) + role/scope.
+- `BTreeBlackboardPackHelper.Pack`/`WouldOverflow` **exclude State-role variables** from the ≤100B inline param region (they live in the partition tier) — so the 120B `HillAttackMutableState` won't overflow. Byte-identical for the Input-only corpus.
+- Slice-3 tests corrected to the two-variable model.
+- Gates: byte-identity 136/0; Generators 100/100; Fdp.Toolkit.Behavior 142/142; Presentation projection 6/6.
 
-### 1. Design gap: params vs working-state variable scoping (the blocker)
-The Slice-3 mechanism I built (S3-2/S3-3/S3-4/S3-7, exactly as TASK-DETAIL specified) derives a node's stateful slot **scope** from the variable named by the binding's **`ExpressionTargetField`** — i.e. `ResolveStatefulSlotKey(dto, p.ExpressionTargetField, …)` reads *that* variable's `Scope`.
+## Remaining stages (each its own verified commit)
 
-In every Slice-3 unit/proof test the bound variable and the stateful variable are the **same** authored variable. But real Hill Attack has **two distinct** variables:
-- `Params` — `PlatoonHillAttackParams` (52 B, the input param DTO; `ExpressionTargetField: "Params"` on all 7 nodes today).
-- `HillAttackMutableState` — 120 B working state (currently the `Blackboard1024` hack, `HeavyDtoType` in `AiBehaviorFactory`).
+### Stage 2 — FDP-side stateful code-builder helper
+Add a helper in `Fdp.Toolkit.Behavior` (NOT FastBTree) that binds a 4-param stateful method through the existing generic `Action(NodeLogicDelegate,…)` seam. It must:
+- curry a `NodeLogicDelegate<TBB,TCtx>` that: projects params (blackboard field/offset, as `Action<TValue>` does), dispatches across `BlueprintBlackboard{16384,4096,1024}` tiers, `TryGetSlotOffset(scopeKey)`, projects the working state, and calls `(ref TParams, ref TWorkingState, ref BehaviorTreeState, ref TCtx)` — the runtime analogue of the emitted JSON thunk (see `BTreeBridgeEmitCore.EmitStatefulActionThunks`);
+- compute the scope key with the **same** FNV-1a used by `ComputeStatefulSlotKey` (Node/Behavior/Entity);
+- surface a `StatefulSlotInfo` (SlotKey, PayloadSize=`Marshal.SizeOf<TWorkingState>()`, StructureHash, type, label, role, scope) so the caller assembles a `StatefulWorkingSlots` manifest for the `BehaviorDefinition`.
+- Design point to settle: how the manifest flows from the code builder to the `BehaviorDefinition`. For Hill Attack the **factory hand-builds** the def (`AiBehaviorFactory` ~184–191), so the factory can collect the helper's slot infos directly; a general `[BTreeDefinition]`→def path is a larger follow-up.
+- Tests: a code-built 2-node behavior sharing one Behavior var → one slot, shared cursor (mirror `S3_BehaviorScopedThunkTests` but via the builder).
 
-`BTreeActionPayloadDto` carries `ExpressionTargetField` (the params variable) + `WorkingStateTypeId` (a **type FQN**, not a variable name). There is **no field that names the working-state *variable***, so there is nowhere to attach the `Behavior` scope for the working state, and the scope resolver would read `"Params"` (Input/Node) → a Node-scoped key, not Behavior. 
+### Stage 3 — convert the 7 nodes + deactivator to 4-param
+`HillAttackCommanderNodes`: change `Action_CalculateSegments`, `Action_DispatchAllToBaseline`, `Action_RequestAreaQuery`, `Condition_IsAreaQueryResolved`, `Action_DispatchWaveWithTargets`, `Condition_IsWaveCompleted`, and `Deactivate_RequestAreaQuery` to take `ref HillAttackMutableState s` instead of the `ctx.World.GetComponentRW<Blackboard1024>() + Unsafe.As` projection. Rewire `BuildPlatoonHillAttackTree()` via the stage-2 helper. This removes the hack from the node bodies and keeps the code builder compiling + functional.
 
-**Decision needed:** how does a binding with distinct params + working-state variables carry the working-state scope? Options:
-- (a) Add a `WorkingStateTargetField` (variable name) to `BTreeActionPayloadDto`; declare `HillAttackMutableState` as a `state`/`Behavior` variable; have `ResolveStatefulSlotKey`/`ResolveVariableRoleScope` key off *that* field for stateful nodes. (Cleanest; small schema addition — but it's a schema/persistence change with byte-stability implications, so it needs sign-off.)
-- (b) Convention: for `ThreeParamReusableStateful`, `ExpressionTargetField` names the **working-state** variable and the params come from a fixed/implicit slot. (Changes the meaning of an existing field.)
-- (c) Something else per the architect's intent in AIB-DD §4.4.5.
+### Stage 4 — JSON + factory
+- `PlatoonHillAttack.btree.json`: declare `HillAttackMutableState` as a `state`/`Behavior` variable; set each of the 7 nodes' binding to `ThreeParamReusableStateful` with `WorkingStateTargetField` = that variable + `WorkingStateTypeId`.
+- `AiBehaviorFactory`: drop `HeavyDtoType = typeof(HillAttackMutableState)`; carry the partition-slot `StatefulWorkingSlots` manifest instead (from the JSON registrar's def, or hand-assembled).
 
-This is an authoring-schema decision, not a mechanical edit.
+### Stage 5 — remove the hack + T30 proof
+- Confirm no remaining `Blackboard1024`/`Unsafe.As<…,HillAttackMutableState>` references.
+- `T30_BehaviorScopedShared_ProofTests`: `HillAttack_SharedState_PersistsAcrossNodes` (generate→compile→provision→tick; a mask written by DispatchWave is read by IsWaveCompleted via the one shared slot) + `HillAttack_NoBlackboard1024Access` (generated code no longer references the hack).
+- Byte-identity gate green throughout.
 
-### 2. Scope discrepancy: 3 named nodes vs 7 that use the state
-TASK-DETAIL names 3 nodes, but **7** access `HillAttackMutableState` via the hack: `Action_CalculateSegments`, `Action_DispatchAllToBaseline`, `Action_RequestAreaQuery`, `Condition_IsAreaQueryResolved`, `Action_DispatchWaveWithTargets`, `Condition_IsWaveCompleted`, plus the `Deactivate_RequestAreaQuery` deactivator. Converting only 3 would split the state across two backing stores (partition slot for the converted 3, `Blackboard1024` for the other 4) → **two divergent copies of one logical state → silently broken combat AI.** Full hack removal must convert **all 7 + the deactivator** atomically. Confirm the intended scope is all-7.
-
-### 3. Code-builder vs JSON duality
-`HillAttackCommanderNodes.cs` has BOTH:
-- a code `[BTreeDefinition("PlatoonHillAttack")] BuildPlatoonHillAttackTree()` using `[BTreeAction]` 3-param methods, and
-- the committed `PlatoonHillAttack.btree.json` (which `AiBehaviorFactory` builds via `PlatoonHillAttack.Build()` — the generated topology).
-
-Converting the methods to the 4-param stateful shape breaks the `[BTreeAction]`/code-builder path (`.Action(bb => bb.Params, Action_CalculateSegments)` expects the 3-param delegate; `[BTreeAction]` auto-registration is 3-param only). Decision needed: is the code builder dead (delete it) or must it stay in sync (and if so, how, given stateful nodes aren't `[BTreeAction]`)?
-
-## What is NOT a blocker (confirmed feasible)
-- `HillAttackMutableState` is a blittable `unsafe` struct with `fixed` buffers → fine for a partition slot + `Marshal.SizeOf` (120 B), well within any tier.
-- The runtime plumbing (scope-aware key, shared-slot provisioning/dedup, clear-detach, monitoring) is done and verified — once the authoring model above is decided, the emit/runtime side is ready.
-
-## Recommended path (for the morning)
-1. Decide issue #1 (recommend option **a**: add `WorkingStateTargetField` to the binding DTO with omit-when-default byte-stability, and resolve stateful scope from it). This is itself a small batch (call it S3-G-pre) with its own byte-identity gate.
-2. Convert **all 7** nodes + deactivator to the 4-param shape; delete or reconcile the code builder (#3).
-3. Author `HillAttackMutableState` as a `Behavior`-scoped `state` var in `PlatoonHillAttack.btree.json`; drop `HeavyDtoType` from the factory; remove the `Blackboard1024` hack.
-4. `T30_BehaviorScopedShared_ProofTests` (generate→compile→provision→tick) + `HillAttack_NoBlackboard1024Access` (assert the generated code no longer references `Blackboard1024`/`Unsafe.As` for this state).
-
-## Environment note (important for whoever picks this up)
-This session's container had **no .NET SDK** and the dotnet download hosts are egress-403. I installed `dotnet-sdk-8.0` via `apt` from `packages.microsoft.com` (reachable) — `apt-get install -y dotnet-sdk-8.0`. All Slice-3 verification this session ran on that. A fresh container will need the same install before it can build/test.
+## Environment note
+No .NET SDK preinstalled + dotnet download hosts are egress-403. Installed `dotnet-sdk-8.0` via `apt` from `packages.microsoft.com` (reachable): `apt-get install -y dotnet-sdk-8.0`. A fresh container needs this before build/test.
 </content>
