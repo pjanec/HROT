@@ -82,6 +82,12 @@ namespace Hrot.SimHost.Tests
 
         // ── Helper: get mutable hill attack state ─────────────────────────────────
 
+        // These are direct node-logic UNIT tests: they invoke the node methods with an explicit
+        // `ref HillAttackMutableState`, so a Blackboard1024 component is used purely as a convenient
+        // per-entity scratch buffer for that ref. This is NOT the production working-state path — in
+        // production (and in T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped
+        // BlueprintBlackboard* partition slot; the Blackboard1024 + Unsafe.As hack was removed from the
+        // node bodies in S3-G.
         private static ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
         {
             ref var heavy = ref repo.GetComponentRW<Blackboard1024>(entity);
