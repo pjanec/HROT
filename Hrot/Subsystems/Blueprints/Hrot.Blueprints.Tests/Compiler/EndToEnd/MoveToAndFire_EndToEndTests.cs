@@ -83,21 +83,16 @@ public sealed class MoveToAndFire_BTreeTick_Tests : IDisposable
 
     public void Dispose() => _fixture.Dispose();
 
-    // SKIP REASON: 7 interacting bugs block this test path (all Phase 5 scope):
-    //   1. Stage5 GetSingleExecSuccessor returns null for JSON nodes with empty Pins — BFS terminates
-    //      after EventEntry, producing empty TickCore body (returns Failure immediately).
-    //   2. IrOp_ChannelCommand.ChannelComponentTypeFqn uses short name ("LocomotionChannel") →
-    //      emits invalid `global::LocomotionChannel` (needs full FQN from catalog).
-    //   3. ActionId = "MoveTo" is emitted verbatim → invalid `__ch.ActiveAction = MoveTo;`
-    //      (needs numeric value from catalog lookup).
-    //   4. IrOp_PureCall("op_Eq_NodeStatus", ...) emits `global::op_Eq_NodeStatus(...)` — not valid C#.
-    //   5. IrOp_Const("NodeStatus.Running", ...) emits unqualified `NodeStatus.Running` — unresolved.
-    //   6. IrOp_PureCall("op_Eq_Byte", ...) emits `global::op_Eq_Byte(...)` — not valid C#.
-    //   7. Fbt.NodeStatus.Success=1 vs Hrot.Blueprints.Core.Assets.NodeStatus.Failure=1 — enum mismatch
-    //      makes the not-running branch route Success→Failure at runtime.
-    //   Fix tracked as CP-Phase5: populate catalogs, fix Stage5 JSON traversal, fix op emission.
-    [Fact(Skip = "Phase 5 scope: WaitForChannel lowering requires catalog FQN resolution, Stage5 JSON " +
-                 "pin traversal fix, NodeStatus enum alignment, and op_Eq_* emission fix.")]
+    // Previously part of a "7 interacting bugs" skip block. Most of those were fixed in-tree
+    // (Stage0_Rehydrate pin rehydration; Stage5_Schedule catalog-driven FQN/ActionId lookup;
+    // StatementEmitter TryGetSynthesizedOpInfix + NodeStatus FQN-qualification), so the first-tick
+    // (channel-idle → Running) path now works and this test is re-enabled (verified 2026-07-13).
+    // The second-tick channel-complete path is still broken — see BTreeTick_AfterChannelComplete
+    // below, which remains skipped. NOTE: this exercises the generated TickCore directly (via
+    // BlueprintTestFixture.InvokeBTreeAction reflection); it does NOT exercise a real BTree interpreter
+    // binding — that end-to-end path is the still-open I1 registration wire (DEBT-AIB-025), see
+    // MoveToAndFire-Bug-Triage-2026-07-13.md.
+    [Fact]
     public void BTreeTick_FirstCall_ReturnsRunning_WhenChannelIsIdle()
     {
         // Arrange: compile → load → register
@@ -112,8 +107,13 @@ public sealed class MoveToAndFire_BTreeTick_Tests : IDisposable
         Assert.Equal(NodeStatus.Running, status);
     }
 
-    [Fact(Skip = "Phase 5 scope: WaitForChannel lowering requires catalog FQN resolution, Stage5 JSON " +
-                 "pin traversal fix, NodeStatus enum alignment, and op_Eq_* emission fix.")]
+    // STILL FAILING (confirmed 2026-07-13): after the channel completes, Tick 2 returns Failure
+    // instead of Success — the channel-complete branch mis-routes (consistent with the old
+    // NodeStatus enum-mismatch / Return-path bug, which — unlike the other 6 in the removed 7-bug
+    // list — is NOT yet fixed). Kept skipped until the WaitForChannel→Return success path is
+    // corrected. Tracked alongside I1 (see MoveToAndFire-Bug-Triage-2026-07-13.md).
+    [Fact(Skip = "Channel-complete path returns Failure instead of Success on Tick 2 — real bug, " +
+                 "not yet fixed (verified 2026-07-13). See MoveToAndFire-Bug-Triage report.")]
     public void BTreeTick_AfterChannelComplete_ReturnsSuccess()
     {
         // Arrange: compile → load → register → Tick 1
