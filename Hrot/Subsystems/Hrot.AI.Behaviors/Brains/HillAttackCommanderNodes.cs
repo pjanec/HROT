@@ -35,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         // Integer ID of the HullDownAttackRun subordinate behavior.
         // Compared against BehaviorState.ActiveBehaviorHash to detect run start / end.
-        private const int HullDownAttackRunBehaviorId = 3013;
+        private static readonly int HullDownAttackRunBehaviorId = BehaviorHash.FromName("HullDownAttackRun");
 
         // ── Phase 4.1: Setup nodes ────────────────────────────────────────────────
 

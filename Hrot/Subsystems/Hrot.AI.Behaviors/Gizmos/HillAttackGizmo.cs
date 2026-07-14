@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
@@ -16,7 +17,7 @@ namespace Hrot.AI.Behaviors.Gizmos
     public sealed class HillAttackGizmo : IStatelessGizmo
     {
         // Hash value of PlatoonHillAttack_BT from BehaviorIds (= 3014).
-        private const int PlatoonHillAttack_BT = 3014;
+        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName("PlatoonHillAttack");
 
         private readonly GizmoSettingsRegistry _settings;
 

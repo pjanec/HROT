@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
@@ -169,7 +170,7 @@ namespace Hrot.IG.Tests.Gizmos
 
             repo.AddComponent(entity, new BehaviorState
             {
-                ActiveBehaviorHash = 3014,  // PlatoonHillAttack_BT
+                ActiveBehaviorHash = BehaviorHash.FromName("PlatoonHillAttack"),  // PlatoonHillAttack_BT
                 InstanceId         = 1,
                 BrainTier          = 0
             });

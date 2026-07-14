@@ -1165,7 +1165,7 @@ namespace Hrot.SimHost.Tests
 
             var attacker = repo.CreateEntity();
             // HullDownAttackRunBehaviorId == 3013.
-            repo.AddComponent(attacker, new BehaviorState { ActiveBehaviorHash = 3013 });
+            repo.AddComponent(attacker, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName("HullDownAttackRun") });
 
             ref var s = ref GetHeavyState(repo, commander);
             s.ActiveAttackerCount  = 1;
@@ -1188,7 +1188,7 @@ namespace Hrot.SimHost.Tests
             unsafe { Assert.Equal(1, s.HasStartedRun[0]); }
 
             // Tick T+1: hash no longer == 3013, run considered finished.
-            repo.GetComponentRW<BehaviorState>(attacker).ActiveBehaviorHash = 3010;  // Idle
+            repo.GetComponentRW<BehaviorState>(attacker).ActiveBehaviorHash = BehaviorHash.FromName("Idle");  // Idle
             var r2 = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
 
             Assert.Equal(NodeStatus.Success, r2);
@@ -1362,7 +1362,7 @@ namespace Hrot.SimHost.Tests
             var registry = new BehaviorRegistry();
             AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
 
-            Assert.True(registry.TryGetDefinition(3014, out var def),
+            Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("PlatoonHillAttack"), out var def),
                 "PlatoonHillAttack (id 3014) should be registered");
             Assert.Equal("PlatoonHillAttack", def.Name);
             Assert.Equal(BehaviorConstants.BrainTierBTree, def.BrainTier);
@@ -1402,7 +1402,7 @@ namespace Hrot.SimHost.Tests
             ingress.Execute(repo, 0.016f);
 
             var bs = repo.GetComponent<BehaviorState>(commander);
-            Assert.Equal(3014, bs.ActiveBehaviorHash);
+            Assert.Equal(BehaviorHash.FromName("PlatoonHillAttack"), bs.ActiveBehaviorHash);
         }
 
         /// <summary>HAJSON-B: the factory-registered PlatoonHillAttack + HullDownAttackRun blobs must bake
@@ -1415,7 +1415,7 @@ namespace Hrot.SimHost.Tests
             AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
 
             // Commander (stateful, Behavior-scoped): RequestAreaQuery ↔ Deactivate_RequestAreaQuery.
-            Assert.True(registry.TryGetDefinition(3014, out var commanderDef));
+            Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("PlatoonHillAttack"), out var commanderDef));
             int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
                 new Guid("1a000000-0000-0000-0000-0000000000dd"),
                 Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior, Guid.Empty, "State");
@@ -1423,7 +1423,7 @@ namespace Hrot.SimHost.Tests
                 $"Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@{slotKey}");
 
             // Tank subordinate (non-stateful): CreepToAndBeyondSlot / AimAndFireSpecific deactivators.
-            Assert.True(registry.TryGetDefinition(3013, out var tankDef));
+            Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("HullDownAttackRun"), out var tankDef));
             AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
                 "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0");
             AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
@@ -1578,7 +1578,7 @@ namespace Hrot.SimHost.Tests
             var registry = new BehaviorRegistry();
             AiBehaviorFactory.BuildRegistrationAction(null, new NetworkEntityMap())(registry);
 
-            Assert.True(registry.TryGetDefinition(3014, out var def));
+            Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("PlatoonHillAttack"), out var def));
             Assert.NotNull(def.ParseParams);
         }
 

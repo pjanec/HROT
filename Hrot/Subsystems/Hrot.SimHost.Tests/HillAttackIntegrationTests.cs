@@ -57,10 +57,10 @@ namespace Hrot.SimHost.Tests
         private SpatialHashGrid _grid;
 
         // PlatoonHillAttack behavior integer ID (stable; must not change).
-        private const int PlatoonHillAttack_BT = 3014;
+        private static readonly int PlatoonHillAttack_BT = BehaviorHash.FromName("PlatoonHillAttack");
 
         // HullDownAttackRun behavior integer ID (stable; must not change).
-        private const int HullDownAttackRun_BT = 3013;
+        private static readonly int HullDownAttackRun_BT = BehaviorHash.FromName("HullDownAttackRun");
 
         public HillAttackIntegrationTests()
         {

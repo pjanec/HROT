@@ -32,14 +32,14 @@ namespace Hrot.AI.Behaviors
     {
         // Behavior integer IDs.  Mirror of CgfBehaviorIds in Hrot.CGF.
         // Values are stable and must never change once published.
-        private const int MoveTo_BT         = 3001;
-        private const int FollowRoute_BT    = 3002;
-        private const int JoinFormation_BT  = 3003;
-        private const int Idle_HSM          = 3010;
-        private const int WanderMilitary_BT = 3011;
-        private const int FireAtTarget_BT       = 3012;
-        private const int HullDownAttackRun_BT   = 3013;
-        private const int PlatoonHillAttack_BT   = 3014;
+        private static readonly int MoveTo_BT         = BehaviorHash.FromName("MoveToLocation");
+        private static readonly int FollowRoute_BT    = BehaviorHash.FromName("FollowRoute");
+        private static readonly int JoinFormation_BT  = BehaviorHash.FromName("JoinFormation");
+        private static readonly int Idle_HSM          = BehaviorHash.FromName("Idle");
+        private static readonly int WanderMilitary_BT = BehaviorHash.FromName("WanderMilitary");
+        private static readonly int FireAtTarget_BT       = BehaviorHash.FromName("FireAtTarget");
+        private static readonly int HullDownAttackRun_BT   = BehaviorHash.FromName("HullDownAttackRun");
+        private static readonly int PlatoonHillAttack_BT   = BehaviorHash.FromName("PlatoonHillAttack");
 
         /// <summary>
         /// Entry point used by <c>AiHotReloadCoordinator</c> attribute-driven discovery.

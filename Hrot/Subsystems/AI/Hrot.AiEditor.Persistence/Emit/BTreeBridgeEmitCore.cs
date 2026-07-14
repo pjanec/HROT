@@ -448,7 +448,7 @@ public static class BTreeBridgeEmitCore
 
         // 4b. Register definition
         sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
-        sb.AppendLine($"{pad2}beh.Register({behaviorId}, \"{name}\", new BehaviorDefinition");
+        sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
