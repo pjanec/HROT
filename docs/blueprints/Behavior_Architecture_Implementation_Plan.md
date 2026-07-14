@@ -1,5 +1,18 @@
 # Behavior Architecture — Sequenced Implementation Plan
 
+> **Progress (2026-07-14, cont.):** **Phase 3 partially landed —** **I1** (AiPrimitive BTree
+> actions register into the FastBTree `ActionRegistry` and run through a real interpreter tick;
+> canary `MoveToAndFire_InterpreterTick_Tests`) and **G2 R1+R2** (Library blueprint functions are
+> runtime-invocable by name via `BlueprintDefinition.Functions` + `LibraryFunctionDelegate`; test
+> `LibraryFunction_InvokeTests`) are **DONE** and green. **Remaining Phase 3/4 is editor-gated
+> (needs the Windows box to verify):** **I4** (discovery so blueprint actions appear in the node
+> palette — the `ActionSchemaExporter` derives its DTO from the first ref param, which doesn't fit
+> the AiPrimitive thunk shape, so it needs an attribute-carried DTO or a parallel catalog; payoff is
+> the palette), **I2/I3** (compose a blueprint action as a host-BTree node with partition-slot
+> working state — runtime/codegen is headless-testable, but its authoring is the editor), **G2 R4 +
+> §8.3** (world-services-into-function + the authored↔usable adapter that complete the fully-visual
+> resolver, with G7 authoring UX), and all of **Phase 4**. Handed off at the Windows boundary.
+>
 > **Progress (2026-07-14):** **Phase 1 (name-as-identity) — DONE. Phase 2 (resolver + retire
 > `AiBehaviorFactory`) — DONE (2a, 2b, 2c). Phase 1e (duplicate-name hard error) — DONE.**
 > The factory is deleted; every behavior self-registers under its unique name via `[BlueprintRegistrar]`
