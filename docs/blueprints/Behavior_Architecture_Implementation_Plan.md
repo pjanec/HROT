@@ -9,7 +9,10 @@
 > palette — the `ActionSchemaExporter` derives its DTO from the first ref param, which doesn't fit
 > the AiPrimitive thunk shape, so it needs an attribute-carried DTO or a parallel catalog; payoff is
 > the palette), **I2/I3** (compose a blueprint action as a host-BTree node with partition-slot
-> working state — runtime/codegen is headless-testable, but its authoring is the editor), **G2 R4 +
+> working state — **codegen DONE** `0ad72ad`: `BTreeDelegateShapeDto.AiPrimitiveTickCore` + bridge
+> `EmitBlueprintActionThunks` dispatching to the blueprint `TickCore` over a partition slot, shared
+> stateful scaffold, byte-identity intact, emit tests green; **remaining:** the cross-pipeline runtime
+> e2e and the editor authoring), **G2 R4 +
 > §8.3** (world-services-into-function + the authored↔usable adapter that complete the fully-visual
 > resolver, with G7 authoring UX), and all of **Phase 4**. Handed off at the Windows boundary.
 >
