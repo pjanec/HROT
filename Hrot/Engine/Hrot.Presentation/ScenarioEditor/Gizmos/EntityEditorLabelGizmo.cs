@@ -31,6 +31,9 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         private readonly BehaviorRegistry _behaviorRegistry;
 
+        // DIAGNOSTIC (temporary): dedup set so the "?" miss log fires once per distinct hash.
+        private static readonly System.Collections.Generic.HashSet<int> _loggedMissingHashes = new();
+
         public EntityEditorLabelGizmo(BehaviorRegistry behaviorRegistry)
         {
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
@@ -71,6 +74,19 @@ namespace Hrot.ScenarioEditor.Gizmos
                 }
                 else
                 {
+                    // DIAGNOSTIC (temporary): the label could not resolve this entity's
+                    // ActiveBehaviorHash to a name — this is the "?" regression. Log the failing
+                    // hash, the exact registry instance this gizmo reads, and its full contents,
+                    // ONCE per distinct hash so it cannot flood. Compare the instance id here
+                    // against the one the ingress/coordinator logs to tell "missing entry" apart
+                    // from "wrong registry instance"; the name=id list reveals id/hash mismatch.
+                    if (_loggedMissingHashes.Add(bs.ActiveBehaviorHash))
+                    {
+                        Console.WriteLine(
+                            $"[LabelGizmo] '?' — no name for ActiveBehaviorHash={bs.ActiveBehaviorHash} " +
+                            $"(NetId={netId.Value}). Reading {_behaviorRegistry.DebugDump()}");
+                    }
+
                     draw.DrawText(baseX, baseY, new FixedString32("?"), BehaviorColor,
                         fontSizePx: 13f, lineOffsetPx: -30f);
                 }
